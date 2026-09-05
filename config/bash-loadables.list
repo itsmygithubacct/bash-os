@@ -1,0 +1,109 @@
+# config/bash-loadables.list — loadables compiled into bash-os as static
+# builtins. NAME[|short-doc], one per line; '#' comments, blanks ignored
+# (config/loadables.sh is the one parser). A NAME resolves to loadables/NAME.c
+# in this repo, or to bash's own examples/loadables/NAME.c from the pinned
+# tarball (the stock set). build.sh injects them; num_shell_builtins self-sizes.
+#
+# Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
+# the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
+# left in that project. 99 entries. See docs/PROVENANCE.md.
+
+basename|basename
+cat|cat
+chmod|chmod
+cut|cut
+dirname|dirname
+head|head
+id|id
+ln|ln
+logname|logname
+mkdir|mkdir
+mkfifo|mkfifo
+mktemp|mktemp
+pathchk|pathchk
+printenv|printenv
+realpath|realpath
+rm|rm
+rmdir|rmdir
+seq|seq
+sleep|sleep
+stat|stat
+strftime|strftime
+strptime|strptime
+sync|sync
+tee|tee
+tty|tty
+uname|uname
+unlink|unlink
+whoami|whoami
+fdflags|fdflags
+finfo|finfo
+fltexpr|fltexpr
+getconf|getconf
+setpgid|setpgid
+bashio|bashio
+bashpoll|bashpoll
+bashinotify|bashinotify
+bashclock|bashclock
+bashjson|bashjson
+binhex|binhex
+bashbase64|bashbase64
+bashtermraw|bashtermraw
+bashkmod|bashkmod
+bashmount|bashmount
+bashlogger|bashlogger
+bashsyslogd|bashsyslogd
+ls|ls [OPTION]... [FILE]...
+cp|cp [-r] SRC... DST
+mv|mv SRC... DST
+touch|touch FILE...
+find|find [PATH] [EXPR]
+sed|sed [OPTION] SCRIPT [FILE]
+sort|sort [OPTION] [FILE]
+tail|tail [-n N] [-f] [FILE]
+wc|wc [-clw] [FILE]
+readlink|readlink [-f] FILE
+ps|ps snapshot of processes
+free|free memory summary
+dd|dd if= of= ...
+df|df [FILE]
+du|du [FILE]
+reboot|reboot the system
+halt|halt the system
+poweroff|power off the system
+chown|chown OWNER[:GROUP] FILE...
+rngseed|Credit and refresh the kernel random seed
+rtspcat|RTSP/RTP H.264 client, access units out as framed records
+httpd|HTTP server primitive: listen, accept one request, reply
+chgrp|chgrp GROUP FILE...
+tr|tr
+uniq|uniq
+nl|nl
+od|od
+cmp|cmp
+date|date
+env|env
+xargs|xargs
+truncate|truncate
+hostname|hostname
+rev|rev
+fold|fold
+comm|comm
+paste|paste [-d LIST] FILE...
+pgrep|pgrep PATTERN
+pidof|pidof NAME
+killall|killall NAME
+killall5|killall5 -SIG
+pkill|pkill PATTERN
+grep|grep [-EFivwcnrl] PATTERN [FILE]
+ip|ip addr|link|route ...
+bashdhcp|DHCPv4 client (RFC2131 DISCOVER/OFFER/REQUEST/ACK + parse-message)
+nice|nice [-n N] CMD
+nohup|nohup CMD
+link|link TARGET NAME
+blkid|blkid [DEV]
+lsblk|lsblk
+diff|diff A B
+ss|ss [-tuln]
+netstat|netstat -tuln (via ss backend)
+ping|ping [-c N] HOST

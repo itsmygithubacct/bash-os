@@ -1,0 +1,5 @@
+# build products and the extracted bash tree
+/build/
+/dl/
+/out/
+*.stage.*
