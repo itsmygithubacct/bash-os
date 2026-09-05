@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* reboot-impl.h — the shared body of the reboot/halt/poweroff builtins.
  *
  * All three are the same reboot(2) wrapper differing only in the RB_* command

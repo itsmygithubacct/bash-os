@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* bashnetstat.c — netstat(8) surface (legacy column headers) on top of
  *                  bashss's sock_diag + /proc/net machinery.
  *

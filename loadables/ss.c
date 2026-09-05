@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* bashss.c — ss(8) subset over NETLINK_SOCK_DIAG with /proc/net fallback.
  *
  * v1 verbs (ML-T4-03 surface, do not extend without bumping doc fence):

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* baship.c — iproute2 `ip` subset over rtnetlink (AF_NETLINK/NETLINK_ROUTE)
  *
  * Promoted verbs:

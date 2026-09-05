@@ -13,40 +13,72 @@
 #      and splice rows into shell_builtins[]. bash 5.3 computes num_shell_builtins
 #      from sizeof(), so nothing else changes.
 #
-# Usage:  ./build.sh [--list FILE] [--static] [--clean]
+# Usage:  ./build.sh [--list FILE] [--static] [--no-strip] [--clean]
 #   --list FILE   loadable list to inject   (default config/bash-loadables.list)
-#   --static      link the binary statically (a single-file bash-os)
+#   --static      link the binary statically (a single self-contained file)
+#   --no-strip    keep symbols in the output (default: stripped)
 #   --clean       force a full rebuild
-#   CC=... JOBS=N BASH_TARBALL=/path/to/bash-5.3.tar.gz   env overrides
+#   env:  CC=… JOBS=N CFLAGS=… LOCAL_LIBS=… CONFIGURE_EXTRA=… BASH_TARBALL=/path
 #
-# Cross-compiling for a device: set CC to your cross gcc and pass its
-# --host to configure via CONFIGURE_EXTRA; bash-os makes no host assumption.
-# Output: out/bash and out/MANIFEST.txt.
+# Outputs (each with .manifest.txt, .log and .stamp beside it):
+#   out/bash                host, the default list
+#   out/bash-pure           host, config/bash-loadables-pure.list
+#   out/bash-static         host, --static            (tags combine: bash-pure-static)
+#   out/<triple>/bash…      a cross build: CC is a cross compiler, or
+#                           CONFIGURE_EXTRA carries --host=
+#
+# Cross-compiling:  CC=<triple>-gcc ./build.sh   — that is all. --host is added,
+# and because a cross configure cannot run its test programs, the Linux answers
+# it needs (job control, named pipes, /dev/fd, …) are supplied below.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); cd "$HERE"
 source config/versions.sh
 source config/loadables.sh
 
-LIST="config/bash-loadables.list"; STATIC=0; CLEAN=0
+LIST="config/bash-loadables.list"; STATIC=0; STRIP=1; CLEAN=0
 while [[ $# -gt 0 ]]; do case "$1" in
   --list) LIST="$2"; shift 2 ;;
   --static) STATIC=1; shift ;;
+  --no-strip) STRIP=0; shift ;;
   --clean) CLEAN=1; shift ;;
   *) echo "build.sh: unknown arg $1" >&2; exit 2 ;;
 esac; done
-CC="${CC:-cc}"; JOBS="${JOBS:-$(nproc)}"
-DL="$HERE/dl"; OUT="$HERE/out"; SRC="$HERE/build/bash-$BASH_SRC_VERSION"; LOG="$OUT/build.log"
 die(){ echo "build.sh: $*" >&2; exit 1; }
 say(){ echo "build.sh: $*"; }
 [[ -f "$LIST" ]] || die "no such list: $LIST"
+LIST=$(cd "$(dirname "$LIST")" && pwd)/$(basename "$LIST")     # absolute: we cd into the tree later
+CC="${CC:-cc}"; JOBS="${JOBS:-$(nproc)}"
+DL="$HERE/dl"; SRC="$HERE/build/bash-$BASH_SRC_VERSION"
+
+# --- target and output naming ----------------------------------------------
+TARGET=$("$CC" -dumpmachine 2>/dev/null) || die "cannot run CC=$CC"
+HOSTM=$(cc -dumpmachine 2>/dev/null || echo "$TARGET")
+CROSS=0; [[ "$TARGET" != "$HOSTM" || "${CONFIGURE_EXTRA:-}" == *--host=* ]] && CROSS=1
+LISTTAG=$(basename "$LIST" .list); LISTTAG=${LISTTAG#bash-loadables}; LISTTAG=${LISTTAG#-}
+NAME="bash${LISTTAG:+-$LISTTAG}"; [[ $STATIC == 1 ]] && NAME="$NAME-static"
+OUTDIR="$HERE/out"; [[ $CROSS == 1 ]] && OUTDIR="$HERE/out/$TARGET"
+OUTBIN="$OUTDIR/$NAME"; LOG="$OUTBIN.log"; STAMPFILE="$OUTBIN.stamp"; MANIFEST="$OUTBIN.manifest.txt"
+STRIPTOOL=strip; [[ "$CC" == *-gcc ]] && STRIPTOOL="${CC%-gcc}-strip"
+
+# Hardened by default; a consumer overrides CFLAGS/LDFLAGS_EXTRA wholesale.
+CFLAGS="${CFLAGS:--O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2}"
+LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
+# LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
+# fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz).
+LOCAL_LIBS="${LOCAL_LIBS:--lm}"
+# A cross configure cannot run test programs; these are the Linux answers.
+CROSS_CACHE=(bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present
+  bash_cv_sys_named_pipes=present bash_cv_func_sigsetjmp=present bash_cv_printf_a_format=yes
+  bash_cv_ulimit_maxblocks=yes bash_cv_unusable_rtsigs=no bash_cv_wcwidth_broken=no
+  bash_cv_dev_fd=standard bash_cv_dev_stdin=present)
+CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_EXTRA:-}" == *--host=* ]] || CFGX+=("--host=$TARGET"); fi
 
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
-mkdir -p "$OUT" "$DL" build
-STAMPFILE="$OUT/.stamp"
-STAMP=$( { echo "$BASH_SRC_SHA256 $BASH_PATCHLEVEL $STATIC $CC"; cat "$LIST";
-           find loadables -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
-if [[ "$CLEAN" != 1 && -f "$OUT/bash" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
-  say "up to date — $OUT/bash (pass --clean to force)"; exit 0
+mkdir -p "$OUTDIR" "$DL" build
+STAMP=$( { echo "$BASH_SRC_SHA256 $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
+           cat "$LIST"; find loadables -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
+if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
+  say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
 : > "$LOG"
 
@@ -76,14 +108,12 @@ for d in "$HERE"/loadables/_*/; do
   for f in "$d"*.h; do flat="${base}_$(basename "$f")"; cp "$f" "builtins/$flat"; cp "$f" "examples/loadables/$flat"; done
 done
 shopt -u nullglob
-# stock loadables carry their own headers relative to examples/loadables/;
-# make them visible from builtins/ too.
 cp examples/loadables/*.h builtins/ 2>/dev/null || true
 
 # --- 4. the injected set: into builtins/ with include fixups + un-static ----
-mapfile -t NAMES < <(loadables_names "$HERE/$LIST") || die "cannot parse $LIST"
+mapfile -t NAMES < <(loadables_names "$LIST") || die "cannot parse $LIST"
 (( ${#NAMES[@]} > 0 )) || die "empty list"
-say "injecting ${#NAMES[@]} loadables"
+say "injecting ${#NAMES[@]} loadables ($NAME, $TARGET)"
 for n in "${NAMES[@]}"; do
   src="examples/loadables/$n.c"; [[ -f "$src" ]] || die "no source for '$n' ($src) — neither loadables/$n.c nor a stock example"
   sed -e 's|#include "builtins.h"|#include "../builtins.h"|' \
@@ -134,15 +164,10 @@ assert s.count(old) == 1, "OFILES anchor not found"
 p.write_text(s.replace(old, "OFILES = builtins.o " + os.environ["OBJS"] + "\\\n", 1))
 PY
 
-# --- 6. configure (host by default; portable, reproducible-ish) ------------
+# --- 6. configure ----------------------------------------------------------
 say "configure"
-LD=""; [[ "$STATIC" == 1 ]] && LD="-static"
-# LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
-# fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz for a
-# compression loadable). It appends to the final bash link.
-./configure --disable-nls --without-bash-malloc ${CONFIGURE_EXTRA:-} \
-    CC="$CC" CFLAGS="${CFLAGS:--O2}" LDFLAGS="${LD:+$LD }-Wl,--build-id=none" \
-    LOCAL_LIBS="${LOCAL_LIBS:--lm}" \
+./configure --disable-nls --without-bash-malloc ${CONFIGURE_EXTRA:-} "${CFGX[@]}" \
+    CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" LOCAL_LIBS="$LOCAL_LIBS" \
     >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "configure failed (see $LOG)"; }
 echo "$BASH_BUILD_NUMBER" > .build      # pin the build counter
 
@@ -154,7 +179,7 @@ make -C builtins builtins.c >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "mkbuiltins 
   for n in "${NAMES[@]}"; do echo "extern int ${n}_builtin (WORD_LIST *);"; echo "extern char * const ${n}_doc[];"; done
 } >> builtins/builtext.h
 ENTRIES=""
-while IFS=$'\t' read -r n short; do ENTRIES+="  { \"$n\", ${n}_builtin, BUILTIN_ENABLED, ${n}_doc, \"$short\", 0 },"$'\n'; done < <(loadables_parse "$HERE/$LIST")
+while IFS=$'\t' read -r n short; do ENTRIES+="  { \"$n\", ${n}_builtin, BUILTIN_ENABLED, ${n}_doc, \"$short\", 0 },"$'\n'; done < <(loadables_parse "$LIST")
 awk -v e="$ENTRIES" '/\{ \(char \*\)0x0,/ && !d { printf "%s", e; d=1 } { print }' builtins/builtins.c > builtins/builtins.c.new
 mv builtins/builtins.c.new builtins/builtins.c
 grep -q "^  { \"${NAMES[0]}\", ${NAMES[0]}_builtin," builtins/builtins.c || die "shell_builtins[] splice did not stick"
@@ -165,15 +190,21 @@ make -j"$JOBS" >>"$LOG" 2>&1 || { grep -nE 'error|Error' "$LOG" | tail -30; die 
 [[ -f bash ]] || die "no bash binary"
 
 # --- 9. output + manifest --------------------------------------------------
-cp bash "$OUT/bash"
+cp bash "$OUTBIN"
+if [[ $STRIP == 1 ]]; then
+  if command -v "$STRIPTOOL" >/dev/null; then "$STRIPTOOL" "$OUTBIN"; else say "warning: $STRIPTOOL not found, output left unstripped"; fi
+fi
 {
   echo "# bash-os manifest  $(date -u +%FT%TZ)"
-  echo "bash $BASH_SRC_VERSION patchlevel $BASH_PATCHLEVEL, static=$STATIC, cc=$($CC --version | head -1)"
+  echo "bash $BASH_SRC_VERSION patchlevel $BASH_PATCHLEVEL  target=$TARGET static=$STATIC stripped=$STRIP"
+  echo "cc=$($CC --version | head -1)"
+  echo "cflags=$CFLAGS"
+  echo "list=${LIST#$HERE/}"
   echo "injected builtins (${#NAMES[@]}): ${NAMES[*]}"
-  ( cd "$OUT" && sha256sum bash && wc -c bash )
-} | tee "$OUT/MANIFEST.txt"
+  ( cd "$OUTDIR" && sha256sum "$NAME" && wc -c "$NAME" )
+} | tee "$MANIFEST"
 echo "$STAMP" > "$STAMPFILE"
 
 # --- 10. swap the finished tree into place: two renames, no gap ------------
 cd "$HERE"; rm -rf "$SRC.old"; [[ -d "$SRC" ]] && mv "$SRC" "$SRC.old"; mv "$STAGE" "$SRC"; rm -rf "$SRC.old"
-say "done: $OUT/bash  ($(wc -c < "$OUT/bash") bytes, ${#NAMES[@]} injected builtins)"
+say "done: ${OUTBIN#$HERE/}  ($(wc -c < "$OUTBIN") bytes, ${#NAMES[@]} injected builtins)"

@@ -1,9 +1,9 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd` and ~90 more are shell builtins, reached
-with an empty `PATH`, no busybox and no coreutils. One binary is the shell and
-the userland.
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax` and ~90 more are shell builtins,
+reached with an empty `PATH`, no busybox and no coreutils. One binary is the
+shell and the userland.
 
 ```
 $ out/bash -c 'type -t ls; PATH=; printf "a\nb\n" | grep b'
@@ -16,7 +16,8 @@ b
 Three uses drive it:
 
 1. **A standalone bash binary** — one file that is a working shell *and* the
-   commands a script needs, with nothing else installed. `./build.sh` produces it.
+   commands a script needs, with nothing else installed. `./build.sh --static`
+   produces it.
 2. **Teaching bash as a real language** — the loadables are small, readable C
    that show how bash's builtin interface actually works.
 3. **A userland for small Linux devices** — bash as PID 1 with these builtins
@@ -26,14 +27,20 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                 # host bash-os, 99 builtins injected -> out/bash
-./build.sh --static        # a single statically-linked binary
-./build.sh --list config/bash-loadables-pure.list   # a smaller variant
+./build.sh                                        # host, 100 builtins  -> out/bash
+./build.sh --static                               # one self-contained file -> out/bash-static
+./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
+CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
 ```
 
-Cross-compiling for a device: set `CC` to your cross gcc and pass its `--host`
-via `CONFIGURE_EXTRA=`; bash-os makes no host assumption. The bash source is
-pinned by sha256 in `config/versions.sh`; a from-scratch build is byte-stable.
+Outputs are stripped (`--no-strip` keeps symbols) and each comes with a
+`.manifest.txt` beside it. The bash source is pinned by sha256 in
+`config/versions.sh`; a from-scratch build is byte-identical to the last one.
+
+Cross-compiling needs only `CC`: `--host` is derived from the compiler, and the
+configure answers a cross build cannot measure itself (job control, named pipes,
+`/dev/fd`, …) are supplied by `build.sh`. `CONFIGURE_EXTRA`, `CFLAGS` and
+`LOCAL_LIBS` pass through; `LOCAL_LIBS` defaults to `-lm` for `fltexpr`.
 
 ## How it works
 
@@ -53,23 +60,33 @@ The result is indistinguishable from a native builtin: `type ls` says
 ## Layout
 
 ```
-build.sh                    the build
+build.sh                        the build
 config/
-  versions.sh               pinned bash source (sha256) + build number
-  loadables.sh              the one parser of a loadables list
-  bash-loadables.list       the injected set (NAME|short-doc per line)
-loadables/                  the loadable C sources (the ones not in bash's tree)
-  common/  _jsmn/           shared headers and a vendored JSON tokenizer
+  versions.sh                   pinned bash source (sha256) + build number
+  loadables.sh                  the one parser of a loadables list
+  bash-loadables.list           the full set (NAME|short-doc per line), 100 entries
+  bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
+loadables/                      the loadable C sources this repo carries
+  common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/
-  host-smoke.sh             builds, then proves the builtins with an empty PATH
-  run.sh                    the suite (smoke + the httpd/rngseed unit harnesses)
-docs/PROVENANCE.md          where the code came from, and its licences
+  run.sh                        the suite: both variants build + prove themselves,
+                                licences, and the httpd/rngseed sanitizer harnesses
+  host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
+                                and runs with an empty PATH
+  licence-check.sh              every source states its licence (all MIT)
+docs/PROVENANCE.md              where the code came from, and its licences
 ```
 
-Names in `bash-loadables.list` that have no `loadables/NAME.c` here are bash's
-own `examples/loadables/NAME.c`, taken from the pinned tarball at build time.
+Names in a list that have no `loadables/NAME.c` here are bash's own
+`examples/loadables/NAME.c`, taken from the pinned tarball at build time.
 
 ## Licence
 
-MIT (`LICENSE`). The vendored JSON tokenizer (`loadables/_jsmn/`) is MIT
-(zserge/jsmn, its own `LICENSE.txt`). See `docs/PROVENANCE.md`.
+Every source in this repository is MIT (`LICENSE`); the vendored JSON
+tokenizer (`loadables/_jsmn/`) is MIT under its own `LICENSE.txt`.
+`tests/licence-check.sh` holds the tree to that.
+
+A built bash-os links GNU bash and is therefore distributed under the GPLv3,
+whatever the loadables' own terms; MIT sources are GPL-compatible, and the MIT
+grant is what lets each loadable be lifted into a non-GPL project on its own.
+See `docs/PROVENANCE.md`.

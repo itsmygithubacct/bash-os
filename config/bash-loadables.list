@@ -6,7 +6,7 @@
 #
 # Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
 # the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
-# left in that project. 99 entries. See docs/PROVENANCE.md.
+# left in that project. 100 entries. See docs/PROVENANCE.md.
 
 basename|basename
 cat|cat
@@ -107,3 +107,6 @@ diff|diff A B
 ss|ss [-tuln]
 netstat|netstat -tuln (via ss backend)
 ping|ping [-c N] HOST
+
+# archives
+pax|POSIX pax ustar archives: list, -w create, -r extract, -rw copy

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* bashsyslogd.c - minimal /dev/log receiver for bash-os.
  *
  * First slice: bind an AF_UNIX SOCK_DGRAM socket, receive logger-style

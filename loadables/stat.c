@@ -1,627 +1,422 @@
-/* stat - load up an associative array with stat information about a file */
-
-/* See Makefile for compilation details. */
-
-/*
-   Copyright (C) 2016,2022-2023 Free Software Foundation, Inc.
-
-   This file is part of GNU Bash.
-   Bash is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   Bash is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with Bash.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
+/* SPDX-License-Identifier: MIT */
+/* stat.c — stat(1) as a bash builtin, with the GNU coreutils surface.
+ *
+ * Written for bash-os from the documented interface of coreutils stat(1):
+ * its format directives, the default and terse layouts, -L and --printf.
+ * Scripts written for coreutils — `stat -c%s FILE` above all — work unchanged
+ * with an empty PATH. It is not derived from GNU bash's own stat loadable
+ * (which loads an array and is GPL); the -A NAME array load here is a small
+ * convenience that uses the same key names, so a script written for that
+ * interface keeps working.
+ *
+ *   stat [-L] [-t] [-c FORMAT | --format=FORMAT | --printf=FORMAT]
+ *        [-A NAME] FILE...
+ *
+ * Copyright (c) 2026 bash_linux contributors
+ * MIT License — full text in the repository's LICENSE file. The combined
+ * binary is a derivative work of bash and is governed by GPL-3+ (bash's
+ * licence); MIT for this source file is GPL-3+-compatible.
+ */
 #include <config.h>
-
-#if defined (HAVE_UNISTD_H)
-#  include <unistd.h>
-#endif
-
 #include <stdio.h>
-
-#include <sys/types.h>
-#include "posixstat.h"
-#include <stdio.h>
-#include <pwd.h>
-#include <grp.h>
+#include <stdlib.h>
+#include <string.h>
 #include <errno.h>
-#include "posixtime.h"
-
-#include "bashansi.h"
-#include "shell.h"
-#include "builtins.h"
-#include "common.h"
+#include <time.h>
+#include <limits.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
+#include "loadables.h"
 #include "bashgetopt.h"
 
-#ifndef errno
-extern int	errno;
-#endif
+/* coreutils 9.x layouts */
+#define STAT_FMT_DEFAULT \
+  "  File: %N\n" \
+  "  Size: %-10s\tBlocks: %-10b IO Block: %-6o %F\n" \
+  "Device: %Hd,%Ld\tInode: %-10i  Links: %h\n" \
+  "Access: (%04a/%10.10A)  Uid: (%5u/%8U)   Gid: (%5g/%8G)\n" \
+  "Access: %x\nModify: %y\nChange: %z\n Birth: %w\n"
+#define STAT_FMT_DEVICE \
+  "  File: %N\n" \
+  "  Size: %-10s\tBlocks: %-10b IO Block: %-6o %F\n" \
+  "Device: %Hd,%Ld\tInode: %-10i  Links: %-5h Device type: %Hr,%Lr\n" \
+  "Access: (%04a/%10.10A)  Uid: (%5u/%8U)   Gid: (%5g/%8G)\n" \
+  "Access: %x\nModify: %y\nChange: %z\n Birth: %w\n"
+#define STAT_FMT_TERSE "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o\n"
 
-#if defined (ARRAY_VARS)
+struct stat_file {
+  const char *name;
+  struct stat st;
+  char link[PATH_MAX + 1];      /* target if NAME is a symlink we did not follow */
+  int is_link;
+};
 
-#define ST_NAME		0
-#define ST_DEV		1
-#define ST_INO		2
-#define ST_MODE		3
-#define ST_NLINK	4
-#define ST_UID		5
-#define ST_GID		6
-#define ST_RDEV		7
-#define ST_SIZE		8
-#define ST_ATIME	9
-#define ST_MTIME	10
-#define ST_CTIME	11
-#define ST_BLKSIZE	12
-#define ST_BLOCKS	13
-#define ST_CHASELINK	14
-#define ST_PERMS	15
-
-#define ST_END		16
-
-static char *arraysubs[] =
-  {
-    "name", "device", "inode", "type", "nlink", "uid", "gid", "rdev",
-    "size", "atime", "mtime", "ctime", "blksize", "blocks", "link", "perms",
-    0
-  };
-
-#define DEFTIMEFMT	"%a %b %e %k:%M:%S %Z %Y"
-#ifndef TIMELEN_MAX
-#  define TIMELEN_MAX 128
-#endif
-
-static char *stattime (time_t, const char *);
-
-static int
-getstat (const char *fname, int flags, struct stat *sp)
+static const char *
+stat_type_name (const struct stat *st)
 {
-  intmax_t lfd;
-  int fd, r;
-
-  if (strncmp (fname, "/dev/fd/", 8) == 0)
-    {
-      if ((valid_number(fname + 8, &lfd) == 0) || (int)lfd != lfd)
-	{
-	  errno = EINVAL;
-	  return -1;
-	}
-      fd = lfd;
-      r = fstat(fd, sp);
-    }
-#ifdef HAVE_LSTAT
-  else if (flags & 1)
-    r = lstat(fname, sp);
-#endif
-  else
-    r = stat(fname, sp);
-
-  return r;
+  if (S_ISREG (st->st_mode))  return st->st_size ? "regular file" : "regular empty file";
+  if (S_ISDIR (st->st_mode))  return "directory";
+  if (S_ISLNK (st->st_mode))  return "symbolic link";
+  if (S_ISCHR (st->st_mode))  return "character special file";
+  if (S_ISBLK (st->st_mode))  return "block special file";
+  if (S_ISFIFO (st->st_mode)) return "fifo";
+  if (S_ISSOCK (st->st_mode)) return "socket";
+  return "weird file";
 }
 
-static char *
-statlink (char *fname, struct stat *sp)
-{
-#if defined (HAVE_READLINK)
-  char linkbuf[PATH_MAX];
-  int n;
-
-  /* Leave room for the terminator: readlink does not NUL-terminate, and asking
-     for the full PATH_MAX lets a target of exactly that length return n ==
-     PATH_MAX, so linkbuf[n] wrote one byte past the end of the buffer. */
-  if (fname && S_ISLNK (sp->st_mode) &&
-      (n = readlink (fname, linkbuf, sizeof (linkbuf) - 1)) > 0)
-    {
-      linkbuf[n] = '\0';
-      return (savestring (linkbuf));
-    }
-  else
-#endif
-    return (savestring (fname));
-}
-
-static char *
-octalperms (int m)
-{
-  int operms;
-  char *ret;
-
-  operms = 0;
-
-  if (m & S_IRUSR)
-    operms |= 0400;
-  if (m & S_IWUSR)
-    operms |= 0200;
-  if (m & S_IXUSR)
-    operms |= 0100;
-
-  if (m & S_IRGRP)
-    operms |= 0040;
-  if (m & S_IWGRP)
-    operms |= 0020;
-  if (m & S_IXGRP)
-    operms |= 0010;
-
-  if (m & S_IROTH)
-    operms |= 0004;
-  if (m & S_IWOTH)
-    operms |= 0002;
-  if (m & S_IXOTH)
-    operms |= 0001;
-
-  if (m & S_ISUID)
-    operms |= 04000;
-  if (m & S_ISGID)
-    operms |= 02000;
-  if (m & S_ISVTX)
-    operms |= 01000;
-
-  ret = (char *)xmalloc (16);
-  snprintf (ret, 16, "%04o", operms);
-  return ret;
-}
-
-/* Apply a setuid/setgid/sticky marker to a densely-packed permission string:
-   replace a trailing execute bit with `lower`, else append `upper`. */
 static void
-statperms_special (char *bits, size_t cap, int has_exec, char lower, char upper)
+stat_mode_string (mode_t m, char out[11])
 {
-  size_t n = strlen (bits);
-  if (has_exec && n > 0 && bits[n - 1] == 'x')
-    bits[n - 1] = lower;
-  else if (n + 1 < cap)
+  out[0] = S_ISDIR (m) ? 'd' : S_ISLNK (m) ? 'l' : S_ISCHR (m) ? 'c' : S_ISBLK (m) ? 'b'
+         : S_ISFIFO (m) ? 'p' : S_ISSOCK (m) ? 's' : '-';
+  out[1] = (m & S_IRUSR) ? 'r' : '-';
+  out[2] = (m & S_IWUSR) ? 'w' : '-';
+  out[3] = (m & S_ISUID) ? ((m & S_IXUSR) ? 's' : 'S') : ((m & S_IXUSR) ? 'x' : '-');
+  out[4] = (m & S_IRGRP) ? 'r' : '-';
+  out[5] = (m & S_IWGRP) ? 'w' : '-';
+  out[6] = (m & S_ISGID) ? ((m & S_IXGRP) ? 's' : 'S') : ((m & S_IXGRP) ? 'x' : '-');
+  out[7] = (m & S_IROTH) ? 'r' : '-';
+  out[8] = (m & S_IWOTH) ? 'w' : '-';
+  out[9] = (m & S_ISVTX) ? ((m & S_IXOTH) ? 't' : 'T') : ((m & S_IXOTH) ? 'x' : '-');
+  out[10] = 0;
+}
+
+static void
+stat_time_string (char *out, size_t n, time_t sec, long nsec)
+{
+  struct tm tm; char date[40], zone[8];
+  localtime_r (&sec, &tm);
+  strftime (date, sizeof date, "%Y-%m-%d %H:%M:%S", &tm);
+  strftime (zone, sizeof zone, "%z", &tm);
+  snprintf (out, n, "%s.%09ld %s", date, nsec, zone);
+}
+
+/* Quote the way coreutils' shell-escape style does: bare when every character
+   is safe, single-quoted otherwise. */
+static void
+stat_quote_name (char *out, size_t n, const char *name)
+{
+  const char *p; size_t o = 0;
+  for (p = name; *p; p++)
+    if (!(ISALNUM ((unsigned char)*p) || strchr ("._/+:@%,=-", *p)))
+      break;
+  if (*p == 0 && *name)
+    { snprintf (out, n, "%s", name); return; }
+  if (o < n - 1) out[o++] = '\'';
+  for (p = name; *p && o < n - 6; p++)
     {
-      bits[n] = upper;
-      bits[n + 1] = '\0';
+      if (*p == '\'') { memcpy (out + o, "'\\''", 4); o += 4; }
+      else out[o++] = *p;
     }
+  if (o < n - 1) out[o++] = '\'';
+  out[o] = 0;
 }
 
-static char *
-statperms (int m)
-{
-  char ubits[5], gbits[5], obits[5];	/* u=rwx,g=rwx,o=rwx (+ s/S/t/T) */
-  int i;
-  char *ret;
-
-  i = 0;
-  if (m & S_IRUSR)
-    ubits[i++] = 'r';
-  if (m & S_IWUSR)
-    ubits[i++] = 'w';
-  if (m & S_IXUSR)
-    ubits[i++] = 'x';
-  ubits[i] = '\0';
-
-  i = 0;
-  if (m & S_IRGRP)
-    gbits[i++] = 'r';
-  if (m & S_IWGRP)
-    gbits[i++] = 'w';
-  if (m & S_IXGRP)
-    gbits[i++] = 'x';
-  gbits[i] = '\0';
-
-  i = 0;
-  if (m & S_IROTH)
-    obits[i++] = 'r';
-  if (m & S_IWOTH)
-    obits[i++] = 'w';
-  if (m & S_IXOTH)
-    obits[i++] = 'x';
-  obits[i] = '\0';
-
-  /* setuid/setgid/sticky. These used to be written to a FIXED index 2, but the
-     bits above are packed densely (only the permissions that are set), so
-     index 2 is past the terminator for every mode without all of r, w and x —
-     and the special bit was then silently dropped from the output, hiding a
-     setuid file from anyone reading this. Replace a trailing 'x' (s/t), or
-     append the capital form (S/T) when there is no execute bit. */
-  if (m & S_ISUID)
-    statperms_special (ubits, sizeof ubits, (m & S_IXUSR) != 0, 's', 'S');
-  if (m & S_ISGID)
-    statperms_special (gbits, sizeof gbits, (m & S_IXGRP) != 0, 's', 'S');
-  if (m & S_ISVTX)
-    statperms_special (obits, sizeof obits, (m & S_IXOTH) != 0, 't', 'T');
-
-  ret = (char *)xmalloc (32);
-  snprintf (ret, 32, "u=%s,g=%s,o=%s", ubits, gbits, obits);
-  return ret;
-}
-
-static char *
-statmode(int mode)
-{
-  char *modestr, *m;
-
-  modestr = m = (char *)xmalloc (8);
-  if (S_ISBLK (mode))
-    *m++ = 'b';
-  if (S_ISCHR (mode))
-    *m++ = 'c';
-  if (S_ISDIR (mode))
-    *m++ = 'd';
-  if (S_ISREG(mode))
-    *m++ = '-';
-  if (S_ISFIFO(mode))
-    *m++ = 'p';
-  if (S_ISLNK(mode))
-    *m++ = 'l';
-  if (S_ISSOCK(mode))
-    *m++ = 's';
-
-#ifdef S_ISDOOR
-  if (S_ISDOOR (mode))
-    *m++ = 'D';
-#endif
-#ifdef S_ISWHT
-  if (S_ISWHT(mode))
-    *m++ = 'W';
-#endif
-#ifdef S_ISNWK
-  if (S_ISNWK(mode))
-    *m++ = 'n';
-#endif
-#ifdef S_ISMPC
-  if (S_ISMPC (mode))
-    *m++ = 'm';
-#endif
-
-  *m = '\0';
-  return (modestr);
-}
-
-static char *
-stattime (time_t t, const char *timefmt)
-{
-  char *tbuf, *ret;
-  const char *fmt;
-  size_t tlen;
-  struct tm *tm;
-
-  fmt = timefmt ? timefmt : DEFTIMEFMT;
-  tm = localtime (&t);
-  if (tm == 0)
-    return (itos (t));
-
-  ret = xmalloc (TIMELEN_MAX);
-
-  tlen = strftime (ret, TIMELEN_MAX, fmt, tm);
-  if (tlen == 0)
-    tlen = strftime (ret, TIMELEN_MAX, DEFTIMEFMT, tm);
-
-  return ret;
-}
-
-static char *
-statval (int which, char *fname, int flags, char *fmt, struct stat *sp)
-{
-  int temp;
-
-  switch (which)
-    {
-    case ST_NAME:
-      return savestring (fname);
-    case ST_DEV:
-      return itos (sp->st_dev);
-    case ST_INO:
-      return itos (sp->st_ino);
-    case ST_MODE:
-      return (statmode (sp->st_mode));
-    case ST_NLINK:
-      return itos (sp->st_nlink);
-    case ST_UID:
-      return itos (sp->st_uid);
-    case ST_GID:
-      return itos (sp->st_gid);
-    case ST_RDEV:
-      return itos (sp->st_rdev);
-    case ST_SIZE:
-      return itos (sp->st_size);
-    case ST_ATIME:
-      return ((flags & 2) ? stattime (sp->st_atime, fmt) : itos (sp->st_atime));
-    case ST_MTIME:
-      return ((flags & 2) ? stattime (sp->st_mtime, fmt) : itos (sp->st_mtime));
-    case ST_CTIME:
-      return ((flags & 2) ? stattime (sp->st_ctime, fmt) : itos (sp->st_ctime));
-    case ST_BLKSIZE:
-      return itos (sp->st_blksize);
-    case ST_BLOCKS:
-      return itos (sp->st_blocks);
-    case ST_CHASELINK:
-      return (statlink (fname, sp));
-    case ST_PERMS:
-      temp = sp->st_mode & (S_IRWXU|S_IRWXG|S_IRWXO|S_ISUID|S_ISGID);
-      return (flags & 2) ? statperms (temp) : octalperms (temp);
-    default:
-      return savestring ("42");
-    }
-}
-
+/* The mount point of PATH: walk up until the parent is on another device. */
 static int
-loadstat (char *vname, SHELL_VAR *var, char *fname, int flags, char *fmt, struct stat *sp)
+stat_mount_point (const char *path, char *out, size_t n)
 {
-  int i;
-  char *key, *value;
-  SHELL_VAR *v;
-
-  for (i = 0; arraysubs[i]; i++)
+  char cur[PATH_MAX], parent[PATH_MAX]; struct stat a, b; char *sl;
+  if (realpath (path, cur) == 0) return -1;
+  for (;;)
     {
-      key = savestring (arraysubs[i]);
-      value = statval (i, fname, flags, fmt, sp);
-      v = bind_assoc_variable (var, vname, key, value, ASS_FORCE);
-      free (value);
+      if (stat (cur, &a) < 0) return -1;
+      if (strcmp (cur, "/") == 0) break;
+      strcpy (parent, cur);
+      sl = strrchr (parent, '/');
+      if (sl == parent) strcpy (parent, "/"); else *sl = 0;
+      if (stat (parent, &b) < 0) return -1;
+      if (a.st_dev != b.st_dev || a.st_ino == b.st_ino) break;
+      strcpy (cur, parent);
+    }
+  snprintf (out, n, "%s", cur);
+  return 0;
+}
+
+/* Expand one directive character (plus the H/L device prefix) into VAL. */
+static int
+stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t n)
+{
+  const struct stat *st = &f->st; char mode[11];
+  struct passwd *pw; struct group *gr;
+  switch (c)
+    {
+    case 'a': snprintf (val, n, "%lo", (unsigned long)(st->st_mode & 07777)); break;
+    case 'A': stat_mode_string (st->st_mode, mode); snprintf (val, n, "%s", mode); break;
+    case 'b': snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_blocks); break;
+    case 'B': snprintf (val, n, "512"); break;
+    case 'd':
+      if (prefix == 'H')      snprintf (val, n, "%u", major (st->st_dev));
+      else if (prefix == 'L') snprintf (val, n, "%u", minor (st->st_dev));
+      else                    snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_dev);
+      break;
+    case 'D': snprintf (val, n, "%" PRIxMAX, (uintmax_t) st->st_dev); break;
+    case 'f': snprintf (val, n, "%lx", (unsigned long) st->st_mode); break;
+    case 'F': snprintf (val, n, "%s", stat_type_name (st)); break;
+    case 'g': snprintf (val, n, "%lu", (unsigned long) st->st_gid); break;
+    case 'G': gr = getgrgid (st->st_gid);
+      if (gr) snprintf (val, n, "%s", gr->gr_name); else snprintf (val, n, "%lu", (unsigned long) st->st_gid);
+      break;
+    case 'h': snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_nlink); break;
+    case 'i': snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_ino); break;
+    case 'm': if (stat_mount_point (f->name, val, n) < 0) snprintf (val, n, "?"); break;
+    case 'n': snprintf (val, n, "%s", f->name); break;
+    case 'N':
+      {
+        char q[PATH_MAX + 8], t[PATH_MAX + 8];
+        stat_quote_name (q, sizeof q, f->name);
+        if (f->is_link) { stat_quote_name (t, sizeof t, f->link); snprintf (val, n, "%s -> %s", q, t); }
+        else snprintf (val, n, "%s", q);
+      }
+      break;
+    case 'o': snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_blksize); break;
+    case 'r':
+      if (prefix == 'H')      snprintf (val, n, "%u", major (st->st_rdev));
+      else if (prefix == 'L') snprintf (val, n, "%u", minor (st->st_rdev));
+      else                    snprintf (val, n, "%" PRIuMAX, (uintmax_t) st->st_rdev);
+      break;
+    case 's': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_size); break;
+    case 't': snprintf (val, n, "%x", major (st->st_rdev)); break;
+    case 'T': snprintf (val, n, "%x", minor (st->st_rdev)); break;
+    case 'u': snprintf (val, n, "%lu", (unsigned long) st->st_uid); break;
+    case 'U': pw = getpwuid (st->st_uid);
+      if (pw) snprintf (val, n, "%s", pw->pw_name); else snprintf (val, n, "%lu", (unsigned long) st->st_uid);
+      break;
+    case 'w': snprintf (val, n, "-"); break;          /* birth time: not reported */
+    case 'W': snprintf (val, n, "0"); break;
+    case 'x': stat_time_string (val, n, st->st_atim.tv_sec, st->st_atim.tv_nsec); break;
+    case 'X': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_atim.tv_sec); break;
+    case 'y': stat_time_string (val, n, st->st_mtim.tv_sec, st->st_mtim.tv_nsec); break;
+    case 'Y': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_mtim.tv_sec); break;
+    case 'z': stat_time_string (val, n, st->st_ctim.tv_sec, st->st_ctim.tv_nsec); break;
+    case 'Z': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_ctim.tv_sec); break;
+    case 'C': snprintf (val, n, "?"); break;          /* security context: none */
+    case '%': snprintf (val, n, "%%"); break;
+    default: return -1;
     }
   return 0;
 }
-#endif
-
-/* --- bash-os: GNU coreutils `stat -c FORMAT` support ------------
- * Expand a format string against `sp` and print it. Covers the directives the
- * appliance scripts use; unknown %X is emitted verbatim, like GNU stat. flags
- * bit 2 selects strftime output for the human time directives. */
-static char *
-symbolic_perms (mode_t m)
-{
-  char *r = (char *)xmalloc (11);
-  char *t = statmode (m);		/* type char in r[0] */
-  r[0] = t[0] ? t[0] : '?'; free (t);
-  r[1] = (m & S_IRUSR) ? 'r' : '-';
-  r[2] = (m & S_IWUSR) ? 'w' : '-';
-  r[3] = (m & S_ISUID) ? ((m & S_IXUSR) ? 's' : 'S') : ((m & S_IXUSR) ? 'x' : '-');
-  r[4] = (m & S_IRGRP) ? 'r' : '-';
-  r[5] = (m & S_IWGRP) ? 'w' : '-';
-  r[6] = (m & S_ISGID) ? ((m & S_IXGRP) ? 's' : 'S') : ((m & S_IXGRP) ? 'x' : '-');
-  r[7] = (m & S_IROTH) ? 'r' : '-';
-  r[8] = (m & S_IWOTH) ? 'w' : '-';
-  r[9] = (m & S_ISVTX) ? ((m & S_IXOTH) ? 't' : 'T') : ((m & S_IXOTH) ? 'x' : '-');
-  r[10] = '\0';
-  return r;
-}
-
-static const char *
-ftype_word (mode_t m)
-{
-  if (S_ISREG (m))  return "regular file";
-  if (S_ISDIR (m))  return "directory";
-  if (S_ISLNK (m))  return "symbolic link";
-  if (S_ISCHR (m))  return "character special file";
-  if (S_ISBLK (m))  return "block special file";
-  if (S_ISFIFO (m)) return "fifo";
-#ifdef S_ISSOCK
-  if (S_ISSOCK (m)) return "socket";
-#endif
-  return "unknown";
-}
-
-/* %U/%G resolve a uid/gid to a name; on musl each call reopens and scans
- * /etc/passwd or /etc/group, so `stat -c %U *` was one scan per file. Memoise
- * the last resolved id, which collapses the common "everything owned by root"
- * case to a single lookup. */
-static uid_t g_uid_memo = (uid_t)-1; static char g_uname_memo[64];
-static gid_t g_gid_memo = (gid_t)-1; static char g_gname_memo[64];
 
 static void
-format_stat (const char *fmt, const char *fname, struct stat *sp)
+stat_put_padded (const char *val, int left, int zero, int width)
 {
-  const char *f;
-  char *tmp;
+  int len = (int) strlen (val), pad = width > len ? width - len : 0, i;
+  if (!left)
+    for (i = 0; i < pad; i++)
+      putchar (zero && ISDIGIT ((unsigned char) val[0]) ? '0' : ' ');
+  fputs (val, stdout);
+  if (left)
+    for (i = 0; i < pad; i++) putchar (' ');
+}
 
-  for (f = fmt; *f; f++)
+/* Print FMT for F. ESCAPES: interpret backslash sequences (--printf).
+   Returns -1 on an invalid directive. */
+static int
+stat_print (const struct stat_file *f, const char *fmt, int escapes)
+{
+  const char *p = fmt; char val[PATH_MAX * 2 + 32];
+  while (*p)
     {
-      if (*f == '\\')			/* backslash escapes */
-	{
-	  switch (*++f)
-	    {
-	    case 'n': putchar ('\n'); break;
-	    case 't': putchar ('\t'); break;
-	    case '\\': putchar ('\\'); break;
-	    case '"': putchar ('"'); break;
-	    case '\0': putchar ('\\'); f--; break;
-	    default:  putchar ('\\'); putchar (*f); break;
-	    }
-	  continue;
-	}
-      if (*f != '%')
-	{
-	  putchar (*f);
-	  continue;
-	}
-      switch (*++f)		/* directive */
-	{
-	case '%': putchar ('%'); break;
-	case 'n': fputs (fname, stdout); break;
-	case 's': printf ("%ld", (long) sp->st_size); break;
-	case 'b': printf ("%ld", (long) sp->st_blocks); break;
-	case 'B': case 'o': printf ("%ld", (long) sp->st_blksize); break;
-	case 'i': printf ("%lu", (unsigned long) sp->st_ino); break;
-	case 'h': printf ("%lu", (unsigned long) sp->st_nlink); break;
-	case 'd': printf ("%lu", (unsigned long) sp->st_dev); break;
-	case 'D': printf ("%lx", (unsigned long) sp->st_dev); break;
-	case 'u': printf ("%lu", (unsigned long) sp->st_uid); break;
-	case 'g': printf ("%lu", (unsigned long) sp->st_gid); break;
-	case 'f': printf ("%lx", (unsigned long) sp->st_mode); break;
-	case 'a':				/* octal perms */
-	  tmp = octalperms (sp->st_mode & (S_IRWXU|S_IRWXG|S_IRWXO|S_ISUID|S_ISGID));
-	  fputs (tmp, stdout); free (tmp); break;
-	case 'A':				/* -rwxr-xr-x symbolic perms */
-	  tmp = symbolic_perms (sp->st_mode); fputs (tmp, stdout); free (tmp); break;
-	case 'F': fputs (ftype_word (sp->st_mode), stdout); break;
-	case 'U':
-	  if (sp->st_uid == g_uid_memo && g_uname_memo[0]) { fputs (g_uname_memo, stdout); break; }
-	  { struct passwd *pw = getpwuid (sp->st_uid);
-	    if (pw) { fputs (pw->pw_name, stdout);
-		      g_uid_memo = sp->st_uid; strncpy (g_uname_memo, pw->pw_name, sizeof g_uname_memo - 1); g_uname_memo[sizeof g_uname_memo - 1] = 0; }
-	    else printf ("%lu", (unsigned long) sp->st_uid); }
-	  break;
-	case 'G':
-	  if (sp->st_gid == g_gid_memo && g_gname_memo[0]) { fputs (g_gname_memo, stdout); break; }
-	  { struct group *gr = getgrgid (sp->st_gid);
-	    if (gr) { fputs (gr->gr_name, stdout);
-		      g_gid_memo = sp->st_gid; strncpy (g_gname_memo, gr->gr_name, sizeof g_gname_memo - 1); g_gname_memo[sizeof g_gname_memo - 1] = 0; }
-	    else printf ("%lu", (unsigned long) sp->st_gid); }
-	  break;
-	case 'X': printf ("%ld", (long) sp->st_atime); break;
-	case 'Y': printf ("%ld", (long) sp->st_mtime); break;
-	case 'Z': printf ("%ld", (long) sp->st_ctime); break;
-	case 'x': tmp = stattime (sp->st_atime, 0); fputs (tmp, stdout); free (tmp); break;
-	case 'y': tmp = stattime (sp->st_mtime, 0); fputs (tmp, stdout); free (tmp); break;
-	case 'z': tmp = stattime (sp->st_ctime, 0); fputs (tmp, stdout); free (tmp); break;
-	case '\0': putchar ('%'); f--; break;
-	default:  putchar ('%'); putchar (*f); break;	/* unknown: verbatim */
-	}
+      if (*p == '%')
+        {
+          int left = 0, zero = 0, width = 0, prefix = 0;
+          const char *start = p++;
+          while (*p && strchr ("-#0+ '", *p)) { if (*p == '-') left = 1; if (*p == '0') zero = 1; p++; }
+          while (ISDIGIT ((unsigned char) *p)) width = width * 10 + (*p++ - '0');
+          if (*p == '.') { p++; while (ISDIGIT ((unsigned char) *p)) p++; }   /* precision: accepted, ignored */
+          if (*p == 'H' || *p == 'L') prefix = *p++;
+          if (*p == 0) { fputs (start, stdout); break; }
+          if (stat_directive (f, prefix, *p, val, sizeof val) < 0)
+            {
+              builtin_error ("%.*s: invalid directive", (int)(p - start + 1), start);
+              return -1;
+            }
+          stat_put_padded (val, left, zero, width);
+          p++;
+        }
+      else if (*p == '\\' && escapes)
+        {
+          p++;
+          switch (*p)
+            {
+            case 'n': putchar ('\n'); p++; break;
+            case 't': putchar ('\t'); p++; break;
+            case 'r': putchar ('\r'); p++; break;
+            case 'a': putchar ('\a'); p++; break;
+            case 'b': putchar ('\b'); p++; break;
+            case 'f': putchar ('\f'); p++; break;
+            case 'v': putchar ('\v'); p++; break;
+            case '\\': putchar ('\\'); p++; break;
+            case '"': putchar ('"'); p++; break;
+            case 'x':
+              {
+                int v = 0, k = 0;
+                p++;
+                while (k < 2 && ISXDIGIT ((unsigned char) *p)) { v = v * 16 + (ISDIGIT ((unsigned char)*p) ? *p - '0' : (*p | 32) - 'a' + 10); p++; k++; }
+                if (k) putchar (v); else fputs ("\\x", stdout);
+              }
+              break;
+            case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+              {
+                int v = 0, k = 0;
+                while (k < 3 && *p >= '0' && *p <= '7') { v = v * 8 + (*p - '0'); p++; k++; }
+                putchar (v & 0xff);
+              }
+              break;
+            case 0: putchar ('\\'); break;
+            default: putchar ('\\'); putchar (*p); p++; break;
+            }
+        }
+      else
+        putchar (*p++);
     }
+  return 0;
+}
+
+static int
+stat_load_array (const char *aname, const struct stat_file *f)
+{
+  SHELL_VAR *v; char b[PATH_MAX + 32]; char mode[11];
+  const struct stat *st = &f->st;
+  v = find_variable (aname);
+  if (v == 0)
+    v = make_new_assoc_variable ((char *) aname);
+  else if (assoc_p (v) == 0)
+    { builtin_error ("%s: not an associative array", aname); return -1; }
+  if (v == 0) return -1;
+  assoc_flush (assoc_cell (v));
+#define STAT_SET(key, ...) do { snprintf (b, sizeof b, __VA_ARGS__); \
+    if (bind_assoc_variable (v, (char *) aname, savestring (key), b, ASS_FORCE) == 0) return -1; } while (0)
+  STAT_SET ("name", "%s", f->name);
+  STAT_SET ("device", "%" PRIuMAX, (uintmax_t) st->st_dev);
+  STAT_SET ("inode", "%" PRIuMAX, (uintmax_t) st->st_ino);
+  STAT_SET ("type", "%s", stat_type_name (st));
+  STAT_SET ("mode", "%lo", (unsigned long) st->st_mode);
+  stat_mode_string (st->st_mode, mode);
+  STAT_SET ("perms", "%s", mode);
+  STAT_SET ("nlink", "%" PRIuMAX, (uintmax_t) st->st_nlink);
+  STAT_SET ("uid", "%lu", (unsigned long) st->st_uid);
+  STAT_SET ("gid", "%lu", (unsigned long) st->st_gid);
+  STAT_SET ("rdev", "%" PRIuMAX, (uintmax_t) st->st_rdev);
+  STAT_SET ("size", "%" PRIdMAX, (intmax_t) st->st_size);
+  STAT_SET ("blksize", "%" PRIuMAX, (uintmax_t) st->st_blksize);
+  STAT_SET ("blocks", "%" PRIuMAX, (uintmax_t) st->st_blocks);
+  STAT_SET ("atime", "%" PRIdMAX, (intmax_t) st->st_atim.tv_sec);
+  STAT_SET ("mtime", "%" PRIdMAX, (intmax_t) st->st_mtim.tv_sec);
+  STAT_SET ("ctime", "%" PRIdMAX, (intmax_t) st->st_ctim.tv_sec);
+  STAT_SET ("link", "%s", f->is_link ? f->link : "");
+#undef STAT_SET
+  return 0;
 }
 
 int
 stat_builtin (WORD_LIST *list)
 {
-#if defined (ARRAY_VARS)
-  int opt, flags;
-  char *aname, *fname, *timefmt, *cfmt;
-  struct stat st;
-  SHELL_VAR *v;
+  WORD_LIST *l; const char *fmt = 0, *aname = 0; int escapes = 0, follow = 0, terse = 0;
+  int status = EXECUTION_SUCCESS;
 
-  aname = "STAT";
-  flags = 0;
-  timefmt = 0;
-  cfmt = 0;
-
-  reset_internal_getopt ();
-  while ((opt = internal_getopt (list, "A:F:Llc:")) != -1)
+  for (l = list; l; l = l->next)
     {
-      switch (opt)
-	{
-	case 'A':
-	  aname = list_optarg;
-	  break;
-	case 'L':
-	  flags |= 1;		/* operate on links rather than resolving them */
-	  break;
-	case 'l':
-	  flags |= 2;
-	  break;
-	case 'F':
-	  timefmt = list_optarg;
-	  break;
-	case 'c':
-	  cfmt = list_optarg;	/* GNU-style format; print, do not fill an array */
-	  break;
-	CASE_HELPOPT;
-	default:
-	  builtin_usage ();
-	  return (EX_USAGE);
-	}
+      char *w = l->word->word, *p; int consumed_next = 0;
+      if (w[0] != '-' || w[1] == 0) break;
+      if (strcmp (w, "--") == 0) { l = l->next; break; }
+      if (strncmp (w, "--format=", 9) == 0) { fmt = w + 9; escapes = 0; continue; }
+      if (strncmp (w, "--printf=", 9) == 0) { fmt = w + 9; escapes = 1; continue; }
+      if (strcmp (w, "--dereference") == 0) { follow = 1; continue; }
+      if (strcmp (w, "--terse") == 0) { terse = 1; continue; }
+      if (w[1] == '-') { builtin_error ("%s: invalid option", w); builtin_usage (); return EX_USAGE; }
+      for (p = w + 1; *p && consumed_next == 0; p++)
+        switch (*p)
+          {
+          case 'L': follow = 1; break;
+          case 't': terse = 1; break;
+          case 'c': case 'A':
+            {
+              char *arg;
+              if (p[1]) arg = p + 1;
+              else if (l->next) { l = l->next; arg = l->word->word; }
+              else { builtin_error ("-%c: option requires an argument", *p); builtin_usage (); return EX_USAGE; }
+              if (*p == 'c') { fmt = arg; escapes = 0; } else aname = arg;
+              consumed_next = 1;
+            }
+            break;
+          default:
+            builtin_error ("-%c: invalid option", *p); builtin_usage (); return EX_USAGE;
+          }
     }
+  if (l == 0) { builtin_error ("missing operand"); builtin_usage (); return EX_USAGE; }
+  if (aname && legal_identifier ((char *) aname) == 0)
+    { sh_invalidid ((char *) aname); return EX_USAGE; }
 
-  list = loptend;
-  if (list == 0)
+  for (; l; l = l->next)
     {
-      builtin_usage ();
-      return (EX_USAGE);
+      struct stat_file f; int r; const char *use;
+      memset (&f, 0, sizeof f);
+      f.name = l->word->word;
+      r = follow ? stat (f.name, &f.st) : lstat (f.name, &f.st);
+      if (r < 0)
+        {
+          builtin_error ("cannot stat '%s': %s", f.name, strerror (errno));
+          status = EXECUTION_FAILURE;
+          continue;
+        }
+      if (S_ISLNK (f.st.st_mode))
+        {
+          ssize_t k = readlink (f.name, f.link, sizeof f.link - 1);
+          if (k >= 0) { f.link[k] = 0; f.is_link = 1; }
+        }
+      if (aname)
+        {
+          if (stat_load_array (aname, &f) < 0) { status = EXECUTION_FAILURE; }
+          continue;
+        }
+      use = fmt ? fmt : terse ? STAT_FMT_TERSE
+          : (S_ISCHR (f.st.st_mode) || S_ISBLK (f.st.st_mode)) ? STAT_FMT_DEVICE : STAT_FMT_DEFAULT;
+      if (stat_print (&f, use, escapes) < 0) return EXECUTION_FAILURE;
+      if (fmt && escapes == 0) putchar ('\n');     /* -c/--format: newline after each use */
     }
-
-  if (cfmt)			/* GNU coreutils-style: stat -c FMT FILE... */
-    {
-      int rc = EXECUTION_SUCCESS;
-      WORD_LIST *l;
-      for (l = list; l; l = l->next)
-	{
-	  if (getstat (l->word->word, flags, &st) < 0)
-	    {
-	      builtin_error ("%s: cannot stat: %s", l->word->word, strerror (errno));
-	      rc = EXECUTION_FAILURE;
-	      continue;
-	    }
-	  format_stat (cfmt, l->word->word, &st);
-	  putchar ('\n');
-	}
-      return (rc);
-    }
-
-  if (valid_identifier (aname) == 0)
-    {
-      sh_invalidid (aname);
-      return (EXECUTION_FAILURE);
-    }
-
-
-#if 0
-  unbind_variable (aname);
-#endif
-  fname = list->word->word;
-
-  if (getstat (fname, flags, &st) < 0)
-    {
-      builtin_error ("%s: cannot stat: %s", fname, strerror (errno));
-      return (EXECUTION_FAILURE);
-    }
-
-  v = find_or_make_array_variable (aname, 3);
-  if (v == 0)
-    {
-      builtin_error ("%s: cannot create variable", aname);
-      return (EXECUTION_FAILURE);
-    }
-  if (loadstat (aname, v, fname, flags, timefmt, &st) < 0)
-    {
-      builtin_error ("%s: cannot assign file status information", aname);
-      unbind_variable (aname);
-      return (EXECUTION_FAILURE);
-    }
-
-  return (EXECUTION_SUCCESS);
-#else
-  builtin_error ("arrays not available");
-  return (EXECUTION_FAILURE);
-#endif
+  fflush (stdout);
+  return sh_chkwrite (status);
 }
 
-/* An array of strings forming the `long' documentation for a builtin xxx,
-   which is printed by `help xxx'.  It must end with a NULL.  By convention,
-   the first line is a short description. */
 char *stat_doc[] = {
-	"Load an associative array with file status information, or print",
-	"a format string with -c (GNU coreutils compatible).",
-	"",
-	"Take a filename and load the status information returned by a",
-	"stat(2) call on that file into the associative array specified",
-	"by the -A option.  The default array name is STAT.",
-	"",
-	"If the -L option is supplied, stat does not resolve symbolic links",
-	"and reports information about the link itself.  The -l option results",
-	"in longer-form listings for some of the fields. When -l is used,",
-	"the -F option supplies a format string passed to strftime(3) to",
-	"display the file time information.",
-	"",
-	"With -c FORMAT, print FORMAT for each file, expanding %n name,",
-	"%s size, %F type, %a octal / %A symbolic perms, %U user, %G group,",
-	"%u/%g id, %i inode, %h links, %X/%Y/%Z a/m/ctime epoch, %x/%y/%z time,",
-	"%d device, %f raw mode hex, %b blocks, %B block size, %% literal.",
-	"",
-	"The exit status is 0 unless the stat fails or assigning the array",
-	"is unsuccessful.",
-	(char *)NULL
+  "Display file status, GNU coreutils style.",
+  "",
+  "Print the status of each FILE, from lstat(2) — or stat(2) with -L, so a",
+  "symbolic link is followed. With no format the coreutils layout is used;",
+  "-t prints the terse one-line form.",
+  "",
+  "  -c FORMAT, --format=FORMAT  print FORMAT, then a newline, for each FILE",
+  "  --printf=FORMAT             like -c, but interpret \\n \\t \\\\ \\NNN \\xHH",
+  "                              escapes and print no trailing newline",
+  "  -L, --dereference           follow symbolic links",
+  "  -t, --terse                 terse form: %n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
+  "  -A NAME                     load the status into associative array NAME",
+  "                              (keys: name device inode type mode perms nlink",
+  "                              uid gid rdev size blksize blocks atime mtime",
+  "                              ctime link) instead of printing",
+  "",
+  "Directives take an optional - (left-align), 0 (zero-pad) and width:",
+  "  %a octal perms   %A symbolic perms   %b blocks       %B block size (512)",
+  "  %d device        %D device (hex)     %Hd/%Ld major/minor of device",
+  "  %f raw mode hex  %F file type        %g gid          %G group name",
+  "  %h hard links    %i inode            %m mount point  %n name",
+  "  %N quoted name, with -> target for a link            %o I/O block size",
+  "  %s size          %t/%T major/minor of rdev (hex)     %Hr/%Lr (decimal)",
+  "  %u uid           %U user name        %w/%W birth time (not reported: -/0)",
+  "  %x/%X atime      %y/%Y mtime         %z/%Z ctime (human / epoch)   %% literal",
+  "",
+  "Exit status: 0, or 1 if any FILE could not be stat'ed.",
+  (char *)NULL
 };
 
-/* The standard structure describing a builtin command.  bash keeps an array
-   of these structures.  The flags must include BUILTIN_ENABLED so the
-   builtin can be used. */
 struct builtin stat_struct = {
-	"stat",			/* builtin name */
-	stat_builtin,		/* function implementing the builtin */
-	BUILTIN_ENABLED,	/* initial flags for builtin */
-	stat_doc,		/* array of long documentation strings. */
-	"stat [-lL] [-c format] [-A aname] file...",	/* usage synopsis; becomes short_doc */
-	0			/* reserved for internal use */
+  "stat", stat_builtin, BUILTIN_ENABLED, stat_doc,
+  "stat [-L] [-t] [-c FORMAT | --printf=FORMAT] [-A NAME] FILE...", 0
 };

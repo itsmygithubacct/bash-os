@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* bashlogger.c - minimal logger(1)-style syslog sender for bash-os.
  *
  * v1 focuses on the socket-safety surface: every /dev/log socket is

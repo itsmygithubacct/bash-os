@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* bashdhcp.c - small DHCPv4 client/parser for bash-os.
  *
  * v1 keeps the RFC 2131 DISCOVER/OFFER/REQUEST/ACK path in C and exposes
