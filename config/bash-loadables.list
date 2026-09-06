@@ -6,7 +6,7 @@
 #
 # Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
 # the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
-# left in that project. 102 entries. See docs/PROVENANCE.md.
+# left in that project. 127 entries. See docs/PROVENANCE.md.
 
 basename|basename
 cat|cat
@@ -114,3 +114,30 @@ pax|POSIX pax ustar archives: list, -w create, -r extract, -rw copy
 # compression (libzstd loaded at run time; no link-time dependency)
 zstd|Compress or decompress files with zstd
 zstdcat|Decompress zstd files to standard output
+
+# util-linux family (imported 2026-09-06 from the upstream collection)
+flock|Manage advisory file locks via flock(2)
+setsid|Run a program in a new session
+ionice|Get or set the I/O scheduling class and priority of a process
+blockdev|Call block-device ioctls from the command line
+ipcmk|Create System V IPC resources
+ipcctl|Run gated System V IPC control operations
+chattr|Change file attributes on a Linux filesystem
+lsattr|List file attributes on a Linux filesystem
+mkswap|Set up a Linux swap area
+swapon|Enable a swap area, or list the active ones
+swapoff|Disable a swap area
+wipefs|Detect or wipe filesystem / swap signatures
+fincore|Count pages of a file resident in core (the page cache)
+fsfreeze|Suspend or resume access to a filesystem
+losetup|Set up and control loop devices
+dmsetup|Low-level device-mapper control
+getfacl|Display POSIX.1e file access control lists
+setfacl|Set POSIX.1e file access control lists
+fstrim|Discard unused blocks on a mounted filesystem
+prlimit|prlimit(8) subset over prlimit(2)
+hwclock|hwclock(8) subset over /dev/rtc0
+renice|Change the niceness of running processes (POSIX renice)
+taskset|Run or query commands with a CPU affinity mask
+chrt|Show or change process scheduling policy and priority
+uclampset|Show process utilization clamp values through sched_getattr(2)

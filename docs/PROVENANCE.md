@@ -47,6 +47,35 @@ its header; `tests/licence-check.sh` fails the suite if a file lacks one or is
 not MIT. Several MIT files note explicitly
 that the *combined binary* is GPL-3+ — that is bash's licence, not theirs.
 
+## The util-linux family (imported 2026-09-06)
+
+Twenty-five loadables taken from the upstream collection in one batch, renamed
+`bashNAME` → `NAME` where prefixed (injector-visible symbols and the command
+name in its own strings; internal helpers keep their names), each given an
+SPDX line:
+
+`flock setsid ionice blockdev ipcmk ipcctl chattr lsattr mkswap swapon swapoff
+wipefs fincore fsfreeze losetup dmsetup getfacl setfacl fstrim prlimit hwclock
+renice taskset chrt uclampset`
+
+All plain libc plus Linux headers: no helper tree, no external library, no new
+build dependency. `flock` is the one that most wants to be a builtin — `flock -x 9`
+locks the descriptor the calling shell opened with `exec 9>lockfile`, which a
+forked `flock` cannot do. Fixed on the way in, both found by checking against
+the host's util-linux and by `gcc -fanalyzer`:
+
+- `ionice`: a query printed the bare class name for `none` as well as `idle`;
+  util-linux prints the priority for every class but `idle` (`none: prio 0`).
+- `hwclock`: the adjtime writer skipped its `fclose` when the `fprintf` failed,
+  leaking the stream on that path.
+
+Known differences from util-linux, left as they are (these are subsets, not
+reimplementations): `lsattr` shows fewer attribute flags, `fincore` and
+`prlimit` lay their columns out differently, and `ipcctl` refuses removals by
+default policy. `tests/util-linux-smoke.sh` covers what can be exercised
+without privilege or destroying anything, and compares `ionice`, `taskset` and
+`chrt` against the host's tools.
+
 ## What deliberately stays out
 
 The appliance's four board-coupled managers — `bashnpu`, `bashyolox`,

@@ -20,6 +20,8 @@ bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list >/dev/nul
 [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]] && ok "pure build carries no ls (variants really differ)" || no "pure build has ls"
 echo "== wc and tail parity with coreutils =="
 bash tests/wc-tail-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^wc-tail-parity: ([0-9]+)/\1 ' && ok "wc-tail-parity" || no "wc-tail-parity"
+echo "== the util-linux family =="
+bash tests/util-linux-smoke.sh out/bash | tail -1 | grep -qE '^util-linux-smoke: [0-9]+ passed, 0 failed' && ok "util-linux-smoke" || no "util-linux-smoke"
 echo "== zstd against the host zstd =="
 bash tests/zstd-check.sh out/bash | tail -1 | grep -qE 'SKIP|^zstd-check: [0-9]+ passed, 0 failed' && ok "zstd-check" || no "zstd-check"
 echo "== stat parity with coreutils =="
