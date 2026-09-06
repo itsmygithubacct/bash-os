@@ -128,6 +128,10 @@ shopt -u nullglob
 cp examples/loadables/*.h builtins/ 2>/dev/null || true
 
 # --- 4. the injected set: into builtins/ with include fixups + un-static ----
+# The per-name fixups below patch bash's OWN example loadables (cut, mkdir,
+# fltexpr). A source this repo or EXTRA_LOADABLES supplies under the same
+# name replaces the stock file whole and must not be patched.
+is_stock() { [[ ! -f "$HERE/loadables/$1.c" ]] || return 1; local d; for d in ${EXTRA_LOADABLES:-}; do [[ -f "$d/$1.c" ]] && return 1; done; return 0; }
 mapfile -t NAMES < <(loadables_names "$LIST") || die "cannot parse $LIST"
 (( ${#NAMES[@]} > 0 )) || die "empty list"
 say "injecting ${#NAMES[@]} loadables ($NAME, $TARGET)"
@@ -141,6 +145,7 @@ for n in "${NAMES[@]}"; do
       -e "s|^static \\(int ${n}_builtin\\)|\\1|" \
       -e "s|^static \\(char \\*${n}_doc\\)|\\1|" \
       "$src" > "builtins/$n.c"
+  is_stock "$n" || continue
   case "$n" in
     fltexpr)
       sed -i 's|^static sh_float_t nanval, infval;$|static sh_float_t nanval = NAN, infval = INFINITY;|' builtins/fltexpr.c
