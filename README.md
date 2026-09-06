@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 100 builtins  -> out/bash
+./build.sh                                        # host, 102 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -88,7 +88,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 100 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 102 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -104,7 +104,8 @@ tests/
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in
   regressions.py                builtin regressions in a real bash-os process
   licence-check.sh              every source states its licence (all MIT)
-  httpd-host.c  rngseed-host.c  ASan+UBSan unit harnesses
+  zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
+  httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
 docs/anatomy-of-a-loadable.md   how a builtin is put together, with docs/tutorial/greet.c
 docs/PROVENANCE.md              where the code came from, and its licences
 ```

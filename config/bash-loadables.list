@@ -6,7 +6,7 @@
 #
 # Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
 # the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
-# left in that project. 100 entries. See docs/PROVENANCE.md.
+# left in that project. 102 entries. See docs/PROVENANCE.md.
 
 basename|basename
 cat|cat
@@ -110,3 +110,7 @@ ping|ping [-c N] HOST
 
 # archives
 pax|POSIX pax ustar archives: list, -w create, -r extract, -rw copy
+
+# compression (libzstd loaded at run time; no link-time dependency)
+zstd|Compress or decompress files with zstd
+zstdcat|Decompress zstd files to standard output

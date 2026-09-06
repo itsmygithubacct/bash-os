@@ -23,6 +23,16 @@ bash-os is assembled from three sources:
   `tests/stat-parity.sh` holds it to byte-identical output with coreutils 9.7.
   It replaces bash's own GPL stat loadable in every variant, including the
   pure list.
+- **Written for bash-os** (MIT): `zstd` and `zstdcat`, the subset of zstd(1) a
+  script uses, over a libzstd found at run time: `libzstd.so.1` is dlopen'ed
+  on first use and the stable API resolved with dlsym, so there is no
+  link-time dependency and no vendored zstd; without the library the builtin
+  says so and fails. Requested by the appliance, which carries the vendor's
+  libzstd and compresses its rotated logs with it. zstd(1)'s file semantics:
+  the source is kept unless `--rm`, no overwrite without `-f`, the target
+  takes the source's mode and mtime. `tests/zstd-check.sh` checks it against
+  the host's zstd both ways; `tests/zstd-host.c` runs the buffer paths under
+  the sanitizers.
 
 ## Licences, file by file
 

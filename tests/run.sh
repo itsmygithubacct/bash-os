@@ -20,6 +20,8 @@ bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list >/dev/nul
 [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]] && ok "pure build carries no ls (variants really differ)" || no "pure build has ls"
 echo "== wc and tail parity with coreutils =="
 bash tests/wc-tail-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^wc-tail-parity: ([0-9]+)/\1 ' && ok "wc-tail-parity" || no "wc-tail-parity"
+echo "== zstd against the host zstd =="
+bash tests/zstd-check.sh out/bash | tail -1 | grep -qE 'SKIP|^zstd-check: [0-9]+ passed, 0 failed' && ok "zstd-check" || no "zstd-check"
 echo "== stat parity with coreutils =="
 bash tests/stat-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^stat-parity: ([0-9]+)/\1 ' && ok "stat-parity" || no "stat-parity"
 echo "== static + a root filesystem of only bash =="
@@ -32,7 +34,7 @@ echo "== the bench harness (quick) =="
 if command -v busybox >/dev/null; then bash bench/run.sh --quick 2>&1 | grep -qE '^\| 07-shell-startup ' && ok "bench runs, outputs agree across userlands" || no "bench"; else echo "SKIP bench (no busybox)"; fi
 echo "== C harnesses (ASan+UBSan) =="
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
-  for h in rngseed httpd; do
+  for h in rngseed httpd zstd; do
     d=$(mktemp -d); DFLAG=""; [[ $h == httpd ]] && DFLAG="-DHTTPD_REQUEST_TIMEOUT_MS=1000"
     if "$CC" -O1 -g -fsanitize=address,undefined $DFLAG $INC "loadables/$h.c" "tests/$h-host.c" -o "$d/t" >/dev/null 2>&1 && "$d/t" >/dev/null 2>&1
     then ok "$h contract"; else no "$h contract"; fi
