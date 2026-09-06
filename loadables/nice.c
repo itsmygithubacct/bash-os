@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "command-run.h"
 
 extern char *nice_doc[];
 
@@ -141,6 +142,9 @@ nice_builtin (WORD_LIST *list)
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
     /* Fork so we don't poison the calling shell's niceness. */
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     if (pid < 0) {
         int e = errno;
@@ -151,12 +155,14 @@ nice_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
         errno = 0;
         if (setpriority (PRIO_PROCESS, 0, getpriority (PRIO_PROCESS, 0) + incr) < 0) {
             fprintf (stderr, "nice: setpriority(%d): %s\n", incr, strerror (errno));
             /* POSIX says: continue anyway with the original priority. */
         }
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         int err = errno;
         fprintf (stderr, "nice: %s: %s\n", argv[0], strerror (err));
@@ -182,6 +188,7 @@ nice_builtin (WORD_LIST *list)
 
 char *nice_doc[] = {
     "Run CMD with adjusted scheduling niceness (POSIX nice).",
+    "CMD may be an enabled shell builtin or an external executable.",
     "",
     "    bashnice [--help|--version] [-n N | --adjustment=N | -N] CMD [ARGS...]",
     "    bashnice                 (print current niceness)",

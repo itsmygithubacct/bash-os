@@ -35,6 +35,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "command-run.h"
 #include "trap.h"   /* signal_is_trapped / signal_is_hard_ignored */
 
 /* GNU env (coreutils) exits 125 (EXIT_CANCELED) for EVERY usage/option error
@@ -920,6 +921,8 @@ env_builtin (WORD_LIST *list)
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
     /* Fork+exec so we don't replace the calling shell. */
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     if (pid < 0) {
         int e = errno;
@@ -932,6 +935,7 @@ env_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
         bashenv_reset_inherited_job_signals ();
         bashenv_apply_child_signal_actions (sig_actions, n_sig_actions);
@@ -955,6 +959,7 @@ env_builtin (WORD_LIST *list)
                 fprintf (stderr, "   arg[%d]= \xe2\x80\x98%s\xe2\x80\x99\n",
                          k, argv[k]);
         }
+        bos_run_builtin (program, argv, envp);
         execvpe (program, argv, envp);
         int err = errno;
         if (err == ENOEXEC) {
@@ -1003,7 +1008,7 @@ char *env_doc[] = {
     "    NAME=VAL  set/replace NAME (any number, processed in order)",
     "",
     "Without CMD, prints the resulting environment one entry per line.",
-    "With CMD, fork+execvpe so the calling shell is unaffected.",
+    "With CMD, run an enabled builtin or external command in a child process.",
     "",
     "Bash's `VAR=val cmd` syntax handles the common case; bashenv adds",
     "-i (clean exec) and the print-env form.",

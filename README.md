@@ -58,6 +58,11 @@ bakes them in at build time (`build.sh`):
 The result is indistinguishable from a native builtin: `type ls` says
 "ls is a shell builtin", and `enable -n ls` disables it.
 
+`env`, `nice`, `nohup`, `xargs`, and `find -exec` run enabled builtins in a
+child process, preserving literal arguments and isolating command state from
+the caller. Explicit executable paths and disabled builtin names use external
+command lookup.
+
 ## Layout
 
 ```

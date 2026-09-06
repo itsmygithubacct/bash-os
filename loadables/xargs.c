@@ -39,6 +39,7 @@
 #include <limits.h>
 
 #include "loadables.h"
+#include "command-run.h"
 
 /* GNU/BSD xargs exit status folding. POSIX leaves "some other error" to the
    implementation; we mirror GNU so `lc_tap_compare` against /usr/bin/xargs
@@ -222,11 +223,16 @@ bx_run (char **argv, int n, int tflag)
     sigaddset (&block_chld, SIGCHLD);
     sigprocmask (SIG_BLOCK, &block_chld, &prev_mask);
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     if (pid == 0) {
+        bos_prepare_child ();
         /* Restore the inherited mask in the child so its own children
            (if it spawns any) trigger the normal SIGCHLD path. */
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         /* execvp failed. Distinguish "not found" from "cannot execute" so
            the parent can fold accurately. POSIX: ENOENT/ENOTDIR → 127,
@@ -280,11 +286,16 @@ bx_spawn (char **argv, int n, int tflag)
         fputc ('\n', stderr);
     }
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     if (pid == 0) {
+        bos_prepare_child ();
         sigset_t empty;
         sigemptyset (&empty);
         sigprocmask (SIG_SETMASK, &empty, NULL);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         int code = (errno == ENOENT || errno == ENOTDIR) ? 127 : 126;
         fprintf (stderr, "bashxargs: %s: %s\n", argv[0], strerror (errno));
@@ -727,6 +738,7 @@ xargs_builtin (WORD_LIST *list)
 }
 
 char *xargs_doc[] = {
+    "Run an enabled builtin or external command for each argument batch.",
     "Build and run command lines from stdin.",
     "",
     "    bashxargs [-0rtp] [-n MAX] [-L MAX] [-P MAX] [-s SIZE]",

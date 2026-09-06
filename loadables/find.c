@@ -45,6 +45,7 @@
 #include <limits.h>
 
 #include "loadables.h"
+#include "command-run.h"
 
 /* Predicate kinds. */
 typedef enum {
@@ -594,10 +595,15 @@ bf_exec_once (bf_expr *e, const char *path)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     int rc = 0;
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         _exit (127);
     } else if (pid > 0) {
@@ -669,12 +675,17 @@ bf_exec_once_in_dir (bf_expr *e, const char *dir, const char *arg_path)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     int rc = 0;
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
         if (chdir (dir) < 0)
             _exit (126);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         _exit (127);
     } else if (pid > 0) {
@@ -720,10 +731,15 @@ bf_exec_flush (bf_expr *e)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     int rc = 1;
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         _exit (127);
     } else if (pid > 0) {

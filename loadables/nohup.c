@@ -32,6 +32,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "command-run.h"
 
 extern char *nohup_doc[];
 
@@ -209,24 +210,6 @@ nohup_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next) argv[i++] = p->word->word;
     argv[argc] = NULL;
 
-    if (bn_redirect_tty () < 0) {
-        free (argv);
-        return BN_USAGE_FAILURE;
-    }
-
-    /* Ignore SIGHUP for the about-to-exec child (and ourselves, in
-       case execvp fails and we return). POSIX requires ignored signals
-       to survive execve except for SIGCHLD and signals being caught. */
-    struct sigaction sa;
-    memset (&sa, 0, sizeof sa);
-    sa.sa_handler = SIG_IGN;
-    sigemptyset (&sa.sa_mask);
-    if (sigaction (SIGHUP, &sa, NULL) < 0) {
-        builtin_error ("sigaction(SIGHUP): %s", strerror (errno));
-        free (argv);
-        return EXECUTION_FAILURE;
-    }
-
     /* Fork so the loadable can return cleanly to the calling shell.
        Child execs CMD; parent waits and propagates exit code.
        Reset SIGCHLD to default first: bash installs an async SIGCHLD
@@ -250,6 +233,9 @@ nohup_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
     if (pid < 0) {
         builtin_error ("fork: %s", strerror (errno));
@@ -259,7 +245,20 @@ nohup_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
     if (pid == 0) {
+        bos_prepare_child ();
         sigprocmask (SIG_SETMASK, &old_set, NULL);
+        /* Only the command child owns nohup's fd and signal changes. */
+        struct sigaction sa;
+        memset (&sa, 0, sizeof sa);
+        sa.sa_handler = SIG_IGN;
+        sigemptyset (&sa.sa_mask);
+        if (sigaction (SIGHUP, &sa, NULL) < 0) {
+            builtin_error ("sigaction(SIGHUP): %s", strerror (errno));
+            _exit (EXECUTION_FAILURE);
+        }
+        if (bn_redirect_tty () < 0)
+            _exit (BN_USAGE_FAILURE);
+        bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         int err = errno;
         if (err == ENOEXEC) {
@@ -288,6 +287,7 @@ nohup_builtin (WORD_LIST *list)
 
 char *nohup_doc[] = {
     "Run CMD with SIGHUP ignored and tty fds redirected.",
+    "CMD may be an enabled shell builtin or an external executable.",
     "",
     "    bashnohup CMD [ARGS...]",
     "",

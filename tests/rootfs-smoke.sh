@@ -24,6 +24,10 @@ mkdir -p /tmp/w/a/b; printf 'alpha\nbeta\ngamma\n' > /tmp/w/list
 [[ "$(df / | tail -1 | wc -w)" -ge 5 ]]
 [[ "$(date +%Y)" -ge 2026 ]]; [[ -n "$(uname -m)" ]]
 [[ "$(env | grep ^PATH= | cut -d= -f1)" == PATH ]]
+[[ "$(env -i NAME=child nice -n 0 printenv NAME)" == child ]]
+[[ "$(nohup printf builtin)" == builtin ]]
+[[ "$(printf 'one\ntwo\n' | xargs -n 1 -P 2 printf '%s\n' | sort | wc -l)" == 2 ]]
+[[ "$(find /tmp/w -type f -exec printf '%s\n' '{}' ';' | wc -l)" == 1 ]]
 ( cd /tmp/w && pax -w list | pax | grep -qx list )          # archive through a pipe
 [[ "$(id -u)" == 0 && "$(whoami)" == root ]]
 [[ "$(enable -a | wc -l)" -gt 120 ]]
