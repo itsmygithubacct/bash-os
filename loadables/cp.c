@@ -170,10 +170,32 @@ bcp_copy_regular (const char *src, const char *dst,
         builtin_error ("open %s: %s", src, strerror (errno));
         return -1;
     }
-    int dfd = open (dst, O_WRONLY | O_CREAT | O_TRUNC, sst->st_mode & 0777);
+    /* Open without truncating: dst may be a symlink back to src, and the
+       lstat check above compares the link's inode rather than its target. */
+    int dfd = open (dst, O_WRONLY | O_CREAT, sst->st_mode & 0777);
     if (dfd < 0) {
         builtin_error ("open %s for write: %s", dst, strerror (errno));
         close (sfd);
+        return -1;
+    }
+    struct stat opened_src, opened_dst;
+    if (fstat (sfd, &opened_src) < 0 || fstat (dfd, &opened_dst) < 0) {
+        builtin_error ("stat open file: %s", strerror (errno));
+        close (sfd);
+        close (dfd);
+        return -1;
+    }
+    if (opened_src.st_dev == opened_dst.st_dev &&
+        opened_src.st_ino == opened_dst.st_ino) {
+        builtin_error ("'%s' and '%s' are the same file", src, dst);
+        close (sfd);
+        close (dfd);
+        return -1;
+    }
+    if (ftruncate (dfd, 0) < 0) {
+        builtin_error ("truncate %s: %s", dst, strerror (errno));
+        close (sfd);
+        close (dfd);
         return -1;
     }
     int rc = bcp_copy_data (sfd, dfd, src, dst);

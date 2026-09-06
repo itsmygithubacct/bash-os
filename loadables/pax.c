@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
+#include <limits.h>
 #include "loadables.h"
 
 static unsigned long octal(const char *s, size_t n){
@@ -33,12 +34,27 @@ static unsigned long octal(const char *s, size_t n){
     b[j]=0; return j?strtoul(b,NULL,8):0;
 }
 static void put_octal(char *dst, size_t n, unsigned long v){ snprintf(dst,n,"%0*lo",(int)n-1,v); dst[n-1]='\0'; }
+/* Skip N bytes of the archive. fseek only works on a seekable file; on a
+   pipe (cat x.tar | pax -r, ssh host cat x.tar | pax) it fails and leaves
+   the stream where it was, so every later header read is misaligned. */
+static int skip_bytes(FILE *f, unsigned long n){
+    if(n == 0) return 0;
+    if(fseek(f, (long)n, SEEK_CUR) == 0) return 0;
+    unsigned char sink[4096];
+    while(n){
+        size_t want = n > sizeof sink ? sizeof sink : (size_t)n;
+        size_t got = fread(sink, 1, want, f);
+        if(got == 0) return -1;
+        n -= got;
+    }
+    return 0;
+}
 static int zero_block(const unsigned char *b){ for(int i=0;i<512;i++) if(b[i]) return 0; return 1; }
 static void name_from_hdr(char *out, unsigned char *h){
     char name[101], pref[156];
     memcpy(name,h,100); name[100]=0;
     memcpy(pref,h+345,155); pref[155]=0;
-    if(pref[0]) snprintf(out,256,"%s/%s",pref,name); else snprintf(out,256,"%s",name);
+    if(pref[0]) snprintf(out,257,"%s/%s",pref,name); else snprintf(out,257,"%s",name);
 }
 static int unsafe_path(const char *name){
     if(!name||!*name||name[0]=='/') return 1;
@@ -156,7 +172,7 @@ static int read_padded_body(FILE *f, unsigned long sz, char **out){
     if(!body) return -1;
     if(sz && fread(body, 1, sz, f) != sz){ free(body); return -1; }
     unsigned long pad = (512 - (sz % 512)) % 512;
-    if(pad && fseek(f, (long)pad, SEEK_CUR) < 0){ free(body); return -1; }
+    if(pad && skip_bytes(f, pad) < 0){ free(body); return -1; }
     *out = body; return 0;
 }
 
@@ -196,7 +212,7 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
         if(memcmp(h+257,"ustar",5)){ builtin_error("bad ustar magic"); rc=EXECUTION_FAILURE; break; }
         if(!hdr_checksum_ok(h)){ builtin_error("bad ustar header checksum"); rc=EXECUTION_FAILURE; break; }
 
-        char hdrname[256]; name_from_hdr(hdrname, h);
+        char hdrname[257]; name_from_hdr(hdrname, h);
         unsigned long sz = octal((char*)h+124,12);
         unsigned mode = octal((char*)h+100,8);
         time_t mtime = (time_t)octal((char*)h+136, 12);
@@ -245,21 +261,22 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
 
         const char *name = eff.path ? eff.path : hdrname;
         const char *ln = eff.linkpath ? eff.linkpath : linkname;
-        if(eff.has_size){ sz = eff.size; body_padded = ((long)sz+511L)/512L*512L; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
+        if(eff.has_size){ if(eff.size > (unsigned long)LONG_MAX - 1024UL){ builtin_error("%s: member size out of range", name); rc = EXECUTION_FAILURE; pax_meta_free(&eff); break; }
+            sz = eff.size; body_padded = ((long)sz+511L)/512L*512L; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
         if(eff.has_mtime) mtime = eff.mtime;
         if(eff.typeflag){ typeflag = eff.typeflag; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
 
         if(!extract){
             if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, sz, name);
             else printf("%s\n", name);
-            if(has_body) fseek(f, body_padded, SEEK_CUR);
+            if(has_body) skip_bytes(f, body_padded);
             pax_meta_free(&eff);
             continue;
         }
 
         if(unsafe_path(name)){
             builtin_error("%s: unsafe archive path", name); rc = EXECUTION_FAILURE;
-            if(has_body) fseek(f, body_padded, SEEK_CUR);
+            if(has_body) skip_bytes(f, body_padded);
             pax_meta_free(&eff);
             continue;
         }
@@ -305,15 +322,19 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
         case 'x': case 'g':
             builtin_error("%s: extended header typeflag '%c' not supported", name, typeflag);
             rc = EXECUTION_FAILURE;
-            fseek(f, body_padded, SEEK_CUR);
+            skip_bytes(f, body_padded);
             break;
         case '0': case '\0': case '7':
         default: {
             mkpath_parents(name, 0755);
+            if(unlink(name) < 0 && errno != ENOENT && errno != EISDIR){
+                builtin_error("%s: %s", name, strerror(errno)); rc = EXECUTION_FAILURE;
+                skip_bytes(f, body_padded); break;
+            }
             FILE *o = fopen(name, "wb");
             if(!o){
                 builtin_error("%s: %s", name, strerror(errno)); rc = EXECUTION_FAILURE;
-                fseek(f, body_padded, SEEK_CUR); break;
+                skip_bytes(f, body_padded); break;
             }
             unsigned long left = sz; unsigned char buf[4096]; int short_body = 0;
             while(left){
@@ -327,7 +348,7 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
             chmod(name, mode & 0777);
             set_mtime(name, mtime, 0);
             unsigned long pad = (512 - (sz % 512)) % 512;
-            if(pad) fseek(f, pad, SEEK_CUR);
+            if(pad) skip_bytes(f, pad);
             break;
         }
         }

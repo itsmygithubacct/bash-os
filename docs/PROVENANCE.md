@@ -19,8 +19,10 @@ bash-os is assembled from three sources:
   `reboot`/`halt`/`poweroff`/`chown`/`chgrp`.
 - **Written for bash-os** (MIT): `stat`, a clean-room implementation of the
   GNU coreutils stat(1) surface (format directives, default and terse layouts,
-  `--printf`, `-L`) plus a small `-A NAME` array load. It replaces bash's own
-  GPL stat loadable in every variant, including the pure list.
+  `--printf`, `-L`, birth time via statx) plus a small `-A NAME` array load.
+  `tests/stat-parity.sh` holds it to byte-identical output with coreutils 9.7.
+  It replaces bash's own GPL stat loadable in every variant, including the
+  pure list.
 
 ## Licences, file by file
 
@@ -63,3 +65,13 @@ Changes carried in the sources, noted there:
   (default 0) so no libpcre2 is needed, and `-P` errors cleanly at run time.
 - `pax`: the collection's `bashpax.c`, renamed; plain libc ustar list, create,
   extract and copy with PAX and GNU long-name headers read and `..` rejected.
+  Fixed here: bodies were skipped with `fseek`, which fails on a pipe, so
+  `cat x.tar | pax -r` lost every member after the first; a member is now
+  written to a fresh file rather than through whatever sits at its name (a
+  pre-existing symlink was followed); a PAX `size` beyond `long` no longer
+  wraps into a backwards seek; and a full-length 257-byte ustar name is no
+  longer truncated.
+- `bashjson`: a duplicate-key check freed its index array and then read the
+  return value from it.
+- `bashdhcp`: the lease-binding helper treated a null `bind_assoc_variable`
+  result as success (the callers ignore the value, so no visible effect).

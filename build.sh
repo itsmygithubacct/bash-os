@@ -75,28 +75,38 @@ CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_
 
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
 mkdir -p "$OUTDIR" "$DL" build
-STAMP=$( { echo "$BASH_SRC_SHA256 $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
+STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
            cat "$LIST"; find loadables -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
   say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
 : > "$LOG"
 
-# --- 1. bash source, pinned by sha256 --------------------------------------
+# --- 1. bash source and its patch set, pinned by sha256 --------------------
 TARBALL="$DL/bash-$BASH_SRC_VERSION.tar.gz"
 if [[ ! -f "$TARBALL" ]]; then
   if [[ -n "${BASH_TARBALL:-}" ]]; then cp "$BASH_TARBALL" "$TARBALL"
   else say "downloading $BASH_URL"; curl -fL -o "$TARBALL" "$BASH_URL"; fi
 fi
 echo "$BASH_SRC_SHA256  $TARBALL" | sha256sum -c - >/dev/null || die "bash tarball sha256 mismatch"
+mkdir -p "$DL/patches"
+for entry in "${BASH_PATCHES[@]}"; do
+  pname=${entry%% *}; psha=${entry##* }; pfile="$DL/patches/$pname"
+  [[ -f "$pfile" ]] || { say "downloading $pname"; curl -fL -o "$pfile" "$BASH_PATCH_URL/$pname"; }
+  echo "$psha  $pfile" | sha256sum -c - >/dev/null || die "$pname sha256 mismatch"
+done
 
 # --- 2. fresh tree in a staging dir, swapped in at the end (atomic) --------
 STAGE_PARENT=$(mktemp -d "$HERE/build/.stage.XXXXXX"); trap 'rm -rf "$STAGE_PARENT"' EXIT
 tar xzf "$TARBALL" -C "$STAGE_PARENT"
 STAGE="$STAGE_PARENT/bash-$BASH_SRC_VERSION"; [[ -d "$STAGE" ]] || die "tarball did not unpack as expected"
 cd "$STAGE"
+for entry in "${BASH_PATCHES[@]}"; do
+  pname=${entry%% *}
+  patch -p0 -s < "$DL/patches/$pname" >>"$LOG" 2>&1 || die "$pname did not apply (see $LOG)"
+done
 pl=$(awk '$1=="#define" && $2=="PATCHLEVEL" {print $3}' patchlevel.h)
-[[ "$pl" == "$BASH_PATCHLEVEL" ]] || die "patchlevel $pl, expected $BASH_PATCHLEVEL"
+[[ "$pl" == "$BASH_PATCHLEVEL" ]] || die "patchlevel $pl after patching, expected $BASH_PATCHLEVEL"
 
 # --- 3. stage the loadable sources + helper headers ------------------------
 say "staging loadables"

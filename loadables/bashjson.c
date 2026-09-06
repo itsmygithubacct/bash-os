@@ -1536,8 +1536,9 @@ bj_dupkey_idx (const char *src, jsmntok_t *toks, int ntoks)
                     {
                       if (bj_tok_eq_tok (src, &toks[ki[j]], &toks[ki[k]]))
                         {
+                          int dup = ki[k];
                           free (ki);
-                          return ki[k];
+                          return dup;
                         }
                     }
                 }

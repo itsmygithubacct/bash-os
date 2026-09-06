@@ -300,7 +300,7 @@ parse_msg (const unsigned char *pkt, size_t len, bdhcp_lease *l)
 static int
 bind_field (SHELL_VAR *v, const char *name, const char *key, const char *value)
 {
-  return bind_assoc_variable (v, name, savestring ((char *) key), value ? value : "", ASS_FORCE) == 0 ? 0 : -1;
+  return bind_assoc_variable (v, name, savestring ((char *) key), value ? value : "", ASS_FORCE) ? 0 : -1;
 }
 
 static int

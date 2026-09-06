@@ -30,6 +30,8 @@ if has grep;     then out=$("$BX" -c 'PATH=; printf "a\nb\nc\n" | grep b' 2>/dev
 if has wc;       then out=$("$BX" -c 'PATH=; printf "x y z\n" | wc -w' 2>/dev/null);     [[ "$out" == 3 ]]      && ok "wc"       || no "wc: '$out'"; fi
 if has pax;      then out=$("$BX" -c 'PATH=; d=$(mktemp -d); cd "$d"; printf "data\n" > f; pax -w f > a.tar; mkdir x; cd x; pax -r < ../a.tar; cat f; cd /; rm -r "$d"' 2>/dev/null)
                       [[ "$out" == data ]]  && ok "pax write/read round-trip" || no "pax: '$out'"; fi
+if has pax;      then out=$("$BX" -c 'PATH=; d=$(mktemp -d); cd "$d"; printf "12345" > a; printf "b\n" > b; pax -w a b | pax | tr "\n" ,; cd /; rm -r "$d"' 2>&1)
+                      [[ "$out" == "a,b," ]] && ok "pax list through a pipe" || no "pax pipe: '$out'"; fi
 
 if has stat; then
   d=$(mktemp -d); printf 12345 > "$d/f"; mkdir "$d/dir"; ln -s f "$d/l"

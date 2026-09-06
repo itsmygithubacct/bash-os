@@ -32,6 +32,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/syscall.h>
+#include <fcntl.h>
 #include "loadables.h"
 #include "bashgetopt.h"
 
@@ -55,7 +57,36 @@ struct stat_file {
   struct stat st;
   char link[PATH_MAX + 1];      /* target if NAME is a symlink we did not follow */
   int is_link;
+  int quote_always;             /* %N: coreutils always quotes in a user format */
+  int has_btime;                /* birth time, when the kernel and filesystem report one */
+  int64_t bsec; long bnsec;
 };
+
+/* Birth time comes from statx(2). Declared privately, with the kernel's
+   layout, so the same code builds against glibc and musl of any age. */
+#ifdef SYS_statx
+struct stat_x_ts { int64_t sec; uint32_t nsec; int32_t pad; };
+struct stat_x {
+  uint32_t mask, blksize; uint64_t attributes; uint32_t nlink, uid, gid; uint16_t mode, spare0;
+  uint64_t ino, size, blocks, attributes_mask;
+  struct stat_x_ts atime, btime, ctime, mtime;
+  uint64_t rest[16];
+};
+#define STAT_X_BTIME 0x800U
+#define STAT_X_NOFOLLOW 0x100
+#endif
+
+static void
+stat_birth_time (struct stat_file *f, int follow)
+{
+#ifdef SYS_statx
+  struct stat_x x;
+  memset (&x, 0, sizeof x);
+  if (syscall (SYS_statx, AT_FDCWD, f->name, follow ? 0 : STAT_X_NOFOLLOW, STAT_X_BTIME, &x) == 0
+      && (x.mask & STAT_X_BTIME))
+    { f->has_btime = 1; f->bsec = x.btime.sec; f->bnsec = x.btime.nsec; }
+#endif
+}
 
 static const char *
 stat_type_name (const struct stat *st)
@@ -97,16 +128,13 @@ stat_time_string (char *out, size_t n, time_t sec, long nsec)
   snprintf (out, n, "%s.%09ld %s", date, nsec, zone);
 }
 
-/* Quote the way coreutils' shell-escape style does: bare when every character
-   is safe, single-quoted otherwise. */
+/* %N: coreutils single-quotes the name in a user-supplied format, and prints
+   it bare in its own default layout. */
 static void
-stat_quote_name (char *out, size_t n, const char *name)
+stat_quote_name (char *out, size_t n, const char *name, int quote)
 {
   const char *p; size_t o = 0;
-  for (p = name; *p; p++)
-    if (!(ISALNUM ((unsigned char)*p) || strchr ("._/+:@%,=-", *p)))
-      break;
-  if (*p == 0 && *name)
+  if (quote == 0)
     { snprintf (out, n, "%s", name); return; }
   if (o < n - 1) out[o++] = '\'';
   for (p = name; *p && o < n - 6; p++)
@@ -170,8 +198,8 @@ stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t 
     case 'N':
       {
         char q[PATH_MAX + 8], t[PATH_MAX + 8];
-        stat_quote_name (q, sizeof q, f->name);
-        if (f->is_link) { stat_quote_name (t, sizeof t, f->link); snprintf (val, n, "%s -> %s", q, t); }
+        stat_quote_name (q, sizeof q, f->name, f->quote_always);
+        if (f->is_link) { stat_quote_name (t, sizeof t, f->link, f->quote_always); snprintf (val, n, "%s -> %s", q, t); }
         else snprintf (val, n, "%s", q);
       }
       break;
@@ -188,8 +216,8 @@ stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t 
     case 'U': pw = getpwuid (st->st_uid);
       if (pw) snprintf (val, n, "%s", pw->pw_name); else snprintf (val, n, "%lu", (unsigned long) st->st_uid);
       break;
-    case 'w': snprintf (val, n, "-"); break;          /* birth time: not reported */
-    case 'W': snprintf (val, n, "0"); break;
+    case 'w': if (f->has_btime) stat_time_string (val, n, (time_t) f->bsec, f->bnsec); else snprintf (val, n, "-"); break;
+    case 'W': snprintf (val, n, "%" PRIdMAX, f->has_btime ? (intmax_t) f->bsec : (intmax_t) 0); break;
     case 'x': stat_time_string (val, n, st->st_atim.tv_sec, st->st_atim.tv_nsec); break;
     case 'X': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_atim.tv_sec); break;
     case 'y': stat_time_string (val, n, st->st_mtim.tv_sec, st->st_mtim.tv_nsec); break;
@@ -371,6 +399,8 @@ stat_builtin (WORD_LIST *list)
           ssize_t k = readlink (f.name, f.link, sizeof f.link - 1);
           if (k >= 0) { f.link[k] = 0; f.is_link = 1; }
         }
+      stat_birth_time (&f, follow);
+      f.quote_always = fmt != 0;
       if (aname)
         {
           if (stat_load_array (aname, &f) < 0) { status = EXECUTION_FAILURE; }
@@ -409,7 +439,7 @@ char *stat_doc[] = {
   "  %h hard links    %i inode            %m mount point  %n name",
   "  %N quoted name, with -> target for a link            %o I/O block size",
   "  %s size          %t/%T major/minor of rdev (hex)     %Hr/%Lr (decimal)",
-  "  %u uid           %U user name        %w/%W birth time (not reported: -/0)",
+  "  %u uid           %U user name        %w/%W birth time (- / 0 if unknown)",
   "  %x/%X atime      %y/%Y mtime         %z/%Z ctime (human / epoch)   %% literal",
   "",
   "Exit status: 0, or 1 if any FILE could not be stat'ed.",

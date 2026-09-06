@@ -34,8 +34,9 @@ CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown
 ```
 
 Outputs are stripped (`--no-strip` keeps symbols) and each comes with a
-`.manifest.txt` beside it. The bash source is pinned by sha256 in
-`config/versions.sh`; a from-scratch build is byte-identical to the last one.
+`.manifest.txt` beside it. The bash source and the official bash-5.3 patch
+set (001–010) are pinned by sha256 in `config/versions.sh`; a from-scratch
+build is byte-identical to the last one.
 
 Cross-compiling needs only `CC`: `--host` is derived from the compiler, and the
 configure answers a cross build cannot measure itself (job control, named pipes,
@@ -69,11 +70,14 @@ config/
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/
-  run.sh                        the suite: both variants build + prove themselves,
-                                licences, and the httpd/rngseed sanitizer harnesses
+  run.sh                        the suite: everything below, for both list variants
   host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
-                                and runs with an empty PATH
+                                and runs with an empty PATH (stat, pax, pipes …)
+  stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
+  rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs
+                                a script using a dozen commands (needs bwrap)
   licence-check.sh              every source states its licence (all MIT)
+  httpd-host.c  rngseed-host.c  ASan+UBSan unit harnesses
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
 

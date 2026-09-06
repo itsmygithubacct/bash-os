@@ -13,10 +13,16 @@ echo "== licences =="; bash tests/licence-check.sh >/dev/null && ok "licence-che
 echo "== default list =="
 ./build.sh >/dev/null 2>&1 && ok "builds out/bash" || { no "build"; echo "run: $pass passed, $fail failed"; exit 1; }
 bash tests/host-smoke.sh out/bash config/bash-loadables.list >/dev/null 2>&1 && ok "host-smoke (default list)" || no "host-smoke (default list)"
+python3 tests/regressions.py out/bash && ok "builtin regressions" || no "builtin regressions"
 echo "== pure list =="
 ./build.sh --list config/bash-loadables-pure.list >/dev/null 2>&1 && ok "builds out/bash-pure" || no "build (pure)"
 bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list >/dev/null 2>&1 && ok "host-smoke (pure list)" || no "host-smoke (pure list)"
 [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]] && ok "pure build carries no ls (variants really differ)" || no "pure build has ls"
+echo "== stat parity with coreutils =="
+bash tests/stat-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^stat-parity: ([0-9]+)/\1 ' && ok "stat-parity" || no "stat-parity"
+echo "== static + a root filesystem of only bash =="
+./build.sh --static >/dev/null 2>&1 && ok "builds out/bash-static" || no "build (static)"
+bash tests/rootfs-smoke.sh out/bash-static | tail -1 | grep -qE 'SKIP|PASS' && ok "rootfs-smoke" || no "rootfs-smoke"
 echo "== C harnesses (ASan+UBSan) =="
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   for h in rngseed httpd; do
