@@ -216,6 +216,24 @@ Changes carried in the sources, noted there:
   89 KB log); the ring buffer remains for pipes. Adjusted here: it never
   looks before the offset the stream was at when called, so a partial read
   followed by `tail` behaves as GNU's does.
+- `sort`: the comparison keys are computed once per line, not on every
+  comparison, and a numeric key is decomposed the way GNU `sort -n` reads
+  it -- leading blanks, an optional `-`, digits and one decimal point,
+  compared as digit strings of unbounded precision, anything else being
+  zero -- where the collection's version ran `strtod` on both sides of every
+  comparison (so `1e5`, `0x10`, `+5` and `inf` sorted as numbers, and two
+  20-digit integers could tie). The sort permutes a 16-byte array of an
+  order-preserving 64-bit prefix of the first key and a line pointer, the
+  input is read whole and split in place, and output is written through one
+  buffer. `-k`/`-t` keys follow GNU's `begfield`/`limfield`: a field's
+  leading blanks belong to it, `-kN` alone runs to the end of the line, a
+  `b` after the comma affects only the key's end, a key with letters of its
+  own takes no global option (so `sort -r -k2n` is ascending), and `-u`
+  keeps input order among equal keys instead of tie-breaking on the whole
+  line. `-c` uses the whole order and treats equal keys as disorder under
+  `-u`; `-m` picks by the whole order. `tests/sort-parity.sh` holds it to
+  identical output and exit status with coreutils 9.7 in the C and a UTF-8
+  locale.
 - `bashjson`: a duplicate-key check freed its index array and then read the
   return value from it.
 - `bashdhcp`: the lease-binding helper treated a null `bind_assoc_variable`

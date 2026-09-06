@@ -1,11 +1,14 @@
 /* bashsort.c — POSIX sort(1) as a bash builtin.
  *
- * Phase A.3 of bash-os shell-ergonomics. Reads all input lines into
- * memory, qsort()s with a flag-driven comparator, emits.
+ * Phase A.3 of bash-os shell-ergonomics. Reads every input whole, computes
+ * each line's comparison keys once (the -k/-t spans and, for -n, the parsed
+ * number), sorts a compact array of key prefixes with a flag-driven
+ * comparator, emits.
  *
  *   bashsort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]
  *
- *   -n   numeric (atof) compare
+ *   -n   numeric compare, GNU sort's rules: leading blanks, an optional '-',
+ *        digits and one decimal point; anything else compares as zero
  *   -g   general numeric compare (strtold)
  *   -h   human numeric compare (SI suffix order)
  *   -V   version/natural compare
@@ -22,7 +25,9 @@
  *   -i   ignore non-printable
  *   -s   stable: preserve input order for equal keys
  *   -t SEP   field separator (default: whitespace runs)
- *   -k KEYDEF which field to compare (simple FIELD[.C][,FIELD[.C]][bdfirnghVM] subset)
+ *   -k KEYDEF which field to compare: FIELD[.CHAR][OPTS][,FIELD[.CHAR][OPTS]],
+ *            read as GNU sort reads it (a key with letters of its own takes
+ *            no global ordering option; one without takes them all)
  *   -o FILE  write result to FILE
  *   -z, --zero-terminated  use NUL as the record delimiter
  *
@@ -43,24 +48,28 @@
 #include <math.h>
 #include <stdint.h>
 #include <time.h>
+#include <locale.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 
 typedef struct {
-    int field;        /* 1-based; 0 = disabled */
-    int start_char;   /* 1-based; 0 = field start */
-    int end_field;    /* 1-based; 0 = same as field */
-    int end_char;     /* 1-based inclusive; 0 = field end */
+    int field;            /* 1-based start field; 0 = the whole line */
+    int start_char;       /* 1-based; 0 = field start */
+    int end_field;        /* 1-based; 0 = the end of the line */
+    int end_char;         /* 1-based; 0 = the end of the end field */
     int numeric;
     int general_numeric;
     int human_numeric;
     int version;
     int month;
     int reverse;
-    int ignore_leading_blanks;
+    int skip_start_blanks;
+    int skip_end_blanks;
     int dictionary_order;
     int ignore_case;
     int ignore_nonprinting;
+    int has_ordering;     /* a letter was given on the key itself */
 } bs_keydef;
 
 typedef struct {
@@ -68,17 +77,36 @@ typedef struct {
     int check_quiet;
     char tsep;
     int  has_tsep;
-    int  kfield;       /* 1-based; 0 = whole line */
     bs_keydef keys[8];
-    int nkeys;
+    int nkeys;            /* after bs_resolve_keys: at least 1 */
 } bs_opts;
 
+/* One comparison key of a line, computed once before sorting: the key's
+   text within the line and, for a numeric key, its decomposition. */
 typedef struct {
-    char *buf;
+    const char *s;      /* key text (no copy, no length limit) */
     size_t len;
-    size_t index;
+    const char *ip;     /* -n: integer digits, leading zeros stripped */
+    size_t ilen;
+    const char *fp;     /* -n: fraction digits, trailing zeros stripped */
+    size_t flen;
+    int sign;           /* -n: -1, 0 or 1; 0 for zero and for a non-number */
+} bs_keyval;
+
+typedef struct {
+    char *buf;          /* the record, ending in the record delimiter */
+    size_t len;
+    size_t index;       /* input order */
     uint64_t random_rank;
+    bs_keyval *keys;    /* one per key */
 } bs_line;
+
+/* What the sort permutes: an order-preserving prefix of the first key and
+   the line. 16 bytes, so most comparisons never leave this array. */
+typedef struct {
+    uint64_t pre;
+    bs_line *ln;
+} bs_elem;
 
 typedef struct {
     size_t start;
@@ -87,7 +115,7 @@ typedef struct {
     const char *name;   /* source file name for diagnostics; "-" for stdin */
 } bs_run;
 
-static bs_opts *bs_cmp_opts;
+static const bs_opts *bs_cmp_opts;
 
 static uint64_t bs_random_state;
 
@@ -148,108 +176,86 @@ bs_random_seed (const char *random_source)
     return 0;
 }
 
+/* -k FIELD[.CHAR][OPTS][,FIELD[.CHAR][OPTS]], as GNU sort reads it. A
+   letter before the comma orders the key, and a b there skips the blanks at
+   its start; a letter after the comma orders the key too, and a b there
+   skips the blanks at its end. Fields and start chars count from 1; an end
+   char of 0 means the end of that field. */
+static int
+bs_parse_count (const char **sp, unsigned long *out)
+{
+    const char *s = *sp;
+    char *end = NULL;
+
+    if (!isdigit ((unsigned char) *s))
+        return -1;
+    errno = 0;
+    *out = strtoul (s, &end, 10);
+    if (errno || *out > 2147483647UL)
+        return -1;
+    *sp = end;
+    return 0;
+}
+
+static int
+bs_parse_letters (const char **sp, bs_keydef *key, int at_end)
+{
+    const char *s = *sp;
+
+    for (; *s && *s != ','; s++) {
+        switch (*s) {
+            case 'b': if (at_end) key->skip_end_blanks = 1; else key->skip_start_blanks = 1; break;
+            case 'd': key->dictionary_order = 1; break;
+            case 'f': key->ignore_case = 1; break;
+            case 'g': key->general_numeric = 1; break;
+            case 'h': key->human_numeric = 1; break;
+            case 'i': key->ignore_nonprinting = 1; break;
+            case 'M': key->month = 1; break;
+            case 'n': key->numeric = 1; break;
+            case 'r': key->reverse = 1; break;
+            case 'V': key->version = 1; break;
+            default: return -1;
+        }
+        key->has_ordering = 1;
+    }
+    *sp = s;
+    return 0;
+}
+
 static int
 bs_parse_keydef (const char *s, bs_keydef *key)
 {
-    char *end = NULL;
-    unsigned long field;
-    unsigned long start_char = 0;
-    unsigned long end_field = 0;
-    unsigned long end_char = 0;
+    unsigned long v;
 
-    if (!s || !*s)
+    memset (key, 0, sizeof *key);
+    if (!s || bs_parse_count (&s, &v) < 0 || v == 0)
         return -1;
-    errno = 0;
-    field = strtoul (s, &end, 10);
-    if (errno || field == 0 || field > 2147483647UL)
+    key->field = (int) v;
+    if (*s == '.') {
+        s++;
+        if (bs_parse_count (&s, &v) < 0 || v == 0)
+            return -1;
+        key->start_char = (int) v;
+    }
+    if (bs_parse_letters (&s, key, 0) < 0)
         return -1;
-    key->field = (int) field;
-    key->start_char = 0;
-    key->end_field = 0;
-    key->end_char = 0;
-    key->numeric = 0;
-    key->general_numeric = 0;
-    key->human_numeric = 0;
-    key->version = 0;
-    key->month = 0;
-    key->reverse = 0;
-    key->ignore_leading_blanks = 0;
-    key->dictionary_order = 0;
-    key->ignore_case = 0;
-    key->ignore_nonprinting = 0;
-
-    if (*end == '.') {
-        end++;
-        if (!isdigit ((unsigned char) *end))
+    if (*s == ',') {
+        s++;
+        if (bs_parse_count (&s, &v) < 0 || v == 0)
             return -1;
-        errno = 0;
-        start_char = strtoul (end, &end, 10);
-        if (errno || start_char == 0 || start_char > 2147483647UL)
-            return -1;
-        key->start_char = (int) start_char;
-    }
-    if (*end == ',') {
-        end++;
-        if (!isdigit ((unsigned char) *end))
-            return -1;
-        errno = 0;
-        end_field = strtoul (end, &end, 10);
-        if (errno || end_field == 0 || end_field > 2147483647UL || end_field < field)
-            return -1;
-        key->end_field = (int) end_field;
-        if (*end == '.') {
-            end++;
-            if (!isdigit ((unsigned char) *end))
+        key->end_field = (int) v;
+        if (*s == '.') {
+            s++;
+            if (bs_parse_count (&s, &v) < 0)
                 return -1;
-            errno = 0;
-            end_char = strtoul (end, &end, 10);
-            if (errno || end_char == 0 || end_char > 2147483647UL)
-                return -1;
-            key->end_char = (int) end_char;
+            key->end_char = (int) v;
         }
-        if (key->end_field == key->field && key->end_char && key->start_char &&
-            key->end_char < key->start_char)
+        if (bs_parse_letters (&s, key, 1) < 0)
             return -1;
     }
-    while (*end) {
-        switch (*end) {
-            case 'n':
-                key->numeric = 1;
-                break;
-            case 'g':
-                key->general_numeric = 1;
-                break;
-            case 'h':
-                key->human_numeric = 1;
-                break;
-            case 'V':
-                key->version = 1;
-                break;
-            case 'M':
-                key->month = 1;
-                break;
-            case 'r':
-                key->reverse = 1;
-                break;
-            case 'b':
-                key->ignore_leading_blanks = 1;
-                break;
-            case 'd':
-                key->dictionary_order = 1;
-                break;
-            case 'f':
-                key->ignore_case = 1;
-                break;
-            case 'i':
-                key->ignore_nonprinting = 1;
-                break;
-            default:
-                return -1;
-        }
-        end++;
-    }
-    return 0;
+    return *s ? -1 : 0;
 }
+
 
 static int
 bs_version_cmp (const char *a, const char *b)
@@ -408,141 +414,336 @@ bs_add_keydef (bs_opts *o, const char *s)
         builtin_error ("invalid key: %s", s);
         return -1;
     }
-    o->kfield = o->keys[0].field;
     o->nkeys++;
     return 0;
 }
 
-static int
-bs_add_line (bs_line **linesp, size_t *np, size_t *capp, const char *line, size_t len, int delim)
+/* GNU sort's inheritance, applied once the options are all read: a key with
+   no ordering letter of its own takes every global one (-b -d -f -i -n -g
+   -h -M -V -r); a key with any letter takes none, not even -r, which then
+   only reverses the last-resort comparison. With no -k at all, the whole
+   line is the one key. */
+static void
+bs_resolve_keys (bs_opts *o)
 {
-    bs_line *lines = *linesp;
-    size_t n = *np;
-    size_t cap = *capp;
-    size_t out_len = len;
-
-    /* Normalize: every stored record ends with the record delimiter, so a
-       final line that lacks one (no trailing newline / NUL at EOF) does not
-       run into the next record on output. GNU sort appends the delimiter to
-       such a last line. */
-    if (out_len == 0 || (unsigned char) line[out_len - 1] != (unsigned char) delim)
-        out_len++;
-
-    if (n >= cap) {
-        cap = cap ? cap * 2 : 64;
-        bs_line *nb = realloc (lines, cap * sizeof *nb);
-        if (!nb)
-            return -1;
-        lines = nb;
-        *linesp = lines;
-        *capp = cap;
+    if (o->nkeys == 0) {
+        memset (&o->keys[0], 0, sizeof o->keys[0]);
+        o->nkeys = 1;
     }
-    lines[n].buf = malloc (out_len + 1);
-    if (!lines[n].buf)
+    for (int i = 0; i < o->nkeys; i++) {
+        bs_keydef *k = &o->keys[i];
+        if (k->has_ordering)
+            continue;
+        k->skip_start_blanks = k->skip_end_blanks = o->bflag;
+        k->dictionary_order = o->dflag;
+        k->ignore_case = o->fflag;
+        k->ignore_nonprinting = o->iflag;
+        k->numeric = o->nflag;
+        k->general_numeric = o->gflag;
+        k->human_numeric = o->hflag;
+        k->month = o->mflag;
+        k->version = o->vflag;
+        k->reverse = o->rflag;
+    }
+}
+
+/* --- input -------------------------------------------------------------
+   Each file is read whole into one buffer and split into records in place.
+   A record is a span of its buffer ending in the record delimiter; a final
+   record that lacks one gets it appended (GNU sort does the same), which is
+   why every buffer keeps a spare byte. Nothing is copied per line. */
+typedef struct {
+    bs_line *lines;
+    size_t n, cap;
+    char **bufs;            /* one per input, freed at the end */
+    size_t nbufs, bufcap;
+} bs_input;
+
+/* Read F to end of file: 0 with the data, 1 on a read error (errno set,
+   the data read so far is still returned), -1 out of memory. The buffer
+   has at least one byte of room past LEN. */
+static int
+bs_read_stream (FILE *f, char **bufp, size_t *lenp)
+{
+    size_t cap = 65536, len = 0;
+    struct stat st;
+    char *buf;
+
+    if (fstat (fileno (f), &st) == 0 && S_ISREG (st.st_mode) && st.st_size > 0
+        && (uintmax_t) st.st_size < (size_t) -2)
+        cap = (size_t) st.st_size + 2;
+    buf = malloc (cap);
+    if (!buf)
         return -1;
-    memcpy (lines[n].buf, line, len);
-    if (out_len > len)
-        lines[n].buf[len] = (char) delim;
-    lines[n].buf[out_len] = '\0';
-    lines[n].len = out_len;
-    lines[n].index = n;
-    lines[n].random_rank = 0;
-    *np = n + 1;
+    for (;;) {
+        size_t want = cap - len - 1, got;
+        if (want == 0) {
+            char *nb;
+            if (cap > ((size_t) -1) / 2) {
+                free (buf);
+                return -1;
+            }
+            nb = realloc (buf, cap * 2);
+            if (!nb) {
+                free (buf);
+                return -1;
+            }
+            buf = nb;
+            cap *= 2;
+            continue;
+        }
+        got = fread (buf + len, 1, want, f);
+        len += got;
+        if (got < want) {
+            *bufp = buf;
+            *lenp = len;
+            return ferror (f) ? 1 : 0;
+        }
+    }
+}
+
+/* Take ownership of BUF (LEN bytes, room for one more) and split it. */
+static int
+bs_add_input (bs_input *in, char *buf, size_t len, int delim)
+{
+    char *p, *e;
+
+    if (in->nbufs >= in->bufcap) {
+        size_t ncap = in->bufcap ? in->bufcap * 2 : 8;
+        char **nb = realloc (in->bufs, ncap * sizeof *nb);
+        if (!nb) {
+            free (buf);
+            return -1;
+        }
+        in->bufs = nb;
+        in->bufcap = ncap;
+    }
+    in->bufs[in->nbufs++] = buf;
+    if (len == 0)
+        return 0;
+    if ((unsigned char) buf[len - 1] != (unsigned char) delim)
+        buf[len++] = (char) delim;
+    for (p = buf, e = buf + len; p < e; ) {
+        char *q = memchr (p, delim, (size_t) (e - p));
+        bs_line *ln;
+        if (!q)
+            q = e - 1;
+        if (in->n >= in->cap) {
+            size_t ncap = in->cap ? in->cap * 2 : 1024;
+            bs_line *nl = realloc (in->lines, ncap * sizeof *nl);
+            if (!nl)
+                return -1;
+            in->lines = nl;
+            in->cap = ncap;
+        }
+        ln = &in->lines[in->n];
+        ln->buf = p;
+        ln->len = (size_t) (q + 1 - p);
+        ln->index = in->n;
+        ln->random_rank = 0;
+        ln->keys = NULL;
+        in->n++;
+        p = q + 1;
+    }
     return 0;
 }
 
-static void
-bs_free_lines (bs_line *lines, size_t n)
+/* Read one input into IN: 0, or 1 after reporting a read error (what was
+   read is kept), or -1 after reporting exhausted memory. */
+static int
+bs_read_input (bs_input *in, FILE *f, const char *name, int delim)
 {
-    for (size_t i = 0; i < n; i++)
-        free (lines[i].buf);
-    free (lines);
+    char *buf = NULL;
+    size_t len = 0;
+    int r = bs_read_stream (f, &buf, &len);
+
+    if (r < 0) {
+        builtin_error ("memory exhausted");
+        return -1;
+    }
+    if (r > 0)
+        builtin_error ("%s: read error: %s", name, strerror (errno));
+    if (bs_add_input (in, buf, len, delim) < 0) {
+        builtin_error ("memory exhausted");
+        return -1;
+    }
+    return r;
 }
 
 static void
-bs_field_bounds (const char *line, bs_opts *o, int target, const char **startp, const char **endp)
+bs_free_input (bs_input *in)
 {
-    int field = 0;
-    const char *p = line;
-
-    *startp = "";
-    *endp = "";
-    if (target <= 0)
-        return;
-    if (o->has_tsep) {
-        for (int f = 1; f < target; f++) {
-            while (*p && *p != o->tsep) p++;
-            if (*p) p++;
-            else return;
-        }
-        *startp = p;
-        while (*p && *p != o->tsep) p++;
-        *endp = p;
-        return;
-    }
-
-    while (*p && (*p == ' ' || *p == '\t')) p++;
-    while (field < target - 1 && *p) {
-        while (*p && *p != ' ' && *p != '\t') p++;
-        while (*p == ' ' || *p == '\t') p++;
-        field++;
-    }
-    if (!*p)
-        return;
-    *startp = p;
-    while (*p && *p != ' ' && *p != '\t') p++;
-    *endp = p;
+    for (size_t i = 0; i < in->nbufs; i++)
+        free (in->bufs[i]);
+    free (in->bufs);
+    free (in->lines);
+    in->lines = NULL;
+    in->bufs = NULL;
+    in->n = in->cap = in->nbufs = in->bufcap = 0;
 }
 
-/* Extract the comparison key from a line per the -t/-k options. */
+/* --- keys --------------------------------------------------------------
+   GNU sort's tables: a blank is what isblank() says plus newline (a record
+   under -z may hold one); the decimal point is the locale's when it is a
+   single byte, else '.'. Thousands grouping is not recognised, as in the C
+   locale. */
+static unsigned char bs_blank[256];
+static int bs_decimal_point = '.';
+
+static void
+bs_init_tables (void)
+{
+    struct lconv *lc = localeconv ();
+
+    for (int c = 0; c < 256; c++)
+        bs_blank[c] = (c == '\n') || isblank (c);
+    bs_decimal_point = (lc && lc->decimal_point[0] && !lc->decimal_point[1])
+                       ? (unsigned char) lc->decimal_point[0] : '.';
+}
+
+#define BS_BLANK(c) (bs_blank[(unsigned char) (c)])
+#define BS_ISDIGIT(c) ((unsigned char) ((c) - '0') <= 9)
+
+/* Where a key starts in [line, lim): GNU sort's begfield. A field's leading
+   blanks belong to it unless the key skips them; a start char counts from
+   the field's start, after that skip. */
 static const char *
-bs_key (const char *line, char *scratch, size_t scratch_sz, bs_opts *o, const bs_keydef *key)
+bs_begfield (const char *line, const char *lim, const bs_opts *o, const bs_keydef *k)
 {
-    int start_field = key ? key->field : o->kfield;
-    int start_char = key ? key->start_char : 0;
-    int end_field = key && key->end_field ? key->end_field : start_field;
-    int end_char = key ? key->end_char : 0;
-    const char *s, *se, *e, *ee, *fs, *fe;
-    size_t l;
+    const char *ptr = line;
+    int sword = k->field - 1;
+    int schar = k->start_char > 0 ? k->start_char - 1 : 0;
 
-    if (start_field <= 0)
-        return line;
-    bs_field_bounds (line, o, start_field, &s, &se);
-    if (!*s)
-        return "";
-    if ((key && key->ignore_leading_blanks) || o->bflag) {
-        while (s < se && (*s == ' ' || *s == '\t'))
-            s++;
-    }
-    fs = s;
-    bs_field_bounds (line, o, end_field, &e, &ee);
-    if (!*e)
-        e = ee = se;
-    fe = e;
-
-    if (start_char > 1) {
-        const char *limit = se;
-        int skip = start_char - 1;
-        while (skip-- > 0 && s < limit)
-            s++;
-    }
-    if (end_char > 0) {
-        const char *limit = ee;
-        e = (end_field == start_field) ? fs : fe;
-        while (end_char-- > 0 && e < limit)
-            e++;
+    if (o->has_tsep) {
+        while (ptr < lim && sword-- > 0) {
+            while (ptr < lim && *ptr != o->tsep) ptr++;
+            if (ptr < lim) ptr++;
+        }
     } else {
-        e = ee;
+        while (ptr < lim && sword-- > 0) {
+            while (ptr < lim && BS_BLANK (*ptr)) ptr++;
+            while (ptr < lim && !BS_BLANK (*ptr)) ptr++;
+        }
     }
-    if (e < s)
-        e = s;
-    l = (size_t) (e - s);
-    if (l >= scratch_sz) l = scratch_sz - 1;
-    memcpy (scratch, s, l);
-    scratch[l] = '\0';
-    return scratch;
+    if (k->skip_start_blanks)
+        while (ptr < lim && BS_BLANK (*ptr)) ptr++;
+    return (lim - ptr < schar) ? lim : ptr + schar;
 }
 
+/* Where a key ends: GNU sort's limfield. ",M" is the end of field M's text;
+   ",M.C" is C chars into field M (after its blanks, if the key skips them). */
+static const char *
+bs_limfield (const char *line, const char *lim, const bs_opts *o, const bs_keydef *k)
+{
+    const char *ptr = line;
+    int eword = k->end_field - 1;
+    int echar = k->end_char;
+
+    if (echar == 0)
+        eword++;                    /* the whole of the end field */
+    if (o->has_tsep) {
+        while (ptr < lim && eword-- > 0) {
+            while (ptr < lim && *ptr != o->tsep) ptr++;
+            if (ptr < lim && (eword || echar)) ptr++;
+        }
+    } else {
+        while (ptr < lim && eword-- > 0) {
+            while (ptr < lim && BS_BLANK (*ptr)) ptr++;
+            while (ptr < lim && !BS_BLANK (*ptr)) ptr++;
+        }
+    }
+    if (echar != 0) {
+        if (k->skip_end_blanks)
+            while (ptr < lim && BS_BLANK (*ptr)) ptr++;
+        ptr = (lim - ptr < echar) ? lim : ptr + echar;
+    }
+    return ptr;
+}
+
+/* The text of one key of a line, as a span [*sp, *sp + *lp) inside the
+   line, which runs from LINE for LINE_LEN bytes (the record delimiter
+   excluded). No copy, no length limit. */
+static void
+bs_key_span (const char *line, size_t line_len, const bs_opts *o, const bs_keydef *k, const char **sp, size_t *lp)
+{
+    const char *lim = line + line_len, *beg, *end;
+
+    if (k->field <= 0) {
+        beg = line;
+        if (k->skip_start_blanks)
+            while (beg < lim && BS_BLANK (*beg)) beg++;
+    } else
+        beg = bs_begfield (line, lim, o, k);
+    end = k->end_field <= 0 ? lim : bs_limfield (line, lim, o, k);
+    if (end < beg)
+        end = beg;
+    *sp = beg;
+    *lp = (size_t) (end - beg);
+}
+
+/* --- numeric keys, GNU sort's -n --------------------------------------
+   GNU compares -n keys as strings of digits, never as machine numbers: skip
+   leading blanks, an optional '-', leading zeros; then integer digits, one
+   decimal point, fraction digits. Anything else (a '+', 'e', "0x", "inf",
+   letters) ends the number, and a key with no digits at all is zero -- so
+   "abc", "", "-", "+5" and "-0" all compare equal to "0". Precision is
+   unbounded: 12345678901234567890 and ...891 are different. Each line's key
+   is decomposed once here; a comparison is then a sign test, a length test
+   and a memcmp. */
+static void
+bs_numeric_parse (bs_keyval *k)
+{
+    const char *p = k->s, *e = k->s + k->len;
+    int neg = 0;
+
+    while (p < e && BS_BLANK (*p))
+        p++;
+    if (p < e && *p == '-') {
+        neg = 1;
+        p++;
+    }
+    while (p < e && *p == '0')
+        p++;
+    k->ip = p;
+    while (p < e && BS_ISDIGIT (*p))
+        p++;
+    k->ilen = (size_t) (p - k->ip);
+    k->fp = p;
+    k->flen = 0;
+    if (p < e && (unsigned char) *p == bs_decimal_point) {
+        const char *f = ++p;
+        while (p < e && BS_ISDIGIT (*p))
+            p++;
+        while (p > f && p[-1] == '0')
+            p--;
+        k->fp = f;
+        k->flen = (size_t) (p - f);
+    }
+    k->sign = (k->ilen || k->flen) ? (neg ? -1 : 1) : 0;
+}
+
+static int
+bs_numeric_cmp (const bs_keyval *a, const bs_keyval *b)
+{
+    int c;
+
+    if (a->sign != b->sign)
+        return (a->sign < b->sign) ? -1 : 1;
+    if (a->sign == 0)
+        return 0;
+    if (a->ilen != b->ilen)
+        c = (a->ilen < b->ilen) ? -1 : 1;
+    else if ((c = a->ilen ? memcmp (a->ip, b->ip, a->ilen) : 0) == 0) {
+        size_t m = a->flen < b->flen ? a->flen : b->flen;
+        c = m ? memcmp (a->fp, b->fp, m) : 0;
+        if (c == 0)
+            c = (a->flen > b->flen) - (a->flen < b->flen);
+    }
+    c = (c > 0) - (c < 0);
+    return a->sign < 0 ? -c : c;
+}
+
+/* --- text keys ----------------------------------------------------------- */
 static int
 bs_dictionary_byte (unsigned char ch)
 {
@@ -550,48 +751,23 @@ bs_dictionary_byte (unsigned char ch)
 }
 
 static int
-bs_cmp_str (const char *a, const char *b, int icase, int ignore_nonprint, int dictionary_order)
-{
-    for (;;) {
-        while (ignore_nonprint && *a && !isprint ((unsigned char) *a))
-            a++;
-        while (ignore_nonprint && *b && !isprint ((unsigned char) *b))
-            b++;
-        while (dictionary_order && *a && !bs_dictionary_byte ((unsigned char) *a))
-            a++;
-        while (dictionary_order && *b && !bs_dictionary_byte ((unsigned char) *b))
-            b++;
-        if (!*a || !*b)
-            return (unsigned char) *a - (unsigned char) *b;
-        int ca = (unsigned char) *a;
-        int cb = (unsigned char) *b;
-        if (icase) {
-            ca = tolower (ca);
-            cb = tolower (cb);
-        }
-        if (ca != cb) return ca - cb;
-        a++; b++;
-    }
-}
-
-static int
-bs_cmp_bytes (const bs_line *a, const bs_line *b, int icase, int ignore_nonprint, int dictionary_order)
+bs_cmp_bytes (const char *a, size_t la, const char *b, size_t lb, int icase, int ignore_nonprint, int dictionary_order)
 {
     size_t ia = 0, ib = 0;
 
-    while (ia < a->len || ib < b->len) {
-        while (ignore_nonprint && ia < a->len && !isprint ((unsigned char) a->buf[ia]))
+    while (ia < la || ib < lb) {
+        while (ignore_nonprint && ia < la && !isprint ((unsigned char) a[ia]))
             ia++;
-        while (ignore_nonprint && ib < b->len && !isprint ((unsigned char) b->buf[ib]))
+        while (ignore_nonprint && ib < lb && !isprint ((unsigned char) b[ib]))
             ib++;
-        while (dictionary_order && ia < a->len && !bs_dictionary_byte ((unsigned char) a->buf[ia]))
+        while (dictionary_order && ia < la && !bs_dictionary_byte ((unsigned char) a[ia]))
             ia++;
-        while (dictionary_order && ib < b->len && !bs_dictionary_byte ((unsigned char) b->buf[ib]))
+        while (dictionary_order && ib < lb && !bs_dictionary_byte ((unsigned char) b[ib]))
             ib++;
-        if (ia >= a->len || ib >= b->len)
+        if (ia >= la || ib >= lb)
             break;
-        int ca = (unsigned char) a->buf[ia];
-        int cb = (unsigned char) b->buf[ib];
+        int ca = (unsigned char) a[ia];
+        int cb = (unsigned char) b[ib];
         if (icase) {
             ca = tolower (ca);
             cb = tolower (cb);
@@ -601,178 +777,284 @@ bs_cmp_bytes (const bs_line *a, const bs_line *b, int icase, int ignore_nonprint
         ia++;
         ib++;
     }
-    if (ia >= a->len && ib >= b->len)
+    if (ia >= la && ib >= lb)
         return 0;
-    if (ia >= a->len)
+    if (ia >= la)
         return -1;
     return 1;
 }
 
-static int
-bs_cmp_bytes_key (const bs_line *a, const bs_line *b, int icase, int ignore_nonprint, int ignore_leading_blanks, int dictionary_order)
-{
-    size_t ia = 0, ib = 0;
-    bs_line ka = *a;
-    bs_line kb = *b;
+/* How a key compares, in GNU sort's precedence. */
+enum { BS_TEXT, BS_NUMERIC, BS_GENERAL, BS_HUMAN, BS_MONTH, BS_VERSION };
 
-    if (ignore_leading_blanks) {
-        while (ia < a->len && (a->buf[ia] == ' ' || a->buf[ia] == '\t'))
-            ia++;
-        while (ib < b->len && (b->buf[ib] == ' ' || b->buf[ib] == '\t'))
-            ib++;
+static int
+bs_key_mode (const bs_keydef *k)
+{
+    if (k->numeric) return BS_NUMERIC;
+    if (k->general_numeric) return BS_GENERAL;
+    if (k->human_numeric) return BS_HUMAN;
+    if (k->month) return BS_MONTH;
+    if (k->version) return BS_VERSION;
+    return BS_TEXT;
+}
+
+/* A 64-bit prefix of a key that orders like the key: unequal prefixes give
+   the key order, equal ones say nothing. For -n: 2^63 for zero, above it
+   for positive and below for negative by a code of the digit count (13
+   bits) and the first 14 digits, integer then fraction, right-padded with
+   zeros; so two 14-digit-or-shorter numbers are ordered by the prefix alone.
+   For text: the first 8 compared bytes, big-endian, zero-padded. */
+static uint64_t
+bs_prefix (const bs_keyval *kv, const bs_keydef *k)
+{
+    int mode = bs_key_mode (k);
+
+    if (mode == BS_NUMERIC) {
+        uint64_t half = (uint64_t) 1 << 63, d = 0, code;
+        size_t nd = 0, i;
+
+        if (kv->sign == 0)
+            return half;
+        for (i = 0; i < kv->ilen && nd < 14; i++, nd++)
+            d = d * 10 + (uint64_t) (kv->ip[i] - '0');
+        for (i = 0; i < kv->flen && nd < 14; i++, nd++)
+            d = d * 10 + (uint64_t) (kv->fp[i] - '0');
+        for (; nd < 14; nd++)
+            d *= 10;
+        code = ((uint64_t) (kv->ilen < 8191 ? kv->ilen : 8191) << 50) | d;
+        return kv->sign > 0 ? half + code : half - code;
     }
-    ka.buf = a->buf + ia;
-    ka.len = a->len - ia;
-    kb.buf = b->buf + ib;
-    kb.len = b->len - ib;
-    return bs_cmp_bytes (&ka, &kb, icase, ignore_nonprint, dictionary_order);
+    if (mode == BS_TEXT) {
+        uint64_t p = 0;
+        int nb = 0;
+
+        for (size_t i = 0; i < kv->len && nb < 8; i++) {
+            unsigned char c = (unsigned char) kv->s[i];
+            if (k->ignore_nonprinting && !isprint (c))
+                continue;
+            if (k->dictionary_order && !bs_dictionary_byte (c))
+                continue;
+            if (k->ignore_case)
+                c = (unsigned char) tolower (c);
+            p = (p << 8) | c;
+            nb++;
+        }
+        return p << (8 * (8 - nb));
+    }
+    return 0;
+}
+
+/* Compute the keys of every line -- one bs_keyval per key, in a single
+   block -- and the array the sort permutes: the first key's prefix beside a
+   pointer to the line. The caller frees both. */
+static int
+bs_prepare_keys (bs_line *lines, size_t n, const bs_opts *o, bs_keyval **blockp, bs_elem **elemsp)
+{
+    size_t nslots = (size_t) o->nkeys;
+    bs_keyval *blk = NULL;
+    bs_elem *el = NULL;
+
+    *blockp = NULL;
+    *elemsp = NULL;
+    if (n == 0)
+        return 0;
+    if (n > ((size_t) -1) / sizeof *blk / nslots)
+        return -1;
+    blk = malloc (n * nslots * sizeof *blk);
+    el = malloc (n * sizeof *el);
+    if (!blk || !el) {
+        free (blk);
+        free (el);
+        return -1;
+    }
+    bs_init_tables ();
+    for (size_t i = 0; i < n; i++) {
+        bs_keyval *kv = blk + i * nslots;
+        /* Every stored record ends with the delimiter; keys exclude it. */
+        size_t llen = lines[i].len ? lines[i].len - 1 : 0;
+
+        lines[i].keys = kv;
+        for (size_t s = 0; s < nslots; s++) {
+            bs_key_span (lines[i].buf, llen, o, &o->keys[s], &kv[s].s, &kv[s].len);
+            kv[s].ip = kv[s].fp = kv[s].s;
+            kv[s].ilen = kv[s].flen = 0;
+            kv[s].sign = 0;
+            if (o->keys[s].numeric)
+                bs_numeric_parse (&kv[s]);
+        }
+        el[i].pre = bs_prefix (&kv[0], &o->keys[0]);
+        el[i].ln = &lines[i];
+    }
+    *blockp = blk;
+    *elemsp = el;
+    return 0;
+}
+
+/* -M, -V, -h and -g compare NUL-terminated text: a copy of the key, on the
+   stack when it fits, on the heap otherwise (*heap, for the caller to free). */
+static const char *
+bs_key_cstr (const bs_keyval *k, char *scratch, size_t sz, char **heap)
+{
+    char *d = scratch;
+
+    *heap = NULL;
+    if (k->len >= sz) {
+        d = malloc (k->len + 1);
+        if (!d) {
+            scratch[0] = '\0';
+            return scratch;
+        }
+        *heap = d;
+    }
+    memcpy (d, k->s, k->len);
+    d[k->len] = '\0';
+    return d;
 }
 
 static int
-bs_compare_line (const bs_line *la, const bs_line *lb, bs_opts *o, int apply_reverse)
+bs_compare_key (const bs_keyval *a, const bs_keyval *b, const bs_keydef *k)
 {
+    int mode = bs_key_mode (k);
+    char sa[256], sb[256], *ha, *hb;
+    const char *ax, *bx;
     int cmp;
 
-    if (o->nkeys > 0) {
-        for (int i = 0; i < o->nkeys; i++) {
-            char ka[256], kb[256];
-            bs_opts ko = *o;
-            ko.kfield = o->keys[i].field;
-            const char *ax = bs_key (la->buf, ka, sizeof ka, &ko, &o->keys[i]);
-            const char *bx = bs_key (lb->buf, kb, sizeof kb, &ko, &o->keys[i]);
-
-            if (o->keys[i].month || o->mflag) {
-                int ma = bs_month_value (ax);
-                int mb = bs_month_value (bx);
-                cmp = ma - mb;
-            } else if (o->keys[i].version || o->vflag) {
-                cmp = bs_version_cmp (ax, bx);
-            } else if (o->keys[i].human_numeric || o->hflag) {
-                cmp = bs_human_numcmp (ax, bx);
-            } else if (o->keys[i].general_numeric || o->gflag) {
-                cmp = bs_general_numcmp (ax, bx);
-            } else if (o->keys[i].numeric || o->nflag) {
-                double na = strtod (ax, NULL);
-                double nb = strtod (bx, NULL);
-                cmp = (na < nb) ? -1 : (na > nb) ? 1 : 0;
-            } else {
-                cmp = bs_cmp_str (ax, bx, o->keys[i].ignore_case || o->fflag, o->keys[i].ignore_nonprinting || o->iflag, o->keys[i].dictionary_order || o->dflag);
-            }
-            if (cmp != 0 && o->keys[i].reverse)
-                cmp = -cmp;
-            if (cmp != 0)
-                goto done;
-        }
-        cmp = 0;
-    } else if (o->kfield <= 0 && !o->nflag && !o->gflag && !o->hflag && !o->vflag && !o->mflag) {
-        cmp = bs_cmp_bytes_key (la, lb, o->fflag, o->iflag, o->bflag, o->dflag);
-    } else {
-        char ka[256], kb[256];
-        const char *ax = bs_key (la->buf, ka, sizeof ka, o, NULL);
-        const char *bx = bs_key (lb->buf, kb, sizeof kb, o, NULL);
-        if (o->bflag) {
-            while (*ax == ' ' || *ax == '\t')
-                ax++;
-            while (*bx == ' ' || *bx == '\t')
-                bx++;
-        }
-        if (o->mflag) {
-            int ma = bs_month_value (ax);
-            int mb = bs_month_value (bx);
-            cmp = ma - mb;
-        } else if (o->vflag) {
-            cmp = bs_version_cmp (ax, bx);
-        } else if (o->hflag) {
-            cmp = bs_human_numcmp (ax, bx);
-        } else if (o->gflag) {
-            cmp = bs_general_numcmp (ax, bx);
-        } else if (o->nflag) {
-            double na = strtod (ax, NULL);
-            double nb = strtod (bx, NULL);
-            cmp = (na < nb) ? -1 : (na > nb) ? 1 : 0;
-        } else {
-            cmp = bs_cmp_str (ax, bx, o->fflag, o->iflag, o->dflag);
-        }
+    if (mode == BS_NUMERIC)
+        return bs_numeric_cmp (a, b);
+    if (mode == BS_TEXT)
+        return bs_cmp_bytes (a->s, a->len, b->s, b->len,
+                             k->ignore_case, k->ignore_nonprinting, k->dictionary_order);
+    ax = bs_key_cstr (a, sa, sizeof sa, &ha);
+    bx = bs_key_cstr (b, sb, sizeof sb, &hb);
+    switch (mode) {
+        case BS_GENERAL: cmp = bs_general_numcmp (ax, bx); break;
+        case BS_HUMAN:   cmp = bs_human_numcmp (ax, bx); break;
+        case BS_MONTH:   cmp = bs_month_value (ax) - bs_month_value (bx); break;
+        default:         cmp = bs_version_cmp (ax, bx); break;
     }
-done:
-    if (apply_reverse && o->rflag)
-        cmp = -cmp;
+    free (ha);
+    free (hb);
     return cmp;
 }
 
+/* The keys, in order, each with its own -r. What -u calls equal is 0 here. */
 static int
-bs_compare_line_keys (const bs_line *la, const bs_line *lb, bs_opts *o)
+bs_compare_keys (const bs_line *la, const bs_line *lb, const bs_opts *o)
 {
-    bs_opts ko = *o;
-
-    ko.Rflag = 0;
-    ko.rflag = 0;
-    return bs_compare_line (la, lb, &ko, 0);
+    for (int i = 0; i < o->nkeys; i++) {
+        int cmp = bs_compare_key (&la->keys[i], &lb->keys[i], &o->keys[i]);
+        if (cmp)
+            return o->keys[i].reverse ? -cmp : cmp;
+    }
+    return 0;
 }
+
+static int
+bs_index_order (const bs_line *la, const bs_line *lb)
+{
+    return (la->index > lb->index) - (la->index < lb->index);
+}
+
+/* GNU's last resort when the keys are equal: the whole records bytewise,
+   delimiter excluded, subject to the global -r. */
+static int
+bs_last_resort (const bs_line *la, const bs_line *lb, const bs_opts *o)
+{
+    size_t na = la->len ? la->len - 1 : 0, nb = lb->len ? lb->len - 1 : 0;
+    size_t m = na < nb ? na : nb;
+    int c = m ? memcmp (la->buf, lb->buf, m) : 0;
+
+    if (c == 0)
+        c = (na > nb) - (na < nb);
+    c = (c > 0) - (c < 0);
+    return o->rflag ? -c : c;
+}
+
+/* The whole order: keys; then, for -s and -u, input order (GNU sort skips
+   the last resort under -u too, so the line -u keeps of an equal-key run is
+   the first one read); else the last resort. */
+static int
+bs_full_compare (const bs_line *la, const bs_line *lb, const bs_opts *o)
+{
+    int cmp = bs_compare_keys (la, lb, o);
+
+    if (cmp)
+        return cmp;
+    if (o->sflag || o->uflag)
+        return bs_index_order (la, lb);
+    return bs_last_resort (la, lb, o);
+}
+
+/* The prefix order is reversed by the first key's -r (under -R, by the
+   global -r), as the full comparison would reverse a first-key decision. */
+static int bs_pre_reverse;
 
 static int
 bs_compare (const void *va, const void *vb)
 {
-    const bs_line *la = (const bs_line *) va;
-    const bs_line *lb = (const bs_line *) vb;
+    const bs_elem *ea = (const bs_elem *) va;
+    const bs_elem *eb = (const bs_elem *) vb;
+    const bs_opts *o = bs_cmp_opts;
     int cmp;
 
-    if (bs_cmp_opts->Rflag) {
-        if (la->random_rank < lb->random_rank)
-            cmp = -1;
-        else if (la->random_rank > lb->random_rank)
-            cmp = 1;
-        else
-            cmp = bs_compare_line_keys (la, lb, bs_cmp_opts);
-        if (bs_cmp_opts->rflag)
-            cmp = -cmp;
-    } else {
-        cmp = bs_compare_line (la, lb, bs_cmp_opts, 1);
+    /* The prefixes are order-preserving: unequal ones settle the first key
+       (or the random rank) without touching the lines. */
+    if (ea->pre != eb->pre) {
+        cmp = (ea->pre < eb->pre) ? -1 : 1;
+        return bs_pre_reverse ? -cmp : cmp;
     }
+    if (o->Rflag) {
+        /* Equal ranks: the same key text, by construction. */
+        cmp = bs_compare_keys (ea->ln, eb->ln, o);
+        if (cmp)
+            return o->rflag ? -cmp : cmp;
+        return (o->sflag || o->uflag) ? bs_index_order (ea->ln, eb->ln) : 0;
+    }
+    return bs_full_compare (ea->ln, eb->ln, o);
+}
 
-    if (cmp == 0) {
-        if (bs_cmp_opts->sflag) {
-            /* -s (stable): preserve input order, no last-resort compare. */
-            if (la->index < lb->index)
-                return -1;
-            if (la->index > lb->index)
-                return 1;
-        } else if (!bs_cmp_opts->Rflag) {
-            /* GNU default last-resort: when the specified keys compare equal,
-               compare the entire records bytewise (LC_COLLATE=C), excluding
-               the trailing record delimiter. Subject to global -r. -R has its
-               own random tiebreak above, so it is excluded here. */
-            size_t na = la->len, nb = lb->len;
-            if (na && (la->buf[na - 1] == '\n' || la->buf[na - 1] == '\0')) na--;
-            if (nb && (lb->buf[nb - 1] == '\n' || lb->buf[nb - 1] == '\0')) nb--;
-            size_t m = na < nb ? na : nb;
-            int c = m ? memcmp (la->buf, lb->buf, m) : 0;
-            if (c == 0)
-                c = (na > nb) - (na < nb);
-            if (bs_cmp_opts->rflag)
-                c = -c;
-            if (c)
-                return c;
-        }
-    }
-    return cmp;
+/* --- output: one buffer rather than a stdio call per line ----------------- */
+typedef struct {
+    FILE *f;
+    size_t n;
+    char buf[32768];
+} bs_out;
+
+static void
+bs_out_flush (bs_out *ob)
+{
+    if (ob->n)
+        fwrite (ob->buf, 1, ob->n, ob->f);
+    ob->n = 0;
 }
 
 static void
-bs_emit_lines (FILE *out, bs_line *lines, size_t n, const bs_opts *o)
+bs_out_write (bs_out *ob, const char *p, size_t len)
+{
+    if (len > sizeof ob->buf - ob->n) {
+        bs_out_flush (ob);
+        if (len >= sizeof ob->buf) {
+            fwrite (p, 1, len, ob->f);
+            return;
+        }
+    }
+    memcpy (ob->buf + ob->n, p, len);
+    ob->n += len;
+}
+
+static void
+bs_emit_lines (bs_out *ob, const bs_elem *elems, size_t n, const bs_opts *o)
 {
     for (size_t i = 0; i < n; i++) {
-        if (o->uflag && i > 0) {
-            int eq = (bs_compare_line_keys (&lines[i - 1], &lines[i], (bs_opts *) o) == 0);
-            if (eq)
-                continue;
-        }
-        fwrite (lines[i].buf, 1, lines[i].len, out);
+        const bs_line *ln = elems[i].ln;
+        if (o->uflag && i > 0 && bs_compare_keys (elems[i - 1].ln, ln, o) == 0)
+            continue;
+        bs_out_write (ob, ln->buf, ln->len);
     }
 }
 
 static void
-bs_emit_merged (FILE *out, bs_line *lines, bs_run *runs, size_t nruns, const bs_opts *o)
+bs_emit_merged (bs_out *ob, bs_line *lines, bs_run *runs, size_t nruns, const bs_opts *o)
 {
     bs_line *last = NULL;
 
@@ -782,18 +1064,19 @@ bs_emit_merged (FILE *out, bs_line *lines, bs_run *runs, size_t nruns, const bs_
             if (runs[r].pos >= runs[r].end)
                 continue;
             if (best == (size_t) -1
-                || bs_compare_line (&lines[runs[r].pos], &lines[runs[best].pos], (bs_opts *) o, 1) < 0)
+                || bs_full_compare (&lines[runs[r].pos], &lines[runs[best].pos], o) < 0)
                 best = r;
         }
         if (best == (size_t) -1)
             break;
         bs_line *cur = &lines[runs[best].pos++];
-        if (o->uflag && last && bs_compare_line_keys (last, cur, (bs_opts *) o) == 0)
+        if (o->uflag && last && bs_compare_keys (last, cur, o) == 0)
             continue;
-        fwrite (cur->buf, 1, cur->len, out);
+        bs_out_write (ob, cur->buf, cur->len);
         last = cur;
     }
 }
+
 
 int
 sort_builtin (WORD_LIST *list)
@@ -996,11 +1279,10 @@ sort_builtin (WORD_LIST *list)
         list = list->next;
     }
 
-    /* Read input lines. */
-    bs_line *lines = NULL;
-    size_t n = 0, cap = 0;
-    char *line = NULL; size_t lcap = 0; ssize_t rd;
+    bs_resolve_keys (&o);
 
+    /* Read every input whole; a record is a span of that buffer. */
+    bs_input in = {0};
     int n_files = 0;
     for (WORD_LIST *p = list; p; p = p->next) n_files++;
     bs_run *runs = calloc ((size_t) (n_files > 0 ? n_files : 1), sizeof *runs);
@@ -1008,26 +1290,26 @@ sort_builtin (WORD_LIST *list)
     if (!runs)
         return EXECUTION_FAILURE;
     int bs_rc = EXECUTION_SUCCESS;
+    int record_delim = o.zflag ? '\0' : '\n';
 
     clearerr (stdin);
 
-    int record_delim = o.zflag ? '\0' : '\n';
-
     if (n_files == 0) {
-        size_t start = n;
-        while ((rd = getdelim (&line, &lcap, record_delim, stdin)) != -1) {
-            if (bs_add_line (&lines, &n, &cap, line, (size_t) rd, record_delim) < 0) {
-                free (line);
-                free (runs);
-                bs_free_lines (lines, n);
-                return EXECUTION_FAILURE;
-            }
+        size_t start = in.n;
+        int r = bs_read_input (&in, stdin, "-", record_delim);
+        if (r < 0) {
+            free (runs);
+            bs_free_input (&in);
+            return EXECUTION_FAILURE;
         }
-        runs[nruns++] = (bs_run) { start, n, start, "-" };
+        if (r > 0)
+            bs_rc = EXECUTION_FAILURE;
+        runs[nruns++] = (bs_run) { start, in.n, start, "-" };
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
             FILE *f = stdin;
-            size_t start = n;
+            size_t start = in.n;
+            int r;
             if (strcmp (p->word->word, "-") != 0)
                 f = fopen (p->word->word, "r");
             else
@@ -1037,34 +1319,44 @@ sort_builtin (WORD_LIST *list)
                 bs_rc = EXECUTION_FAILURE;
                 continue;
             }
-            while ((rd = getdelim (&line, &lcap, record_delim, f)) != -1) {
-                if (bs_add_line (&lines, &n, &cap, line, (size_t) rd, record_delim) < 0) {
-                    free (line);
-                    if (f != stdin) fclose (f);
-                    free (runs);
-                    bs_free_lines (lines, n);
-                    return EXECUTION_FAILURE;
-                }
-            }
+            r = bs_read_input (&in, f, p->word->word, record_delim);
             if (f != stdin)
                 fclose (f);
-            runs[nruns++] = (bs_run) { start, n, start, p->word->word };
+            if (r < 0) {
+                free (runs);
+                bs_free_input (&in);
+                return EXECUTION_FAILURE;
+            }
+            if (r > 0)
+                bs_rc = EXECUTION_FAILURE;
+            runs[nruns++] = (bs_run) { start, in.n, start, p->word->word };
         }
     }
-    free (line);
+    bs_line *lines = in.lines;
+    size_t n = in.n;
+    int rc = bs_rc;
 
+    /* Every comparison key, once per line, and the array the sort moves:
+       a prefix of the first key beside a pointer to the line. */
+    bs_keyval *keyblk = NULL;
+    bs_elem *elems = NULL;
+    if (bs_prepare_keys (lines, n, &o, &keyblk, &elems) < 0) {
+        builtin_error ("memory exhausted");
+        rc = EXECUTION_FAILURE;
+        goto out;
+    }
     bs_cmp_opts = &o;
+    bs_pre_reverse = o.keys[0].reverse;
 
     if (o.Rflag) {
         if (bs_random_seed (random_source) < 0) {
-            bs_free_lines (lines, n);
-            free (runs);
-            return EXECUTION_FAILURE;
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
         for (size_t i = 0; i < n; i++) {
             int found = 0;
             for (size_t j = 0; j < i; j++) {
-                if (bs_compare_line_keys (&lines[i], &lines[j], &o) == 0) {
+                if (bs_compare_keys (&lines[i], &lines[j], &o) == 0) {
                     lines[i].random_rank = lines[j].random_rank;
                     found = 1;
                     break;
@@ -1073,17 +1365,28 @@ sort_builtin (WORD_LIST *list)
             if (!found)
                 lines[i].random_rank = bs_random_next ();
         }
+        /* Under -R the rank is the first-order key. */
+        for (size_t i = 0; i < n; i++)
+            elems[i].pre = lines[i].random_rank;
+        bs_pre_reverse = o.rflag;
     }
 
     if (o.cflag) {
-        /* -c / -C: check if input is already sorted.
+        /* -c / -C: check if input is already sorted, by the whole order the
+         * sort would use; under -u, two lines with equal keys are disorder
+         * too, as GNU sort has it.
          * -C (Cflag) is silent; -c emits a GNU-style disorder diagnostic
          *   "bashsort: <file>:<line>: disorder: <line-content>"
          * where <file> is the source file name ("-" for stdin), <line> is
          * the 1-based line number within that file, and <line-content> is
          * the offending record with its trailing record delimiter stripped. */
         for (size_t i = 1; i < n; i++) {
-            if (bs_compare_line (&lines[i - 1], &lines[i], &o, 1) > 0) {
+            int d = bs_compare_keys (&lines[i - 1], &lines[i], &o);
+            if (d == 0 && o.uflag)
+                d = 1;
+            else if (d == 0 && !o.sflag)
+                d = bs_last_resort (&lines[i - 1], &lines[i], &o);
+            if (d > 0) {
                 if (!o.check_quiet) {
                     const char *fname = "-";
                     size_t rel_line = i + 1;
@@ -1102,43 +1405,49 @@ sort_builtin (WORD_LIST *list)
                     fwrite (lines[i].buf, 1, clen, stderr);
                     fputc ('\n', stderr);
                 }
-                bs_free_lines (lines, n);
-                free (runs);
-                return EXECUTION_FAILURE;
+                rc = EXECUTION_FAILURE;
+                goto out;
             }
         }
-        bs_free_lines (lines, n);
-        free (runs);
-        return bs_rc;
+        goto out;
     }
 
-    if (!o.mergeflag)
-        qsort (lines, n, sizeof *lines, bs_compare);
+    if (!o.mergeflag && n > 1)
+        qsort (elems, n, sizeof *elems, bs_compare);
 
-    FILE *out = stdout;
+    FILE *outf = stdout;
     if (output_file && strcmp (output_file, "-") != 0) {
-        out = fopen (output_file, "w");
-        if (!out) {
+        outf = fopen (output_file, "w");
+        if (!outf) {
             builtin_error ("%s: %s", output_file, strerror (errno));
-            free (runs);
-            bs_free_lines (lines, n);
-            return EXECUTION_FAILURE;
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
     } else {
         clearerr (stdout);
     }
 
-    if (o.mergeflag)
-        bs_emit_merged (out, lines, runs, nruns, &o);
-    else
-        bs_emit_lines (out, lines, n, &o);
-    free (runs);
-    bs_free_lines (lines, n);
-    if (out != stdout && fclose (out) != 0) {
-        builtin_error ("%s: %s", output_file, strerror (errno));
-        return EXECUTION_FAILURE;
+    {
+        bs_out ob;
+        ob.f = outf;
+        ob.n = 0;
+        if (o.mergeflag)
+            bs_emit_merged (&ob, lines, runs, nruns, &o);
+        else
+            bs_emit_lines (&ob, elems, n, &o);
+        bs_out_flush (&ob);
     }
-    return bs_rc;
+    if (outf != stdout && fclose (outf) != 0) {
+        builtin_error ("%s: %s", output_file, strerror (errno));
+        rc = EXECUTION_FAILURE;
+    }
+
+out:
+    free (runs);
+    free (keyblk);
+    free (elems);
+    bs_free_input (&in);
+    return rc;
 }
 
 char *sort_doc[] = {
@@ -1146,7 +1455,8 @@ char *sort_doc[] = {
     "",
     "    bashsort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
     "",
-    "    -n   numeric compare (strtod-driven)",
+    "    -n   numeric compare, GNU sort's rules: leading blanks, an optional -,",
+    "         digits and one decimal point; anything else compares as zero",
     "    -g   general numeric compare (strtold; supports +, exponent, inf, NaN)",
     "    -h   human numeric compare (SI suffix order)",
     "    -V   version/natural compare",
@@ -1165,7 +1475,8 @@ char *sort_doc[] = {
     "    -s   stable: preserve input order for equal keys",
     "    -z, --zero-terminated  use NUL as the record delimiter",
     "    -t SEP    field separator (default whitespace runs)",
-    "    -k KEYDEF  1-based key; simple FIELD[.C][,FIELD[.C]][bdfirnghVM] subset",
+    "    -k KEYDEF  FIELD[.CHAR][OPTS][,FIELD[.CHAR][OPTS]], 1-based, as GNU sort's:",
+    "         a key with letters of its own takes no global ordering option",
     "    -o FILE   write result to FILE",
     (char *)NULL
 };
