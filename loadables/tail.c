@@ -36,12 +36,64 @@
 
 #include "loadables.h"
 
+/* Print last N lines of a seekable file by reading it from the END: blocks
+   backwards until N+1 delimiters (or the start) are found, then copy from
+   there. Measured on the appliance (2026-09-06): the ring below read an
+   89 KB log from the start for `tail -n 1` at 3.2 ms; `tail -c 100` on the
+   same file, which seeks, took 0.55 ms. Returns 1 if it did the job, 0 if
+   the stream is not seekable (a pipe, a tty) and the ring must run. */
+static int
+bt_tail_lines_seek (FILE *f, int n, char delim)
+{
+    /* the stream may not be at its start (`{ read x; tail -n 5; } < file`):
+       GNU tail reads from the current offset, so never look before it */
+    off_t begin = ftello (f);
+    if (begin < 0) { clearerr (f); return 0; }
+    if (fseeko (f, 0, SEEK_END) != 0) { clearerr (f); return 0; }
+    off_t size = ftello (f);
+    if (size < 0) { clearerr (f); return 0; }
+    if (size <= begin) return 1;
+    char buf[8192];
+    off_t pos = size;
+    long long seen = 0;               /* delimiters found, from the end */
+    off_t start = begin;              /* where the output begins */
+    int found = 0;
+    /* a trailing delimiter ends the last line; it must not count as a line
+       boundary before it */
+    int trailing = 0;
+    {
+        if (fseeko (f, size - 1, SEEK_SET) != 0) { clearerr (f); return 0; }
+        int c = fgetc (f);
+        trailing = (c == (unsigned char) delim);
+    }
+    while (pos > begin && !found) {
+        size_t want = (size_t) (pos - begin > (off_t) sizeof buf ? (off_t) sizeof buf : pos - begin);
+        pos -= (off_t) want;
+        if (fseeko (f, pos, SEEK_SET) != 0) { clearerr (f); return 0; }
+        if (fread (buf, 1, want, f) != want) { clearerr (f); return 0; }
+        for (size_t i = want; i > 0; i--) {
+            if (buf[i - 1] == delim) {
+                if (trailing && pos + (off_t) i == size) continue;   /* the trailing one */
+                seen++;
+                if (seen == n) { start = pos + (off_t) i; found = 1; break; }
+            }
+        }
+    }
+    if (fseeko (f, start, SEEK_SET) != 0) { clearerr (f); return 0; }
+    size_t r;
+    while ((r = fread (buf, 1, sizeof buf, f)) > 0)
+        fwrite (buf, 1, r, stdout);
+    return 1;
+}
+
 /* Print last N lines of one file/stream. Implementation: ring buffer of
-   size N, capturing recent lines. After EOF, emit the buffer in order. */
+   size N, capturing recent lines. After EOF, emit the buffer in order.
+   A seekable file takes the path above instead. */
 static int
 bt_tail_lines (FILE *f, int n, char delim)
 {
     if (n <= 0) return 0;
+    if (bt_tail_lines_seek (f, n, delim)) return 0;
     char **ring = calloc ((size_t) n, sizeof *ring);
     int *rcap = calloc ((size_t) n, sizeof *rcap);
     int head = 0, count = 0;

@@ -88,6 +88,8 @@ tests/
   host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
                                 and runs with an empty PATH (stat, pax, pipes …)
   stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
+  wc-tail-parity.sh [BIN]       wc and tail against GNU coreutils', both locales,
+                                block edges, a stream not at its start
   rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs
                                 a script using a dozen commands (needs bwrap)
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in

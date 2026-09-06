@@ -81,6 +81,25 @@ Changes carried in the sources, noted there:
   inodes, then truncates (contributed with `tests/regressions.py`).
 - `diff`: the line-table growth is checked; out of memory is an error, not a
   crash.
+- `wc`: a block-reading path for every call without `-m`/`-L` (lines by
+  `memchr`, words by a byte state machine that knows the UTF-8 Unicode
+  spaces), contributed from the appliance where the decoding loop took
+  261 ms on a 423 KB file; now at the speed of the read. Adjusted here: a
+  space sequence consumed past the block edge is not rescanned; the
+  non-breaking set is U+00A0, U+2007, U+202F, U+2060 and is off under
+  `POSIXLY_CORRECT`, as GNU's; in a unibyte locale only the byte 0xA0 joins
+  the separators. The `-m`/`-L` path was rewritten to GNU's rules too: an
+  invalid byte is a word character but not a character and has no width,
+  decoding resumes at the next byte, an incomplete sequence at end of file
+  is dropped, only printable characters have width, and CR and FF end a
+  line's length. Output columns follow GNU's order (chars before bytes).
+  `tests/wc-tail-parity.sh` holds it to byte-identical output with
+  coreutils 9.7 in both the C and a UTF-8 locale.
+- `tail`: `-n N` on a seekable file reads from the end in 8 KB blocks
+  (contributed from the appliance: 3.2 ms to 0.63 ms for `tail -n 1` of an
+  89 KB log); the ring buffer remains for pipes. Adjusted here: it never
+  looks before the offset the stream was at when called, so a partial read
+  followed by `tail` behaves as GNU's does.
 - `bashjson`: a duplicate-key check freed its index array and then read the
   return value from it.
 - `bashdhcp`: the lease-binding helper treated a null `bind_assoc_variable`
