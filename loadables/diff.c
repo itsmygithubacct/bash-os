@@ -102,7 +102,17 @@ bd_slurp (const char *path, int *n_out, int *no_newline)
     while ((got = getline (&line, &line_cap, f)) > 0) {
         if (got > 0 && line[got - 1] == '\n') { line[got - 1] = '\0'; got--; last_had_nl = 1; }
         else { last_had_nl = 0; }
-        if ((size_t) n >= cap) { cap *= 2; lines = realloc (lines, cap * sizeof (char *)); }
+        if ((size_t) n >= cap) {
+            char **grown = realloc (lines, cap * 2 * sizeof (char *));
+            if (!grown) {
+                builtin_error ("%s: out of memory", path);
+                for (int i = 0; i < n; i++) free (lines[i]);
+                free (lines); free (line); fclose (f);
+                *n_out = 0; *no_newline = 0;
+                return NULL;
+            }
+            lines = grown; cap *= 2;
+        }
         lines[n++] = strdup (line);
     }
     free (line);

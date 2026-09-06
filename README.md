@@ -20,6 +20,8 @@ Three uses drive it:
    produces it.
 2. **Teaching bash as a real language** — the loadables are small, readable C
    that show how bash's builtin interface actually works.
+   `docs/anatomy-of-a-loadable.md` walks through one, `docs/tutorial/greet.c`,
+   and the three ways to run it; `tests/tutorial.sh` keeps the page honest.
 3. **A userland for small Linux devices** — bash as PID 1 with these builtins
    replaces busybox on space- and fork-constrained boards. The
    `lichee-nano-bashos` appliance (a separate project) is the first such consumer.
@@ -42,6 +44,13 @@ Cross-compiling needs only `CC`: `--host` is derived from the compiler, and the
 configure answers a cross build cannot measure itself (job control, named pipes,
 `/dev/fd`, …) are supplied by `build.sh`. `CONFIGURE_EXTRA`, `CFLAGS` and
 `LOCAL_LIBS` pass through; `LOCAL_LIBS` defaults to `-lm` for `fltexpr`.
+
+Your own loadables, without forking the tree: `EXTRA_LOADABLES="dir …"` stages
+more sources, and `--list` names the set to inject:
+
+```
+EXTRA_LOADABLES=docs/tutorial ./build.sh --list mine.list      # -> out/bash-mine
+```
 
 ## How it works
 
@@ -81,8 +90,11 @@ tests/
   stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
   rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs
                                 a script using a dozen commands (needs bwrap)
+  tutorial.sh                   the tutorial's loadable, as a .so and compiled in
+  regressions.py                builtin regressions in a real bash-os process
   licence-check.sh              every source states its licence (all MIT)
   httpd-host.c  rngseed-host.c  ASan+UBSan unit harnesses
+docs/anatomy-of-a-loadable.md   how a builtin is put together, with docs/tutorial/greet.c
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
 

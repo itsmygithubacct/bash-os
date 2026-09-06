@@ -33,7 +33,25 @@ static unsigned long octal(const char *s, size_t n){
     for(size_t i=0;i<n&&j<sizeof(b)-1;i++) if(s[i]>='0'&&s[i]<='7') b[j++]=s[i];
     b[j]=0; return j?strtoul(b,NULL,8):0;
 }
-static void put_octal(char *dst, size_t n, unsigned long v){ snprintf(dst,n,"%0*lo",(int)n-1,v); dst[n-1]='\0'; }
+/* Write v as n-1 octal digits. A value that does not fit is clamped to the
+   field's maximum — write_member has already emitted the exact value in a PAX
+   extended header for the fields that can overflow (size, uid, gid). */
+static void put_octal(char *dst, size_t n, unsigned long v){
+    unsigned long max = (1UL << (3 * (n - 1))) - 1;
+    if(v > max) v = max;
+    snprintf(dst,n,"%0*lo",(int)n-1,v); dst[n-1]='\0';
+}
+#define PAX_EXT_SIZE 1
+#define PAX_EXT_UID  2
+#define PAX_EXT_GID  4
+/* Which numeric fields of st overflow their ustar octal field. */
+static int pax_numeric_ext(const struct stat *st, int regular){
+    int f = 0;
+    if(regular && (unsigned long long)st->st_size > 077777777777ULL) f |= PAX_EXT_SIZE;   /* 11 octal digits */
+    if((unsigned long)st->st_uid > 07777777UL) f |= PAX_EXT_UID;                            /* 7 octal digits */
+    if((unsigned long)st->st_gid > 07777777UL) f |= PAX_EXT_GID;
+    return f;
+}
 /* Skip N bytes of the archive. fseek only works on a seekable file; on a
    pipe (cat x.tar | pax -r, ssh host cat x.tar | pax) it fails and leaves
    the stream where it was, so every later header read is misaligned. */
@@ -442,16 +460,23 @@ static int ustar_name_ok(const char *path){
     return slash && strlen(slash + 1) <= 100 && (size_t)(slash - path) <= 155;
 }
 
-static int write_pax_ext(FILE *out, const char *path, const char *linktarget, const struct stat *st){
-    char *body = NULL; size_t len = 0, cap = 0;
-    if(path && append_pax_record(&body, &len, &cap, "path", path) < 0){ free(body); return -1; }
+/* Emit a PAX extended header ('x') for the records the ustar header cannot
+   hold: the path when want_path, the link target when given, and each numeric
+   field flagged in numext. name is the member's path, used to name the header. */
+static int write_pax_ext(FILE *out, const char *name, int want_path, const char *linktarget, const struct stat *st, int numext){
+    char *body = NULL; size_t len = 0, cap = 0; char num[32];
+    if(want_path && append_pax_record(&body, &len, &cap, "path", name) < 0){ free(body); return -1; }
     if(linktarget && append_pax_record(&body, &len, &cap, "linkpath", linktarget) < 0){ free(body); return -1; }
+    if(numext & PAX_EXT_SIZE){ snprintf(num, sizeof num, "%llu", (unsigned long long)st->st_size); if(append_pax_record(&body, &len, &cap, "size", num) < 0){ free(body); return -1; } }
+    if(numext & PAX_EXT_UID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_uid); if(append_pax_record(&body, &len, &cap, "uid", num) < 0){ free(body); return -1; } }
+    if(numext & PAX_EXT_GID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_gid); if(append_pax_record(&body, &len, &cap, "gid", num) < 0){ free(body); return -1; } }
     if(!body) return 0;
     struct stat xst = *st;
     xst.st_mode = 0644;
     xst.st_size = (off_t)len;
+    xst.st_uid = 0; xst.st_gid = 0;           /* the header record itself must fit ustar */
     char xname[160];
-    snprintf(xname, sizeof xname, "PaxHeaders/%.88s", pax_fallback_name(path ? path : "member"));
+    snprintf(xname, sizeof xname, "PaxHeaders/%.88s", pax_fallback_name(name));
     if(write_header(out, xname, &xst, 'x', NULL) < 0){ free(body); return -1; }
     fwrite(body, 1, len, out);
     long pad = (512 - ((long)len % 512)) % 512;
@@ -476,8 +501,10 @@ static int write_member(FILE *out, const char *path){
     const char *stored_path = ustar_name_ok(path) ? path : pax_fallback_name(path);
     int need_path_ext = !ustar_name_ok(path);
 
+    int numext = pax_numeric_ext(&st, S_ISREG(st.st_mode));
+
     if(S_ISDIR(st.st_mode)){
-        if(need_path_ext && write_pax_ext(out, path, NULL, &st) < 0) return 1;
+        if((need_path_ext || numext) && write_pax_ext(out, path, need_path_ext, NULL, &st, numext) < 0) return 1;
         if(write_header(out, stored_path, &st, '5', NULL) < 0) return 1;
         if(bp_no_recurse) return 0;
         DIR *d = opendir(path);
@@ -498,14 +525,14 @@ static int write_member(FILE *out, const char *path){
         if(r < 0){ builtin_error("%s: readlink: %s", path, strerror(errno)); return 1; }
         tgt[r] = 0;
         int need_link_ext = strlen(tgt) > 100;
-        if((need_path_ext || need_link_ext) && write_pax_ext(out, need_path_ext ? path : NULL, need_link_ext ? tgt : NULL, &st) < 0) return 1;
+        if((need_path_ext || need_link_ext || numext) && write_pax_ext(out, path, need_path_ext, need_link_ext ? tgt : NULL, &st, numext) < 0) return 1;
         return write_header(out, stored_path, &st, '2', need_link_ext ? "" : tgt) < 0 ? 1 : 0;
     }
     if(!S_ISREG(st.st_mode)){
         builtin_error("%s: unsupported file type for ustar", path); return 1;
     }
 
-    if(need_path_ext && write_pax_ext(out, path, NULL, &st) < 0) return 1;
+    if((need_path_ext || numext) && write_pax_ext(out, path, need_path_ext, NULL, &st, numext) < 0) return 1;
     if(write_header(out, stored_path, &st, '0', NULL) < 0) return 1;
     FILE *in = fopen(path, "rb");
     if(!in){ builtin_error("%s: %s", path, strerror(errno)); return 1; }

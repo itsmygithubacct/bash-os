@@ -47,6 +47,14 @@ if has stat; then
   rm -rf "$d"
 fi
 
+if has cp; then
+  d=$(mktemp -d); printf 'payload\n' > "$d/src"; mkfifo "$d/fifo"
+  "$BX" -c "PATH=; cp $d/src /dev/null && cp -p $d/src /dev/null" >/dev/null 2>&1 && ok "cp onto /dev/null (with -p too)" || no "cp onto /dev/null"
+  ( timeout 3 cat "$d/fifo" > "$d/got" & ); sleep 0.2; "$BX" -c "PATH=; cp $d/src $d/fifo" 2>/dev/null; sleep 0.3
+  [[ "$(cat "$d/got" 2>/dev/null)" == payload ]] && ok "cp into a fifo" || no "cp into a fifo"
+  rm -rf "$d"
+fi
+
 echo "== still a normal shell =="
 out=$("$BX" -c 'x=5; for i in 1 2 3; do ((x+=i)); done; echo $x' 2>/dev/null)
 [[ "$out" == 11 ]] && ok "arithmetic, loops, variables" || no "shell semantics: '$out'"

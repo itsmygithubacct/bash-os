@@ -34,5 +34,9 @@ mkdir -p /tmp/w/a/b; printf 'alpha\nbeta\ngamma\n' > /tmp/w/list
 echo ONLY-BASH-ROOTFS-OK
 IN
 out=$(bwrap --unshare-all --uid 0 --gid 0 --bind "$R" / --proc /proc --dev /dev --tmpfs /tmp /bin/bash /etc/script.sh 2>&1) && [[ "$out" == *ONLY-BASH-ROOTFS-OK* ]] \
-  && { echo "rootfs-smoke: PASS ($(find "$R" -type f ! -name script.sh | wc -l) files in the root filesystem)"; exit 0; } \
   || { echo "rootfs-smoke: FAIL"; echo "$out" | tail -5; exit 1; }
+# pax with a uid the 7-digit ustar field cannot hold: it goes into a PAX record
+out=$(bwrap --unshare-all --uid 3000000 --gid 3000000 --bind "$R" / --proc /proc --dev /dev --tmpfs /tmp /bin/bash -c \
+  'PATH=; cd /tmp; printf x > f; pax -w f > a.tar; grep -a -c uid=3000000 a.tar; mkdir x; cd x; pax -r < ../a.tar; cat f' 2>&1)
+[[ "$out" == $'1\nx' ]] || { echo "rootfs-smoke: FAIL (pax uid overflow): $out"; exit 1; }
+echo "rootfs-smoke: PASS ($(find "$R" -type f ! -name script.sh | wc -l) files in the root filesystem; pax uid overflow -> PAX record)"

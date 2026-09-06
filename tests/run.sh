@@ -24,6 +24,8 @@ echo "== static + a root filesystem of only bash =="
 ./build.sh --static >/dev/null 2>&1 && ok "builds out/bash-static" || no "build (static)"
 python3 tests/regressions.py out/bash-static && ok "static builtin regressions" || no "static builtin regressions"
 bash tests/rootfs-smoke.sh out/bash-static | tail -1 | grep -qE 'SKIP|PASS' && ok "rootfs-smoke" || no "rootfs-smoke"
+echo "== the tutorial, executed =="
+bash tests/tutorial.sh >/dev/null 2>&1 && ok "tutorial (enable -f + EXTRA_LOADABLES build)" || no "tutorial"
 echo "== C harnesses (ASan+UBSan) =="
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   for h in rngseed httpd; do

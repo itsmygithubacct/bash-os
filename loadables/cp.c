@@ -150,12 +150,16 @@ bcp_copy_regular (const char *src, const char *dst,
         }
         if (!o->fflag && S_ISLNK (dst_st.st_mode)) {
             struct stat target_st;
-            if (stat (dst, &target_st) < 0 || !S_ISREG (target_st.st_mode)) {
-                builtin_error ("%s: existing destination symlink target has unsupported file type", dst);
+            if (stat (dst, &target_st) < 0) {
+                builtin_error ("%s: existing destination is a dangling symlink (use -f to replace it)", dst);
                 return -1;
             }
-        } else if (!o->fflag && !S_ISREG (dst_st.st_mode)) {
-            builtin_error ("%s: existing destination has unsupported file type", dst);
+            if (S_ISDIR (target_st.st_mode)) {
+                builtin_error ("%s: existing destination symlink target is a directory", dst);
+                return -1;
+            }
+        } else if (!o->fflag && S_ISDIR (dst_st.st_mode)) {
+            builtin_error ("%s: existing destination is a directory", dst);
             return -1;
         }
         if (o->fflag) {
@@ -192,7 +196,9 @@ bcp_copy_regular (const char *src, const char *dst,
         close (dfd);
         return -1;
     }
-    if (ftruncate (dfd, 0) < 0) {
+    /* Truncate a regular file; a device, fifo or socket is simply written into. */
+    int dst_regular = S_ISREG (opened_dst.st_mode);
+    if (dst_regular && ftruncate (dfd, 0) < 0) {
         builtin_error ("truncate %s: %s", dst, strerror (errno));
         close (sfd);
         close (dfd);
@@ -202,7 +208,7 @@ bcp_copy_regular (const char *src, const char *dst,
     close (sfd);
     close (dfd);
     if (rc < 0) return -1;
-    if (o->pflag) bcp_apply_metadata (dst, sst);
+    if (o->pflag && dst_regular) bcp_apply_metadata (dst, sst);
     if (o->vflag)
         printf ("'%s' -> '%s'\n", src, dst);  /* GNU cp -v writes to stdout */
     return 0;

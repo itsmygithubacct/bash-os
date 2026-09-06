@@ -70,7 +70,17 @@ Changes carried in the sources, noted there:
   written to a fresh file rather than through whatever sits at its name (a
   pre-existing symlink was followed); a PAX `size` beyond `long` no longer
   wraps into a backwards seek; and a full-length 257-byte ustar name is no
-  longer truncated.
+  longer truncated. Writing: a size above 8 GiB or a uid/gid above 2097151
+  used to be silently truncated in the ustar field; it now goes into a PAX
+  extended header (the reader already honoured them) and the field is
+  clamped, never garbage.
+- `cp`: a device, fifo or socket destination is written into, as coreutils
+  does (`cp file /dev/null`); it used to be refused. Copying onto a symlink
+  that points back at the source truncated the source before the same-file
+  check: it now opens without truncating, compares the open descriptors'
+  inodes, then truncates (contributed with `tests/regressions.py`).
+- `diff`: the line-table growth is checked; out of memory is an error, not a
+  crash.
 - `bashjson`: a duplicate-key check freed its index array and then read the
   return value from it.
 - `bashdhcp`: the lease-binding helper treated a null `bind_assoc_variable`

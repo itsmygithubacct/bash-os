@@ -19,6 +19,8 @@
 #   --no-strip    keep symbols in the output (default: stripped)
 #   --clean       force a full rebuild
 #   env:  CC=… JOBS=N CFLAGS=… LOCAL_LIBS=… CONFIGURE_EXTRA=… BASH_TARBALL=/path
+#         EXTRA_LOADABLES="dir …"  more loadable sources (*.c, *.h) to stage,
+#                                  for a list that names them (docs/anatomy-of-a-loadable.md)
 #
 # Outputs (each with .manifest.txt, .log and .stamp beside it):
 #   out/bash                host, the default list
@@ -76,7 +78,7 @@ CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
 mkdir -p "$OUTDIR" "$DL" build
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
-           cat "$LIST"; find loadables -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
+           cat "$LIST"; find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
   say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
@@ -116,6 +118,11 @@ for h in "$HERE"/loadables/common/*.h; do cp "$h" builtins/; cp "$h" examples/lo
 for d in "$HERE"/loadables/_*/; do
   base=$(basename "${d%/}")
   for f in "$d"*.h; do flat="${base}_$(basename "$f")"; cp "$f" "builtins/$flat"; cp "$f" "examples/loadables/$flat"; done
+done
+for d in ${EXTRA_LOADABLES:-}; do
+  d=$(cd "$OLDPWD" 2>/dev/null && cd "$HERE" && cd "$d" && pwd) || die "EXTRA_LOADABLES: no such directory: $d"
+  for f in "$d"/*.c; do cp "$f" examples/loadables/; done
+  for f in "$d"/*.h; do cp "$f" builtins/; cp "$f" examples/loadables/; done
 done
 shopt -u nullglob
 cp examples/loadables/*.h builtins/ 2>/dev/null || true
