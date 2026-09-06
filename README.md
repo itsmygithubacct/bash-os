@@ -52,6 +52,15 @@ more sources, and `--list` names the set to inject:
 EXTRA_LOADABLES=docs/tutorial ./build.sh --list mine.list      # -> out/bash-mine
 ```
 
+## How much it saves
+
+`bench/run.sh` runs the same POSIX scripts under three userlands — bash-os
+with an empty `PATH`, busybox with its applets, and bash with the GNU tools —
+and reports wall time and processes created. See `bench/README.md` for the
+method and the numbers; the short version is that a script which calls a
+tool per file runs an order of magnitude faster, and one long pipeline does
+not.
+
 ## How it works
 
 bash 5.3 lets a loadable be enabled at runtime with `enable -f`. bash-os instead

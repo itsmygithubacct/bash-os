@@ -28,6 +28,8 @@ python3 tests/regressions.py out/bash-static && ok "static builtin regressions" 
 bash tests/rootfs-smoke.sh out/bash-static | tail -1 | grep -qE 'SKIP|PASS' && ok "rootfs-smoke" || no "rootfs-smoke"
 echo "== the tutorial, executed =="
 bash tests/tutorial.sh >/dev/null 2>&1 && ok "tutorial (enable -f + EXTRA_LOADABLES build)" || no "tutorial"
+echo "== the bench harness (quick) =="
+if command -v busybox >/dev/null; then bash bench/run.sh --quick 2>&1 | grep -qE '^\| 07-shell-startup ' && ok "bench runs, outputs agree across userlands" || no "bench"; else echo "SKIP bench (no busybox)"; fi
 echo "== C harnesses (ASan+UBSan) =="
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   for h in rngseed httpd; do
