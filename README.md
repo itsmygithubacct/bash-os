@@ -103,6 +103,8 @@ tests/
                                 block edges, a stream not at its start
   grep-parity.sh [BIN]          grep against GNU grep's: both dialects, every
                                 flag, -w/-x, context, binary files, block edges
+  seq-parity.sh [BIN]           seq against GNU coreutils' with the same argv words:
+                                integers, floats, -w -s -f, big counts, the error cases
   rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs
                                 a script using a dozen commands (needs bwrap)
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in

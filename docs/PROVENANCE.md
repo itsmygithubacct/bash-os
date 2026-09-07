@@ -35,6 +35,15 @@ bash-os is assembled from three sources:
   replaces bash's GPL cut loadable in every variant,
   including the pure list: on a 423 KB file the stock one took 8 ms per
   pass, GNU's 2.4 ms, this 1 ms.
+- **Written for bash-os** (MIT): `seq`, a clean-room implementation of the GNU
+  coreutils seq(1) surface — `[-w] [-s STRING] [-f FORMAT] [FIRST [INCREMENT]]
+  LAST`, the precision and equal-width rules, the value one step past LAST
+  that rounds to it, the same exit status on a bad number, a zero step or a
+  bad format. Integers are counted on a decimal string and written a 64 KB
+  block at a time, which is what makes `for i in $(seq N)` fast; floats go
+  through the printf format coreutils would use. `tests/seq-parity.sh` holds
+  it to byte-identical output and exit status with coreutils 9.7. It replaces
+  bash's own GPL seq loadable in every variant, including the pure list.
 - **Written for bash-os** (MIT): `zstd` and `zstdcat`, the subset of zstd(1) a
   script uses, over a libzstd found at run time: `libzstd.so.1` is dlopen'ed
   on first use and the stable API resolved with dlsym, so there is no

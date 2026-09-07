@@ -25,7 +25,7 @@ printenv|printenv
 realpath|realpath
 rm|rm
 rmdir|rmdir
-seq|seq
+seq|seq [-w] [-s STRING] [-f FORMAT] [FIRST [INCREMENT]] LAST
 sleep|sleep
 stat|stat
 strftime|strftime
