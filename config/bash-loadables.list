@@ -273,3 +273,6 @@ vt|vt
 utf8|utf8
 dialog|dialog
 whiptail|whiptail
+
+# Linux process accounting snapshots
+procstat|procstat iostat|mpstat|sar|pidstat|prtstat|pmap|pldd [OPTIONS]

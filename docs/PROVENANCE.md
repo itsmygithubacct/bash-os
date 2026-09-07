@@ -362,3 +362,18 @@ capacity becomes zero while freeing the clone; the copied capacity and cleanup
 loop were reviewed, and handle exhaustion is exercised by the sanitizer test.
 
 SQLite documentation examples use the project’s standard sample home path.
+
+## Process accounting rewrite (2026-09-07)
+
+`procstat` is a new MIT implementation of the upstream command/help surface,
+using the Linux kernel's documented proc and diskstats interfaces. The upstream
+GPL implementation is not included. Tests construct CPU, disk, process-stat,
+and mapping fixtures independently, including guest CPU accounting, command
+names containing spaces and closing parentheses, repeated library mappings,
+malformed records, invalid IDs, and absent processes. All 22 cases pass under
+ASan/UBSan; GCC's analyzer completed without diagnostics.
+
+It provides snapshots rather than interval/history collection. CPU and disk
+rates are averages since boot, process CPU percentages are averages since the
+process started, `pmap -x` adds file offsets, and `pldd` enumerates mapped shared
+object paths rather than traversing the dynamic loader's private structures.
