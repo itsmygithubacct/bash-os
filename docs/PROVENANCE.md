@@ -133,8 +133,34 @@ Changes carried in the sources, noted there:
 - `ip`: `link set IFNAME address MAC` added (an `IFLA_ADDRESS` attribute on the
   existing `RTM_NEWLINK` request); the collection's version implements only
   `up|down|mtu`.
-- `grep`: built POSIX-regex only; PCRE2 (`-P`) is behind `BASHGREP_PCRE2`
-  (default 0) so no libpcre2 is needed, and `-P` errors cleanly at run time.
+- `grep`: rewritten around a block reader. The input is read in 96 KB blocks
+  and searched a block at a time: a pattern with no regex operator (or `-F`)
+  by a memchr scan for its rarest byte and a compare, a regular expression
+  by a literal every match must contain, found the same way, with `regexec`
+  run only on the lines that carry it, or by one `regexec` over the block
+  when no match can hold a newline; line numbers are counted only for `-n`,
+  `-B` context is read back out of the block, and output is buffered (bash
+  line-buffers stdout, a write per line). The default dialect is GNU's BRE
+  compiled as BRE (`\| \+ \? \{ \}` are operators, `+ ? { } |` literal)
+  and `-E` is ERE; the previous version compiled every pattern as ERE with
+  a paren swap, so `foo\|bar` and `[0-9]\+` never matched and `a+` was a
+  quantifier. Reproduced from grep 3.11: `-w` retrying a shorter match at
+  the same place and then the next start, `-x`, `-m` with its trailing
+  context, the empty-pattern cases, binary files (NULs then separate lines,
+  output goes quiet, "binary file matches" on stderr), a printed line that
+  is not valid in the locale's encoding, `-z`, `-f -`, patterns split at
+  newlines, `-q`'s exit status, and stdin left just after the last match
+  for `-m` or at its end when grep stopped early. PCRE2 (`-P`) stays behind
+  `BASHGREP_PCRE2` (default 0) so no libpcre2 is needed. Not reproduced:
+  `--color` (accepted, no color), and `.` matching a NUL byte under `-a`
+  (glibc's `.` never matches NUL). Where the C library has no
+  `REG_STARTEND` (musl, so every cross build), a part of a line is matched
+  by terminating it in place, and a pattern that has to reach across an
+  embedded NUL under `-a` does not match there; measured by forcing that
+  path on the host, it is the only difference of the 571.
+  `tests/grep-parity.sh` holds it to GNU grep on those 571 command lines in
+  a UTF-8 and in the C locale, and `tests/grep-host.c` runs them again
+  under ASan+UBSan.
 - `pax`: the collection's `bashpax.c`, renamed; plain libc ustar list, create,
   extract and copy with PAX and GNU long-name headers read and `..` rejected.
   Fixed here: bodies were skipped with `fseek`, which fails on a pipe, so

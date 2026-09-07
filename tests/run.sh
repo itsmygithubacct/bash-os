@@ -26,6 +26,8 @@ echo "== the util-linux family =="
 bash tests/util-linux-smoke.sh out/bash | tail -1 | grep -qE '^util-linux-smoke: [0-9]+ passed, 0 failed' && ok "util-linux-smoke" || no "util-linux-smoke"
 echo "== zstd against the host zstd =="
 bash tests/zstd-check.sh out/bash | tail -1 | grep -qE 'SKIP|^zstd-check: [0-9]+ passed, 0 failed' && ok "zstd-check" || no "zstd-check"
+echo "== grep parity with GNU grep =="
+bash tests/grep-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^grep-parity: ([0-9]+)/\1 ' && ok "grep-parity" || no "grep-parity"
 echo "== stat parity with coreutils =="
 bash tests/stat-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^stat-parity: ([0-9]+)/\1 ' && ok "stat-parity" || no "stat-parity"
 echo "== static + a root filesystem of only bash =="
@@ -44,5 +46,11 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
     then ok "$h contract"; else no "$h contract"; fi
     rm -rf "$d"
   done
+  # grep: the loadable as a program, and the whole parity case list run through it
+  d=$(mktemp -d)
+  if "$CC" -O1 -g -fsanitize=address,undefined $INC loadables/grep.c tests/grep-host.c -o "$d/grep" >/dev/null 2>&1 \
+     && GREP_IMPL="$d/grep" bash tests/grep-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^grep-parity: ([0-9]+)/\1 '
+  then ok "grep contract (the parity cases under ASan+UBSan)"; else no "grep contract"; fi
+  rm -rf "$d"
 else echo "SKIP C harnesses (need a built tree + $CC)"; fi
 echo; echo "run: $pass passed, $fail failed"; exit $(( fail>0 ? 1 : 0 ))

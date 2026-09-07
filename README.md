@@ -99,6 +99,8 @@ tests/
   stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
   wc-tail-parity.sh [BIN]       wc and tail against GNU coreutils', both locales,
                                 block edges, a stream not at its start
+  grep-parity.sh [BIN]          grep against GNU grep's: both dialects, every
+                                flag, -w/-x, context, binary files, block edges
   rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs
                                 a script using a dozen commands (needs bwrap)
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in
@@ -108,6 +110,7 @@ tests/
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
+  grep-host.c                   grep as a program: the parity cases under ASan+UBSan
 docs/anatomy-of-a-loadable.md   how a builtin is put together, with docs/tutorial/greet.c
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
