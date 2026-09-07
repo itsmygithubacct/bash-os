@@ -6,7 +6,8 @@
 #
 # Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
 # the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
-# left in that project. 146 entries. See docs/PROVENANCE.md.
+# left in that project. Expanded to 277 entries on 2026-09-07.
+# See docs/PROVENANCE.md for source and helper licence details.
 
 basename|basename
 cat|cat
@@ -276,3 +277,36 @@ whiptail|whiptail
 
 # Linux process accounting snapshots
 procstat|procstat iostat|mpstat|sar|pidstat|prtstat|pmap|pldd [OPTIONS]
+
+# Additional upstream loadables
+crypto|crypto
+claude|claude
+ldap|ldap
+integrity|integrity
+dns|dns
+login|login
+passwd|passwd
+auth|auth
+su|su
+doas|doas
+cksum|cksum
+obj|obj
+index|index
+pack|pack
+ssh|ssh
+pkg|pkg
+ntp|ntp
+mail|mail
+rsync|rsync
+wg|wg
+acme|acme
+uuidgen|uuidgen
+screen|screen
+sshd|sshd
+tiv|tiv
+kitty|kitty
+sixel|sixel
+nano|nano
+ts|ts
+hl|hl
+sudo|sudo

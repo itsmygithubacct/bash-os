@@ -42,8 +42,10 @@ check terminal-smoke python3 tests/terminal-smoke.py out/bash
 check large-smoke python3 tests/large-smoke.py out/bash
 check helper-smoke python3 tests/helper-smoke.py out/bash
 check procstat-smoke python3 tests/procstat-smoke.py out/bash
+check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
 check tutorial bash tests/tutorial.sh
@@ -56,6 +58,7 @@ INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/lo
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'procstat under ASan+UBSan' bash tests/procstat-sanitize.sh out/bash
   check 'helper modules under ASan+UBSan' bash tests/helper-sanitize.sh out/bash
+  check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash
   check 'large modules under ASan+UBSan' bash tests/large-sanitize.sh out/bash
   check 'terminal modules under ASan+UBSan' bash tests/terminal-sanitize.sh out/bash
   if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then

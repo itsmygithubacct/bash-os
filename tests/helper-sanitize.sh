@@ -5,8 +5,12 @@ HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 CC=${CC:-cc}
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
+mkdir -p "$d/helpers/builtins" "$d/helpers/examples/loadables"
+python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" \
+  pcre netids pcap zlib zcat more less top slabtop ncdu tui vmstat vi dialog toml vt utf8 sqlite
+HB="$d/helpers/builtins"
 flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined
-       -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -Iloadables/common
+       -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$HB" -Iloadables/common
        -I"$BT/builtins" -I"$BT/examples/loadables")
 printf 'set -e\n' > "$d/load.sh"
 for group in 'pcre netids' 'zlib zcat' 'more less top slabtop ncdu tui vmstat vi dialog' \
@@ -17,10 +21,10 @@ for group in 'pcre netids' 'zlib zcat' 'more less top slabtop ncdu tui vmstat vi
   case ${names[0]} in
     pcre) libs+=(-lpcre2-8) ;;
     zlib) libs+=(-lz -llzma -lzstd -lbz2) ;;
-    more) sources+=("$BT"/builtins/_bl_key_*.c "$BT"/builtins/_bl_screen_*.c "$BT"/builtins/_bl_proc_*.c); names+=(whiptail) ;;
-    toml) sources+=("$BT"/builtins/_tomlc17_*.c) ;;
-    vt) sources+=("$BT"/builtins/_libgrapheme_*.c) ;;
-    sqlite) sources+=("$BT"/builtins/_sqlite_*.c); libs+=(-ldl -lpthread) ;;
+    more) sources+=("$HB"/_bl_key_*.c "$HB"/_bl_screen_*.c "$HB"/_bl_proc_*.c); names+=(whiptail) ;;
+    toml) sources+=("$HB"/_tomlc17_*.c) ;;
+    vt) sources+=("$HB"/_libgrapheme_*.c) ;;
+    sqlite) sources+=("$HB"/_sqlite_*.c); libs+=(-ldl -lpthread) ;;
   esac
   lib="$d/${names[0]}.so"
   "$CC" "${flags[@]}" "${sources[@]}" "${libs[@]}" -o "$lib"

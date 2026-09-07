@@ -22,8 +22,14 @@ def require(name):
 require('_jsmn')
 for name in names:
     entry = manifest['commands'].get(name, {})
+    missing = set(entry.get('requires', [])) - set(names)
+    if missing:
+        raise SystemExit(f'{name} requires builtin(s) in the selected list: {", ".join(sorted(missing))}')
     for helper in entry.get('helpers', []): require(helper)
     for library in entry.get('libs', []):
+        if library not in libraries: libraries.append(library)
+for helper in sorted(selected):
+    for library in manifest['helpers'][helper].get('libs', []):
         if library not in libraries: libraries.append(library)
 if mode == '--libs':
     # Revisit the builtin archive because some helper and wrapper calls form cycles.

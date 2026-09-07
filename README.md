@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and ~160 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 269 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 246 builtins  -> out/bash
+./build.sh                                        # host, 277 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -40,10 +40,18 @@ Outputs are stripped (`--no-strip` keeps symbols) and each comes with a
 set (001–015) are pinned by sha256 in `config/versions.sh`; a from-scratch
 build is byte-identical to the last one.
 
-Cross-compiling needs only `CC`: `--host` is derived from the compiler, and the
+The full list needs development libraries for PCRE2, zlib, liblzma, libzstd,
+and bzip2; static builds need their static archives. The bundled TLS, SSH,
+database, Unicode, image, and parsing helpers build from checked-in sources.
+The pure list keeps the smaller dependency set. The full test suite also uses
+Python 3 with `cryptography`, Git, host reference utilities, and a C compiler
+with ASan/UBSan support.
+
+For cross-compilation, `--host` is derived from `CC`, and the
 configure answers a cross build cannot measure itself (job control, named pipes,
 `/dev/fd`, …) are supplied by `build.sh`. `CONFIGURE_EXTRA`, `CFLAGS` and
 `LOCAL_LIBS` pass through; `LOCAL_LIBS` defaults to `-lm` for `fltexpr`.
+The target toolchain must provide the libraries selected by the chosen list.
 
 Your own loadables, without forking the tree: `EXTRA_LOADABLES="dir …"` stages
 more sources, and `--list` names the set to inject:
@@ -51,6 +59,11 @@ more sources, and `--list` names the set to inject:
 ```
 EXTRA_LOADABLES=docs/tutorial ./build.sh --list mine.list      # -> out/bash-mine
 ```
+
+Custom lists must include direct builtin dependencies: `netids` needs `pcap`,
+`nano` and `hl` need `ts`, and `doas` and `sudo` must be selected together.
+The build reports an incomplete selection before compiling. Shared helper
+dependencies and libraries are selected automatically through `config/helpers.json`.
 
 ## How much it saves
 
@@ -88,7 +101,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 246 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 277 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -118,6 +131,11 @@ tests/
   terminal-smoke.py [BIN]      key decoding, pseudo-terminals, editing and replay
   terminal-sanitize.sh [BIN]   the terminal checks with instrumented modules
   misc-smoke.py [BIN]          arithmetic, scheduling, file formats and helpers
+  large-smoke.py [BIN]         calculators, JSON, services, disks and tool subsets
+  helper-smoke.py [BIN]        compression, SQLite, TOML, Unicode and terminal helpers
+  procstat-smoke.py [BIN]      process-accounting fixtures
+  final-smoke.py [BIN]         crypto, TLS, accounts, Git, protocols, images and editors
+  final-sanitize.sh [BIN]      final imports and their helpers under ASan/UBSan
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
   grep-host.c                   grep as a program: the parity cases under ASan+UBSan
@@ -131,12 +149,13 @@ Names in a list that have no `loadables/NAME.c` here are bash's own
 ## Licence
 
 The project sources are MIT (`LICENSE`). Vendored helpers retain their own
-licences: MIT, ISC, and SQLite’s public-domain dedication. The inventory in
+licences, including MIT, ISC, BSD, Apache-2.0, LGPL-2.1, Unicode terms,
+and public-domain dedications. The inventory in
 `config/helpers.json` names each helper’s licence and notice file; see
 [provenance](docs/PROVENANCE.md) for versions and adaptations.
 `tests/licence-check.sh` holds the tree to that.
 
 A built bash-os links GNU bash and is therefore distributed under the GPLv3,
-whatever the loadables' own terms; the included helper licences are GPL-compatible, and the MIT
-grant is what lets each loadable be lifted into a non-GPL project on its own.
+whatever the loadables' own terms. Reusing an MIT wrapper also requires
+following the terms of any helper libraries that it uses.
 See `docs/PROVENANCE.md`.

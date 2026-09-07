@@ -63,6 +63,13 @@ bash-os is assembled from these sources:
 | `_jsmn`, `_bl_key`, `_bl_screen`, `_bl_proc`, `_tomlc17` helpers | MIT, per-tree notices |
 | `_libgrapheme` | ISC, per-tree notice |
 | `_sqlite` | Public domain, upstream disclaimer retained |
+| `_mbedtls` | Apache-2.0, selected from the upstream dual licence |
+| `_libssh` | LGPL-2.1, source notices retained |
+| `_monocypher` | BSD-2-Clause OR CC0-1.0 |
+| `_sha1dc`, `_bashauth`, `_bashos_authcrypto`, `_stb` | MIT, per-tree notices |
+| `_md4` | Public-domain dedication with BSD fallback notice |
+| `_tree_sitter` | MIT with Unicode/ICU notices for bundled Unicode headers |
+| `_ts_bash`, `_ts_json`, `_ts_toml`, `_ts_markdown`, `_ts_markdown_inline` | MIT, per-grammar notices |
 | `tests/*.c`, `build.sh`, `config/` | MIT |
 
 The project sources carry an MIT marker. Vendored helpers retain their original
@@ -377,3 +384,79 @@ It provides snapshots rather than interval/history collection. CPU and disk
 rates are averages since boot, process CPU percentages are averages since the
 process started, `pmap -x` adds file offsets, and `pldd` enumerates mapped shared
 object paths rather than traversing the dynamic loader's private structures.
+
+## Crypto, protocols, Git and rendering (imported 2026-09-07)
+
+The final collection batch supplies `crypto claude ldap integrity dns login
+passwd auth su doas cksum obj index pack ssh pkg ntp mail rsync wg acme uuidgen
+screen sshd tiv kitty sixel nano ts hl sudo`, bringing the full list to 277.
+The four board-specific managers remain in the appliance. Sources were taken
+from the same 2026-09-06 snapshot and adapted to the public builtin names and
+this repository's helper staging. The checked-in helper sources are the build
+inputs; building does not fetch moving library branches.
+
+The staged Mbed TLS headers identify 4.1.0, with TF-PSA-Crypto compatibility
+headers and a selected configuration. This supersedes the collection's stale
+3.6.x version label. The libssh headers identify 0.11.2. Tree-sitter supports
+language ABIs 13 through 15 and includes generated Bash, JSON, TOML, Markdown,
+and inline-Markdown parsers. Monocypher supplies Ed25519 and Argon2id; SHA1DC
+supplies Git object/index checksums; stb_image supplies image decoding. Original
+notices are retained, including the additional Unicode/ICU notice for the
+Tree-sitter headers. Cryptographic PEM recognizer/emitter strings use adjacent
+C literals on separate lines, preserving their exact compiled bytes without
+including private-key material.
+
+The new `tests/final-smoke.py` compares hashes, MACs, key derivation, authenticated
+encryption, public keys, and signatures with Python's independent cryptography
+implementations. It checks ACME JWK/JWS encoding, RFC TOTP and UUID results, Git
+loose objects/indexes/packfiles against Git itself, package deltas, rsync's local
+shell transport, integrity manifests, and image protocol bytes. TLS verification
+uses a temporary certificate and loopback server, including hostname rejection.
+DNS and NTP use loopback packet fixtures; the API client uses offline HTTP/SSE
+and request-assembly fixtures. Account updates use temporary passwd/shadow/group
+files, and mail checks compile and expand private aliases. Editor and terminal
+checks exercise engine self-tests, language parsing/highlighting, and private
+multiplexer metadata. `tests/final-sanitize.sh` instruments both the wrappers
+and all selected vendored C helpers. Sanitizer staging is private so a later
+pure or tutorial build cannot remove its inputs.
+
+Import corrections include empty-buffer handling, descriptor cleanup on failed
+stream conversion, bounded vector/index growth, strict index path termination
+and padding, and atomic-write error propagation. Image base64 decoding uses unsigned
+accumulators so long input cannot cause signed-shift overflow. The account lookup helper
+rejects invalid or overflowing numeric IDs before they can become UID/GID 0.
+The DNS master-file parser uses leading whitespace to inherit owners, allowing
+owners such as `ns`; wire parsing enforces ordinary DNS label limits. WireGuard
+key generation emits the clamped scalar form used by the
+[reference implementation](https://raw.githubusercontent.com/WireGuard/wireguard-tools/master/src/genkey.c).
+The SSH known-hosts maintenance commands honor the same explicit file override
+as encrypted connections.
+
+These imports retain the collection's documented subsets and integration
+requirements. Kernel authority tokens require `/dev/bashos-auth`; they do not
+provide privilege elevation on a stock kernel. Appliance policy/UI scripts,
+package repositories, service configuration, and CA deployment are separate
+from these builtins. The API client defaults to the collection's configured
+model and permits an environment override; live provider access is not part
+of the tests. Mail delivery, system clock changes, privileged network setup,
+and appliance kernel authorization are not exercised by the host suite.
+SSH offers separate native command-stream and encrypted libssh transports.
+Rsync's local shell transport uses an explicit `-e "$BASH -c"`; its documented
+subset does not implement all stock rsync options. These requirements apply
+even though every listed command is compiled into the full executable.
+
+The selected libssh profile disables NIST ECDH and hybrid-MLKEM key exchange;
+its fail-closed ECDH shim is built instead of the incomplete alternate ECDH
+implementation. Curve25519 exchange and public-key authentication are checked
+against the host OpenSSH client and between the two builtins. The sanitizer
+loader is limited to the tested Bash executable, so an executed host shell
+does not load modules built for another Bash ABI.
+
+GCC's analyzer completed for the new wrappers except DNS, where it exceeded
+the time limit; Clang completed that source. Its DNS findings led to guaranteed
+stream closure after sync failures and validation of missing update/listener
+arguments. The remaining DNS diagnostic is an unused timeout assignment.
+Reviewed GCC reports assume that successful buffer growth leaves a null
+allocation, that a returned file length differs from its allocation size, or
+that a pointer becomes null between allocation and its check. Runtime boundary
+fixtures also run with instrumented helper implementations.
