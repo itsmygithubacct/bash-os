@@ -275,3 +275,21 @@ The analyzer's remaining fail2ban null warnings require a positive row count
 with a null allocation, which its bounded reader cannot return. Its remaining
 sftp reports assume negative descriptors after successful pipe creation or a
 successful allocation returning null; both paths were reviewed.
+
+## Small utilities and file identification
+
+A further 21 MIT collection sources supply `totp scrub bignum tz locale scm
+notify cluster at batch crontab payload fsck mkfs lpr opt cal man apropos
+whatis file`; `asort` comes from Bash's stock examples at build time.
+`tests/misc-smoke.py` compares arbitrary-precision arithmetic with Python,
+checks option quoting against getopt, exercises descriptor passing and Unix
+notifications, and uses private temporary scheduling and filesystem fixtures.
+The crontab importer now closes its output even when the input read fails.
+
+The file identifier's private-key magic prefixes are adjacent C literals on
+separate lines. Their compiled bytes are unchanged; marker-only fixtures test
+all five signatures. No key material is included. The sources retain the
+collection's scope: fsck checks the primary superblock, mkfs writes minimal
+ext2, lpr simulates spool processing, and timezone support uses a curated
+zone table. TOTP delegates HMAC to the crypto builtin. Payload installation
+expects the appliance's installer, with explicit environment overrides.

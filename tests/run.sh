@@ -37,6 +37,7 @@ for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-p
   check "$name" bash "tests/$name.sh" out/bash
 done
 check network-smoke python3 tests/network-smoke.py out/bash
+check misc-smoke python3 tests/misc-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static

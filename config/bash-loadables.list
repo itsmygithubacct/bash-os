@@ -194,3 +194,27 @@ sftp|sftp
 scp|scp
 audit|audit
 fail2ban|fail2ban
+
+# Additional upstream loadables
+asort|asort
+totp|totp
+scrub|scrub
+bignum|bignum
+tz|tz
+locale|locale
+scm|scm
+notify|notify
+cluster|cluster
+at|at
+batch|batch
+crontab|crontab
+payload|payload
+fsck|fsck
+mkfs|mkfs
+lpr|lpr
+opt|opt
+cal|cal
+man|man
+apropos|apropos
+whatis|whatis
+file|file
