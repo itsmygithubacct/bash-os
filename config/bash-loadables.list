@@ -238,3 +238,18 @@ nano2|nano2
 watch|watch
 wall|wall
 write|write
+
+# Additional upstream loadables
+awk|awk
+jq|jq
+bc|bc
+vec|vec
+sv|sv
+cron|cron
+curl|curl
+fw|fw
+dhcpd|dhcpd
+fdisk|fdisk
+strace|strace
+coreutils|coreutils
+bsdgames|bsdgames

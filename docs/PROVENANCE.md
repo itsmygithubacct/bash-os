@@ -141,13 +141,6 @@ loadable. Help and registration are checked for every imported name.
 
 ## What deliberately stays out
 
-`file` is not imported yet, though it compiles and is otherwise ready: its
-magic table lists, verbatim, the PEM armour lines that mark RSA, EC, DSA,
-OpenSSH and PGP private keys, because those are the strings it recognises.
-A pre-publish secret scanner matches them. Importing it needs a decision —
-an allowlist for magic tables, or splitting the literals — rather than a
-quiet edit that would make the table wrong.
-
 The appliance's four board-coupled managers — `bashnpu`, `bashyolox`,
 `bashrtsp`, `detectlog` — depend on NPU/video/detection ABIs and remain in that
 project. bash-os is the board-agnostic layer it builds on.
@@ -312,3 +305,27 @@ sanitizer run instruments the loadables through shared objects. Leak checking
 is disabled for the hosting shell's retained allocations. Analyzer reports
 for retained undo stacks, bounded renderer buffers and child stdio descriptors
 were reviewed; the latter descriptors deliberately survive until child exit.
+
+## Larger standalone tools (imported 2026-09-07)
+
+`awk jq bc vec sv cron curl fw dhcpd fdisk strace coreutils bsdgames` come
+from the same MIT collection. Each has a separate case group in
+`tests/large-smoke.py`; the complex parsers also run as ASan/UBSan runtime
+loadables through `tests/large-sanitize.sh`. The checks compare supported
+text/calculator operations with host tools, validate vector persistence and
+GPT checksums independently, and exercise private services, loopback HTTP,
+DHCP packets, child tracing, temporary installation/FIFO/shred operations,
+and deterministic game checks.
+
+Import fixes include checked allocation and input errors in awk, temporary
+argument ownership in coreutils, compact JSON emission and whitespace around
+scalar jq inputs, preserved decimal literal scale and fractional output in
+bc, and empty command arguments in the trek game parser. GCC's analyzer
+completed for twelve sources; its coreutils run crashed, so Clang's analyzer
+was used for that file. Remaining reports concern a buffer filled by fread,
+a stream protected by a `!= stdin` close guard, and unused assignments.
+
+These are the upstream subsets. jq uses compact output and a bounded filter
+language; bc has no user-defined functions or output-base conversion; fw's
+pure backend stores rules without installing kernel filters. curl's TLS path
+requires the crypto loadable. Tests exercise nft/iptables dry runs only.
