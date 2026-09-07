@@ -45,11 +45,10 @@ bash-os is assembled from these sources:
   it to byte-identical output and exit status with coreutils 9.7. It replaces
   bash's own GPL seq loadable in every variant, including the pure list.
 - **Written for bash-os** (MIT): `zstd` and `zstdcat`, the subset of zstd(1) a
-  script uses, over a libzstd found at run time: `libzstd.so.1` is dlopen'ed
-  on first use and the stable API resolved with dlsym, so there is no
-  link-time dependency and no vendored zstd; without the library the builtin
-  says so and fails. Requested by the appliance, which carries the vendor's
-  libzstd and compresses its rotated logs with it. zstd(1)'s file semantics:
+  script uses, using the linked libzstd so compression also works in static
+  executables. `BASHOS_ZSTD_LIB` optionally loads a compatible shared library
+  at first use; an unavailable override fails cleanly. The implementation
+  uses zstd(1)'s file semantics:
   the source is kept unless `--rm`, no overwrite without `-f`, the target
   takes the source's mode and mtime. `tests/zstd-check.sh` checks it against
   the host's zstd both ways; `tests/zstd-host.c` runs the buffer paths under
@@ -402,7 +401,10 @@ language ABIs 13 through 15 and includes generated Bash, JSON, TOML, Markdown,
 and inline-Markdown parsers. Monocypher supplies Ed25519 and Argon2id; SHA1DC
 supplies Git object/index checksums; stb_image supplies image decoding. Original
 notices are retained, including the additional Unicode/ICU notice for the
-Tree-sitter headers. Cryptographic PEM recognizer/emitter strings use adjacent
+Tree-sitter headers. The local stb_image adaptation accepts empty PNG IDAT
+chunks without null-pointer arithmetic and rejects truncated in-memory IDAT
+chunks before allocating their declared length. Regression fixtures cover both.
+Cryptographic PEM recognizer/emitter strings use adjacent
 C literals on separate lines, preserving their exact compiled bytes without
 including private-key material.
 

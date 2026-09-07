@@ -372,6 +372,13 @@ def graphics(d):
     for name in ['tiv','kitty','sixel']:
         run(name,'--base64',data=base64.b64encode(png))
         run(name,'-',data=b'invalid image',rc=1)
+    # Empty IDAT chunks are valid; truncated large chunks must fail before allocation.
+    empty_idat = png[:33]+chunk(b'IDAT',b'')+png[33:]
+    empty_file = d/'empty-idat.png'; empty_file.write_bytes(empty_idat)
+    assert run('kitty','--raw-apc','--no-tmux',empty_file) == apc
+    truncated_idat = png[:33]+struct.pack('!I',0x3f00000d)+b'IDAT'+b'\0'*8
+    for name in ['tiv','kitty','sixel']:
+        run(name,'-',data=truncated_idat,rc=1)
 
 def parsing(d):
     languages = {'json':b'{"a":1}', 'toml':b'a=1\n', 'bash':b'printf hello\n',

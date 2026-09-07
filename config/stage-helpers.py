@@ -1,36 +1,17 @@
 #!/usr/bin/env python3
 """Select and flatten helper sources without pulling them into unrelated lists."""
-import json
 from pathlib import Path
 import re
 import shutil
 import sys
+from loadables import helpers_for
 
 mode, root, destination, *names = sys.argv[1:]
 root = Path(root)
-manifest = json.loads((root/'config/helpers.json').read_text())
-selected, libraries = set(), []
-
-def require(name):
-    if name in selected: return
-    if name not in manifest['helpers']:
-        raise SystemExit(f'unregistered helper: {name}')
-    selected.add(name)
-    for dependency in manifest['helpers'][name].get('requires', []): require(dependency)
-
-# The existing tokenizer is header-only and is used by several small tools.
-require('_jsmn')
-for name in names:
-    entry = manifest['commands'].get(name, {})
-    missing = set(entry.get('requires', [])) - set(names)
-    if missing:
-        raise SystemExit(f'{name} requires builtin(s) in the selected list: {", ".join(sorted(missing))}')
-    for helper in entry.get('helpers', []): require(helper)
-    for library in entry.get('libs', []):
-        if library not in libraries: libraries.append(library)
-for helper in sorted(selected):
-    for library in manifest['helpers'][helper].get('libs', []):
-        if library not in libraries: libraries.append(library)
+try:
+    selected, libraries = helpers_for(root, names)
+except ValueError as error:
+    raise SystemExit(str(error))
 if mode == '--libs':
     # Revisit the builtin archive because some helper and wrapper calls form cycles.
     if libraries or any(list((root/'loadables'/h).glob('*.c')) for h in selected):

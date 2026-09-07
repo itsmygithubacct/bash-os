@@ -28,42 +28,41 @@ Three uses drive it:
 
 ## Build
 
-```
-./build.sh                                        # host, 277 builtins  -> out/bash
-./build.sh --static                               # one self-contained file -> out/bash-static
-./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
-CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
-```
-
-Outputs are stripped (`--no-strip` keeps symbols) and each comes with a
-`.manifest.txt` beside it. The bash source and the official bash-5.3 patch
-set (001–015) are pinned by sha256 in `config/versions.sh`; a from-scratch
-build is byte-identical to the last one.
-
-The full list needs development libraries for PCRE2, zlib, liblzma, libzstd,
-and bzip2; static builds need their static archives. The bundled TLS, SSH,
-database, Unicode, image, and parsing helpers build from checked-in sources.
-The pure list keeps the smaller dependency set. The full test suite also uses
-Python 3 with `cryptography`, Git, host reference utilities, and a C compiler
-with ASan/UBSan support.
-
-For cross-compilation, `--host` is derived from `CC`, and the
-configure answers a cross build cannot measure itself (job control, named pipes,
-`/dev/fd`, …) are supplied by `build.sh`. `CONFIGURE_EXTRA`, `CFLAGS` and
-`LOCAL_LIBS` pass through; `LOCAL_LIBS` defaults to `-lm` for `fltexpr`.
-The target toolchain must provide the libraries selected by the chosen list.
-
-Your own loadables, without forking the tree: `EXTRA_LOADABLES="dir …"` stages
-more sources, and `--list` names the set to inject:
-
-```
-EXTRA_LOADABLES=docs/tutorial ./build.sh --list mine.list      # -> out/bash-mine
+```sh
+./build.sh                                     # full collection -> out/bash
+./build.sh --profile core                       # everyday tools -> out/bash-core
+./build.sh --level 3 --static                    # device tools -> out/bash-device-static
+./build.sh --profile desktop                     # editors and terminal graphics
+./build.sh --include cut,seq --name small        # exactly two injected builtins
+./build.sh --list selected.list                  # your exact inclusion list
+./build.sh --profile core --include nano,ts       # profile plus selected commands
+./build.sh --list-profiles                       # levels, sizes of command sets, purposes
 ```
 
-Custom lists must include direct builtin dependencies: `netids` needs `pcap`,
-`nano` and `hl` need `ts`, and `doas` and `sudo` must be selected together.
-The build reports an incomplete selection before compiling. Shared helper
-dependencies and libraries are selected automatically through `config/helpers.json`.
+Choose `shell`, `pure`, `core`, `device`, `server`, `desktop`, or `full`.
+Levels 0–5 range from no injected loadables to the full collection. Lists and
+repeatable `--include`, `--include-list`, and `--exclude` options let you choose
+exactly what goes into a binary. Required companion builtins are checked before
+compilation; shared C helpers and libraries are selected automatically.
+
+Outputs are stripped (`--no-strip` keeps symbols). Each binary comes with a
+resolved `.loadables.list`, a `.manifest.json` with its selection and checksum,
+and a readable `.manifest.txt`. The Bash 5.3 source and official patches 001–015
+are pinned by SHA-256 in `config/versions.sh`.
+
+All builds need Python 3 and the usual C build tools. The first four profiles
+need no additional development libraries. Larger selections may need PCRE2,
+zlib, liblzma, libzstd and bzip2. `build-deps.sh` builds pinned static libraries
+for a host or cross compiler in a private prefix:
+
+```sh
+CC=riscv64-unknown-linux-musl-gcc ./build-deps.sh
+CC=riscv64-unknown-linux-musl-gcc ./build.sh --static \
+  --deps-prefix out/deps/riscv64-unknown-linux-musl
+```
+
+See [build profiles](docs/build-profiles.md) for the profile table, list format,
+output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
 
 ## How much it saves
 
@@ -98,15 +97,23 @@ command lookup.
 
 ```
 build.sh                        the build
+build-deps.sh                   pinned host/target dependency libraries
 config/
   versions.sh                   pinned bash source (sha256) + build number
-  loadables.sh                  the one parser of a loadables list
+  loadables.py                  list parser and profile resolver
+  loadables.sh                  shell interface to the parser
+  profiles.json                 named inclusion profiles
+  dependencies.json             pinned external libraries
   bash-loadables.list           the full set (NAME|short-doc per line), 277 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/
-  run.sh                        the suite: everything below, for both list variants
+  run.sh                        full, pure, static, runtime and sanitizer checks
+  profiles.py                   selection and dependency contracts
+  profile-smoke.py BIN          exact injected set and manifest checksum
+  cross-smoke.sh BIN            full RISC-V fixtures under QEMU
+  fuzz.sh                       bounded LDAP, image and TOML parser fuzzing
   host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
                                 and runs with an empty PATH (stat, pax, pipes …)
   stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
@@ -136,6 +143,7 @@ tests/
   procstat-smoke.py [BIN]      process-accounting fixtures
   final-smoke.py [BIN]         crypto, TLS, accounts, Git, protocols, images and editors
   final-sanitize.sh [BIN]      final imports and their helpers under ASan/UBSan
+  paste-uniq-parity.py [BIN]    record/group parity, output errors and shell state
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
   grep-host.c                   grep as a program: the parity cases under ASan+UBSan

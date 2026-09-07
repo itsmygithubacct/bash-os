@@ -1,10 +1,9 @@
 /* SPDX-License-Identifier: MIT */
-/* zstd.c — zstd(1) as a bash builtin, over a libzstd found at run time.
+/* zstd.c — zstd(1) as a bash builtin, using the linked libzstd.
  *
- * No link-time dependency and no vendored zstd: libzstd.so.1 is dlopen'ed
- * on first use and the stable API (ZSTD_compress and the streaming
- * decompressor, present since 1.3) is resolved with dlsym. Where the library
- * is absent the builtin says so and fails; the shell is unaffected. Files
+ * The linked library also works in a fully static executable. An explicit
+ * BASHOS_ZSTD_LIB override loads a compatible library with dlopen/dlsym;
+ * an unavailable override fails without affecting the shell. Files
  * are read whole (256 MiB cap); decompression is streamed into a growing
  * buffer (1 GiB cap), so a frame's declared size is never trusted for an
  * allocation.
@@ -29,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <zstd.h>
 #include <limits.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -38,12 +38,13 @@
 #define ZS_MAX_OUTPUT  (1024UL * 1024 * 1024)
 #define ZS_DEFAULT_LEVEL 3
 
-/* The pieces of libzstd's stable API we use, declared here: no zstd.h. */
-typedef struct { const void *src; size_t size; size_t pos; } zs_inbuf;
-typedef struct { void *dst; size_t size; size_t pos; } zs_outbuf;
-typedef struct zs_dstream zs_dstream;
+/* Use the linked library by default, including in static executables. */
+typedef ZSTD_inBuffer zs_inbuf;
+typedef ZSTD_outBuffer zs_outbuf;
+typedef ZSTD_DStream zs_dstream;
 static struct {
   void *handle;
+  int loaded;
   size_t (*compress) (void *, size_t, const void *, size_t, int);
   size_t (*compressBound) (size_t);
   unsigned (*isError) (size_t);
@@ -59,9 +60,22 @@ static int
 zs_load (void)
 {
   const char *lib, *err; void *h;
-  if (zs.handle) return 0;
+  if (zs.loaded) return 0;
   lib = getenv ("BASHOS_ZSTD_LIB");             /* an override, and how the tests simulate absence */
-  if (lib == NULL || *lib == 0) lib = "libzstd.so.1";
+  if (lib == NULL || *lib == 0)
+    {
+      zs.compress = ZSTD_compress;
+      zs.compressBound = ZSTD_compressBound;
+      zs.isError = ZSTD_isError;
+      zs.getErrorName = ZSTD_getErrorName;
+      zs.createDStream = ZSTD_createDStream;
+      zs.initDStream = ZSTD_initDStream;
+      zs.decompressStream = ZSTD_decompressStream;
+      zs.freeDStream = ZSTD_freeDStream;
+      zs.DStreamOutSize = ZSTD_DStreamOutSize;
+      zs.loaded = 1;
+      return 0;
+    }
   h = dlopen (lib, RTLD_NOW | RTLD_LOCAL);
   if (h == NULL)
     {
@@ -82,6 +96,7 @@ zs_load (void)
   ZS_SYM (DStreamOutSize, "ZSTD_DStreamOutSize");
 #undef ZS_SYM
   zs.handle = h;
+  zs.loaded = 1;
   return 0;
 }
 

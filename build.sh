@@ -13,44 +13,90 @@
 #      and splice rows into shell_builtins[]. bash 5.3 computes num_shell_builtins
 #      from sizeof(), so nothing else changes.
 #
-# Usage:  ./build.sh [--list FILE] [--static] [--no-strip] [--clean]
-#   --list FILE   loadable list to inject   (default config/bash-loadables.list)
-#   --static      link the binary statically (a single self-contained file)
-#   --no-strip    keep symbols in the output (default: stripped)
-#   --clean       force a full rebuild
-#   env:  CC=… JOBS=N CFLAGS=… LOCAL_LIBS=… CONFIGURE_EXTRA=… BASH_TARBALL=/path
-#         EXTRA_LOADABLES="dir …"  more loadable sources (*.c, *.h) to stage,
-#                                  for a list that names them (docs/anatomy-of-a-loadable.md)
-#
-# Outputs (each with .manifest.txt, .log and .stamp beside it):
-#   out/bash                host, the default list
-#   out/bash-pure           host, config/bash-loadables-pure.list
-#   out/bash-static         host, --static            (tags combine: bash-pure-static)
-#   out/<triple>/bash…      a cross build: CC is a cross compiler, or
-#                           CONFIGURE_EXTRA carries --host=
-#
-# Cross-compiling:  CC=<triple>-gcc ./build.sh   — that is all. --host is added,
-# and because a cross configure cannot run its test programs, the Linux answers
-# it needs (job control, named pipes, /dev/fd, …) are supplied below.
+# Usage: ./build.sh [--profile NAME | --level N | --list FILE]
+#                  [--include NAMES] [--include-list FILE] [--exclude NAMES]
+#                  [--name TAG] [--static] [--deps-prefix DIR] [--no-strip] [--clean]
+# Use --help for selection rules and --list-profiles for available profiles.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); cd "$HERE"
 source config/versions.sh
 source config/loadables.sh
 
-LIST="config/bash-loadables.list"; STATIC=0; STRIP=1; CLEAN=0
+die(){ echo "build.sh: $*" >&2; exit 1; }
+say(){ echo "build.sh: $*"; }
+usage(){
+  cat <<'HELP'
+Usage: ./build.sh [selection] [build options]
+
+Selection (default: --profile full):
+  --profile NAME       shell, pure, core, device, server, desktop, full
+  --level N            0=shell, 1=pure, 2=core, 3=device, 4=server, 5=full
+  --list FILE          exact NAME[|SHORT-DOC] inclusion list, instead of a profile
+  --include NAMES      add comma/space-separated names; repeatable
+  --include-list FILE  add entries from an inclusion list; repeatable
+  --exclude NAMES      remove comma/space-separated names; repeatable
+  --name TAG           output as out/bash-TAG (plus -static and target directory)
+  --list-profiles      show levels, command counts and descriptions, then exit
+  --list-loadables     show available commands and their short help, then exit
+  --print-list         print the exact resolved inclusion list, then exit
+  --show-config        print the selection, helper and library plan as JSON, then exit
+
+With --include/--include-list alone the base is empty. With an explicit profile
+or --list, they add to that base. Exclusions apply last. Required companion
+builtins must be selected explicitly. GNU Bash's own builtins are always present.
+Customized outputs receive a content-derived name unless --name is supplied.
+
+Build options:
+  --static             link a static executable
+  --deps-prefix DIR    use target headers and libraries prepared by build-deps.sh
+  --no-strip           retain symbols
+  --clean              force rebuilding
+  --help               show this help
+Environment: CC, JOBS, CFLAGS, CPPFLAGS, LOCAL_LIBS, LDFLAGS_EXTRA,
+CONFIGURE_EXTRA, BASH_TARBALL, EXTRA_LOADABLES (space-separated source directories).
+HELP
+}
+STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; INFO=""; SELECT_ARGS=()
 while [[ $# -gt 0 ]]; do case "$1" in
-  --list) LIST="$2"; shift 2 ;;
+  --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
+  --profile|--level|--list|--include|--include-list|--exclude|--name)
+    [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires an argument"
+    SELECT_ARGS+=("$1" "$2"); shift 2 ;;
+  --deps-prefix)
+    [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires a directory"
+    DEPS_PREFIX=$(cd "$2" && pwd); shift 2 ;;
+  --list-profiles|--list-loadables)
+    [[ -z $INFO ]] || die "choose one reporting option"
+    SELECT_ARGS+=("$1"); INFO="$1"; shift ;;
+  --print-list|--show-config)
+    [[ -z $INFO ]] || die "choose one reporting option"
+    INFO="$1"; shift ;;
   --static) STATIC=1; shift ;;
   --no-strip) STRIP=0; shift ;;
   --clean) CLEAN=1; shift ;;
-  *) echo "build.sh: unknown arg $1" >&2; exit 2 ;;
+  --help|-h) usage; exit 0 ;;
+  *) die "unknown argument $1 (see --help)" ;;
 esac; done
-die(){ echo "build.sh: $*" >&2; exit 1; }
-say(){ echo "build.sh: $*"; }
-[[ -f "$LIST" ]] || die "no such list: $LIST"
-LIST=$(cd "$(dirname "$LIST")" && pwd)/$(basename "$LIST")     # absolute: we cd into the tree later
-mapfile -t NAMES < <(loadables_names "$LIST") || die "cannot parse $LIST"
-(( ${#NAMES[@]} > 0 )) || die "empty list"
+SELECTION=$(python3 config/loadables.py select --root "$HERE" "${SELECT_ARGS[@]}") || exit $?
+export SELECTION
+if [[ -n $INFO ]]; then
+  python3 - "$INFO" <<'PYINFO'
+import json, os, sys
+s = json.loads(os.environ['SELECTION'])
+if sys.argv[1] == '--list-profiles':
+    print('PROFILE    LEVEL  BUILTINS  PURPOSE')
+    for p in s: print(f"{p['name']:<10} {p['level']:<6} {p['count']:<9} {p['description']}")
+elif sys.argv[1] == '--list-loadables':
+    for name, doc in s.items(): print(name+'|'+doc)
+elif sys.argv[1] == '--print-list': print(s['list'], end='')
+else: print(json.dumps(s, indent=2))
+PYINFO
+  exit 0
+fi
+NAMES_TEXT=$(python3 -c 'import json,os; print("\n".join(json.loads(os.environ["SELECTION"])["names"]))')
+NAMES=(); [[ -z $NAMES_TEXT ]] || mapfile -t NAMES <<< "$NAMES_TEXT"
+LISTTAG=$(python3 -c 'import json,os; print(json.loads(os.environ["SELECTION"])["tag"])')
+LIST_DESCRIPTION=$(python3 -c 'import json,os; print(json.loads(os.environ["SELECTION"])["base"])')
 CC="${CC:-cc}"; JOBS="${JOBS:-$(nproc)}"
 DL="$HERE/dl"; SRC="$HERE/build/bash-$BASH_SRC_VERSION"
 
@@ -58,7 +104,6 @@ DL="$HERE/dl"; SRC="$HERE/build/bash-$BASH_SRC_VERSION"
 TARGET=$("$CC" -dumpmachine 2>/dev/null) || die "cannot run CC=$CC"
 HOSTM=$(cc -dumpmachine 2>/dev/null || echo "$TARGET")
 CROSS=0; [[ "$TARGET" != "$HOSTM" || "${CONFIGURE_EXTRA:-}" == *--host=* ]] && CROSS=1
-LISTTAG=$(basename "$LIST" .list); LISTTAG=${LISTTAG#bash-loadables}; LISTTAG=${LISTTAG#-}
 NAME="bash${LISTTAG:+-$LISTTAG}"; [[ $STATIC == 1 ]] && NAME="$NAME-static"
 OUTDIR="$HERE/out"; [[ $CROSS == 1 ]] && OUTDIR="$HERE/out/$TARGET"
 OUTBIN="$OUTDIR/$NAME"; LOG="$OUTBIN.log"; STAMPFILE="$OUTBIN.stamp"; MANIFEST="$OUTBIN.manifest.txt"
@@ -66,7 +111,14 @@ STRIPTOOL=strip; [[ "$CC" == *-gcc ]] && STRIPTOOL="${CC%-gcc}-strip"
 
 # Hardened by default; a consumer overrides CFLAGS/LDFLAGS_EXTRA wholesale.
 CFLAGS="${CFLAGS:--O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2}"
-LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
+LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now ${LDFLAGS_EXTRA:-}"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
+CPPFLAGS="${CPPFLAGS:-}"
+if [[ -n $DEPS_PREFIX ]]; then
+  [[ $DEPS_PREFIX != *[[:space:]]* ]] || die "--deps-prefix cannot contain whitespace"
+  [[ -d $DEPS_PREFIX/include && -d $DEPS_PREFIX/lib ]] || die "dependency prefix needs include/ and lib/"
+  CPPFLAGS="$CPPFLAGS -I$DEPS_PREFIX/include"
+  LDFLAGS="$LDFLAGS -L$DEPS_PREFIX/lib"
+fi
 # LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
 # fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz).
 LOCAL_LIBS="${LOCAL_LIBS:--lm} $(python3 config/stage-helpers.py --libs "$HERE" - "${NAMES[@]}")"
@@ -79,8 +131,13 @@ CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_
 
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
 mkdir -p "$OUTDIR" "$DL" build
-STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
-           cat "$LIST" config/helpers.json config/stage-helpers.py build.sh; find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
+exec {BUILD_LOCK}> "$HERE/build/.lock"
+flock "$BUILD_LOCK"
+STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
+           printf '%s\n' "$SELECTION"; "$CC" --version;
+           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py build.sh;
+           [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
+           find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
   say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
@@ -161,19 +218,19 @@ PYMK
 done
 
 # --- 5. OFILES in builtins/Makefile.in -------------------------------------
-OBJS="$(printf '%s.o ' "${NAMES[@]}")" python3 - <<'PY'
-import os
+python3 - <<'PY'
+import os, json
 from pathlib import Path
 p = Path("builtins/Makefile.in"); s = p.read_text()
 old = "OFILES = builtins.o \\\n"
 assert s.count(old) == 1, "OFILES anchor not found"
-p.write_text(s.replace(old, "OFILES = builtins.o " + os.environ["OBJS"] + Path("builtins/.helper-objs").read_text() + "\\\n", 1))
+p.write_text(s.replace(old, "OFILES = builtins.o " + ''.join(n+'.o ' for n in json.loads(os.environ['SELECTION'])['names']) + Path("builtins/.helper-objs").read_text() + "\\\n", 1))
 PY
 
 # --- 6. configure ----------------------------------------------------------
 say "configure"
 ./configure --disable-nls --without-bash-malloc ${CONFIGURE_EXTRA:-} "${CFGX[@]}" \
-    CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" LOCAL_LIBS="$LOCAL_LIBS" \
+    CC="$CC" CFLAGS="$CFLAGS" CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS" LOCAL_LIBS="$LOCAL_LIBS" \
     >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "configure failed (see $LOG)"; }
 echo "$BASH_BUILD_NUMBER" > .build      # pin the build counter
 
@@ -184,11 +241,17 @@ make -C builtins builtins.c >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "mkbuiltins 
   echo "/* bash-os loadables injected */"
   for n in "${NAMES[@]}"; do echo "extern int ${n}_builtin (WORD_LIST *);"; echo "extern char * const ${n}_doc[];"; done
 } >> builtins/builtext.h
-ENTRIES=""
-while IFS=$'\t' read -r n short; do ENTRIES+="  { \"$n\", ${n}_builtin, BUILTIN_ENABLED, ${n}_doc, \"$short\", 0 },"$'\n'; done < <(loadables_parse "$LIST")
-awk -v e="$ENTRIES" '/\{ \(char \*\)0x0,/ && !d { printf "%s", e; d=1 } { print }' builtins/builtins.c > builtins/builtins.c.new
-mv builtins/builtins.c.new builtins/builtins.c
-grep -q "^  { \"${NAMES[0]}\", ${NAMES[0]}_builtin," builtins/builtins.c || die "shell_builtins[] splice did not stick"
+python3 - <<'PYTABLE'
+import json, os
+from pathlib import Path
+entries = json.loads(os.environ['SELECTION'])['entries']
+p = Path('builtins/builtins.c'); text = p.read_text()
+anchor = '  { (char *)0x0,'
+assert text.count(anchor) == 1, 'builtin table anchor not found'
+rows = ''.join('  { '+json.dumps(n)+', '+n+'_builtin, BUILTIN_ENABLED, '+n+'_doc, '
+               +json.dumps(doc, ensure_ascii=False)+', 0 },\n' for n, doc in entries.items())
+p.write_text(text.replace(anchor, rows+anchor))
+PYTABLE
 
 # --- 8. build --------------------------------------------------------------
 say "make -j$JOBS"
@@ -196,19 +259,29 @@ make -j"$JOBS" >>"$LOG" 2>&1 || { grep -nE 'error|Error' "$LOG" | tail -30; die 
 [[ -f bash ]] || die "no bash binary"
 
 # --- 9. output + manifest --------------------------------------------------
-cp bash "$OUTBIN"
+cp bash "$STAGE_PARENT/output-binary"
 if [[ $STRIP == 1 ]]; then
-  if command -v "$STRIPTOOL" >/dev/null; then "$STRIPTOOL" "$OUTBIN"; else say "warning: $STRIPTOOL not found, output left unstripped"; fi
+  if command -v "$STRIPTOOL" >/dev/null; then "$STRIPTOOL" "$STAGE_PARENT/output-binary"; else say "warning: $STRIPTOOL not found, output left unstripped"; fi
 fi
+mv "$STAGE_PARENT/output-binary" "$OUTBIN"
 {
   echo "# bash-os manifest  $(date -u +%FT%TZ)"
   echo "bash $BASH_SRC_VERSION patchlevel $BASH_PATCHLEVEL  target=$TARGET static=$STATIC stripped=$STRIP"
   echo "cc=$($CC --version | head -1)"
   echo "cflags=$CFLAGS"
-  echo "list=${LIST#$HERE/}"
+  echo "selection=$LIST_DESCRIPTION"
   echo "injected builtins (${#NAMES[@]}): ${NAMES[*]}"
   ( cd "$OUTDIR" && sha256sum "$NAME" && wc -c "$NAME" )
 } | tee "$MANIFEST"
+python3 - "$OUTBIN" "$TARGET" "$STATIC" "$STRIP" <<'PYMANIFEST'
+import hashlib, json, os, sys
+from pathlib import Path
+p = Path(sys.argv[1]); selection = json.loads(os.environ['SELECTION'])
+selection.update(target=sys.argv[2], static=sys.argv[3]=='1', stripped=sys.argv[4]=='1',
+                 binary_sha256=hashlib.sha256(p.read_bytes()).hexdigest(), bytes=p.stat().st_size)
+p.with_name(p.name+'.loadables.list').write_text(selection['list'])
+p.with_name(p.name+'.manifest.json').write_text(json.dumps(selection, indent=2)+'\n')
+PYMANIFEST
 echo "$STAMP" > "$STAMPFILE"
 
 # --- 10. swap the finished tree into place: two renames, no gap ------------

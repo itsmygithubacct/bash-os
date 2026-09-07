@@ -9,7 +9,7 @@
  * back to ',' between 2/3, etc. Default delimiter is tab. POSIX
  * backslash escapes in DELIM (`\n`, `\t`, `\\`).
  *
- * Line content is emitted via fwrite(line, 1, len, stdout) so embedded
+ * Line content is emitted through a length-tracked block buffer so embedded
  * NUL bytes (binary line content) round-trip unchanged. The trailing
  * newline from getline is stripped by length, not by writing '\0'.
  *
@@ -28,6 +28,7 @@
 #include <errno.h>
 
 #include "loadables.h"
+#include "bl-output.h"
 
 typedef struct {
     char *bytes;
@@ -89,11 +90,11 @@ bp_free_delims (bp_delims *d)
 }
 
 static void
-bp_write_delim (const bp_delims *d, size_t *pos, size_t *off)
+bp_write_delim (bl_output *out, const bp_delims *d, size_t *pos, size_t *off)
 {
     size_t len = d->lens[*pos];
     if (len)
-        fwrite (d->bytes + *off, 1, len, stdout);
+        bl_output_write (out, d->bytes + *off, len);
     *off += len;
     if (++*pos == d->count) {
         *pos = 0;
@@ -207,9 +208,9 @@ paste_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next) n_files++;
 
     int rc = EXECUTION_SUCCESS;
-    /* All line emit sites below use fwrite over the tracked length rather
-       than fputs over a NUL-terminated buffer: getline preserves embedded
-       NUL bytes in the buffer, and fputs truncates at the first one. */
+    bl_output output;
+    bl_output_init (&output, stdout);
+    /* Keep embedded NULs and batch records instead of flushing each line. */
     if (sflag) {
         /* Serial: one file per output line, joined by cycling delim. */
         if (n_files == 0) {
@@ -217,14 +218,15 @@ paste_builtin (WORD_LIST *list)
             char *line = NULL; size_t cap = 0; ssize_t rd;
             int first = 1;
             size_t dpos = 0, doff = 0;
-            while ((rd = getdelim (&line, &cap, line_delim, f)) != -1) {
+            while (!output.error && (rd = getdelim (&line, &cap, line_delim, f)) != -1) {
                 size_t len = (size_t) rd;
                 if (len > 0 && (unsigned char) line[len - 1] == line_delim) len--;
-                if (!first) bp_write_delim (&delims, &dpos, &doff);
-                fwrite (line, 1, len, stdout);
+                if (!first) bp_write_delim (&output, &delims, &dpos, &doff);
+                bl_output_write (&output, line, len);
                 first = 0;
             }
-            putchar (line_delim);
+            if (ferror (f)) { builtin_error ("read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+            bl_output_byte (&output, line_delim);
             free (line);
         } else {
             for (WORD_LIST *p = list; p; p = p->next) {
@@ -238,14 +240,15 @@ paste_builtin (WORD_LIST *list)
                 char *line = NULL; size_t cap = 0; ssize_t rd;
                 int first = 1;
                 size_t dpos = 0, doff = 0;
-                while ((rd = getdelim (&line, &cap, line_delim, f)) != -1) {
+                while (!output.error && (rd = getdelim (&line, &cap, line_delim, f)) != -1) {
                     size_t len = (size_t) rd;
                     if (len > 0 && (unsigned char) line[len - 1] == line_delim) len--;
-                    if (!first) bp_write_delim (&delims, &dpos, &doff);
-                    fwrite (line, 1, len, stdout);
+                    if (!first) bp_write_delim (&output, &delims, &dpos, &doff);
+                    bl_output_write (&output, line, len);
                     first = 0;
                 }
-                putchar (line_delim);
+                if (ferror (f)) { builtin_error ("read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+                bl_output_byte (&output, line_delim);
                 free (line);
                 bp_close_input (f, is_stdin);
             }
@@ -279,12 +282,13 @@ paste_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             goto parallel_done;
         }
-        for (;;) {
+        while (!output.error) {
             int any = 0;
             for (i = 0; i < n_files; i++) {
                 if (!files[i]) { lens[i] = 0; continue; }
                 ssize_t rd = getdelim (&lines[i], &caps[i], line_delim, files[i]);
                 if (rd == -1) {
+                    if (ferror (files[i])) { builtin_error ("read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
                     bp_close_input (files[i], is_stdin[i]); files[i] = NULL;
                     lens[i] = 0;
                 } else {
@@ -297,10 +301,10 @@ paste_builtin (WORD_LIST *list)
             if (!any) break;
             size_t dpos = 0, doff = 0;
             for (i = 0; i < n_files; i++) {
-                if (i > 0) bp_write_delim (&delims, &dpos, &doff);
-                if (lines[i] && lens[i]) fwrite (lines[i], 1, lens[i], stdout);
+                if (i > 0) bp_write_delim (&output, &delims, &dpos, &doff);
+                if (lines[i] && lens[i]) bl_output_write (&output, lines[i], lens[i]);
             }
-            putchar (line_delim);
+            bl_output_byte (&output, line_delim);
         }
 parallel_done:
         for (i = 0; i < n_files; i++) {
@@ -309,6 +313,8 @@ parallel_done:
         }
         free (lines); free (caps); free (lens); free (files); free (is_stdin);
     }
+    bl_output_flush (&output);
+    if (output.error) { builtin_error ("write error: %s", strerror (output.error)); rc = EXECUTION_FAILURE; }
     bp_free_delims (&delims);
     return rc;
 }
@@ -328,6 +334,16 @@ char *paste_doc[] = {
 
 struct builtin bashpaste_struct = {
     "bashpaste",
+    paste_builtin,
+    BUILTIN_ENABLED,
+    paste_doc,
+    "bashpaste [-s] [-z] [-d DELIM] [FILE...]",
+    0
+};
+
+/* The unprefixed registration matches the compiled-in command name. */
+struct builtin paste_struct = {
+    "paste",
     paste_builtin,
     BUILTIN_ENABLED,
     paste_doc,

@@ -4,22 +4,27 @@
 #   busybox  busybox sh with its applets on PATH (the classic embedded userland)
 #   gnu      bash with the system's coreutils, grep, sed … as external commands
 #
-# Usage: bench/run.sh [--runs N] [--static] [--busybox BIN] [--only PATTERN] [--quick]
+# Usage: bench/run.sh [--runs N] [--static | --binary BIN] [--busybox BIN] [--only PATTERN] [--quick]
 #   --runs N       timed runs per cell, median reported (default 5)
 #   --static       bench out/bash-static instead of out/bash
+#   --binary BIN   bench a selected profile binary
+# Environment: STRACE names an optional tracer for a separate process-count run.
 #   --busybox BIN  a busybox binary (default: the one on PATH)
 #   --only PAT     workloads whose file name matches PAT
 #   --quick        one run, small data (a smoke test)
 # Needs: a built bash-os, a busybox, python3 (to generate data). Nothing else.
 set -u
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
+STRACE=${STRACE:-$(command -v strace || true)}
 RUNS=5; BOS=out/bash; BB=$(command -v busybox || true); ONLY=""; QUICK=0
 while [[ $# -gt 0 ]]; do case "$1" in
   --runs) RUNS=$2; shift 2 ;; --static) BOS=out/bash-static; shift ;; --busybox) BB=$2; shift 2 ;;
+  --binary) BOS=$2; shift 2 ;;
   --only) ONLY=$2; shift 2 ;; --quick) QUICK=1; RUNS=1; shift ;; *) echo "bench: unknown arg $1" >&2; exit 2 ;;
 esac; done
 [[ -x $BOS ]] || { echo "bench: build first: ./build.sh${BOS/out\/bash-static/ --static}" >&2; exit 1; }
 [[ -n $BB && -x $BB ]] || { echo "bench: no busybox (install one or pass --busybox BIN)" >&2; exit 1; }
+BX=$(realpath "$BOS")
 GNUSH=$(command -v bash); GNUPATH=$(getconf PATH 2>/dev/null || echo /usr/bin:/bin)
 
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
@@ -42,7 +47,7 @@ PY
 N=1000; [[ $QUICK == 1 ]] && N=100
 
 # --- the three userlands: name, shell, PATH
-declare -A SH=([bashos]="$HERE/$BOS" [busybox]="$W/bb/sh" [gnu]="$GNUSH")
+declare -A SH=([bashos]="$BX" [busybox]="$W/bb/sh" [gnu]="$GNUSH")
 declare -A P=([bashos]="" [busybox]="$W/bb" [gnu]="$GNUPATH")
 CFGS=(bashos busybox gnu)
 
@@ -62,43 +67,76 @@ t_run() { # cfg workload -> "real user sys pids"
 median() { printf '%s\n' "$@" | sort -n | awk '{a[NR]=$1} END{print (NR%2) ? a[(NR+1)/2] : (a[NR/2]+a[NR/2+1])/2}'; }
 
 echo "# bash-os bench — $(date -u +%F) — $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ *//'), $(uname -m), kernel $(uname -r)"
-echo "# bashos: $BOS ($("$HERE/$BOS" -c 'echo $BASH_VERSION'))  busybox: $("$BB" 2>&1 | head -1 | cut -d' ' -f1-2)  gnu: bash $($GNUSH -c 'echo $BASH_VERSION'), coreutils $(ls --version | head -1 | grep -oE '[0-9.]+$')"
-echo "# $RUNS timed run(s) per cell after a warm-up; median wall ms; procs = processes created during the run (system-wide pid delta)"
+echo "# bashos: $BOS ($("$BX" -c 'echo $BASH_VERSION'))  busybox: $("$BB" 2>&1 | head -1 | cut -d' ' -f1-2)  gnu: bash $($GNUSH -c 'echo $BASH_VERSION'), coreutils $(ls --version | head -1 | grep -oE '[0-9.]+$')"
+echo "# $RUNS interleaved timed run(s) per cell after a warm-up; median wall ms"
+if [[ -n $STRACE ]]; then
+  echo '# procs = descendant processes/threads from a separate strace run; timing is untraced'
+else
+  echo '# procs = system-wide PID delta, including harness and unrelated activity'
+fi
 echo
 printf '| %-26s | %9s | %9s | %9s | %8s | %8s | %-18s |\n' "workload" "bashos ms" "busybox ms" "gnu ms" "bb/bos" "gnu/bos" "procs bos/bb/gnu"
 printf '|%s|%s|%s|%s|%s|%s|%s|\n' "$(printf '%.0s-' {1..28})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..10})" "$(printf '%.0s-' {1..10})" "$(printf '%.0s-' {1..20})"
-declare -A MS PR
+# Trace counts are separate from timings. Resumed clone/fork syscalls count once.
+p_count() {
+  local cfg=$1 wl=$2
+  PATH="${P[$cfg]}" "$STRACE" -qq -f -e trace=process -o "$W/process.trace" \
+    "${SH[$cfg]}" "$wl" "$W/data" "${SH[$cfg]}" "$N" >"$W/out/$cfg.txt" 2>"$W/out/$cfg.err" || return 1
+  python3 - "$W/process.trace" <<'PYCOUNT'
+from pathlib import Path
+import re,sys
+print(sum(bool(re.search(r'(?:clone3?|vfork|fork)(?:\(| resumed>)',line)
+               and re.search(r'=\s+[1-9][0-9]*\s*$',line))
+          for line in Path(sys.argv[1]).read_text().splitlines()))
+PYCOUNT
+}
+declare -A MS PR TIMES PIDS
 mismatch=""; failed=0
 for wl in bench/workloads/*.sh; do
   name=$(basename "$wl" .sh); [[ -n $ONLY && $name != *$ONLY* ]] && continue
-  skip=""
+  skip=""; active=(); TIMES=(); PIDS=()
   for cfg in "${CFGS[@]}"; do
-    MS[$cfg]="n/a"; PR[$cfg]="-"
+    MS[$cfg]="n/a"; PR[$cfg]="-"; TIMES[$cfg]=""; PIDS[$cfg]=""
     if grep -q '\${ wc' "$wl" && ! "${SH[$cfg]}" -c 'x=${ echo hi; }' >/dev/null 2>&1; then skip+="$cfg "; continue; fi
+    active+=("$cfg")
     t_run "$cfg" "$wl" >/dev/null || failed=1
     if [[ -s "$W/out/$cfg.err" ]]; then echo "# $name/$cfg stderr: $(head -c 200 "$W/out/$cfg.err" | tr '\n' ' ')"; fi
-    reals=(); pids=()
-    for ((r = 0; r < RUNS; r++)); do
-      timing=$(t_run "$cfg" "$wl") || failed=1
-      read -r re us sy pd <<< "$timing"
-      reals+=("$re"); pids+=("$pd")
-    done
-    MS[$cfg]=$(median "${reals[@]}" | awk '{printf "%.0f", $1*1000}'); PR[$cfg]=$(median "${pids[@]}" | awk '{printf "%d", $1}')
   done
   flag=""
-  for cfg in busybox gnu; do [[ " $skip " == *" $cfg "* ]] && continue; cmp -s "$W/out/bashos.txt" "$W/out/$cfg.txt" || flag="*"; done
+  for ((r = 0; r < RUNS; r++)); do
+    for ((j = 0; j < ${#active[@]}; j++)); do
+      index=$j; ((r % 2 == 0)) || index=$((${#active[@]}-1-j))
+      cfg=${active[$index]}
+      timing=$(t_run "$cfg" "$wl") || failed=1
+      read -r re us sy pd <<< "$timing"
+      TIMES[$cfg]+="$re "; PIDS[$cfg]+="$pd "
+    done
+    for cfg in busybox gnu; do
+      [[ " $skip " == *" $cfg "* ]] && continue
+      cmp -s "$W/out/bashos.txt" "$W/out/$cfg.txt" || flag="*"
+    done
+  done
+  for cfg in "${active[@]}"; do
+    read -ra reals <<< "${TIMES[$cfg]}"; read -ra pids <<< "${PIDS[$cfg]}"
+    MS[$cfg]=$(median "${reals[@]}" | awk '{printf "%.0f", $1*1000}')
+    if [[ -n $STRACE ]]; then
+      PR[$cfg]=$(p_count "$cfg" "$wl") || { failed=1; PR[$cfg]=error; }
+    else
+      PR[$cfg]=$(median "${pids[@]}" | awk '{printf "%d", $1}')
+    fi
+  done
   [[ -n $flag ]] && mismatch+="$name "
   printf '| %-26s | %9s | %9s | %9s | %8s | %8s | %-18s |\n' "$name$flag" "${MS[bashos]}" "${MS[busybox]}" "${MS[gnu]}" \
     "$(awk -v a="${MS[busybox]}" -v b="${MS[bashos]}" 'BEGIN{printf (a+0>0&&b+0>0)?"%.2fx":"-", a/b}')" "$(awk -v a="${MS[gnu]}" -v b="${MS[bashos]}" 'BEGIN{printf (a+0>0&&b+0>0)?"%.2fx":"-", a/b}')" \
     "${PR[bashos]}/${PR[busybox]}/${PR[gnu]}"
 done
-[[ -n $mismatch ]] && echo "# * outputs differed between userlands for: $mismatch(see the workload; a format or option difference, not a timing one)"
+[[ -n $mismatch ]] && echo "# * outputs differed between userlands for: $mismatch"
 
 # --- footprint: bytes on disk for the shell plus every command the workloads use
 CMDS="basename dirname wc grep sort uniq head tail tr cut sed mkdir touch cp mv ls find du rm stat ps df date uname hostname cat seq true"
 gnu_bytes=$( { readlink -f "$GNUSH"; for c in $CMDS; do PATH=$GNUPATH type -P "$c" 2>/dev/null | xargs -r readlink -f; done; } | sort -u | xargs -r stat -c %s | awk '{s+=$1} END{print s+0}')
 echo; echo "| footprint (shell + the commands above, on disk) | bytes |"; echo "|---|---|"
-printf '| bashos: %s (%s) | %s |\n' "$BOS" "$(file "$HERE/$BOS" | grep -oE 'statically linked|dynamically linked')" "$(stat -c %s "$HERE/$BOS")"
+printf '| bashos: %s (%s) | %s |\n' "$BOS" "$(file "$BX" | grep -oE 'statically linked|dynamically linked')" "$(stat -c %s "$BX")"
 printf '| busybox: %s (%s) | %s |\n' "$BB" "$(file "$BB" | grep -oE 'statically linked|dynamically linked')" "$(stat -c %s "$BB")"
 printf '| gnu: bash + %s separate binaries | %s |\n' "$(echo $CMDS | wc -w)" "$gnu_bytes"
 [[ -z $mismatch && $failed == 0 ]]

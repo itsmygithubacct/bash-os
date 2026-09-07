@@ -3,3 +3,7 @@
 /dl/
 /out/
 *.stage.*
+
+# Python helper bytecode
+__pycache__/
+*.pyc

@@ -5180,6 +5180,9 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
                return 1;
             }
             if (c.length > (1u << 30)) return stbi__err("IDAT size limit", "IDAT section larger than 2^30 bytes");
+            // Reject truncated in-memory chunks before trusting their allocation size.
+            if (!s->read_from_callbacks && c.length > (stbi__uint32)(s->img_buffer_end - s->img_buffer))
+               return stbi__err("outofdata", "Corrupt PNG");
             if ((int)(ioff + c.length) < (int)ioff) return 0;
             if (ioff + c.length > idata_limit) {
                stbi__uint32 idata_limit_old = idata_limit;
@@ -5191,7 +5194,7 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
                p = (stbi_uc *) STBI_REALLOC_SIZED(z->idata, idata_limit_old, idata_limit); if (p == NULL) return stbi__err("outofmem", "Out of memory");
                z->idata = p;
             }
-            if (!stbi__getn(s, z->idata+ioff,c.length)) return stbi__err("outofdata","Corrupt PNG");
+            if (c.length && !stbi__getn(s, z->idata+ioff,c.length)) return stbi__err("outofdata","Corrupt PNG");
             ioff += c.length;
             break;
          }

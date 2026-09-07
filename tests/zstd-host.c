@@ -7,7 +7,7 @@
  *
  *   cc -fsanitize=address,undefined -DHAVE_CONFIG_H -Ibuild/bash-5.3 \
  *      -Ibuild/bash-5.3/include -Ibuild/bash-5.3/builtins -Ibuild/bash-5.3/examples/loadables \
- *      loadables/zstd.c tests/zstd-host.c -o /tmp/t && /tmp/t
+ *      loadables/zstd.c tests/zstd-host.c -lzstd -o /tmp/t && /tmp/t
  */
 #include <config.h>
 #include <stdio.h>

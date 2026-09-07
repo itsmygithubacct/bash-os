@@ -24,17 +24,18 @@
 #include <limits.h>
 
 #include "loadables.h"
+#include "bl-output.h"
 
-/* NUL-safe line emit: fputs/fprintf("%s",...) both truncate at the first
-   embedded NUL byte in `line`. getline preserves NULs in the buffer, so
-   emit the count prefix (if any) with fprintf and the line body with
-   fwrite using the recorded length. */
+/* Keep embedded NULs and batch records without changing the shell's stdio. */
 static void
-bu_emit_line (FILE *out, long count, const char *line, size_t len, int cflag)
+bu_emit_line (bl_output *out, long count, const char *line, size_t len, int cflag)
 {
-    if (cflag)
-        fprintf (out, "%7ld ", count);
-    fwrite (line, 1, len, out);
+    if (cflag) {
+        char prefix[48];
+        int n = snprintf (prefix, sizeof prefix, "%7ld ", count);
+        bl_output_write (out, prefix, (size_t) n);
+    }
+    bl_output_write (out, line, len);
 }
 
 static int
@@ -469,7 +470,9 @@ uniq_builtin (WORD_LIST *list)
     if (out == stdout)
         clearerr (out);
 
-    while ((rd = bu_get_record (&cur, &cur_cap, f, o.delimiter)) != -1) {
+    bl_output output;
+    bl_output_init (&output, out);
+    while (!output.error && (rd = bu_get_record (&cur, &cur_cap, f, o.delimiter)) != -1) {
         cur_len = (size_t) rd;
         if (prev && bu_eq (prev, prev_len, cur, cur_len, &o, iflag)) {
             if (all_repeated) {
@@ -490,18 +493,18 @@ uniq_builtin (WORD_LIST *list)
                 if (count > 1) {
                     if (all_mode == BU_ALL_PREPEND
                         || (all_mode == BU_ALL_SEPARATE && !first_repeated_group))
-                        fputc (o.delimiter, out);
-                    fwrite (group, 1, group_len, out);
+                        bl_output_byte (&output, (unsigned char) o.delimiter);
+                    bl_output_write (&output, group, group_len);
                     first_repeated_group = 0;
                 }
                 group_len = 0;
             } else if (grouping != BU_GROUP_NONE) {
                 if (grouping == BU_GROUP_PREPEND || (grouping == BU_GROUP_BOTH && first_group) ||
                     (!first_group && grouping == BU_GROUP_SEPARATE))
-                    fputc (o.delimiter, out);
-                fwrite (group, 1, group_len, out);
+                    bl_output_byte (&output, (unsigned char) o.delimiter);
+                bl_output_write (&output, group, group_len);
                 if (grouping == BU_GROUP_APPEND || grouping == BU_GROUP_BOTH)
-                    fputc (o.delimiter, out);
+                    bl_output_byte (&output, (unsigned char) o.delimiter);
                 group_len = 0;
                 first_group = 0;
             } else {
@@ -509,7 +512,7 @@ uniq_builtin (WORD_LIST *list)
                 if (dflag && count == 1) emit = 0;     /* -d only dups */
                 if (uflag && count > 1) emit = 0;      /* -u only singletons */
                 if (emit) {
-                    bu_emit_line (out, count, prev, prev_len, cflag);
+                    bu_emit_line (&output, count, prev, prev_len, cflag);
                 }
             }
         }
@@ -527,25 +530,29 @@ uniq_builtin (WORD_LIST *list)
             if (count > 1) {
                 if (all_mode == BU_ALL_PREPEND
                     || (all_mode == BU_ALL_SEPARATE && !first_repeated_group))
-                    fputc (o.delimiter, out);
-                fwrite (group, 1, group_len, out);
+                    bl_output_byte (&output, (unsigned char) o.delimiter);
+                bl_output_write (&output, group, group_len);
             }
         } else if (grouping != BU_GROUP_NONE) {
             if (grouping == BU_GROUP_PREPEND || (grouping == BU_GROUP_BOTH && first_group) ||
                 (!first_group && grouping == BU_GROUP_SEPARATE))
-                fputc (o.delimiter, out);
-            fwrite (group, 1, group_len, out);
+                bl_output_byte (&output, (unsigned char) o.delimiter);
+            bl_output_write (&output, group, group_len);
             if (grouping == BU_GROUP_APPEND || grouping == BU_GROUP_BOTH)
-                fputc (o.delimiter, out);
+                bl_output_byte (&output, (unsigned char) o.delimiter);
         } else {
             int emit = 1;
             if (dflag && count == 1) emit = 0;
             if (uflag && count > 1) emit = 0;
             if (emit) {
-                bu_emit_line (out, count, prev, prev_len, cflag);
+                bu_emit_line (&output, count, prev, prev_len, cflag);
             }
         }
     }
+    int rc = EXECUTION_SUCCESS;
+    if (ferror (f)) { builtin_error ("read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+    bl_output_flush (&output);
+    if (output.error) { builtin_error ("write error: %s", strerror (output.error)); rc = EXECUTION_FAILURE; }
     free (prev); free (cur); free (group);
     if (outopened && fclose (outopened) != 0) {
         builtin_error ("%s", strerror (errno));
@@ -553,9 +560,10 @@ uniq_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
     if (fopened) fclose (fopened);
-    return EXECUTION_SUCCESS;
+    return rc;
 
 memory_error:
+    bl_output_flush (&output);
     builtin_error ("%s", strerror (ENOMEM));
     free (prev); free (cur); free (group);
     if (outopened) fclose (outopened);
@@ -586,6 +594,16 @@ char *uniq_doc[] = {
 
 struct builtin bashuniq_struct = {
     "bashuniq",
+    uniq_builtin,
+    BUILTIN_ENABLED,
+    uniq_doc,
+    "bashuniq [-cdDuiz] [-f N] [-s N] [-w N] [INPUT [OUTPUT]]",
+    0
+};
+
+/* The unprefixed registration matches the compiled-in command name. */
+struct builtin uniq_struct = {
+    "uniq",
     uniq_builtin,
     BUILTIN_ENABLED,
     uniq_doc,

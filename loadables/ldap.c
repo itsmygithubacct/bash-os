@@ -836,6 +836,8 @@ bl_decode_ldap_message (const unsigned char *data, size_t len, FILE *out,
   return -1;
 }
 
+/* Parser fuzzing uses the same BER/filter code without network entry points. */
+#ifndef BASH_OS_LDAP_PARSER_ONLY
 static int
 bl_parse_uri (const char *uri, bl_uri *out)
 {
@@ -1583,3 +1585,5 @@ struct builtin ldap_struct = {
   "ldap search|whoami [FLAGS...]",
   0
 };
+
+#endif /* BASH_OS_LDAP_PARSER_ONLY */

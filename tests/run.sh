@@ -19,6 +19,7 @@ check(){
   fi
 }
 check licence-check bash tests/licence-check.sh
+check profiles python3 tests/profiles.py
 if ./build.sh >"$scratch/build.log" 2>&1; then
   echo 'PASS builds out/bash'; pass=$((pass+1))
 else
@@ -26,6 +27,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
 check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
 check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list
 if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
@@ -56,6 +58,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash
   check 'procstat under ASan+UBSan' bash tests/procstat-sanitize.sh out/bash
   check 'helper modules under ASan+UBSan' bash tests/helper-sanitize.sh out/bash
   check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash
@@ -68,7 +71,8 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   fi
   for h in rngseed httpd zstd; do
     flags=(); [[ $h != httpd ]] || flags=(-DHTTPD_REQUEST_TIMEOUT_MS=1000)
-    if "$CC" -O1 -g -fsanitize=address,undefined "${flags[@]}" "${INC[@]}" "loadables/$h.c" "tests/$h-host.c" -o "$scratch/$h"; then
+    libs=(); [[ $h != zstd ]] || libs=(-lzstd)
+    if "$CC" -O1 -g -fsanitize=address,undefined "${flags[@]}" "${INC[@]}" "loadables/$h.c" "tests/$h-host.c" "${libs[@]}" -o "$scratch/$h"; then
       check "$h contract" "$scratch/$h"
     else
       echo "FAIL $h harness compilation"; fail=$((fail+1))

@@ -13,6 +13,19 @@
         "pcap"
       ]
     },
+    "zstd": {
+      "libs": [
+        "-lzstd"
+      ]
+    },
+    "zstdcat": {
+      "libs": [
+        "-lzstd"
+      ],
+      "requires": [
+        "zstd"
+      ]
+    },
     "zlib": {
       "libs": [
         "-lz",
@@ -116,6 +129,9 @@
     "ldap": {
       "helpers": [
         "_mbedtls"
+      ],
+      "requires": [
+        "crypto"
       ]
     },
     "integrity": {
@@ -201,6 +217,9 @@
     "ntp": {
       "helpers": [
         "_mbedtls"
+      ],
+      "requires": [
+        "crypto"
       ]
     },
     "mail": {
@@ -292,6 +311,56 @@
       ],
       "requires": [
         "doas"
+      ]
+    },
+    "killall": {
+      "requires": [
+        "pgrep"
+      ]
+    },
+    "killall5": {
+      "requires": [
+        "pgrep"
+      ]
+    },
+    "pkill": {
+      "requires": [
+        "pgrep"
+      ]
+    },
+    "netstat": {
+      "requires": [
+        "ss"
+      ]
+    },
+    "scp": {
+      "requires": [
+        "sftp"
+      ]
+    },
+    "apropos": {
+      "requires": [
+        "man"
+      ]
+    },
+    "whatis": {
+      "requires": [
+        "man"
+      ]
+    },
+    "termpixel_pong": {
+      "requires": [
+        "termpixel"
+      ]
+    },
+    "undo": {
+      "requires": [
+        "buf"
+      ]
+    },
+    "clip": {
+      "requires": [
+        "buf"
       ]
     }
   },

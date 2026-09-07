@@ -31,6 +31,7 @@ mkdir -p /tmp/w/a/b; printf 'alpha\nbeta\ngamma\n' > /tmp/w/list
 ( cd /tmp/w && pax -w list | pax | grep -qx list )          # archive through a pipe
 [[ "$(id -u)" == 0 && "$(whoami)" == root ]]
 [[ "$(enable -a | wc -l)" -gt 120 ]]
+[[ "$(printf 'compressed payload' | zstd -c - | zstd -dc -)" == 'compressed payload' ]]
 echo ONLY-BASH-ROOTFS-OK
 IN
 out=$(bwrap --setenv LC_ALL C --setenv LANG C --unshare-all --uid 0 --gid 0 --bind "$R" / --proc /proc --dev /dev --tmpfs /tmp /bin/bash /etc/script.sh 2>&1) && [[ "$out" == *ONLY-BASH-ROOTFS-OK* ]] \
