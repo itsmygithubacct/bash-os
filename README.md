@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 196 builtins  -> out/bash
+./build.sh                                        # host, 214 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -88,7 +88,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 196 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 214 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -115,6 +115,8 @@ tests/
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
   system-smoke.sh [BIN]        process/system queries and temporary-file operations
   network-smoke.py [BIN]       framing, loopback transfers, subprocess failures
+  terminal-smoke.py [BIN]      key decoding, pseudo-terminals, editing and replay
+  terminal-sanitize.sh [BIN]   the terminal checks with instrumented modules
   misc-smoke.py [BIN]          arithmetic, scheduling, file formats and helpers
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses

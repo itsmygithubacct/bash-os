@@ -218,3 +218,23 @@ man|man
 apropos|apropos
 whatis|whatis
 file|file
+
+# Additional upstream loadables
+pty|pty
+expect|expect
+termpixel|termpixel
+termpixel_pong|termpixel_pong
+escdelay|escdelay
+fifo|fifo
+kgetch|kgetch
+wgetch|wgetch
+wget_wch|wget_wch
+mouse|mouse
+script|script
+buf|buf
+undo|undo
+clip|clip
+nano2|nano2
+watch|watch
+wall|wall
+write|write

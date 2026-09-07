@@ -293,3 +293,22 @@ collection's scope: fsck checks the primary superblock, mkfs writes minimal
 ext2, lpr simulates spool processing, and timezone support uses a curated
 zone table. TOTP delegates HMAC to the crypto builtin. Payload installation
 expects the appliance's installer, with explicit environment overrides.
+
+## Terminal, input and editing primitives
+
+Eighteen further MIT sources supply `pty expect termpixel termpixel_pong
+escdelay fifo kgetch wgetch wget_wch mouse script buf undo clip nano2 watch
+wall write`. The shared renderer header is `common/termpixel.h`; `write` is
+a registration companion to `wall`. Buffer, undo and clipboard helpers are
+linked together. The piece-table module `nano2` exposes its engine self-test;
+it is separate from the interactive editor.
+
+Pseudo-terminal spawning, recording and watch now run enabled builtins in
+isolated children, so these paths work with an empty PATH. External commands
+still use exec. The buffer/undo import bounds allocation growth and avoids
+null pointers in zero-length copies when a grouped edit restores an empty
+line. Normal and ASan/UBSan runs execute `tests/terminal-smoke.py`; the
+sanitizer run instruments the loadables through shared objects. Leak checking
+is disabled for the hosting shell's retained allocations. Analyzer reports
+for retained undo stacks, bounded renderer buffers and child stdio descriptors
+were reviewed; the latter descriptors deliberately survive until child exit.
