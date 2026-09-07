@@ -2,12 +2,12 @@
 
 ## Sources
 
-bash-os is assembled from three sources:
+bash-os is assembled from these sources:
 
 - **GNU bash 5.3** (GPL-3.0-or-later), pinned by sha256 in `config/versions.sh`
   and fetched at build time. Its own `examples/loadables/*.c` supply the stock
   builtins a list names but this repo does not carry (`cat`, `chmod`, `head`, …
-  — the whole of `bash-loadables-pure.list`).
+  — the pure list except for the MIT replacements described below).
 - **An upstream bash-os loadables collection** (MIT, "bash_linux contributors").
   The busybox-replacement loadables — `ls cp mv find sed sort grep ip ps pax`
   and the rest — and the injection technique originate there. This repo carries
@@ -175,8 +175,8 @@ Changes carried in the sources, noted there:
   `REG_STARTEND` (musl, so every cross build), a part of a line is matched
   by terminating it in place, and a pattern that has to reach across an
   embedded NUL under `-a` does not match there; measured by forcing that
-  path on the host, it is the only difference of the 571.
-  `tests/grep-parity.sh` holds it to GNU grep on those 571 command lines in
+  path on the host, it is the only difference of the 574.
+  `tests/grep-parity.sh` holds it to GNU grep on those 574 command lines in
   a UTF-8 and in the C locale, and `tests/grep-host.c` runs them again
   under ASan+UBSan.
 - `pax`: the collection's `bashpax.c`, renamed; plain libc ustar list, create,

@@ -1,62 +1,68 @@
 #!/usr/bin/env bash
-# tests/run.sh — the suite: both list variants build and prove themselves on the
-# host, every source states its licence, and the two C harnesses exercise the
-# httpd and rngseed loadables under AddressSanitizer+UBSan against the built tree.
-set -u
+# Build each variant, check utility behavior, and run the sanitizer harnesses.
+# Each producer's exit status is checked directly; a printed summary is not a verdict.
+set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 CC=${CC:-cc}
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
-pass=0; fail=0; ok(){ echo "PASS $*"; pass=$((pass+1)); }; no(){ echo "FAIL $*"; fail=$((fail+1)); }
-INC="-DHAVE_CONFIG_H -I$BT -I$BT/include -I$BT/builtins -I$BT/examples/loadables"
-
-echo "== licences =="; bash tests/licence-check.sh >/dev/null && ok "licence-check" || no "licence-check"
-echo "== default list =="
-./build.sh >/dev/null 2>&1 && ok "builds out/bash" || { no "build"; echo "run: $pass passed, $fail failed"; exit 1; }
-bash tests/host-smoke.sh out/bash config/bash-loadables.list >/dev/null 2>&1 && ok "host-smoke (default list)" || no "host-smoke (default list)"
-python3 tests/regressions.py out/bash && ok "builtin regressions" || no "builtin regressions"
-echo "== pure list =="
-./build.sh --list config/bash-loadables-pure.list >/dev/null 2>&1 && ok "builds out/bash-pure" || no "build (pure)"
-bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list >/dev/null 2>&1 && ok "host-smoke (pure list)" || no "host-smoke (pure list)"
-[[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]] && ok "pure build carries no ls (variants really differ)" || no "pure build has ls"
-echo "== wc and tail parity with coreutils =="
-bash tests/wc-tail-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^wc-tail-parity: ([0-9]+)/\1 ' && ok "wc-tail-parity" || no "wc-tail-parity"
-echo "== the text and formatting tools =="
-bash tests/text-tools-parity.sh out/bash | tail -1 | grep -qE '^text-tools-parity: [0-9]+ passed, 0 failed' && ok "text-tools-parity" || no "text-tools-parity"
-echo "== the util-linux family =="
-bash tests/util-linux-smoke.sh out/bash | tail -1 | grep -qE '^util-linux-smoke: [0-9]+ passed, 0 failed' && ok "util-linux-smoke" || no "util-linux-smoke"
-echo "== seq parity with coreutils =="
-bash tests/seq-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^seq-parity: ([0-9]+)/\1 ' && ok "seq-parity" || no "seq-parity"
-echo "== sort parity with coreutils =="
-bash tests/sort-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^sort-parity: ([0-9]+)/\1 ' && ok "sort-parity" || no "sort-parity"
-echo "== zstd against the host zstd =="
-bash tests/zstd-check.sh out/bash | tail -1 | grep -qE 'SKIP|^zstd-check: [0-9]+ passed, 0 failed' && ok "zstd-check" || no "zstd-check"
-echo "== grep parity with GNU grep =="
-bash tests/grep-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^grep-parity: ([0-9]+)/\1 ' && ok "grep-parity" || no "grep-parity"
-echo "== cut parity with coreutils =="
-bash tests/cut-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^cut-parity: ([0-9]+)/\1 ' && ok "cut-parity" || no "cut-parity"
-echo "== stat parity with coreutils =="
-bash tests/stat-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^stat-parity: ([0-9]+)/\1 ' && ok "stat-parity" || no "stat-parity"
-echo "== static + a root filesystem of only bash =="
-./build.sh --static >/dev/null 2>&1 && ok "builds out/bash-static" || no "build (static)"
-python3 tests/regressions.py out/bash-static && ok "static builtin regressions" || no "static builtin regressions"
-bash tests/rootfs-smoke.sh out/bash-static | tail -1 | grep -qE 'SKIP|PASS' && ok "rootfs-smoke" || no "rootfs-smoke"
-echo "== the tutorial, executed =="
-bash tests/tutorial.sh >/dev/null 2>&1 && ok "tutorial (enable -f + EXTRA_LOADABLES build)" || no "tutorial"
-echo "== the bench harness (quick) =="
-if command -v busybox >/dev/null; then bash bench/run.sh --quick 2>&1 | grep -qE '^\| 07-shell-startup ' && ok "bench runs, outputs agree across userlands" || no "bench"; else echo "SKIP bench (no busybox)"; fi
-echo "== C harnesses (ASan+UBSan) =="
+pass=0; fail=0
+scratch=$(mktemp -d); trap 'rm -rf "$scratch"' EXIT
+check(){
+  local label=$1; shift
+  if "$@" >"$scratch/check.log" 2>&1; then
+    printf 'PASS %s\n' "$label"; pass=$((pass+1))
+    tail -1 "$scratch/check.log"
+  else
+    local rc=$?
+    cat "$scratch/check.log"
+    printf 'FAIL %s (exit %s)\n' "$label" "$rc"; fail=$((fail+1))
+  fi
+}
+check licence-check bash tests/licence-check.sh
+if ./build.sh >"$scratch/build.log" 2>&1; then
+  echo 'PASS builds out/bash'; pass=$((pass+1))
+else
+  cat "$scratch/build.log"; echo 'FAIL default build'; exit 1
+fi
+check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
+check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
+check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list
+if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
+  echo 'PASS pure build carries no ls'; pass=$((pass+1))
+else
+  echo 'FAIL pure build has ls'; fail=$((fail+1))
+fi
+for name in wc-tail-parity text-tools-parity util-linux-smoke seq-parity sort-parity zstd-check grep-parity cut-parity stat-parity; do
+  check "$name" bash "tests/$name.sh" out/bash
+done
+check 'builds out/bash-static' ./build.sh --static
+check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
+check runtime-loadables bash tests/runtime-loadables.sh out/bash
+check tutorial bash tests/tutorial.sh
+if command -v busybox >/dev/null; then
+  check 'bench outputs agree across userlands' bash bench/run.sh --quick
+else
+  echo 'SKIP bench (no busybox)'
+fi
+INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   for h in rngseed httpd zstd; do
-    d=$(mktemp -d); DFLAG=""; [[ $h == httpd ]] && DFLAG="-DHTTPD_REQUEST_TIMEOUT_MS=1000"
-    if "$CC" -O1 -g -fsanitize=address,undefined $DFLAG $INC "loadables/$h.c" "tests/$h-host.c" -o "$d/t" >/dev/null 2>&1 && "$d/t" >/dev/null 2>&1
-    then ok "$h contract"; else no "$h contract"; fi
-    rm -rf "$d"
+    flags=(); [[ $h != httpd ]] || flags=(-DHTTPD_REQUEST_TIMEOUT_MS=1000)
+    if "$CC" -O1 -g -fsanitize=address,undefined "${flags[@]}" "${INC[@]}" "loadables/$h.c" "tests/$h-host.c" -o "$scratch/$h"; then
+      check "$h contract" "$scratch/$h"
+    else
+      echo "FAIL $h harness compilation"; fail=$((fail+1))
+    fi
   done
-  # grep: the loadable as a program, and the whole parity case list run through it
-  d=$(mktemp -d)
-  if "$CC" -O1 -g -fsanitize=address,undefined $INC loadables/grep.c tests/grep-host.c -o "$d/grep" >/dev/null 2>&1 \
-     && GREP_IMPL="$d/grep" bash tests/grep-parity.sh out/bash | tail -1 | grep -qE 'SKIP|^grep-parity: ([0-9]+)/\1 '
-  then ok "grep contract (the parity cases under ASan+UBSan)"; else no "grep contract"; fi
-  rm -rf "$d"
-else echo "SKIP C harnesses (need a built tree + $CC)"; fi
-echo; echo "run: $pass passed, $fail failed"; exit $(( fail>0 ? 1 : 0 ))
+  if "$CC" -O1 -g -fsanitize=address,undefined "${INC[@]}" loadables/grep.c tests/grep-host.c -o "$scratch/grep"; then
+    check 'grep parity under ASan+UBSan' env GREP_IMPL="$scratch/grep" bash tests/grep-parity.sh out/bash
+  else
+    echo 'FAIL grep harness compilation'; fail=$((fail+1))
+  fi
+else
+  echo "SKIP C harnesses (need a built tree + $CC)"
+fi
+printf '\nrun: %s passed, %s failed\n' "$pass" "$fail"
+[[ $fail == 0 ]]

@@ -37,7 +37,7 @@ CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown
 
 Outputs are stripped (`--no-strip` keeps symbols) and each comes with a
 `.manifest.txt` beside it. The bash source and the official bash-5.3 patch
-set (001–010) are pinned by sha256 in `config/versions.sh`; a from-scratch
+set (001–015) are pinned by sha256 in `config/versions.sh`; a from-scratch
 build is byte-identical to the last one.
 
 Cross-compiling needs only `CC`: `--host` is derived from the compiler, and the
@@ -103,6 +103,7 @@ tests/
                                 block edges, a stream not at its start
   grep-parity.sh [BIN]          grep against GNU grep's: both dialects, every
                                 flag, -w/-x, context, binary files, block edges
+  sort-parity.sh [BIN]          sort against GNU coreutils, numeric and field keys
   seq-parity.sh [BIN]           seq against GNU coreutils' with the same argv words:
                                 integers, floats, -w -s -f, big counts, the error cases
   rootfs-smoke.sh [STATIC-BIN]  a root filesystem of only the static binary runs

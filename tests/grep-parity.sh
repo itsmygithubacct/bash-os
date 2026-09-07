@@ -660,5 +660,10 @@ grep -w -c 'a' t.txt
 grep -x 'no newline at end' nonl.txt
 CASES
 
+if [[ -w /dev/full ]]; then
+  run_case C 'grep foo t.txt > /dev/full'
+  run_case C 'grep -c foo t.txt > /dev/full'
+  run_case C 'grep -q foo t.txt > /dev/full'
+fi
 echo "grep-parity: $((n-fail))/$n identical to GNU grep ($(PATH=$GNUPATH grep --version | head -1 | grep -oE '[0-9.]+$'))"
 exit $(( fail>0 ? 1 : 0 ))

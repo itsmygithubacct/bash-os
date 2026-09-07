@@ -34,7 +34,30 @@ bench/run.sh --busybox /path/to/busybox --only tree
   workloads use, resolved on that userland's `PATH`. Shared libraries are not
   counted, so a dynamically linked busybox or bash needs libc on top.
 
-## Results
+## Text-tool update, 2026-09-07
+
+The four text-tool changes were compared in the same Bash 5.3.15 executable:
+the earlier builtin versus the replacement loaded with `enable -f`. Shared
+objects used `-O2 -fPIC -shared -Wl,-Bsymbolic` so calls bind to the replacement.
+The host was an Intel Core i7-9850H, Linux 6.12.96, with processes pinned to one
+CPU. Each cell is the median of five runs after a warm-up, with old/new/GNU
+order reversed on alternate runs. Output went to `/dev/null`; timings include
+the loop and shell startup. GNU commands were `/usr/bin` coreutils 9.7 and
+grep 3.11, invoked from Bash 5.2.
+
+| workload | earlier builtin ms | replacement ms | GNU ms | speedup over earlier builtin |
+|---|---:|---:|---:|---:|
+| `cut -d ' ' -f1`, 423,000 bytes, 100 passes | 683.30 | 49.41 | 229.59 | 13.8× |
+| `grep -c the`, same input, 100 passes | 244.95 | 71.69 | 82.18 | 3.4× |
+| `sort -n`, 50,000 signed integers, 10 passes | 986.28 | 126.47 | 227.67 | 7.8× |
+| `seq 100000`, 30 passes | 888.20 | 35.20 | 39.01 | 25.2× |
+
+Inputs used Python's random seed 20260906: ten words per line drawn from
+`the and of to in is for that with a`, truncated to 423,000 bytes, followed by
+50,000 integers drawn from `[-1000000, 1000000)`. These measurements isolate
+each tool; they do not update the full-workload timings or footprint below.
+
+## Earlier full-workload results
 
 Host: Intel(R) Core(TM) i3-3220 CPU @ 3.30GHz, x86-64, kernel 6.12.94+deb13-amd64, 2026-09-06.
 bash-os 5.3.10(1)-release; busybox v1.37.0 (Debian, dynamic); GNU: bash 5.2.37(1)-release, coreutils 9.7. Five timed runs per cell.
@@ -80,7 +103,7 @@ the milliseconds, are what carry across a host.
 | busybox: /usr/bin/busybox (dynamically linked) | 826128 |
 | gnu: bash + 28 separate binaries | 3948360 |
 
-## Reading it
+## Reading the earlier results
 
 - **A tool per file** (01, 04): the whole point. Where a script calls a small
   command in a loop — a `wc` per file, a `mkdir`/`touch`/`cp` per entry —

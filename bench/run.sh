@@ -54,8 +54,10 @@ t_run() { # cfg workload -> "real user sys pids"
   p0=$(cat /proc/sys/kernel/ns_last_pid)
   TIMEFORMAT='%3R %3U %3S'
   { time PATH="${P[$cfg]}" "${SH[$cfg]}" "$wl" "$W/data" "${SH[$cfg]}" "$N" > "$W/out/$cfg.txt" 2> "$W/out/$cfg.err"; } 2> "$tf"
+  local rc=$?
   p1=$(cat /proc/sys/kernel/ns_last_pid)
   echo "$(cat "$tf") $(( p1 - p0 ))"
+  return "$rc"
 }
 median() { printf '%s\n' "$@" | sort -n | awk '{a[NR]=$1} END{print (NR%2) ? a[(NR+1)/2] : (a[NR/2]+a[NR/2+1])/2}'; }
 
@@ -66,17 +68,21 @@ echo
 printf '| %-26s | %9s | %9s | %9s | %8s | %8s | %-18s |\n' "workload" "bashos ms" "busybox ms" "gnu ms" "bb/bos" "gnu/bos" "procs bos/bb/gnu"
 printf '|%s|%s|%s|%s|%s|%s|%s|\n' "$(printf '%.0s-' {1..28})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..11})" "$(printf '%.0s-' {1..10})" "$(printf '%.0s-' {1..10})" "$(printf '%.0s-' {1..20})"
 declare -A MS PR
-mismatch=""
+mismatch=""; failed=0
 for wl in bench/workloads/*.sh; do
   name=$(basename "$wl" .sh); [[ -n $ONLY && $name != *$ONLY* ]] && continue
   skip=""
   for cfg in "${CFGS[@]}"; do
     MS[$cfg]="n/a"; PR[$cfg]="-"
     if grep -q '\${ wc' "$wl" && ! "${SH[$cfg]}" -c 'x=${ echo hi; }' >/dev/null 2>&1; then skip+="$cfg "; continue; fi
-    t_run "$cfg" "$wl" >/dev/null                          # warm-up (also produces the output to compare)
+    t_run "$cfg" "$wl" >/dev/null || failed=1
     if [[ -s "$W/out/$cfg.err" ]]; then echo "# $name/$cfg stderr: $(head -c 200 "$W/out/$cfg.err" | tr '\n' ' ')"; fi
     reals=(); pids=()
-    for ((r = 0; r < RUNS; r++)); do read -r re us sy pd < <(t_run "$cfg" "$wl"); reals+=("$re"); pids+=("$pd"); done
+    for ((r = 0; r < RUNS; r++)); do
+      timing=$(t_run "$cfg" "$wl") || failed=1
+      read -r re us sy pd <<< "$timing"
+      reals+=("$re"); pids+=("$pd")
+    done
     MS[$cfg]=$(median "${reals[@]}" | awk '{printf "%.0f", $1*1000}'); PR[$cfg]=$(median "${pids[@]}" | awk '{printf "%d", $1}')
   done
   flag=""
@@ -95,3 +101,4 @@ echo; echo "| footprint (shell + the commands above, on disk) | bytes |"; echo "
 printf '| bashos: %s (%s) | %s |\n' "$BOS" "$(file "$HERE/$BOS" | grep -oE 'statically linked|dynamically linked')" "$(stat -c %s "$HERE/$BOS")"
 printf '| busybox: %s (%s) | %s |\n' "$BB" "$(file "$BB" | grep -oE 'statically linked|dynamically linked')" "$(stat -c %s "$BB")"
 printf '| gnu: bash + %s separate binaries | %s |\n' "$(echo $CMDS | wc -w)" "$gnu_bytes"
+[[ -z $mismatch && $failed == 0 ]]

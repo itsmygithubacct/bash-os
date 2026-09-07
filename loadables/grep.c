@@ -1376,6 +1376,7 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
 
     for (;;)
     {
+        if (ferror (stdout)) break;
         if (st.pos >= st.lim)
         {
             if (st.done || (st.outleft == 0 && st.pending == 0)) break;
@@ -2208,6 +2209,13 @@ grep_builtin (WORD_LIST *list)
     else if (err) rc = 2;
     else rc = total > 0 ? 0 : 1;
 out:
+    if (fflush (stdout) == EOF || ferror (stdout))
+    {
+        int e = errno;
+        builtin_error ("write error: %s", strerror (e ? e : EIO));
+        clearerr (stdout);
+        rc = 2;
+    }
     bg_free (&o);
     free (paths);
     return rc;
@@ -2239,8 +2247,8 @@ char *grep_doc[] = {
     (char *)NULL
 };
 
-struct builtin bashgrep_struct = {
-    "bashgrep",
+struct builtin grep_struct = {
+    "grep",
     grep_builtin,
     BUILTIN_ENABLED,
     grep_doc,

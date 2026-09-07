@@ -1453,7 +1453,7 @@ out:
 char *sort_doc[] = {
     "Sort lines in FILEs (or stdin).",
     "",
-    "    bashsort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
+    "    sort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
     "",
     "    -n   numeric compare, GNU sort's rules: leading blanks, an optional -,",
     "         digits and one decimal point; anything else compares as zero",
@@ -1481,11 +1481,11 @@ char *sort_doc[] = {
     (char *)NULL
 };
 
-struct builtin bashsort_struct = {
-    "bashsort",
+struct builtin sort_struct = {
+    "sort",
     sort_builtin,
     BUILTIN_ENABLED,
     sort_doc,
-    "bashsort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
+    "sort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
     0
 };
