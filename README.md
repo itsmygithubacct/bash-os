@@ -105,7 +105,7 @@ config/
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
   bash-loadables.list           the full set (NAME|short-doc per line), 277 entries
-  bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
+  bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/

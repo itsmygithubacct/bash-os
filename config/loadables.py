@@ -141,8 +141,8 @@ def selection(root, args):
         tag = 'custom-'+digest[:12]
     if args.name:
         tag = args.name
-    if tag and not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', tag):
-        raise ValueError('output name must contain letters, digits, underscores or hyphens; use --name')
+    if tag and not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*', tag):
+        raise ValueError('output name must contain letters, digits, dots, underscores or hyphens; use --name')
     return {'base': base, 'tag': tag, 'names': list(entries), 'entries': entries,
             'list': lines, 'sha256': digest, 'helpers': helpers, 'libraries': libraries}
 

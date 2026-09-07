@@ -66,10 +66,11 @@ each tool; they do not update the full-workload timings or footprint below.
 ## Buffered output, 2026-09-07
 
 `paste` and `uniq` now use a 64 KiB output buffer instead of flushing Bash's
-line-buffered stdout for each record. A native run checked 697 GNU parity and
+line-buffered stdout for each record. A native run checked 699 GNU parity and
 shell-state cases, repeated under ASan/UBSan. The cases include embedded NULs,
 records around the buffer boundary, grouping, repeated invocations and write
-failures. A failed output write now returns failure.
+failures. Terminal output still flushes complete lines while input remains open.
+A failed output write now returns failure.
 
 | workload, ten passes | earlier builtin ms | buffered builtin ms | GNU ms | speedup |
 |---|---:|---:|---:|---:|

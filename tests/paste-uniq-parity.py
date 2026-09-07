@@ -2,10 +2,13 @@
 """Compare record framing and grouping with GNU tools; check shell output failures."""
 from pathlib import Path
 import os
+import pty
 import random
+import select
 import subprocess
 import sys
 import tempfile
+import termios
 
 binary = str(Path(sys.argv[1] if len(sys.argv)>1 else 'out/bash').resolve())
 environment = dict(os.environ, LC_ALL='C', PATH='')
@@ -67,4 +70,21 @@ rc=0; "$1" "$2" >/dev/full 2>/dev/null || rc=$?
     p = builtin('uniq',[first,destination],b'')
     assert p.returncode==0 and destination.read_bytes()==b'a\nb\n'
     checks += 1
+    # A terminal receives complete lines while the input stream remains open.
+    for tool in ('paste','uniq'):
+        master,slave = pty.openpty()
+        settings = termios.tcgetattr(slave)
+        settings[1] &= ~termios.ONLCR
+        termios.tcsetattr(slave,termios.TCSANOW,settings)
+        try:
+            with subprocess.Popen([binary,'-c',prefix+'"$@"','_',tool],env=environment,
+                                  stdin=subprocess.PIPE,stdout=slave,stderr=subprocess.PIPE) as proc:
+                proc.stdin.write(b'a\nb\n'); proc.stdin.flush()
+                assert select.select([master],[],[],10)[0],(tool,'terminal output waited for EOF')
+                assert os.read(master,1024).startswith(b'a\n')
+                _,errors = proc.communicate(timeout=10)
+                assert proc.returncode==0 and not errors,(tool,proc.returncode,errors)
+        finally:
+            os.close(master); os.close(slave)
+        checks += 1
 print(f'paste-uniq: {checks} GNU parity and output-state checks passed')

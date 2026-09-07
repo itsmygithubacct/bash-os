@@ -65,6 +65,9 @@ with tempfile.TemporaryDirectory() as d:
     for malformed in ['cut\ncut\n','cut\nBAD','cut\nfoo/bar','cut|a\tb','cut|a\vseq']:
         f.write_text(malformed)
         run('--list',str(f),'--print-list',ok=False)
+    reusable=Path(d)/'bash-core.loadables.list'
+    reusable.write_text('cut\nseq\n')
+    assert plan('--list',str(reusable))['names']==['cut','seq']
     f.write_text('')
     assert plan('--list',str(f))['names']==[]
     f.write_text('greet|A greeting\n')

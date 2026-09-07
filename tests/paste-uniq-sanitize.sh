@@ -5,8 +5,8 @@ CC=${CC:-cc}
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
-  -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
-  -I"$BT/examples/loadables" -Iloadables/common \
+  -DHAVE_CONFIG_H -Iloadables/common -I"$BT" -I"$BT/include" -I"$BT/builtins" \
+  -I"$BT/examples/loadables" \
   loadables/paste.c loadables/uniq.c -o "$d/text-output.so"
 # Keep instrumentation confined to the Bash subprocess; host GNU tools stay ordinary.
 printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport TEXT_OUTPUT_MODULE=%q\nexec %q "$@"\n' \

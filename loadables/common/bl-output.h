@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 typedef struct {
-    int fd, error;
+    int fd, error, terminal;
     size_t used;
     unsigned char data[65536];
 } bl_output;
@@ -17,6 +17,7 @@ static void
 bl_output_init (bl_output *out, FILE *stream)
 {
     out->fd = fileno (stream);
+    out->terminal = isatty (out->fd);
     out->used = 0;
     out->error = fflush (stream) == EOF ? (errno ? errno : EIO) : 0;
 }
@@ -42,8 +43,10 @@ bl_output_write (bl_output *out, const void *bytes, size_t length)
         size_t n = sizeof out->data - out->used;
         if (n > length) n = length;
         memcpy (out->data + out->used, data, n);
-        out->used += n; data += n; length -= n;
-        if (out->used == sizeof out->data) bl_output_flush (out);
+        out->used += n;
+        int newline = out->terminal && memchr (data, '\n', n) != NULL;
+        data += n; length -= n;
+        if (out->used == sizeof out->data || newline) bl_output_flush (out);
     }
 }
 
