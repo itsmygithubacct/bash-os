@@ -76,7 +76,40 @@ default policy. `tests/util-linux-smoke.sh` covers what can be exercised
 without privilege or destroying anything, and compares `ionice`, `taskset` and
 `chrt` against the host's tools.
 
+## The text and formatting tools (imported 2026-09-06)
+
+Nineteen more from the same collection, in one batch, same rename and SPDX
+treatment: `expand unexpand split csplit join pr tac column col colrm expr
+hexdump tput tinfo strings ed ar uuencode uudecode`. `column.c` registers
+three commands (`column`, `col`, `colrm`) and its two companion files exist
+only so the build finds a source at each name. Five of them shipped an extra
+alias struct for the unprefixed name, which the rename turned into a
+duplicate definition; the redundant copy is dropped.
+
+`tests/text-tools-parity.sh` byte-compares 22 invocations against the host's
+coreutils and util-linux (all identical), round-trips `uuencode`/`uudecode`
+both ways, and checks the host's `ar` can read an archive this `ar` wrote.
+`tput` carries a curated capability table (`xterm`, `screen`, `tmux`,
+`linux`, `vt100`, `dumb`) with a side-file path for anything else; an
+unlisted `TERM` is a clean exit 3, which the test pins.
+
+Fixed on the way in, all found by `gcc -fanalyzer` and all crash-on-
+allocation-failure paths of the kind the earlier `diff` fix addressed:
+`tac` grew three arrays with unchecked `realloc` and then indexed them,
+`csplit` dereferenced an unchecked `calloc`/`malloc` and leaked its pattern
+array on five error paths, and `expr` wrote into an unchecked `malloc` in
+its substring operator. The remaining analyser reports in this batch are
+false positives: a `FILE *` held past a `!= stdin` guard, and `memcpy` from
+a buffer `fread` filled.
+
 ## What deliberately stays out
+
+`file` is not imported yet, though it compiles and is otherwise ready: its
+magic table lists, verbatim, the PEM armour lines that mark RSA, EC, DSA,
+OpenSSH and PGP private keys, because those are the strings it recognises.
+A pre-publish secret scanner matches them. Importing it needs a decision —
+an allowlist for magic tables, or splitting the literals — rather than a
+quiet edit that would make the table wrong.
 
 The appliance's four board-coupled managers — `bashnpu`, `bashyolox`,
 `bashrtsp`, `detectlog` — depend on NPU/video/detection ABIs and remain in that

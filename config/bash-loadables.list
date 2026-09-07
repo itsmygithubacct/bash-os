@@ -6,7 +6,7 @@
 #
 # Curated 2026-09-05 from the lichee-nano-bashos appliance's inject list, with
 # the four board-coupled managers (bashnpu, bashyolox, bashrtsp, detectlog)
-# left in that project. 127 entries. See docs/PROVENANCE.md.
+# left in that project. 146 entries. See docs/PROVENANCE.md.
 
 basename|basename
 cat|cat
@@ -141,3 +141,24 @@ renice|Change the niceness of running processes (POSIX renice)
 taskset|Run or query commands with a CPU affinity mask
 chrt|Show or change process scheduling policy and priority
 uclampset|Show process utilization clamp values through sched_getattr(2)
+
+# text and formatting tools (imported 2026-09-06 from the upstream collection)
+expand|Convert tabs to spaces (POSIX expand)
+unexpand|Convert spaces to tabs (POSIX unexpand)
+split|Split a file into pieces (POSIX split)
+csplit|Context-split a file (POSIX csplit)
+join|Relational join on two sorted files (POSIX join)
+pr|Format text for printing (POSIX pr)
+tac|Concatenate and print files in reverse (last record first)
+column|Aligned-column formatter (util-linux column subset)
+col|Filter CTL-H overstrike sequences (util-linux col)
+colrm|Remove byte-columns from each stdin line (util-linux colrm)
+expr|Evaluate POSIX expr(1) expressions
+hexdump|Byte-oriented hex dump (hexdump-compatible, focused on -C canonical)
+tput|Query a curated terminfo-compatible ANSI capability table
+tinfo|Read compiled terminfo entries
+strings|Print printable character sequences from files or stdin
+ed|ed [-s] [FILE]
+ar|Create, list, or extract simple ar archives. Writes are deterministic
+uuencode|uuencode [-m] [FILE] NAME
+uudecode|Decode traditional uuencode and base64-uuencode streams
