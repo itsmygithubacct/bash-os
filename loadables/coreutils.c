@@ -452,7 +452,7 @@ bcu_shuf_cmd (WORD_LIST *list)
   for (size_t i = 0; i < n; i++) free (items[i]);
   free (items);
   /* Free the -e word list spine (we did not own w->word). */
-  
+
 
   return EXECUTION_SUCCESS;
 }
@@ -912,7 +912,7 @@ bcu_fmt_cmd (WORD_LIST *list)
         if (bcu_fmt_stream (fp, width) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
         if (fp != stdin) fclose (fp);
       }
-  
+
   return rc;
 }
 
@@ -1218,7 +1218,7 @@ bcu_numfmt_cmd (WORD_LIST *list)
         puts (outbuf);
       }
 
-  
+
   return rc;
 }
 
@@ -1307,7 +1307,7 @@ bcu_shred_cmd (WORD_LIST *list)
   for (WORD_LIST *w = files; w; w = w->next)
     if (bcu_shred_one (w->word->word, passes, zero_pass, unlink_after, fixed_size) != EXECUTION_SUCCESS)
       rc = EXECUTION_FAILURE;
-  
+
   return rc;
 }
 
@@ -1532,7 +1532,7 @@ bcu_install_cmd (WORD_LIST *list)
     }
 
 cleanup:
-  
+
   return rc;
 }
 
@@ -1597,7 +1597,7 @@ bcu_mknod_cmd (WORD_LIST *list)
     { builtin_error ("mknod: unknown type: %s", type); bcu_usage ("mknod"); rc = EX_USAGE; }
 
 mknod_out:
-  
+
   return rc;
 }
 
