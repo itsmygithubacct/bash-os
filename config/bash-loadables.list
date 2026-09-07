@@ -182,3 +182,15 @@ caps|caps
 cred|cred
 ns|ns
 xattr|xattr
+
+# Additional upstream loadables
+nc|nc
+pkt|pkt
+http|http
+pcap|pcap
+dhcp6|dhcp6
+dhcpd6|dhcpd6
+sftp|sftp
+scp|scp
+audit|audit
+fail2ban|fail2ban

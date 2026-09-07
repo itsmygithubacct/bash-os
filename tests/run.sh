@@ -33,9 +33,10 @@ if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
 else
   echo 'FAIL pure build has ls'; fail=$((fail+1))
 fi
-for name in wc-tail-parity text-tools-parity util-linux-smoke seq-parity sort-parity zstd-check grep-parity cut-parity stat-parity; do
+for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-parity sort-parity zstd-check grep-parity cut-parity stat-parity; do
   check "$name" bash "tests/$name.sh" out/bash
 done
+check network-smoke python3 tests/network-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
@@ -48,6 +49,11 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then
+    check 'account parser contract' "$scratch/privdrop"
+  else
+    echo 'FAIL account parser harness compilation'; fail=$((fail+1))
+  fi
   for h in rngseed httpd zstd; do
     flags=(); [[ $h != httpd ]] || flags=(-DHTTPD_REQUEST_TIMEOUT_MS=1000)
     if "$CC" -O1 -g -fsanitize=address,undefined "${flags[@]}" "${INC[@]}" "loadables/$h.c" "tests/$h-host.c" -o "$scratch/$h"; then

@@ -254,3 +254,24 @@ Changes carried in the sources, noted there:
   return value from it.
 - `bashdhcp`: the lease-binding helper treated a null `bind_assoc_variable`
   result as success (the callers ignore the value, so no visible effect).
+
+## Network and protocol helpers
+
+The MIT upstream collection also supplies `nc`, `pkt`, `http`, `pcap`,
+`dhcp6`, `dhcpd6`, `sftp`, `scp`, `audit`, and `fail2ban`. The shared DHCPv6
+HMAC-MD5 header retains its public-domain origin notice. Public builtin names
+use the same unprefixed convention as the other imports.
+
+`tests/network-smoke.py` checks framing, malformed records, temporary lease
+and ban databases, and transfers over loopback. The transfer clients speak
+the collection's native command-stream protocol by default. `--openssh`
+uses an installed OpenSSH client; the two transports have different wire
+formats. The subprocess helper drains stdout and stderr while feeding stdin
+and closes partially created pipes on errors. Tests cover a large diagnostic
+before output and repeated failures under a low descriptor limit.
+
+The import fixes HTTP response termination and output-close error handling.
+The analyzer's remaining fail2ban null warnings require a positive row count
+with a null allocation, which its bounded reader cannot return. Its remaining
+sftp reports assume negative descriptors after successful pipe creation or a
+successful allocation returning null; both paths were reviewed.
