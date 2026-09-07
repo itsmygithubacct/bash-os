@@ -6,7 +6,7 @@ bash-os is assembled from three sources:
 
 - **GNU bash 5.3** (GPL-3.0-or-later), pinned by sha256 in `config/versions.sh`
   and fetched at build time. Its own `examples/loadables/*.c` supply the stock
-  builtins a list names but this repo does not carry (`cat`, `chmod`, `cut`, …
+  builtins a list names but this repo does not carry (`cat`, `chmod`, `head`, …
   — the whole of `bash-loadables-pure.list`).
 - **An upstream bash-os loadables collection** (MIT, "bash_linux contributors").
   The busybox-replacement loadables — `ls cp mv find sed sort grep ip ps pax`
@@ -23,6 +23,18 @@ bash-os is assembled from three sources:
   `tests/stat-parity.sh` holds it to byte-identical output with coreutils 9.7.
   It replaces bash's own GPL stat loadable in every variant, including the
   pure list.
+- **Written for bash-os** (MIT): `cut`, the coreutils cut(1) surface — `-b`,
+  `-c` (bytes, as GNU's), `-f`, `-d`, `-s`, `-z`, `--complement`,
+  `--output-delimiter` (empty means NUL), the long options and their
+  prefixes, options after the operands, the range-list grammar and every
+  one of its errors, and the whole input as one record when the delimiter
+  is the line delimiter (`cut -d $'\n' -f2`) — reading in 64 KB blocks with
+  `memchr`, plus the `-a ARRAY` extension that bash's own loadable
+  documents. `tests/cut-parity.sh` holds it to byte-identical output and
+  status with coreutils 9.7, including unterminated `-z` records. It
+  replaces bash's GPL cut loadable in every variant,
+  including the pure list: on a 423 KB file the stock one took 8 ms per
+  pass, GNU's 2.4 ms, this 1 ms.
 - **Written for bash-os** (MIT): `zstd` and `zstdcat`, the subset of zstd(1) a
   script uses, over a libzstd found at run time: `libzstd.so.1` is dlopen'ed
   on first use and the stable API resolved with dlsym, so there is no
@@ -120,9 +132,6 @@ project. bash-os is the board-agnostic layer it builds on.
 Fixes to stock loadables, applied at build time in `build.sh` so the pinned
 sources stay as taken:
 
-- `cut`: the output buffer was sized with `strlen()` *after* `strsep` had
-  overwritten the field delimiters with NULs, so a multi-field range overflowed
-  the heap. Sized from the line length taken before the split.
 - `mkdir -p`: only `chmod` the components it actually created, not existing
   parents.
 - `fltexpr`: initialise NaN/Inf at compile time (its runtime `_builtin_load`

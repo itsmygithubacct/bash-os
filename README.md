@@ -97,6 +97,8 @@ tests/
   host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
                                 and runs with an empty PATH (stat, pax, pipes …)
   stat-parity.sh [BIN]          stat against GNU coreutils' on the same files
+  cut-parity.sh [BIN]           cut against GNU coreutils' on the same inputs: every
+                                option, the range-list errors, the 64 KB block edge
   wc-tail-parity.sh [BIN]       wc and tail against GNU coreutils', both locales,
                                 block edges, a stream not at its start
   grep-parity.sh [BIN]          grep against GNU grep's: both dialects, every

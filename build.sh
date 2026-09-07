@@ -128,7 +128,7 @@ shopt -u nullglob
 cp examples/loadables/*.h builtins/ 2>/dev/null || true
 
 # --- 4. the injected set: into builtins/ with include fixups + un-static ----
-# The per-name fixups below patch bash's OWN example loadables (cut, mkdir,
+# The per-name fixups below patch bash's OWN example loadables (mkdir,
 # fltexpr). A source this repo or EXTRA_LOADABLES supplies under the same
 # name replaces the stock file whole and must not be patched.
 is_stock() { [[ ! -f "$HERE/loadables/$1.c" ]] || return 1; local d; for d in ${EXTRA_LOADABLES:-}; do [[ -f "$d/$1.c" ]] && return 1; done; return 0; }
@@ -150,19 +150,6 @@ for n in "${NAMES[@]}"; do
     fltexpr)
       sed -i 's|^static sh_float_t nanval, infval;$|static sh_float_t nanval = NAN, infval = INFINITY;|' builtins/fltexpr.c
       grep -q 'nanval = NAN' builtins/fltexpr.c || die "fltexpr fixup did not match" ;;
-    cut)
-      python3 - <<'PYCUT'
-from pathlib import Path
-p = Path("builtins/cut.c"); t = p.read_text()
-old_decl = "  field = buf = line;\n  do\n"
-assert t.count(old_decl) == 1, "cut: field-split anchor not found"
-t = t.replace(old_decl, "  llen = strlen (line);\t\t/* BEFORE strsep destroys the delimiters */\n  field = buf = line;\n  do\n", 1)
-old_alloc = "  buf = xmalloc (strlen (line) + 1);\n"
-assert t.count(old_alloc) == 1, "cut: output-buffer anchor not found"
-t = t.replace(old_alloc, "  buf = xmalloc (llen + 1);\n", 1)
-p.write_text(t)
-PYCUT
-      grep -q 'BEFORE strsep destroys' builtins/cut.c || die "cut fixup did not match" ;;
     mkdir)
       python3 - <<'PYMK'
 from pathlib import Path

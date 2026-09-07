@@ -11,7 +11,7 @@
 basename|basename
 cat|cat
 chmod|chmod
-cut|cut
+cut|cut -b LIST | -c LIST | -f LIST [-d DELIM] [-s] [-z] [--complement] [--output-delimiter=STRING] [-a ARRAY] [FILE...]
 dirname|dirname
 head|head
 id|id
