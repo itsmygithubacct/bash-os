@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 227 builtins  -> out/bash
+./build.sh                                        # host, 245 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -88,7 +88,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 227 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 245 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -110,7 +110,7 @@ tests/
                                 a script using a dozen commands (needs bwrap)
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in
   regressions.py                builtin regressions in a real bash-os process
-  licence-check.sh              every source states its licence (all MIT)
+  licence-check.sh              source licences and third-party notices
   zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
   system-smoke.sh [BIN]        process/system queries and temporary-file operations
@@ -130,11 +130,13 @@ Names in a list that have no `loadables/NAME.c` here are bash's own
 
 ## Licence
 
-Every source in this repository is MIT (`LICENSE`); the vendored JSON
-tokenizer (`loadables/_jsmn/`) is MIT under its own `LICENSE.txt`.
+The project sources are MIT (`LICENSE`). Vendored helpers retain their own
+licences: MIT, ISC, and SQLite’s public-domain dedication. The inventory in
+`config/helpers.json` names each helper’s licence and notice file; see
+[provenance](docs/PROVENANCE.md) for versions and adaptations.
 `tests/licence-check.sh` holds the tree to that.
 
 A built bash-os links GNU bash and is therefore distributed under the GPLv3,
-whatever the loadables' own terms; MIT sources are GPL-compatible, and the MIT
+whatever the loadables' own terms; the included helper licences are GPL-compatible, and the MIT
 grant is what lets each loadable be lifted into a non-GPL project on its own.
 See `docs/PROVENANCE.md`.

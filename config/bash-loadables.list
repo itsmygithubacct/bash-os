@@ -253,3 +253,23 @@ fdisk|fdisk
 strace|strace
 coreutils|coreutils
 bsdgames|bsdgames
+
+# Additional upstream loadables
+pcre|pcre
+zlib|zlib
+zcat|zcat
+netids|netids
+more|more
+less|less
+top|top
+slabtop|slabtop
+ncdu|ncdu
+tui|tui
+vmstat|vmstat
+toml|toml
+sqlite|sqlite
+vi|vi
+vt|vt
+utf8|utf8
+dialog|dialog
+whiptail|whiptail

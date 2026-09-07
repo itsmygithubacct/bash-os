@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
-# tests/licence-check.sh — every source states its licence, and only the files
-# named here may be anything but MIT. Guards the repo's own licence claim
-# (README, docs/PROVENANCE.md) as more loadables are imported.
-set -u
+# Check the project's MIT sources and the explicit third-party licence inventory.
+set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
-NON_MIT=""                      # every source is MIT; list a path here only with a reason
-MIT='SPDX-License-Identifier: MIT|MIT License|\bMIT\b|Permission is hereby granted, free of charge'
-GPL='SPDX-License-Identifier: GPL|GNU General Public License'
-bad=0; n=0
-for f in loadables/*.c loadables/*.h loadables/*/*.h tests/*.c; do
-  [[ -f $f ]] || continue; n=$((n+1))
-  if grep -qE "$MIT" "$f"; then continue; fi
-  if grep -qE "$GPL" "$f"; then
-    case " $NON_MIT " in *" $f "*) continue ;; esac
-    echo "  GPL-licensed file not in the allowed list: $f"; bad=$((bad+1)); continue
-  fi
-  echo "  no licence marker: $f"; bad=$((bad+1))
-done
-for f in $NON_MIT; do [[ -f $f ]] || { echo "  allowed non-MIT file missing: $f"; bad=$((bad+1)); }; done
-[[ -f LICENSE ]] || { echo "  LICENSE missing"; bad=$((bad+1)); }
-echo "licence-check: $n files, $bad problems"; exit $(( bad>0 ? 1 : 0 ))
+python3 - <<'PY'
+import json
+from pathlib import Path
+import re
+manifest=json.loads(Path('config/helpers.json').read_text())['helpers']
+problems=[]
+allowed={'MIT','ISC','Public domain','Apache-2.0','LGPL-2.1-or-later',
+         'BSD-2-Clause OR CC0-1.0','BSD-3-Clause','MIT AND Unicode-DFS-2016'}
+for directory in Path('loadables').glob('_*'):
+    if directory.is_dir() and directory.name not in manifest:
+        problems.append(f'unregistered helper: {directory}')
+for name, entry in manifest.items():
+    directory=Path('loadables')/name
+    notice=directory/entry['notice']
+    if entry['license'] not in allowed: problems.append(f'unknown licence for {name}')
+    if not directory.is_dir() or not notice.is_file() or not notice.read_text().strip():
+        problems.append(f'missing licence notice: {notice}')
+count=0
+for file in [*Path('loadables').rglob('*'), *Path('tests').glob('*.c')]:
+    if not file.is_file() or file.suffix not in ['.c','.h','.data']: continue
+    count+=1
+    if len(file.parts)>2 and file.parts[1] in manifest: continue
+    if not re.search(r'SPDX-License-Identifier: MIT|MIT License|\bMIT\b|Permission is hereby granted, free of charge',file.read_text()):
+        problems.append(f'no MIT licence marker: {file}')
+if not Path('LICENSE').is_file(): problems.append('LICENSE missing')
+for problem in problems: print(problem)
+print(f'licence-check: {count} files, {len(problems)} problems')
+raise SystemExit(bool(problems))
+PY

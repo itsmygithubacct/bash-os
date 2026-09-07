@@ -49,6 +49,8 @@ die(){ echo "build.sh: $*" >&2; exit 1; }
 say(){ echo "build.sh: $*"; }
 [[ -f "$LIST" ]] || die "no such list: $LIST"
 LIST=$(cd "$(dirname "$LIST")" && pwd)/$(basename "$LIST")     # absolute: we cd into the tree later
+mapfile -t NAMES < <(loadables_names "$LIST") || die "cannot parse $LIST"
+(( ${#NAMES[@]} > 0 )) || die "empty list"
 CC="${CC:-cc}"; JOBS="${JOBS:-$(nproc)}"
 DL="$HERE/dl"; SRC="$HERE/build/bash-$BASH_SRC_VERSION"
 
@@ -67,7 +69,7 @@ CFLAGS="${CFLAGS:--O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2}"
 LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
 # LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
 # fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz).
-LOCAL_LIBS="${LOCAL_LIBS:--lm}"
+LOCAL_LIBS="${LOCAL_LIBS:--lm} $(python3 config/stage-helpers.py --libs "$HERE" - "${NAMES[@]}")"
 # A cross configure cannot run test programs; these are the Linux answers.
 CROSS_CACHE=(bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present
   bash_cv_sys_named_pipes=present bash_cv_func_sigsetjmp=present bash_cv_printf_a_format=yes
@@ -78,7 +80,7 @@ CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
 mkdir -p "$OUTDIR" "$DL" build
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-} list=$LIST";
-           cat "$LIST"; find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
+           cat "$LIST" config/helpers.json config/stage-helpers.py build.sh; find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) | LC_ALL=C sort | xargs sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
   say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
@@ -115,10 +117,7 @@ say "staging loadables"
 cp "$HERE/loadables"/*.c examples/loadables/
 shopt -s nullglob
 for h in "$HERE"/loadables/common/*.h; do cp "$h" builtins/; cp "$h" examples/loadables/; done
-for d in "$HERE"/loadables/_*/; do
-  base=$(basename "${d%/}")
-  for f in "$d"*.h; do flat="${base}_$(basename "$f")"; cp "$f" "builtins/$flat"; cp "$f" "examples/loadables/$flat"; done
-done
+python3 "$HERE/config/stage-helpers.py" --stage "$HERE" "$STAGE" "${NAMES[@]}" >>"$LOG" 2>&1 || die "helper staging failed (see $LOG)"
 for d in ${EXTRA_LOADABLES:-}; do
   d=$(cd "$OLDPWD" 2>/dev/null && cd "$HERE" && cd "$d" && pwd) || die "EXTRA_LOADABLES: no such directory: $d"
   for f in "$d"/*.c; do cp "$f" examples/loadables/; done
@@ -132,8 +131,6 @@ cp examples/loadables/*.h builtins/ 2>/dev/null || true
 # fltexpr). A source this repo or EXTRA_LOADABLES supplies under the same
 # name replaces the stock file whole and must not be patched.
 is_stock() { [[ ! -f "$HERE/loadables/$1.c" ]] || return 1; local d; for d in ${EXTRA_LOADABLES:-}; do [[ -f "$d/$1.c" ]] && return 1; done; return 0; }
-mapfile -t NAMES < <(loadables_names "$LIST") || die "cannot parse $LIST"
-(( ${#NAMES[@]} > 0 )) || die "empty list"
 say "injecting ${#NAMES[@]} loadables ($NAME, $TARGET)"
 for n in "${NAMES[@]}"; do
   src="examples/loadables/$n.c"; [[ -f "$src" ]] || die "no source for '$n' ($src) — neither loadables/$n.c nor a stock example"
@@ -170,7 +167,7 @@ from pathlib import Path
 p = Path("builtins/Makefile.in"); s = p.read_text()
 old = "OFILES = builtins.o \\\n"
 assert s.count(old) == 1, "OFILES anchor not found"
-p.write_text(s.replace(old, "OFILES = builtins.o " + os.environ["OBJS"] + "\\\n", 1))
+p.write_text(s.replace(old, "OFILES = builtins.o " + os.environ["OBJS"] + Path("builtins/.helper-objs").read_text() + "\\\n", 1))
 PY
 
 # --- 6. configure ----------------------------------------------------------

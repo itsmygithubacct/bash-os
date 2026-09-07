@@ -1,0 +1,31 @@
+{
+  "commands": {
+    "pcre": {"libs": ["-lpcre2-8"]},
+    "netids": {"libs": ["-lpcre2-8"]},
+    "zlib": {"libs": ["-lz", "-llzma", "-lzstd", "-lbz2"]},
+    "zcat": {"libs": ["-lz"]},
+    "more": {"helpers": ["_bl_key"]},
+    "less": {"helpers": ["_bl_key"]},
+    "top": {"helpers": ["_bl_screen"]},
+    "slabtop": {"helpers": ["_bl_screen", "_bl_proc"]},
+    "ncdu": {"helpers": ["_bl_screen"]},
+    "tui": {"helpers": ["_bl_screen"]},
+    "vmstat": {"helpers": ["_bl_proc"]},
+    "toml": {"helpers": ["_tomlc17"]},
+    "sqlite": {"helpers": ["_sqlite"], "libs": ["-ldl", "-lpthread"]},
+    "vi": {"helpers": ["_bl_key"]},
+    "vt": {"helpers": ["_libgrapheme"]},
+    "utf8": {"helpers": ["_libgrapheme"]},
+    "dialog": {"helpers": ["_bl_key"]},
+    "whiptail": {"helpers": ["_bl_key"]}
+  },
+  "helpers": {
+    "_jsmn": {"license": "MIT", "notice": "LICENSE.txt"},
+    "_bl_key": {"license": "MIT", "notice": "LICENSE.txt"},
+    "_bl_screen": {"requires": ["_bl_key"], "license": "MIT", "notice": "LICENSE.txt"},
+    "_bl_proc": {"license": "MIT", "notice": "LICENSE.txt"},
+    "_tomlc17": {"license": "MIT", "notice": "LICENSE.txt"},
+    "_sqlite": {"license": "Public domain", "notice": "LICENSE.txt"},
+    "_libgrapheme": {"license": "ISC", "notice": "LICENSE.txt"}
+  }
+}

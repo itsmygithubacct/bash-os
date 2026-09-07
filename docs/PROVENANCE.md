@@ -59,14 +59,16 @@ bash-os is assembled from these sources:
 
 | Files | Licence |
 |---|---|
-| everything in `loadables/` | MIT (`LICENSE`) |
-| `loadables/_jsmn/` | MIT, zserge/jsmn, its own `LICENSE.txt` |
+| command sources and `loadables/common/` | MIT (`LICENSE`) |
+| `_jsmn`, `_bl_key`, `_bl_screen`, `_bl_proc`, `_tomlc17` helpers | MIT, per-tree notices |
+| `_libgrapheme` | ISC, per-tree notice |
+| `_sqlite` | Public domain, upstream disclaimer retained |
 | `tests/*.c`, `build.sh`, `config/` | MIT |
 
-Every source carries an `SPDX-License-Identifier` line or an MIT statement in
-its header; `tests/licence-check.sh` fails the suite if a file lacks one or is
-not MIT. Several MIT files note explicitly
-that the *combined binary* is GPL-3+ — that is bash's licence, not theirs.
+The project sources carry an MIT marker. Vendored helpers retain their original
+notices and are registered in `config/helpers.json`; `tests/licence-check.sh`
+checks all C/header/data files and rejects unregistered helper trees. The
+combined executable remains governed by Bash's GPL-3.0-or-later licence.
 
 ## The util-linux family (imported 2026-09-06)
 
@@ -329,3 +331,34 @@ These are the upstream subsets. jq uses compact output and a bounded filter
 language; bc has no user-defined functions or output-base conversion; fw's
 pure backend stores rules without installing kernel filters. curl's TLS path
 requires the crypto loadable. Tests exercise nft/iptables dry runs only.
+
+## Helper libraries and their consumers (imported 2026-09-07)
+
+The key, screen, and slab helpers are MIT components of the upstream collection.
+The TOML parser is tomlc17 R260517 (commit cb9bba39f2e63a9e67fa61d6c7521a184eb5fc38),
+SQLite is the public-domain 3.47.2 amalgamation (Fossil 2aabe05e2e8cae4847a802ee2daddc1d7413),
+and libgrapheme carries its ISC notice and generated Unicode 17.0.0 tables.
+Only build inputs and notices are included; the Unicode generation corpus is
+not required to rebuild these already-generated tables.
+
+`config/stage-helpers.py` selects helper dependencies for the requested list,
+flattens their includes, and adds their objects to the builtin archive. The
+same manifest selects external libraries. The full build now needs development
+libraries for PCRE2, zlib, liblzma, libzstd, and bzip2; static builds also need
+their static archives. The pure list still needs only its original libraries.
+The builtin archive is revisited in a linker group for circular helper calls.
+
+These imports expose upstream subsets. SQLite's handle API uses an unlocked
+VFS for file databases: separate processes must not write one database
+concurrently. Unicode collation is outside utf8's interface. The IDS supports
+a documented rule subset, with offline packet fixtures used for verification.
+
+The helper batch passes 71 fixture/interoperability checks under ASan/UBSan.
+Bzip2 completion at an exact output-buffer boundary and truncated zstd/bzip2
+streams are handled correctly; SQLite BLOB bindings reject non-hexadecimal
+input and preserve an empty BLOB's type. All seventeen non-stub wrapper
+analyzer runs completed. A VT clone report assumes a positive scrollback
+capacity becomes zero while freeing the clone; the copied capacity and cleanup
+loop were reviewed, and handle exhaustion is exercised by the sanitizer test.
+
+SQLite documentation examples use the project’s standard sample home path.
