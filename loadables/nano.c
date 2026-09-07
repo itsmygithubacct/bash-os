@@ -245,7 +245,8 @@ bn_highlight_cache_ensure (void)
     }
     size_t k = 0;
     for (size_t i = 0; i < bn_b.n_lines; i++) {
-        memcpy (src + k, bn_b.lines[i].data, bn_b.lines[i].len);
+        if (bn_b.lines[i].len)
+            memcpy (src + k, bn_b.lines[i].data, bn_b.lines[i].len);
         k += bn_b.lines[i].len;
         src[k++] = '\n';
     }
@@ -1639,13 +1640,13 @@ bn_search_forward (const char *pat)
                 size_t slen = L->len - start;
                 char *tmp = malloc (slen + 1);
                 if (!tmp) { regfree (&re); return 1; }
-                memcpy (tmp, L->data + start, slen);
+                if (slen) memcpy (tmp, L->data + start, slen);
                 tmp[slen] = '\0';
                 regmatch_t m;
                 if (regexec (&re, tmp, 1, &m, 0) == 0 && m.rm_so >= 0)
                     hit_col = (long) start + (long) m.rm_so;
                 free (tmp);
-            } else {
+            } else if (L->len - start >= plen) {
                 void *hit = memmem (L->data + start, L->len - start, pat, plen);
                 if (hit)
                     hit_col = (long) ((char *) hit - L->data);
@@ -1704,7 +1705,7 @@ bn_search_backward (const char *pat)
         if (regex_mode) {
             char *tmp = malloc (limit + 1);
             if (!tmp) { regfree (&re); return 1; }
-            memcpy (tmp, L->data, limit);
+            if (limit) memcpy (tmp, L->data, limit);
             tmp[limit] = '\0';
             size_t base = 0;
             while (base <= limit) {
