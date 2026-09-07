@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and ~140 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and ~160 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 146 builtins  -> out/bash
+./build.sh                                        # host, 164 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -88,7 +88,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 146 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 164 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -113,6 +113,7 @@ tests/
   licence-check.sh              every source states its licence (all MIT)
   zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
+  system-smoke.sh [BIN]        process/system queries and temporary-file operations
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
   grep-host.c                   grep as a program: the parity cases under ASan+UBSan

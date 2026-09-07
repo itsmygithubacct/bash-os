@@ -162,3 +162,23 @@ ed|ed [-s] [FILE]
 ar|Create, list, or extract simple ar archives. Writes are deterministic
 uuencode|uuencode [-m] [FILE] NAME
 uudecode|Decode traditional uuencode and base64-uuencode streams
+
+# Process and system tools
+who|who
+w|w
+uptime|uptime
+lsof|lsof
+timeout|timeout
+signal|signal
+hostid|hostid
+sysctl|sysctl
+dmesg|dmesg
+genl|genl
+mlock|mlock
+utmp|utmp
+userdb|userdb
+keyctl|keyctl
+caps|caps
+cred|cred
+ns|ns
+xattr|xattr

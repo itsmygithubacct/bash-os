@@ -123,6 +123,22 @@ its substring operator. The remaining analyser reports in this batch are
 false positives: a `FILE *` held past a `!= stdin` guard, and `memcpy` from
 a buffer `fread` filled.
 
+## The process and system tools (imported 2026-09-07)
+
+Eighteen further MIT sources from the same collection: `who w uptime lsof
+timeout signal hostid sysctl dmesg genl mlock utmp userdb keyctl caps cred ns
+xattr`. The shared privilege-drop header is MIT and contains inline helpers.
+The command names and references between imported loadables lose the upstream
+`bash` prefix; persistent state and configuration variable names are retained.
+
+`timeout` uses the existing child-dispatch helper so enabled builtins work
+with an empty `PATH`, and restores the signal mask on a wait failure. The
+batch test checks queries, child status and timeout handling, temporary utmp
+records and extended attributes. Privileged host settings are not changed.
+These remain the upstream subsets: `hostid` prefers a machine-id-derived
+value, `dmesg` reads `/dev/kmsg`, and `userdb verify` needs the later password
+loadable. Help and registration are checked for every imported name.
+
 ## What deliberately stays out
 
 `file` is not imported yet, though it compiles and is otherwise ready: its
