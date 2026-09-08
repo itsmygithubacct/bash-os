@@ -25,6 +25,7 @@ prefix = 'if [[ -n ${GPU_MODULE:-} ]]; then enable -f "$GPU_MODULE" gpu; fi\nPAT
 
 def environment(extra=None):
     env = {**os.environ, **(extra or {})}
+    env = {key:value for key,value in env.items() if value is not None}
     if env.get('GPU_ASAN_LIB'):
         env['LD_PRELOAD'] = env['GPU_ASAN_LIB']
         env['ASAN_OPTIONS'] = 'detect_leaks=0:abort_on_error=1'
@@ -235,7 +236,9 @@ class Terminal:
 
     def run(self,script,*,rc=0,env=None,controlling=False,signal_input=False):
         global checks
-        child_env = environment({'GPU_TEST_TTY':self.tty,**(env or {})})
+        child_env = environment({'GPU_TEST_TTY':self.tty,'TERM':'xterm-256color',
+                                 'TERM_PROGRAM':None,'XTERM_VERSION':None,'TMUX':None,
+                                 'SSH_CONNECTION':None,'SSH_TTY':None,**(env or {})})
         def acquire_tty():
             os.setsid()
             fcntl.ioctl(0,termios.TIOCSCTTY,0)
@@ -257,6 +260,7 @@ class Terminal:
                     self.receive(os.read(self.master,65536))
             while select.select([self.master],[],[],0)[0]: self.receive(os.read(self.master,65536))
             stdout,stderr = p.communicate(timeout=1)
+            self.stderr = stderr
             assert p.returncode == rc,(p.returncode,stdout,stderr,script)
             assert b'runtime error:' not in stderr and b'AddressSanitizer' not in stderr,stderr
             assert self.transfer is None
@@ -413,9 +417,45 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term = Terminal(shm=False)
         out = term.run(start+'--transport auto\ngpu clear ff0000; gpu present; gpu info')
         assert b'transport=inline' in out and term.last_frame == bytes((255,0,0,255))*768
-        Terminal(shm=False).run(start+'--transport shm',rc=1)
-        Terminal(respond=False).run(start+'--transport inline',rc=1)
-        Terminal(late_shm=True,inline=False).run(start+'--transport auto',rc=1)
+        term = Terminal(shm=False)
+        term.run(start+'--transport shm',rc=1)
+        assert b'terminal rejected the request, shm transport' in term.stderr
+        assert b'--transport auto or --transport inline' in term.stderr
+        term = Terminal(respond=False)
+        before = time.monotonic()
+        term.run(start+'--transport inline',rc=1)
+        assert time.monotonic()-before < 3,'probe timeout is no longer bounded'
+        assert b'no reply from terminal, inline transport' in term.stderr
+        assert b'TERM=xterm-256color, TERM_PROGRAM=(unset)' in term.stderr
+        assert b'Kitty graphics support' in term.stderr and b'--headless' in term.stderr
+        assert b'Connection timed out' not in term.stderr
+        term = Terminal(late_shm=True,inline=False)
+        term.run(start+'--transport auto',rc=1)
+        assert b'terminal rejected the request, inline transport' in term.stderr
+        nested_env = {'TERM':'xterm','TERM_PROGRAM':'kitty','XTERM_VERSION':'XTerm(398)',
+                      'KITTY_WINDOW_ID':'42','KITTY_KILIX_RENDERING':'1'}
+        term = Terminal(respond=False)
+        term.run(start+'--transport auto',rc=1,env=nested_env)
+        assert term.counts['query'] == 2
+        assert b'XTERM_VERSION is set' in term.stderr
+        assert b'run directly in Kitty or Kilix' in term.stderr
+        assert b'nested XTerm does not support Kitty graphics' in term.stderr
+        for hints in (nested_env,{'TERM':'xterm-256color'},{'TERM':'dumb'},{'TERM':None}):
+            term = Terminal()
+            term.run('gpu start 4 4 --headless; gpu stop\n'+start+'--transport inline',env=hints)
+            assert term.counts['query'] == 1 and not term.stderr
+        term = Terminal(respond=False,tmux=True)
+        term.run(start+'--transport auto',rc=1,env={'TMUX':'gpu-test'})
+        assert term.counts['query'] == 1 and b'allow-passthrough' in term.stderr
+        term = Terminal(respond=False)
+        term.run(start+'--transport auto',rc=1,env={'SSH_CONNECTION':'gpu-test'})
+        assert term.counts['query'] == 1 and b'the local terminal must support Kitty graphics' in term.stderr
+        term = Terminal(respond=False)
+        term.run(start+'--transport inline',rc=1,
+                 env={'TERM':'bad\n\x1b]2;title\x07'+100*'x','TERM_PROGRAM':'bad\r\x1b[31m'})
+        assert b'TERM=bad??]2;title?' in term.stderr and b'...' in term.stderr
+        assert b'\x1b' not in term.stderr and b'\x07' not in term.stderr and b'\r' not in term.stderr
+        assert term.stderr.count(b'\n') == 2 and len(term.stderr) < 512
         term = Terminal(tmux=True)
         term.run(start+'--transport inline\ngpu clear 123456; gpu present; gpu pixel 3 4 ff0000; gpu present',
                  env={'TMUX':'gpu-test'})

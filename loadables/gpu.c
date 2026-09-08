@@ -643,6 +643,49 @@ done:
     return rc;
 }
 
+static int bg_env_set(const char *name)
+{
+    const char *value = getenv(name);
+    return value && *value;
+}
+
+/* Environment values are hints, not capability checks. Keep diagnostics on
+   one line and never echo terminal controls from an inherited value. */
+static void bg_env_label(const char *name, char label[64])
+{
+    const char *value = getenv(name);
+    if (!value || !*value) value = "(unset)";
+    size_t i = 0;
+    for (; i < 60 && value[i]; i++) {
+        unsigned char c = value[i];
+        label[i] = c >= 32 && c <= 126 ? c : '?';
+    }
+    if (value[i]) { memcpy(label + i, "...", 3); i += 3; }
+    label[i] = 0;
+}
+
+static void bg_probe_error(bg_transport transport, int error)
+{
+    if (error != ETIMEDOUT && error != ENOTSUP) {
+        builtin_error("start: %s", strerror(error)); return;
+    }
+    char term[64], program[64];
+    bg_env_label("TERM", term); bg_env_label("TERM_PROGRAM", program);
+    builtin_error("start: Kitty graphics probe failed (%s, %s transport; TERM=%s, TERM_PROGRAM=%s)",
+        error == ETIMEDOUT ? "no reply from terminal" : "terminal rejected the request",
+        bg_transports[transport], term, program);
+    if (transport == BG_SHM)
+        builtin_error("start: try --transport auto or --transport inline in a terminal with Kitty graphics support");
+    else
+        builtin_error("start: use a terminal with Kitty graphics support, such as Kitty or Kilix, or --headless to draw and save images");
+    if (bg_env_set("XTERM_VERSION"))
+        builtin_error("start: XTERM_VERSION is set; if running inside XTerm, run directly in Kitty or Kilix instead (nested XTerm does not support Kitty graphics)");
+    if (bg_env_set("TMUX"))
+        builtin_error("start: TMUX is set; enable allow-passthrough in tmux and check the outer terminal supports Kitty graphics");
+    if (bg_env_set("SSH_CONNECTION") || bg_env_set("SSH_TTY"))
+        builtin_error("start: SSH environment detected; the local terminal must support Kitty graphics");
+}
+
 static int bg_start(int argc, char **argv)
 {
     int width, height, headless = 0, fullscreen = 0;
@@ -675,12 +718,15 @@ static int bg_start(int argc, char **argv)
     bg.tty = open(tty, O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
     if (bg.tty < 0 || !isatty(bg.tty)) { errno = ENOTTY; goto fail; }
     ioctl(bg.tty, TIOCGWINSZ, &bg.size);
-    if (transport == BG_INLINE) { if (bg_probe(BG_INLINE)) goto fail; }
-    else if (transport == BG_SHM) { if (bg_probe(BG_SHM)) goto fail; }
-    else if (transport == BG_AUTO) {
-        if (!getenv("SSH_CONNECTION") && !getenv("TMUX") && !bg_probe(BG_SHM)) bg.transport = BG_SHM;
-        else { if (bg_probe(BG_INLINE)) goto fail; bg.transport = BG_INLINE; }
-    } else if (bg_probe(BG_INLINE)) goto fail;
+    if (transport == BG_AUTO && !getenv("SSH_CONNECTION") && !getenv("TMUX") && !bg_probe(BG_SHM))
+        bg.transport = BG_SHM;
+    else {
+        bg_transport probe_transport = transport == BG_SHM ? BG_SHM : BG_INLINE;
+        if (bg_probe(probe_transport)) {
+            bg_probe_error(probe_transport, errno); bg_close(); return EXECUTION_FAILURE;
+        }
+        if (transport == BG_AUTO) bg.transport = BG_INLINE;
+    }
     if (fullscreen) {
         bg.fullscreen = 1;
         if (bg_emit(BG_ESC "[?1049h" BG_ESC "[H" BG_ESC "[?25l" BG_ESC "[?1000h" BG_ESC "[?1006h")) goto fail;

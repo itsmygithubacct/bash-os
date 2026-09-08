@@ -141,6 +141,16 @@ query handling still depend on the multiplexer and terminal; unsupported
 probes fail within a bounded timeout. Output goes to `/dev/tty` (or `--tty`),
 leaving stdout available for application data and diagnostics.
 
+If a probe receives no reply or the terminal rejects it, `start` reports the
+failed transport, `TERM` and `TERM_PROGRAM`, and suggests how to proceed.
+`XTERM_VERSION`, `TMUX`, and SSH variables add environment-specific guidance.
+These are hints only: names such as `xterm-256color` are shared by different
+terminals, and nested terminals can inherit another terminal's variables.
+The graphics probe decides whether presentation can start. XTerm ignores Kitty
+graphics commands, including when launched with `kilix run xterm`; run the
+examples directly in a Kitty or Kilix shell tab. For drawing and image export
+without terminal graphics, use `gpu start W H --headless`.
+
 ## GPU shaders and DMA-BUF
 
 Rendering loads `libgbm.so.1`, `libEGL.so.1`, and `libGLESv2.so.2` on demand.
