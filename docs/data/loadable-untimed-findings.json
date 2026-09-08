@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-08",
-  "source_commit": "83dd53014cf454ed3deec8f765a682e091f1c0cd",
+  "source_commit": "7b287fab0b35d607dc9c2e231c5592dea227335d",
   "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
   "measurement": "Untimed correctness probes; no performance claims.",
   "versions": {
@@ -15,7 +15,8 @@
     "csplit": "csplit (GNU coreutils) 9.7",
     "du": "du (GNU coreutils) 9.7",
     "mv": "mv (GNU coreutils) 9.7",
-    "truncate": "truncate (GNU coreutils) 9.7"
+    "truncate": "truncate (GNU coreutils) 9.7",
+    "cp": "cp (GNU coreutils) 9.7"
   },
   "cases": [
     {
@@ -302,6 +303,39 @@
             "file": "abc"
           }
         }
+      }
+    },
+    {
+      "loadable": "cp",
+      "kind": "correctness",
+      "command": "cp -f source target (source mode 000)",
+      "fixture": {
+        "source": "source\n",
+        "target": "old destination\n"
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/cp",
+      "finding": "An unreadable source causes forced copy to delete the existing destination before failing.",
+      "results": {
+        "bashos": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "probe: line 1: cp: open source: Permission denied\n",
+          "files": {
+            "target": null
+          }
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "cp: cannot open 'source' for reading: Permission denied\n",
+          "files": {
+            "target": "old destination\n"
+          }
+        }
+      },
+      "fixture_modes": {
+        "source": "0o0"
       }
     }
   ]

@@ -1338,8 +1338,8 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "next": "Fix the remaining binary-input, write-status and FIFO defects found during review, then complete integration validation.",
-      "note": "Worker result e23fb1e5c959 is complete and awaiting integration; current measurements still contain the earlier implementation. The timed catalog case compares identical files; it does not measure edit-script generation or the reported large-difference memory failure.",
+      "next": "Fix comparison of two stdin operands, then complete the integration and combined-build validation.",
+      "note": "Integration candidate 036215f2a625 fixes the raw-binary, write-status and FIFO-reopening defects; the coordinator independently passed 173 native and 173 static regression checks. Review found that two minus operands compare stdin against an exhausted second read. The current timed case still measures the earlier identical-file path, not edit-script generation.",
       "finding": "Files differing only in the final newline are incorrectly reported equal."
     },
     "unexpand": {
@@ -1363,8 +1363,8 @@
       "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "crypto": {
-      "next": "Review and integrate the SHA-256 I/O fixes; investigate backend cost separately.",
-      "note": "Worker result c670eb787330 is complete and awaiting integration; current measurements still contain the earlier implementation. The wrapper changes make no throughput improvement claim; profiling found most CPU time in the shared SHA-256 backend.",
+      "next": "Complete the three-command integration review, then validate the combined build; investigate backend cost separately.",
+      "note": "SHA-256 I/O fixes are included in integration candidate 036215f2a625; current measurements still describe the earlier implementation. No backend throughput improvement is claimed. The benchmark harness already validated every digest record before this work.",
       "finding": "A failed digest write is incorrectly reported as successful."
     },
     "rev": {
@@ -1387,8 +1387,8 @@
       "finding": "Later invocations create empty pieces after the first call exhausts shared stdin."
     },
     "tee": {
-      "next": "Integrate the stock-source patch with existing head build wiring; validate read errors, resource ownership and interrupt cleanup.",
-      "note": "Worker result 380ca0b00104 is complete and awaiting integration. The stock-source patch preserves buffer size; measured buffer-size differences were not conclusive under contention.",
+      "next": "Stop reading when every output has failed, preserving healthy destinations and interrupt cleanup; then validate the combined build.",
+      "note": "Integration candidate 036215f2a625 includes the stock-source patch, interrupt cleanup and closed-stdout correction. Review found that it waits on an open input pipe after all outputs fail. The buffer is unchanged and contended timing ranges do not establish a throughput improvement.",
       "finding": "A read from closed stdin reports an error but incorrectly returns success."
     },
     "tail": {
@@ -1397,8 +1397,9 @@
       "note": "Candidate 7a32aec034f9 fixes the repeated-input finding but coordinator fault/stream probes found additional failures. Review follow-up is active; the frozen 17-command batch excludes tail."
     },
     "ar": {
-      "next": "Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing.",
-      "finding": "A truncated member header is incorrectly accepted as a valid archive."
+      "next": "Fix extraction descriptor cleanup and archive-link update behavior; complete the bounds and test follow-up before next-batch integration.",
+      "finding": "A truncated member header is incorrectly accepted as a valid archive.",
+      "note": "Candidate 03deb15bcc44 rejects truncated headers and preserves ordinary archives during failed updates. Review found descriptor leaks after failed extraction and successful updates that break symlink/hard-link relationships; it is not yet accepted. Extraction and sanitizer/recovery tests also need correction."
     },
     "du": {
       "next": "Integrate the reviewed traversal, allocation and output-error fixes in the next batch, then validate and remeasure.",
@@ -1407,13 +1408,17 @@
     },
     "mv": {
       "finding": "Moving a file to itself incorrectly reports success.",
-      "next": "Fix same-file status and establish dedicated move, cross-device failure, overwrite and input-state coverage before timing.",
-      "note": "No dedicated behavior suite or command timing in the published snapshot; review uses disposable filesystem fixtures."
+      "next": "Integrate the reviewed same-file and staged cross-device fixes in the next batch, then validate and remeasure.",
+      "note": "Candidate 06f04fdaf41f passed review, including independent 158 ASan/UBSan/LSan fault cases and 186 static cases with 480 reference comparisons. Cross-device failures before publication preserve source and destination; later source-removal failure may leave a partial source tree with a complete destination. Copied-tree hard links, ACLs/xattrs and crash durability remain outside scope."
     },
     "truncate": {
       "finding": "An overflowing size extension incorrectly succeeds and empties the existing file.",
       "next": "Reject size arithmetic overflow while preserving existing data; establish dedicated size, reference, I/O-error and recovery coverage before timing.",
       "note": "Confirmed on a disposable three-byte file; GNU rejects the extension and preserves its bytes."
+    },
+    "cp": {
+      "next": "Preserve the existing destination when a forced copy cannot read its source; establish dedicated copy, link, metadata and failure-recovery coverage.",
+      "finding": "An unreadable source causes forced copy to delete the existing destination before failing."
     }
   },
   "repeat_input_findings": [
@@ -1465,15 +1470,16 @@
     "join": "bash-os-5 (review follow-up)",
     "csplit": "bash-os-5 (review follow-up)",
     "col": "coordinator (combined validation)",
-    "tee": "bash-os-2 (integration)",
+    "tee": "bash-os-2 (review follow-up)",
     "split": "bash-os-5 (review follow-up)",
-    "crypto": "bash-os-2 (integration)",
-    "diff": "bash-os-2 (integration)",
+    "crypto": "bash-os-2 (review follow-up)",
+    "diff": "bash-os-2 (review follow-up)",
     "tail": "bash-os-6 (review follow-up)",
-    "ar": "bash-os-4",
+    "ar": "bash-os-4 (review follow-up)",
     "du": "coordinator (next batch)",
-    "mv": "bash-os-3",
-    "truncate": "bash-os-1"
+    "mv": "coordinator (next batch)",
+    "truncate": "bash-os-1",
+    "cp": "bash-os-3"
   },
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
   "ci_followup": "[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.",
@@ -1486,14 +1492,14 @@
     "sort": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "unexpand": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "rev": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "crypto": "c670eb7873308195c333f4446c857b2abc8ea4d4",
+    "crypto": "036215f2a6259664d6aeeedb6d247a004efc4756",
     "wc": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "diff": "e23fb1e5c95987ca591b7de50422fadfa6fee77b",
+    "diff": "036215f2a6259664d6aeeedb6d247a004efc4756",
     "hexdump": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "join": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "col": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "split": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "tee": "380ca0b001046e297a98c747bc0294384a3e1bc7",
+    "tee": "036215f2a6259664d6aeeedb6d247a004efc4756",
     "csplit": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347"
   }
 }
