@@ -109,7 +109,7 @@ bnl_print_help (void)
 static void
 bnl_emit_fill (bl_output *out, size_t n, const char *fill)
 {
-    while (n) {
+    while (n && !out->error) {
         size_t chunk = n < sizeof bnl_spaces ? n : sizeof bnl_spaces;
         bl_output_write (out, fill, chunk);
         n -= chunk;
@@ -413,6 +413,10 @@ bnl_read_line (bnl_input *in, char **line, size_t *cap)
         start = in->data + in->pos;
         stop = memchr (start, '\n', in->len - in->pos);
         take = stop ? (size_t) (stop - start) + 1 : in->len - in->pos;
+        if (take > SIZE_MAX - used - 1) {
+            in->error = EOVERFLOW;
+            break;
+        }
         if (used + take + 1 > *cap) {
             size_t want = *cap ? *cap : 128;
             char *grown;
@@ -515,13 +519,6 @@ static int
 bnl_open_fd (const char *name)
 {
     return !strcmp (name, "-") ? STDIN_FILENO : open (name, O_RDONLY);
-}
-
-static void
-bnl_close_fd (int fd)
-{
-    if (fd != STDIN_FILENO)
-        close (fd);
 }
 
 static void
@@ -697,7 +694,10 @@ nl_builtin (WORD_LIST *list)
             }
             bnl_input_open (&in, fd);
             status = bnl_process (&in, files[k], &line, &cap, &out, &o, &st);
-            bnl_close_fd (fd);
+            /* A named file can receive fd 0 when the shell's stdin is
+               closed. Ownership follows the operand, not the fd number. */
+            if (strcmp (files[k], "-") != 0)
+                close (fd);
             if (status != BNL_OK)
                 rc = EXECUTION_FAILURE;
             if (status == BNL_FATAL || out.error)

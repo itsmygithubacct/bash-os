@@ -1324,7 +1324,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                     }
                     if (a_queue.len > 0) {
                         bs_emit (out, a_queue.str, a_queue.len, 0);
-            out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
+                        out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
                         a_queue.len = 0;
                         if (a_queue.str) a_queue.str[0] = '\0';
                     }

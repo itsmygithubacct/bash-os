@@ -28,6 +28,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+#include <limits.h>
 #include <ctype.h>
 #include <math.h>
 
@@ -1356,9 +1357,15 @@ bc_input_line (bc_input *in, char **line, size_t *cap)
         const char *nl = memchr (start, '\n', avail);
         size_t take = nl ? (size_t) (nl - start) : avail;
 
+        if (used > (size_t) SSIZE_MAX - take) {
+            in->eof = 1; in->error = EOVERFLOW; return -1;
+        }
         if (used + take + 1 > *cap) {
             size_t want = used + take + 1, grown = *cap ? *cap : 128;
-            while (grown < want) grown *= 2;
+            while (grown < want) {
+                if (grown > SIZE_MAX / 2) { grown = want; break; }
+                grown *= 2;
+            }
             char *bigger = realloc (*line, grown);
             if (!bigger) { in->eof = 1; in->error = ENOMEM; return -1; }
             *line = bigger;

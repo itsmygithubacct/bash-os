@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -168,11 +169,18 @@ pr_input_line (pr_input *in, char **line, size_t *cap)
         size_t avail = in->end - in->start;
         const char *nl = memchr (from, '\n', avail);
         size_t take = nl ? (size_t) (nl - from) + 1 : avail;
+        if (len > (size_t) SSIZE_MAX - take) {
+            in->failed = EOVERFLOW;
+            in->at_eof = 1;
+            return -1;
+        }
         if (len + take + 1 > *cap) {
             size_t want = *cap ? *cap : 256;
             char *grown;
-            while (want < len + take + 1)
+            while (want < len + take + 1) {
+                if (want > SIZE_MAX / 2) { want = len + take + 1; break; }
                 want *= 2;
+            }
             grown = realloc (*line, want);
             if (!grown) {
                 in->failed = ENOMEM;
@@ -200,7 +208,7 @@ static void
 pr_spaces (bl_output *out, int count)
 {
     static const char blanks[] = "                                                                ";
-    while (count > 0) {
+    while (count > 0 && !out->error) {
         int n = count < (int) (sizeof blanks - 1) ? count : (int) (sizeof blanks - 1);
         bl_output_write (out, blanks, (size_t) n);
         count -= n;
@@ -301,7 +309,7 @@ pr_footer (bl_output *out, const pr_opts *o, int body_printed)
     int blanks = (o->body_lines - body_printed) + 5;
     if (blanks < 0)
         blanks = 0;
-    while (blanks-- > 0)
+    while (blanks-- > 0 && !out->error)
         bl_output_byte (out, '\n');
 }
 

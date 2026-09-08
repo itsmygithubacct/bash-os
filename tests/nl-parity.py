@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import termios
+import time
 
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
 gnu = ['/usr/bin/nl']
@@ -229,6 +230,17 @@ with tempfile.TemporaryDirectory() as directory:
                                  want.returncode, got.stdout[:160], want.stdout[:160],
                                  got.stderr[:160]))
 
+    # Opening an operand can reuse fd 0. It must still be closed on return,
+    # leaving the shell's deliberately closed stdin unchanged.
+    p = builtin([paths['plain']], script='''exec 0<&-
+"$@" >/dev/null || exit
+[[ ! -e /proc/self/fd/0 ]]
+''')
+    checks += 1
+    if p.returncode != 0:
+        failures.append(('operand fd ownership', [], b'', p.returncode, 0,
+                         p.stdout[:160], b'', p.stderr[:160]))
+
     # Bash's own stdout keeps its order and buffering around the builtin, a
     # failed write is reported, and the next invocation still works.
     script = prefix + '''printf before
@@ -267,12 +279,18 @@ printf after
             proc.stdin.write(b'a\nb\n')
             proc.stdin.flush()
             checks += 1
-            if not select.select([master], [], [], 10)[0]:
-                failures.append(('terminal', [], b'', -1, 0, b'waited for end of file', b'', b''))
-            else:
-                got = os.read(master, 1024)
-                if not got.startswith(b'     1\ta\n'):
-                    failures.append(('terminal', [], b'', -1, 0, got[:80], b'     1\ta\\n', b''))
+            got = b''
+            deadline = time.monotonic() + 10
+            while b'\n' not in got:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not select.select([master], [], [], remaining)[0]:
+                    break
+                chunk = os.read(master, 1024)
+                if not chunk:
+                    break
+                got += chunk
+            if not got.startswith(b'     1\ta\n'):
+                failures.append(('terminal', [], b'', -1, 0, got[:80], b'     1\ta\n', b''))
             _, errors = proc.communicate(timeout=10)
             checks += 1
             if proc.returncode != 0 or errors:
