@@ -6,7 +6,8 @@
 # a line longer than a block, a NUL after the first block), recursion, and
 # what is left on stdin. stdout and the exit status must be identical; stderr
 # must be identical once the program-name prefix is dropped. Skips without
-# GNU grep.
+# GNU grep. Output samples consume the full stream so early-closing pipes
+# cannot introduce scheduler-dependent SIGPIPE diagnostics.
 #   GREP_IMPL=CMD runs the bash-os side through CMD instead of the builtin
 #   (tests/run.sh points it at the ASan+UBSan harness, tests/grep-host.c).
 set -u
@@ -63,7 +64,7 @@ run_case(){ # LOCALE COMMAND
   [[ "$gr" == "$br" && "$ge" == "$be" ]] && cmp -s "$go" "$bo" && return
   fail=$((fail+1)); echo "  DIFF [$loc] $c"
   echo "    status $gr vs $br; stderr GNU=[$ge] builtin=[$be]"
-  cmp -s "$go" "$bo" || cmp "$go" "$bo" | head -1
+  cmp -s "$go" "$bo" || cmp "$go" "$bo" | sed -n '1,1p'
 }
 run_list(){ local loc=$1 c; while IFS= read -r c; do [[ -z $c || $c == \#* ]] && continue; run_case "$loc" "$c"; done; }
 
@@ -125,7 +126,7 @@ grep -c '\(a\)-\1' t.txt
 grep -E -c '(a)-\1' t.txt
 grep -e '\(a\)-\1' -e foo -c t.txt
 grep -c '\(tick\).*\1' big.txt
-grep -o '\(tick\).*\1' big.txt | head -2
+grep -o '\(tick\).*\1' big.txt | sed -n '1,2p'
 grep -E '(foo|bar)$' t.txt
 grep -e '^foo' -e '^bar' -n t.txt
 grep -e 'foo$' -e 'ar$' -n t.txt
@@ -170,7 +171,7 @@ grep -x 'a*' t.txt
 grep -xc '' t.txt
 grep -wc '' t.txt
 grep -x '' t.txt
-grep -x '' t.txt | od -c | head -1
+grep -x '' t.txt | od -c | sed -n '1,1p'
 grep -n -x '' t.txt
 grep -o '' t.txt
 grep -E -w 'a|ab' t.txt
@@ -205,7 +206,7 @@ printf 'éa\n' | grep -w a
 printf 'a_b a\n' | grep -wo a
 grep -c -w -E 'x*' big.txt
 grep -w -c 'tick' big.txt
-grep -w -o 'tick' big.txt | head -3
+grep -w -o 'tick' big.txt | sed -n '1,3p'
 grep -w -c '^0' big.txt
 grep -c -w -E 't[io]ck' big.txt
 grep -c -x -E '[0-9]+ ctx[0-9]+' big.txt
@@ -344,11 +345,11 @@ grep -l '' empty.txt
 grep -v -c '' empty.txt
 grep -H foo - < t.txt
 grep -c foo - t.txt < t.txt
-grep -Z -c foo t.txt t.txt | od -c | head -2
-grep -Z -n foo t.txt t.txt | od -c | head -2
-grep -lZ foo t.txt t.txt | od -c | head -1
+grep -Z -c foo t.txt t.txt | od -c | sed -n '1,2p'
+grep -Z -n foo t.txt t.txt | od -c | sed -n '1,2p'
+grep -lZ foo t.txt t.txt | od -c | sed -n '1,1p'
 grep -ob 'foo' misc.txt
-grep -n '' misc.txt | od -c | head -3
+grep -n '' misc.txt | od -c | sed -n '1,3p'
 grep -v -n -e foo -e plain misc.txt
 grep -v -o a t.txt
 grep -v -c -o a t.txt
@@ -413,7 +414,7 @@ grep -o b z.bin
 printf 'caf\xe9 foo\n' | grep foo
 printf 'caf\xe9 foo\n' | grep -c foo
 printf 'caf\xe9 foo\n' | grep -o foo
-printf 'caf\xe9 foo\n' | grep -a foo | od -c | head -1
+printf 'caf\xe9 foo\n' | grep -a foo | od -c | sed -n '1,1p'
 printf 'x\nfoo\n\0\nfoo\n' | grep foo
 printf 'x\nfoo\n\0\nfoo\n' | grep -c foo
 printf 'x\nfoo\n\0\nfoo\n' | grep -c ''
@@ -421,7 +422,7 @@ printf 'ab\0cd\n' | grep -c d
 printf 'ab\0cd\n' | grep -o d
 printf 'ab\0cd\n' | grep -a -c 'b[^x]c'
 grep -a -c 'cd' nulline
-grep -a -o 'b[^x]c' nulline | od -c | head -1
+grep -a -o 'b[^x]c' nulline | od -c | sed -n '1,1p'
 grep foo latenul.txt
 grep -c foo latenul.txt
 grep -n foo latenul.txt
@@ -439,14 +440,14 @@ grep -z 'a.b' zrec.bin
 grep -z -c '' zrec.bin
 grep -z b z.bin
 printf 'a\nb\nc\nd\ne\nf\n' | grep -z -c .
-printf 'a\0b\0' | grep -z -n b | od -c | head -2
-printf 'a\0b\0' | grep -z -Z -n b | od -c | head -2
-printf 'a\0b\0' | grep -z -A1 -n a | od -c | head -2
-printf 'a\0b\0c\0d\0' | grep -z -A1 -n -e a -e d | od -c | head -3
+printf 'a\0b\0' | grep -z -n b | od -c | sed -n '1,2p'
+printf 'a\0b\0' | grep -z -Z -n b | od -c | sed -n '1,2p'
+printf 'a\0b\0' | grep -z -A1 -n a | od -c | sed -n '1,2p'
+printf 'a\0b\0c\0d\0' | grep -z -A1 -n -e a -e d | od -c | sed -n '1,3p'
 printf 'a\nb' | grep -z -c .
 printf 'a\nb\0c\nd\0' | grep -z -c -E '[^x]$'
 printf 'a\nb\0c\nd\0' | grep -z -c -E 'a.b'
-printf 'a\nb\0c\nd\0' | grep -z -o -E 'a.b' | od -c | head -1
+printf 'a\nb\0c\nd\0' | grep -z -o -E 'a.b' | od -c | sed -n '1,1p'
 printf 'a\nb\0c\nd\0' | grep -z -c '^c'
 printf 'a\nb\0c\nd\0' | grep -z -c 'b$'
 printf 'a\nb\0c\nd\0' | grep -z -c -E 'b[[:space:]]c'
@@ -521,10 +522,10 @@ grep -c -E '[0-9]{4} ' big.txt
 grep -c -E '^[0-9]+ (alpha|beta)' big.txt
 grep -n -E '^1999[0-9] gamma' big.txt
 grep -c 'tick.*tock' big.txt
-grep -o -E 'ti[ck]+' big.txt | head -3
+grep -o -E 'ti[ck]+' big.txt | sed -n '1,3p'
 grep -c -v -E '[a-z]+ [a-z]+' big.txt
 grep -c -E '(alpha|beta)+ gamma' big.txt
-grep -o -E '(alpha|beta)+ gamma' big.txt | head -2
+grep -o -E '(alpha|beta)+ gamma' big.txt | sed -n '1,2p'
 grep -c -E 'alpha$' big.txt
 grep -c -E '^[0-9]+ alpha' big.txt
 grep -c -E '' big.txt
@@ -553,10 +554,10 @@ grep -c -E 'a{98298}nee' straddle.txt
 # bracket expressions, classes, escapes
 grep -c $'\r' misc.txt
 grep -c $'\t' misc.txt
-grep -o 'foo.bar' misc.txt | od -c | head -1
+grep -o 'foo.bar' misc.txt | od -c | sed -n '1,1p'
 grep 'caf.' misc.txt
 grep -o 'caf.' misc.txt
-grep -o '\w*' misc.txt | head -4
+grep -o '\w*' misc.txt | sed -n '1,4p'
 grep -o -E '[[:alpha:]]+' misc.txt | tail -3
 grep -c 'a.b' misc.txt
 grep -c -E 'a\w' misc.txt
@@ -564,7 +565,7 @@ grep -o '[[:upper:]]' misc.txt
 grep -c '.' misc.txt
 grep -c '^.$' misc.txt
 grep -o '^.' misc.txt
-grep -o '.$' misc.txt | od -c | head -2
+grep -o '.$' misc.txt | od -c | sed -n '1,2p'
 grep -E -c 'o{2}' misc.txt
 grep -E -c 'o{2,}' misc.txt
 grep -E -c 'o{,2}' misc.txt
@@ -613,8 +614,12 @@ grep -c '\w' t.txt
 grep -E -o '\w+' t.txt
 grep -c -E '[0-9]+' big.txt
 grep -c -E 'w[a-z]+ch' big.txt
-# recursion and file selection
-grep --include='*.txt' -r foo .
+# Recursion and file selection. GNU documents that binary detection depends
+# on input buffering, including buffers grown by earlier files. Exclude the
+# late-NUL fixture from default-binary recursive output comparisons; direct
+# binary cases above and the recursive -a case below cover it explicitly.
+# https://www.gnu.org/software/grep/manual/html_node/File-and-Directory-Selection.html
+grep --include='*.txt' --exclude=latenul.txt -r foo . | LC_ALL=C sort
 grep -r foo dir
 grep -c foo dir/f
 grep -rc foo dir
@@ -623,13 +628,14 @@ grep -rh foo dir
 grep -rH foo dir/f
 grep -r foo dir/f
 cd dir && grep -r foo
-grep -r foo . | LC_ALL=C sort
-grep -rn foo . dir | LC_ALL=C sort
+grep --exclude=latenul.txt -r foo . | LC_ALL=C sort
+grep --exclude=latenul.txt -rn foo . dir | LC_ALL=C sort
+grep -arn foo . dir | LC_ALL=C sort
 grep --include='*.txt' -rl foo . | LC_ALL=C sort
 grep --exclude='t.txt' -rl foo . | LC_ALL=C sort
 grep --exclude-dir=dir -rl foo . | LC_ALL=C sort
 grep -R foo dir
-grep -r foo | LC_ALL=C sort
+grep --exclude=latenul.txt -r foo | LC_ALL=C sort
 # what is left on stdin
 { grep -m1 foo; echo ---; cat; } < t.txt
 { grep -q foo; echo ---; cat; } < t.txt
@@ -648,7 +654,7 @@ printf 'ABC\n' | grep -F -i -o 'b'
 printf 'ſ\n' | grep -i -c s
 grep -c -i 'ALPHA' big.txt
 grep -c 'caf.' misc.txt
-grep -o 'caf.' misc.txt | od -c | head -1
+grep -o 'caf.' misc.txt | od -c | sed -n '1,1p'
 grep -c -w 'caf' misc.txt
 grep -o '[[:upper:]]' misc.txt
 grep -c MARK big.txt
@@ -665,5 +671,5 @@ if [[ -w /dev/full ]]; then
   run_case C 'grep -c foo t.txt > /dev/full'
   run_case C 'grep -q foo t.txt > /dev/full'
 fi
-echo "grep-parity: $((n-fail))/$n identical to GNU grep ($(PATH=$GNUPATH grep --version | head -1 | grep -oE '[0-9.]+$'))"
+echo "grep-parity: $((n-fail))/$n identical to GNU grep ($(PATH=$GNUPATH grep --version | sed -n '1,1p' | grep -oE '[0-9.]+$'))"
 exit $(( fail>0 ? 1 : 0 ))

@@ -253,11 +253,12 @@ static int bg_edit(void)
 
 static int bg_read_pending(int64_t deadline)
 {
-    if (bg.pending_len == sizeof(bg.pending)) { errno = ENOBUFS; return -1; }
+    size_t used = bg.pending_len;
+    if (used >= sizeof(bg.pending)) { errno = ENOBUFS; return -1; }
     if (bg_poll(bg.tty, POLLIN, deadline)) return -1;
-    ssize_t n = read(bg.tty, bg.pending + bg.pending_len, sizeof(bg.pending) - bg.pending_len);
+    ssize_t n = read(bg.tty, bg.pending + used, sizeof(bg.pending) - used);
     if (n <= 0) { if (!n) errno = EIO; return -1; }
-    bg.pending_len += n; return 0;
+    bg.pending_len = used + (size_t)n; return 0;
 }
 
 static void bg_consume(size_t at, size_t length)

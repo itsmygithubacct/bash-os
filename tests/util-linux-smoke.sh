@@ -50,6 +50,11 @@ for probe in "ionice -p $$" "taskset -p $$" "chrt -p $$"; do
   set -- $probe; command -v "$1" >/dev/null || continue
   # the pid differs between the two runs, so compare with it removed
   a=$(eval "$probe" 2>&1 | sed -E 's/[0-9]+/N/g'); b=$(B $probe 2>&1 | sed -E 's/[0-9]+/N/g')
+  # Older util-linux omits SCHED_OTHER's runtime even when sched_getattr
+  # supplies it. Keep comparing that field when the host reports it.
+  if [[ $1 == chrt && $a != *'current runtime parameter:'* ]]; then
+    b=$(printf '%s\n' "$b" | sed "/^pid N's current runtime parameter: N$/d")
+  fi
   n=$((n+1)); [[ "$a" == "$b" ]] && ok "$1 output matches util-linux" || { no "$1 differs"; echo "      host: $a"; echo "      ours: $b"; }
 done
 [[ $n == 0 ]] && echo "  (no host util-linux to compare against)"
