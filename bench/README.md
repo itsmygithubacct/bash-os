@@ -16,6 +16,10 @@ validates outputs across repeated invocations, then records batch wall time.
 Incorrect results are marked in JSON and receive no builtin timing or ratio.
 The report continues after mismatches; a successful harness exit does not mean
 every loadable passed. `--quick` still checks at least three invocations.
+Digest comparisons preserve every output record while ignoring the reference
+tool's filename field. Missing, changed, extra or blank later records fail
+validation; `tests/bench-loadables.py` exercises those failure paths.
+The `diff` case compares identical files and measures no edit-script generation.
 
 ```sh
 python3 bench/loadables.py --output /tmp/loadables.json

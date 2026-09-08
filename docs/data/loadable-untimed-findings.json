@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "date": "2026-09-08",
+  "source_commit": "a033a4d10e401f061ca0ca27fe3bfa353814a202",
+  "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
+  "measurement": "Untimed correctness probes; no performance claims.",
+  "versions": {
+    "col": "col from util-linux 2.41",
+    "split": "split (GNU coreutils) 9.7",
+    "diff": "diff (GNU diffutils) 3.10",
+    "sha256sum": "sha256sum (GNU coreutils) 9.7"
+  },
+  "cases": [
+    {
+      "loadable": "col",
+      "kind": "repeat-input",
+      "command": "col -b < input (three fresh redirections)",
+      "fixture": {
+        "input": "alpha\nbeta\n"
+      },
+      "invocations": 3,
+      "reference": "util-linux col",
+      "finding": "Only the first invocation emits input.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "alpha\nbeta\n",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 0,
+          "stdout": "alpha\nbeta\nalpha\nbeta\nalpha\nbeta\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "loadable": "split",
+      "kind": "repeat-input",
+      "command": "split -l 2 - \"$i-\" < input (three fresh redirections)",
+      "fixture": {
+        "input": "alpha\nbeta\ngamma\n"
+      },
+      "invocations": 3,
+      "reference": "GNU split",
+      "finding": "Only the first invocation creates output files.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "",
+          "files": {
+            "1-aa": "alpha\nbeta\n",
+            "1-ab": "gamma\n"
+          }
+        },
+        "reference": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "",
+          "files": {
+            "1-aa": "alpha\nbeta\n",
+            "1-ab": "gamma\n",
+            "2-aa": "alpha\nbeta\n",
+            "2-ab": "gamma\n",
+            "3-aa": "alpha\nbeta\n",
+            "3-ab": "gamma\n"
+          }
+        }
+      }
+    },
+    {
+      "loadable": "diff",
+      "kind": "correctness",
+      "command": "diff input input-newline",
+      "fixture": {
+        "input": "a",
+        "input-newline": "a\n"
+      },
+      "invocations": 1,
+      "reference": "GNU diff",
+      "finding": "Files differing only in the final newline are incorrectly reported equal.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "1c1\n< a\n\\ No newline at end of file\n---\n> a\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "loadable": "crypto",
+      "kind": "correctness",
+      "command": "crypto sha256 -x < input > /dev/full",
+      "fixture": {
+        "input": "a"
+      },
+      "invocations": 1,
+      "reference": "GNU sha256sum",
+      "finding": "A failed digest write is incorrectly reported as successful.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "sha256sum: write error\n"
+        }
+      }
+    }
+  ]
+}

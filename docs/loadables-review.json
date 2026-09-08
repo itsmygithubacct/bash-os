@@ -1301,27 +1301,28 @@
     },
     "colrm": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Review the completed standalone input fix with the column changes, then validate the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the standalone input fix with column, then validate both commands.",
+      "note": "Worker result 81571cc0bb41 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "column": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
       "next": "Review the completed input and cleanup fix, then run its tests in the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "note": "Worker result 83474ede0b86 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "strings": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Review the completed descriptor-input and scan optimization, then validate the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the descriptor-input and scan changes, then validate the full build.",
+      "note": "Worker result 78f444f56882 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "od": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Review the completed descriptor-input and error-handling fix, then validate the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the descriptor-input and error-handling fix, then validate the full build.",
+      "note": "Worker result 27452bfdab7b is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "hexdump": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+      "next": "Integrate the descriptor-input and buffered-output fix, then validate all supported formats.",
+      "note": "Worker result a65a1507dc7d is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "tac": {
       "note": "Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate.",
@@ -1337,31 +1338,52 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "next": "Confirm the current result across input sizes and meaningful option variants before optimizing."
+      "next": "Review and integrate the newline, resource-use and edit-script fixes; validate distinct input shapes.",
+      "note": "Worker result e23fb1e5c959 is complete and awaiting integration; current measurements still contain the earlier implementation. The timed catalog case compares identical files; it does not measure edit-script generation or the reported large-difference memory failure.",
+      "finding": "Files differing only in the final newline are incorrectly reported equal."
     },
     "unexpand": {
-      "next": "Review the completed buffered I/O and input-state fix, then validate and remeasure the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the buffered I/O and input-state fix, then validate and remeasure.",
+      "note": "Worker result 51995a1d3a3c is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "wc": {
-      "next": "Check character counting across input sizes and locales; the current C-locale case is faster than GNU."
+      "next": "Integrate descriptor input and specialized character counting; validate C and UTF-8 cases.",
+      "note": "Worker result dc8e848f5123 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "comm": {
-      "next": "Review the completed buffered-output and input-state fix, then validate and remeasure the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the buffered-output and input-state fix, then validate and remeasure.",
+      "note": "Worker result ac93113b2809 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "join": {
-      "next": "Confirm a useful bottleneck across sizes, duplicate keys and option variants; the current ratio alone is weak evidence."
+      "next": "Integrate field-storage, output and order-checking changes; validate duplicates and input state.",
+      "note": "Worker result e534b8dd725e is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "sort": {
-      "next": "Review the completed text-comparison and input-state changes, then validate and remeasure the integrated build.",
-      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
+      "next": "Integrate the text-comparison and input-state changes, then validate and remeasure.",
+      "note": "Worker result da10ca15ebaf is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "crypto": {
-      "next": "Confirm SHA-256 across sizes and profile digest, I/O and formatting costs; other primitives are outside this measurement."
+      "next": "Review and integrate the SHA-256 I/O fixes; investigate backend cost separately.",
+      "note": "Worker result c670eb787330 is complete and awaiting integration; current measurements still contain the earlier implementation. The wrapper changes make no throughput improvement claim; profiling found most CPU time in the shared SHA-256 backend.",
+      "finding": "A failed digest write is incorrectly reported as successful."
     },
     "rev": {
-      "next": "Confirm the selected-case gap against BusyBox across sizes and locales before optimizing; recorded ranges overlap."
+      "next": "Integrate the buffered-output and input-ownership changes, then verify byte and locale contracts.",
+      "note": "Worker result 7ef842c066aa is complete and awaiting integration; current measurements still contain the earlier implementation."
+    },
+    "col": {
+      "finding": "Only the first invocation emits input.",
+      "next": "Fix invocation input ownership and test repeated input and control-byte behavior, then establish timing."
+    },
+    "split": {
+      "finding": "Only the first invocation creates output files.",
+      "next": "Fix invocation input ownership, validate every output file across repeated calls, then establish timing."
+    },
+    "csplit": {
+      "next": "Audit input ownership, add dedicated pattern and file-output regressions, then establish matched timing."
+    },
+    "tee": {
+      "next": "Establish dedicated GNU/BusyBox behavior and failure coverage for the stock source, then measure useful sizes."
     }
   },
   "repeat_input_findings": [
@@ -1400,11 +1422,39 @@
     "summary": "The integrated tests/run.sh passed all 69 groups, including native dynamic/static builds and seven focused ASan/UBSan suites. An additional 156 mixed-input and descriptor-ownership checks passed on native dynamic, native static and RISC-V musl static builds. The local RISC-V selection was core plus bc (90 loadables); broader new-option and Unicode cross parity is not claimed."
   },
   "assignments": {
-    "hexdump": "bash-os-5",
-    "diff": "bash-os-4",
-    "wc": "bash-os-3",
-    "join": "bash-os-6",
-    "crypto": "bash-os-1",
-    "rev": "bash-os-2"
+    "column": "bash-os-3 (integration)",
+    "colrm": "bash-os-3 (integration)",
+    "strings": "bash-os-3 (integration)",
+    "od": "bash-os-3 (integration)",
+    "hexdump": "bash-os-3 (integration)",
+    "comm": "bash-os-3 (integration)",
+    "sort": "bash-os-5 (integration)",
+    "unexpand": "bash-os-5 (integration)",
+    "rev": "bash-os-5 (integration)",
+    "wc": "bash-os-5 (integration)",
+    "join": "bash-os-5 (integration)",
+    "csplit": "bash-os-1",
+    "col": "bash-os-2",
+    "tee": "bash-os-4",
+    "split": "bash-os-6",
+    "crypto": "bash-os-astra (review)",
+    "diff": "bash-os-astra (review)"
+  },
+  "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
+  "ci_followup": "The subsequent [CI run](https://github.com/itsmygithubacct/bash-os/actions/runs/34210036924) passed eight jobs but failed the native job because GNU nl 9.4 rejects -l 0. Test-only fix a033a4d retains the builtin contract and passed all 1,556 checks with real GNU 9.4 on native, static and ASan/UBSan builds, plus GNU 9.7 natively. CI verification of that fix is pending.",
+  "pending_integration": {
+    "column": "83474ede0b86af7865c1a516f206d902987b1060",
+    "strings": "78f444f56882c42f7a64debe67aa33d262261d72",
+    "od": "27452bfdab7b0f18117165e7421c6d3a125f3c72",
+    "colrm": "81571cc0bb4179f7d59017b27ad338cf08d1cf1e",
+    "comm": "ac93113b28093489e3a9d3ee29658331057a5271",
+    "sort": "da10ca15ebaf32b337ea86541303e85eedc6a64d",
+    "unexpand": "51995a1d3a3c14b2e91628b3a361c871de3cb494",
+    "rev": "7ef842c066aac9cb37e3f465676c8cb849d714f5",
+    "crypto": "c670eb7873308195c333f4446c857b2abc8ea4d4",
+    "wc": "dc8e848f512302763ca6dac87d40537b9c299f12",
+    "diff": "e23fb1e5c95987ca591b7de50422fadfa6fee77b",
+    "hexdump": "a65a1507dc7de88c8a4500a72c013e7530eadecd",
+    "join": "e534b8dd725e3a42c1f698e3b0f423f4cc38b402"
   }
 }

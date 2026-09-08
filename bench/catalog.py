@@ -106,6 +106,9 @@ def generate():
     assert set(review['repeat_input_findings']) <= catalog.keys()
     assert set(review['limitations']) <= catalog.keys()
     assert review.get('assignments', {}).keys() <= catalog.keys()
+    assert review.get('pending_integration', {}).keys() <= catalog.keys()
+    assert all(re.fullmatch('[0-9a-f]{40}', commit)
+               for commit in review.get('pending_integration', {}).values())
     benchmarks = {name: [] for name in catalog}
     ids = set()
     for case in data['cases']:
@@ -120,6 +123,23 @@ def generate():
                 assert 'median_ms' not in result, 'Never publish invalid timings'
         benchmarks[case['loadable']].append(case)
     assert {c['loadable'] for c in data['cases'] if c['results']['bashos']['status'] != 'ok'} == set(review['repeat_input_findings']), 'Review new validation findings before publishing'
+    untimed_path = review.get('untimed_findings_file')
+    untimed_data = json.loads((ROOT/untimed_path).read_text()) if untimed_path else {'cases': []}
+    untimed = {case['loadable']: case for case in untimed_data['cases']}
+    assert len(untimed) == len(untimed_data['cases'])
+    assert untimed.keys() <= catalog.keys()
+    if untimed:
+        assert re.fullmatch('[0-9a-f]{40}', untimed_data['source_commit'])
+        assert untimed_data['binary_sha256'] == data['binary_sha256'], 'Recheck untimed findings on the new measured binary'
+    for name, case in untimed.items():
+        assert case['kind'] in ('repeat-input', 'correctness')
+        assert case['invocations'] >= (3 if case['kind'] == 'repeat-input' else 1)
+        assert case['fixture'] and case['command'] and case['finding'] and case['reference']
+        assert review['notes'][name]['next']
+        actual, expected = case['results']['bashos'], case['results']['reference']
+        # Diagnostic wording alone does not establish a correctness defect.
+        assert any(actual.get(key) != expected.get(key) for key in ('status', 'stdout', 'files'))
+        assert not any('ms' in key for result in case['results'].values() for key in result)
     local = {p.stem for p in (ROOT/'loadables').glob('*.c')}
     assert local <= catalog.keys(), 'Source missing from full catalog'
     inventory = data['tool_inventory']
@@ -134,8 +154,9 @@ def generate():
         selected = (failures or sorted(cases, key=lambda c: ratio(c) or 0, reverse=True) or [None])[0]
         base_status = groups[0]['status'] if groups else 'Build/help'
         status = base_status
-        if failures:
-            status = 'Repeat-input bug'
+        if failures or name in untimed:
+            status = ('Repeat-input bug' if failures or untimed[name]['kind'] == 'repeat-input'
+                      else 'Correctness bug')
         elif cases and not groups:
             status = 'Bench checked'
         status_text = status
@@ -143,6 +164,8 @@ def generate():
             status_text = link(groups[0]['evidence'], status)
         if failures:
             status_text = '[Repeat-input bug](#repeated-input-findings)'
+        elif name in untimed:
+            status_text = f'[{status}](#additional-correctness-checks)'
         elif cases and not groups:
             status_text = f'[Bench checked](#case-{selected["id"]})'
         if name in review['limitations']:
@@ -164,7 +187,7 @@ def generate():
         if applet_state == 'missing':
             applet_text += ' (not in build)'
         priorities = [c for c in cases if c['id'] in PERFORMANCE]
-        if failures:
+        if failures or name in untimed:
             priority = 'P1'
             action = note['next']
         elif priorities:
@@ -203,7 +226,8 @@ def generate():
         entry = dict(loadable=name, snapshot_date=data['date'][:10], source_commit=data['source_commit'],
                      profiles=';'.join(members), source=source,
                      status=status, baseline_coverage=base_status, limited=name in review['limitations'],
-                     evidence=';'.join(dict.fromkeys(g['evidence'] for g in groups)),
+                     evidence=';'.join(dict.fromkeys([g['evidence'] for g in groups] +
+                                                    ([untimed_path] if name in untimed else []))),
                      coverage_scope='; '.join(dict.fromkeys(g['scope'] for g in groups)),
                      sanitizer_evidence=';'.join(g['evidence'] for g in sanitized[name]),
                      fuzz_evidence=review['fuzz'].get(name,''),
@@ -236,24 +260,32 @@ def generate():
                f"Command benchmark: **{len(data['cases'])} cases covering {measured} loadables**; {valid} loadables passed the selected output checks, "
                f"{measured-valid} have confirmed correctness findings. The other {len(catalog)-measured} have no individual command timings here; "
                "GPU transport measurements are reported separately.\n\n")
+    if untimed:
+        summary += f"Separate [untimed checks](#additional-correctness-checks) record {len(untimed)} further correctness findings.\n\n"
     summary += table(['Profile','Included loadables'], [[p,len(names)] for p,names in profiles.items()])
     summary += f"\n\nCommand measurement source: `{data['source_commit']}`. "
     validation = review['validation']
     assert validation['source_commit'] == data['source_commit']
     summary += validation['summary'] + '\n\n'
+    if review.get('ci_followup'):
+        summary += review['ci_followup'] + '\n\n'
     baseline = review['baseline']
     summary += f"Historical baseline: `{baseline['source_commit']}`; [CI]({baseline['ci']}) passed all nine jobs "
     summary += '(including 48 native test groups). Those older suites did not detect the repeated-input findings. '
     summary += 'Coverage labels describe the mapped fixtures, not a guarantee that every option works.'
     document = replace_section(document,'SUMMARY',summary)
     queue = []
-    for name in sorted(review['repeat_input_findings']):
+    for name in sorted(set(review['repeat_input_findings']) | untimed.keys()):
         action = review['notes'][name]['next']
         if name in review.get('assignments', {}):
             action += f" Assigned to {review['assignments'][name]}."
-        queue.append(['P1', name, 'Repeated redirected input fails output validation.', action])
+        detail = (untimed[name]['finding'] + ' Untimed check.' if name in untimed
+                  else 'Repeated redirected input fails output validation.')
+        queue.append(['P1', name, detail, action])
     for identifier in PERFORMANCE:
         case = next(c for c in data['cases'] if c['id']==identifier)
+        if case['loadable'] in untimed or case['loadable'] in review['repeat_input_findings']:
+            continue
         assert case['confirmed'] and case['runs'] == 7
         bb = value(case,'busybox')
         detail = f"{ratio(case):.2f}× external time"
@@ -263,11 +295,26 @@ def generate():
         if case['loadable'] in review.get('assignments', {}):
             action += f" Assigned to {review['assignments'][case['loadable']]}."
         queue.append(['P2',f'[{identifier}](#case-{identifier})',detail+'; output checks pass, seven samples.', action])
-    queue += [['P3','unexpand, wc -m, diff, join, crypto sha256','Candidates from the baseline; current case timings appear below.',
-               'Check the current ratio and several input sizes before optimizing; crypto covers SHA-256 only.'],
-              ['P3','Unmeasured commands and APIs','No per-command timing is available; many only have small fixtures.',
-               'Choose by target profile and application use, establish equivalent outputs, then time.']]
+    for name in sorted(review.get('pending_integration', {})):
+        if (name in untimed or name in review['repeat_input_findings'] or
+                any(case['id'] in PERFORMANCE for case in benchmarks[name])):
+            continue
+        action = review['notes'][name]['next']
+        if name in review.get('assignments', {}):
+            action += f" Assigned to {review['assignments'][name]}."
+        queue.append(['P3', name, 'Completed worker result; current timings still describe the earlier implementation.', action])
+    queue.append(['P3','Unmeasured commands and APIs','No per-command timing is available; many only have small fixtures.',
+                  'Choose by target profile and application use, establish equivalent outputs, then time.'])
     document = replace_section(document,'PRIORITIES',table(['Priority','Loadable / case','Evidence','Next step'],queue))
+    untimed_text = 'No additional untimed findings are recorded.'
+    if untimed:
+        untimed_text = (f"These checks used source `{untimed_data['source_commit']}` and the same binary as the command measurements. "
+                        f"The [evidence JSON]({untimed_path.removeprefix('docs/')}) records fixtures, references, exit statuses, output and created files. "
+                        "These cases have no timing measurements.\n\n")
+        untimed_text += table(['Loadable', 'Invocation', 'Finding'],
+                              [[f'`{name}`', f"`{case['command']}`", case['finding']]
+                               for name, case in sorted(untimed.items())])
+    document = replace_section(document,'UNTIMED',untimed_text)
     document = replace_section(document,'CATALOG',table(['Loadable','Profiles','Status / evidence','Targets: BB; external','Batch ms: BOS / BB / external','Work','Next work'],rows))
     notes = []
     for name,note in sorted(review['notes'].items()):

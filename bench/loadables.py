@@ -128,7 +128,10 @@ def normalized(data, mode):
     if mode == 'lines':
         return sorted(data.splitlines())
     if mode == 'digest':
-        return [line.split()[0] for line in data.splitlines()]
+        # Keep every record, including malformed empty ones. A blank line
+        # must fail output validation rather than abort the whole report.
+        return [line.split(maxsplit=1)[0] if line.strip() else b''
+                for line in data.splitlines()]
     return data
 
 
