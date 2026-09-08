@@ -1378,13 +1378,30 @@
     },
     "split": {
       "finding": "Only the first invocation creates output files.",
-      "next": "Fix invocation input ownership, validate every output file across repeated calls, then establish timing."
+      "next": "Integrate the completed input/output fix, check growth bounds and retain a stdio primer after head integration.",
+      "note": "Worker result 6514793faa09 passed 741 native, static and sanitizer checks and awaits integration. Output validation compares all piece names and bytes; suffix-width and option limits remain."
     },
     "csplit": {
-      "next": "Audit input ownership, add dedicated pattern and file-output regressions, then establish matched timing."
+      "next": "Integrate the private input streams and failure cleanup; retain per-file validation and explicit static primer coverage.",
+      "note": "Worker result 69d728321989 is complete and awaiting integration, with 543 native/sanitizer parity checks, 541 static checks and 1,569 fault/cleanup checks. Full-input memory and regex/CLI limits remain; no speedup is claimed.",
+      "finding": "Later invocations create empty pieces after the first call exhausts shared stdin."
     },
     "tee": {
-      "next": "Establish dedicated GNU/BusyBox behavior and failure coverage for the stock source, then measure useful sizes."
+      "next": "Integrate the stock-source patch with existing head build wiring; validate read errors, resource ownership and interrupt cleanup.",
+      "note": "Worker result 380ca0b00104 is complete and awaiting integration. The stock-source patch preserves buffer size; measured buffer-size differences were not conclusive under contention.",
+      "finding": "A read from closed stdin reports an error but incorrectly returns success."
+    },
+    "tail": {
+      "next": "Fix repeated small-input redirections and affected pipe modes; preserve seekable fast paths and verify follow behavior.",
+      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes."
+    },
+    "ar": {
+      "next": "Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing.",
+      "finding": "A truncated member header is incorrectly accepted as a valid archive."
+    },
+    "du": {
+      "next": "Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing.",
+      "finding": "A failed size-report write is incorrectly reported as successful."
     }
   },
   "repeat_input_findings": [
@@ -1434,15 +1451,18 @@
     "rev": "bash-os-5 (integration)",
     "wc": "bash-os-5 (integration)",
     "join": "bash-os-5 (integration)",
-    "csplit": "bash-os-1",
+    "csplit": "bash-os-5 (integration)",
     "col": "bash-os-3 (integration)",
-    "tee": "bash-os-4",
-    "split": "bash-os-6",
+    "tee": "bash-os-2 (integration)",
+    "split": "bash-os-5 (integration)",
     "crypto": "bash-os-2 (integration)",
-    "diff": "bash-os-2 (integration)"
+    "diff": "bash-os-2 (integration)",
+    "tail": "bash-os-6",
+    "ar": "bash-os-4",
+    "du": "bash-os-1"
   },
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
-  "ci_followup": "The subsequent [CI run](https://github.com/itsmygithubacct/bash-os/actions/runs/34210036924) passed eight jobs but failed the native job because GNU nl 9.4 rejects -l 0. Test-only fix a033a4d retains the builtin contract and passed all 1,556 checks with real GNU 9.4 on native, static and ASan/UBSan builds, plus GNU 9.7 natively. CI verification of that fix is pending.",
+  "ci_followup": "[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.",
   "pending_integration": {
     "column": "83474ede0b86af7865c1a516f206d902987b1060",
     "strings": "78f444f56882c42f7a64debe67aa33d262261d72",
@@ -1457,6 +1477,9 @@
     "diff": "e23fb1e5c95987ca591b7de50422fadfa6fee77b",
     "hexdump": "a65a1507dc7de88c8a4500a72c013e7530eadecd",
     "join": "e534b8dd725e3a42c1f698e3b0f423f4cc38b402",
-    "col": "c6059ab77c68851c54ca246faaef26b2de312c2f"
+    "col": "c6059ab77c68851c54ca246faaef26b2de312c2f",
+    "split": "6514793faa09b2092374a4c480cbfab821f4bc6b",
+    "tee": "380ca0b001046e297a98c747bc0294384a3e1bc7",
+    "csplit": "69d728321989ef81d7f1b6f9e9abd01faf5683c2"
   }
 }

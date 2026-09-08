@@ -22,7 +22,7 @@ reported as a speedup. Raw run logs stay outside the repository.
 <!-- BEGIN SUMMARY -->
 Catalog: **278 loadables** (247 local sources, 31 stock Bash sources). Command benchmark: **49 cases covering 45 loadables**; 40 loadables passed the selected output checks, 5 have confirmed correctness findings. The other 233 have no individual command timings here; GPU transport measurements are reported separately.
 
-Separate [untimed checks](#additional-correctness-checks) record 4 further correctness findings.
+Separate [untimed checks](#additional-correctness-checks) record 9 further correctness findings.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -36,7 +36,7 @@ Separate [untimed checks](#additional-correctness-checks) record 4 further corre
 
 Command measurement source: `97284d62efcf57067557540861b6a81577b841c6`. The integrated tests/run.sh passed all 69 groups, including native dynamic/static builds and seven focused ASan/UBSan suites. An additional 156 mixed-input and descriptor-ownership checks passed on native dynamic, native static and RISC-V musl static builds. The local RISC-V selection was core plus bc (90 loadables); broader new-option and Unicode cross parity is not claimed.
 
-The subsequent [CI run](https://github.com/itsmygithubacct/bash-os/actions/runs/34210036924) passed eight jobs but failed the native job because GNU nl 9.4 rejects -l 0. Test-only fix a033a4d retains the builtin contract and passed all 1,556 checks with real GNU 9.4 on native, static and ASan/UBSan builds, plus GNU 9.7 natively. CI verification of that fix is pending.
+[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.
 
 Historical baseline: `af3c8c488d6b4d81025a5feab4d04f8ee5e402f5`; [CI](https://github.com/itsmygithubacct/bash-os/actions/runs/34175141733) passed all nine jobs (including 48 native test groups). Those older suites did not detect the repeated-input findings. Coverage labels describe the mapped fixtures, not a guarantee that every option works.
 <!-- END SUMMARY -->
@@ -55,15 +55,20 @@ three times as long. A speed ratio is never published for incorrect output.
 <!-- BEGIN PRIORITIES -->
 | Priority | Loadable / case | Evidence | Next step |
 | --- | --- | --- | --- |
+| P1 | ar | A truncated member header is incorrectly accepted as a valid archive. Untimed check. | Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing. Assigned to bash-os-4. |
 | P1 | col | Only the first invocation emits input. Untimed check. | Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors. Assigned to bash-os-3 (integration). |
 | P1 | colrm | Repeated redirected input fails output validation. | Integrate the standalone input fix with column, then validate both commands. Assigned to bash-os-3 (integration). |
 | P1 | column | Repeated redirected input fails output validation. | Review the completed input and cleanup fix, then run its tests in the integrated build. Assigned to bash-os-3 (integration). |
 | P1 | crypto | A failed digest write is incorrectly reported as successful. Untimed check. | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-2 (integration). |
+| P1 | csplit | Later invocations create empty pieces after the first call exhausts shared stdin. Untimed check. | Integrate the private input streams and failure cleanup; retain per-file validation and explicit static primer coverage. Assigned to bash-os-5 (integration). |
 | P1 | diff | Files differing only in the final newline are incorrectly reported equal. Untimed check. | Fix the remaining binary-input, write-status and FIFO defects found during review, then complete integration validation. Assigned to bash-os-2 (integration). |
+| P1 | du | A failed size-report write is incorrectly reported as successful. Untimed check. | Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing. Assigned to bash-os-1. |
 | P1 | hexdump | Repeated redirected input fails output validation. | Integrate the descriptor-input and buffered-output fix, then validate all supported formats. Assigned to bash-os-3 (integration). |
 | P1 | od | Repeated redirected input fails output validation. | Integrate the descriptor-input and error-handling fix, then validate the full build. Assigned to bash-os-3 (integration). |
-| P1 | split | Only the first invocation creates output files. Untimed check. | Fix invocation input ownership, validate every output file across repeated calls, then establish timing. Assigned to bash-os-6. |
+| P1 | split | Only the first invocation creates output files. Untimed check. | Integrate the completed input/output fix, check growth bounds and retain a stdio primer after head integration. Assigned to bash-os-5 (integration). |
 | P1 | strings | Repeated redirected input fails output validation. | Integrate the descriptor-input and scan changes, then validate the full build. Assigned to bash-os-3 (integration). |
+| P1 | tail | Only the first small-input invocation emits its last line; the larger timed fixture passes. Untimed check. | Fix repeated small-input redirections and affected pipe modes; preserve seekable fast paths and verify follow behavior. Assigned to bash-os-6. |
+| P1 | tee | A read from closed stdin reports an error but incorrectly returns success. Untimed check. | Integrate the stock-source patch with existing head build wiring; validate read errors, resource ownership and interrupt cleanup. Assigned to bash-os-2 (integration). |
 | P2 | [comm](#case-comm) | 1.82× external time; output checks pass, seven samples. | Integrate the buffered-output and input-state fix, then validate and remeasure. Assigned to bash-os-3 (integration). |
 | P2 | [sort-text](#case-sort-text) | 1.70× external time; 1.01× BusyBox time; output checks pass, seven samples. | Integrate the text-comparison and input-state changes, then validate and remeasure. Assigned to bash-os-5 (integration). |
 | P3 | join | Completed worker result; current timings still describe the earlier implementation. | Integrate field-storage, output and order-checking changes; validate duplicates and input state. Assigned to bash-os-5 (integration). |
@@ -110,7 +115,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | --- | --- | --- | --- | --- | --- | --- |
 | [`acme`](../loadables/acme.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; certbot / acme.sh | N/M | P3 | Add a matched workload and timing. |
 | [`apropos`](../loadables/apropos.c) | T F | [Contract](../tests/misc-smoke.py) | —; apropos | N/M | P3 | Add a matched workload and timing. |
-| [`ar`](../loadables/ar.c) | C D S T F | Build/help | ar; ar | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`ar`](../loadables/ar.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | ar; ar | N/M | P1 | Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing. Assigned to bash-os-4. |
 | `asort`* | F | [Contract](../tests/misc-smoke.py) | —; gawk asort() | N/M | P3 | Add a matched workload and timing. |
 | [`at`](../loadables/at.c) | S F | [Contract](../tests/misc-smoke.py) | —; at (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`audit`](../loadables/audit.c) | S F | [Contract](../tests/network-smoke.py) | —; auditctl / ausearch | N/M | P3 | Add a matched workload and timing. |
@@ -160,7 +165,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`cron`](../loadables/cron.c) | S F | [Contract](../tests/large-smoke.py) | crond; cron / crond | N/M | P3 | Add a matched workload and timing. |
 | [`crontab`](../loadables/crontab.c) | S F | [Contract](../tests/misc-smoke.py) | crontab; crontab | N/M | P3 | Add a matched workload and timing. |
 | [`crypto`](../loadables/crypto.c) | S F | [Correctness bug](#additional-correctness-checks); [S](../tests/final-sanitize.sh) | sha256sum; sha256sum / openssl | 86.600 / 86.511 / 59.482; [crypto](#case-crypto), 6 passes | P1 | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-2 (integration). |
-| [`csplit`](../loadables/csplit.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; csplit | N/M | P3 | Audit input ownership, add dedicated pattern and file-output regressions, then establish matched timing. Assigned to bash-os-1. |
+| [`csplit`](../loadables/csplit.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; csplit | N/M | P1 | Integrate the private input streams and failure cleanup; retain per-file validation and explicit static primer coverage. Assigned to bash-os-5 (integration). |
 | [`curl`](../loadables/curl.c) | S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; curl | N/M | P3 | Add a matched workload and timing. |
 | [`cut`](../loadables/cut.c) | P C D S T F | [Parity](../tests/cut-parity.sh) | cut; cut | 28.551 / 280.054 / 142.033; [cut](#case-cut), 35 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`date`](../loadables/date.c) | C D S T F | [Contract](../tests/rootfs-smoke.sh) | date; date | N/M | P3 | Add a matched workload and timing. |
@@ -176,7 +181,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`dmsetup`](../loadables/dmsetup.c) | D S F | [Smoke](../tests/util-linux-smoke.sh); [limited](#scope-notes) | —; dmsetup | N/M | P3 | Define required mapper mutation verbs and add isolated device fixtures. |
 | [`dns`](../loadables/dns.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | nslookup; dig / drill | N/M | P3 | Add a matched workload and timing. |
 | [`doas`](../loadables/doas.c) | S F | [Negative checks](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; doas (missing) | N/M | P3 | Add credential-transition and policy fixtures before benchmarking authentication. |
-| [`du`](../loadables/du.c) | C D S T F | Build/help | du; du | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`du`](../loadables/du.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | du; du | N/M | P1 | Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing. Assigned to bash-os-1. |
 | [`ed`](../loadables/ed.c) | C D S T F | Build/help | ed; ed (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`env`](../loadables/env.c) | C D S T F | [Contract](../tests/regressions.py) | env; env | N/M | P3 | Add a matched workload and timing. |
 | [`escdelay`](../loadables/escdelay.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -313,7 +318,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`slabtop`](../loadables/slabtop.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; slabtop | N/M | P3 | Add a matched workload and timing. |
 | `sleep`* | P C D S T F | Build/help | sleep; sleep | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`sort`](../loadables/sort.c) | C D S T F | [Parity](../tests/sort-parity.sh) | sort; sort | 72.043 / 71.119 / 42.286; [sort-text](#case-sort-text), 7 passes; 2 cases total | P2 | Integrate the text-comparison and input-state changes, then validate and remeasure. Assigned to bash-os-5 (integration). |
-| [`split`](../loadables/split.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; split | N/M | P1 | Fix invocation input ownership, validate every output file across repeated calls, then establish timing. Assigned to bash-os-6. |
+| [`split`](../loadables/split.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; split | N/M | P1 | Integrate the completed input/output fix, check growth bounds and retain a stdio primer after head integration. Assigned to bash-os-5 (integration). |
 | [`sqlite`](../loadables/sqlite.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; sqlite3 / Python sqlite3 | N/M | P3 | Add a matched workload and timing. |
 | [`ss`](../loadables/ss.c) | D S F | Build/help | —; ss | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ssh`](../loadables/ssh.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; ssh | N/M | P3 | Add a matched workload and timing. |
@@ -331,9 +336,9 @@ three times as long. A speed ratio is never published for incorrect output.
 | `sync`* | P C D S T F | Build/help | sync; sync | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`sysctl`](../loadables/sysctl.c) | D S F | [Contract](../tests/system-smoke.sh) | sysctl; sysctl | N/M | P3 | Add a matched workload and timing. |
 | [`tac`](../loadables/tac.c) | C D S T F | [Parity](../tests/tac-parity.py); [limited](#scope-notes); [S](../tests/tac-sanitize.sh) | tac; tac | 23.403 / 512.412 / 161.792; [tac](#case-tac), 53 passes | P3 | Decide bounded-memory input and GNU regex scope; see the tac follow-up. |
-| [`tail`](../loadables/tail.c) | C D S T F | [Parity](../tests/wc-tail-parity.sh) | tail; tail | 7.483 / 158.041 / 91.356; [tail](#case-tail), 49 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`tail`](../loadables/tail.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | tail; tail | 7.483 / 158.041 / 91.356; [tail](#case-tail), 49 passes | P1 | Fix repeated small-input redirections and affected pipe modes; preserve seekable fast paths and verify follow behavior. Assigned to bash-os-6. |
 | [`taskset`](../loadables/taskset.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | taskset; taskset | N/M | P3 | Add a matched workload and timing. |
-| `tee`* | P C D S T F | Build/help | tee; tee | N/M | P3 | Establish dedicated GNU/BusyBox behavior and failure coverage for the stock source, then measure useful sizes. Assigned to bash-os-4. |
+| `tee`* | P C D S T F | [Correctness bug](#additional-correctness-checks) | tee; tee | N/M | P1 | Integrate the stock-source patch with existing head build wiring; validate read errors, resource ownership and interrupt cleanup. Assigned to bash-os-2 (integration). |
 | [`termpixel`](../loadables/termpixel.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`termpixel_pong`](../loadables/termpixel_pong.c) | F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`timeout`](../loadables/timeout.c) | C D S T F | [Contract](../tests/system-smoke.sh) | timeout; timeout | N/M | P3 | Add a matched workload and timing. |
@@ -431,14 +436,19 @@ checks that opening a named file while stdin is closed leaves stdin closed.
 ## Additional correctness checks
 
 <!-- BEGIN UNTIMED -->
-These checks used source `a033a4d10e401f061ca0ca27fe3bfa353814a202` and the same binary as the command measurements. The [evidence JSON](data/loadable-untimed-findings.json) records fixtures, references, exit statuses, output and created files. These cases have no timing measurements.
+These checks used source `5fde494952a7fd101dc1c4d43870b74d659b379b` and the same binary as the command measurements. The [evidence JSON](data/loadable-untimed-findings.json) records fixtures, references, exit statuses, output and created files. These cases have no timing measurements.
 
 | Loadable | Invocation | Finding |
 | --- | --- | --- |
+| `ar` | `ar t partial.a` | A truncated member header is incorrectly accepted as a valid archive. |
 | `col` | `col -b < input (three fresh redirections)` | Only the first invocation emits input. |
 | `crypto` | `crypto sha256 -x < input > /dev/full` | A failed digest write is incorrectly reported as successful. |
+| `csplit` | `csplit -s -f "pieces/$i-" - 2 < input (three fresh redirections)` | Later invocations create empty pieces after the first call exhausts shared stdin. |
 | `diff` | `diff input input-newline` | Files differing only in the final newline are incorrectly reported equal. |
-| `split` | `split -l 2 - "$i-" < input (three fresh redirections)` | Only the first invocation creates output files. |
+| `du` | `du -b file > /dev/full` | A failed size-report write is incorrectly reported as successful. |
+| `split` | `split -l 2 - "pieces/$i-" < input (three fresh redirections)` | Only the first invocation creates output files. |
+| `tail` | `tail -n 1 < input (three fresh redirections)` | Only the first small-input invocation emits its last line; the larger timed fixture passes. |
+| `tee` | `tee <&- > /dev/null` | A read from closed stdin reports an error but incorrectly returns success. |
 <!-- END UNTIMED -->
 
 ## Scope notes
@@ -456,6 +466,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `column` | Worker result 83474ede0b86 is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `comm` | Worker result ac93113b2809 is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `crypto` | Worker result c670eb787330 is complete and awaiting integration; current measurements still contain the earlier implementation. The wrapper changes make no throughput improvement claim; profiling found most CPU time in the shared SHA-256 backend. |
+| `csplit` | Worker result 69d728321989 is complete and awaiting integration, with 543 native/sanitizer parity checks, 541 static checks and 1,569 fault/cleanup checks. Full-input memory and regex/CLI limits remain; no speedup is claimed. |
 | `diff` | Worker result e23fb1e5c959 is complete and awaiting integration; current measurements still contain the earlier implementation. The timed catalog case compares identical files; it does not measure edit-script generation or the reported large-difference memory failure. |
 | `dmsetup` | Some mutation verbs still return an explicit unimplemented-backend error. [source](../loadables/dmsetup.c) |
 | `doas` | Current integration test rejects an invalid option before credential transition. |
@@ -483,12 +494,14 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `sed` | Repeated stdin and final-newline preservation are fixed. Regex and per-file state differ from GNU; an evaluated dollar address before early pipe quit can consume one lookahead byte. [source](../docs/head-sed.md) |
 | `sftp` | Local operation and failure fixtures exist; remote transfer behavior needs dedicated interop and throughput coverage. |
 | `sort` | Worker result da10ca15ebaf is complete and awaiting integration; current measurements still contain the earlier implementation. |
+| `split` | Worker result 6514793faa09 passed 741 native, static and sanitizer checks and awaits integration. Output validation compares all piece names and bytes; suffix-width and option limits remain. |
 | `ssh` | Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements. |
 | `sshd` | Loopback interoperability and malformed setup cases pass; no concurrent-session measurements. |
 | `strings` | Worker result 78f444f56882 is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `su` | Current integration test rejects an invalid option before credential transition. |
 | `sudo` | Current integration test rejects an invalid option before credential transition. |
 | `tac` | Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate. [source](../docs/tac.md) |
+| `tee` | Worker result 380ca0b00104 is complete and awaiting integration. The stock-source patch preserves buffer size; measured buffer-size differences were not conclusive under contention. |
 | `uclampset` | Query subset; setting PID/system clamps and command mode are refused. [source](../loadables/uclampset.c) |
 | `unexpand` | Worker result 51995a1d3a3c is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `wc` | Worker result dc8e848f5123 is complete and awaiting integration; current measurements still contain the earlier implementation. |

@@ -1,14 +1,19 @@
 {
   "schema": 1,
   "date": "2026-09-08",
-  "source_commit": "a033a4d10e401f061ca0ca27fe3bfa353814a202",
+  "source_commit": "5fde494952a7fd101dc1c4d43870b74d659b379b",
   "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
   "measurement": "Untimed correctness probes; no performance claims.",
   "versions": {
     "col": "col from util-linux 2.41",
     "split": "split (GNU coreutils) 9.7",
     "diff": "diff (GNU diffutils) 3.10",
-    "sha256sum": "sha256sum (GNU coreutils) 9.7"
+    "sha256sum": "sha256sum (GNU coreutils) 9.7",
+    "tail": "tail (GNU coreutils) 9.7",
+    "ar": "GNU ar (GNU Binutils for Debian) 2.44",
+    "tee": "tee (GNU coreutils) 9.7",
+    "csplit": "csplit (GNU coreutils) 9.7",
+    "du": "du (GNU coreutils) 9.7"
   },
   "cases": [
     {
@@ -19,7 +24,7 @@
         "input": "alpha\nbeta\n"
       },
       "invocations": 3,
-      "reference": "util-linux col",
+      "reference": "/usr/bin/col",
       "finding": "Only the first invocation emits input.",
       "results": {
         "bashos": {
@@ -37,12 +42,12 @@
     {
       "loadable": "split",
       "kind": "repeat-input",
-      "command": "split -l 2 - \"$i-\" < input (three fresh redirections)",
+      "command": "split -l 2 - \"pieces/$i-\" < input (three fresh redirections)",
       "fixture": {
         "input": "alpha\nbeta\ngamma\n"
       },
       "invocations": 3,
-      "reference": "GNU split",
+      "reference": "/usr/bin/split",
       "finding": "Only the first invocation creates output files.",
       "results": {
         "bashos": {
@@ -78,7 +83,7 @@
         "input-newline": "a\n"
       },
       "invocations": 1,
-      "reference": "GNU diff",
+      "reference": "/usr/bin/diff",
       "finding": "Files differing only in the final newline are incorrectly reported equal.",
       "results": {
         "bashos": {
@@ -101,7 +106,7 @@
         "input": "a"
       },
       "invocations": 1,
-      "reference": "GNU sha256sum",
+      "reference": "/usr/bin/sha256sum",
       "finding": "A failed digest write is incorrectly reported as successful.",
       "results": {
         "bashos": {
@@ -113,6 +118,135 @@
           "status": 1,
           "stdout": "",
           "stderr": "sha256sum: write error\n"
+        }
+      }
+    },
+    {
+      "loadable": "tail",
+      "kind": "repeat-input",
+      "command": "tail -n 1 < input (three fresh redirections)",
+      "fixture": {
+        "input": "alpha\nbeta\n"
+      },
+      "invocations": 3,
+      "reference": "/usr/bin/tail",
+      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "beta\n",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 0,
+          "stdout": "beta\nbeta\nbeta\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "loadable": "ar",
+      "kind": "correctness",
+      "command": "ar t partial.a",
+      "fixture": {
+        "partial.a": "!<arch>\nX"
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/ar",
+      "finding": "A truncated member header is incorrectly accepted as a valid archive.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "/usr/bin/ar: partial.a: file format not recognized\n"
+        }
+      }
+    },
+    {
+      "loadable": "tee",
+      "kind": "correctness",
+      "command": "tee <&- > /dev/null",
+      "fixture": {
+        "input": ""
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/tee",
+      "finding": "A read from closed stdin reports an error but incorrectly returns success.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "probe: line 1: tee: read error: Bad file descriptor\n"
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "tee: read error: Bad file descriptor\ntee: standard input: Bad file descriptor\n"
+        }
+      }
+    },
+    {
+      "loadable": "csplit",
+      "kind": "repeat-input",
+      "command": "csplit -s -f \"pieces/$i-\" - 2 < input (three fresh redirections)",
+      "fixture": {
+        "input": "alpha\nbeta\ngamma\n"
+      },
+      "invocations": 3,
+      "reference": "/usr/bin/csplit",
+      "finding": "Later invocations create empty pieces after the first call exhausts shared stdin.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "",
+          "files": {
+            "1-00": "alpha\n",
+            "1-01": "beta\ngamma\n",
+            "2-00": "",
+            "3-00": ""
+          }
+        },
+        "reference": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "",
+          "files": {
+            "1-00": "alpha\n",
+            "1-01": "beta\ngamma\n",
+            "2-00": "alpha\n",
+            "2-01": "beta\ngamma\n",
+            "3-00": "alpha\n",
+            "3-01": "beta\ngamma\n"
+          }
+        }
+      }
+    },
+    {
+      "loadable": "du",
+      "kind": "correctness",
+      "command": "du -b file > /dev/full",
+      "fixture": {
+        "file": "abc"
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/du",
+      "finding": "A failed size-report write is incorrectly reported as successful.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "du: write error\n"
         }
       }
     }
