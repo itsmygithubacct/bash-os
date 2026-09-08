@@ -219,6 +219,24 @@ bs_str_append (bs_string *s, const char *src, size_t srclen)
     return 0;
 }
 
+typedef struct {
+    FILE *fp;
+    int missing_newline;
+} bs_output;
+
+static bs_output bs_stdout, bs_stderr;
+
+/* An unterminated pattern stays unterminated until another record is printed
+   to the same output during this invocation (for example, p plus auto-print). */
+static void
+bs_emit (bs_output *out, const char *data, size_t len, int newline)
+{
+    if (out->missing_newline) fputc ('\n', out->fp);
+    if (len) fwrite (data, 1, len, out->fp);
+    if (newline) fputc ('\n', out->fp);
+    out->missing_newline = !newline;
+}
+
 static void
 bs_l_emit_token (FILE *out, const char *tok, size_t len, int *col)
 {
@@ -422,35 +440,47 @@ bs_exec_capture (const char *cmd, bs_string *out)
    once (truncating) and shared across commands and input files (GNU semantics);
    closed by the builtin at the end. */
 #define BS_MAX_WSTREAMS 64
-static struct { char *path; FILE *fp; } bs_wstreams[BS_MAX_WSTREAMS];
+static struct { char *path; bs_output out; } bs_wstreams[BS_MAX_WSTREAMS];
 static int bs_n_wstreams = 0;
 
-static FILE *
+static bs_output *
 bs_get_wstream (const char *path)
 {
     if (!path || !*path) return NULL;
-    if (!strcmp (path, "/dev/stdout")) return stdout;
-    if (!strcmp (path, "/dev/stderr")) return stderr;
+    if (!strcmp (path, "/dev/stdout")) return &bs_stdout;
+    if (!strcmp (path, "/dev/stderr")) return &bs_stderr;
     for (int i = 0; i < bs_n_wstreams; i++)
-        if (!strcmp (bs_wstreams[i].path, path)) return bs_wstreams[i].fp;
-    if (bs_n_wstreams >= BS_MAX_WSTREAMS) return NULL;
+        if (!strcmp (bs_wstreams[i].path, path)) return &bs_wstreams[i].out;
+    if (bs_n_wstreams >= BS_MAX_WSTREAMS) { bs_runtime_error = 1; return NULL; }
     FILE *fp = fopen (path, "w");   /* truncate on first use */
-    if (!fp) return NULL;
-    bs_wstreams[bs_n_wstreams].path = strdup (path);
-    bs_wstreams[bs_n_wstreams].fp = fp;
-    bs_n_wstreams++;
-    return fp;
+    if (!fp) {
+        builtin_error ("%s: %s", path, strerror (errno));
+        bs_runtime_error = 1;
+        return NULL;
+    }
+    char *copy = strdup (path);
+    if (!copy) { fclose (fp); bs_runtime_error = 1; return NULL; }
+    bs_wstreams[bs_n_wstreams].path = copy;
+    bs_wstreams[bs_n_wstreams].out = (bs_output) { fp, 0 };
+    return &bs_wstreams[bs_n_wstreams++].out;
 }
 
-static void
+static int
 bs_close_wstreams (void)
 {
+    int failed = 0;
     for (int i = 0; i < bs_n_wstreams; i++) {
-        if (bs_wstreams[i].fp) fclose (bs_wstreams[i].fp);
+        FILE *fp = bs_wstreams[i].out.fp;
+        int error = ferror (fp);
+        if (fclose (fp) != 0 || error) {
+            builtin_error ("%s: write error", bs_wstreams[i].path);
+            failed = 1;
+        }
         free (bs_wstreams[i].path);
-        bs_wstreams[i].path = NULL; bs_wstreams[i].fp = NULL;
+        bs_wstreams[i].path = NULL; bs_wstreams[i].out.fp = NULL;
     }
     bs_n_wstreams = 0;
+    return failed ? -1 : 0;
 }
 
 /* Read-stream table for `R FILE`: each path keeps a persistent handle so
@@ -1044,18 +1074,27 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     return matched_any;
 }
 
+/* Only an evaluated $ address needs lookahead. Ordinary cycles, including
+   q before a later $ command, must not consume the next byte from a pipe. */
+static int
+bs_input_addr_match (bs_addr *addr, long lineno, int *is_last, const char *pat, FILE *in)
+{
+    if (addr->kind == BS_ADDR_LAST && *is_last < 0) {
+        int ch = getc (in);
+        *is_last = ch == EOF;
+        if (ch != EOF) ungetc (ch, in);
+    }
+    return bs_addr_match (addr, lineno, *is_last > 0, pat);
+}
+
 /* Run the script over an input stream. Returns 0 on success. */
 static int
-bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, const char *filename)
+bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default, const char *filename)
 {
-    /* Stream input with one-line lookahead so `$` addresses work without
-       retaining the full input. `cur` is the active input line and `next`
-       is the already-read lookahead line, each owned by getline(3). */
-    char *cur = NULL, *next = NULL;
-    size_t cur_cap = 0, next_cap = 0;
-    ssize_t rd = getline (&next, &next_cap, in);
-    int have_next = (rd != -1);
-    if (have_next && rd > 0 && next[rd - 1] == '\n') next[rd - 1] = '\0';
+    char *cur = NULL;
+    size_t cur_cap = 0;
+    ssize_t rd;
+    int pat_nl = 1, hold_nl = 1;
 
     bs_string pat, hold, a_queue;
     bs_str_init (&pat); bs_str_init (&hold); bs_str_init (&a_queue);
@@ -1078,17 +1117,17 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                 && cmds[i].addr2.kind == BS_ADDR_REGEX)
                 range_active[i] = 1;
 
+    if (n_cmds && (!range_active || !range_end)) {
+        bs_runtime_error = 1;
+        goto done;
+    }
     long lineno = 0;
-    while (have_next)
+    while ((rd = getline (&cur, &cur_cap, in)) >= 0)
     {
-        char *tmp_line = cur; cur = next; next = tmp_line;
-        size_t tmp_cap = cur_cap; cur_cap = next_cap; next_cap = tmp_cap;
         lineno++;
-        rd = getline (&next, &next_cap, in);
-        have_next = (rd != -1);
-        if (have_next && rd > 0 && next[rd - 1] == '\n') next[rd - 1] = '\0';
-        int is_last = !have_next;
-        bs_str_set (&pat, cur ? cur : "", cur ? strlen (cur) : 0);
+        pat_nl = rd > 0 && cur[rd - 1] == '\n';
+        int is_last = -1;
+        bs_str_set (&pat, cur, (size_t) rd - pat_nl);
 
         int last_subst = 0;
         int suppress_this_line = 0;   /* set by BS_C */
@@ -1101,7 +1140,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
             int addr_match = 1;
             if (c->has_a1 && !c->has_a2)
             {
-                addr_match = bs_addr_match (&c->addr1, lineno, is_last, pat.str);
+                addr_match = bs_input_addr_match (&c->addr1, lineno, &is_last, pat.str, in);
             }
             else if (c->has_a1 && c->has_a2)
             {
@@ -1112,10 +1151,10 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     if (c->addr2.kind == BS_ADDR_PLUS || c->addr2.kind == BS_ADDR_MULT)
                         close = (lineno >= range_end[ci]);
                     else
-                        close = bs_addr_match (&c->addr2, lineno, is_last, pat.str);
+                        close = bs_input_addr_match (&c->addr2, lineno, &is_last, pat.str, in);
                     if (close) range_active[ci] = 0;
                 }
-                else if (bs_addr_match (&c->addr1, lineno, is_last, pat.str))
+                else if (bs_input_addr_match (&c->addr1, lineno, &is_last, pat.str, in))
                 {
                     addr_match = 1;
                     range_active[ci] = 1;
@@ -1135,7 +1174,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                        opening line. A line-number/$ end-address may yield a
                        single-line range when it already holds here. */
                     else if (c->addr2.kind != BS_ADDR_REGEX
-                        && bs_addr_match (&c->addr2, lineno, is_last, pat.str))
+                        && bs_input_addr_match (&c->addr2, lineno, &is_last, pat.str, in))
                         range_active[ci] = 0;
                 }
                 else addr_match = 0;
@@ -1154,14 +1193,13 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     if (last_subst < 0)
                         goto done;
                     if (last_subst && c->s_print) {
-                        fwrite (pat.str, 1, pat.len, out);
-                        fputc ('\n', out);
+                        bs_emit (out, pat.str, pat.len, pat_nl);
                     }
                     /* s///w FILE: on a successful substitution, write the
                        resulting pattern space to FILE. */
                     if (last_subst && c->s_wfile) {
-                        FILE *wf = bs_get_wstream (c->s_wfile);
-                        if (wf) { fwrite (pat.str, 1, pat.len, wf); fputc ('\n', wf); }
+                        bs_output *wf = bs_get_wstream (c->s_wfile);
+                        if (wf) bs_emit (wf, pat.str, pat.len, pat_nl);
                     }
                     break;
                 case BS_D:
@@ -1170,13 +1208,11 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     if (pat.str) pat.str[0] = '\0';
                     goto next_line;
                 case BS_P:
-                    fwrite (pat.str, 1, pat.len, out);
-                    fputc ('\n', out);
+                    bs_emit (out, pat.str, pat.len, pat_nl);
                     break;
                 case BS_Q:
                     if (!suppress_default) {
-                        fwrite (pat.str, 1, pat.len, out);
-                        fputc ('\n', out);
+                        bs_emit (out, pat.str, pat.len, pat_nl);
                     }
                     bs_quit_signaled = 1; bs_quit_code = c->q_code;
                     goto done;
@@ -1185,11 +1221,14 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     bs_quit_signaled = 1; bs_quit_code = c->q_code;
                     goto done;
                 case BS_EQ:
-                    fprintf (out, "%ld\n", lineno);
+                    if (out->missing_newline) fputc ('\n', out->fp);
+                    fprintf (out->fp, "%ld\n", lineno);
+                    out->missing_newline = 0;
                     break;
                 case BS_F:
                     /* Print the current input filename ("-" for stdin). */
-                    fprintf (out, "%s\n", filename ? filename : "-");
+                    bs_emit (out, filename ? filename : "-",
+                             strlen (filename ? filename : "-"), 1);
                     break;
                 case BS_E: {
                     bs_string exec_out;
@@ -1204,21 +1243,26 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                 }
                 case BS_H:
                     bs_str_set (&hold, pat.str, pat.len);
+                    hold_nl = pat_nl;
                     break;
                 case BS_HUP:
                     bs_str_append (&hold, "\n", 1);
                     bs_str_append (&hold, pat.str, pat.len);
+                    hold_nl = pat_nl;
                     break;
                 case BS_G:
                     bs_str_set (&pat, hold.str ? hold.str : "", hold.len);
+                    pat_nl = hold_nl;
                     break;
                 case BS_GUP:
                     bs_str_append (&pat, "\n", 1);
                     bs_str_append (&pat, hold.str ? hold.str : "", hold.len);
+                    pat_nl = hold_nl;
                     break;
                 case BS_X:
                 {
                     bs_string tmp = pat; pat = hold; hold = tmp;
+                    int tmp_nl = pat_nl; pat_nl = hold_nl; hold_nl = tmp_nl;
                     break;
                 }
                 case BS_LABEL:
@@ -1249,7 +1293,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     break;
                 case BS_I:
                     /* Insert: emit text immediately (before pat prints). */
-                    if (c->text) { fputs (c->text, out); fputc ('\n', out); }
+                    if (c->text) bs_emit (out, c->text, strlen (c->text), 1);
                     break;
                 case BS_Y:
                     /* Transliterate per the y_table. */
@@ -1263,53 +1307,46 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     if (pat.str) {
                         size_t i = 0;
                         while (i < pat.len && pat.str[i] != '\n') i++;
-                        fwrite (pat.str, 1, i, out);
-                        fputc ('\n', out);
+                        bs_emit (out, pat.str, i, i < pat.len || pat_nl);
                     }
                     break;
                 case BS_L_CMD:
                     /* Print pattern with sed l-command escapes. */
-                    if (pat.str)
-                        bs_l_emit (out, pat.str, pat.len);
+                    if (pat.str) {
+                        if (out->missing_newline) fputc ('\n', out->fp);
+                        bs_l_emit (out->fp, pat.str, pat.len);
+                        out->missing_newline = 0;
+                    }
                     break;
                 case BS_N_CMD:
                     if (!suppress_default) {
-                        fwrite (pat.str, 1, pat.len, out);
-                        fputc ('\n', out);
+                        bs_emit (out, pat.str, pat.len, pat_nl);
                     }
                     if (a_queue.len > 0) {
-                        fwrite (a_queue.str, 1, a_queue.len, out);
+                        bs_emit (out, a_queue.str, a_queue.len, 0);
+            out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
                         a_queue.len = 0;
                         if (a_queue.str) a_queue.str[0] = '\0';
                     }
-                    if (!have_next)
-                        goto done;
-                    {
-                        char *tmp = cur; cur = next; next = tmp;
-                        size_t tc = cur_cap; cur_cap = next_cap; next_cap = tc;
-                    }
+                    rd = getline (&cur, &cur_cap, in);
+                    if (rd < 0) goto done;
                     lineno++;
-                    rd = getline (&next, &next_cap, in);
-                    have_next = (rd != -1);
-                    if (have_next && rd > 0 && next[rd - 1] == '\n') next[rd - 1] = '\0';
-                    is_last = !have_next;
-                    bs_str_set (&pat, cur ? cur : "", cur ? strlen (cur) : 0);
+                    pat_nl = rd > 0 && cur[rd - 1] == '\n';
+                    is_last = -1;
+                    bs_str_set (&pat, cur, (size_t) rd - pat_nl);
                     suppress_this_line = 0;
                     break;
                 case BS_NUP_CMD:
-                    if (!have_next)
+                    rd = getline (&cur, &cur_cap, in);
+                    if (rd < 0) {
+                        if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         goto done;
-                    bs_str_append (&pat, "\n", 1);
-                    bs_str_append (&pat, next ? next : "", next ? strlen (next) : 0);
-                    {
-                        char *tmp = cur; cur = next; next = tmp;
-                        size_t tc = cur_cap; cur_cap = next_cap; next_cap = tc;
                     }
+                    bs_str_append (&pat, "\n", 1);
+                    pat_nl = rd > 0 && cur[rd - 1] == '\n';
+                    bs_str_append (&pat, cur, (size_t) rd - pat_nl);
                     lineno++;
-                    rd = getline (&next, &next_cap, in);
-                    have_next = (rd != -1);
-                    if (have_next && rd > 0 && next[rd - 1] == '\n') next[rd - 1] = '\0';
-                    is_last = !have_next;
+                    is_last = -1;
                     break;
                 case BS_D_LO:
                     if (pat.str) {
@@ -1350,19 +1387,19 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                     }
                     break;
                 case BS_W: {
-                    /* w FILE: write the pattern space + newline to FILE. */
-                    FILE *wf = bs_get_wstream (c->text);
-                    if (wf) { fwrite (pat.str, 1, pat.len, wf); fputc ('\n', wf); }
+                    /* w FILE: preserve the pattern space line ending. */
+                    bs_output *wf = bs_get_wstream (c->text);
+                    if (wf) bs_emit (wf, pat.str, pat.len, pat_nl);
                     break;
                 }
                 case BS_BIGW: {
                     /* W FILE: write only the first line of the pattern space
-                       (up to the first embedded newline) + newline. */
-                    FILE *wf = bs_get_wstream (c->text);
+                       (up to the first embedded newline). */
+                    bs_output *wf = bs_get_wstream (c->text);
                     if (wf) {
                         const char *nl = memchr (pat.str, '\n', pat.len);
                         size_t flen = nl ? (size_t) (nl - pat.str) : pat.len;
-                        fwrite (pat.str, 1, flen, wf); fputc ('\n', wf);
+                        bs_emit (wf, pat.str, flen, nl != NULL || pat_nl);
                     }
                     break;
                 }
@@ -1391,29 +1428,37 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, FILE *out, int suppress_default, con
                         suppress_this_line = 1;
                     } else {
                         /* End of range OR single-address: emit text, suppress pat. */
-                        if (c->text) { fputs (c->text, out); fputc ('\n', out); }
+                        if (c->text) bs_emit (out, c->text, strlen (c->text), 1);
                         suppress_this_line = 1;
                     }
                     break;
             }
         }
         if (!suppress_default && !suppress_this_line) {
-            fwrite (pat.str, 1, pat.len, out);
-            fputc ('\n', out);
+            bs_emit (out, pat.str, pat.len, pat_nl);
         }
         if (a_queue.len > 0) {
-            fwrite (a_queue.str, 1, a_queue.len, out);
+            bs_emit (out, a_queue.str, a_queue.len, 0);
+            out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
             a_queue.len = 0;
             if (a_queue.str) a_queue.str[0] = '\0';
         }
     next_line:;
     }
 done:
+    if (ferror (in)) {
+        builtin_error ("%s: read error: %s", filename, strerror (errno));
+        bs_runtime_error = 1;
+    }
+    if (fflush (out->fp) == EOF || ferror (out->fp)) {
+        builtin_error ("write error: %s", strerror (errno));
+        bs_runtime_error = 1;
+    }
+    if (pat.failed || hold.failed || a_queue.failed) bs_runtime_error = 1;
     bs_str_free (&pat); bs_str_free (&hold); bs_str_free (&a_queue);
     free (range_active);
     free (range_end);
     free (cur);
-    free (next);
     return bs_runtime_error ? -1 : 0;
 }
 
@@ -1441,16 +1486,16 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
     FILE *out = fdopen (fd, "w");
     if (!out) { close (fd); fclose (in); unlink (tmp); return -1; }
 
-    int rc = bs_run (cmds, n_cmds, in, out, suppress_default, path);
-    fclose (in);
-    fflush (out);
+    bs_output output = { out, 0 };
+    int rc = bs_run (cmds, n_cmds, in, &output, suppress_default, path);
+    if (fclose (in) != 0) rc = -1;
     /* Preserve owner+mode via the open fd before closing. fchown/fchmod are
        symlink-safe and avoid TOCTOU on the path. */
     if (fchmod (fd, src_st.st_mode & 07777) < 0)
         builtin_warning ("fchmod %s: %s", tmp, strerror (errno));
     if (fchown (fd, src_st.st_uid, src_st.st_gid) < 0 && errno != EPERM)
         builtin_warning ("fchown %s: %s", tmp, strerror (errno));
-    fclose (out);
+    if (fclose (out) != 0) rc = -1;
     if (rc < 0) { unlink (tmp); return -1; }
 
     if (suffix && *suffix)
@@ -1594,33 +1639,52 @@ sed_builtin (WORD_LIST *list)
     }
 
     int rc = EXECUTION_SUCCESS;
+    bs_stdout = (bs_output) { stdout, 0 };
+    bs_stderr = (bs_output) { stderr, 0 };
+    bs_quit_signaled = 0; bs_quit_code = 0;
     if (inplace)
     {
         for (int i = 0; i < n_files; i++)
             if (bs_inplace (cmds, n_cmds, files[i], inplace_suffix, suppress_default) < 0)
                 rc = EXECUTION_FAILURE;
     }
-    else if (n_files == 0)
-    {
-        bs_quit_signaled = 0; bs_quit_code = 0;
-        if (bs_run (cmds, n_cmds, stdin, stdout, suppress_default, "-") < 0) rc = EXECUTION_FAILURE;
-        if (bs_quit_signaled) rc = bs_quit_code;
-    }
     else
     {
-        bs_quit_signaled = 0; bs_quit_code = 0;
-        for (int i = 0; i < n_files; i++)
+        for (int i = 0; i < (n_files ? n_files : 1); i++)
         {
-            FILE *f = fopen (files[i], "r");
-            if (!f) { builtin_error ("%s: %s", files[i], strerror (errno)); rc = EXECUTION_FAILURE; continue; }
-            if (bs_run (cmds, n_cmds, f, stdout, suppress_default, files[i]) < 0) rc = EXECUTION_FAILURE;
-            fclose (f);
-            /* q/Q quits the whole stream editor (no further input files). */
-            if (bs_quit_signaled) { rc = bs_quit_code; break; }
+            const char *name = n_files ? files[i] : "-";
+            int use_stdin = !strcmp (name, "-");
+            int fd = use_stdin ? dup (STDIN_FILENO) : open (name, O_RDONLY);
+            FILE *f = fd < 0 ? NULL : fdopen (fd, "r");
+            if (!f) {
+                builtin_error ("%s: %s", name, strerror (errno));
+                if (fd >= 0) close (fd);
+                rc = EXECUTION_FAILURE;
+                continue;
+            }
+            int seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
+            if (!seekable) setvbuf (f, NULL, _IONBF, 0);
+            if (bs_run (cmds, n_cmds, f, &bs_stdout, suppress_default, name) < 0)
+                rc = EXECUTION_FAILURE;
+            /* Reconcile stdio read-ahead with the shared descriptor offset.
+               fclose alone would discard bytes that shell read still needs. */
+            if (use_stdin && seekable && fseeko (f, 0, SEEK_CUR) != 0) {
+                builtin_error ("stdin: %s", strerror (errno));
+                rc = EXECUTION_FAILURE;
+            }
+            if (fclose (f) != 0) rc = EXECUTION_FAILURE;
+            if (bs_quit_signaled) {
+                if (rc == EXECUTION_SUCCESS) rc = bs_quit_code;
+                break;
+            }
         }
     }
 
-    bs_close_wstreams ();   /* flush + close any `w`/`s///w` output files */
+    if (bs_close_wstreams () < 0) rc = EXECUTION_FAILURE;
+    if (fflush (stdout) == EOF || ferror (stdout)) rc = EXECUTION_FAILURE;
+    if (fflush (stderr) == EOF || ferror (stderr)) rc = EXECUTION_FAILURE;
+    clearerr (stdout);
+    clearerr (stderr);
     bs_close_rstreams ();   /* close any `R` input files */
     for (int i = 0; i < n_cmds; i++) bs_cmd_free (&cmds[i]);
     free (cmds);

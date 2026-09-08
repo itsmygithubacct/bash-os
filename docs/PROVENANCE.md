@@ -70,6 +70,7 @@ bash-os is assembled from these sources:
 | `_tree_sitter` | MIT with Unicode/ICU notices for bundled Unicode headers |
 | `_ts_bash`, `_ts_json`, `_ts_toml`, `_ts_markdown`, `_ts_markdown_inline` | MIT, per-grammar notices |
 | `tests/*.c`, `build.sh`, `config/` | MIT |
+| `patches/head-stdin.patch` (adaptation of Bash's stock head) | GPL-3.0-or-later |
 
 The project sources carry an MIT marker. Vendored helpers retain their original
 notices and are registered in `config/helpers.json`; `tests/licence-check.sh`
@@ -158,6 +159,10 @@ project. bash-os is the board-agnostic layer it builds on.
 Fixes to stock loadables, applied at build time in `build.sh` so the pinned
 sources stay as taken:
 
+- `head`: [a tracked patch](../patches/head-stdin.patch) gives redirected stdin
+  a private stream, restores unread seekable input, avoids pipe read-ahead and
+  propagates I/O errors. The upstream copyright and GPL header are preserved;
+  [behavior and validation](head-sed.md) document the remaining option limits.
 - `mkdir -p`: only `chmod` the components it actually created, not existing
   parents.
 - `fltexpr`: initialise NaN/Inf at compile time (its runtime `_builtin_load`
