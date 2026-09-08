@@ -55,11 +55,11 @@ three times as long. A speed ratio is never published for incorrect output.
 <!-- BEGIN PRIORITIES -->
 | Priority | Loadable / case | Evidence | Next step |
 | --- | --- | --- | --- |
-| P1 | col | Only the first invocation emits input. Untimed check. | Fix invocation input ownership and test repeated input and control-byte behavior, then establish timing. Assigned to bash-os-2. |
+| P1 | col | Only the first invocation emits input. Untimed check. | Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors. Assigned to bash-os-3 (integration). |
 | P1 | colrm | Repeated redirected input fails output validation. | Integrate the standalone input fix with column, then validate both commands. Assigned to bash-os-3 (integration). |
 | P1 | column | Repeated redirected input fails output validation. | Review the completed input and cleanup fix, then run its tests in the integrated build. Assigned to bash-os-3 (integration). |
-| P1 | crypto | A failed digest write is incorrectly reported as successful. Untimed check. | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-astra (review). |
-| P1 | diff | Files differing only in the final newline are incorrectly reported equal. Untimed check. | Review and integrate the newline, resource-use and edit-script fixes; validate distinct input shapes. Assigned to bash-os-astra (review). |
+| P1 | crypto | A failed digest write is incorrectly reported as successful. Untimed check. | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-2 (integration). |
+| P1 | diff | Files differing only in the final newline are incorrectly reported equal. Untimed check. | Fix the remaining binary-input, write-status and FIFO defects found during review, then complete integration validation. Assigned to bash-os-2 (integration). |
 | P1 | hexdump | Repeated redirected input fails output validation. | Integrate the descriptor-input and buffered-output fix, then validate all supported formats. Assigned to bash-os-3 (integration). |
 | P1 | od | Repeated redirected input fails output validation. | Integrate the descriptor-input and error-handling fix, then validate the full build. Assigned to bash-os-3 (integration). |
 | P1 | split | Only the first invocation creates output files. Untimed check. | Fix invocation input ownership, validate every output file across repeated calls, then establish timing. Assigned to bash-os-6. |
@@ -150,7 +150,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`clip`](../loadables/clip.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cluster`](../loadables/cluster.c) | F | [Smoke](../tests/misc-smoke.py) | —; API fixture | N/M | P3 | Add peer membership, timeout and disconnect fixtures. |
 | [`cmp`](../loadables/cmp.c) | C D S T F | [Bench checked](#case-cmp) | cmp; cmp | 39.013 / 170.186 / 59.701; [cmp](#case-cmp), 27 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`col`](../loadables/col.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; col | N/M | P1 | Fix invocation input ownership and test repeated input and control-byte behavior, then establish timing. Assigned to bash-os-2. |
+| [`col`](../loadables/col.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; col | N/M | P1 | Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors. Assigned to bash-os-3 (integration). |
 | [`colrm`](../loadables/colrm.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; colrm | INVALID / — / 266.510; [colrm](#case-colrm), 22 passes | P1 | Integrate the standalone input fix with column, then validate both commands. Assigned to bash-os-3 (integration). |
 | [`column`](../loadables/column.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; column | INVALID / — / 1106.052; [column](#case-column), 10 passes | P1 | Review the completed input and cleanup fix, then run its tests in the integrated build. Assigned to bash-os-3 (integration). |
 | [`comm`](../loadables/comm.c) | C D S T F | [Bench checked](#case-comm) | —; comm | 80.052 / — / 43.888; [comm](#case-comm), 10 passes | P2 | Integrate the buffered-output and input-state fix, then validate and remeasure. Assigned to bash-os-3 (integration). |
@@ -159,7 +159,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`cred`](../loadables/cred.c) | S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cron`](../loadables/cron.c) | S F | [Contract](../tests/large-smoke.py) | crond; cron / crond | N/M | P3 | Add a matched workload and timing. |
 | [`crontab`](../loadables/crontab.c) | S F | [Contract](../tests/misc-smoke.py) | crontab; crontab | N/M | P3 | Add a matched workload and timing. |
-| [`crypto`](../loadables/crypto.c) | S F | [Correctness bug](#additional-correctness-checks); [S](../tests/final-sanitize.sh) | sha256sum; sha256sum / openssl | 86.600 / 86.511 / 59.482; [crypto](#case-crypto), 6 passes | P1 | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-astra (review). |
+| [`crypto`](../loadables/crypto.c) | S F | [Correctness bug](#additional-correctness-checks); [S](../tests/final-sanitize.sh) | sha256sum; sha256sum / openssl | 86.600 / 86.511 / 59.482; [crypto](#case-crypto), 6 passes | P1 | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-2 (integration). |
 | [`csplit`](../loadables/csplit.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; csplit | N/M | P3 | Audit input ownership, add dedicated pattern and file-output regressions, then establish matched timing. Assigned to bash-os-1. |
 | [`curl`](../loadables/curl.c) | S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; curl | N/M | P3 | Add a matched workload and timing. |
 | [`cut`](../loadables/cut.c) | P C D S T F | [Parity](../tests/cut-parity.sh) | cut; cut | 28.551 / 280.054 / 142.033; [cut](#case-cut), 35 passes | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -170,7 +170,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`dhcpd`](../loadables/dhcpd.c) | S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | udhcpd; dnsmasq / dhcpd | N/M | P3 | Add a matched workload and timing. |
 | [`dhcpd6`](../loadables/dhcpd6.c) | S F | [Contract](../tests/network-smoke.py) | —; kea-dhcp6 (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`dialog`](../loadables/dialog.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; dialog (missing) | N/M | P3 | Add a matched workload and timing. |
-| [`diff`](../loadables/diff.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | diff; diff | 89.585 / 88.450 / 78.184; [diff](#case-diff), 21 passes | P1 | Review and integrate the newline, resource-use and edit-script fixes; validate distinct input shapes. Assigned to bash-os-astra (review). |
+| [`diff`](../loadables/diff.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | diff; diff | 89.585 / 88.450 / 78.184; [diff](#case-diff), 21 passes | P1 | Fix the remaining binary-input, write-status and FIFO defects found during review, then complete integration validation. Assigned to bash-os-2 (integration). |
 | `dirname`* | P C D S T F | [Bench checked](#case-dirname) | dirname; dirname | 5.454 / 146.953 / 134.315; [dirname](#case-dirname), 106 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`dmesg`](../loadables/dmesg.c) | D S F | Build/help | dmesg; dmesg | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`dmsetup`](../loadables/dmsetup.c) | D S F | [Smoke](../tests/util-linux-smoke.sh); [limited](#scope-notes) | —; dmsetup | N/M | P3 | Define required mapper mutation verbs and add isolated device fixtures. |
@@ -451,6 +451,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | --- | --- |
 | `bc` | Repeated stdin is fixed. User functions, output-base printing, control flow, comments and file operands remain outside the supported language subset. [source](../docs/bc.md) |
 | `cluster` | Only a version smoke check is mapped here. |
+| `col` | Worker result c6059ab77c68 is complete and awaiting integration; the current untimed check still exercises the earlier implementation. |
 | `colrm` | Worker result 81571cc0bb41 is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `column` | Worker result 83474ede0b86 is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `comm` | Worker result ac93113b2809 is complete and awaiting integration; current measurements still contain the earlier implementation. |
