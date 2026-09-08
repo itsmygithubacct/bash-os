@@ -28,8 +28,10 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <wchar.h>
+#include <stdint.h>
 
 #include "loadables.h"
+#include "bl-output.h"
 
 typedef struct { int width; int bflag; int sflag; int cflag; } bf_opts;
 
@@ -74,8 +76,8 @@ bf_decode (const unsigned char *bytes, size_t avail, const bf_opts *o,
  * starting from COL. *LAST_W carries the width of the most recent
  * non-control character so '\b' can rewind by the right amount, exactly
  * as fold's adjust_column() uses last_character_width. */
-static int
-bf_advance (int col, unsigned int cp, int len, int *last_w, const bf_opts *o)
+static int64_t
+bf_advance (int64_t col, unsigned int cp, int len, int *last_w, const bf_opts *o)
 {
     if (o->bflag)
         return col + len;                       /* bytes: TAB/CR/BS not special */
@@ -89,7 +91,8 @@ bf_advance (int col, unsigned int cp, int len, int *last_w, const bf_opts *o)
         *last_w = 1;                            /* characters: one per char */
         return col + 1;
     }
-    int w = wcwidth ((wchar_t) cp);             /* columns: display width */
+    /* Printable ASCII has width one in every supported locale. */
+    int w = cp >= 0x20 && cp < 0x7f ? 1 : wcwidth ((wchar_t) cp);
     if (w < 0)
         w = 1;                                  /* invalid char defaults to 1 */
     *last_w = w;
@@ -133,52 +136,115 @@ bf_parse_width (const char *arg, int *width)
     return 1;
 }
 
+static int
+bf_reserve (char **buf, size_t *cap, size_t len, size_t extra)
+{
+    if (extra > SIZE_MAX - len) {
+        builtin_error ("line too long");
+        return 0;
+    }
+    size_t needed = len + extra;
+    if (needed <= *cap) return 1;
+    size_t next = *cap;
+    while (next < needed) {
+        if (next > SIZE_MAX / 2) { next = needed; break; }
+        next *= 2;
+    }
+    char *nb = realloc (*buf, next);
+    if (!nb) {
+        builtin_error ("realloc: %s", strerror (errno));
+        return 0;
+    }
+    *buf = nb; *cap = next;
+    return 1;
+}
+
+/* Own stdin's stdio state for this invocation. In particular, stopping on
+   a write error must not leave read-ahead bytes in Bash's persistent FILE
+   for the next redirected builtin. Repeated '-' operands share this stream. */
+static FILE *
+bf_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
 /* Process one input stream. Wraps at o.width columns; emits to stdout.
  * Input is consumed a whole character at a time (a single byte under -b)
  * via a small refillable lookahead so a multibyte sequence is never
  * split across a stream-buffer boundary or a wrap. */
 static int
-bf_fold_stream (FILE *in, const bf_opts *o, const char *name)
+bf_fold_stream (FILE *in, const bf_opts *o, const char *name, bl_output *out)
 {
     /* buf holds the current pending output line, flushed when a unit
        would push the column past the width (or on newline). */
     size_t cap = (size_t) o->width + 64;
+    if (cap > 4096) cap = 4096;  /* A large width need not mean a large input. */
     char *buf = (char *) malloc (cap);
     if (!buf) {
         builtin_error ("malloc: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
     size_t len = 0;       /* bytes in buf */
-    int col = 0;          /* current column position */
-    int last_space = -1;  /* byte index of last blank in buf, for -s */
+    int64_t col = 0;      /* allow a TAB/wide character beyond INT_MAX width */
+    size_t last_space = 0; /* offset just after last blank, or zero */
     int last_w = 1;       /* width of last non-control char, for '\b' */
 
     unsigned char ib[8192];     /* input lookahead */
     size_t ipos = 0, iend = 0;
     int eof = 0;
+    int read_error = 0;
 
-    for (;;) {
+    while (!out->error) {
         /* Keep >=4 bytes available so a full UTF-8 unit is decodable. */
         if (!eof && iend - ipos < 4) {
             if (ipos > 0) { memmove (ib, ib + ipos, iend - ipos); iend -= ipos; ipos = 0; }
             size_t got = fread (ib + iend, 1, sizeof ib - iend, in);
             if (got == 0) eof = 1;
+            if (ferror (in)) { read_error = errno ? errno : EIO; eof = 1; }
             iend += got;
         }
         if (ipos >= iend) break;
+
+        /* All three modes count printable ASCII identically. Copy a span
+           that fits without wrapping; controls, UTF-8 and the next wrap
+           still take the general path below (including -s rescanning). */
+        if (col < o->width && ib[ipos] >= 0x20 && ib[ipos] < 0x7f) {
+            size_t limit = iend - ipos;
+            if (limit > (size_t) (o->width - col))
+                limit = (size_t) (o->width - col);
+            size_t n = 0, space = 0;
+            while (n < limit && ib[ipos + n] >= 0x20 && ib[ipos + n] < 0x7f) {
+                if (ib[ipos + n] == ' ') space = n + 1;
+                n++;
+            }
+            if (!bf_reserve (&buf, &cap, len, n)) {
+                free (buf); return EXECUTION_FAILURE;
+            }
+            if (space) last_space = len + space;
+            memcpy (buf + len, ib + ipos, n);
+            len += n; ipos += n; col += n; last_w = 1;
+            continue;
+        }
 
         unsigned int cp;
         int clen = bf_decode (ib + ipos, iend - ipos, o, &cp);
 
         if (cp == '\n' && clen == 1) {
-            fwrite (buf, 1, len, stdout);
-            putchar ('\n');
-            len = 0; col = 0; last_space = -1; last_w = 1;
+            bl_output_write (out, buf, len);
+            bl_output_byte (out, '\n');
+            len = 0; col = 0; last_space = 0; last_w = 1;
             ipos += 1;
             continue;
         }
 
-        int new_col = bf_advance (col, cp, clen, &last_w, o);
+        int64_t new_col = bf_advance (col, cp, clen, &last_w, o);
         /* While this unit would exceed the width, flush the line and
            re-evaluate the unit against the (now shorter) remainder. This
            loop mirrors GNU fold's `goto rescan`: a single flush is not
@@ -187,45 +253,43 @@ bf_fold_stream (FILE *in, const bf_opts *o, const char *name)
            must itself be flushed (so a TAB lands on its own line rather than
            gluing to the word before it). A unit wider than the whole width
            is emitted alone once the buffer drains (len == 0). */
-        while (new_col > o->width && len > 0) {
-            int break_at = (int) len;              /* default: flush whole line */
-            if (o->sflag && last_space >= 0)
-                break_at = last_space + 1;         /* -s: break after the blank */
-            fwrite (buf, 1, (size_t) break_at, stdout);
-            putchar ('\n');
+        while (new_col > o->width && len > 0 && !out->error) {
+            size_t break_at = len;                 /* default: flush whole line */
+            if (o->sflag && last_space)
+                break_at = last_space;            /* -s: break after the blank */
+            bl_output_write (out, buf, break_at);
+            bl_output_byte (out, '\n');
             /* Shift remainder to start of buf. */
             size_t rem = len - (size_t) break_at;
             if (rem > 0) memmove (buf, buf + break_at, rem);
             len = rem;
             /* Recompute col/last_space/last_w over the remainder. */
-            col = 0; last_space = -1; last_w = 1;
+            col = 0; last_space = 0; last_w = 1;
             for (size_t i = 0; i < len; ) {
                 unsigned int cp2;
                 int l2 = bf_decode ((unsigned char *) buf + i, len - i, o, &cp2);
                 col = bf_advance (col, cp2, l2, &last_w, o);
-                if (cp2 == ' ' || cp2 == '\t') last_space = (int) i;
+                if (cp2 == ' ' || cp2 == '\t') last_space = i + 1;
                 i += (size_t) l2;
             }
             new_col = bf_advance (col, cp, clen, &last_w, o);
         }
 
-        if (len + (size_t) clen > cap) {
-            while (len + (size_t) clen > cap) cap *= 2;
-            char *nb = realloc (buf, cap);
-            if (!nb) { free (buf); builtin_error ("realloc"); return EXECUTION_FAILURE; }
-            buf = nb;
+        if (!bf_reserve (&buf, &cap, len, (size_t) clen)) {
+            free (buf); return EXECUTION_FAILURE;
         }
-        if (cp == ' ' || cp == '\t') last_space = (int) len;   /* blank at this offset */
-        memcpy (buf + len, ib + ipos, (size_t) clen);
+        if (cp == ' ' || cp == '\t') last_space = len + 1;
+        if (clen == 1) buf[len] = ib[ipos];
+        else memcpy (buf + len, ib + ipos, (size_t) clen);
         len += (size_t) clen;
         col = new_col;
         ipos += (size_t) clen;
     }
 
-    if (len > 0) fwrite (buf, 1, len, stdout);
+    if (len > 0) bl_output_write (out, buf, len);
     free (buf);
-    if (ferror (in)) {
-        builtin_error ("read %s: %s", name ? name : "stdin", strerror (errno));
+    if (read_error) {
+        builtin_error ("read %s: %s", name ? name : "stdin", strerror (read_error));
         return EXECUTION_FAILURE;
     }
     return EXECUTION_SUCCESS;
@@ -262,11 +326,13 @@ fold_builtin (WORD_LIST *list)
             if (!p->next) {
                 builtin_error ("--width needs WIDTH");
                 builtin_usage ();
+                free (files.v);
                 return EX_USAGE;
             }
             if (!bf_parse_width (p->next->word->word, &o.width)) {
                 builtin_error ("invalid width: %s", p->next->word->word);
                 builtin_usage ();
+                free (files.v);
                 return EX_USAGE;
             }
             p = p->next;
@@ -276,6 +342,7 @@ fold_builtin (WORD_LIST *list)
             if (!bf_parse_width (w + 8, &o.width)) {
                 builtin_error ("invalid width: %s", w + 8);
                 builtin_usage ();
+                free (files.v);
                 return EX_USAGE;
             }
             continue;
@@ -297,6 +364,7 @@ fold_builtin (WORD_LIST *list)
             if (!bf_parse_width (w + 1, &o.width)) {
                 builtin_error ("invalid width: %s", w);
                 builtin_usage ();
+                free (files.v);
                 return EX_USAGE;
             }
             continue;
@@ -306,6 +374,7 @@ fold_builtin (WORD_LIST *list)
             if (w[1] == '-' && w[2] != '\0') {
                 builtin_error ("unknown flag: %s", w);
                 builtin_usage ();
+                free (files.v);
                 return EX_USAGE;
             }
             for (int i = 1; w[i]; i++) {
@@ -364,19 +433,35 @@ fold_builtin (WORD_LIST *list)
     }
 
     int rc = EXECUTION_SUCCESS;
+    bl_output output;
+    bl_output_init (&output, stdout);
+    FILE *input = NULL;
     if (files.n == 0) {
-        if (bf_fold_stream (stdin, &o, NULL) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
+        input = bf_open_stdin ();
+        if (!input || bf_fold_stream (input, &o, NULL, &output) != EXECUTION_SUCCESS)
+            rc = EXECUTION_FAILURE;
     } else {
-        for (int i = 0; i < files.n; i++) {
-            FILE *fp = (strcmp (files.v[i], "-") == 0) ? stdin : fopen (files.v[i], "r");
+        for (int i = 0; i < files.n && !output.error; i++) {
+            FILE *fp;
+            if (strcmp (files.v[i], "-") == 0) {
+                if (!input) input = bf_open_stdin ();
+                if (!input) { rc = EXECUTION_FAILURE; continue; }
+                fp = input;
+            } else fp = fopen (files.v[i], "r");
             if (!fp) {
                 builtin_error ("%s: %s", files.v[i], strerror (errno));
                 rc = EXECUTION_FAILURE;
                 continue;
             }
-            if (bf_fold_stream (fp, &o, files.v[i]) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
-            if (fp != stdin) fclose (fp);
+            if (bf_fold_stream (fp, &o, files.v[i], &output) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
+            if (fp != input) fclose (fp);
         }
+    }
+    if (input) fclose (input);
+    bl_output_flush (&output);
+    if (output.error) {
+        builtin_error ("write error: %s", strerror (output.error));
+        rc = EXECUTION_FAILURE;
     }
     free (files.v);
     return rc;
