@@ -1340,7 +1340,8 @@
       "next": "Confirm the current result across input sizes and meaningful option variants before optimizing."
     },
     "unexpand": {
-      "next": "Confirm the current result across input sizes and meaningful option variants before optimizing."
+      "next": "Review the completed buffered I/O and input-state fix, then validate and remeasure the integrated build.",
+      "note": "Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation."
     },
     "wc": {
       "next": "Check character counting across input sizes and locales; the current C-locale case is faster than GNU."
@@ -1358,6 +1359,9 @@
     },
     "crypto": {
       "next": "Confirm SHA-256 across sizes and profile digest, I/O and formatting costs; other primitives are outside this measurement."
+    },
+    "rev": {
+      "next": "Confirm the selected-case gap against BusyBox across sizes and locales before optimizing; recorded ranges overlap."
     }
   },
   "repeat_input_findings": [
@@ -1397,10 +1401,10 @@
   },
   "assignments": {
     "hexdump": "bash-os-5",
-    "unexpand": "bash-os-2",
     "diff": "bash-os-4",
     "wc": "bash-os-3",
     "join": "bash-os-6",
-    "crypto": "bash-os-1"
+    "crypto": "bash-os-1",
+    "rev": "bash-os-2"
   }
 }

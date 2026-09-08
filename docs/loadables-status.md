@@ -280,7 +280,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | `realpath`* | P C D S T F | [Bench checked](#case-realpath) | realpath; realpath | 6.021 / 67.748 / 56.307; [realpath](#case-realpath), 44 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`reboot`](../loadables/reboot.c) | D S F | Build/help | reboot; reboot | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`renice`](../loadables/renice.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | renice; renice | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`rev`](../loadables/rev.c) | C D S T F | [Bench checked](#case-rev) | rev; rev | 74.139 / 56.947 / 156.231; [rev](#case-rev), 9 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`rev`](../loadables/rev.c) | C D S T F | [Bench checked](#case-rev) | rev; rev | 74.139 / 56.947 / 156.231; [rev](#case-rev), 9 passes | P3 | Confirm the selected-case gap against BusyBox across sizes and locales before optimizing; recorded ranges overlap. Assigned to bash-os-2. |
 | `rm`* | P C D S T F | Build/help | rm; rm | N/M | P3 | Add behavioral fixtures, then timing. |
 | `rmdir`* | P C D S T F | Build/help | rmdir; rmdir | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`rngseed`](../loadables/rngseed.c) | D S F | [Contract](../tests/rngseed-host.c); [S](../tests/run.sh) | seedrng (not in build); systemd-random-seed (missing) | N/M | P3 | Add a matched workload and timing. |
@@ -342,7 +342,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`uclampset`](../loadables/uclampset.c) | D S F | [Smoke](../tests/util-linux-smoke.sh); [limited](#scope-notes) | —; uclampset | N/M | P3 | Decide whether to implement the missing setter surface. |
 | `uname`* | P C D S T F | [Contract](../tests/rootfs-smoke.sh) | uname; uname | N/M | P3 | Add a matched workload and timing. |
 | [`undo`](../loadables/undo.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
-| [`unexpand`](../loadables/unexpand.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | unexpand; unexpand | 92.155 / 131.420 / 50.734; [unexpand](#case-unexpand), 6 passes | P3 | Confirm the current result across input sizes and meaningful option variants before optimizing. Assigned to bash-os-2. |
+| [`unexpand`](../loadables/unexpand.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | unexpand; unexpand | 92.155 / 131.420 / 50.734; [unexpand](#case-unexpand), 6 passes | P3 | Review the completed buffered I/O and input-state fix, then validate and remeasure the integrated build. |
 | [`uniq`](../loadables/uniq.c) | C D S T F | [Parity](../tests/paste-uniq-parity.py); [S](../tests/paste-uniq-sanitize.sh) | uniq; uniq | 84.954 / 468.766 / 115.611; [uniq](#case-uniq), 12 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `unlink`* | P C D S T F | Build/help | unlink; unlink | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`uptime`](../loadables/uptime.c) | D S T F | [Smoke](../tests/system-smoke.sh) | uptime; uptime | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -460,6 +460,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `sudo` | Current integration test rejects an invalid option before credential transition. |
 | `tac` | Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate. [source](../docs/tac.md) |
 | `uclampset` | Query subset; setting PID/system clamps and command mode are refused. [source](../loadables/uclampset.c) |
+| `unexpand` | Worker result is complete and awaiting integration; the current measurement still contains the earlier implementation. |
 <!-- END NOTES -->
 
 ## Individual benchmark cases
