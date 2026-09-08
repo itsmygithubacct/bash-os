@@ -114,3 +114,39 @@ flock "$BENCH_LOCK" python3 bench/loadables.py --binary out/bash-core \
 Inspect each JSON result's `status`; a zero harness exit alone is insufficient.
 The old builtins fail validation on these workloads, so no before/after
 speedup ratio is meaningful.
+
+## Measurements, 2026-09-08
+
+The core profile was built before (`ef66d79`) and after (`ab893cb`) with GCC
+14.2, `-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2`, dynamic linking and
+stripping. The corrected binary SHA-256 is
+`4e88251aab8d48d50cd1235735a051c8aff36c4c0b8a6cfecafd316e0804a0fc`.
+These measurements use the same harness cases as the historical review, but
+both builds here use the core profile; the historical table used full.
+
+Each entry is the median milliseconds per batch, followed by min–max across
+seven timed samples. Both runs used CPU 11 on an Intel Core i7-9850H, Linux
+6.12.96, with the shared timing lock held. References were GNU coreutils 9.7,
+GNU sed 4.9 and BusyBox 1.37.0. All variants ran in the same selected Bash
+binary with empty `PATH`, `LC_ALL=C`, fresh stdin redirection on every call,
+warm input and stdout directed to `/dev/null`. Times include shell startup,
+redirections and external fork/exec costs.
+
+| Case / build | Calls | Builtin ms | BusyBox ms | GNU ms |
+|---|---:|---:|---:|---:|
+| head before | 80 | INVALID: repeated output | 56.421 (53.099–70.083) | 45.573 (44.441–63.436) |
+| head corrected | 80 | 7.585 (6.405–12.587) | 57.999 (53.715–70.882) | 44.876 (43.531–48.017) |
+| sed before | 14 | INVALID: final newline | 127.281 (110.056–146.075) | 82.763 (79.076–97.471) |
+| sed corrected | 14 | 93.785 (90.842–117.850) | 125.502 (108.744–137.108) | 78.527 (76.877–102.432) |
+
+The unchanged 423,000-byte, unterminated text fixture has SHA-256
+`fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee`.
+Arguments were `head -n 100` and `sed s/alpha/OMEGA/g`. All three corrected-run
+variants passed single-call and complete-batch byte validation. The before
+run failed builtin validation and therefore has no valid builtin timing.
+
+Other work was active: the one-minute load average was 6.22 during the before
+run, and 5.29–5.03 during the corrected run; corrected-run five-minute averages
+were 7.88–7.79. The ranges show contention. These results establish valid
+output and deployment costs for this calling pattern, not a speedup over the
+incorrect implementations or a claim about pipe throughput.
