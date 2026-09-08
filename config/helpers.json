@@ -362,6 +362,15 @@
       "requires": [
         "buf"
       ]
+    },
+    "gpu": {
+      "helpers": [
+        "_soft_raster"
+      ],
+      "libs": [
+        "-ldl",
+        "-lm"
+      ]
     }
   },
   "helpers": {
@@ -473,6 +482,10 @@
       "notice": "LICENSE.txt"
     },
     "_ts_markdown_inline": {
+      "license": "MIT",
+      "notice": "LICENSE.txt"
+    },
+    "_soft_raster": {
       "license": "MIT",
       "notice": "LICENSE.txt"
     }

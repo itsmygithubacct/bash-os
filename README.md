@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 269 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 270 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -64,6 +64,14 @@ CC=riscv64-unknown-linux-musl-gcc ./build.sh --static \
 See [build profiles](docs/build-profiles.md) for the profile table, list format,
 output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
 
+`gpu`, included in `desktop` and `full`, adds a persistent pixel canvas, terminal
+input, image export and optional GLES2 shader rendering. Run
+`out/bash-desktop examples/gpu-dashboard.sh` for a live system graph, or
+`out/bash-desktop examples/gpu-shader.sh` for an animated shader.
+[Graphics from Bash](docs/gpu.md) covers drawing, transport fallback and the
+Kilix DMA-BUF path. The canvas works without graphics drivers; shader rendering
+loads GBM/EGL/GLES libraries on demand.
+
 ## How much it saves
 
 `bench/run.sh` runs the same POSIX scripts under three userlands — bash-os
@@ -104,7 +112,7 @@ config/
   loadables.sh                  shell interface to the parser
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
-  bash-loadables.list           the full set (NAME|short-doc per line), 277 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 278 entries
   bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -143,6 +151,9 @@ tests/
   procstat-smoke.py [BIN]      process-accounting fixtures
   final-smoke.py [BIN]         crypto, TLS, accounts, Git, protocols, images and editors
   final-sanitize.sh [BIN]      final imports and their helpers under ASan/UBSan
+  gpu-smoke.py [BIN]           canvas pixels, transport fallback, input and cleanup
+  gpu-sanitize.sh [BIN]        graphics and raster code under ASan/UBSan
+  gpu-live.py [BIN]            optional isolated Kilix integration check
   paste-uniq-parity.py [BIN]    record/group parity, output errors and shell state
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses

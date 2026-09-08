@@ -462,3 +462,20 @@ Reviewed GCC reports assume that successful buffer growth leaves a null
 allocation, that a returned file length differs from its allocation size, or
 that a pointer becomes null between allocation and its check. Runtime boundary
 fixtures also run with instrumented helper implementations.
+
+## Persistent graphics builtin
+
+`gpu.c` and `common/gpu-native.h` are MIT implementations of the Bash canvas,
+Kitty presenter, input decoder, and optional GBM/EGL/GLES2 renderer. The GPU
+backend uses public Linux library ABIs and loads drivers only when requested.
+Its DMA-BUF v2 handoff and overlap-safe scroll composition target the Kilix
+fork; ordinary frame transmission and updates use the Kitty graphics protocol.
+
+`_soft_raster` vendors the source, headers, and MIT license from
+`itsmygithubacct/soft-raster` at revision
+`2c3a1008b82456a6d96c1c65557e4e396ffcb61c`, without source changes. Its embedded
+bitmap fonts retain their upstream public-domain and permissive notices in the
+font headers. The helper manifest selects this rasterizer only for `gpu`.
+Canvas and presenter tests check independent pixel expectations, protocol replay,
+resource cleanup, and optional real-driver rendering/export; the sanitizer
+harness includes the rasterizer itself. See [the graphics API](gpu.md).

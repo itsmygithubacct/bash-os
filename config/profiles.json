@@ -294,7 +294,8 @@
       "zlib",
       "zcat",
       "zstd",
-      "zstdcat"
+      "zstdcat",
+      "gpu"
     ]
   },
   "full": {

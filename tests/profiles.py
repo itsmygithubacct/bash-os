@@ -28,7 +28,7 @@ for smaller,larger in [('shell','pure'),('pure','core'),('core','device'),('devi
 assert {'ls','grep','find','sort','cut','seq'} <= set(p['core']['names'])
 assert {'ip','bashmount','procstat'} <= set(p['device']['names'])
 assert {'ssh','sshd','crypto','sqlite'} <= set(p['server']['names'])
-assert {'nano','ts','hl','tiv'} <= set(p['desktop']['names'])
+assert {'nano','ts','hl','tiv','gpu'} <= set(p['desktop']['names'])
 assert not p['core']['libraries'] and not p['device']['libraries']
 for level,name in enumerate(['shell','pure','core','device','server','full']):
     assert plan('--level',str(level))['names']==p[name]['names']

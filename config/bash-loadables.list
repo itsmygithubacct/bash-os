@@ -310,3 +310,6 @@ nano|nano
 ts|ts
 hl|hl
 sudo|sudo
+
+# Persistent graphics canvas and optional GPU renderer
+gpu|gpu COMMAND [ARGUMENT ...]

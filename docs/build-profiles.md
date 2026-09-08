@@ -12,8 +12,8 @@ choice, not a runtime disable list.
 | 2 | `core` | 89 | Everyday files, text processing and processes |
 | 3 | `device` | 160 | Core plus Linux devices, processes and basic networking |
 | 4 | `server` | 214 | Device plus services, TLS, SSH, accounts and data |
-| 4 | `desktop` | 152 | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 277 | Every command in the collection |
+| 4 | `desktop` | 153 | Core plus editors, terminal graphics and interactive tools |
+| 5 | `full` | 278 | Every command in the collection |
 
 Levels 0–5 select `shell`, `pure`, `core`, `device`, `server`, and `full`.
 `desktop` is an alternative to `server`; select it by name. The definitions in

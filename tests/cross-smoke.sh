@@ -15,4 +15,5 @@ BASH_OS_RUNNER="$runner" python3 tests/profile-smoke.py "$binary"
 '
 python3 tests/helper-smoke.py "$d/bash-os"
 python3 tests/final-smoke.py "$d/bash-os"
+python3 tests/gpu-smoke.py "$d/bash-os"
 echo 'cross-smoke: exact selection, compression, nested execution and behavior fixtures passed'
