@@ -253,10 +253,14 @@
     },
     "screen": {
       "helpers": [
-        "_libssh"
+        "_libssh",
+        "_ptybroker"
       ],
       "libs": [
         "-lz"
+      ],
+      "requires": [
+        "ptybroker"
       ]
     },
     "sshd": {
@@ -370,6 +374,14 @@
       "libs": [
         "-ldl",
         "-lm"
+      ]
+    },
+    "ptybroker": {
+      "helpers": [
+        "_ptybroker"
+      ],
+      "libs": [
+        "-ldl"
       ]
     }
   },
@@ -486,6 +498,10 @@
       "notice": "LICENSE.txt"
     },
     "_soft_raster": {
+      "license": "MIT",
+      "notice": "LICENSE.txt"
+    },
+    "_ptybroker": {
       "license": "MIT",
       "notice": "LICENSE.txt"
     }

@@ -313,3 +313,4 @@ sudo|sudo
 
 # Persistent graphics canvas and optional GPU renderer
 gpu|gpu COMMAND [ARGUMENT ...]
+ptybroker|Persistent local raw PTYs with bounded native I/O

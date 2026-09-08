@@ -59,6 +59,7 @@ bash-os is assembled from these sources:
 | Files | Licence |
 |---|---|
 | command sources and `loadables/common/` | MIT (`LICENSE`) |
+| `_ptybroker` native client and service | MIT, original project code |
 | `_jsmn`, `_bl_key`, `_bl_screen`, `_bl_proc`, `_tomlc17` helpers | MIT, per-tree notices |
 | `_libgrapheme` | ISC, per-tree notice |
 | `_sqlite` | Public domain, upstream disclaimer retained |

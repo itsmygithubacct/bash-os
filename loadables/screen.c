@@ -3,24 +3,19 @@
 #  define _GNU_SOURCE 1
 #endif
 
-/* screen.c - bash-screen multiplexer SERVER as a bash builtin
- *                 (Phase 3 metadata/control surface).
+/* screen.c - Bash window/pane policy backed by the native PTY broker.
  *
- * Stage 50.B v1 implements the metadata-backed control verbs for
- * windows/panes, attach state, send-keys, capture-pane/scrollback,
- * send-mouse, and the private state-dir contract. Stage 50.D adds the
- * first live pty relay loop: run with an explicit command creates a
- * daemon supervisor with one pty-backed pane, attach relays stdin/stdout
- * through a Unix socket, and
- * send-keys writes to the same live master path when available. Stage
- * 50.D.B layers target-aware window/pane routing on top of that state.
+ * Every live pane owns an independent service. Shell invocations keep only
+ * layout and focus metadata; input, geometry, process lifetime and bounded
+ * raw output history belong to the broker. Live attach never replays raw
+ * history: a raw transcript is not a terminal checkpoint, and replaying it
+ * can repeat terminal queries. --metadata retains offline layout fixtures.
  *
  * State directory: /tmp/.screen/<NAME>/
- *     pid            ← server pid (sentinel for "session is up")
- *     sock           ← attach control socket alias
- *     master.fd      ← Unix stream socket for live pty relay clients
+ *     pid            ← zero sentinel for the logical session
+ *     backend        ← ptybroker or explicit metadata mode
+ *     brokers/<id>/control.sock ← one private service socket per pane
  *     active         ← active <window>:<pane> focus pointer
- *     qsock          ← query socket (state / find / scrollback dump)
  *     info           ← human-readable metadata
  *     windows/<idx>/ ← per-window state (Stage 9)
  *         pid
@@ -30,8 +25,9 @@
  *         vt-dirty       ← relay dirtiness bit (metadata-only)
  *         panes/<pidx>/  (Stage 18)
  *             pid
- *             geom        — "rows cols"
- *             scrollback  — ring buffer (Stages 5 + 12)
+ *             geom        — "row col rows cols"
+ *             broker-id   — stable native session ID
+ *             scrollback  — offline fixture history only
  *             pty.fd      — live pty socket path or metadata placeholder
  *     attachers/<pid>    ← per-client last-seen metadata
  *     relay-status       ← live relay status / diagnostics
@@ -54,6 +50,7 @@
 #include <termios.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
@@ -63,6 +60,7 @@
 #include <poll.h>
 #include <time.h>
 #include <stdint.h>
+#include <limits.h>
 #include <zlib.h>
 
 #if __has_include ("_libssh_libssh.h")
@@ -76,6 +74,11 @@
 #endif
 
 #include "loadables.h"
+#if __has_include ("_ptybroker_transport.h")
+#  include "_ptybroker_transport.h"
+#else
+#  include "_ptybroker/transport.h"
+#endif
 
 /* Default state directory. Override via BASHSCREEN_STATE_DIR env.
  *
@@ -97,7 +100,6 @@
 #define BSCREEN_REMOTE_FRAME_CONTROL 3
 #define BSCREEN_DEFAULT_DETACH_KEY '\001'
 #define BSCREEN_DEFAULT_ROAM_KEY 'r'
-#define BSCREEN_CONTROL_ROAM "roam"
 
 typedef enum {
     BSCREEN_RELAY_ERROR = -1,
@@ -155,43 +157,6 @@ bs_remote_frame_valid (const struct bs_remote_frame_header *h,
         return 0;
     if (len_out)
         *len_out = bs_remote_u32_unpack (h->len_be);
-    return 1;
-}
-
-static size_t
-bs_remote_frame_build (char *out, size_t out_sz, unsigned char type,
-                       const char *payload)
-{
-    struct bs_remote_frame_header h;
-    size_t len = payload ? strlen (payload) : 0;
-    if (out_sz < sizeof h + len)
-        return 0;
-    bs_remote_frame_init (&h, type, (uint32_t) len);
-    memcpy (out, &h, sizeof h);
-    if (len)
-        memcpy (out + sizeof h, payload, len);
-    return sizeof h + len;
-}
-
-static int
-bs_remote_control_roam_frame (const char *buf, ssize_t n, size_t *frame_len)
-{
-    struct bs_remote_frame_header h;
-    uint32_t len = 0;
-    size_t need;
-    if (n < (ssize_t) sizeof h)
-        return 0;
-    memcpy (&h, buf, sizeof h);
-    if (!bs_remote_frame_valid (&h, &len) ||
-        h.type != BSCREEN_REMOTE_FRAME_CONTROL)
-        return 0;
-    need = sizeof h + (size_t) len;
-    if (len != sizeof BSCREEN_CONTROL_ROAM - 1 ||
-        n < (ssize_t) need ||
-        memcmp (buf + sizeof h, BSCREEN_CONTROL_ROAM, len) != 0)
-        return 0;
-    if (frame_len)
-        *frame_len = need;
     return 1;
 }
 
@@ -294,6 +259,7 @@ static int
 bs_name_ok (const char *name)
 {
     if (!name || !*name || strlen (name) > 96) return 0;
+    if (!strcmp (name, ".") || !strcmp (name, "..")) return 0;
     for (const unsigned char *p = (const unsigned char *) name; *p; p++)
         if (!( (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
                (*p >= '0' && *p <= '9') || *p == '_' || *p == '.' || *p == '-' ))
@@ -769,13 +735,10 @@ bs_remote_channel_write_all (ssh_channel ch, const char *buf, size_t n)
 static int
 bs_remote_channel_send_control_roam (ssh_channel ch)
 {
-    char frame[sizeof (struct bs_remote_frame_header) + sizeof BSCREEN_CONTROL_ROAM - 1];
-    size_t len = bs_remote_frame_build (frame, sizeof frame,
-                                        BSCREEN_REMOTE_FRAME_CONTROL,
-                                        BSCREEN_CONTROL_ROAM);
-    if (!len)
-        return -1;
-    return bs_remote_channel_write_all (ch, frame, len);
+    /* Remote attach consumes the same prefix as local attach. Protocol
+     * metadata must never be injected into the pane's application input. */
+    char keys[2] = { (char) bs_detach_key (), (char) bs_roam_key () };
+    return bs_remote_channel_write_all (ch, keys, sizeof keys);
 }
 
 static int
@@ -1121,21 +1084,6 @@ bs_remote_ssh_attach (const char *hostport, const char *key, const char *session
     return EXECUTION_FAILURE;
 }
 #endif
-
-static int
-bs_append_file (const char *path, const char *buf, size_t len)
-{
-    FILE *f = fopen (path, "a");
-    if (!f) return -1;
-    if (len && fwrite (buf, 1, len, f) != len) {
-        int saved = errno;
-        fclose (f);
-        errno = saved;
-        return -1;
-    }
-    if (fclose (f) == EOF) return -1;
-    return 0;
-}
 
 /* Stage 50.F scrollback compression + GC (2026-05-11).
  *
@@ -1654,7 +1602,12 @@ bs_session_path (char *out, size_t n, const char *root, const char *name)
         builtin_error ("screen: unsafe or empty session name: %s", name ? name : "(null)");
         return -1;
     }
-    snprintf (out, n, "%s/%s", root, name);
+    int len = snprintf (out, n, "%s/%s", root, name);
+    if (len < 0 || (size_t) len >= n) {
+        errno = ENAMETOOLONG;
+        builtin_error ("screen: session path is too long");
+        return -1;
+    }
     return 0;
 }
 
@@ -1663,12 +1616,15 @@ bs_next_numeric_dir (const char *parent)
 {
     DIR *d = opendir (parent);
     int max = -1;
-    if (!d) return 0;
+    if (!d) return errno == ENOENT ? 0 : -1;
     struct dirent *ent;
     while ((ent = readdir (d)) != NULL) {
-        char *end = NULL;
+        char *end;
+        errno = 0;
         long v = strtol (ent->d_name, &end, 10);
-        if (end && *end == '\0' && v > max) max = (int)v;
+        if (*end || v < 0) continue;
+        if (errno || v >= INT_MAX) { closedir (d); errno = EOVERFLOW; return -1; }
+        if (v > max) max = (int) v;
     }
     closedir (d);
     return max + 1;
@@ -1764,6 +1720,10 @@ static int
 bs_write_active_pair (const char *sdir, const char *win, const char *pane)
 {
     char file[512], val[128];
+    if (bs_window_exists (sdir, win)) {
+        snprintf (file, sizeof file, "%s/windows/%s/active-pane", sdir, win);
+        if (bs_write_file (file, pane) < 0) return -1;
+    }
     snprintf (file, sizeof file, "%s/active-window", sdir);
     if (bs_write_file (file, win) < 0) return -1;
     snprintf (file, sizeof file, "%s/active-pane", sdir);
@@ -1771,6 +1731,32 @@ bs_write_active_pair (const char *sdir, const char *win, const char *pane)
     snprintf (file, sizeof file, "%s/active", sdir);
     snprintf (val, sizeof val, "%s:%s\n", win, pane);
     return bs_write_file (file, val);
+}
+
+static int
+bs_focus_window (const char *sdir, const char *win)
+{
+    char path[640], pane[64] = "0";
+    snprintf (path, sizeof path, "%s/windows/%s/active-pane", sdir, win);
+    (void) bs_read_file (path, pane, sizeof pane);
+    if (!bs_pane_exists (sdir, win, pane)) {
+        snprintf (path, sizeof path, "%s/windows/%s/panes", sdir, win);
+        DIR *d = opendir (path);
+        if (!d) return -1;
+        struct dirent *ent;
+        unsigned long best = ULONG_MAX;
+        while ((ent = readdir (d)) != NULL) {
+            if (!bs_pane_exists (sdir, win, ent->d_name)) continue;
+            char *end;
+            errno = 0;
+            unsigned long n = strtoul (ent->d_name, &end, 10);
+            if (!errno && !*end && n < best) best = n;
+        }
+        closedir (d);
+        if (best == ULONG_MAX) { errno = ENOENT; return -1; }
+        snprintf (pane, sizeof pane, "%lu", best);
+    }
+    return bs_write_active_pair (sdir, win, pane);
 }
 
 static int
@@ -1806,14 +1792,17 @@ bs_init_window_vt_metadata (const char *wdir)
 static int
 bs_parse_geom (const char *geom, long *r, long *c, long *rr, long *cc)
 {
-    char *end = NULL;
     const char *p = geom;
-    *r = strtol (p, &end, 10); if (end == p || *end != ' ') return -1; p = end + 1;
-    *c = strtol (p, &end, 10); if (end == p || *end != ' ') return -1; p = end + 1;
-    *rr = strtol (p, &end, 10); if (end == p || *end != ' ') return -1; p = end + 1;
-    *cc = strtol (p, &end, 10);
-    if (end == p || (*end != '\0' && *end != '\n')) return -1;
-    return (*r < 0 || *c < 0 || *rr < 0 || *cc < 0) ? -1 : 0;
+    long *values[] = { r, c, rr, cc };
+    for (int i = 0; i < 4; i++) {
+        char *end;
+        errno = 0;
+        *values[i] = strtol (p, &end, 10);
+        if (errno || end == p || *values[i] < 0 || *values[i] > INT_MAX ||
+            (i < 3 ? *end != ' ' : *end != '\0' && *end != '\n')) return -1;
+        p = end + (i < 3);
+    }
+    return *rr > 65535 || *cc > 65535 ? -1 : 0;
 }
 
 static int
@@ -1823,822 +1812,462 @@ bs_create_window (const char *sdir, const char *wname)
     snprintf (parent, sizeof parent, "%s/windows", sdir);
     if (bs_mkdir_if_needed (parent, 0700) < 0) return -1;
     int idx = bs_next_numeric_dir (parent);
+    if (idx < 0) return -1;
     snprintf (path, sizeof path, "%s/%d", parent, idx);
-    if (bs_mkdir_if_needed (path, 0700) < 0) return -1;
+    if (mkdir (path, 0700) < 0) return -1;
     snprintf (file, sizeof file, "%s/name", path);
     /* Cap window name bytes to bound state-dir metadata size. */
     char wname_buf[BSCREEN_WINDOW_NAME_MAX + 1];
     const char *wname_eff = bs_window_name_capped (wname, wname_buf);
-    if (bs_write_file (file, wname_eff) < 0) return -1;
+    if (bs_write_file (file, wname_eff) < 0) goto fail;
     snprintf (file, sizeof file, "%s/pid", path);
-    snprintf (val, sizeof val, "%ld\n", (long)getpid ());
-    if (bs_write_file (file, val) < 0) return -1;
-    if (bs_init_window_vt_metadata (path) < 0) return -1;
+    snprintf (val, sizeof val, "0\n");
+    if (bs_write_file (file, val) < 0) goto fail;
+    if (bs_init_window_vt_metadata (path) < 0) goto fail;
     snprintf (file, sizeof file, "%s/panes", path);
-    if (bs_mkdir_if_needed (file, 0700) < 0) return -1;
+    if (bs_mkdir_if_needed (file, 0700) < 0) goto fail;
     snprintf (path, sizeof path, "%s/windows/%d/panes/0", sdir, idx);
-    if (bs_mkdir_if_needed (path, 0700) < 0) return -1;
+    if (bs_mkdir_if_needed (path, 0700) < 0) goto fail;
     snprintf (file, sizeof file, "%s/name", path);
-    if (bs_write_file (file, "0") < 0) return -1;
+    if (bs_write_file (file, "0") < 0) goto fail;
     snprintf (file, sizeof file, "%s/geom", path);
-    if (bs_write_file (file, "0 0 24 80") < 0) return -1;
+    if (bs_write_file (file, "0 0 24 80") < 0) goto fail;
     snprintf (file, sizeof file, "%s/scrollback", path);
-    if (bs_write_file (file, "") < 0) return -1;
+    if (bs_write_file (file, "") < 0) goto fail;
     snprintf (file, sizeof file, "%s/pty.fd", path);
-    if (bs_write_file (file, "metadata\n") < 0) return -1;
+    if (bs_write_file (file, "metadata\n") < 0) goto fail;
     return idx;
-}
-
-#define BSCREEN_MAX_CLIENTS 16
-
-typedef struct {
-    int fd;
-    int prefix;
-} bscreen_client;
-
-static volatile sig_atomic_t bs_relay_stop = 0;
-
-static void
-bs_relay_signal_stop (int sig)
-{
-    (void) sig;
-    bs_relay_stop = 1;
-}
-
-static void
-bs_relay_sigchld_default (void)
-{
-    struct sigaction dfl;
-    memset (&dfl, 0, sizeof dfl);
-    dfl.sa_handler = SIG_DFL;
-    sigemptyset (&dfl.sa_mask);
-    sigaction (SIGCHLD, &dfl, NULL);
-}
-
-static int
-bs_relay_sigchld_block (sigset_t *oldmask)
-{
-    sigset_t block;
-    sigemptyset (&block);
-    sigaddset (&block, SIGCHLD);
-    return sigprocmask (SIG_BLOCK, &block, oldmask);
-}
-
-static void
-bs_relay_sigchld_restore (sigset_t *oldmask)
-{
-    sigprocmask (SIG_SETMASK, oldmask, NULL);
-}
-
-static int
-bs_relay_wait_child_nonblock (pid_t child, int *status)
-{
-    pid_t w;
-    sigset_t oldmask;
-
-    if (bs_relay_sigchld_block (&oldmask) < 0)
-        return -1;
-
-    do {
-        w = waitpid (child, status, WNOHANG);
-    } while (w < 0 && errno == EINTR);
-
-    bs_relay_sigchld_restore (&oldmask);
-
-    if (w == child) return 1;
-    if (w == 0) return 0;
-    if (w < 0 && errno == ECHILD) return 1;
-    return -1;
-}
-
-static void
-bs_relay_reap_child_bounded (pid_t child)
-{
-    int status = 0;
-    int state = bs_relay_wait_child_nonblock (child, &status);
-    if (state != 0) return;
-
-    kill (child, SIGHUP);
-    for (int i = 0; i < 20; i++) {
-        usleep (50000);
-        state = bs_relay_wait_child_nonblock (child, &status);
-        if (state != 0) return;
-    }
-
-    kill (child, SIGTERM);
-    for (int i = 0; i < 10; i++) {
-        usleep (50000);
-        state = bs_relay_wait_child_nonblock (child, &status);
-        if (state != 0) return;
-    }
-
-    kill (child, SIGKILL);
-    for (int i = 0; i < 10; i++) {
-        usleep (50000);
-        state = bs_relay_wait_child_nonblock (child, &status);
-        if (state != 0) return;
-    }
-}
-
-static int
-bs_relay_socket_path (char *out, size_t n, const char *sdir)
-{
-    int rc = snprintf (out, n, "%s/master.fd", sdir);
-    if (rc < 0 || (size_t) rc >= n) {
-        builtin_error ("screen: relay socket path too long");
-        return -1;
-    }
-    return 0;
-}
-
-static int
-bs_connect_relay (const char *sdir)
-{
-    char sockpath[512];
-    if (bs_relay_socket_path (sockpath, sizeof sockpath, sdir) < 0) return -1;
-    int fd = socket (AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un sa;
-    memset (&sa, 0, sizeof sa);
-    sa.sun_family = AF_UNIX;
-    if (strlen (sockpath) >= sizeof sa.sun_path) {
-        close (fd);
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    strcpy (sa.sun_path, sockpath);
-    if (connect (fd, (struct sockaddr *)&sa, sizeof sa) < 0) {
-        close (fd);
-        return -1;
-    }
-    return fd;
-}
-
-static int
-bs_spawn_pty_child (char **argv, int *master_out, pid_t *pid_out)
-{
-    int master = posix_openpt (O_RDWR | O_NOCTTY);
-    if (master < 0) return -1;
-    if (grantpt (master) < 0 || unlockpt (master) < 0) {
-        close (master);
-        return -1;
-    }
-    char slave_path[128];
-    if (ptsname_r (master, slave_path, sizeof slave_path) != 0) {
-        close (master);
-        return -1;
-    }
-    bs_relay_sigchld_default ();
-    sigset_t oldmask;
-    if (bs_relay_sigchld_block (&oldmask) < 0) {
-        close (master);
-        return -1;
-    }
-    pid_t pid = fork ();
-    if (pid < 0) {
-        bs_relay_sigchld_restore (&oldmask);
-        close (master);
-        return -1;
-    }
-    if (pid == 0) {
-        bs_relay_sigchld_restore (&oldmask);
-        setsid ();
-        int slave = open (slave_path, O_RDWR | O_NOCTTY);
-        if (slave < 0) _exit (126);
-        ioctl (slave, TIOCSCTTY, 0);
-        dup2 (slave, 0);
-        dup2 (slave, 1);
-        dup2 (slave, 2);
-        if (slave > 2) close (slave);
-        close (master);
-        execvp (argv[0], argv);
-        _exit (127);
-    }
-    bs_relay_sigchld_restore (&oldmask);
-    *master_out = master;
-    *pid_out = pid;
-    return 0;
-}
-
-static int
-bs_make_relay_listener (const char *sdir)
-{
-    char sockpath[512], aliaspath[512];
-    if (bs_relay_socket_path (sockpath, sizeof sockpath, sdir) < 0) return -1;
-    unlink (sockpath);
-    snprintf (aliaspath, sizeof aliaspath, "%s/sock", sdir);
-    unlink (aliaspath);
-
-    int fd = socket (AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un sa;
-    memset (&sa, 0, sizeof sa);
-    sa.sun_family = AF_UNIX;
-    if (strlen (sockpath) >= sizeof sa.sun_path) {
-        close (fd);
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    strcpy (sa.sun_path, sockpath);
-    if (bind (fd, (struct sockaddr *)&sa, sizeof sa) < 0 ||
-        listen (fd, 16) < 0) {
+fail:
+    {
         int saved = errno;
-        close (fd);
-        unlink (sockpath);
+        snprintf (path, sizeof path, "%s/windows/%d", sdir, idx);
+        (void) bs_rm_rf (path);
         errno = saved;
         return -1;
     }
-    chmod (sockpath, 0600);
-    symlink ("master.fd", aliaspath);
-    return fd;
+}
+
+/* The backend marker distinguishes live services from explicit offline
+ * fixtures. Numeric PIDs are diagnostic data, never authority to signal. */
+static int
+bs_broker_mode (const char *sdir)
+{
+    char file[640], value[32];
+    snprintf (file, sizeof file, "%s/backend", sdir);
+    return bs_read_file (file, value, sizeof value) == 0 &&
+           !strcmp (value, "ptybroker");
 }
 
 static int
-bs_relay_peer_allowed (int fd)
+bs_broker_path (const char *sdir, const char *win, const char *pane,
+                char root[640], char id[PB_ID_MAX + 1])
 {
-#ifdef SO_PEERCRED
-    struct ucred cred;
-    socklen_t len = sizeof cred;
-    if (getsockopt (fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) < 0)
-        return 0;
-    if (len < sizeof cred)
-        return 0;
-    return cred.uid == geteuid ();
-#else
-    (void) fd;
-    return 1;
-#endif
+    char file[768];
+    int n = snprintf (root, 640, "%s/brokers", sdir);
+    if (n < 0 || n >= 640 || sdir[0] != '/') {
+        errno = sdir[0] == '/' ? ENAMETOOLONG : EINVAL;
+        return -1;
+    }
+    if (!bs_pane_exists (sdir, win, pane)) { errno = ENOENT; return -1; }
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/broker-id", sdir, win, pane);
+    if (bs_read_file (file, id, PB_ID_MAX + 1) < 0) return -1;
+    if (!pb_valid_id (id)) { errno = EINVAL; return -1; }
+    return 0;
 }
 
-static void
-bs_relay_remove_client (bscreen_client *clients, int idx)
+static int
+bs_current_shell (char *path, size_t size)
 {
-    if (clients[idx].fd >= 0) close (clients[idx].fd);
-    clients[idx].fd = -1;
-    clients[idx].prefix = 0;
+    ssize_t n = readlink ("/proc/self/exe", path, size - 1);
+    if (n < 0 || (size_t) n >= size - 1) return -1;
+    path[n] = '\0';
+    return 0;
+}
+
+static int
+bs_broker_new_pane (const char *sdir, const char *win, const char *pane,
+                    char *const *argv, const char *geom)
+{
+    char root[640], id[PB_ID_MAX + 1], file[768], value[768];
+    char shell[4096], cwd[4096];
+    char *default_argv[] = { shell, "--noprofile", "--norc", "-i", NULL };
+    struct pb_status status;
+    long r, c, rows, cols;
+    if (!bs_broker_mode (sdir)) return 0;
+    if (bs_parse_geom (geom, &r, &c, &rows, &cols) < 0 ||
+        rows < 1 || cols < 1 || rows > 65535 || cols > 65535) {
+        errno = EINVAL;
+        return -1;
+    }
+    int n = snprintf (root, sizeof root, "%s/brokers", sdir);
+    if (n < 0 || (size_t) n >= sizeof root || sdir[0] != '/') {
+        errno = sdir[0] == '/' ? ENAMETOOLONG : EINVAL;
+        return -1;
+    }
+    n = snprintf (id, sizeof id, "w%s-p%s", win, pane);
+    if (n < 0 || (size_t) n >= sizeof id || !pb_valid_id (id)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    if (!argv || !argv[0]) {
+        if (bs_current_shell (shell, sizeof shell) < 0) return -1;
+        argv = default_argv;
+    }
+    if (!getcwd (cwd, sizeof cwd)) return -1;
+    if (bos_ptybroker_create (root, id, argv, cwd, (unsigned) rows,
+                              (unsigned) cols, &status) < 0) return -1;
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/broker-id", sdir, win, pane);
+    if (bs_write_file (file, id) < 0) goto fail;
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/pid", sdir, win, pane);
+    snprintf (value, sizeof value, "%d\n", status.child_pid);
+    if (bs_write_file (file, value) < 0) goto fail;
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/pty.fd", sdir, win, pane);
+    snprintf (value, sizeof value, "%s/%s/control.sock\n", root, id);
+    if (bs_write_file (file, value) < 0) goto fail;
+    snprintf (file, sizeof file, "%s/windows/%s/vt-handle", sdir, win);
+    if (bs_write_file (file, "none: raw PTY service\n") < 0) goto fail;
+    return 0;
+fail:
+    {
+        int saved = errno;
+        (void) pb_terminate (root, id);
+        errno = saved;
+        return -1;
+    }
+}
+
+static int
+bs_broker_stop_pane (const char *sdir, const char *win, const char *pane)
+{
+    char root[640], id[PB_ID_MAX + 1];
+    if (!bs_broker_mode (sdir)) return 0;
+    if (bs_broker_path (sdir, win, pane, root, id) < 0) return -1;
+    if (pb_terminate (root, id) < 0 && errno != ENOENT) {
+        builtin_error ("screen: terminate pane %s:%s: %s", win, pane, strerror (errno));
+        return -1;
+    }
+    return 0;
+}
+
+static int
+bs_broker_stop_window (const char *sdir, const char *win)
+{
+    char parent[640];
+    if (!bs_broker_mode (sdir)) return 0;
+    snprintf (parent, sizeof parent, "%s/windows/%s/panes", sdir, win);
+    DIR *d = opendir (parent);
+    if (!d) return -1;
+    struct dirent *ent;
+    int result = 0;
+    while ((ent = readdir (d)) != NULL) {
+        if (!bs_pane_exists (sdir, win, ent->d_name)) continue;
+        if (bs_broker_stop_pane (sdir, win, ent->d_name) < 0) result = -1;
+    }
+    closedir (d);
+    return result;
+}
+
+static int
+bs_broker_stop_all (const char *sdir)
+{
+    char root[640];
+    snprintf (root, sizeof root, "%s/brokers", sdir);
+    DIR *d = opendir (root);
+    if (!d) return errno == ENOENT ? 0 : -1;
+    struct dirent *ent;
+    int result = 0;
+    while ((ent = readdir (d)) != NULL) {
+        if (!pb_valid_id (ent->d_name)) continue;
+        if (pb_terminate (root, ent->d_name) < 0 && errno != ENOENT) result = -1;
+    }
+    closedir (d);
+    return result;
+}
+
+static int
+bs_set_geometry (const char *sdir, const char *win, const char *pane,
+                  const char *geom)
+{
+    char file[768], old[128], root[640], id[PB_ID_MAX + 1];
+    long r, c, rows, cols;
+    if (bs_parse_geom (geom, &r, &c, &rows, &cols) < 0 ||
+        rows < 1 || cols < 1 || rows > 65535 || cols > 65535) {
+        errno = EINVAL;
+        builtin_error ("screen: pane size must be between 1 and 65535");
+        return -1;
+    }
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/geom", sdir, win, pane);
+    if (bs_read_file (file, old, sizeof old) < 0) return -1;
+    if (bs_broker_mode (sdir)) {
+        if (bs_broker_path (sdir, win, pane, root, id) < 0 ||
+            pb_resize (root, id, (unsigned) rows, (unsigned) cols) < 0) {
+            builtin_error ("screen: resize pane %s:%s: %s", win, pane, strerror (errno));
+            return -1;
+        }
+    }
+    if (bs_write_file (file, geom) == 0) return 0;
+    if (bs_broker_mode (sdir) && bs_parse_geom (old, &r, &c, &rows, &cols) == 0)
+        (void) pb_resize (root, id, (unsigned) rows, (unsigned) cols);
+    return -1;
+}
+
+static FILE *
+bs_broker_history (const char *sdir, const char *win, const char *pane)
+{
+    char root[640], id[PB_ID_MAX + 1];
+    if (bs_broker_path (sdir, win, pane, root, id) < 0) return NULL;
+    FILE *f = tmpfile ();
+    if (!f) return NULL;
+    (void) fcntl (fileno (f), F_SETFD, FD_CLOEXEC);
+    if (pb_capture (root, id, fileno (f)) < 0 || fseek (f, 0, SEEK_SET) < 0) {
+        int saved = errno;
+        fclose (f);
+        errno = saved;
+        return NULL;
+    }
+    return f;
+}
+
+static int
+bs_broker_capture (const char *sdir, const char *win, const char *pane, int lines)
+{
+    FILE *f = bs_broker_history (sdir, win, pane);
+    if (!f) {
+        builtin_error ("capture-pane: %s:%s: %s", win, pane, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    unsigned char *data = malloc (PB_HISTORY + 1);
+    if (!data) { fclose (f); return EXECUTION_FAILURE; }
+    size_t size = fread (data, 1, PB_HISTORY + 1, f), start = 0;
+    int error = ferror (f) ? EIO : size > PB_HISTORY ? EOVERFLOW : 0;
+    fclose (f);
+    if (lines > 0 && size) {
+        size_t i = size;
+        if (data[i - 1] == '\n') i--;
+        while (i > 0) {
+            if (data[--i] == '\n' && --lines == 0) { start = i + 1; break; }
+        }
+    }
+    if (!error && bs_relay_write_all (STDOUT_FILENO, (char *) data + start,
+                                     (ssize_t) (size - start)) < 0) error = errno;
+    free (data);
+    if (error) {
+        builtin_error ("capture-pane: output: %s", strerror (error));
+        return EXECUTION_FAILURE;
+    }
+    return EXECUTION_SUCCESS;
+}
+
+/* Attach presents only new output from the focused pane. Switching focus
+ * closes the old subscription before claiming the next pane's controller. */
+static int
+bs_attach_broker (const char *sdir, int observer)
+{
+    char root[640], id[PB_ID_MAX + 1], win[64], pane[64];
+    char active_win[64] = "", active_pane[64] = "";
+    char detach_file[640], detach_before[128] = "", detach_now[128];
+    struct termios saved, raw;
+    struct pb_status status;
+    int fd = -1, raw_enabled = 0, pending = 0, result = BSCREEN_RELAY_EOF, stdin_open = 1;
+    unsigned char prefix = bs_detach_key ();
+    snprintf (detach_file, sizeof detach_file, "%s/detach", sdir);
+    (void) bs_read_file (detach_file, detach_before, sizeof detach_before);
+    if (isatty (STDIN_FILENO) && tcgetattr (STDIN_FILENO, &saved) == 0) {
+        raw = saved;
+        cfmakeraw (&raw);
+        if (tcsetattr (STDIN_FILENO, TCSANOW, &raw) < 0) return BSCREEN_RELAY_ERROR;
+        raw_enabled = 1;
+    }
+    for (;;) {
+        bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
+        if (strcmp (win, active_win) || strcmp (pane, active_pane)) {
+            if (fd >= 0) close (fd);
+            fd = -1;
+            if (bs_broker_path (sdir, win, pane, root, id) < 0 ||
+                pb_attach (root, id, observer ? PB_OBSERVE : PB_CONTROL, &fd, &status) < 0) {
+                result = BSCREEN_RELAY_ERROR;
+                break;
+            }
+            snprintf (active_win, sizeof active_win, "%s", win);
+            snprintf (active_pane, sizeof active_pane, "%s", pane);
+            pending = 0;
+        }
+        if (bs_read_file (detach_file, detach_now, sizeof detach_now) == 0 &&
+            strcmp (detach_before, detach_now)) {
+            result = BSCREEN_RELAY_DETACH;
+            break;
+        }
+        struct pollfd fds[2] = { { fd, POLLIN, 0 }, { stdin_open ? STDIN_FILENO : -1, POLLIN, 0 } };
+        if (poll (fds, 2, 100) < 0) { result = BSCREEN_RELAY_ERROR; break; }
+        if (fds[0].revents & POLLIN) {
+            struct pb_event event;
+            if (pb_receive (fd, &event, 0) < 0) {
+                if (errno != EAGAIN && errno != ETIMEDOUT) {
+                    result = BSCREEN_RELAY_ERROR;
+                    break;
+                }
+            } else if (event.type == PB_OUTPUT) {
+                if (bs_relay_write_all (STDOUT_FILENO, (char *) event.data,
+                                        (ssize_t) event.size) < 0) {
+                    result = BSCREEN_RELAY_ERROR;
+                    break;
+                }
+            } else if (event.type == PB_EXIT) break;
+        } else if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) break;
+        if (fds[1].revents & POLLIN) {
+            unsigned char input[1024], output[1025];
+            ssize_t n = read (STDIN_FILENO, input, sizeof input);
+            size_t out = 0;
+            if (n <= 0) {
+                if (observer) { stdin_open = 0; continue; }
+                if (pending && pb_send (root, id, &prefix, 1) < 0) result = BSCREEN_RELAY_ERROR;
+                break;
+            }
+            for (ssize_t i = 0; i < n; i++) {
+                if (pending) {
+                    pending = 0;
+                    if (input[i] == 'd' || input[i] == 'D') {
+                        result = BSCREEN_RELAY_DETACH;
+                        if (!observer && out && pb_send (root, id, output, out) < 0)
+                            result = BSCREEN_RELAY_ERROR;
+                        goto done;
+                    }
+                    if (bs_key_match (input[i], bs_roam_key ())) {
+                        result = BSCREEN_RELAY_ROAM;
+                        if (!observer && out && pb_send (root, id, output, out) < 0)
+                            result = BSCREEN_RELAY_ERROR;
+                        goto done;
+                    }
+                    output[out++] = prefix;
+                    if (input[i] != prefix) output[out++] = input[i];
+                } else if (input[i] == prefix) pending = 1;
+                else output[out++] = input[i];
+            }
+            if (!observer && out && pb_send (root, id, output, out) < 0) {
+                result = BSCREEN_RELAY_ERROR;
+                break;
+            }
+        } else if (fds[1].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            if (observer) stdin_open = 0;
+            else break;
+        }
+    }
+done:
+    {
+        int saved_errno = errno;
+        if (fd >= 0) close (fd);
+        if (raw_enabled) (void) tcsetattr (STDIN_FILENO, TCSANOW, &saved);
+        errno = saved_errno;
+    }
+    return result;
 }
 
 static int
 bs_relay_write_all (int fd, const char *buf, ssize_t n)
 {
-    ssize_t off = 0;
-    while (off < n) {
-        ssize_t wr = write (fd, buf + off, (size_t)(n - off));
-        if (wr < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-        if (wr == 0) return -1;
-        off += wr;
-    }
-    return 0;
-}
-
-static int
-bs_send_control_roam_fd (int fd)
-{
-    char frame[sizeof (struct bs_remote_frame_header) + sizeof BSCREEN_CONTROL_ROAM - 1];
-    size_t len = bs_remote_frame_build (frame, sizeof frame,
-                                        BSCREEN_REMOTE_FRAME_CONTROL,
-                                        BSCREEN_CONTROL_ROAM);
-    if (!len)
-        return -1;
-    return bs_relay_write_all (fd, frame, (ssize_t) len);
-}
-
-static void
-bs_relay_broadcast (bscreen_client *clients, const char *buf, ssize_t n)
-{
-    for (int i = 0; i < BSCREEN_MAX_CLIENTS; i++) {
-        if (clients[i].fd < 0) continue;
-        if (bs_relay_write_all (clients[i].fd, buf, n) < 0)
-            bs_relay_remove_client (clients, i);
-    }
-}
-
-static int
-bs_relay_create_window (const char *sdir)
-{
-    int idx = bs_create_window (sdir, "bash");
-    if (idx < 0) return -1;
-    char val[64];
-    snprintf (val, sizeof val, "%d", idx);
-    return bs_write_active_pair (sdir, val, "0");
-}
-
-static int
-bs_relay_cycle_window (const char *sdir)
-{
-    char parent[512], afile[512], active_buf[64] = "0";
-    snprintf (parent, sizeof parent, "%s/windows", sdir);
-    snprintf (afile, sizeof afile, "%s/active-window", sdir);
-    bs_read_file (afile, active_buf, sizeof active_buf);
-    int active = (int) strtol (active_buf, NULL, 10);
-
-    DIR *d = opendir (parent);
-    if (!d) return -1;
-    int idxs[256], n = 0;
-    struct dirent *ent;
-    while ((ent = readdir (d)) != NULL && n < (int)(sizeof idxs / sizeof idxs[0])) {
-        if (ent->d_name[0] == '.') continue;
-        char *end = NULL;
-        long v = strtol (ent->d_name, &end, 10);
-        if (end && *end == '\0' && v >= 0) idxs[n++] = (int) v;
-    }
-    closedir (d);
-    if (n == 0) return -1;
-    for (int i = 1; i < n; i++) {
-        int x = idxs[i], j = i;
-        while (j > 0 && idxs[j - 1] > x) { idxs[j] = idxs[j - 1]; j--; }
-        idxs[j] = x;
-    }
-
-    int next = idxs[0];
-    for (int i = 0; i < n; i++) {
-        if (idxs[i] > active) { next = idxs[i]; break; }
-    }
-    char val[64];
-    snprintf (val, sizeof val, "%d", next);
-    return bs_write_active_pair (sdir, val, "0");
-}
-
-static int
-bs_relay_write_master (const char *sdir, int master, bscreen_client *client, const char *buf, ssize_t n)
-{
-    ssize_t start = 0;
-    unsigned char detach_key = bs_detach_key ();
-    unsigned char roam_key = bs_roam_key ();
-    for (ssize_t i = 0; i < n; i++) {
-        unsigned char ch = (unsigned char) buf[i];
-        size_t frame_len = 0;
-        if (bs_remote_control_roam_frame (buf + i, n - i, &frame_len)) {
-            if (i > start && bs_relay_write_all (master, buf + start, i - start) < 0)
-                return 3;
-            (void) frame_len;
-            client->prefix = 0;
-            return 4;
-        }
-        if (client->prefix) {
-            if (i > start && bs_relay_write_all (master, buf + start, i - start) < 0)
-                return 3;
-            client->prefix = 0;
-            start = i + 1;
-            if (bs_key_match (ch, 'd')) return 1;
-            if (bs_key_match (ch, roam_key)) return 4;
-            if (ch == 'k' || ch == 'K') return 2;
-            if (ch == 'c' || ch == 'C') { bs_relay_create_window (sdir); continue; }
-            if (ch == 'n' || ch == 'N') { bs_relay_cycle_window (sdir); continue; }
-            if (ch == '?') {
-                const char help[] = "\r\n^A d detach  ^A r roam  ^A k kill  ^A ? help\r\n";
-                bs_relay_write_all (client->fd, help, sizeof help - 1);
-                continue;
-            }
-            char literal[2] = { (char) detach_key, (char) ch };
-            if (bs_relay_write_all (master, literal, sizeof literal) < 0)
-                return 3;
-        } else if (ch == detach_key) {
-            if (i > start && bs_relay_write_all (master, buf + start, i - start) < 0)
-                return 3;
-            client->prefix = 1;
-            start = i + 1;
-            continue;
-        }
-    }
-    if (n > start && bs_relay_write_all (master, buf + start, n - start) < 0)
-        return 3;
-    return 0;
-}
-
-static void
-bs_relay_drain_master (const char *sdir, int master, bscreen_client *clients, int timeout_ms)
-{
-    struct pollfd pfd;
-    pfd.fd = master;
-    pfd.events = POLLIN;
-    pfd.revents = 0;
-    int rc = poll (&pfd, 1, timeout_ms);
-    if (rc <= 0 || !(pfd.revents & POLLIN)) return;
-
-    char file[512], buf[4096];
-    ssize_t nr = read (master, buf, sizeof buf);
-    if (nr <= 0) return;
-    snprintf (file, sizeof file, "%s/scrollback", sdir);
-    bs_append_file (file, buf, (size_t) nr);
-    bs_pane_scrollback_maintain (file);
-    snprintf (file, sizeof file, "%s/windows/0/panes/0/scrollback", sdir);
-    bs_append_file (file, buf, (size_t) nr);
-    bs_pane_scrollback_maintain (file);
-    bs_relay_broadcast (clients, buf, nr);
-}
-
-static void
-bs_relay_loop (const char *sdir, char **argv)
-{
-    bs_relay_stop = 0;
-    signal (SIGPIPE, SIG_IGN);
-    signal (SIGHUP, bs_relay_signal_stop);
-    signal (SIGTERM, bs_relay_signal_stop);
-    bs_relay_sigchld_default ();
-    int master = -1, listener = -1;
-    pid_t child = -1;
-    char file[512], val[128];
-    bscreen_client clients[BSCREEN_MAX_CLIENTS];
-    for (int i = 0; i < BSCREEN_MAX_CLIENTS; i++) {
-        clients[i].fd = -1;
-        clients[i].prefix = 0;
-    }
-
-    if (bs_spawn_pty_child (argv, &master, &child) < 0) {
-        snprintf (file, sizeof file, "%s/relay-status", sdir);
-        bs_write_file (file, "live-relay failed to spawn pty child\n");
-        _exit (126);
-    }
-    listener = bs_make_relay_listener (sdir);
-    if (listener < 0) {
-        bs_relay_reap_child_bounded (child);
-        snprintf (file, sizeof file, "%s/relay-status", sdir);
-        bs_write_file (file, "live-relay failed to create socket\n");
-        _exit (126);
-    }
-
-    snprintf (file, sizeof file, "%s/pid", sdir);
-    snprintf (val, sizeof val, "%ld\n", (long)getpid ());
-    bs_write_file (file, val);
-    snprintf (file, sizeof file, "%s/pty-child-pid", sdir);
-    snprintf (val, sizeof val, "%ld\n", (long)child);
-    bs_write_file (file, val);
-    snprintf (file, sizeof file, "%s/relay-status", sdir);
-    bs_write_file (file, "live-relay running: Stage 50.D poll relay loop\n");
-
-    while (!bs_relay_stop) {
-        struct pollfd pfds[2 + BSCREEN_MAX_CLIENTS];
-        int slots[2 + BSCREEN_MAX_CLIENTS];
-        int nfds = 0;
-        pfds[nfds].fd = master;
-        pfds[nfds].events = POLLIN;
-        pfds[nfds].revents = 0;
-        slots[nfds++] = -1;
-        pfds[nfds].fd = listener;
-        pfds[nfds].events = POLLIN;
-        pfds[nfds].revents = 0;
-        slots[nfds++] = -2;
-        for (int i = 0; i < BSCREEN_MAX_CLIENTS; i++) {
-            if (clients[i].fd >= 0) {
-                pfds[nfds].fd = clients[i].fd;
-                pfds[nfds].events = POLLIN;
-                pfds[nfds].revents = 0;
-                slots[nfds++] = i;
-            }
-        }
-        int rc = poll (pfds, (nfds_t) nfds, 75);
-        if (rc < 0) {
-            if (errno == EINTR) continue;
-            break;
-        }
-        int child_status = 0;
-        int child_state = bs_relay_wait_child_nonblock (child, &child_status);
-        if (child_state != 0) break;
-        if (rc == 0) continue;
-        if (pfds[1].revents & POLLIN) {
-            int cfd = accept (listener, NULL, NULL);
-            if (cfd >= 0) {
-                if (!bs_relay_peer_allowed (cfd)) {
-                    close (cfd);
-                    continue;
-                }
-                int placed = 0;
-                for (int i = 0; i < BSCREEN_MAX_CLIENTS; i++) {
-                    if (clients[i].fd < 0) {
-                        clients[i].fd = cfd;
-                        clients[i].prefix = 0;
-                        placed = 1;
-                        break;
-                    }
-                }
-                if (!placed) close (cfd);
-            }
-        }
-        if (pfds[0].revents & (POLLHUP | POLLERR | POLLNVAL)) break;
-        if (pfds[0].revents & POLLIN) {
-            char buf[4096];
-            ssize_t nr = read (master, buf, sizeof buf);
-            if (nr <= 0) break;
-            snprintf (file, sizeof file, "%s/scrollback", sdir);
-            bs_append_file (file, buf, (size_t) nr);
-            bs_pane_scrollback_maintain (file);
-            snprintf (file, sizeof file, "%s/windows/0/panes/0/scrollback", sdir);
-            bs_append_file (file, buf, (size_t) nr);
-            bs_pane_scrollback_maintain (file);
-            bs_relay_broadcast (clients, buf, nr);
-        }
-        for (int p = 2; p < nfds; p++) {
-            int i = slots[p];
-            if (i < 0 || clients[i].fd < 0) continue;
-            if (pfds[p].revents & POLLIN) {
-                char buf[4096];
-                ssize_t nr = read (clients[i].fd, buf, sizeof buf);
-                if (nr <= 0) {
-                    bs_relay_remove_client (clients, i);
-                    continue;
-                }
-                int action = bs_relay_write_master (sdir, master, &clients[i], buf, nr);
-                if (action == 1) {
-                    bs_relay_drain_master (sdir, master, clients, 250);
-                    bs_relay_remove_client (clients, i);
-                }
-                else if (action == 2) {
-                    bs_relay_reap_child_bounded (child);
-                    bs_rm_rf (sdir);
-                    _exit (0);
-                } else if (action == 4) {
-                    bs_relay_remove_client (clients, i);
-                } else if (action == 3) break;
-            }
-            if (clients[i].fd >= 0 && (pfds[p].revents & (POLLHUP | POLLERR | POLLNVAL)))
-                bs_relay_remove_client (clients, i);
-        }
-    }
-
-    for (int i = 0; i < BSCREEN_MAX_CLIENTS; i++)
-        if (clients[i].fd >= 0) close (clients[i].fd);
-    close (listener);
-    close (master);
-    bs_relay_reap_child_bounded (child);
-    bs_rm_rf (sdir);
-    _exit (0);
-}
-
-static int
-bs_relay_send_words (const char *sdir, WORD_LIST *args)
-{
-    int fd = bs_connect_relay (sdir);
-    if (fd < 0) return -1;
-    const char *w;
-    int first = 1;
-    while ((w = bs_word (&args)) != NULL) {
-        if (!first) write (fd, " ", 1);
-        write (fd, w, strlen (w));
-        first = 0;
-    }
-    write (fd, "\n", 1);
-    close (fd);
-    return 0;
+    if (n < 0) { errno = EINVAL; return -1; }
+    return pb_fd_write (fd, buf, (size_t) n, pb_now () + PB_TIMEOUT);
 }
 
 static int
 bs_attach_live_relay (const char *sdir)
 {
-    bscreen_relay_result result = BSCREEN_RELAY_EOF;
-    signal (SIGPIPE, SIG_IGN);
-    int fd = bs_connect_relay (sdir);
-    if (fd < 0) return BSCREEN_RELAY_ERROR;
-    struct termios saved_tio, raw_tio;
-    int raw_enabled = 0;
-    int escape_pending = 0;
-    unsigned char detach_key = bs_detach_key ();
-    unsigned char roam_key = bs_roam_key ();
-    if (isatty (STDIN_FILENO) && tcgetattr (STDIN_FILENO, &saved_tio) == 0) {
-        raw_tio = saved_tio;
-        raw_tio.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        raw_tio.c_oflag &= ~(OPOST);
-        raw_tio.c_cflag |= CS8;
-        raw_tio.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-        raw_tio.c_cc[VMIN] = 1;
-        raw_tio.c_cc[VTIME] = 0;
-        if (tcsetattr (STDIN_FILENO, TCSANOW, &raw_tio) == 0)
-            raw_enabled = 1;
+    if (bs_broker_mode (sdir)) return bs_attach_broker (sdir, 0);
+    errno = ENOTSUP;
+    return BSCREEN_RELAY_ERROR;
+}
+
+/* Consume an argv vector literally. Only an explicit -c asks the current
+ * bash-os executable to interpret shell code. */
+static int
+bs_launch_argv (WORD_LIST *args, const char *code, char shell[4096],
+                char *argv[128])
+{
+    int n = 0;
+    if (code) {
+        if (bs_current_shell (shell, 4096) < 0) return -1;
+        argv[n++] = shell;
+        argv[n++] = "--noprofile";
+        argv[n++] = "--norc";
+        argv[n++] = "-c";
+        argv[n++] = (char *) code;
     }
-    char scrollback[512];
-    snprintf (scrollback, sizeof scrollback, "%s/scrollback", sdir);
-    FILE *sf = fopen (scrollback, "r");
-    if (sf) {
-        char rbuf[4096];
-        size_t nr;
-        while ((nr = fread (rbuf, 1, sizeof rbuf, sf)) > 0) {
-            size_t off = 0;
-            while (off < nr) {
-                ssize_t wr = write (1, rbuf + off, nr - off);
-                if (wr < 0) {
-                    if (errno == EINTR) continue;
-                    fclose (sf);
-                    if (raw_enabled) tcsetattr (STDIN_FILENO, TCSANOW, &saved_tio);
-                    close (fd);
-                    return BSCREEN_RELAY_ERROR;
-                }
-                if (wr == 0) break;
-                off += (size_t) wr;
-            }
-        }
-        fclose (sf);
+    const char *w;
+    while ((w = bs_word (&args)) != NULL) {
+        if (n >= 127) { errno = E2BIG; return -1; }
+        argv[n++] = (char *) w;
     }
-    for (;;) {
-        fd_set rfds;
-        FD_ZERO (&rfds);
-        FD_SET (0, &rfds);
-        FD_SET (fd, &rfds);
-        int maxfd = fd > 0 ? fd : 0;
-        int rc = select (maxfd + 1, &rfds, NULL, NULL, NULL);
-            if (rc < 0) {
-                if (errno == EINTR) continue;
-                if (raw_enabled) tcsetattr (STDIN_FILENO, TCSANOW, &saved_tio);
-                close (fd);
-                return BSCREEN_RELAY_ERROR;
-            }
-        if (FD_ISSET (0, &rfds)) {
-            char buf[1024];
-            ssize_t nr = read (0, buf, sizeof buf);
-            if (nr <= 0) {
-                if (escape_pending) {
-                    char lit = (char) detach_key;
-                    (void) bs_relay_write_all (fd, &lit, 1);
-                    escape_pending = 0;
-                }
-                struct pollfd pfd;
-                pfd.fd = fd;
-                pfd.events = POLLIN;
-                pfd.revents = 0;
-                while (poll (&pfd, 1, 500) > 0 && (pfd.revents & POLLIN)) {
-                    char rbuf[4096];
-                    ssize_t rr = read (fd, rbuf, sizeof rbuf);
-                    if (rr <= 0) break;
-                    ssize_t roff = 0;
-                    while (roff < rr) {
-                        ssize_t wr = write (1, rbuf + roff, (size_t)(rr - roff));
-                        if (wr < 0) {
-                            if (errno == EINTR) continue;
-                            if (raw_enabled) tcsetattr (STDIN_FILENO, TCSANOW, &saved_tio);
-                            close (fd);
-                            return BSCREEN_RELAY_ERROR;
-                        }
-                        if (wr == 0) break;
-                        roff += wr;
-                    }
-                    pfd.revents = 0;
-                }
-                break;
-            }
-            ssize_t start = 0;
-            for (ssize_t i = 0; i < nr; i++) {
-                unsigned char ch = (unsigned char) buf[i];
-                if (escape_pending) {
-                    if (i > start && bs_relay_write_all (fd, buf + start, i - start) < 0) {
-                        result = BSCREEN_RELAY_ERROR;
-                        goto done;
-                    }
-                    escape_pending = 0;
-                    start = i + 1;
-                    if (bs_key_match (ch, 'd')) {
-                        result = BSCREEN_RELAY_DETACH;
-                        goto done;
-                    }
-                    if (bs_key_match (ch, roam_key)) {
-                        if (bs_send_control_roam_fd (fd) < 0)
-                            result = BSCREEN_RELAY_ERROR;
-                        else
-                            result = BSCREEN_RELAY_ROAM;
-                        goto done;
-                    }
-                    {
-                        char literal[2] = { (char) detach_key, (char) ch };
-                        if (bs_relay_write_all (fd, literal, sizeof literal) < 0) {
-                            result = BSCREEN_RELAY_ERROR;
-                            goto done;
-                        }
-                    }
-                } else if (ch == detach_key) {
-                    if (i > start && bs_relay_write_all (fd, buf + start, i - start) < 0) {
-                        result = BSCREEN_RELAY_ERROR;
-                        goto done;
-                    }
-                    escape_pending = 1;
-                    start = i + 1;
-                }
-            }
-            if (nr > start && bs_relay_write_all (fd, buf + start, nr - start) < 0) {
-                result = BSCREEN_RELAY_ERROR;
-                goto done;
-            }
-        }
-        if (FD_ISSET (fd, &rfds)) {
-            char buf[4096];
-            ssize_t nr = read (fd, buf, sizeof buf);
-            if (nr <= 0) break;
-            ssize_t off = 0;
-            while (off < nr) {
-                ssize_t wr = write (1, buf + off, (size_t)(nr - off));
-                if (wr < 0) {
-                    if (errno == EINTR) continue;
-                    if (raw_enabled) tcsetattr (STDIN_FILENO, TCSANOW, &saved_tio);
-                    close (fd);
-                    return BSCREEN_RELAY_ERROR;
-                }
-                if (wr == 0) break;
-                off += wr;
-            }
-        }
-    }
-done:
-    if (raw_enabled) tcsetattr (STDIN_FILENO, TCSANOW, &saved_tio);
-    close (fd);
-    return result;
+    argv[n] = NULL;
+    return 0;
 }
 
 static int
 bscreen_run_cmd (WORD_LIST *args)
 {
-    const char *name = NULL;
-    const char *cmd_string = NULL;
-    const char *cmd_argv[128];
-    int cmd_argc = 0;
-    const char *w;
-    while ((w = bs_word (&args)) != NULL) {
-        if (!strcmp (w, "-n") || !strcmp (w, "-S")) name = bs_word (&args);
-        else if (!strcmp (w, "-d") || !strcmp (w, "--detached")) ;
-        else if (!strcmp (w, "-c")) { cmd_string = bs_word (&args); break; }
-        else if (!name) name = w;
-        else if (cmd_argc < (int)(sizeof cmd_argv / sizeof cmd_argv[0]) - 1) cmd_argv[cmd_argc++] = w;
+    const char *name = NULL, *code = NULL, *w;
+    int metadata = 0;
+    while (args) {
+        w = args->word->word;
+        if (!strcmp (w, "--")) { args = args->next; break; }
+        if (!strcmp (w, "-n") || !strcmp (w, "-S")) {
+            args = args->next;
+            name = bs_word (&args);
+            if (!name) { builtin_error ("run: -n requires NAME"); return EX_USAGE; }
+        } else if (!strcmp (w, "-d") || !strcmp (w, "--detached")) args = args->next;
+        else if (!strcmp (w, "--metadata")) { metadata = 1; args = args->next; }
+        else if (!strcmp (w, "-c")) {
+            args = args->next;
+            code = bs_word (&args);
+            if (!code) { builtin_error ("run: -c requires CODE"); return EX_USAGE; }
+            break;
+        } else if (!name) { name = w; args = args->next; }
+        else break;
     }
-    while (!cmd_string && (w = bs_word (&args)) != NULL &&
-           cmd_argc < (int)(sizeof cmd_argv / sizeof cmd_argv[0]) - 1)
-        cmd_argv[cmd_argc++] = w;
     if (!name) name = "default";
-    int live_requested = (cmd_string != NULL || cmd_argc > 0);
-    char *relay_argv[130];
-    if (cmd_string) {
-        const char *shell = getenv ("SHELL");
-        if (!shell || !*shell) shell = "/bin/sh";
-        relay_argv[0] = (char *) shell;
-        relay_argv[1] = "-c";
-        relay_argv[2] = (char *) cmd_string;
-        relay_argv[3] = NULL;
-    } else if (cmd_argc > 0) {
-        for (int i = 0; i < cmd_argc; i++) relay_argv[i] = (char *) cmd_argv[i];
-        relay_argv[cmd_argc] = NULL;
-    } else {
-        relay_argv[0] = NULL;
+    if (metadata && (code || args)) {
+        builtin_error ("run: --metadata does not execute commands");
+        return EX_USAGE;
     }
-
-    const char *root = bscreen_state_dir ();
-    char sdir[512], file[512], val[128];
-    if (bscreen_validate_state_dir (root) < 0) return EXECUTION_FAILURE;
-    if (bs_session_path (sdir, sizeof sdir, root, name) < 0) return EX_USAGE;
-    if (bs_mkdir_if_needed (sdir, 0700) < 0) return EXECUTION_FAILURE;
+    char shell[4096], *argv[128];
+    if (bs_launch_argv (args, code, shell, argv) < 0) {
+        builtin_error ("run: command: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    char sdir[512], file[640];
+    if (bs_session_path (sdir, sizeof sdir, bscreen_state_dir (), name) < 0)
+        return EXECUTION_FAILURE;
+    if (!metadata && sdir[0] != '/') {
+        builtin_error ("run: live sessions require an absolute BASHSCREEN_STATE_DIR");
+        return EXECUTION_FAILURE;
+    }
+    if (mkdir (sdir, 0700) < 0) {
+        builtin_error ("run: create %s: %s", name, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    snprintf (file, sizeof file, "%s/backend", sdir);
+    if (bs_write_file (file, metadata ? "metadata\n" : "ptybroker\n") < 0) goto fail;
     snprintf (file, sizeof file, "%s/pid", sdir);
-    snprintf (val, sizeof val, "%ld\n", (long)getpid ());
-    if (bs_write_file (file, val) < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, "0\n") < 0) goto fail;
     snprintf (file, sizeof file, "%s/info", sdir);
-    if (bs_write_file (file, "screen phase3 v1\n") < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/active-window", sdir);
-    if (bs_write_file (file, "0\n") < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/active-pane", sdir);
-    if (bs_write_file (file, "0\n") < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/active", sdir);
-    if (bs_write_file (file, "0:0\n") < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, metadata ? "screen offline layout\n" : "screen raw PTY panes\n") < 0)
+        goto fail;
+    if (bs_write_active_pair (sdir, "0", "0") < 0) goto fail;
     snprintf (file, sizeof file, "%s/scrollback", sdir);
-    if (bs_write_file (file, "") < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, "") < 0 || bs_create_window (sdir, "bash") < 0) goto fail;
+    if (!metadata && bs_broker_new_pane (sdir, "0", "0", argv, "0 0 24 80") < 0) goto fail;
     snprintf (file, sizeof file, "%s/relay-status", sdir);
-    if (bs_create_window (sdir, "bash") < 0) return EXECUTION_FAILURE;
-    if (!live_requested) {
-        if (bs_write_file (file, "live-relay unimplemented: Stage 50.C metadata scaffolding only\n") < 0)
-            return EXECUTION_FAILURE;
-        /* Metadata-only fast path: no relay process was forked, so the
-         * pid file we wrote at line ~1494 still holds our caller's
-         * getpid(). Leaving that intact lets a subsequent `screen
-         * kill NAME` SIGHUP the caller (test discovered this via
-         * 277-screen-pty-fd-leak.sh's subshell sub_rc=129). Stamp
-         * "0" as a sentinel — kill's `pid > 1` guard at line ~1559
-         * then skips the SIGHUP and only removes the state dir. */
-        char pidfile[512];
-        snprintf (pidfile, sizeof pidfile, "%s/pid", sdir);
-        (void) bs_write_file (pidfile, "0\n");
-        printf ("%s\n", name);
-        return EXECUTION_SUCCESS;
-    }
-    if (bs_write_file (file, "live-relay starting: Stage 50.D\n") < 0)
-        return EXECUTION_FAILURE;
-    pid_t relay = fork ();
-    if (relay < 0) {
-        builtin_error ("screen: fork relay: %s", strerror (errno));
-        return EXECUTION_FAILURE;
-    }
-    if (relay == 0) {
-        int devnull = open ("/dev/null", O_RDWR);
-        if (devnull >= 0) {
-            dup2 (devnull, STDIN_FILENO);
-            dup2 (devnull, STDOUT_FILENO);
-            dup2 (devnull, STDERR_FILENO);
-            if (devnull > STDERR_FILENO) close (devnull);
-        }
-        bs_relay_loop (sdir, relay_argv);
-        _exit (0);
-    }
-    snprintf (file, sizeof file, "%s/windows/0/panes/0/pty.fd", sdir);
-    if (bs_write_file (file, "master.fd\n") < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/pid", sdir);
-    snprintf (val, sizeof val, "%ld\n", (long)relay);
-    if (bs_write_file (file, val) < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, metadata ? "metadata-only; no PTY\n" :
+                       "ptybroker raw-output; independent panes; no terminal checkpoint\n") < 0)
+        goto fail;
     printf ("%s\n", name);
     return EXECUTION_SUCCESS;
+fail:
+    {
+        int saved = errno;
+        if (metadata || bs_broker_stop_all (sdir) == 0) (void) bs_rm_rf (sdir);
+        builtin_error ("run: %s: %s", name, strerror (saved));
+        return EXECUTION_FAILURE;
+    }
 }
 
 static int
@@ -2655,11 +2284,17 @@ bscreen_kill_cmd (WORD_LIST *args)
         builtin_error ("kill: no such session: %s", name);
         return EXECUTION_FAILURE;
     }
-    char pidbuf[64];
-    if (bs_read_file (file, pidbuf, sizeof pidbuf) == 0) {
-        char *end = NULL;
-        long pid = strtol (pidbuf, &end, 10);
-        if (end != pidbuf && pid > 1) kill ((pid_t) pid, SIGHUP);
+    if (bs_broker_mode (sdir)) {
+        if (bs_broker_stop_all (sdir) < 0) {
+            builtin_error ("kill: broker shutdown incomplete: %s", strerror (errno));
+            return EXECUTION_FAILURE;
+        }
+    } else {
+        char pidbuf[64];
+        if (bs_read_file (file, pidbuf, sizeof pidbuf) == 0 && strcmp (pidbuf, "0")) {
+            builtin_error ("kill: legacy relay identity is unverified; refusing a PID-file signal");
+            return EXECUTION_FAILURE;
+        }
     }
     if (bs_rm_rf (sdir) < 0) {
         builtin_error ("kill: failed to remove %s: %s", sdir, strerror (errno));
@@ -2703,6 +2338,46 @@ bscreen_attach_cmd (WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
 
+    if (bs_broker_mode (sdir)) {
+        if (force_detach || detach_only) {
+            struct timespec now;
+            if (clock_gettime (CLOCK_MONOTONIC, &now) < 0) return EXECUTION_FAILURE;
+            snprintf (file, sizeof file, "%s/detach", sdir);
+            snprintf (val, sizeof val, "%ld %ld %ld\n", (long) getpid (),
+                      (long) now.tv_sec, now.tv_nsec);
+            if (bs_write_file (file, val) < 0) return EXECUTION_FAILURE;
+            if (detach_only) { printf ("detached %s\n", name); return EXECUTION_SUCCESS; }
+            /* Existing clients inspect the token at each 100ms poll. */
+            for (int i = 0; i < 20; i++) {
+                char broker_root[640], broker_id[PB_ID_MAX + 1];
+                struct pb_status status;
+                bs_read_active_pair (sdir, active_win, sizeof active_win,
+                                     active_pane, sizeof active_pane);
+                if (bs_broker_path (sdir, active_win, active_pane, broker_root, broker_id) < 0 ||
+                    pb_status (broker_root, broker_id, &status) < 0 || !status.controller) break;
+                if (poll (NULL, 0, 50) < 0) return EXECUTION_FAILURE;
+            }
+        }
+        snprintf (adir, sizeof adir, "%s/attachers", sdir);
+        if (bs_mkdir_if_needed (adir, 0700) < 0) return EXECUTION_FAILURE;
+        snprintf (file, sizeof file, "%s/%ld", adir, (long) getpid ());
+        snprintf (val, sizeof val, "pid %ld\nmode %s\nrelay ptybroker\nreplay none\n",
+                  (long) getpid (), multi ? "observer" : "controller");
+        if (bs_write_file (file, val) < 0) return EXECUTION_FAILURE;
+        int result = bs_attach_broker (sdir, multi);
+        int saved = errno;
+        (void) unlink (file);
+        if (result < 0) {
+            builtin_error ("attach: %s: %s", name, strerror (saved));
+            return EXECUTION_FAILURE;
+        }
+        return EXECUTION_SUCCESS;
+    }
+
+    if (live_request) {
+        builtin_error ("attach: metadata session has no live PTY");
+        return EXECUTION_FAILURE;
+    }
     snprintf (adir, sizeof adir, "%s/attachers", sdir);
     if (bs_mkdir_if_needed (adir, 0700) < 0) return EXECUTION_FAILURE;
 
@@ -2744,7 +2419,7 @@ bscreen_attach_cmd (WORD_LIST *args)
         builtin_error ("attach: live relay unavailable for %s", name);
         return EXECUTION_FAILURE;
     }
-    printf ("attached %s %s\n", name, multi ? "multi" : "single");
+    printf ("metadata-attached %s %s\n", name, multi ? "multi" : "single");
     return EXECUTION_SUCCESS;
 }
 
@@ -2792,6 +2467,16 @@ bscreen_state_cmd (WORD_LIST *args)
     snprintf (file, sizeof file, "%s/pid", sdir);
     if (!bs_session_exists (sdir)) { builtin_error ("state: no such session: %s", name); return EXECUTION_FAILURE; }
     snprintf (file, sizeof file, "%s/active-window", sdir); bs_read_file (file, active, sizeof active);
+    if (bs_broker_mode (sdir)) {
+        char win[64], pane[64], info[512];
+        bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
+        int n = snprintf (info, sizeof info, "session %s\nactive-window %s\n"
+                          "backend ptybroker\noutput raw-history\nactive-pane %s:%s\n",
+                          name, active, win, pane);
+        if (n < 0 || (size_t) n >= sizeof info ||
+            bs_relay_write_all (STDOUT_FILENO, info, n) < 0) return EXECUTION_FAILURE;
+        return bs_broker_capture (sdir, win, pane, 0);
+    }
     printf ("session %s\nactive-window %s\n", name, active);
     snprintf (file, sizeof file, "%s/scrollback", sdir);
     FILE *f = fopen (file, "r");
@@ -2810,7 +2495,13 @@ bscreen_find_cmd (WORD_LIST *args)
     if (bs_session_path (sdir, sizeof sdir, root, name) < 0) return EX_USAGE;
     if (!bs_session_exists (sdir)) { builtin_error ("find: no such session: %s", name); return EXECUTION_FAILURE; }
     snprintf (file, sizeof file, "%s/scrollback", sdir);
-    FILE *f = fopen (file, "r");
+    FILE *f;
+    if (bs_broker_mode (sdir)) {
+        char win[64], pane[64];
+        bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
+        f = bs_broker_history (sdir, win, pane);
+        if (!f) return EXECUTION_FAILURE;
+    } else f = fopen (file, "r");
     int row = 0;
     if (f) {
         while (fgets (line, sizeof line, f)) {
@@ -2867,186 +2558,41 @@ bscreen_win_list_cmd (WORD_LIST *args)
     return EXECUTION_SUCCESS;
 }
 
-/* V42-11 helper-exec hardening — screen win-create -c CMD used to
-   route the operator-supplied CMD through popen("r"), which spawns
-   /bin/sh -c CMD and interprets every shell metacharacter. The new
-   path rejects metachars up-front, tokenises CMD on ASCII whitespace,
-   and runs it via fork+execvp through a pipe so command substitution,
-   redirections, pipelines, and quoting can no longer fire. The
-   metadata `cmd` file still records CMD verbatim so the operator
-   surface is unchanged — only the execution path is sealed.
-
-   Reject set: ; | & $ ` < > ( ) { } [ ] * ? ! ~ " ' \ \n \r \t and
-   any control byte. The allowed set is anything outside that list,
-   including alphanumerics, `. _ - / + = , : @ #` etc., so common
-   commands (`bash`, `htop`, `tail -f /var/log/messages`, `cat /tmp/x`)
-   keep working. */
-static int
-bs_cmd_metachar_unsafe (const char *cmd)
-{
-    if (!cmd) return 1;
-    for (const unsigned char *p = (const unsigned char *) cmd; *p; p++) {
-        unsigned char c = *p;
-        if (c == ';' || c == '|' || c == '&' || c == '$' || c == '`' ||
-            c == '<' || c == '>' || c == '(' || c == ')' || c == '{' ||
-            c == '}' || c == '[' || c == ']' || c == '*' || c == '?' ||
-            c == '!' || c == '~' || c == '"' || c == '\'' || c == '\\' ||
-            c == '\n' || c == '\r' || c < 0x20)
-            return 1;
-    }
-    return 0;
-}
-
-/* Tokenise `cmd` on ASCII whitespace into a NULL-terminated argv.
-   On success, *argv_out points to a malloc'd char** whose backing
-   string buffer is *buf_out (free both with a single free() each).
-   Returns argc, or -1 on allocation failure / empty argv.
-   Assumes bs_cmd_metachar_unsafe(cmd) already returned 0. */
-static int
-bs_cmd_tokenize (const char *cmd, char ***argv_out, char **buf_out)
-{
-    *argv_out = NULL;
-    *buf_out = NULL;
-    if (!cmd || !*cmd) return -1;
-    size_t len = strlen (cmd);
-    char *buf = malloc (len + 1);
-    if (!buf) return -1;
-    memcpy (buf, cmd, len + 1);
-
-    int argc = 0;
-    int in_token = 0;
-    for (size_t i = 0; i < len; i++) {
-        if (buf[i] == ' ' || buf[i] == '\t') in_token = 0;
-        else if (!in_token) { argc++; in_token = 1; }
-    }
-    if (argc == 0) { free (buf); return -1; }
-
-    char **argv = calloc ((size_t) argc + 1, sizeof *argv);
-    if (!argv) { free (buf); return -1; }
-
-    int ai = 0;
-    in_token = 0;
-    for (size_t i = 0; i < len; i++) {
-        if (buf[i] == ' ' || buf[i] == '\t') {
-            buf[i] = '\0';
-            in_token = 0;
-        } else if (!in_token) {
-            argv[ai++] = &buf[i];
-            in_token = 1;
-        }
-    }
-    argv[ai] = NULL;
-    *argv_out = argv;
-    *buf_out = buf;
-    return argc;
-}
-
-/* Replacement for the prior popen("r") scrollback-capture pipeline.
-   Validates `cmd`, tokenises it, fork+execvp's the child with stdout
-   redirected through a pipe, drains the pipe into `sb_path`, and
-   waitpid's the child with bs's existing SIGCHLD discipline.
-   Returns 0 on success, -1 on validation failure (metachars present),
-   -2 on tokenise/pipe/fork failure. The win-create itself does not
-   fail on a -1/-2 result; the pane is still created without scrollback. */
-static int
-bs_capture_cmd_scrollback (const char *cmd, const char *sb_path)
-{
-    if (bs_cmd_metachar_unsafe (cmd)) {
-        /* Silent refusal: write a sibling `cmd-refused` marker file
-           instead of `builtin_warning` so callers that do `2>&1`
-           (e.g. tests/bash-os/163-screen-50db-windows.sh) don't
-           see the diagnostic mixed into their captured stdout. The
-           metadata `cmd` file (written by the caller before this
-           helper runs) still records the requested CMD verbatim, so
-           operators can inspect both files to learn which CMD was
-           requested and that it was refused. */
-        char marker[600];
-        const char *slash = strrchr (sb_path, '/');
-        if (slash) {
-            size_t plen = (size_t) (slash - sb_path);
-            if (plen + sizeof ("/cmd-refused") < sizeof marker) {
-                memcpy (marker, sb_path, plen);
-                strcpy (marker + plen, "/cmd-refused");
-                bs_write_file (marker, "shell-metacharacters\n");
-            }
-        }
-        return -1;
-    }
-    char **argv = NULL;
-    char *buf = NULL;
-    int argc = bs_cmd_tokenize (cmd, &argv, &buf);
-    if (argc <= 0) return -2;
-
-    int pipefd[2];
-    if (pipe (pipefd) < 0) { free (argv); free (buf); return -2; }
-
-    bs_relay_sigchld_default ();
-    sigset_t oldmask;
-    if (bs_relay_sigchld_block (&oldmask) < 0) {
-        close (pipefd[0]); close (pipefd[1]);
-        free (argv); free (buf); return -2;
-    }
-    pid_t pid = fork ();
-    if (pid < 0) {
-        bs_relay_sigchld_restore (&oldmask);
-        close (pipefd[0]); close (pipefd[1]);
-        free (argv); free (buf); return -2;
-    }
-    if (pid == 0) {
-        bs_relay_sigchld_restore (&oldmask);
-        close (pipefd[0]);
-        if (pipefd[1] != STDOUT_FILENO) {
-            dup2 (pipefd[1], STDOUT_FILENO);
-            close (pipefd[1]);
-        }
-        /* Leave stderr attached so a missing binary error is visible. */
-        execvp (argv[0], argv);
-        _exit (127);
-    }
-    bs_relay_sigchld_restore (&oldmask);
-    close (pipefd[1]);
-
-    char rbuf[512];
-    ssize_t nr;
-    while ((nr = read (pipefd[0], rbuf, sizeof rbuf)) > 0)
-        bs_append_file (sb_path, rbuf, (size_t) nr);
-    close (pipefd[0]);
-
-    int st = 0;
-    while (waitpid (pid, &st, 0) < 0 && errno == EINTR) { /* retry */ }
-
-    free (argv);
-    free (buf);
-    return 0;
-}
-
 static int
 bscreen_win_create_cmd (WORD_LIST *args)
 {
-    const char *name = bs_word (&args), *wname = NULL, *cmd = NULL, *w;
-    if (!name) { builtin_error ("win-create: NAME [WIN]"); return EX_USAGE; }
-    while ((w = bs_word (&args)) != NULL) {
-        if (!strcmp (w, "-c")) { cmd = bs_word (&args); break; }
-        else if (!wname) wname = w;
-        else { builtin_error ("win-create: unexpected '%s'", w); return EX_USAGE; }
+    const char *name = bs_word (&args), *wname = NULL, *code = NULL;
+    if (!name) { builtin_error ("win-create: NAME [WIN] [-c CODE | -- CMD...]"); return EX_USAGE; }
+    while (args) {
+        const char *w = args->word->word;
+        if (!strcmp (w, "--")) { args = args->next; break; }
+        if (!strcmp (w, "-c")) {
+            args = args->next;
+            code = bs_word (&args);
+            if (!code) { builtin_error ("win-create: -c requires CODE"); return EX_USAGE; }
+            break;
+        }
+        if (wname) { builtin_error ("win-create: use -- before CMD"); return EX_USAGE; }
+        wname = w;
+        args = args->next;
     }
-    const char *root = bscreen_state_dir ();
-    char sdir[512], file[512], pane_dir[512];
-    if (bscreen_validate_state_dir (root) < 0) return EXECUTION_FAILURE;
-    if (bs_session_path (sdir, sizeof sdir, root, name) < 0) return EX_USAGE;
+    char sdir[512], path[640], win[64], shell[4096], *argv[128];
+    if (bs_session_path (sdir, sizeof sdir, bscreen_state_dir (), name) < 0) return EX_USAGE;
     if (!bs_session_exists (sdir)) { builtin_error ("win-create: no such session: %s", name); return EXECUTION_FAILURE; }
+    if (!bs_broker_mode (sdir) && (code || args)) {
+        builtin_error ("win-create: metadata sessions do not execute commands");
+        return EXECUTION_FAILURE;
+    }
+    if (bs_launch_argv (args, code, shell, argv) < 0) return EXECUTION_FAILURE;
     int idx = bs_create_window (sdir, wname ? wname : "bash");
     if (idx < 0) return EXECUTION_FAILURE;
-    snprintf (pane_dir, sizeof pane_dir, "%s/windows/%d/panes/0", sdir, idx);
-    snprintf (file, sizeof file, "%s/pty.fd", pane_dir);
-    bs_write_file (file, "metadata\n");
-    if (cmd && *cmd) {
-        snprintf (file, sizeof file, "%s/cmd", pane_dir);
-        bs_write_file (file, cmd);
-        char sb_path[512];
-        snprintf (sb_path, sizeof sb_path, "%s/scrollback", pane_dir);
-        if (bs_capture_cmd_scrollback (cmd, sb_path) == 0)
-            bs_pane_scrollback_maintain (sb_path);
+    snprintf (win, sizeof win, "%d", idx);
+    if (bs_broker_new_pane (sdir, win, "0", argv, "0 0 24 80") < 0) {
+        int saved = errno;
+        snprintf (path, sizeof path, "%s/windows/%s", sdir, win);
+        (void) bs_rm_rf (path);
+        builtin_error ("win-create: %s", strerror (saved));
+        return EXECUTION_FAILURE;
     }
     printf ("%d\n", idx);
     return EXECUTION_SUCCESS;
@@ -3059,16 +2605,13 @@ bscreen_win_switch_cmd (WORD_LIST *args)
 {
     const char *name = bs_word (&args), *idx = bs_word (&args);
     if (!name || !idx) { builtin_error ("win-switch: NAME INDEX"); return EX_USAGE; }
-    char sdir[512], file[512], val[64];
+    char sdir[512];
     if (bs_session_path (sdir, sizeof sdir, bscreen_state_dir (), name) < 0) return EX_USAGE;
     if (!bs_window_exists (sdir, idx)) {
         builtin_error ("win-switch: no such window %s in session %s", idx, name);
         return EXECUTION_FAILURE;
     }
-    snprintf (file, sizeof file, "%s/active-window", sdir);
-    snprintf (val, sizeof val, "%s\n", idx);
-    if (bs_write_file (file, val) < 0) return EXECUTION_FAILURE;
-    return bs_write_active_pair (sdir, idx, "0") == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    return bs_focus_window (sdir, idx) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* Stage 9 v1: win-rename NAME IDX NEWNAME — overwrite the window's
@@ -3116,6 +2659,7 @@ bscreen_win_kill_cmd (WORD_LIST *args)
         builtin_error ("win-kill: no such window %s in session %s", idx, name);
         return EXECUTION_FAILURE;
     }
+    if (bs_broker_stop_window (sdir, idx) < 0) return EXECUTION_FAILURE;
     snprintf (wpath, sizeof wpath, "%s/windows/%s", sdir, idx);
     if (bs_rm_rf (wpath) < 0) {
         builtin_error ("win-kill: failed to remove %s: %s", wpath, strerror (errno));
@@ -3143,7 +2687,8 @@ bscreen_win_kill_cmd (WORD_LIST *args)
         snprintf (val, sizeof val, "%d\n", next < 0 ? 0 : next);
         if (bs_write_file (afile, val) < 0) return EXECUTION_FAILURE;
         snprintf (val, sizeof val, "%d", next < 0 ? 0 : next);
-        if (bs_write_active_pair (sdir, val, "0") < 0) return EXECUTION_FAILURE;
+        if (next >= 0 && bs_focus_window (sdir, val) < 0) return EXECUTION_FAILURE;
+        if (next < 0 && bs_write_active_pair (sdir, "0", "0") < 0) return EXECUTION_FAILURE;
     }
     return EXECUTION_SUCCESS;
 }
@@ -3187,7 +2732,8 @@ bscreen_win_cycle_cmd (WORD_LIST *args, int dir)
     int next_pos = dir > 0 ? (pos + 1) % n : (pos + n - 1) % n;
     char val[64];
     snprintf (val, sizeof val, "%d\n", idxs[next_pos]);
-    if (bs_write_file (afile, val) != 0) return EXECUTION_FAILURE;
+    snprintf (val, sizeof val, "%d", idxs[next_pos]);
+    if (bs_focus_window (sdir, val) < 0) return EXECUTION_FAILURE;
     printf ("%d\n", idxs[next_pos]);
     return EXECUTION_SUCCESS;
 }
@@ -3249,67 +2795,89 @@ bscreen_pane_list_cmd (WORD_LIST *args)
 static int
 bscreen_pane_split_cmd (WORD_LIST *args)
 {
-    const char *name = bs_word (&args), *win = bs_word (&args), *dirarg = bs_word (&args);
-    if (!name) { builtin_error ("pane-split: NAME [WIN] [h|v]"); return EX_USAGE; }
-    if (!win) win = "0";
-    if (!dirarg) dirarg = "h";
-    if (strcmp (dirarg, "h") && strcmp (dirarg, "v") &&
-        strcmp (dirarg, "H") && strcmp (dirarg, "V")) {
-        builtin_error ("pane-split: direction must be h or v (got '%s')", dirarg);
-        return EX_USAGE;
+    const char *name = bs_word (&args), *win = NULL, *direction = "h", *code = NULL;
+    if (!name) { builtin_error ("pane-split: NAME [WIN] [h|v] [-c CODE | -- CMD...]"); return EX_USAGE; }
+    if (args && args->word->word[0] >= '0' && args->word->word[0] <= '9') win = bs_word (&args);
+    if (args && (!strcasecmp (args->word->word, "h") || !strcasecmp (args->word->word, "v")))
+        direction = bs_word (&args);
+    if (args) {
+        const char *w = bs_word (&args);
+        if (!strcmp (w, "-c")) {
+            code = bs_word (&args);
+            if (!code) { builtin_error ("pane-split: -c requires CODE"); return EX_USAGE; }
+        } else if (strcmp (w, "--")) {
+            builtin_error ("pane-split: expected h, v, -c or --");
+            return EX_USAGE;
+        }
     }
-    char sdir[512], parent[512], path[512], file[512], active[64] = "0";
-    char oldfile[512], geom[128], oldgeom[128], newgeom[128];
-    long r, c, rr, cc;
+    char sdir[512], parent[640], path[640], file[768], active[64], active_win[64];
+    char geom[128], oldgeom[128], newgeom[128], pane[64], shell[4096], *argv[128];
+    long r, c, rows, cols;
     if (bs_session_path (sdir, sizeof sdir, bscreen_state_dir (), name) < 0) return EX_USAGE;
+    bs_read_active_pair (sdir, active_win, sizeof active_win, active, sizeof active);
+    if (!win) win = active_win;
     if (!bs_window_exists (sdir, win)) {
         builtin_error ("pane-split: no such window %s in session %s", win, name);
         return EXECUTION_FAILURE;
     }
-    snprintf (file, sizeof file, "%s/active-pane", sdir);
-    bs_read_file (file, active, sizeof active);
+    if (strcmp (win, active_win)) {
+        snprintf (file, sizeof file, "%s/windows/%s/active-pane", sdir, win);
+        strcpy (active, "0");
+        (void) bs_read_file (file, active, sizeof active);
+    }
     if (!bs_pane_exists (sdir, win, active)) strcpy (active, "0");
     if (!bs_pane_exists (sdir, win, active)) {
         builtin_error ("pane-split: no active pane in window %s", win);
         return EXECUTION_FAILURE;
     }
-    snprintf (oldfile, sizeof oldfile, "%s/windows/%s/panes/%s/geom", sdir, win, active);
-    strcpy (geom, "0 0 24 80");
-    bs_read_file (oldfile, geom, sizeof geom);
-    if (bs_parse_geom (geom, &r, &c, &rr, &cc) < 0) {
-        builtin_error ("pane-split: active pane GEOM must be four non-negative ints");
+    if (!bs_broker_mode (sdir) && (code || args)) {
+        builtin_error ("pane-split: metadata sessions do not execute commands");
         return EXECUTION_FAILURE;
     }
-    snprintf (parent, sizeof parent, "%s/windows/%s/panes", sdir, win);
-    bs_mkdir_if_needed (parent, 0700);
-    int idx = bs_next_numeric_dir (parent);
-    snprintf (path, sizeof path, "%s/%d", parent, idx);
-    if (bs_mkdir_if_needed (path, 0700) < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/name", path);
-    if (bs_write_file (file, dirarg) < 0) return EXECUTION_FAILURE;
-    if (dirarg[0] == 'v' || dirarg[0] == 'V') {
-        if (rr < 3) { builtin_error ("pane-split: pane too short to split vertically"); return EXECUTION_FAILURE; }
-        snprintf (oldgeom, sizeof oldgeom, "%ld %ld %ld %ld", r, c, rr / 2, cc);
-        snprintf (newgeom, sizeof newgeom, "%ld %ld %ld %ld", r + rr / 2 + 1, c, rr - rr / 2 - 1, cc);
+    if (bs_launch_argv (args, code, shell, argv) < 0) return EXECUTION_FAILURE;
+    snprintf (file, sizeof file, "%s/windows/%s/panes/%s/geom", sdir, win, active);
+    if (bs_read_file (file, geom, sizeof geom) < 0 ||
+        bs_parse_geom (geom, &r, &c, &rows, &cols) < 0) return EXECUTION_FAILURE;
+    if (direction[0] == 'v' || direction[0] == 'V') {
+        if (rows < 3) { builtin_error ("pane-split: pane too short"); return EXECUTION_FAILURE; }
+        snprintf (oldgeom, sizeof oldgeom, "%ld %ld %ld %ld", r, c, rows / 2, cols);
+        snprintf (newgeom, sizeof newgeom, "%ld %ld %ld %ld", r + rows / 2 + 1, c, rows - rows / 2 - 1, cols);
     } else {
-        if (cc < 3) { builtin_error ("pane-split: pane too narrow to split horizontally"); return EXECUTION_FAILURE; }
-        snprintf (oldgeom, sizeof oldgeom, "%ld %ld %ld %ld", r, c, rr, cc / 2);
-        snprintf (newgeom, sizeof newgeom, "%ld %ld %ld %ld", r, c + cc / 2 + 1, rr, cc - cc / 2 - 1);
+        if (cols < 3) { builtin_error ("pane-split: pane too narrow"); return EXECUTION_FAILURE; }
+        snprintf (oldgeom, sizeof oldgeom, "%ld %ld %ld %ld", r, c, rows, cols / 2);
+        snprintf (newgeom, sizeof newgeom, "%ld %ld %ld %ld", r, c + cols / 2 + 1, rows, cols - cols / 2 - 1);
     }
-    if (bs_write_file (oldfile, oldgeom) < 0) return EXECUTION_FAILURE;
+    snprintf (parent, sizeof parent, "%s/windows/%s/panes", sdir, win);
+    int idx = bs_next_numeric_dir (parent);
+    if (idx < 0) return EXECUTION_FAILURE;
+    snprintf (pane, sizeof pane, "%d", idx);
+    snprintf (path, sizeof path, "%s/%s", parent, pane);
+    if (mkdir (path, 0700) < 0) return EXECUTION_FAILURE;
+    snprintf (file, sizeof file, "%s/name", path);
+    if (bs_write_file (file, direction) < 0) goto fail;
     snprintf (file, sizeof file, "%s/geom", path);
-    if (bs_write_file (file, newgeom) < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, newgeom) < 0) goto fail;
     snprintf (file, sizeof file, "%s/scrollback", path);
-    if (bs_write_file (file, "") < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, "") < 0) goto fail;
     snprintf (file, sizeof file, "%s/pty.fd", path);
-    if (bs_write_file (file, "metadata\n") < 0) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/active-pane", sdir);
-    snprintf (geom, sizeof geom, "%d\n", idx);
-    if (bs_write_file (file, geom) < 0) return EXECUTION_FAILURE;
-    snprintf (geom, sizeof geom, "%d", idx);
-    if (bs_write_active_pair (sdir, win, geom) < 0) return EXECUTION_FAILURE;
+    if (bs_write_file (file, "metadata\n") < 0) goto fail;
+    if (bs_broker_new_pane (sdir, win, pane, argv, newgeom) < 0) goto fail;
+    if (bs_set_geometry (sdir, win, active, oldgeom) < 0) goto stop;
+    if (bs_write_active_pair (sdir, win, pane) < 0) {
+        (void) bs_set_geometry (sdir, win, active, geom);
+        goto stop;
+    }
     printf ("%d\n", idx);
     return EXECUTION_SUCCESS;
+stop:
+    if (bs_broker_stop_pane (sdir, win, pane) < 0) return EXECUTION_FAILURE;
+fail:
+    {
+        int saved = errno;
+        (void) bs_rm_rf (path);
+        builtin_error ("pane-split: %s", strerror (saved));
+        return EXECUTION_FAILURE;
+    }
 }
 
 /* Stage 18 v1: pane-select NAME PANE [WIN]. Validates that PANE exists
@@ -3458,12 +3026,11 @@ bscreen_pane_resize_cmd (WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
     snprintf (file, sizeof file, "%s/windows/%s/panes/%s/geom", sdir, win, pane);
-    return bs_write_file (file, geom) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    return bs_set_geometry (sdir, win, pane, geom) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
-/* Stage 18 v2 metadata helper for tmux resize-pane -U/-D/-L/-R.
- * This deliberately adjusts only the target pane's stored geometry;
- * full tree redistribution belongs to the later render-loop work. */
+/* Resize one pane and its real PTY. Neighbor redistribution remains a
+ * layout policy operation for the caller. */
 static int
 bscreen_pane_resize_dir_cmd (WORD_LIST *args)
 {
@@ -3476,7 +3043,7 @@ bscreen_pane_resize_dir_cmd (WORD_LIST *args)
     }
     char *end = NULL;
     long amount = amount_s ? strtol (amount_s, &end, 10) : 1;
-    if (amount <= 0 || (amount_s && (!end || *end != '\0'))) {
+    if (amount <= 0 || amount > 65535 || (amount_s && (!end || *end != '\0'))) {
         builtin_error ("pane-resize-dir: N must be a positive integer");
         return EX_USAGE;
     }
@@ -3490,14 +3057,12 @@ bscreen_pane_resize_dir_cmd (WORD_LIST *args)
     snprintf (file, sizeof file, "%s/windows/%s/panes/%s/geom", sdir, win, pane);
     strcpy (geom, "0 0 24 80");
     bs_read_file (file, geom, sizeof geom);
-    char *p = geom;
     long r, c, rr, cc;
-    r = strtol (p, &end, 10); if (end == p || *end != ' ') goto bad_geom; p = end + 1;
-    c = strtol (p, &end, 10); if (end == p || *end != ' ') goto bad_geom; p = end + 1;
-    rr = strtol (p, &end, 10); if (end == p || *end != ' ') goto bad_geom; p = end + 1;
-    cc = strtol (p, &end, 10);
-    if (end == p || (*end != '\0' && *end != '\n') || r < 0 || c < 0 || rr < 0 || cc < 0)
-        goto bad_geom;
+    if (bs_parse_geom (geom, &r, &c, &rr, &cc) < 0) goto bad_geom;
+    if (strlen (dir) != 1) {
+        builtin_error ("pane-resize-dir: direction must be U, D, L, or R");
+        return EX_USAGE;
+    }
     switch (dir[0]) {
     case 'U': case 'u': rr = rr > amount ? rr - amount : 1; break;
     case 'D': case 'd': rr += amount; break;
@@ -3508,16 +3073,14 @@ bscreen_pane_resize_dir_cmd (WORD_LIST *args)
         return EX_USAGE;
     }
     snprintf (geom, sizeof geom, "%ld %ld %ld %ld", r, c, rr, cc);
-    return bs_write_file (file, geom) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    return bs_set_geometry (sdir, win, pane, geom) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 
 bad_geom:
     builtin_error ("pane-resize-dir: stored GEOM must be four non-negative ints \"R C RR CC\"");
     return EXECUTION_FAILURE;
 }
 
-/* Stage 18 v2 metadata helper for tmux swap-pane. The loadable stores
- * pane content separately later; for now the visible operation is the
- * pane geometry exchange used by the shell fallback. */
+/* Exchange pane rectangles without changing process identities. */
 static int
 bscreen_pane_swap_cmd (WORD_LIST *args)
 {
@@ -3543,8 +3106,12 @@ bscreen_pane_swap_cmd (WORD_LIST *args)
     snprintf (file_b, sizeof file_b, "%s/windows/%s/panes/%s/geom", sdir, win, pane_b);
     strcpy (geom_a, "0 0 24 80"); bs_read_file (file_a, geom_a, sizeof geom_a);
     strcpy (geom_b, "0 0 24 80"); bs_read_file (file_b, geom_b, sizeof geom_b);
-    if (bs_write_file (file_a, geom_b) < 0) return EXECUTION_FAILURE;
-    return bs_write_file (file_b, geom_a) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    if (bs_set_geometry (sdir, win, pane_a, geom_b) < 0) return EXECUTION_FAILURE;
+    if (bs_set_geometry (sdir, win, pane_b, geom_a) < 0) {
+        (void) bs_set_geometry (sdir, win, pane_a, geom_a);
+        return EXECUTION_FAILURE;
+    }
+    return EXECUTION_SUCCESS;
 }
 
 /* Stage 18 v1: pane-kill NAME WIN PANE. Drops the pane dir tree; if it
@@ -3563,6 +3130,7 @@ bscreen_pane_kill_cmd (WORD_LIST *args)
                        pane, win, name);
         return EXECUTION_FAILURE;
     }
+    if (bs_broker_stop_pane (sdir, win, pane) < 0) return EXECUTION_FAILURE;
     snprintf (ppath, sizeof ppath, "%s/windows/%s/panes/%s", sdir, win, pane);
     if (bs_rm_rf (ppath) < 0) {
         builtin_error ("pane-kill: failed to remove %s: %s", ppath, strerror (errno));
@@ -3614,7 +3182,7 @@ bscreen_send_keys_cmd (WORD_LIST *args)
         args = args->next;
     }
     const char *root = bscreen_state_dir ();
-    char sdir[512], file[512], win[64], pane[64], pane_file[512];
+    char sdir[512], file[512], win[64], pane[64];
     if (bscreen_validate_state_dir (root) < 0) return EXECUTION_FAILURE;
     if (bs_session_path (sdir, sizeof sdir, root, name) < 0) return EX_USAGE;
     snprintf (file, sizeof file, "%s/pid", sdir);
@@ -3628,27 +3196,34 @@ bscreen_send_keys_cmd (WORD_LIST *args)
         builtin_error ("send-keys: no such pane %s in window %s of session %s", pane, win, name);
         return EXECUTION_FAILURE;
     }
-    if (!target && bs_relay_send_words (sdir, args) == 0) return EXECUTION_SUCCESS;
-    snprintf (pane_file, sizeof pane_file, "%s/windows/%s/panes/%s/scrollback", sdir, win, pane);
-    FILE *pf = fopen (pane_file, "a");
-    if (!pf) return EXECUTION_FAILURE;
-    snprintf (file, sizeof file, "%s/scrollback", sdir);
-    FILE *f = fopen (file, "a");
-    if (!f) { fclose (pf); return EXECUTION_FAILURE; }
-    const char *w;
+    if (!bs_broker_mode (sdir)) {
+        builtin_error ("send-keys: metadata session has no live PTY");
+        return EXECUTION_FAILURE;
+    }
+    char broker_root[640], broker_id[PB_ID_MAX + 1];
+    unsigned char data[PB_CHUNK];
+    size_t size = 0;
     int first = 1;
+    const char *w;
     while ((w = bs_word (&args)) != NULL) {
-        if (!first) { fputc (' ', f); fputc (' ', pf); }
-        fputs (w, f);
-        fputs (w, pf);
+        size_t n = strlen (w);
+        size_t separator = first ? 0 : 1;
+        if (size > sizeof data - separator - 1 ||
+            n > sizeof data - size - separator - 1) {
+            builtin_error ("send-keys: input exceeds %u bytes", PB_CHUNK);
+            return EXECUTION_FAILURE;
+        }
+        if (separator) data[size++] = ' ';
+        memcpy (data + size, w, n);
+        size += n;
         first = 0;
     }
-    fputc ('\n', f);
-    fputc ('\n', pf);
-    fclose (f);
-    fclose (pf);
-    bs_pane_scrollback_maintain (file);
-    bs_pane_scrollback_maintain (pane_file);
+    data[size++] = '\n';
+    if (bs_broker_path (sdir, win, pane, broker_root, broker_id) < 0 ||
+        pb_send (broker_root, broker_id, data, size) < 0) {
+        builtin_error ("send-keys: %s:%s: %s", win, pane, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
     return EXECUTION_SUCCESS;
 }
 
@@ -3693,6 +3268,11 @@ bscreen_send_mouse_cmd (WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
 
+    if (bs_broker_mode (sdir)) {
+        builtin_error ("send-mouse: raw PTY sessions require frontend mouse-mode encoding");
+        return EXECUTION_FAILURE;
+    }
+
     snprintf (file, sizeof file, "%s/mouse", sdir);
     FILE *mf = fopen (file, "a");
     if (!mf) return EXECUTION_FAILURE;
@@ -3720,7 +3300,15 @@ bscreen_capture_cmd (WORD_LIST *args)
     const char *w;
     while ((w = bs_word (&args)) != NULL) {
         if ((!strcmp (w, "-N") || !strcmp (w, "-n")) && args) {
-            limit = atoi (bs_word (&args));
+            const char *value = bs_word (&args);
+            char *end;
+            errno = 0;
+            long parsed = strtol (value, &end, 10);
+            if (errno || end == value || *end || parsed < 0 || parsed > INT_MAX) {
+                builtin_error ("capture-pane: -N requires a non-negative line count");
+                return EX_USAGE;
+            }
+            limit = (int) parsed;
         } else if ((!strcmp (w, "-t") || !strcmp (w, "-p")) && args) {
             target = bs_word (&args);
         } else {
@@ -3733,6 +3321,15 @@ bscreen_capture_cmd (WORD_LIST *args)
     if (bscreen_validate_state_dir (root) < 0) return EXECUTION_FAILURE;
     if (bs_session_path (sdir, sizeof sdir, root, name) < 0) return EX_USAGE;
     if (!bs_session_exists (sdir)) { builtin_error ("capture-pane: no such session: %s", name); return EXECUTION_FAILURE; }
+    if (bs_broker_mode (sdir)) {
+        bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
+        if ((target && bs_parse_target (target, win, sizeof win, pane, sizeof pane) < 0) ||
+            !bs_pane_exists (sdir, win, pane)) {
+            builtin_error ("capture-pane: no such target");
+            return EXECUTION_FAILURE;
+        }
+        return bs_broker_capture (sdir, win, pane, limit);
+    }
     if (target) {
         bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
         if (bs_parse_target (target, win, sizeof win, pane, sizeof pane) < 0) {
@@ -4017,6 +3614,22 @@ bscreen_relay_status_cmd (WORD_LIST *args)
         builtin_error ("relay-status: no such session: %s", name);
         return EXECUTION_FAILURE;
     }
+    if (bs_broker_mode (sdir)) {
+        char win[64], pane[64], broker_root[640], id[PB_ID_MAX + 1];
+        struct pb_status status;
+        bs_read_active_pair (sdir, win, sizeof win, pane, sizeof pane);
+        if (bs_broker_path (sdir, win, pane, broker_root, id) < 0 ||
+            pb_status (broker_root, id, &status) < 0) {
+            builtin_error ("relay-status: %s", strerror (errno));
+            return EXECUTION_FAILURE;
+        }
+        printf ("backend ptybroker\npane %s:%s\nbroker %d\nchild %d\n"
+                "running %d\nsize %u %u\ncontroller %u\nobservers %u\n"
+                "history raw-bounded\nterminal-checkpoint none\nattach-replay none\n",
+                win, pane, status.broker_pid, status.child_pid, status.running,
+                status.rows, status.cols, status.controller, status.observers);
+        return EXECUTION_SUCCESS;
+    }
     snprintf (file, sizeof file, "%s/relay-status", sdir);
     if (bs_read_file (file, line, sizeof line) < 0)
         strcpy (line, "live-relay unavailable");
@@ -4049,6 +3662,12 @@ bscreen_vt_info_cmd (WORD_LIST *args)
         builtin_error ("vt-info: no such window %s in session %s", win, name);
         return EXECUTION_FAILURE;
     }
+    if (bs_broker_mode (sdir)) {
+        printf ("window %s\nbackend ptybroker\nterminal-state none\n"
+                "output raw-bytes\nhistory bounded\nattach-replay none\n"
+                "graphics-state frontend-owned\n", win);
+        return EXECUTION_SUCCESS;
+    }
     snprintf (file, sizeof file, "%s/windows/%s/vt-handle", sdir, win);
     bs_read_file (file, handle, sizeof handle);
     snprintf (file, sizeof file, "%s/windows/%s/vt-generation", sdir, win);
@@ -4056,7 +3675,7 @@ bscreen_vt_info_cmd (WORD_LIST *args)
     snprintf (file, sizeof file, "%s/windows/%s/vt-dirty", sdir, win);
     bs_read_file (file, dirty, sizeof dirty);
 
-    printf ("window %s\nvt-handle %s\nvt-generation %s\nvt-dirty %s\nrelay live-available-via-attach-r\n",
+    printf ("window %s\nvt-handle %s\nvt-generation %s\nvt-dirty %s\nrelay none: offline metadata\n",
             win, handle, gen, dirty);
     return EXECUTION_SUCCESS;
 }
@@ -4197,8 +3816,8 @@ bscreen_remote_frame_cmd (WORD_LIST *args)
     return EX_USAGE;
 }
 
-int
-screen_builtin (WORD_LIST *list)
+static int
+bs_dispatch (WORD_LIST *list)
 {
     if (list && list->word && list->word->word) {
         const char *w = list->word->word;
@@ -4207,7 +3826,7 @@ screen_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (strcmp (w, "--version") == 0) {
-            puts ("screen 1.0 (bash-loadable)");
+            puts ("screen 2.0 (bash-loadable, ptybroker)");
             return EXECUTION_SUCCESS;
         }
     }
@@ -4256,50 +3875,87 @@ screen_builtin (WORD_LIST *list)
     return EX_USAGE;
 }
 
+int
+screen_builtin (WORD_LIST *list)
+{
+    static const char *const mutations[] = {
+        "run", "kill", "win-create", "win-switch", "win-rename", "win-kill",
+        "win-next", "win-prev", "pane-split", "pane-select", "pane-select-dir",
+        "pane-resize", "pane-resize-dir", "pane-swap", "pane-kill", NULL
+    };
+    int mutate = 0;
+    if (list && list->word && list->word->word)
+        for (int i = 0; mutations[i]; i++)
+            if (!strcmp (list->word->word, mutations[i])) { mutate = 1; break; }
+    if (!mutate) return bs_dispatch (list);
+    const char *root = bscreen_state_dir ();
+    char path[640];
+    if (bscreen_validate_state_dir (root) < 0) return EXECUTION_FAILURE;
+    int n = snprintf (path, sizeof path, "%s/.layout.lock", root);
+    if (n < 0 || (size_t) n >= sizeof path) return EXECUTION_FAILURE;
+    int fd = open (path, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (fd < 0) return EXECUTION_FAILURE;
+    struct stat st;
+    if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode) || st.st_uid != geteuid () ||
+        (st.st_mode & 07777) != 0600 || st.st_nlink != 1) {
+        close (fd);
+        builtin_error ("screen: invalid layout lock file");
+        return EXECUTION_FAILURE;
+    }
+    int locked = 0;
+    for (int i = 0; i < 150; i++) {
+        if (flock (fd, LOCK_EX | LOCK_NB) == 0) { locked = 1; break; }
+        if ((errno != EAGAIN && errno != EWOULDBLOCK) || poll (NULL, 0, 20) < 0) break;
+    }
+    if (!locked) {
+        close (fd);
+        builtin_error ("screen: another layout operation is in progress");
+        return EXECUTION_FAILURE;
+    }
+    int result = bs_dispatch (list);
+    (void) flock (fd, LOCK_UN);
+    close (fd);
+    return result;
+}
+
 char *screen_doc[] = {
-    "bash-screen multiplexer server (Stage 50/Phase 3 v1).",
+    "Bash window/pane policy with independent native PTY services.",
     "",
-    "    screen list|ls [--cluster]        enumerate local or cluster sessions",
-    "    screen state-dir                  print state directory",
-    "",
-    "Implemented Phase 3 v1 surface:",
-    "    run -n NAME [-d] [CMD...]            create metadata; CMD starts live relay",
-    "    kill NAME                             terminate session",
-    "    attach NAME [-r|-rd|-x|-d]            record/detach attachers",
-    "    attach NODE/SESSION --remote [--key FILE]",
-    "                                          resolve cluster member; SSH relay gated",
+    "    list|ls [--cluster]                  enumerate sessions",
+    "    state-dir                           print the private state directory",
+    "    run -n NAME [-d] [-c CODE | -- CMD...]",
+    "                                        start a persistent pane; default current bash-os",
+    "    run -n NAME --metadata              create an offline layout fixture",
+    "    kill NAME                           stop all pane services and descendants",
+    "    attach NAME [-r|-rd|-x|-d]          live focused pane; -x observes, -d detaches",
+    "    attach NODE/SESSION --remote [--key FILE] [--dry-run]",
     "    roam NODE/SESSION [--key FILE] [--dry-run]",
-    "                                          reattach via cluster resolver; ^A r roams",
-    "    state NAME                            render current grid",
-    "    find NAME PATTERN                     search rendered grid",
-    "    win-create | win-switch | win-list    Stage 9 windows",
-    "    win-rename NAME IDX NEWNAME           rename a window (Stage 9 v1)",
-    "    win-kill NAME IDX                     drop a window (Stage 9 v1);",
-    "    win-next NAME | win-prev NAME         cycle active window",
-    "                                          re-points active to lowest surviving idx",
-    "    pane-split | pane-select | pane-list  Stage 18 panes",
-    "    pane-select-dir NAME WIN PANE D       select adjacent pane by geometry",
-    "    pane-resize NAME WIN PANE GEOM        rewrite pane geom (Stage 18 v1)",
-    "    pane-resize-dir NAME WIN PANE D [N]   metadata directional resize (Stage 18 v2)",
-    "    pane-swap NAME WIN PANE_A PANE_B      exchange pane geometry (Stage 18 v2)",
-    "    pane-display NAME [WIN]               alias for pane-list",
-    "    pane-kill NAME WIN PANE               drop a pane (Stage 18 v1);",
-    "                                          re-points active-pane to lowest survivor",
-    "    send-keys | capture-pane [-N LINES]   Stages 9/18",
-    "    scrollback NAME [-N LINES]            Stages 5 + 12",
-    "    send-mouse NAME [WIN PANE] BUTTON ROW COL [ACTION]  Stage 8",
-    "    vt-info NAME [WIN]                    Stage 50.C vt metadata scaffold",
-    "    client-list NAME                      Stage 50.C client last-seen metadata",
-    "    relay-status NAME                     Stage 50.D live relay diagnostic",
-    "    --help | --version                    print this synopsis or version",
+    "    win-create NAME [TITLE] [-c CODE | -- CMD...]",
+    "    win-switch NAME INDEX | win-list NAME",
+    "    win-rename NAME INDEX TITLE | win-kill NAME INDEX",
+    "    win-next NAME | win-prev NAME",
+    "    pane-split NAME [WIN] [h|v] [-c CODE | -- CMD...]",
+    "    pane-select NAME PANE [WIN] | pane-list NAME [WIN]",
+    "    pane-select-dir NAME WIN PANE U|D|L|R",
+    "    pane-resize NAME WIN PANE 'ROW COL ROWS COLS'",
+    "    pane-resize-dir NAME WIN PANE U|D|L|R [N]",
+    "    pane-swap NAME WIN PANE_A PANE_B      exchange geometry and resize both PTYs",
+    "    pane-kill NAME WIN PANE | pane-display NAME [WIN]",
+    "    send-keys NAME [-p WIN:PANE] WORD...  join words and send a newline",
+    "    capture-pane|scrollback NAME [-p WIN:PANE] [-N LINES]",
+    "    state NAME | find NAME PATTERN       selected pane's raw output history",
+    "    vt-info NAME [WIN] | relay-status NAME | client-list NAME",
+    "    send-mouse NAME ...                  offline fixture recording only",
+    "    remote-frame encode TYPE PAYLOAD | remote-frame decode",
     "",
-    "State dir defaults to /tmp/.screen, override with",
-    "BASHSCREEN_STATE_DIR. Cluster discovery reads BASHCLUSTER_STATE_DIR",
-    "(or BASHCLUSTER_DIR) members + sessions/<node> fixtures. See",
-    "Roam keys use BASHSCREEN_DETACH_KEY (default ^A), BASHSCREEN_ROAM_KEY",
-    "(default r), and BASHSCREEN_ROAM_RECONNECT (0..16, default 0). See",
-    "research/bash-os/MASTER-UNFINISHED-",
-    "WORK-IMPLEMENTATION.md §Stage 50 for the full layout.",
+    "Live services require an absolute BASHSCREEN_STATE_DIR (default /tmp/.screen).",
+    "run always returns after service readiness. Use attach for foreground I/O.",
+    "Attach follows focus changes and accepts the detach prefix (default ^A) + d.",
+    "Attach supplies new raw bytes only; it never replays terminal queries.",
+    "Capture is bounded raw history, not a terminal grid or graphics checkpoint.",
+    "A frontend owns VT parsing, mouse encoding, layout rendering and redraw.",
+    "-c explicitly interprets CODE using this bash-os executable; -- keeps argv literal.",
+    "Cluster discovery uses BASHCLUSTER_STATE_DIR (or BASHCLUSTER_DIR).",
     (char *) NULL
 };
 

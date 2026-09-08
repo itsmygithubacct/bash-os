@@ -295,7 +295,9 @@
       "zcat",
       "zstd",
       "zstdcat",
-      "gpu"
+      "gpu",
+      "ptybroker",
+      "bashpoll"
     ]
   },
   "full": {

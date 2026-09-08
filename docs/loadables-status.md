@@ -1,5 +1,9 @@
 # Loadable status and benchmark work queue
 
+The [PTY broker and live-pane changes](ptybroker.md) have dedicated lifecycle
+and binary-I/O regression suites. The measurements and classifications in
+this earlier review snapshot predate those changes.
+
 The repeated-input fixes for `head`, `sed`, `bc`, `nl` and `pr` are integrated
 with the `fold`, `expand` and `tac` improvements. The remaining confirmed input
 failures lead the queue below. Completed worker changes stay marked as pending

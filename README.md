@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 270 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 271 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -79,6 +79,11 @@ input, image export and optional GLES2 shader rendering. Run
 Kilix DMA-BUF path. The canvas works without graphics drivers; shader rendering
 loads GBM/EGL/GLES libraries on demand.
 
+`ptybroker` provides independent local PTYs with bounded binary I/O and
+attach/detach. `screen` uses it for live panes, targeted input and resizing.
+[Persistent local PTYs](docs/ptybroker.md) documents the commands and their
+raw-history contract. Both commands are included in `desktop` and `full`.
+
 ## How much it saves
 
 `bench/run.sh` runs the same POSIX scripts under three userlands — bash-os
@@ -119,7 +124,7 @@ config/
   loadables.sh                  shell interface to the parser
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
-  bash-loadables.list           the full set (NAME|short-doc per line), 278 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 279 entries
   bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
