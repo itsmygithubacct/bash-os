@@ -1289,6 +1289,92 @@ bc_parse_number (const char **s, int ibase)
     return result;
 }
 
+/* ---- standard input ---------------------------------------------- *
+ *
+ * bc reads its statements from the standard input.  As a builtin it runs
+ * inside a shell that keeps every command in one process, so the C
+ * library's `stdin` stream — its buffer and its end-of-file indicator —
+ * outlives the invocation that touched it.  C makes the end-of-file
+ * indicator sticky, so a second `bc < file` in the same shell saw an
+ * immediate end of input and printed nothing, and bytes another builtin
+ * had read ahead into that shared buffer would have been taken as bc
+ * input.
+ *
+ * Each invocation therefore reads descriptor 0 through a private buffer
+ * that lives exactly as long as the call.  That is what a separate bc
+ * process sees: the bytes still in the open file description, read in
+ * blocks, with nothing carried over from an earlier command.
+ * ------------------------------------------------------------------ */
+
+#ifndef STDIN_FILENO
+#  define STDIN_FILENO 0
+#endif
+
+typedef struct {
+    int    fd;
+    int    eof;         /* input is exhausted */
+    int    error;       /* errno of a failed read, or 0 */
+    size_t pos;
+    size_t len;
+    char   buf[4096];
+} bc_input;
+
+static void
+bc_input_init (bc_input *in, int fd)
+{
+    in->fd = fd;
+    in->eof = 0;
+    in->error = 0;
+    in->pos = 0;
+    in->len = 0;
+}
+
+/* Read one line into *LINE (grown as needed), without its newline, and
+   return its length.  Returns -1 at end of input, on a read error, or when
+   memory runs out.  A final line with no newline is returned like any
+   other; the next call then reports the end of input. */
+static ssize_t
+bc_input_line (bc_input *in, char **line, size_t *cap)
+{
+    size_t used = 0;
+
+    for (;;) {
+        if (in->pos == in->len) {
+            ssize_t got;
+            if (in->eof) break;
+            do
+                got = read (in->fd, in->buf, sizeof in->buf);
+            while (got < 0 && errno == EINTR);
+            if (got < 0) { in->eof = 1; in->error = errno; break; }
+            if (got == 0) { in->eof = 1; break; }
+            in->pos = 0;
+            in->len = (size_t) got;
+        }
+
+        const char *start = in->buf + in->pos;
+        size_t avail = in->len - in->pos;
+        const char *nl = memchr (start, '\n', avail);
+        size_t take = nl ? (size_t) (nl - start) : avail;
+
+        if (used + take + 1 > *cap) {
+            size_t want = used + take + 1, grown = *cap ? *cap : 128;
+            while (grown < want) grown *= 2;
+            char *bigger = realloc (*line, grown);
+            if (!bigger) { in->eof = 1; in->error = ENOMEM; return -1; }
+            *line = bigger;
+            *cap = grown;
+        }
+        memcpy (*line + used, start, take);
+        used += take;
+        in->pos += take + (nl ? 1 : 0);
+        if (nl) { (*line)[used] = '\0'; return (ssize_t) used; }
+    }
+
+    if (used == 0) return -1;
+    (*line)[used] = '\0';
+    return (ssize_t) used;
+}
+
 /* ---- expression evaluator (recursive descent) ---- */
 
 /* Simple variable storage (persists across the lines of one invocation). */
@@ -1308,6 +1394,7 @@ typedef struct {
     bc_var     *vars;          /* dynamic array of named variables */
     int         nvars;
     int         capvars;
+    bc_input   *in;            /* this invocation's standard input */
 } bc_parser;
 
 /* Forward declarations */
@@ -1481,12 +1568,11 @@ bc_parse_atom (bc_parser *p)
                 if (bc_peek (p) == ')') p->s++;
                 else { p->err = 1; return bc_dup (&_bc_zero); }
 
-                n = getline (&line, &cap, stdin);
+                n = bc_input_line (p->in, &line, &cap);
                 if (n < 0) {
                     free (line);
                     return bc_dup (&_bc_zero);
                 }
-                if (n > 0 && line[n - 1] == '\n') line[--n] = '\0';
 
                 bc_parser rp = *p;
                 rp.s = line;
@@ -1882,6 +1968,12 @@ bc_builtin (WORD_LIST *list)
 {
     bc_init_statics ();
 
+    /* Every invocation starts from the documented defaults and reads its
+       own standard input, so no arithmetic or input state survives a
+       previous call in the same shell. */
+    bc_input input;
+    bc_input_init (&input, STDIN_FILENO);
+
     bc_parser p;
     p.scale = 0;
     p.ibase = 10;
@@ -1891,6 +1983,7 @@ bc_builtin (WORD_LIST *list)
     p.vars = NULL;
     p.nvars = 0;
     p.capvars = 0;
+    p.in = &input;
 
     /* Option scan: -l/--mathlib enables the math library and sets the
        default scale to 20 (as GNU bc does).  Other GNU bc flags that take
@@ -1959,13 +2052,9 @@ bc_builtin (WORD_LIST *list)
         char *line = NULL;
         size_t cap = 0;
         while (1) {
-            errno = 0;
-            ssize_t n = getline (&line, &cap, stdin);
+            ssize_t n = bc_input_line (&input, &line, &cap);
             if (n < 0) break;
-
-            /* strip trailing newline */
-            if (n > 0 && line[n - 1] == '\n') line[--n] = '\0';
-            if (n == 0) continue;
+            if (n == 0) continue;      /* a blank line evaluates to nothing */
 
             p.s = line;
             p.err = 0;
@@ -1982,6 +2071,11 @@ bc_builtin (WORD_LIST *list)
         }
         free (line);
         bc_free (&p.last);
+    }
+
+    if (input.error) {
+        builtin_error ("standard input: %s", strerror (input.error));
+        rc = EXECUTION_FAILURE;
     }
 
     bc_vars_free (&p);
