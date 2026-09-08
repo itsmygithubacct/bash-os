@@ -118,6 +118,13 @@ redirection, a pipe per call, a here-string, a FILE operand, and calls
 interleaved with the shell's own `read`. It also checks that Bash's `stdout`
 order survives the builtin and that a write failure is reported.
 
+The builtin accepts `-l 0` like GNU 9.7: each blank line is numbered separately.
+GNU 9.4 rejects zero. The suite probes the reference and, on that older version,
+checks the builtin's `-l 0` output against reference `-l 1`, which has the same
+numbering behavior. These cases remain asserted and are reported as contracts;
+they are not skipped. Set `NL_REFERENCE=/absolute/path/to/nl` to check another
+GNU version, including with the sanitizer harness.
+
 The parity script accepts a shared object in `NL_MODULE` and loads it with
 `enable -f`, which is how the sanitizer harness and before/after comparisons
 run the same cases against a different build of this file.

@@ -19,7 +19,7 @@ import termios
 import time
 
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
-gnu = ['/usr/bin/nl']
+gnu = [str(Path(os.environ.get('NL_REFERENCE', '/usr/bin/nl')).resolve())]
 found = shutil.which('busybox', path='/usr/bin:/bin')
 busybox = [found, 'nl'] if found else None
 environment = dict(os.environ, LC_ALL='C', PATH='')
@@ -27,6 +27,7 @@ environment = dict(os.environ, LC_ALL='C', PATH='')
 prefix = 'if [[ -n ${NL_MODULE:-} ]]; then enable -f "$NL_MODULE" nl; fi\n'
 checks = 0
 failures = []
+zero_group_contracts = 0
 
 
 def builtin(args, data=b'', script='"$@"'):
@@ -39,16 +40,25 @@ def reference(program, args, data=b''):
                           capture_output=True, env=environment, timeout=60)
 
 
-def compare(args, data=b'', program=gnu, note=''):
+def compare(args, data=b'', program=gnu, note='', reference_args=None):
     global checks
     actual = builtin(args, data)
     assert b'AddressSanitizer' not in actual.stderr and b'runtime error:' not in actual.stderr, actual.stderr
-    expected = reference(program, args, data)
+    expected = reference(program, args if reference_args is None else reference_args, data)
     checks += 1
     if (actual.returncode, actual.stdout) != (expected.returncode, expected.stdout):
         failures.append((note or Path(program[-1]).name, list(map(str, args)), data[:60],
                          actual.returncode, expected.returncode,
                          actual.stdout[:120], expected.stdout[:120], actual.stderr[:120]))
+
+
+# GNU 9.4 rejects -l 0; GNU 9.7 accepts it with the same behavior as -l 1.
+# Keep testing the builtin's zero-grouping contract even on the older oracle.
+zero_probe = reference(gnu, ['-ba', '-l', '0'], b'\n\n')
+gnu_zero_grouping = zero_probe.returncode == 0
+if not gnu_zero_grouping:
+    assert zero_probe.returncode == 1 and not zero_probe.stdout, zero_probe
+    assert b'number of blank lines' in zero_probe.stderr, zero_probe.stderr
 
 
 DOCUMENT = (b'first\n\\:\\:\\:\nH1\nH2\n\\:\\:\nB1\n\n\nB2\n\\:\nF1\nF2\n')
@@ -114,8 +124,15 @@ with tempfile.TemporaryDirectory() as directory:
         if name in ('long-records', 'mixed'):
             matrix = STYLES[:6] + NUMBERS[:4] + BLANKS[:3] + DELIMS[:3]
         for options in matrix:
-            compare(options, value)
-            compare(options + [str(paths[name])])
+            reference_options = options
+            note = ''
+            if options == ['-ba', '-l', '0'] and not gnu_zero_grouping:
+                reference_options = ['-ba', '-l', '1']
+                note = 'zero-grouping contract (reference -l 1)'
+                zero_group_contracts += 2
+            compare(options, value, note=note, reference_args=reference_options)
+            compare(options + [str(paths[name])], note=note,
+                    reference_args=reference_options + [str(paths[name])])
         if name in BUSYBOX_DATA and busybox:
             for options in BUSYBOX:
                 compare(options, value, program=busybox, note='busybox')
@@ -304,5 +321,8 @@ for note, options, data, got_rc, want_rc, got, want, errors in failures[:int(os.
           f'\n  actual   {got!r}\n  expected {want!r}\n  stderr   {errors!r}')
 version = reference(gnu, ['--version']).stdout.decode().splitlines()[0]
 label = version + ('' if not busybox else ' and BusyBox nl')
-print(f'nl-parity: {checks - len(failures)}/{checks} checks match {label}')
+if zero_group_contracts:
+    print(f'nl: {zero_group_contracts} -l 0 contracts use the equivalent -l 1 reference; '
+          'this GNU version rejects zero grouping')
+print(f'nl-parity: {checks - len(failures)}/{checks} reference and contract checks pass with {label}')
 sys.exit(1 if failures else 0)
