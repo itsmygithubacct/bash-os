@@ -5,15 +5,18 @@ are compiled into the executable. GNU Bash's own builtins remain available in
 every profile. Excluded loadables are absent from the binary; this is a build
 choice, not a runtime disable list.
 
-| Level | Profile | Injected commands | Intended use |
-|---:|---|---:|---|
-| 0 | `shell` | 0 | GNU Bash alone |
-| 1 | `pure` | 28 | Small baseline of POSIX utilities |
-| 2 | `core` | 89 | Everyday files, text processing and processes |
-| 3 | `device` | 160 | Core plus Linux devices, processes and basic networking |
-| 4 | `server` | 214 | Device plus services, TLS, SSH, accounts and data |
-| 4 | `desktop` | 153 | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 278 | Every command in the collection |
+| Level | Profile | Injected commands | Native bytes | Intended use |
+|---:|---|---:|---:|---|
+| 0 | `shell` | 0 | 1,364,160 | GNU Bash alone |
+| 1 | `pure` | 28 | 1,447,520 | Small baseline of POSIX utilities |
+| 2 | `core` | 89 | 2,067,616 | Everyday files, text processing and processes |
+| 3 | `device` | 160 | 2,734,528 | Core plus Linux devices, processes and basic networking |
+| 4 | `server` | 214 | 6,943,104 | Device plus services, TLS, SSH, accounts and data |
+| 4 | `desktop` | 153 | 8,103,784 | Core plus editors, terminal graphics and interactive tools |
+| 5 | `full` | 278 | 11,116,104 | Every command in the collection |
+
+Sizes are stripped x86-64 builds with GCC 14.2 and the default flags. See the
+[benchmarks](../bench/README.md) for static sizes, startup and resident memory.
 
 Levels 0–5 select `shell`, `pure`, `core`, `device`, `server`, and `full`.
 `desktop` is an alternative to `server`; select it by name. The definitions in

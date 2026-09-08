@@ -95,3 +95,77 @@ depends on which other processes share the executable and its libraries.
 
 The earlier full-workload tables are retained in Git history. Use the commands
 above to measure a selected profile on its intended host.
+
+## Measurements, 2026-09-08
+
+Intel Core i7-9850H, Linux 6.12.96, x86-64, GCC 14.2, Bash 5.3.15.
+The profile measurements used 100 interleaved warm starts on one CPU and five
+idle memory samples. Sizes exclude shared libraries. The RISC-V musl SDK build
+of the full static profile is 10,416,736 bytes and passed the QEMU fixtures;
+its timings are not compared with native execution.
+
+| binary | injected | bytes | start ms | RSS KiB | PSS KiB |
+|---|---:|---:|---:|---:|---:|
+| bash-shell | 0 | 1364160 | 2.240 | 2988 | 1380 |
+| bash-pure | 28 | 1447520 | 2.328 | 3076 | 1491 |
+| bash-core | 89 | 2067616 | 2.421 | 3200 | 1639 |
+| bash-device | 160 | 2734528 | 2.547 | 3752 | 1883 |
+| bash-server | 214 | 6943104 | 2.972 | 4688 | 2531 |
+| bash-desktop | 153 | 8103784 | 2.960 | 4564 | 2412 |
+| bash | 278 | 11116104 | 3.158 | 5108 | 2959 |
+| bash-device-static | 160 | 4101880 | 2.056 | 2712 | 2708 |
+| bash-static | 278 | 13638056 | 2.328 | 3736 | 3728 |
+
+The workload tables use five interleaved runs after a warm-up, pinned to one
+CPU. Other work was active on the host, and the two profiles were measured in
+separate runs; compare implementations within a table. Process counts come
+from a separate `strace` pass and exclude the initial shell. Every workload's
+output matched across the supported userlands.
+
+The GNU footprint below covers the 28 external commands used by these scripts.
+Each Bash profile includes its documented command selection; the full profile
+also includes TLS, SSH, editors, databases, parsers and graphics.
+
+### Core profile
+
+| workload                   | bashos ms | busybox ms |    gnu ms |   bb/bos |  gnu/bos | procs bos/bb/gnu   |
+|----------------------------|-----------|-----------|-----------|----------|----------|--------------------|
+| 01-call-per-file           |        41 |      2000 |      2627 |   48.78x |   64.07x | 0/2000/2000        |
+| 02-subst-per-file          |       393 |      1015 |      1820 |    2.58x |    4.63x | 1000/1000/2000     |
+| 03-text-pipeline           |      1336 |      1774 |      1020 |    1.33x |    0.76x | 140/140/140        |
+| 04-file-tree               |        79 |      1730 |      2148 |   21.90x |   27.19x | 6/1061/1061        |
+| 05-wc-tail                 |       621 |      1693 |      1070 |    2.73x |    1.72x | 0/400/400          |
+| 06-sysinfo                 |       475 |      1184 |      1886 |    2.49x |    3.97x | 200/540/540        |
+| 07-shell-startup           |       267 |       180 |       291 |    0.67x |    1.09x | 100/100/100        |
+| 08-subst-nofork            |        70 |       n/a |       n/a |        - |        - | 0/-/-              |
+
+| footprint (shell + the commands above, on disk) | bytes |
+|---|---|
+| bashos: out/bash-core (dynamically linked) | 2067616 |
+| busybox: /usr/bin/busybox (dynamically linked) | 826128 |
+| gnu: bash + 28 separate binaries | 3948360 |
+
+### Full static profile
+
+| workload                   | bashos ms | busybox ms |    gnu ms |   bb/bos |  gnu/bos | procs bos/bb/gnu   |
+|----------------------------|-----------|-----------|-----------|----------|----------|--------------------|
+| 01-call-per-file           |        33 |      1678 |      2281 |   50.85x |   69.12x | 0/2000/2000        |
+| 02-subst-per-file          |       307 |       849 |      1538 |    2.77x |    5.01x | 1000/1000/2000     |
+| 03-text-pipeline           |      1088 |      1456 |       838 |    1.34x |    0.77x | 140/140/140        |
+| 04-file-tree               |        48 |       917 |      1259 |   19.10x |   26.23x | 6/1061/1061        |
+| 05-wc-tail                 |       378 |       994 |       505 |    2.63x |    1.34x | 0/400/400          |
+| 06-sysinfo                 |       252 |       579 |      1017 |    2.30x |    4.04x | 200/540/540        |
+| 07-shell-startup           |       131 |        84 |       139 |    0.64x |    1.06x | 100/100/100        |
+| 08-subst-nofork            |        39 |       n/a |       n/a |        - |        - | 0/-/-              |
+
+| footprint (shell + the commands above, on disk) | bytes |
+|---|---|
+| bashos: out/bash-static (statically linked) | 13638056 |
+| busybox: /usr/bin/busybox (dynamically linked) | 826128 |
+| gnu: bash + 28 separate binaries | 3948360 |
+
+Repeated tool calls benefit most: the core profile created no child processes
+for workload 01, compared with 2,000 for both external userlands. The long text
+pipeline still took about 30% longer than GNU in both measurements. Static
+linking reduced warm startup and idle RSS in these builds, while increasing
+on-disk size; the profile determines how much optional functionality is carried.
