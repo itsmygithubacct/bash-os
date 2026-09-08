@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <netdb.h>
@@ -54,6 +55,61 @@
 #include <arpa/inet.h>
 
 #include "loadables.h"
+#include "trap.h"
+
+struct bp_signal_fd {
+  int fd;
+  sigset_t mask;
+  struct bp_signal_fd *next;
+};
+static struct bp_signal_fd *bp_signal_fds;
+static unsigned bp_signal_refs[NSIG];
+static unsigned char bp_signal_owned[NSIG];
+
+/* A signal is unblocked only after its last managed signalfd closes, and
+   only if this module originally blocked it. Never restore an entire old
+   mask: unrelated users may have changed their own bits in the meantime. */
+static void
+bp_release_signal_fd (struct bp_signal_fd **slot, int close_fd)
+{
+  struct bp_signal_fd *entry = *slot;
+  sigset_t unblock;
+  sigemptyset (&unblock);
+  *slot = entry->next;
+  if (close_fd) close (entry->fd);
+  for (int sig = 1; sig < NSIG; sig++)
+    if (sigismember (&entry->mask, sig) == 1 && --bp_signal_refs[sig] == 0)
+      {
+        if (bp_signal_owned[sig]) sigaddset (&unblock, sig);
+        bp_signal_owned[sig] = 0;
+      }
+  free (entry);
+  sigprocmask (SIG_UNBLOCK, &unblock, NULL);
+}
+
+void
+bashpoll_builtin_unload (char *name)
+{
+  (void) name;
+  while (bp_signal_fds) bp_release_signal_fd (&bp_signal_fds, 1);
+}
+
+static int
+bp_fd_variable_ok (const char *name)
+{
+  const char *target = name;
+  for (int depth = 0; depth < 64; depth++)
+    {
+      if (!target || !legal_identifier (target)) break;
+      SHELL_VAR *v = find_variable_noref (target);
+      if (v && (readonly_p (v) || noassign_p (v) || array_p (v) ||
+                assoc_p (v) || v->dynamic_value || v->assign_func)) break;
+      if (v && nameref_p (v)) { target = nameref_cell (v); continue; }
+      return 1;
+    }
+  builtin_error ("fd variable must be a writable scalar: %s", name);
+  return 0;
+}
 
 /* Helper: bind FDVAR to fd in caller's shell, OR print to stdout
    (latter is only useful for one-shot subshell consumers). On bind-variable
@@ -65,8 +121,10 @@ bp_emit_fd (int fd, const char *fdvar)
   if (fdvar)
     {
       char buf[32];
+      if (!bp_fd_variable_ok (fdvar)) { close (fd); return -1; }
       snprintf (buf, sizeof buf, "%d", fd);
-      if (!builtin_bind_variable ((char *) fdvar, buf, 0))
+      SHELL_VAR *v = builtin_bind_variable ((char *) fdvar, buf, 0);
+      if (!v || readonly_p (v) || noassign_p (v))
         {
           builtin_error ("could not set variable: %s", fdvar);
           close (fd);
@@ -294,26 +352,48 @@ static int
 bp_wait (WORD_LIST *args)
 {
   int timeout_ms = -1;
-  /* Collect fds from positional args. */
+  struct bp_interest { int fd; unsigned events; };
+  /* A bare FD keeps read readiness; FD:read,write explicitly opts in to
+     writable wakeups, which are usually continuous on idle sockets. */
   size_t fds_capacity = 16, n_fds = 0;
-  int *fds = malloc (sizeof (int) * fds_capacity);
+  struct bp_interest *fds = malloc (sizeof *fds * fds_capacity);
   if (!fds) { builtin_error ("malloc: %s", strerror (errno)); return EXECUTION_FAILURE; }
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
       if (strcmp (w, "-t") == 0)
         { if (!p->next) { free (fds); builtin_error ("-t needs MS"); return EX_USAGE; }
-          p = p->next; timeout_ms = atoi (p->word->word); }
+          p = p->next;
+          char *end;
+          errno = 0;
+          long ms = strtol (p->word->word, &end, 10);
+          if (errno || !*p->word->word || *end || ms < -1 || ms > INT_MAX)
+            { free (fds); builtin_error ("wait: invalid timeout: %s", p->word->word); return EX_USAGE; }
+          timeout_ms = (int) ms; }
       else
         {
+          char *end;
+          errno = 0;
+          long fd = strtol (w, &end, 10);
+          unsigned events = EPOLLIN | EPOLLPRI | EPOLLRDHUP;
+          if (errno || end == w || fd < 0 || fd > INT_MAX || (*end && *end != ':'))
+            { free (fds); builtin_error ("wait: invalid FD: %s", w); return EX_USAGE; }
+          if (*end == ':')
+            {
+              if (strcmp (end + 1, "read") == 0) events = EPOLLIN | EPOLLPRI | EPOLLRDHUP;
+              else if (strcmp (end + 1, "write") == 0) events = EPOLLOUT | EPOLLRDHUP;
+              else if (strcmp (end + 1, "read,write") == 0 || strcmp (end + 1, "write,read") == 0)
+                events |= EPOLLOUT;
+              else { free (fds); builtin_error ("wait: expected FD:read, FD:write or FD:read,write"); return EX_USAGE; }
+            }
           if (n_fds == fds_capacity)
             {
               size_t nc = fds_capacity * 2;
-              int *tmp = realloc (fds, sizeof (int) * nc);
+              struct bp_interest *tmp = realloc (fds, sizeof *fds * nc);
               if (!tmp) { free (fds); builtin_error ("realloc: %s", strerror (errno)); return EXECUTION_FAILURE; }
               fds = tmp; fds_capacity = nc;
             }
-          fds[n_fds++] = atoi (w);
+          fds[n_fds++] = (struct bp_interest) { .fd = (int) fd, .events = events };
         }
     }
   if (n_fds == 0)
@@ -324,11 +404,10 @@ bp_wait (WORD_LIST *args)
     { free (fds); builtin_error ("epoll_create1: %s", strerror (errno)); return EXECUTION_FAILURE; }
   for (size_t i = 0; i < n_fds; i++)
     {
-      struct epoll_event ev = { .events = EPOLLIN | EPOLLPRI | EPOLLRDHUP,
-                                 .data.fd = fds[i] };
-      if (epoll_ctl (epfd, EPOLL_CTL_ADD, fds[i], &ev) < 0)
+      struct epoll_event ev = { .events = fds[i].events, .data.fd = fds[i].fd };
+      if (epoll_ctl (epfd, EPOLL_CTL_ADD, fds[i].fd, &ev) < 0)
         {
-          builtin_error ("epoll_ctl ADD fd %d: %s", fds[i], strerror (errno));
+          builtin_error ("epoll_ctl ADD fd %d: %s", fds[i].fd, strerror (errno));
           close (epfd); free (fds);
           return EXECUTION_FAILURE;
         }
@@ -364,9 +443,18 @@ bp_wait (WORD_LIST *args)
 static int
 bp_close (WORD_LIST *args)
 {
-  if (!args) { builtin_error ("close: needs FD"); return EX_USAGE; }
-  int fd = atoi (args->word->word);
-  if (close (fd) < 0) { builtin_error ("close: %s", strerror (errno)); return EXECUTION_FAILURE; }
+  if (!args || args->next) { builtin_error ("close: needs FD"); return EX_USAGE; }
+  char *end;
+  errno = 0;
+  long number = strtol (args->word->word, &end, 10);
+  if (errno || !*args->word->word || *end || number < 0 || number > INT_MAX)
+    { builtin_error ("close: invalid FD: %s", args->word->word); return EX_USAGE; }
+  int fd = (int) number;
+  struct bp_signal_fd **slot = &bp_signal_fds;
+  while (*slot && (*slot)->fd != fd) slot = &(*slot)->next;
+  int rc = close (fd), saved = errno;
+  if (*slot) bp_release_signal_fd (slot, 0);
+  if (rc < 0) { builtin_error ("close: %s", strerror (saved)); return EXECUTION_FAILURE; }
   return EXECUTION_SUCCESS;
 }
 
@@ -789,40 +877,55 @@ static int
 bp_signalfd (WORD_LIST *args)
 {
   if (!args) { builtin_error ("signalfd: needs SIG... [FDVAR]"); return EX_USAGE; }
-  sigset_t mask;
+  sigset_t mask, before;
   sigemptyset (&mask);
-  WORD_LIST *p;
   const char *fdvar = NULL;
-  for (p = args; p; p = p->next)
+  int count = 0;
+  for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
-      if (!p->next && strncmp (w, "SIG", 3) != 0 && (w[0] < '0' || w[0] > '9'))
+      int sig = decode_signal (w, DSIG_SIGPREFIX);
+      if (sig == NO_SIG && !p->next && count && strncmp (w, "SIG", 3) != 0 &&
+          (w[0] < '0' || w[0] > '9'))
         { fdvar = w; break; }
-      int sig = 0;
-      if (w[0] >= '0' && w[0] <= '9') sig = atoi (w);
-      else
-        {
-          /* Match "SIGINT" / "INT" — accept both. */
-          const char *base = (strncmp (w, "SIG", 3) == 0) ? w + 3 : w;
-          if      (strcmp (base, "INT")  == 0) sig = SIGINT;
-          else if (strcmp (base, "TERM") == 0) sig = SIGTERM;
-          else if (strcmp (base, "HUP")  == 0) sig = SIGHUP;
-          else if (strcmp (base, "USR1") == 0) sig = SIGUSR1;
-          else if (strcmp (base, "USR2") == 0) sig = SIGUSR2;
-          else if (strcmp (base, "QUIT") == 0) sig = SIGQUIT;
-          else if (strcmp (base, "WINCH")== 0) sig = SIGWINCH;
-          else { builtin_error ("unknown signal: %s", w); return EX_USAGE; }
-        }
-      if (sig <= 0 || sig >= NSIG)
-        { builtin_error ("signalfd: invalid signal: %s", w); return EX_USAGE; }
+      if (sig <= 0 || sig >= NSIG || sig == SIGKILL || sig == SIGSTOP)
+        { builtin_error ("signalfd: invalid or unblockable signal: %s", w); return EX_USAGE; }
       sigaddset (&mask, sig);
+      count++;
     }
-  /* Block in the process so signalfd consumes them. */
-  if (sigprocmask (SIG_BLOCK, &mask, NULL) < 0)
-    { builtin_error ("sigprocmask: %s", strerror (errno)); return EXECUTION_FAILURE; }
+  if (!count) { builtin_error ("signalfd: needs at least one signal"); return EX_USAGE; }
+  if (fdvar && !bp_fd_variable_ok (fdvar)) return EXECUTION_FAILURE;
+  struct bp_signal_fd *entry = calloc (1, sizeof *entry);
+  if (!entry) { builtin_error ("signalfd: allocation: %s", strerror (errno)); return EXECUTION_FAILURE; }
+  if (sigprocmask (SIG_BLOCK, &mask, &before) < 0)
+    { free (entry); builtin_error ("sigprocmask: %s", strerror (errno)); return EXECUTION_FAILURE; }
   int fd = signalfd (-1, &mask, SFD_CLOEXEC);
-  if (fd < 0) { builtin_error ("signalfd: %s", strerror (errno)); return EXECUTION_FAILURE; }
-  return bp_emit_fd (fd, fdvar) < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  if (fd < 0)
+    {
+      int saved = errno;
+      sigset_t unblock;
+      sigemptyset (&unblock);
+      for (int sig = 1; sig < NSIG; sig++)
+        if (sigismember (&mask, sig) == 1 && sigismember (&before, sig) == 0)
+          sigaddset (&unblock, sig);
+      sigprocmask (SIG_UNBLOCK, &unblock, NULL);
+      free (entry);
+      builtin_error ("signalfd: %s", strerror (saved));
+      return EXECUTION_FAILURE;
+    }
+  for (int sig = 1; sig < NSIG; sig++)
+    if (sigismember (&mask, sig) == 1)
+      {
+        if (!bp_signal_refs[sig]) bp_signal_owned[sig] = sigismember (&before, sig) == 0;
+        bp_signal_refs[sig]++;
+      }
+  entry->fd = fd;
+  entry->mask = mask;
+  entry->next = bp_signal_fds;
+  bp_signal_fds = entry;
+  if (bp_emit_fd (fd, fdvar) < 0)
+    { bp_release_signal_fd (&bp_signal_fds, 0); return EXECUTION_FAILURE; }
+  return EXECUTION_SUCCESS;
 }
 
 int
@@ -857,7 +960,7 @@ char *bashpoll_doc[] = {
   "    bashpoll recv-udp FD [-t MS] [-o ADDRVAR] [-x]   # one datagram → stdout; -x emits hex (NUL-safe)",
   "    bashpoll accept LISTEN_FD FDVAR",
   "    bashpoll connect HOST:PORT [FDVAR] [-t TIMEOUT_MS]",
-  "    bashpoll wait [-t TIMEOUT_MS] FD...",
+  "    bashpoll wait [-t TIMEOUT_MS] FD[:read|write|read,write]...",
   "    bashpoll close FD",
   "    bashpoll set-nonblock FD on|off",
   "    bashpoll clear-cloexec FD",
@@ -867,6 +970,10 @@ char *bashpoll_doc[] = {
   "preserve the fd across the loadable's $(...) subshell trap.",
   "wait outputs `FD events,events,...` per ready descriptor; events",
   "are: readable writable pri hup rdhup error.",
+  "Bare FDs request read readiness; add :write or :read,write explicitly.",
+  "Close signalfds with bashpoll close to restore only owned mask bits.",
+  "Overlapping signalfds retain their shared mask until the last close.",
+  "Shell redirection close/dup cannot track this mask ownership.",
   (char *)NULL
 };
 

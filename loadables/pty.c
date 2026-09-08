@@ -48,7 +48,7 @@
  *       $PIDVAR. Use bash redirection to read/write — e.g.
  *           read -u "$FDVAR" -N 1 -t 5 ch     # read with timeout
  *           printf '%s\n' "$pw" >&"$FDVAR"    # send a line
- *       After EOF, `exec {FDVAR}<&-; wait $PIDVAR` cleans up.
+ *       After EOF, `pty close "$FDVAR"; pty waitpid "$PIDVAR"` cleans up.
  *       This is the spawn primitive for /bash-os/expect.sh.
  *
  * Refuses TIOCSCTTY if not the session leader — the calling script
@@ -68,11 +68,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
+#include <dirent.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -92,13 +96,13 @@ bp_child_guard_begin (struct bp_child_guard *g)
   memset (&dfl, 0, sizeof dfl);
   dfl.sa_handler = SIG_DFL;
   sigemptyset (&dfl.sa_mask);
-  if (sigaction (SIGCHLD, &dfl, &g->old_chld) < 0)
-    return -1;
   sigemptyset (&block);
   sigaddset (&block, SIGCHLD);
   if (sigprocmask (SIG_BLOCK, &block, &g->oldmask) < 0)
+    return -1;
+  if (sigaction (SIGCHLD, &dfl, &g->old_chld) < 0)
     {
-      sigaction (SIGCHLD, &g->old_chld, NULL);
+      sigprocmask (SIG_SETMASK, &g->oldmask, NULL);
       return -1;
     }
   return 0;
@@ -107,8 +111,8 @@ bp_child_guard_begin (struct bp_child_guard *g)
 static void
 bp_child_guard_parent_end (struct bp_child_guard *g)
 {
-  sigprocmask (SIG_SETMASK, &g->oldmask, NULL);
   sigaction (SIGCHLD, &g->old_chld, NULL);
+  sigprocmask (SIG_SETMASK, &g->oldmask, NULL);
 }
 
 static void
@@ -244,8 +248,13 @@ bp_foreground_cmd (WORD_LIST *args)
 static int
 bp_close_cmd (WORD_LIST *args)
 {
-  if (!args) { builtin_error ("close needs FD"); return EX_USAGE; }
-  int fd = atoi (args->word->word);
+  if (!args || args->next) { builtin_error ("close needs FD"); return EX_USAGE; }
+  char *end;
+  errno = 0;
+  long number = strtol (args->word->word, &end, 10);
+  if (errno || !*args->word->word || *end || number < 0 || number > INT_MAX)
+    { builtin_error ("close: invalid FD: %s", args->word->word); return EX_USAGE; }
+  int fd = (int) number;
   if (close (fd) < 0)
     {
       builtin_error ("close: %s", strerror (errno));
@@ -254,24 +263,124 @@ bp_close_cmd (WORD_LIST *args)
   return EXECUTION_SUCCESS;
 }
 
-/* Single-slot stash for the spawn → waitpid handoff. Keyed by the
-   target child's PID (the pty-spawn user-visible PID, NOT the
-   intermediate). pipe_fd holds the read end of the status pipe whose
-   write end is closed when the intermediate exits. */
-static struct {
+/* Each intermediate owns one target and writes its result to a private
+   pipe. Bash may reap the intermediates without losing these results. */
+struct bp_status {
   pid_t target_pid;
-  int   pipe_fd;
-} bp_stash = { 0, -1 };
+  int pipe_fd, exit_code;
+  size_t received;
+  struct bp_status *next;
+};
+static struct bp_status *bp_statuses;
+static pid_t bp_status_owner;
 
 static void
-bp_stash_intermediate (pid_t target, int pipe_rd)
+bp_clear_statuses (void)
 {
-  /* If a previous stash wasn't drained (caller forgot waitpid),
-     close its pipe to free resources. The caller's exit status for
-     that prior child is permanently lost — that's their bug. */
-  if (bp_stash.pipe_fd >= 0) close (bp_stash.pipe_fd);
-  bp_stash.target_pid = target;
-  bp_stash.pipe_fd = pipe_rd;
+  while (bp_statuses)
+    {
+      struct bp_status *entry = bp_statuses;
+      bp_statuses = entry->next;
+      close (entry->pipe_fd);
+      free (entry);
+    }
+}
+
+/* A subshell must never consume its parent's status pipe. Closing its
+   inherited copies leaves the owning shell's descriptors untouched. */
+static void
+bp_check_owner (void)
+{
+  if (bp_status_owner != getpid ())
+    {
+      bp_clear_statuses ();
+      bp_status_owner = getpid ();
+    }
+}
+
+void
+pty_builtin_unload (char *name)
+{
+  (void) name;
+  bp_clear_statuses ();
+}
+
+/* Resolve only scalar names; array subscripts can evaluate shell code.
+   Validate both spawn outputs before allocating resources or starting CMD. */
+static char *
+bp_output_name (const char *name)
+{
+  const char *target = name;
+  for (int depth = 0; depth < 64; depth++)
+    {
+      if (!target || !legal_identifier (target)) break;
+      SHELL_VAR *v = find_variable_noref (target);
+      if (v && (readonly_p (v) || noassign_p (v) || array_p (v) ||
+                assoc_p (v) || v->dynamic_value || v->assign_func)) break;
+      if (v && nameref_p (v))
+        { target = nameref_cell (v); continue; }
+      char *copy = strdup (target);
+      if (!copy) builtin_error ("output variable: %s", strerror (errno));
+      return copy;
+    }
+  builtin_error ("output variable must be a writable scalar: %s", name);
+  return NULL;
+}
+
+static int
+bp_bind_number (char *name, int value)
+{
+  char text[32];
+  snprintf (text, sizeof text, "%d", value);
+  SHELL_VAR *v = builtin_bind_variable (name, text, 0);
+  return v && !readonly_p (v) && !noassign_p (v) ? 0 : -1;
+}
+
+static int
+bp_read_exact (int fd, void *buffer, size_t length)
+{
+  size_t used = 0;
+  while (used < length)
+    {
+      ssize_t n = read (fd, (char *) buffer + used, length - used);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) return -1;
+      used += n;
+    }
+  return 0;
+}
+
+/* The intermediate never execs, and the target can dispatch a builtin.
+   Apply close-on-exec here so other PTYs and native handles do not stay
+   alive solely because another pty spawn inherited them. */
+static void
+bp_close_cloexec (int keep_a, int keep_b)
+{
+  DIR *dir = opendir ("/proc/self/fd");
+  if (dir)
+    {
+      struct dirent *entry;
+      while ((entry = readdir (dir)))
+        {
+          if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
+          int fd = atoi (entry->d_name);
+          if (fd <= 2 || fd == dirfd (dir) || fd == keep_a || fd == keep_b) continue;
+          int flags = fcntl (fd, F_GETFD);
+          if (flags >= 0 && (flags & FD_CLOEXEC)) close (fd);
+        }
+      closedir (dir);
+    }
+  else
+    {
+      long limit = sysconf (_SC_OPEN_MAX);
+      if (limit < 0 || limit > INT_MAX) limit = 65536;
+      for (int fd = 3; fd < limit; fd++)
+        {
+          if (fd == keep_a || fd == keep_b) continue;
+          int flags = fcntl (fd, F_GETFD);
+          if (flags >= 0 && (flags & FD_CLOEXEC)) close (fd);
+        }
+    }
 }
 
 /* spawn: allocate pty, fork, exec child with slave as ctty.
@@ -299,85 +408,75 @@ bp_spawn_cmd (WORD_LIST *args)
       builtin_error ("spawn needs FDVAR PIDVAR CMD [ARG ...]");
       return EX_USAGE;
     }
-  const char *fdvar = args->word->word;
-  const char *pidvar = args->next->word->word;
-  WORD_LIST *cmd_list = args->next->next;
+  char *fdvar = bp_output_name (args->word->word);
+  char *pidvar = bp_output_name (args->next->word->word);
+  if (!fdvar || !pidvar)
+    { free (fdvar); free (pidvar); return EXECUTION_FAILURE; }
+  if (strcmp (fdvar, pidvar) == 0)
+    {
+      builtin_error ("spawn needs distinct FDVAR and PIDVAR variables");
+      free (fdvar); free (pidvar); return EX_USAGE;
+    }
 
-  /* Build child argv. */
+  WORD_LIST *cmd_list = args->next->next;
   int argc = 0;
   for (WORD_LIST *p = cmd_list; p; p = p->next) argc++;
-  char **argv = (char **) malloc ((argc + 1) * sizeof (char *));
-  if (!argv)
-    { builtin_error ("argv malloc: %s", strerror (errno)); return EXECUTION_FAILURE; }
+  char **argv = malloc (((size_t) argc + 1) * sizeof *argv);
+  struct bp_status *entry = calloc (1, sizeof *entry);
+  int master = -1, statpipe[2] = { -1, -1 }, gate[2] = { -1, -1 };
+  const char *error = "allocation";
+  if (!argv || !entry) goto fail;
   int i = 0;
   for (WORD_LIST *p = cmd_list; p; p = p->next) argv[i++] = p->word->word;
   argv[argc] = NULL;
 
-  /* Allocate master pty. O_CLOEXEC so master doesn't leak into child. */
-  int master = posix_openpt (O_RDWR | O_NOCTTY | O_CLOEXEC);
-  if (master < 0)
-    { free (argv); builtin_error ("posix_openpt: %s", strerror (errno)); return EXECUTION_FAILURE; }
-  if (grantpt (master) < 0)
-    { close (master); free (argv); builtin_error ("grantpt: %s", strerror (errno)); return EXECUTION_FAILURE; }
-  if (unlockpt (master) < 0)
-    { close (master); free (argv); builtin_error ("unlockpt: %s", strerror (errno)); return EXECUTION_FAILURE; }
-
+  error = "posix_openpt";
+  master = posix_openpt (O_RDWR | O_NOCTTY | O_CLOEXEC);
+  if (master < 0) goto fail;
+  error = "grantpt";
+  if (grantpt (master) < 0) goto fail;
+  error = "unlockpt";
+  if (unlockpt (master) < 0) goto fail;
   char slave_path[256];
-  if (ptsname_r (master, slave_path, sizeof slave_path) != 0)
-    { close (master); free (argv); builtin_error ("ptsname: %s", strerror (errno)); return EXECUTION_FAILURE; }
-
-  /* Status pipe: intermediate writes the target's PID, then later
-     its encoded exit status, into pipefd[1]; pty waitpid (running
-     in the original bash) reads from pipefd[0]. This sidesteps the
-     SIGCHLD race — bash's signal handler reaps the INTERMEDIATE
-     child eagerly (which is fine, intermediate exits 0 immediately
-     after writing), but the TARGET is a child of the intermediate,
-     not bash, so bash never sees it and our exit status is preserved
-     in the pipe. */
-  int statpipe[2];
-  if (pipe (statpipe) < 0)
-    { close (master); free (argv); builtin_error ("pipe: %s", strerror (errno)); return EXECUTION_FAILURE; }
-  /* CLOEXEC on the parent's read end so it doesn't leak into other
-     spawn'd children. The intermediate dups statpipe[1] before
-     close-on-exec doesn't apply (no exec in intermediate). */
-  fcntl (statpipe[0], F_SETFD, FD_CLOEXEC);
+  error = "ptsname";
+  int pts_error = ptsname_r (master, slave_path, sizeof slave_path);
+  if (pts_error) { errno = pts_error; goto fail; }
+  error = "pipe";
+  if (pipe2 (statpipe, O_CLOEXEC) < 0 ||
+      socketpair (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, gate) < 0) goto fail;
 
   struct bp_child_guard guard;
-  if (bp_child_guard_begin (&guard) < 0)
-    { close (master); close (statpipe[0]); close (statpipe[1]); free (argv);
-      builtin_error ("SIGCHLD guard: %s", strerror (errno)); return EXECUTION_FAILURE; }
-
+  error = "SIGCHLD guard";
+  if (bp_child_guard_begin (&guard) < 0) goto fail;
   pid_t intermediate = fork ();
   if (intermediate < 0)
-    { bp_child_guard_parent_end (&guard); close (master); close (statpipe[0]); close (statpipe[1]); free (argv);
-      builtin_error ("fork: %s", strerror (errno)); return EXECUTION_FAILURE; }
-
+    { bp_child_guard_parent_end (&guard); error = "fork"; goto fail; }
   if (intermediate == 0)
     {
       bp_child_guard_child_end (&guard);
-      /* Intermediate: forks the actual target, waits, writes status. */
       close (master);
       close (statpipe[0]);
+      close (gate[1]);
+      bp_clear_statuses ();
+      bp_close_cloexec (statpipe[1], gate[0]);
+      /* A closed status reader must not kill the target's reaper. */
+      struct sigaction ignore;
+      memset (&ignore, 0, sizeof ignore);
+      ignore.sa_handler = SIG_IGN;
+      sigemptyset (&ignore.sa_mask);
+      sigaction (SIGPIPE, &ignore, NULL);
       struct bp_child_guard target_guard;
-      if (bp_child_guard_begin (&target_guard) < 0)
-        {
-          dprintf (2, "pty spawn intermediate: SIGCHLD guard: %s\n", strerror (errno));
-          _exit (126);
-        }
+      if (bp_child_guard_begin (&target_guard) < 0) _exit (126);
       pid_t target = fork ();
-      if (target < 0)
-        {
-          bp_child_guard_parent_end (&target_guard);
-          dprintf (2, "pty spawn intermediate: fork: %s\n", strerror (errno));
-          _exit (126);
-        }
+      if (target < 0) _exit (126);
       if (target == 0)
         {
           bp_child_guard_child_end (&target_guard);
-          /* Target: set up pty + exec. Errors before dup2 go to
-             original stderr (visible to user); errors after (exec
-             failure) go to the slave → master → caller's EXP_BUF. */
           close (statpipe[1]);
+          /* Do not start an unreturnable child if output binding fails. */
+          char ready;
+          if (bp_read_exact (gate[0], &ready, 1) < 0 || ready != 'G') _exit (126);
+          close (gate[0]);
           if (setsid () < 0)
             { dprintf (2, "pty spawn child: setsid: %s\n", strerror (errno)); _exit (126); }
           int slave = open (slave_path, O_RDWR);
@@ -394,54 +493,59 @@ bp_spawn_cmd (WORD_LIST *args)
           dprintf (2, "pty spawn child: execvp(%s): %s\n", argv[0], strerror (errno));
           _exit (127);
         }
-      /* Intermediate waits for target. Send target PID first so the
-         caller can identify the actual process for kill / proc lookups,
-         then send the encoded exit code. */
-      ssize_t w = write (statpipe[1], &target, sizeof target);
-      (void) w;
+      close (gate[0]);
+      ssize_t n;
+      do { n = write (statpipe[1], &target, sizeof target); }
+      while (n < 0 && errno == EINTR);
+      /* Even if the caller vanished, reap the target after gate EOF. */
       int status = 0;
       pid_t waited;
-      while ((waited = waitpid (target, &status, 0)) < 0)
-        {
-          if (errno == EINTR) continue;
-          break;
-        }
-      bp_child_guard_parent_end (&target_guard);
+      do { waited = waitpid (target, &status, 0); }
+      while (waited < 0 && errno == EINTR);
       int exit_code = waited == target && WIFEXITED (status) ? WEXITSTATUS (status)
-                    : WIFSIGNALED (status) ? 128 + WTERMSIG (status)
+                    : waited == target && WIFSIGNALED (status) ? 128 + WTERMSIG (status)
                     : 1;
-      w = write (statpipe[1], &exit_code, sizeof exit_code);
-      (void) w;
+      do { n = write (statpipe[1], &exit_code, sizeof exit_code); }
+      while (n < 0 && errno == EINTR);
       close (statpipe[1]);
       _exit (0);
     }
 
-  /* Original bash. Read the target's PID from the pipe; status comes
-     later (when caller invokes pty waitpid). Stash the read fd in
-     the static slot keyed off target PID. */
-  free (argv);
-  close (statpipe[1]);
-  pid_t target_pid;
-  if (read (statpipe[0], &target_pid, sizeof target_pid) != (ssize_t) sizeof target_pid)
-    {
-      bp_child_guard_parent_end (&guard);
-      close (master); close (statpipe[0]);
-      builtin_error ("spawn: short read from intermediate (target PID lost)");
-      return EXECUTION_FAILURE;
-    }
+  close (statpipe[1]); statpipe[1] = -1;
+  close (gate[0]); gate[0] = -1;
+  error = "target PID handoff";
+  int handoff = bp_read_exact (statpipe[0], &entry->target_pid, sizeof entry->target_pid);
   bp_child_guard_parent_end (&guard);
-  /* Stash <intermediate_pid, statpipe[0]> for the matching waitpid call.
-     Since expect-style use is single-child-at-a-time per shell, a
-     single-slot stash is enough. If you need parallel spawns, extend
-     to a small array. */
-  bp_stash_intermediate (target_pid, statpipe[0]);
-
-  char buf[32];
-  snprintf (buf, sizeof buf, "%d", master);
-  builtin_bind_variable ((char *) fdvar, buf, 0);
-  snprintf (buf, sizeof buf, "%d", (int) target_pid);
-  builtin_bind_variable ((char *) pidvar, buf, 0);
+  if (handoff < 0) { errno = EIO; goto fail; }
+  /* The public API uses PIDs. Refuse reuse while an older result with the
+     same PID is still retained, before either output variable is changed. */
+  for (struct bp_status *old = bp_statuses; old; old = old->next)
+    if (old->target_pid == entry->target_pid)
+      { error = "target PID still has an unconsumed status"; errno = EEXIST; goto fail; }
+  error = "output variable binding";
+  if (bp_bind_number (fdvar, master) < 0 || bp_bind_number (pidvar, entry->target_pid) < 0)
+    { errno = EINVAL; goto fail; }
+  error = "child start handoff";
+  ssize_t n;
+  do { n = send (gate[1], "G", 1, MSG_NOSIGNAL); } while (n < 0 && errno == EINTR);
+  if (n != 1) goto fail;
+  close (gate[1]);
+  entry->pipe_fd = statpipe[0];
+  entry->next = bp_statuses;
+  bp_statuses = entry;
+  free (argv); free (fdvar); free (pidvar);
   return EXECUTION_SUCCESS;
+
+fail:
+  {
+    int saved = errno;
+    if (master >= 0) close (master);
+    for (int i = 0; i < 2; i++)
+      { if (statpipe[i] >= 0) close (statpipe[i]); if (gate[i] >= 0) close (gate[i]); }
+    free (entry); free (argv); free (fdvar); free (pidvar);
+    builtin_error ("spawn: %s: %s", error, strerror (saved));
+    return EXECUTION_FAILURE;
+  }
 }
 
 /* waitpid: read the target's exit status from the pipe stashed by
@@ -458,36 +562,54 @@ bp_spawn_cmd (WORD_LIST *args)
 static int
 bp_waitpid_cmd (WORD_LIST *args)
 {
-  if (!args) { builtin_error ("waitpid needs PID [STATUSVAR]"); return EX_USAGE; }
-  pid_t pid = (pid_t) atoi (args->word->word);
-  const char *statusvar = (args->next) ? args->next->word->word : NULL;
-
-  if (bp_stash.pipe_fd < 0 || bp_stash.target_pid != pid)
+  if (!args || (args->next && args->next->next))
+    { builtin_error ("waitpid needs PID [STATUSVAR]"); return EX_USAGE; }
+  char *end;
+  errno = 0;
+  long number = strtol (args->word->word, &end, 10);
+  if (errno || !*args->word->word || *end || number <= 0 || number > INT_MAX)
+    { builtin_error ("waitpid: invalid PID: %s", args->word->word); return EX_USAGE; }
+  pid_t pid = (pid_t) number;
+  struct bp_status **slot = &bp_statuses;
+  while (*slot && (*slot)->target_pid != pid) slot = &(*slot)->next;
+  if (!*slot)
     {
-      builtin_error ("waitpid %d: no stashed status (was this PID spawn'd?)",
-                     (int) pid);
+      builtin_error ("waitpid %d: no owned status (was this PID spawned in this shell?)", (int) pid);
       return EXECUTION_FAILURE;
     }
-
-  int exit_code;
-  ssize_t r = read (bp_stash.pipe_fd, &exit_code, sizeof exit_code);
-  close (bp_stash.pipe_fd);
-  bp_stash.pipe_fd = -1;
-  bp_stash.target_pid = 0;
-
-  if (r != (ssize_t) sizeof exit_code)
+  char *statusvar = args->next ? bp_output_name (args->next->word->word) : NULL;
+  if (args->next && !statusvar) return EXECUTION_FAILURE;
+  struct bp_status *entry = *slot;
+  while (entry->received < sizeof entry->exit_code)
     {
-      builtin_error ("waitpid %d: short read from status pipe (rc=%zd)",
-                     (int) pid, r);
-      return EXECUTION_FAILURE;
+      /* Leave the status available for a later call when a trap interrupts
+         the wait. A bounded poll also handles SA_RESTART signal handlers. */
+      int sig = terminating_signal ? terminating_signal
+              : interrupt_state ? SIGINT : first_pending_trap ();
+      if (sig > 0)
+        { free (statusvar); return 128 + sig; }
+      struct pollfd pfd = { .fd = entry->pipe_fd, .events = POLLIN };
+      int ready = poll (&pfd, 1, 100);
+      if (ready < 0 && errno == EINTR) continue;
+      if (!ready) continue;
+      ssize_t n = ready < 0 ? -1 : read (entry->pipe_fd,
+                  (char *) &entry->exit_code + entry->received,
+                  sizeof entry->exit_code - entry->received);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0)
+        {
+          builtin_error ("waitpid %d: incomplete status from intermediate", (int) pid);
+          *slot = entry->next;
+          close (entry->pipe_fd); free (entry); free (statusvar);
+          return EXECUTION_FAILURE;
+        }
+      entry->received += n;
     }
-
-  if (statusvar)
-    {
-      char buf[32];
-      snprintf (buf, sizeof buf, "%d", exit_code);
-      builtin_bind_variable ((char *) statusvar, buf, 0);
-    }
+  if (statusvar && bp_bind_number (statusvar, entry->exit_code) < 0)
+    { free (statusvar); return EXECUTION_FAILURE; }
+  int exit_code = entry->exit_code;
+  *slot = entry->next;
+  close (entry->pipe_fd); free (entry); free (statusvar);
   return exit_code;
 }
 
@@ -909,6 +1031,7 @@ bp_set_ldisc_cmd (WORD_LIST *args)
 int
 pty_builtin (WORD_LIST *list)
 {
+  bp_check_owner ();
   if (!list) { builtin_usage (); return EX_USAGE; }
   const char *cmd = list->word->word;
   WORD_LIST *args = list->next;
@@ -950,7 +1073,10 @@ char *pty_doc[] = {
   "    pty waitpid PID [STATUSVAR]",
   "        Blocking waitpid(2) on PID; sets $? (and $STATUSVAR) to",
   "        the child's exit status. Use this for spawn'd children —",
-  "        bash's `wait` builtin doesn't see them.",
+  "        bash's `wait` builtin doesn't see them. Concurrent spawns retain",
+  "        independent statuses; waitpid is restricted to the spawning shell.",
+  "        A trapped signal returns 128+signal without consuming the status.",
+  "        Output variables must be writable scalars (simple namerefs work).",
   "    pty echo FD on|off",
   "        Toggle ECHO/ECHOE/ECHOK/ECHONL on FD's line discipline.",
   "        On a spawn'd master fd, this affects what the child sees",
