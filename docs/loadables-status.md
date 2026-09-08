@@ -12,6 +12,11 @@ status, priority, counterpart and measurement. The
 [measurement summary](data/loadable-benchmarks.json) retains fixture hashes,
 sample counts and timing ranges. Raw run logs stay outside the repository.
 
+Follow-up: the [tac update](tac.md) completes its selected performance work
+and adds dedicated parity and sanitizer coverage. Its row now points to the
+remaining memory and regex scope work. The numeric timings below retain the
+original snapshot; the update has a separate before/after comparison.
+
 <!-- BEGIN SUMMARY -->
 Catalog: **278 loadables** (247 local sources, 31 stock Bash sources). Command benchmark: **49 cases covering 45 loadables**; 35 loadables passed the selected output checks, 10 have confirmed correctness findings. The other 233 have no individual command timings here; GPU transport measurements are reported separately.
 
@@ -46,7 +51,6 @@ three times as long. A speed ratio is never published for incorrect output.
 | P1 | bc, colrm, column, hexdump, nl, od, pr, strings | The same three-call check also produces wrong output. | Audit each command; share a fix only after establishing its cause. |
 | P2 | [fold](#case-fold) | 3.58× external time; 2.30× BusyBox time; output checks pass, seven samples. | Profile input/output and allocation costs on this fixture, then measure the proposed change. |
 | P2 | [expand](#case-expand) | 3.02× external time; 1.00× BusyBox time; output checks pass, seven samples. | Profile input/output and allocation costs on this fixture, then measure the proposed change. |
-| P2 | [tac](#case-tac) | 3.06× external time; 0.73× BusyBox time; output checks pass, seven samples. | Profile input/output and allocation costs on this fixture, then measure the proposed change. |
 | P2 | [comm](#case-comm) | 2.72× external time; output checks pass, seven samples. | Profile input/output and allocation costs on this fixture, then measure the proposed change. |
 | P2 | [sort-text](#case-sort-text) | 2.11× external time; 0.96× BusyBox time; output checks pass, seven samples. | Profile input/output and allocation costs on this fixture, then measure the proposed change. |
 | P3 | unexpand, wc -m, diff, join, crypto sha256 | Slower than the external reference in the first five-sample run. | Confirm across input sizes before optimizing; crypto covers SHA-256 only. |
@@ -310,7 +314,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`swapon`](../loadables/swapon.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | swapon; swapon | N/M | P3 | Add behavioral fixtures, then timing. |
 | `sync`* | P C D S T F | Build/help | sync; sync | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`sysctl`](../loadables/sysctl.c) | D S F | [Contract](../tests/system-smoke.sh) | sysctl; sysctl | N/M | P3 | Add a matched workload and timing. |
-| [`tac`](../loadables/tac.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | tac; tac | 76.984 / 105.132 / 25.179; [tac](#case-tac), 26 passes | P2 | Profile tac: 3.06× external time. |
+| [`tac`](../loadables/tac.c) | C D S T F | [Parity](../tests/tac-parity.py); [limited](#scope-notes); [S](../tests/tac-sanitize.sh) | tac; tac | 76.984 / 105.132 / 25.179; [tac](#case-tac), 26 passes | P3 | Decide bounded-memory input and GNU regex scope; see the tac follow-up. |
 | [`tail`](../loadables/tail.c) | C D S T F | [Parity](../tests/wc-tail-parity.sh) | tail; tail | 4.680 / 132.095 / 44.944; [tail](#case-tail), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`taskset`](../loadables/taskset.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | taskset; taskset | N/M | P3 | Add a matched workload and timing. |
 | `tee`* | P C D S T F | Build/help | tee; tee | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -450,6 +454,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `sshd` | Loopback interoperability and malformed setup cases pass; no concurrent-session measurements. |
 | `su` | Current integration test rejects an invalid option before credential transition. |
 | `sudo` | Current integration test rejects an invalid option before credential transition. |
+| `tac` | Follow-up input fixes and performance work completed; the main table retains historical timings. New comparisons and tests are in docs/tac.md. Whole-file memory use and the POSIX ERE regex subset remain limits. [source](../docs/tac.md) |
 | `uclampset` | Query subset; setting PID/system clamps and command mode are refused. [source](../loadables/uclampset.c) |
 <!-- END NOTES -->
 

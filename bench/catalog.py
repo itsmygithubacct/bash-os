@@ -23,7 +23,9 @@ RANK = {'Build/help': 0, 'Negative checks': 1, 'Smoke': 2, 'Contract': 3,
         'Query parity': 4, 'Parity': 5}
 PROFILE_CODES = {'pure': 'P', 'core': 'C', 'device': 'D', 'server': 'S',
                  'desktop': 'T', 'full': 'F'}
-PERFORMANCE = ['fold', 'expand', 'tac', 'comm', 'sort-text']
+# Pending candidates from the historical snapshot; completed work is linked
+# from the reviewed notes while its original measurements remain unchanged.
+PERFORMANCE = ['fold', 'expand', 'comm', 'sort-text']
 
 
 def cell(value):

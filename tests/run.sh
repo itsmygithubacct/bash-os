@@ -29,6 +29,7 @@ fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
 check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
+check 'tac parity' python3 tests/tac-parity.py out/bash
 check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
 check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list
 if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
@@ -49,6 +50,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
@@ -62,6 +64,7 @@ fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash
+  check 'tac under ASan+UBSan' bash tests/tac-sanitize.sh out/bash
   check 'procstat under ASan+UBSan' bash tests/procstat-sanitize.sh out/bash
   check 'helper modules under ASan+UBSan' bash tests/helper-sanitize.sh out/bash
   check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash

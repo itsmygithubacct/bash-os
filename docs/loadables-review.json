@@ -5,6 +5,14 @@
   "coverage_groups": [
     {
       "names": [
+        "tac"
+      ],
+      "status": "Parity",
+      "evidence": "tests/tac-parity.py",
+      "scope": "Follow-up: literal and selected regex separators, binary data, files, repeated stdin, terminal ordering and error recovery; see docs/tac.md."
+    },
+    {
+      "names": [
         "cut"
       ],
       "status": "Parity",
@@ -422,6 +430,13 @@
     }
   ],
   "sanitizer_groups": [
+    {
+      "names": [
+        "tac"
+      ],
+      "evidence": "tests/tac-sanitize.sh",
+      "scope": "The 598-case tac follow-up suite with ASan/UBSan."
+    },
     {
       "names": [
         "grep"
@@ -1200,6 +1215,11 @@
     "hexdump": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
       "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "tac": {
+      "note": "Follow-up input fixes and performance work completed; the main table retains historical timings. New comparisons and tests are in docs/tac.md. Whole-file memory use and the POSIX ERE regex subset remain limits.",
+      "evidence": "docs/tac.md",
+      "next": "Decide bounded-memory input and GNU regex scope; see the tac follow-up."
     }
   },
   "repeat_input_findings": [
@@ -1223,6 +1243,7 @@
     "nano",
     "pgrep",
     "pkill",
-    "grep"
+    "grep",
+    "tac"
   ]
 }

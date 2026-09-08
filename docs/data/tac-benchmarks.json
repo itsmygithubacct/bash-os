@@ -1,0 +1,387 @@
+{
+  "schema": 1,
+  "date": "2026-09-08T08:11:27Z",
+  "architecture": "x86_64",
+  "kernel": "6.12.96+deb13-amd64",
+  "cpu_affinity": [
+    11
+  ],
+  "load_average_start": [
+    13.00439453125,
+    15.4619140625,
+    13.34423828125
+  ],
+  "samples": 7,
+  "method": "Warm-cache untraced batch wall time; stdout /dev/null; rotated/reversed order; single and repeated output validation; external commands launched by the before Bash build.",
+  "binaries": {
+    "before": {
+      "name": "bash-core-before",
+      "sha256": "1be8e32d620b249ce2a3273c79f58231b80b5448904eea7f813c59a7c653d18c"
+    },
+    "after": {
+      "name": "bash-core",
+      "sha256": "51757a796de01b3c8f87e6bbabb339628870c7c1a9ced361bab3b28ec7f73702"
+    }
+  },
+  "cases": [
+    {
+      "id": "text",
+      "args": [],
+      "passes": 26,
+      "bytes": 423000,
+      "fixture_sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 126.9,
+          "min_ms": 116.001,
+          "max_ms": 141.31
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 13.096,
+          "min_ms": 10.616,
+          "max_ms": 17.343
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 73.421,
+          "min_ms": 61.868,
+          "max_ms": 95.368
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 271.087,
+          "min_ms": 238.646,
+          "max_ms": 303.343
+        }
+      },
+      "validation_passes": 26
+    },
+    {
+      "id": "tiny",
+      "args": [],
+      "passes": 200,
+      "bytes": 23,
+      "fixture_sha256": "ba83bccd7262e9718fa47b107a1f3af510c33394a8f74f7fe66ac086a576e5f9",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 9.509,
+          "min_ms": 7.084,
+          "max_ms": 14.248
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 10.798,
+          "min_ms": 6.427,
+          "max_ms": 12.82
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 392.272,
+          "min_ms": 342.623,
+          "max_ms": 436.057
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 442.859,
+          "min_ms": 393.177,
+          "max_ms": 486.146
+        }
+      },
+      "validation_passes": 200
+    },
+    {
+      "id": "1m-lines",
+      "args": [],
+      "passes": 10,
+      "bytes": 1048576,
+      "fixture_sha256": "8acbcfccb92d61fa0106aed39565aa5958fd7f2aa246f1b71d3a76c28cf2c4ac",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 139.024,
+          "min_ms": 114.054,
+          "max_ms": 160.603
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 17.1,
+          "min_ms": 11.62,
+          "max_ms": 23.24
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 47.505,
+          "min_ms": 31.644,
+          "max_ms": 53.692
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 246.487,
+          "min_ms": 210.985,
+          "max_ms": 290.284
+        }
+      },
+      "validation_passes": 10
+    },
+    {
+      "id": "16m-lines",
+      "args": [],
+      "passes": 1,
+      "bytes": 16777216,
+      "fixture_sha256": "8eda6b4118ed81ad88b73070412bf24e49dc214cc222acc82c7c8b8988f1e9d4",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 200.72,
+          "min_ms": 168.056,
+          "max_ms": 209.798
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 24.384,
+          "min_ms": 20.174,
+          "max_ms": 40.852
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 34.745,
+          "min_ms": 26.008,
+          "max_ms": 39.159
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 270.775,
+          "min_ms": 254.542,
+          "max_ms": 289.869
+        }
+      },
+      "validation_passes": 3
+    },
+    {
+      "id": "dense-lines",
+      "args": [],
+      "passes": 2,
+      "bytes": 1048576,
+      "fixture_sha256": "06dd1a4a771f4e3dbb1f255c4195c285fd51dfd6aa3c4862c545a64a9230c472",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 369.127,
+          "min_ms": 349.875,
+          "max_ms": 424.862
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 28.631,
+          "min_ms": 17.856,
+          "max_ms": 35.753
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 21.337,
+          "min_ms": 20.29,
+          "max_ms": 34.851
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 609.381,
+          "min_ms": 523.103,
+          "max_ms": 654.377
+        }
+      },
+      "validation_passes": 3
+    },
+    {
+      "id": "long-records",
+      "args": [],
+      "passes": 3,
+      "bytes": 3145730,
+      "fixture_sha256": "d6d5ee3ed2b273ab67247864607b92684a97e8cbadb38b8e3c2f8ab23091d028",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 49.924,
+          "min_ms": 40.764,
+          "max_ms": 54.873
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 12.403,
+          "min_ms": 10.827,
+          "max_ms": 15.219
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 25.351,
+          "min_ms": 22.426,
+          "max_ms": 40.509
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 77.352,
+          "min_ms": 60.307,
+          "max_ms": 87.161
+        }
+      },
+      "validation_passes": 3
+    },
+    {
+      "id": "nul",
+      "args": [
+        "-s",
+        ""
+      ],
+      "passes": 6,
+      "bytes": 1048576,
+      "fixture_sha256": "94db1018b4ccfb8a9c2dfb271e0a62ecfda5cc0193078832e53c39d91121dcb6",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 76.784,
+          "min_ms": 58.172,
+          "max_ms": 80.542
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 28.037,
+          "min_ms": 23.709,
+          "max_ms": 37.582
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 38.985,
+          "min_ms": 25.984,
+          "max_ms": 44.089
+        }
+      },
+      "validation_passes": 6
+    },
+    {
+      "id": "custom",
+      "args": [
+        "-b",
+        "-s",
+        "::"
+      ],
+      "passes": 10,
+      "bytes": 400000,
+      "fixture_sha256": "152ee420f4fcd80cf3f8446bd4954feb28ff82a4c1cd5e44ebd5fc239a96a22d",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 54.674,
+          "min_ms": 38.316,
+          "max_ms": 70.32
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 26.176,
+          "min_ms": 18.551,
+          "max_ms": 39.653
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 45.603,
+          "min_ms": 35.055,
+          "max_ms": 54.513
+        }
+      },
+      "validation_passes": 10
+    },
+    {
+      "id": "before-separator",
+      "args": [
+        "-b"
+      ],
+      "passes": 26,
+      "bytes": 423000,
+      "fixture_sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee",
+      "results": {
+        "before": {
+          "status": "ok",
+          "median_ms": 232.796,
+          "min_ms": 215.89,
+          "max_ms": 275.409
+        },
+        "after": {
+          "status": "ok",
+          "median_ms": 15.443,
+          "min_ms": 10.272,
+          "max_ms": 25.899
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 65.336,
+          "min_ms": 53.383,
+          "max_ms": 84.894
+        }
+      },
+      "validation_passes": 26
+    }
+  ],
+  "reference_versions": {
+    "external": "tac (GNU coreutils) 9.7",
+    "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary."
+  },
+  "cpu_model": "Intel(R) Core(TM) i7-9850H CPU @ 2.60GHz",
+  "load_average_end": [
+    17.75830078125,
+    16.45361328125,
+    13.771484375
+  ],
+  "source_commit_before": "ef66d799c99812f3132461cea7f00c983c45c98d",
+  "source_file": "loadables/tac.c",
+  "source_sha256_before": "959ab603cd272948333a4fb62a8e61790007e33e95fe5cfaef9f446eee552479",
+  "build": {
+    "profile": "core",
+    "injected_loadables": 89,
+    "link": "dynamic",
+    "symbols": "unstripped",
+    "compiler": "GCC 14.2.0",
+    "cflags": "-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2",
+    "bash_version": "5.3.15"
+  },
+  "syscall_trace": {
+    "case": "text",
+    "passes": 1,
+    "method": "Separate read/write syscall counts for one shell invocation; excluded from timings.",
+    "before": {
+      "read": 13,
+      "write": 8061
+    },
+    "after": {
+      "read": 12,
+      "write": 7
+    }
+  },
+  "limits": [
+    "Other work was active on the host; these are warm-cache batch comparisons, not isolated throughput.",
+    "No performance claim for tiny input; ranges overlap.",
+    "GNU was faster in the dense-lines median; ranges overlap.",
+    "BusyBox lacks the separator options, so it is omitted for those cases.",
+    "All timing results are native dynamic core; static and RISC-V execution are checked separately.",
+    "The whole input file is still buffered in memory; regex behavior remains the existing POSIX ERE subset."
+  ],
+  "source_sha256_after": "ddee3bf733228935da7ac8a1485a8fd6ffa2954b9f95978607b782e60a3df512",
+  "validation": {
+    "checks_per_configuration": 598,
+    "configurations": [
+      "native dynamic core",
+      "native static core",
+      "native dynamic core with tac under ASan/UBSan",
+      "RISC-V musl static core under QEMU thead-c906"
+    ],
+    "exact_selection_count": 89,
+    "native_static": {
+      "sha256": "4232ff8758b7c143ac1a6d7a1affab9c3f7aa8c90ecbd68bf4fc06932485ac20",
+      "bytes": 3510656
+    },
+    "riscv_static": {
+      "sha256": "b08ebd4744090dc8828dc5d6cd1e8b1939791873fb8a5db6b090fa9a4408d7e8",
+      "bytes": 3736792
+    }
+  }
+}

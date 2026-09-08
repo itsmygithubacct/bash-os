@@ -29,6 +29,12 @@ catalog, profile resolver, reviewed coverage map and sanitized measurement JSON.
 Keep raw run logs outside Git. Do not assign whole-script timings to individual
 loadables or combine the historical measurements below with this new method.
 
+The [tac update](../docs/tac.md) includes a nine-workload comparison of the
+earlier and current builtin with GNU and BusyBox, plus correctness coverage
+and remaining limits. Reproduce it with `python3 bench/tac.py --before OLD_BINARY
+--after NEW_BINARY --cpu N --runs 7 --output /tmp/tac.json`; both binaries
+must include `tac`. Keep the builds and CPU fixed and serialize timed runs.
+
 ## Whole scripts
 
 `bench/run.sh` runs the same POSIX `sh` scripts under three userlands and
