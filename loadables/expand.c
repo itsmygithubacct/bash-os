@@ -27,13 +27,21 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include "loadables.h"
 
 #define BX_MAX_STOPS 64
 
+/* Bash executes this builtin in one thread. Keep its input buffering, but
+   avoid locking it for every byte. */
+#if !HAVE_DECL_GETC_UNLOCKED
+#  define getc_unlocked fgetc
+#endif
+
 typedef struct {
-    int stops[BX_MAX_STOPS];   /* explicit stop columns; 0-terminated */
+    int stops[BX_MAX_STOPS];   /* explicit stop columns */
     int n_stops;
     int every;                  /* fallback "every N cols" (0 if explicit) */
     int extend_size;            /* trailing /N: multiples of N after stops */
@@ -53,9 +61,12 @@ bx_parse_tablist (const char *s, bx_opts *o)
 
     /* Single bare integer N -> every-N stops. */
     char *end;
+    errno = 0;
     long n = strtol (s, &end, 10);
     if (*end == '\0') {
-        if (n <= 0) { builtin_error ("invalid tab size: %s", s); return -1; }
+        if (errno == ERANGE || n <= 0 || n > INT_MAX) {
+            builtin_error ("invalid tab size: %s", s); return -1;
+        }
         o->every = (int) n;
         o->n_stops = 0;
         o->extend_size = o->increment_size = 0;
@@ -77,8 +88,9 @@ bx_parse_tablist (const char *s, bx_opts *o)
         if (*s == '/') { multiple = 1; s++; }
         else if (*s == '+') { relative = 1; s++; }
         char *e;
+        errno = 0;
         long v = strtol (s, &e, 10);
-        if (e == s || v <= 0) {
+        if (errno == ERANGE || e == s || v <= 0 || v > INT_MAX) {
             builtin_error ("invalid tab size: %s", s);
             return -1;
         }
@@ -115,56 +127,134 @@ bx_parse_tablist (const char *s, bx_opts *o)
         if (o->extend_size)         { o->every = o->extend_size;    o->extend_size = 0; }
         else if (o->increment_size) { o->every = o->increment_size; o->increment_size = 0; }
         else { builtin_error ("empty tab list"); return -1; }
+    } else if (o->n_stops == 1 && !o->extend_size && !o->increment_size) {
+        o->every = o->stops[0];
+        o->n_stops = 0;
     }
     return 0;
 }
 
-/* Returns the next tab-stop column strictly greater than `col`. */
-static int
-bx_next_stop (int col, const bx_opts *o)
+/* Return the padding, without overflowing when forming the next column. */
+static uintmax_t
+bx_padding (uintmax_t col, const bx_opts *o)
 {
     if (o->every > 0)
-        return col + (o->every - col % o->every);
+        return o->every - col % o->every;
     /* Explicit list: first stop > col. */
     for (int i = 0; i < o->n_stops; i++)
-        if (o->stops[i] > col) return o->stops[i];
+        if ((uintmax_t) o->stops[i] > col) return o->stops[i] - col;
     /* Past the last explicit stop: /N gives multiples of N, +N gives a
        repeat every N relative to the last stop (GNU get_next_tab_column). */
     if (o->extend_size > 0)
-        return col + (o->extend_size - col % o->extend_size);
+        return o->extend_size - col % o->extend_size;
     if (o->increment_size > 0) {
         int end_tab = o->n_stops > 0 ? o->stops[o->n_stops - 1] : 0;
-        return col + (o->increment_size - ((col - end_tab) % o->increment_size));
+        return o->increment_size - ((col - end_tab) % o->increment_size);
     }
-    return col + 1;
+    return 1;
+}
+
+typedef struct {
+    uintmax_t col;
+    int seen_nonblank;
+} bx_state;
+
+/* Buffer locally instead of changing the shell's stdout with setvbuf. Bash's
+   line-buffered stdout otherwise enters libc even for each padding space. */
+typedef struct {
+    unsigned char data[16384];
+    size_t used;
+    int terminal;
+    int error;
+} bx_output;
+
+static void
+bx_flush (bx_output *out)
+{
+    if (!out->error && out->used &&
+        fwrite (out->data, 1, out->used, stdout) != out->used)
+        out->error = errno ? errno : EIO;
+    out->used = 0;
+}
+
+static void
+bx_byte (bx_output *out, unsigned char c)
+{
+    out->data[out->used++] = c;
+    if (out->used == sizeof out->data || (out->terminal && c == '\n'))
+        bx_flush (out);
+}
+
+static void
+bx_spaces (bx_output *out, uintmax_t count)
+{
+    while (count && !out->error) {
+        size_t n = sizeof out->data - out->used;
+        if (count < n) n = count;
+        memset (out->data + out->used, ' ', n);
+        out->used += n;
+        count -= n;
+        if (out->used == sizeof out->data) bx_flush (out);
+    }
 }
 
 static int
-bx_process (FILE *f, const bx_opts *o)
+bx_process (FILE *f, const bx_opts *o, bx_state *state, bx_output *out)
 {
-    int col = 0;
-    int seen_nonblank = 0;
+    uintmax_t col = state->col;
+    int seen_nonblank = state->seen_nonblank;
     int c;
 
     clearerr (f);
-    while ((c = fgetc (f)) != EOF) {
+    while (!out->error && (c = getc_unlocked (f)) != EOF) {
         if (c == '\t' && (!o->initial_only || !seen_nonblank)) {
-            int target = bx_next_stop (col, o);
-            while (col < target) { fputc (' ', stdout); col++; }
+            uintmax_t padding = bx_padding (col, o);
+            if (padding > UINTMAX_MAX - col) goto overflow;
+            col += padding;
+            bx_spaces (out, padding);
         } else if (c == '\n') {
-            fputc ('\n', stdout);
+            bx_byte (out, '\n');
             col = 0;
             seen_nonblank = 0;
         } else if (c == '\b') {
-            fputc ('\b', stdout);
+            bx_byte (out, '\b');
             if (col > 0) col--;
+            seen_nonblank = 1;
         } else {
-            fputc (c, stdout);
+            bx_byte (out, c);
             if (c != ' ' && c != '\t') seen_nonblank = 1;
+            if (col == UINTMAX_MAX) goto overflow;
             col++;
         }
     }
+    state->col = col;
+    state->seen_nonblank = seen_nonblank;
+    if (ferror (f)) {
+        builtin_error ("read error: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
     return EXECUTION_SUCCESS;
+
+overflow:
+    builtin_error ("input line is too long");
+    return EXECUTION_FAILURE;
+}
+
+/* An early output failure can leave input read-ahead behind. Own the FILE
+   buffer so a later shell redirection cannot expose those stale bytes. Reuse
+   this stream for every '-' in one invocation; dup shares stdin's offset. */
+static FILE *
+bx_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    if (fd < 0) return NULL;
+    FILE *f = fdopen (fd, "r");
+    if (!f) {
+        int saved_errno = errno;
+        close (fd);
+        errno = saved_errno;
+    }
+    return f;
 }
 
 int
@@ -285,19 +375,52 @@ expand_builtin (WORD_LIST *list)
     }
 
     int rc = EXECUTION_SUCCESS;
+    bx_state state = { 0 };
+    bx_output output;
+    output.used = 0;
+    output.error = 0;
+    output.terminal = isatty (fileno (stdout));
+    FILE *input = NULL;
     if (!list) {
-        bx_process (stdin, &o);
+        input = bx_stdin ();
+        if (input)
+            rc = bx_process (input, &o, &state, &output);
+        else {
+            builtin_error ("stdin: %s", strerror (errno));
+            rc = EXECUTION_FAILURE;
+        }
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
-            FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "r");
+            FILE *f;
+            if (!strcmp (p->word->word, "-")) {
+                if (!input) input = bx_stdin ();
+                f = input;
+            } else
+                f = fopen (p->word->word, "r");
             if (!f) {
                 builtin_error ("%s: %s", p->word->word, strerror (errno));
                 rc = EXECUTION_FAILURE;
                 continue;
             }
-            bx_process (f, &o);
-            if (f != stdin) fclose (f);
+            if (bx_process (f, &o, &state, &output) != EXECUTION_SUCCESS)
+                rc = EXECUTION_FAILURE;
+            if (f != input && fclose (f) == EOF) {
+                builtin_error ("%s: %s", p->word->word, strerror (errno));
+                rc = EXECUTION_FAILURE;
+            }
+            if (output.error) break;
         }
+    }
+    if (input && fclose (input) == EOF) {
+        builtin_error ("stdin: %s", strerror (errno));
+        rc = EXECUTION_FAILURE;
+    }
+    bx_flush (&output);
+    if ((fflush (stdout) == EOF || ferror (stdout)) && !output.error)
+        output.error = errno ? errno : EIO;
+    if (output.error) {
+        builtin_error ("write error: %s", strerror (output.error));
+        rc = EXECUTION_FAILURE;
     }
     return rc;
 }
