@@ -23,6 +23,9 @@ Levels 0–5 select `shell`, `pure`, `core`, `device`, `server`, and `full`.
 [`config/profiles.json`](../config/profiles.json) are authoritative. Profiles
 choose useful command groups; they do not imply that every command implements
 the full corresponding GNU utility.
+The [loadable status table](loadables-status.md) records profile membership,
+tested behavior, known limitations and individual comparison timings. Use its
+[CSV](loadables-status.csv) to filter candidates before choosing an inclusion list.
 
 ```sh
 ./build.sh --list-profiles

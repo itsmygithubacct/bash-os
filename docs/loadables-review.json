@@ -1,0 +1,1228 @@
+{
+  "schema": 1,
+  "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
+  "ci": "https://github.com/itsmygithubacct/bash-os/actions/runs/34175141733",
+  "coverage_groups": [
+    {
+      "names": [
+        "cut"
+      ],
+      "status": "Parity",
+      "evidence": "tests/cut-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "grep"
+      ],
+      "status": "Parity",
+      "evidence": "tests/grep-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "sort"
+      ],
+      "status": "Parity",
+      "evidence": "tests/sort-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "seq"
+      ],
+      "status": "Parity",
+      "evidence": "tests/seq-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "stat"
+      ],
+      "status": "Parity",
+      "evidence": "tests/stat-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "wc",
+        "tail"
+      ],
+      "status": "Parity",
+      "evidence": "tests/wc-tail-parity.sh",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "paste",
+        "uniq"
+      ],
+      "status": "Parity",
+      "evidence": "tests/paste-uniq-parity.py",
+      "scope": "Dedicated comparison suite; only the tested options and fixtures are covered."
+    },
+    {
+      "names": [
+        "expand",
+        "unexpand",
+        "tac",
+        "join",
+        "pr",
+        "expr",
+        "hexdump",
+        "column",
+        "colrm",
+        "strings",
+        "split",
+        "csplit"
+      ],
+      "status": "Parity",
+      "evidence": "tests/text-tools-parity.sh",
+      "scope": "Small host-comparison fixtures; this is not complete CLI conformance."
+    },
+    {
+      "names": [
+        "cat",
+        "basename",
+        "cp",
+        "pax",
+        "stat",
+        "grep",
+        "wc",
+        "seq"
+      ],
+      "status": "Contract",
+      "evidence": "tests/host-smoke.sh",
+      "scope": "Basic file, pipe or archive behavior with an empty PATH."
+    },
+    {
+      "names": [
+        "cp",
+        "env",
+        "nice",
+        "nohup",
+        "xargs",
+        "find"
+      ],
+      "status": "Contract",
+      "evidence": "tests/regressions.py",
+      "scope": "Repeated calls, literal arguments, process isolation and file-state regressions."
+    },
+    {
+      "names": [
+        "hostname",
+        "mkdir",
+        "grep",
+        "sed",
+        "sort",
+        "uniq",
+        "head",
+        "find",
+        "wc",
+        "stat",
+        "ps",
+        "df",
+        "date",
+        "uname",
+        "env",
+        "nice",
+        "printenv",
+        "nohup",
+        "xargs",
+        "pax",
+        "id",
+        "whoami",
+        "zstd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/rootfs-smoke.sh",
+      "scope": "Static binary in an isolated root filesystem; fixture paths only."
+    },
+    {
+      "names": [
+        "flock",
+        "setsid",
+        "ionice",
+        "taskset",
+        "chrt",
+        "uclampset",
+        "prlimit",
+        "renice",
+        "fincore",
+        "lsattr",
+        "getfacl",
+        "losetup",
+        "swapon",
+        "dmsetup"
+      ],
+      "status": "Smoke",
+      "evidence": "tests/util-linux-smoke.sh",
+      "scope": "Selected queries or temporary-file operations; device mutation is not validated."
+    },
+    {
+      "names": [
+        "ionice",
+        "taskset",
+        "chrt"
+      ],
+      "status": "Query parity",
+      "evidence": "tests/util-linux-smoke.sh",
+      "scope": "Host output comparison for one query; no complete option or mutation coverage."
+    },
+    {
+      "names": [
+        "timeout",
+        "signal",
+        "sysctl",
+        "utmp",
+        "userdb",
+        "xattr"
+      ],
+      "status": "Contract",
+      "evidence": "tests/system-smoke.sh",
+      "scope": "Exit statuses, isolated records or temporary attributes."
+    },
+    {
+      "names": [
+        "who",
+        "w",
+        "uptime",
+        "lsof",
+        "mlock",
+        "caps",
+        "cred",
+        "ns"
+      ],
+      "status": "Smoke",
+      "evidence": "tests/system-smoke.sh",
+      "scope": "Selected read/query paths; no full subsystem integration claim."
+    },
+    {
+      "names": [
+        "nc",
+        "pkt",
+        "http",
+        "pcap",
+        "dhcp6",
+        "dhcpd6",
+        "sftp",
+        "scp",
+        "audit",
+        "fail2ban"
+      ],
+      "status": "Contract",
+      "evidence": "tests/network-smoke.py",
+      "scope": "Private files, packet/parser fixtures and loopback connections."
+    },
+    {
+      "names": [
+        "asort",
+        "totp",
+        "scrub",
+        "bignum",
+        "tz",
+        "locale",
+        "scm",
+        "notify",
+        "at",
+        "batch",
+        "crontab",
+        "fsck",
+        "mkfs",
+        "opt",
+        "cal",
+        "man",
+        "apropos",
+        "whatis",
+        "file"
+      ],
+      "status": "Contract",
+      "evidence": "tests/misc-smoke.py",
+      "scope": "Independent expected values or private file/socket fixtures."
+    },
+    {
+      "names": [
+        "cluster",
+        "payload",
+        "lpr"
+      ],
+      "status": "Smoke",
+      "evidence": "tests/misc-smoke.py",
+      "scope": "Version/help or empty spool query only."
+    },
+    {
+      "names": [
+        "pty",
+        "expect",
+        "termpixel",
+        "termpixel_pong",
+        "escdelay",
+        "fifo",
+        "kgetch",
+        "wgetch",
+        "wget_wch",
+        "mouse",
+        "script",
+        "buf",
+        "undo",
+        "clip",
+        "nano2",
+        "watch"
+      ],
+      "status": "Contract",
+      "evidence": "tests/terminal-smoke.py",
+      "scope": "Decoder, state, selftest, private PTY or file fixtures; not all live UI interactions."
+    },
+    {
+      "names": [
+        "wall",
+        "write"
+      ],
+      "status": "Negative checks",
+      "evidence": "tests/terminal-smoke.py",
+      "scope": "Missing-recipient/error paths; successful live delivery is unverified here."
+    },
+    {
+      "names": [
+        "pcre",
+        "zlib",
+        "zcat",
+        "netids",
+        "more",
+        "less",
+        "top",
+        "slabtop",
+        "ncdu",
+        "tui",
+        "vmstat",
+        "toml",
+        "sqlite",
+        "vi",
+        "vt",
+        "utf8",
+        "dialog",
+        "whiptail"
+      ],
+      "status": "Contract",
+      "evidence": "tests/helper-smoke.py",
+      "scope": "Helper APIs, independent formats, temporary files and controlled terminal fixtures."
+    },
+    {
+      "names": [
+        "awk",
+        "jq",
+        "bc"
+      ],
+      "status": "Parity",
+      "evidence": "tests/large-smoke.py",
+      "scope": "Selected language expressions against host tools; not full language conformance."
+    },
+    {
+      "names": [
+        "vec",
+        "sv",
+        "cron",
+        "curl",
+        "fw",
+        "dhcpd",
+        "fdisk",
+        "strace",
+        "coreutils",
+        "bsdgames"
+      ],
+      "status": "Contract",
+      "evidence": "tests/large-smoke.py",
+      "scope": "Private images, files, loopback services or tool-specific fixtures."
+    },
+    {
+      "names": [
+        "crypto",
+        "claude",
+        "ldap",
+        "integrity",
+        "dns",
+        "login",
+        "passwd",
+        "auth",
+        "cksum",
+        "obj",
+        "index",
+        "pack",
+        "ssh",
+        "pkg",
+        "ntp",
+        "mail",
+        "rsync",
+        "wg",
+        "acme",
+        "uuidgen",
+        "screen",
+        "sshd",
+        "tiv",
+        "kitty",
+        "sixel",
+        "nano",
+        "ts",
+        "hl"
+      ],
+      "status": "Contract",
+      "evidence": "tests/final-smoke.py",
+      "scope": "Independent crypto/format fixtures, parser cases, local services or selftests; scope varies by command."
+    },
+    {
+      "names": [
+        "su",
+        "doas",
+        "sudo"
+      ],
+      "status": "Negative checks",
+      "evidence": "tests/final-smoke.py",
+      "scope": "Invalid options are rejected before authentication or credential changes."
+    },
+    {
+      "names": [
+        "zstd",
+        "zstdcat"
+      ],
+      "status": "Parity",
+      "evidence": "tests/zstd-check.sh",
+      "scope": "Compression round trips and host interoperability, including error behavior."
+    },
+    {
+      "names": [
+        "procstat"
+      ],
+      "status": "Contract",
+      "evidence": "tests/procstat-smoke.py",
+      "scope": "Independent synthetic procfs records and malformed-input cases."
+    },
+    {
+      "names": [
+        "rngseed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/rngseed-host.c",
+      "scope": "Instrumented host harness; not a claim about live kernel entropy crediting."
+    },
+    {
+      "names": [
+        "httpd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/httpd-host.c",
+      "scope": "Local HTTP protocol and timeout/error contracts."
+    },
+    {
+      "names": [
+        "gpu"
+      ],
+      "status": "Contract",
+      "evidence": "tests/gpu-smoke.py",
+      "scope": "Pixel output, protocol, input and cleanup; native driver checks are conditional."
+    }
+  ],
+  "sanitizer_groups": [
+    {
+      "names": [
+        "grep"
+      ],
+      "evidence": "tests/grep-host.c"
+    },
+    {
+      "names": [
+        "paste",
+        "uniq"
+      ],
+      "evidence": "tests/paste-uniq-sanitize.sh"
+    },
+    {
+      "names": [
+        "procstat"
+      ],
+      "evidence": "tests/procstat-sanitize.sh"
+    },
+    {
+      "names": [
+        "httpd",
+        "rngseed"
+      ],
+      "evidence": "tests/run.sh"
+    },
+    {
+      "names": [
+        "zstd"
+      ],
+      "evidence": "tests/zstd-host.c"
+    },
+    {
+      "names": [
+        "buf",
+        "undo",
+        "clip",
+        "nano2",
+        "fifo",
+        "escdelay",
+        "kgetch",
+        "wgetch",
+        "wget_wch",
+        "mouse",
+        "termpixel",
+        "termpixel_pong",
+        "pty",
+        "expect",
+        "watch",
+        "script",
+        "wall",
+        "write"
+      ],
+      "evidence": "tests/terminal-sanitize.sh"
+    },
+    {
+      "names": [
+        "pcre",
+        "netids",
+        "zlib",
+        "zcat",
+        "more",
+        "less",
+        "top",
+        "slabtop",
+        "ncdu",
+        "tui",
+        "vmstat",
+        "vi",
+        "dialog",
+        "whiptail",
+        "toml",
+        "vt",
+        "utf8",
+        "sqlite"
+      ],
+      "evidence": "tests/helper-sanitize.sh"
+    },
+    {
+      "names": [
+        "awk",
+        "jq",
+        "bc",
+        "vec",
+        "coreutils",
+        "fdisk",
+        "dhcpd",
+        "curl",
+        "bsdgames"
+      ],
+      "evidence": "tests/large-sanitize.sh"
+    },
+    {
+      "names": [
+        "crypto",
+        "claude",
+        "ldap",
+        "integrity",
+        "dns",
+        "login",
+        "passwd",
+        "auth",
+        "su",
+        "doas",
+        "cksum",
+        "obj",
+        "index",
+        "pack",
+        "ssh",
+        "pkg",
+        "ntp",
+        "mail",
+        "rsync",
+        "wg",
+        "acme",
+        "uuidgen",
+        "screen",
+        "sshd",
+        "tiv",
+        "kitty",
+        "sixel",
+        "nano",
+        "ts",
+        "hl",
+        "sudo"
+      ],
+      "evidence": "tests/final-sanitize.sh"
+    },
+    {
+      "names": [
+        "gpu"
+      ],
+      "evidence": "tests/gpu-sanitize.sh"
+    }
+  ],
+  "fuzz": {
+    "ldap": "tests/fuzz-ldap.c",
+    "toml": "tests/fuzz-toml.c",
+    "tiv": "tests/fuzz-image.c",
+    "kitty": "tests/fuzz-image.c",
+    "sixel": "tests/fuzz-image.c"
+  },
+  "comparators": {
+    "asort": {
+      "program": "gawk asort()",
+      "applet": null,
+      "scope": "Array sorting API; requires an adapter."
+    },
+    "bashbase64": {
+      "program": "base64",
+      "applet": "base64"
+    },
+    "bashclock": {
+      "program": "Bash EPOCHREALTIME / Python time",
+      "applet": null,
+      "scope": "Different clock APIs; define clock and precision first."
+    },
+    "bashdhcp": {
+      "program": "dhclient / udhcpc",
+      "applet": "udhcpc",
+      "scope": "DHCP exchange fixture required."
+    },
+    "bashinotify": {
+      "program": "inotifywait",
+      "applet": "inotifyd",
+      "scope": "Event APIs differ; compare notification latency with an adapter."
+    },
+    "bashio": {
+      "program": "Python os.pread/os.pwrite",
+      "applet": null,
+      "scope": "Descriptor API; compare the same offsets, sizes and sync policy."
+    },
+    "bashjson": {
+      "program": "jq",
+      "applet": null,
+      "scope": "Only overlapping JSON operations; strictness differs."
+    },
+    "bashkmod": {
+      "program": "modprobe / insmod / rmmod",
+      "applet": "modprobe",
+      "scope": "Device/kernel fixture needed."
+    },
+    "bashlogger": {
+      "program": "logger",
+      "applet": "logger",
+      "scope": "Use a private syslog receiver."
+    },
+    "bashmount": {
+      "program": "mount / umount / findmnt",
+      "applet": "mount",
+      "scope": "Mount namespace and filesystem fixture required."
+    },
+    "bashpoll": {
+      "program": "Python selectors / socket",
+      "applet": null,
+      "scope": "Persistent descriptor API; no equivalent applet CLI."
+    },
+    "bashsyslogd": {
+      "program": "rsyslogd / syslogd",
+      "applet": "syslogd",
+      "scope": "Private socket and sink; include loss and throughput."
+    },
+    "bashtermraw": {
+      "program": "stty",
+      "applet": "stty",
+      "scope": "Private PTY state transition fixture."
+    },
+    "bignum": {
+      "program": "Python int / bc",
+      "applet": "bc",
+      "scope": "Compare the same arithmetic operations and output base."
+    },
+    "binhex": {
+      "program": "xxd",
+      "applet": "xxd",
+      "scope": "Hex encoding/decoding; adapt command arguments."
+    },
+    "bsdgames": {
+      "program": "bsdgames",
+      "applet": null,
+      "scope": "Compare one matching game/algorithm at a time."
+    },
+    "buf": {
+      "program": null,
+      "applet": null,
+      "scope": "Persistent buffer API; benchmark editing operations."
+    },
+    "caps": {
+      "program": "capsh / setpriv",
+      "applet": null,
+      "scope": "Capability/query semantics need an isolated fixture."
+    },
+    "claude": {
+      "program": null,
+      "applet": null,
+      "scope": "Provider API client; separate response parsing from remote service latency."
+    },
+    "clip": {
+      "program": null,
+      "applet": null,
+      "scope": "Buffer clipboard API; compare copy/paste operations."
+    },
+    "cluster": {
+      "program": null,
+      "applet": null,
+      "scope": "Project membership protocol; define peer and failure scenarios."
+    },
+    "coreutils": {
+      "program": "Individual coreutils programs",
+      "applet": null,
+      "scope": "Dispatcher with several commands; measure each subcommand."
+    },
+    "cred": {
+      "program": null,
+      "applet": null,
+      "scope": "Credential API with optional project kernel support."
+    },
+    "crypto": {
+      "program": "sha256sum / openssl",
+      "applet": "sha256sum",
+      "scope": "Current timing covers SHA-256 only."
+    },
+    "dhcp6": {
+      "program": "dhclient -6",
+      "applet": "udhcpc6",
+      "scope": "Protocol/API fixture needed."
+    },
+    "dhcpd": {
+      "program": "dnsmasq / dhcpd",
+      "applet": "udhcpd",
+      "scope": "Private DHCP server exchange fixture needed."
+    },
+    "dhcpd6": {
+      "program": "kea-dhcp6",
+      "applet": null,
+      "scope": "Private DHCPv6 server exchange fixture needed."
+    },
+    "dns": {
+      "program": "dig / drill",
+      "applet": "nslookup",
+      "scope": "Normalize DNS answers and control the resolver."
+    },
+    "escdelay": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal timeout state API."
+    },
+    "fail2ban": {
+      "program": "fail2ban-client",
+      "applet": null,
+      "scope": "Subset and private policy store; not a direct CLI drop-in."
+    },
+    "fdflags": {
+      "program": "Python fcntl",
+      "applet": null,
+      "scope": "Descriptor flag API; do not time an unrelated CLI."
+    },
+    "fifo": {
+      "program": null,
+      "applet": null,
+      "scope": "In-memory input queue, not mkfifo."
+    },
+    "finfo": {
+      "program": "stat",
+      "applet": "stat",
+      "scope": "Adapt requested attributes and formatting."
+    },
+    "fltexpr": {
+      "program": "awk / bc",
+      "applet": "awk",
+      "scope": "Define numeric precision and operation before comparing."
+    },
+    "fw": {
+      "program": "nft / iptables",
+      "applet": null,
+      "scope": "Backend-dependent firewall control; use a network namespace."
+    },
+    "genl": {
+      "program": null,
+      "applet": null,
+      "scope": "Generic netlink API; subsystem-specific fixtures needed."
+    },
+    "gpu": {
+      "program": null,
+      "applet": null,
+      "scope": "Persistent canvas/presenter; use frame and transport metrics."
+    },
+    "hl": {
+      "program": "highlight",
+      "applet": null,
+      "scope": "Grammar/output differ; compare equivalent highlight spans."
+    },
+    "http": {
+      "program": "curl",
+      "applet": "wget",
+      "scope": "Match request, connection reuse and response body."
+    },
+    "httpd": {
+      "program": "HTTP server fixture",
+      "applet": "httpd",
+      "scope": "Request/reply primitive; adapt server setup and connection policy."
+    },
+    "index": {
+      "program": "git update-index",
+      "applet": null,
+      "scope": "Git index API; compare equivalent index operations."
+    },
+    "integrity": {
+      "program": null,
+      "applet": null,
+      "scope": "Project integrity policy API; measure a defined verification workload."
+    },
+    "ipcctl": {
+      "program": "ipcs / ipcrm",
+      "applet": "ipcs",
+      "scope": "IPC API/subset; isolate objects and match the operation."
+    },
+    "keyctl": {
+      "program": "keyctl",
+      "applet": null,
+      "scope": "Kernel keyring fixture needed."
+    },
+    "kgetch": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal key decoder API."
+    },
+    "kitty": {
+      "program": "kitten icat",
+      "applet": null,
+      "scope": "Image/protocol bytes; not the whole terminal emulator."
+    },
+    "ldap": {
+      "program": "ldapsearch",
+      "applet": null,
+      "scope": "Use a controlled LDAP peer; parser time is separate."
+    },
+    "locale": {
+      "program": "locale / Python locale",
+      "applet": null,
+      "scope": "Command/API subsets differ."
+    },
+    "lpr": {
+      "program": "lpr",
+      "applet": "lpr",
+      "scope": "Current submit operation simulates printing; no comparable real print throughput."
+    },
+    "mail": {
+      "program": "sendmail / mailq",
+      "applet": "sendmail",
+      "scope": "Submission, queue and delivery are distinct workloads."
+    },
+    "mlock": {
+      "program": null,
+      "applet": null,
+      "scope": "Memory-locking API; control limits and faulting policy."
+    },
+    "mouse": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal mouse decoder API."
+    },
+    "nano2": {
+      "program": "nano",
+      "applet": null,
+      "scope": "Editor operation or scripted-key fixture; no shared CLI workload."
+    },
+    "netids": {
+      "program": "suricata",
+      "applet": null,
+      "scope": "Rule subset and fixed capture; normalize alert content."
+    },
+    "notify": {
+      "program": "systemd-notify",
+      "applet": null,
+      "scope": "Private notification socket; adapt API."
+    },
+    "ns": {
+      "program": "unshare / nsenter",
+      "applet": "unshare",
+      "scope": "Namespace API; compare equivalent child setup."
+    },
+    "ntp": {
+      "program": "chronyc / ntpd",
+      "applet": "ntpd",
+      "scope": "Controlled time server; never benchmark clock-changing operations on the host."
+    },
+    "obj": {
+      "program": "git hash-object / cat-file",
+      "applet": null,
+      "scope": "Git object API; match format and compression."
+    },
+    "opt": {
+      "program": "getopt",
+      "applet": "getopt"
+    },
+    "pack": {
+      "program": "git pack-objects / index-pack",
+      "applet": null,
+      "scope": "Git pack API; use fixed object sets."
+    },
+    "payload": {
+      "program": null,
+      "applet": null,
+      "scope": "Project payload manager; install/remove need an external helper."
+    },
+    "pcap": {
+      "program": "tcpdump",
+      "applet": null,
+      "scope": "Packet capture API; use fixed captures or an isolated link."
+    },
+    "pcre": {
+      "program": "pcre2grep / grep -P",
+      "applet": null,
+      "scope": "Match/search/substitution API; adapt arguments."
+    },
+    "pkg": {
+      "program": null,
+      "applet": null,
+      "scope": "Project package format and repository policy."
+    },
+    "pkt": {
+      "program": "scapy",
+      "applet": null,
+      "scope": "Packet encode/decode API; compare fixed packet formats."
+    },
+    "procstat": {
+      "program": "iostat / mpstat / sar / pidstat / pmap / pldd",
+      "applet": null,
+      "scope": "Measure subcommands against fixed procfs data."
+    },
+    "pty": {
+      "program": "Python pty",
+      "applet": null,
+      "scope": "Persistent PTY API; startup and relay are separate operations."
+    },
+    "rngseed": {
+      "program": "systemd-random-seed",
+      "applet": "seedrng",
+      "scope": "Entropy-crediting policies differ; isolate kernel state."
+    },
+    "rtspcat": {
+      "program": "ffmpeg / openRTSP",
+      "applet": null,
+      "scope": "RTSP/RTP access-unit framing; controlled stream needed."
+    },
+    "scm": {
+      "program": "Python socket SCM_RIGHTS",
+      "applet": null,
+      "scope": "Descriptor-passing API."
+    },
+    "scrub": {
+      "program": null,
+      "applet": null,
+      "scope": "Text redaction policy API, not a disk eraser."
+    },
+    "signal": {
+      "program": "kill -l / Bash kill",
+      "applet": "kill",
+      "scope": "Signal names and delivery APIs differ."
+    },
+    "sqlite": {
+      "program": "sqlite3 / Python sqlite3",
+      "applet": null,
+      "scope": "Persistent SQL handles; separate open/prepare/query costs."
+    },
+    "strftime": {
+      "program": "date / Bash printf",
+      "applet": "date",
+      "scope": "Match format, timezone and timestamp."
+    },
+    "strptime": {
+      "program": "Python datetime.strptime",
+      "applet": null,
+      "scope": "Timestamp parsing API."
+    },
+    "tinfo": {
+      "program": "infocmp / tput",
+      "applet": null,
+      "scope": "Terminfo query API."
+    },
+    "tiv": {
+      "program": "chafa",
+      "applet": null,
+      "scope": "Image-to-terminal encoding; normalize dimensions and output mode."
+    },
+    "toml": {
+      "program": "Python tomllib",
+      "applet": null,
+      "scope": "Parser/query API; match queries and decoded values."
+    },
+    "totp": {
+      "program": "oathtool",
+      "applet": null,
+      "scope": "Fixed key/time/hash; never use account secrets in benchmarks."
+    },
+    "ts": {
+      "program": "tree-sitter",
+      "applet": null,
+      "scope": "Parser/query API with pinned grammars."
+    },
+    "tui": {
+      "program": null,
+      "applet": null,
+      "scope": "Persistent cell UI API; measure changed cells and terminal traffic."
+    },
+    "tz": {
+      "program": "date / Python zoneinfo",
+      "applet": "date",
+      "scope": "Timezone conversion API."
+    },
+    "undo": {
+      "program": null,
+      "applet": null,
+      "scope": "Buffer undo API; benchmark representative editing histories."
+    },
+    "userdb": {
+      "program": "getent",
+      "applet": null,
+      "scope": "Account lookup API; use controlled account databases."
+    },
+    "utf8": {
+      "program": "Python Unicode / grapheme library",
+      "applet": null,
+      "scope": "Codepoints and grapheme clusters are different workloads."
+    },
+    "utmp": {
+      "program": "utmpdump / who",
+      "applet": "who",
+      "scope": "UTMP record API; use private files."
+    },
+    "vec": {
+      "program": "NumPy",
+      "applet": null,
+      "scope": "Persistent vector API; match types, allocation and operation count."
+    },
+    "vt": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal parser/model API; compare state or rendered cells."
+    },
+    "wgetch": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal input queue/decoder API."
+    },
+    "wget_wch": {
+      "program": null,
+      "applet": null,
+      "scope": "Wide-character terminal decoder API."
+    },
+    "xattr": {
+      "program": "getfattr / setfattr",
+      "applet": null,
+      "scope": "Attribute API; adapt command syntax."
+    },
+    "zlib": {
+      "program": "gzip / xz / zstd / bzip2",
+      "applet": "gzip",
+      "scope": "Measure each codec and level with decoded-output checks."
+    },
+    "acme": {
+      "program": "certbot / acme.sh",
+      "applet": null,
+      "scope": "Controlled ACME peer; separate crypto, protocol and remote issuance latency."
+    },
+    "audit": {
+      "program": "auditctl / ausearch",
+      "applet": null,
+      "scope": "Kernel audit and record APIs; match rules and events in an isolated fixture."
+    },
+    "auth": {
+      "program": null,
+      "applet": null,
+      "scope": "Authentication policy API; use synthetic credentials and policy fixtures."
+    },
+    "setpgid": {
+      "program": "Python os.setpgid",
+      "applet": null,
+      "scope": "Process-group API; compare an owned child process."
+    },
+    "sixel": {
+      "program": "img2sixel",
+      "applet": null,
+      "scope": "Image-to-Sixel encoder; compare the same pixels and terminal mode."
+    },
+    "sv": {
+      "program": "runit sv",
+      "applet": null,
+      "scope": "Supervisor API/subset; compare private service lifecycle operations."
+    },
+    "cron": {
+      "program": "cron / crond",
+      "applet": "crond",
+      "scope": "Use a private schedule and job directory; measure scheduling delay and dispatch."
+    },
+    "termpixel": {
+      "program": null,
+      "applet": null,
+      "scope": "Terminal pixel canvas API; measure rendering and terminal bytes."
+    },
+    "termpixel_pong": {
+      "program": null,
+      "applet": null,
+      "scope": "Interactive graphics demo; frame time and terminal traffic are the useful metrics."
+    },
+    "zstdcat": {
+      "program": "zstdcat",
+      "applet": null,
+      "scope": "Decompress fixed frames; verify output bytes before timing."
+    }
+  },
+  "notes": {
+    "grep": {
+      "note": "Default build disables -P; the separate pcre loadable supplies PCRE2 operations. See the source build switch.",
+      "evidence": "loadables/grep.c"
+    },
+    "bc": {
+      "note": "User-defined functions and output bases are explicitly incomplete in addition to the repeat-input failure.",
+      "evidence": "loadables/bc.c",
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "dmsetup": {
+      "note": "Some mutation verbs still return an explicit unimplemented-backend error.",
+      "evidence": "loadables/dmsetup.c",
+      "next": "Define required mapper mutation verbs and add isolated device fixtures."
+    },
+    "uclampset": {
+      "note": "Query subset; setting PID/system clamps and command mode are refused.",
+      "evidence": "loadables/uclampset.c",
+      "next": "Decide whether to implement the missing setter surface."
+    },
+    "lpr": {
+      "note": "Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim.",
+      "evidence": "loadables/lpr.c",
+      "next": "Decide whether real print delivery belongs in this loadable."
+    },
+    "payload": {
+      "note": "Install/remove invoke a helper outside this repository; the current fixture only calls help.",
+      "evidence": "loadables/payload.c",
+      "next": "Add an installer-boundary fixture and document the external helper."
+    },
+    "nano": {
+      "note": "Editor selftests pass; justify, spell and completion still report unimplemented.",
+      "evidence": "loadables/nano.c"
+    },
+    "pgrep": {
+      "note": "Matching is substring-based unless exact matching is selected; not full procps regular-expression behavior.",
+      "evidence": "loadables/pgrep.c"
+    },
+    "pkill": {
+      "note": "Shares pgrep matching and process traversal; validate signals only against owned child fixtures.",
+      "evidence": "loadables/pkill.c"
+    },
+    "su": {
+      "note": "Current integration test rejects an invalid option before credential transition.",
+      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+    },
+    "sudo": {
+      "note": "Current integration test rejects an invalid option before credential transition.",
+      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+    },
+    "doas": {
+      "note": "Current integration test rejects an invalid option before credential transition.",
+      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+    },
+    "mail": {
+      "note": "Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement.",
+      "next": "Add a controlled submission/delivery benchmark."
+    },
+    "screen": {
+      "note": "Metadata/control fixtures pass; the live relay path needs separate sustained traffic measurements.",
+      "next": "Measure live PTY relay, backpressure and cleanup."
+    },
+    "ssh": {
+      "note": "Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements."
+    },
+    "sshd": {
+      "note": "Loopback interoperability and malformed setup cases pass; no concurrent-session measurements."
+    },
+    "sftp": {
+      "note": "Local operation and failure fixtures exist; remote transfer behavior needs dedicated interop and throughput coverage."
+    },
+    "scp": {
+      "note": "Companion frontend to sftp; local-copy and failure fixtures do not establish full remote scp compatibility."
+    },
+    "gpu": {
+      "note": "CPU/protocol, native driver and isolated Kilix checks exist. Static builds support CPU presentation; native shaders require dynamic linking.",
+      "next": "Measure application frame latency and driver behavior on the intended device."
+    },
+    "ldap": {
+      "note": "BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured."
+    },
+    "cluster": {
+      "note": "Only a version smoke check is mapped here.",
+      "next": "Add peer membership, timeout and disconnect fixtures."
+    },
+    "rtspcat": {
+      "note": "No command-specific fixture is mapped in the current repository suite.",
+      "next": "Add a controlled RTSP/RTP stream with loss, reordering and framing checks."
+    },
+    "head": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "sed": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure.",
+      "note": "Also adds a newline to an unterminated last input line, unlike the GNU reference."
+    },
+    "nl": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "pr": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "colrm": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "column": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "strings": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "od": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    },
+    "hexdump": {
+      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
+      "next": "Fix repeated redirected input, add a persistent-shell regression, then remeasure."
+    }
+  },
+  "repeat_input_findings": [
+    "head",
+    "sed",
+    "nl",
+    "pr",
+    "colrm",
+    "column",
+    "strings",
+    "od",
+    "hexdump",
+    "bc"
+  ],
+  "limitations": [
+    "bc",
+    "dmsetup",
+    "uclampset",
+    "lpr",
+    "payload",
+    "nano",
+    "pgrep",
+    "pkill",
+    "grep"
+  ]
+}

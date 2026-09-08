@@ -1,5 +1,36 @@
 # bench — bash-os against busybox and against bash with the GNU userland
 
+The [loadable status table](../docs/loadables-status.md) covers all 278 loadables
+and recommends the next work from correctness checks and individual timings.
+Its [CSV](../docs/loadables-status.csv) supports filtering by profile and status.
+
+## Individual commands
+
+`bench/loadables.py` measures 49 selected workloads across 45 loadables. It runs
+the builtin, BusyBox applet and external program from the same bash-os shell,
+validates outputs across repeated invocations, then records batch wall time.
+Incorrect results are marked in JSON and receive no builtin timing or ratio.
+The report continues after mismatches; a successful harness exit does not mean
+every loadable passed. `--quick` still checks at least three invocations.
+
+```sh
+python3 bench/loadables.py --output /tmp/loadables.json
+python3 bench/loadables.py --only fold --passes 9 --runs 7 --output /tmp/fold.json
+python3 bench/loadables.py --quick --only head,sed,bc --output /tmp/input-check.json
+python3 bench/catalog.py --check
+```
+
+Use `--cpu N` to pin to an allowed CPU, `--binary` to choose a build and
+`--busybox` to choose a BusyBox binary. Inputs and writable destinations use a
+temporary directory. See the table's [method](../docs/loadables-status.md#method-and-limits)
+and [refresh instructions](../docs/loadables-status.md#refreshing-the-table).
+`bench/catalog.py` regenerates the Markdown and CSV from the authoritative
+catalog, profile resolver, reviewed coverage map and sanitized measurement JSON.
+Keep raw run logs outside Git. Do not assign whole-script timings to individual
+loadables or combine the historical measurements below with this new method.
+
+## Whole scripts
+
 `bench/run.sh` runs the same POSIX `sh` scripts under three userlands and
 reports the median wall time and the number of processes each one created:
 

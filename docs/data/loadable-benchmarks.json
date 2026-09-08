@@ -1,0 +1,2712 @@
+{
+  "schema": 1,
+  "date": "2026-09-08T05:48:27Z",
+  "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
+  "binary_sha256": "ade3e597987655c3831ab00870bae58c49c4137e993b636d6c5776625380c650",
+  "kernel": "6.12.96+deb13-amd64",
+  "architecture": "x86_64",
+  "cpus": [
+    11
+  ],
+  "cpu_model": "Intel(R) Core(TM) i7-9850H CPU @ 2.60GHz",
+  "versions": {
+    "bash": "GNU bash, version 5.3.15(1)-release (x86_64-pc-linux-gnu)",
+    "coreutils": "wc (GNU coreutils) 9.7",
+    "grep": "grep (GNU grep) 3.11",
+    "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary."
+  },
+  "load_average_start": [
+    4.67333984375,
+    4.36376953125,
+    4.24951171875
+  ],
+  "load_average_end": [
+    3.64697265625,
+    4.0830078125,
+    4.15869140625
+  ],
+  "method": "Same bash-os shell; builtin or absolute external command; median untraced batch wall time; stdout /dev/null; warm file cache",
+  "fixtures": {
+    "empty": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "text": {
+      "bytes": 423000,
+      "sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee"
+    },
+    "copy": {
+      "bytes": 423000,
+      "sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee"
+    },
+    "numbers": {
+      "bytes": 369296,
+      "sha256": "fc2b8203a5e4f2add44ab8b0e2969ab2bed449db7c0d2575a37ec45e5b1f275d"
+    },
+    "duplicates": {
+      "bytes": 1680000,
+      "sha256": "27b777784c9b2451929fb1bcc63c125b2889c2cd41423422616b97d662bdded6"
+    },
+    "left": {
+      "bytes": 120000,
+      "sha256": "2c5464ec33f4f39052d5c5f60f8c3c21c3684b682e6aa56905998d21731d70ce"
+    },
+    "right": {
+      "bytes": 65000,
+      "sha256": "49f2849d2abdd0caebfe0aaa3d4e2132b917950d48c3aab0fe5ea66f0a8ea7f7"
+    },
+    "tabs": {
+      "bytes": 340000,
+      "sha256": "74d1f666fd82d6efeabf216977af7ff24937cedf2d5eceeec89112066c529a9a"
+    },
+    "spaces": {
+      "bytes": 440000,
+      "sha256": "25278250aad7572498dafabd623d99472c481b303934a68dfea07e13d22848a0"
+    },
+    "bytes": {
+      "bytes": 65536,
+      "sha256": "7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2"
+    },
+    "blob": {
+      "bytes": 1048576,
+      "sha256": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83"
+    },
+    "records": {
+      "bytes": 162830,
+      "sha256": "5906ae008da5b44553238be62e56a2b9c08fa3c550a1cef1b757f339e7f83d14"
+    },
+    "array": {
+      "bytes": 39109,
+      "sha256": "3c6ee3ce155c2db8fa11c02479963dc4f050d1abb6356137411010f375e74bdb"
+    },
+    "object": {
+      "bytes": 39133,
+      "sha256": "4c92fdaf0d2c7dbb0e0d0a1f01ac97ccb2f029a94e3862a41191a7820e35fed0"
+    },
+    "arithmetic": {
+      "bytes": 18,
+      "sha256": "e7361793f23d4b1b51c8c89f7b4d86d99c0ab43fd1d5215f5817ff4bda489b33"
+    }
+  },
+  "catalog_sha256": "198ca4f6f94c3196e8b9d420be37bd125b5cfa135823f82815392f023c835e16",
+  "tool_inventory": {
+    "busybox_applets": [
+      "[",
+      "[[",
+      "acpid",
+      "adjtimex",
+      "ar",
+      "arch",
+      "arp",
+      "arping",
+      "ascii",
+      "ash",
+      "awk",
+      "base64",
+      "basename",
+      "bc",
+      "blkdiscard",
+      "blkid",
+      "blockdev",
+      "brctl",
+      "bunzip2",
+      "bzcat",
+      "bzip2",
+      "cal",
+      "cat",
+      "chgrp",
+      "chmod",
+      "chown",
+      "chroot",
+      "chvt",
+      "clear",
+      "cmp",
+      "cp",
+      "cpio",
+      "crc32",
+      "crond",
+      "crontab",
+      "cttyhack",
+      "cut",
+      "date",
+      "dc",
+      "dd",
+      "deallocvt",
+      "depmod",
+      "devmem",
+      "df",
+      "diff",
+      "dirname",
+      "dmesg",
+      "dnsdomainname",
+      "dos2unix",
+      "dpkg",
+      "dpkg-deb",
+      "du",
+      "dumpkmap",
+      "dumpleases",
+      "echo",
+      "ed",
+      "egrep",
+      "env",
+      "expand",
+      "expr",
+      "factor",
+      "fallocate",
+      "false",
+      "fatattr",
+      "fdisk",
+      "fgrep",
+      "find",
+      "findfs",
+      "fold",
+      "free",
+      "freeramdisk",
+      "fsfreeze",
+      "fstrim",
+      "ftpget",
+      "ftpput",
+      "getfattr",
+      "getopt",
+      "getty",
+      "grep",
+      "groups",
+      "gunzip",
+      "gzip",
+      "halt",
+      "head",
+      "hexdump",
+      "hostid",
+      "hostname",
+      "httpd",
+      "hwclock",
+      "i2cdetect",
+      "i2cdump",
+      "i2cget",
+      "i2cset",
+      "i2ctransfer",
+      "id",
+      "ifconfig",
+      "ifdown",
+      "ifup",
+      "init",
+      "insmod",
+      "install",
+      "ionice",
+      "ip",
+      "ipcalc",
+      "kill",
+      "killall",
+      "klogd",
+      "last",
+      "less",
+      "link",
+      "linux32",
+      "linux64",
+      "linuxrc",
+      "ln",
+      "loadfont",
+      "loadkmap",
+      "logger",
+      "login",
+      "logname",
+      "logread",
+      "losetup",
+      "ls",
+      "lsmod",
+      "lsscsi",
+      "lzcat",
+      "lzma",
+      "lzop",
+      "md5sum",
+      "mdev",
+      "microcom",
+      "mim",
+      "mkdir",
+      "mkdosfs",
+      "mke2fs",
+      "mkfifo",
+      "mknod",
+      "mkpasswd",
+      "mkswap",
+      "mktemp",
+      "modinfo",
+      "modprobe",
+      "more",
+      "mount",
+      "mt",
+      "mv",
+      "nameif",
+      "nbd-client",
+      "nc",
+      "netstat",
+      "nl",
+      "nologin",
+      "nproc",
+      "nsenter",
+      "nslookup",
+      "nuke",
+      "od",
+      "openvt",
+      "partprobe",
+      "passwd",
+      "paste",
+      "patch",
+      "pidof",
+      "ping",
+      "ping6",
+      "pivot_root",
+      "poweroff",
+      "printf",
+      "ps",
+      "pwd",
+      "rdate",
+      "readlink",
+      "realpath",
+      "reboot",
+      "renice",
+      "reset",
+      "resume",
+      "rev",
+      "rm",
+      "rmdir",
+      "rmmod",
+      "route",
+      "rpm",
+      "rpm2cpio",
+      "run-init",
+      "run-parts",
+      "sed",
+      "seq",
+      "setkeycodes",
+      "setpriv",
+      "setsid",
+      "sh",
+      "sha1sum",
+      "sha256sum",
+      "sha3sum",
+      "sha512sum",
+      "shred",
+      "shuf",
+      "sleep",
+      "sort",
+      "ssl_client",
+      "start-stop-daemon",
+      "stat",
+      "strings",
+      "stty",
+      "su",
+      "sulogin",
+      "svc",
+      "svok",
+      "swapoff",
+      "swapon",
+      "switch_root",
+      "sync",
+      "sysctl",
+      "syslogd",
+      "tac",
+      "tail",
+      "tar",
+      "taskset",
+      "tc",
+      "tee",
+      "telnet",
+      "test",
+      "tftp",
+      "time",
+      "timeout",
+      "top",
+      "touch",
+      "tr",
+      "traceroute",
+      "traceroute6",
+      "true",
+      "truncate",
+      "ts",
+      "tty",
+      "tunctl",
+      "ubirename",
+      "udhcpc",
+      "udhcpc6",
+      "udhcpd",
+      "uevent",
+      "umount",
+      "uname",
+      "uncompress",
+      "unexpand",
+      "uniq",
+      "unix2dos",
+      "unlink",
+      "unlzma",
+      "unshare",
+      "unxz",
+      "unzip",
+      "uptime",
+      "usleep",
+      "uudecode",
+      "uuencode",
+      "vconfig",
+      "vi",
+      "w",
+      "watch",
+      "watchdog",
+      "wc",
+      "wget",
+      "which",
+      "who",
+      "whoami",
+      "xargs",
+      "xxd",
+      "xz",
+      "xzcat",
+      "yes",
+      "zcat"
+    ],
+    "external_available": {
+      "acme": false,
+      "apropos": true,
+      "ar": true,
+      "asort": false,
+      "at": false,
+      "audit": false,
+      "auth": false,
+      "awk": true,
+      "base64": true,
+      "basename": true,
+      "bashbase64": false,
+      "bashclock": false,
+      "bashdhcp": false,
+      "bashinotify": false,
+      "bashio": false,
+      "bashjson": false,
+      "bashkmod": false,
+      "bashlogger": false,
+      "bashmount": false,
+      "bashpoll": false,
+      "bashsyslogd": false,
+      "bashtermraw": false,
+      "batch": false,
+      "bc": true,
+      "bignum": false,
+      "binhex": false,
+      "blkid": true,
+      "blockdev": true,
+      "bsdgames": false,
+      "buf": false,
+      "cal": false,
+      "caps": false,
+      "cat": true,
+      "chafa": false,
+      "chattr": true,
+      "chgrp": true,
+      "chmod": true,
+      "chown": true,
+      "chrt": true,
+      "cksum": true,
+      "claude": false,
+      "clip": false,
+      "cluster": false,
+      "cmp": true,
+      "col": true,
+      "colrm": true,
+      "column": true,
+      "comm": true,
+      "coreutils": false,
+      "cp": true,
+      "cred": false,
+      "cron": true,
+      "crontab": true,
+      "crypto": false,
+      "csplit": true,
+      "curl": true,
+      "cut": true,
+      "date": true,
+      "dd": true,
+      "df": true,
+      "dhcp6": false,
+      "dhcpd": false,
+      "dhcpd6": false,
+      "dialog": false,
+      "diff": true,
+      "dirname": true,
+      "dmesg": true,
+      "dmsetup": true,
+      "dns": false,
+      "doas": false,
+      "du": true,
+      "ed": false,
+      "env": true,
+      "escdelay": false,
+      "expand": true,
+      "expect": false,
+      "expr": true,
+      "fail2ban": false,
+      "fail2ban-client": false,
+      "fdflags": false,
+      "fdisk": true,
+      "fifo": false,
+      "file": true,
+      "fincore": true,
+      "find": true,
+      "finfo": false,
+      "flock": true,
+      "fltexpr": false,
+      "fold": true,
+      "free": true,
+      "fsck": true,
+      "fsfreeze": true,
+      "fstrim": true,
+      "fw": false,
+      "genl": true,
+      "getconf": true,
+      "getent": true,
+      "getfacl": false,
+      "getopt": true,
+      "gpu": false,
+      "grep": true,
+      "halt": true,
+      "head": true,
+      "hexdump": true,
+      "highlight": false,
+      "hl": false,
+      "hostid": true,
+      "hostname": true,
+      "http": false,
+      "httpd": false,
+      "hwclock": true,
+      "id": true,
+      "img2sixel": false,
+      "index": false,
+      "inotifywait": false,
+      "integrity": false,
+      "ionice": true,
+      "ip": true,
+      "ipcctl": false,
+      "ipcmk": true,
+      "join": true,
+      "jq": true,
+      "kea-dhcp6": false,
+      "keyctl": false,
+      "kgetch": false,
+      "killall": false,
+      "killall5": true,
+      "kitty": false,
+      "ldap": false,
+      "ldapsearch": false,
+      "less": true,
+      "link": true,
+      "ln": true,
+      "locale": true,
+      "logger": true,
+      "login": true,
+      "logname": true,
+      "losetup": true,
+      "lpr": false,
+      "ls": true,
+      "lsattr": true,
+      "lsblk": true,
+      "lsof": true,
+      "mail": false,
+      "man": true,
+      "mkdir": true,
+      "mkfifo": true,
+      "mkfs": true,
+      "mkswap": true,
+      "mktemp": true,
+      "mlock": false,
+      "more": true,
+      "mouse": false,
+      "mv": true,
+      "nano": true,
+      "nano2": false,
+      "nc": true,
+      "ncdu": true,
+      "netids": false,
+      "netstat": false,
+      "nice": true,
+      "nl": true,
+      "nohup": true,
+      "notify": false,
+      "ns": false,
+      "ntp": false,
+      "oathtool": false,
+      "obj": false,
+      "od": true,
+      "opt": false,
+      "pack": false,
+      "passwd": true,
+      "paste": true,
+      "pathchk": true,
+      "pax": false,
+      "payload": false,
+      "pcap": false,
+      "pcre": false,
+      "pgrep": true,
+      "pidof": true,
+      "ping": true,
+      "pkg": false,
+      "pkill": true,
+      "pkt": false,
+      "poweroff": true,
+      "pr": true,
+      "printenv": true,
+      "prlimit": true,
+      "procstat": false,
+      "ps": true,
+      "pty": false,
+      "readlink": true,
+      "realpath": true,
+      "reboot": true,
+      "renice": true,
+      "rev": true,
+      "rm": true,
+      "rmdir": true,
+      "rngseed": false,
+      "rsync": true,
+      "rtspcat": false,
+      "scapy": false,
+      "scm": false,
+      "scp": true,
+      "screen": false,
+      "script": true,
+      "scrub": false,
+      "sed": true,
+      "seq": true,
+      "setfacl": false,
+      "setpgid": false,
+      "setsid": true,
+      "sftp": true,
+      "sha256sum": true,
+      "signal": false,
+      "sixel": false,
+      "slabtop": true,
+      "sleep": true,
+      "sort": true,
+      "split": true,
+      "sqlite": false,
+      "ss": true,
+      "ssh": true,
+      "sshd": true,
+      "stat": true,
+      "strace": false,
+      "strftime": false,
+      "strings": true,
+      "strptime": false,
+      "stty": true,
+      "su": true,
+      "sudo": true,
+      "suricata": false,
+      "sv": false,
+      "swapoff": true,
+      "swapon": true,
+      "sync": true,
+      "sysctl": true,
+      "systemd-notify": true,
+      "systemd-random-seed": false,
+      "tac": true,
+      "tail": true,
+      "taskset": true,
+      "tcpdump": false,
+      "tee": true,
+      "termpixel": false,
+      "termpixel_pong": false,
+      "timeout": true,
+      "tinfo": false,
+      "tiv": false,
+      "toml": false,
+      "top": true,
+      "totp": false,
+      "touch": true,
+      "tput": true,
+      "tr": true,
+      "tree-sitter": false,
+      "truncate": true,
+      "ts": false,
+      "tty": true,
+      "tui": false,
+      "tz": false,
+      "uclampset": true,
+      "uname": true,
+      "undo": false,
+      "unexpand": true,
+      "uniq": true,
+      "unlink": true,
+      "uptime": true,
+      "userdb": false,
+      "utf8": false,
+      "utmp": false,
+      "uudecode": false,
+      "uuencode": false,
+      "uuidgen": false,
+      "vec": false,
+      "vi": true,
+      "vmstat": true,
+      "vt": false,
+      "w": true,
+      "wall": true,
+      "watch": true,
+      "wc": true,
+      "wg": false,
+      "wget_wch": false,
+      "wgetch": false,
+      "whatis": true,
+      "whiptail": true,
+      "who": true,
+      "whoami": true,
+      "wipefs": true,
+      "write": false,
+      "xargs": true,
+      "xattr": false,
+      "xxd": true,
+      "zcat": true,
+      "zlib": false,
+      "zstd": true,
+      "zstdcat": true
+    }
+  },
+  "cases": [
+    {
+      "id": "cat",
+      "loadable": "cat",
+      "args": [],
+      "fixture": "text",
+      "host": "cat",
+      "applet": "cat",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 7.802,
+          "min_ms": 7.242,
+          "max_ms": 10.962
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 66.24,
+          "min_ms": 49.82,
+          "max_ms": 83.666
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 53.267,
+          "min_ms": 50.761,
+          "max_ms": 72.232
+        }
+      }
+    },
+    {
+      "id": "head",
+      "loadable": "head",
+      "args": [
+        "-n",
+        "100"
+      ],
+      "fixture": "text",
+      "host": "head",
+      "applet": "head",
+      "host_args": [
+        "-n",
+        "100"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 43.886,
+          "min_ms": 42.633,
+          "max_ms": 57.655
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 53.222,
+          "min_ms": 51.888,
+          "max_ms": 69.923
+        }
+      }
+    },
+    {
+      "id": "tail",
+      "loadable": "tail",
+      "args": [
+        "-n",
+        "100"
+      ],
+      "fixture": "text",
+      "host": "tail",
+      "applet": "tail",
+      "host_args": [
+        "-n",
+        "100"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.68,
+          "min_ms": 4.416,
+          "max_ms": 10.177
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 44.944,
+          "min_ms": 44.249,
+          "max_ms": 57.803
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 132.095,
+          "min_ms": 111.78,
+          "max_ms": 135.896
+        }
+      }
+    },
+    {
+      "id": "wc-counts",
+      "loadable": "wc",
+      "args": [
+        "-lwc"
+      ],
+      "fixture": "text",
+      "host": "wc",
+      "applet": "wc",
+      "host_args": [
+        "-lwc"
+      ],
+      "normalizer": "fields",
+      "output": null,
+      "reference": "external",
+      "passes": 28,
+      "validation_passes": 28,
+      "date": "2026-09-08T05:54:29Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 37.246,
+          "min_ms": 36.789,
+          "max_ms": 52.574
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 45.916,
+          "min_ms": 44.384,
+          "max_ms": 51.382
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 90.065,
+          "min_ms": 74.396,
+          "max_ms": 95.274
+        }
+      }
+    },
+    {
+      "id": "wc-characters",
+      "loadable": "wc",
+      "args": [
+        "-m"
+      ],
+      "fixture": "text",
+      "host": "wc",
+      "applet": "wc",
+      "host_args": [
+        "-m"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 44,
+      "validation_passes": 44,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 54.422,
+          "min_ms": 54.151,
+          "max_ms": 55.317
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 34.417,
+          "min_ms": 28.621,
+          "max_ms": 38.973
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 143.988,
+          "min_ms": 119.68,
+          "max_ms": 147.971
+        }
+      }
+    },
+    {
+      "id": "wc-width",
+      "loadable": "wc",
+      "args": [
+        "-L"
+      ],
+      "fixture": "text",
+      "host": "wc",
+      "applet": "wc",
+      "host_args": [
+        "-L"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 43,
+      "validation_passes": 43,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 57.37,
+          "min_ms": 52.73,
+          "max_ms": 74.588
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 77.574,
+          "min_ms": 66.919,
+          "max_ms": 88.627
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 120.449,
+          "min_ms": 112.248,
+          "max_ms": 132.982
+        }
+      }
+    },
+    {
+      "id": "cut",
+      "loadable": "cut",
+      "args": [
+        "-d",
+        " ",
+        "-f",
+        "1"
+      ],
+      "fixture": "text",
+      "host": "cut",
+      "applet": "cut",
+      "host_args": [
+        "-d",
+        " ",
+        "-f",
+        "1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 61,
+      "validation_passes": 61,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 21.804,
+          "min_ms": 21.5,
+          "max_ms": 34.717
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 123.297,
+          "min_ms": 108.894,
+          "max_ms": 130.289
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 257.249,
+          "min_ms": 237.786,
+          "max_ms": 267.018
+        }
+      }
+    },
+    {
+      "id": "grep-count",
+      "loadable": "grep",
+      "args": [
+        "-c",
+        "alpha"
+      ],
+      "fixture": "text",
+      "host": "grep",
+      "applet": "grep",
+      "host_args": [
+        "-c",
+        "alpha"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 72,
+      "validation_passes": 72,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 43.36,
+          "min_ms": 41.601,
+          "max_ms": 55.716
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 59.217,
+          "min_ms": 53.363,
+          "max_ms": 64.902
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 434.483,
+          "min_ms": 407.127,
+          "max_ms": 437.324
+        }
+      }
+    },
+    {
+      "id": "grep-lines",
+      "loadable": "grep",
+      "args": [
+        "alpha"
+      ],
+      "fixture": "text",
+      "host": "grep",
+      "applet": "grep",
+      "host_args": [
+        "alpha"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 57,
+      "validation_passes": 57,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 45.472,
+          "min_ms": 44.397,
+          "max_ms": 49.878
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 43.813,
+          "min_ms": 40.493,
+          "max_ms": 45.533
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 363.332,
+          "min_ms": 337.873,
+          "max_ms": 372.791
+        }
+      }
+    },
+    {
+      "id": "sed",
+      "loadable": "sed",
+      "args": [
+        "s/alpha/OMEGA/g"
+      ],
+      "fixture": "text",
+      "host": "sed",
+      "applet": "sed",
+      "host_args": [
+        "s/alpha/OMEGA/g"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 14,
+      "validation_passes": 14,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "output-mismatch",
+          "expected_sha256": "0d1275037c2c7e856016a2bfeb5fce047d2bfb58add0adad18e88b12a4be6397",
+          "actual_sha256": "eef6ac8ee2ea2dc8a4bfabc835b858f2fb0f7b8adf0addb65ead10676b393561"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 80.76,
+          "min_ms": 76.273,
+          "max_ms": 97.666
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 121.217,
+          "min_ms": 105.319,
+          "max_ms": 135.56
+        }
+      }
+    },
+    {
+      "id": "sort-numeric",
+      "loadable": "sort",
+      "args": [
+        "-n"
+      ],
+      "fixture": "numbers",
+      "host": "sort",
+      "applet": "sort",
+      "host_args": [
+        "-n"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 6,
+      "validation_passes": 6,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 73.136,
+          "min_ms": 70.743,
+          "max_ms": 75.632
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 146.969,
+          "min_ms": 139.791,
+          "max_ms": 171.573
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 549.335,
+          "min_ms": 543.921,
+          "max_ms": 588.382
+        }
+      }
+    },
+    {
+      "id": "sort-text",
+      "loadable": "sort",
+      "args": [],
+      "fixture": "text",
+      "host": "sort",
+      "applet": "sort",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 11,
+      "validation_passes": 11,
+      "date": "2026-09-08T05:54:38Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 64.855,
+          "min_ms": 59.994,
+          "max_ms": 77.315
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 30.723,
+          "min_ms": 27.656,
+          "max_ms": 39.389
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 67.779,
+          "min_ms": 60.632,
+          "max_ms": 71.969
+        }
+      }
+    },
+    {
+      "id": "seq",
+      "loadable": "seq",
+      "args": [
+        "100000"
+      ],
+      "fixture": "empty",
+      "host": "seq",
+      "applet": "seq",
+      "host_args": [
+        "100000"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 44,
+      "validation_passes": 44,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 55.641,
+          "min_ms": 52.593,
+          "max_ms": 58.383
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 60.492,
+          "min_ms": 52.463,
+          "max_ms": 71.569
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 1445.151,
+          "min_ms": 1412.239,
+          "max_ms": 1487.21
+        }
+      }
+    },
+    {
+      "id": "tr",
+      "loadable": "tr",
+      "args": [
+        "a-z",
+        "A-Z"
+      ],
+      "fixture": "text",
+      "host": "tr",
+      "applet": "tr",
+      "host_args": [
+        "a-z",
+        "A-Z"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 50,
+      "validation_passes": 50,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 33.531,
+          "min_ms": 32.725,
+          "max_ms": 40.812
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 39.92,
+          "min_ms": 38.292,
+          "max_ms": 49.21
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 68.989,
+          "min_ms": 64.47,
+          "max_ms": 75.48
+        }
+      }
+    },
+    {
+      "id": "uniq",
+      "loadable": "uniq",
+      "args": [],
+      "fixture": "duplicates",
+      "host": "uniq",
+      "applet": "uniq",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 20,
+      "validation_passes": 20,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 66.282,
+          "min_ms": 65.694,
+          "max_ms": 81.87
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 89.471,
+          "min_ms": 76.52,
+          "max_ms": 96.917
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 436.165,
+          "min_ms": 424.289,
+          "max_ms": 446.218
+        }
+      }
+    },
+    {
+      "id": "paste",
+      "loadable": "paste",
+      "args": [
+        "duplicates",
+        "duplicates"
+      ],
+      "fixture": "empty",
+      "host": "paste",
+      "applet": "paste",
+      "host_args": [
+        "duplicates",
+        "duplicates"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 11,
+      "validation_passes": 11,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 79.457,
+          "min_ms": 77.846,
+          "max_ms": 98.596
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 81.696,
+          "min_ms": 73.656,
+          "max_ms": 89.345
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 410.517,
+          "min_ms": 398.702,
+          "max_ms": 457.964
+        }
+      }
+    },
+    {
+      "id": "nl",
+      "loadable": "nl",
+      "args": [
+        "-ba"
+      ],
+      "fixture": "text",
+      "host": "nl",
+      "applet": "nl",
+      "host_args": [
+        "-ba"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 76,
+      "validation_passes": 76,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 159.674,
+          "min_ms": 155.602,
+          "max_ms": 173.382
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 299.882,
+          "min_ms": 295.233,
+          "max_ms": 316.688
+        }
+      }
+    },
+    {
+      "id": "rev",
+      "loadable": "rev",
+      "args": [],
+      "fixture": "text",
+      "host": "rev",
+      "applet": "rev",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 16,
+      "validation_passes": 16,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 65.75,
+          "min_ms": 63.477,
+          "max_ms": 71.54
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 124.755,
+          "min_ms": 121.93,
+          "max_ms": 156.227
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 40.979,
+          "min_ms": 34.719,
+          "max_ms": 49.554
+        }
+      }
+    },
+    {
+      "id": "fold",
+      "loadable": "fold",
+      "args": [
+        "-w",
+        "40"
+      ],
+      "fixture": "text",
+      "host": "fold",
+      "applet": "fold",
+      "host_args": [
+        "-w",
+        "40"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-08T05:54:31Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 78.216,
+          "min_ms": 72.731,
+          "max_ms": 100.544
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 21.822,
+          "min_ms": 21.347,
+          "max_ms": 33.199
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 34.078,
+          "min_ms": 33.488,
+          "max_ms": 47.746
+        }
+      }
+    },
+    {
+      "id": "tac",
+      "loadable": "tac",
+      "args": [],
+      "fixture": "text",
+      "host": "tac",
+      "applet": "tac",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 26,
+      "validation_passes": 26,
+      "date": "2026-09-08T05:54:34Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 76.984,
+          "min_ms": 64.167,
+          "max_ms": 97.387
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 25.179,
+          "min_ms": 24.183,
+          "max_ms": 40.087
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 105.132,
+          "min_ms": 102.222,
+          "max_ms": 127.227
+        }
+      }
+    },
+    {
+      "id": "comm",
+      "loadable": "comm",
+      "args": [
+        "left",
+        "right"
+      ],
+      "fixture": "empty",
+      "host": "comm",
+      "applet": "comm",
+      "host_args": [
+        "left",
+        "right"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 18,
+      "validation_passes": 18,
+      "date": "2026-09-08T05:54:36Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 68.93,
+          "min_ms": 66.976,
+          "max_ms": 93.373
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 25.36,
+          "min_ms": 24.857,
+          "max_ms": 31.972
+        }
+      }
+    },
+    {
+      "id": "join",
+      "loadable": "join",
+      "args": [
+        "left",
+        "right"
+      ],
+      "fixture": "empty",
+      "host": "join",
+      "applet": "join",
+      "host_args": [
+        "left",
+        "right"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 20,
+      "validation_passes": 20,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 70.017,
+          "min_ms": 68.621,
+          "max_ms": 76.446
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 45.987,
+          "min_ms": 42.781,
+          "max_ms": 54.898
+        }
+      }
+    },
+    {
+      "id": "expand",
+      "loadable": "expand",
+      "args": [
+        "-t",
+        "8"
+      ],
+      "fixture": "tabs",
+      "host": "expand",
+      "applet": "expand",
+      "host_args": [
+        "-t",
+        "8"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-08T05:54:33Z",
+      "runs": 7,
+      "confirmed": true,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 70.836,
+          "min_ms": 69.247,
+          "max_ms": 95.695
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 23.479,
+          "min_ms": 19.378,
+          "max_ms": 25.406
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 70.702,
+          "min_ms": 67.656,
+          "max_ms": 88.216
+        }
+      }
+    },
+    {
+      "id": "unexpand",
+      "loadable": "unexpand",
+      "args": [
+        "-a"
+      ],
+      "fixture": "spaces",
+      "host": "unexpand",
+      "applet": "unexpand",
+      "host_args": [
+        "-a"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 79.942,
+          "min_ms": 75.553,
+          "max_ms": 104.41
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 40.227,
+          "min_ms": 35.94,
+          "max_ms": 49.92
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 112.802,
+          "min_ms": 92.908,
+          "max_ms": 116.013
+        }
+      }
+    },
+    {
+      "id": "pr",
+      "loadable": "pr",
+      "args": [
+        "-t"
+      ],
+      "fixture": "text",
+      "host": "pr",
+      "applet": "pr",
+      "host_args": [
+        "-t"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 336.525,
+          "min_ms": 330.323,
+          "max_ms": 338.34
+        }
+      }
+    },
+    {
+      "id": "colrm",
+      "loadable": "colrm",
+      "args": [
+        "4"
+      ],
+      "fixture": "text",
+      "host": "colrm",
+      "applet": "colrm",
+      "host_args": [
+        "4"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 71,
+      "validation_passes": 71,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 358.006,
+          "min_ms": 341.197,
+          "max_ms": 379.642
+        }
+      }
+    },
+    {
+      "id": "column",
+      "loadable": "column",
+      "args": [
+        "-t"
+      ],
+      "fixture": "tabs",
+      "host": "column",
+      "applet": "column",
+      "host_args": [
+        "-t"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 28,
+      "validation_passes": 28,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 1219.587,
+          "min_ms": 1210.844,
+          "max_ms": 1242.534
+        }
+      }
+    },
+    {
+      "id": "strings",
+      "loadable": "strings",
+      "args": [
+        "-n",
+        "4"
+      ],
+      "fixture": "bytes",
+      "host": "strings",
+      "applet": "strings",
+      "host_args": [
+        "-n",
+        "4"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 115.51,
+          "min_ms": 103.496,
+          "max_ms": 129.622
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 72.499,
+          "min_ms": 69.493,
+          "max_ms": 78.437
+        }
+      }
+    },
+    {
+      "id": "od",
+      "loadable": "od",
+      "args": [
+        "-An",
+        "-tx1"
+      ],
+      "fixture": "bytes",
+      "host": "od",
+      "applet": "od",
+      "host_args": [
+        "-An",
+        "-tx1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 50,
+      "validation_passes": 50,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 510.202,
+          "min_ms": 488.116,
+          "max_ms": 571.482
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 216.36,
+          "min_ms": 210.856,
+          "max_ms": 219.66
+        }
+      }
+    },
+    {
+      "id": "hexdump",
+      "loadable": "hexdump",
+      "args": [
+        "-C"
+      ],
+      "fixture": "bytes",
+      "host": "hexdump",
+      "applet": "hexdump",
+      "host_args": [
+        "-C"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 45,
+      "validation_passes": 45,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 499.588,
+          "min_ms": 459.441,
+          "max_ms": 554.612
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 354.408,
+          "min_ms": 333.01,
+          "max_ms": 368.27
+        }
+      }
+    },
+    {
+      "id": "basename",
+      "loadable": "basename",
+      "args": [
+        "/fixture/path/file.txt"
+      ],
+      "fixture": "empty",
+      "host": "basename",
+      "applet": "basename",
+      "host_args": [
+        "/fixture/path/file.txt"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 128,
+      "validation_passes": 128,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.469,
+          "min_ms": 3.371,
+          "max_ms": 3.549
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 68.394,
+          "min_ms": 67.612,
+          "max_ms": 78.489
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 90.219,
+          "min_ms": 82.48,
+          "max_ms": 91.414
+        }
+      }
+    },
+    {
+      "id": "dirname",
+      "loadable": "dirname",
+      "args": [
+        "/fixture/path/file.txt"
+      ],
+      "fixture": "empty",
+      "host": "dirname",
+      "applet": "dirname",
+      "host_args": [
+        "/fixture/path/file.txt"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 127,
+      "validation_passes": 127,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.685,
+          "min_ms": 3.433,
+          "max_ms": 4.567
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 73.002,
+          "min_ms": 67.125,
+          "max_ms": 75.483
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 88.847,
+          "min_ms": 83.758,
+          "max_ms": 100.545
+        }
+      }
+    },
+    {
+      "id": "readlink",
+      "loadable": "readlink",
+      "args": [
+        "link"
+      ],
+      "fixture": "empty",
+      "host": "readlink",
+      "applet": "readlink",
+      "host_args": [
+        "link"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 134,
+      "validation_passes": 134,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.714,
+          "min_ms": 3.506,
+          "max_ms": 3.948
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 78.043,
+          "min_ms": 73.734,
+          "max_ms": 81.16
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 96.153,
+          "min_ms": 90.188,
+          "max_ms": 111.096
+        }
+      }
+    },
+    {
+      "id": "realpath",
+      "loadable": "realpath",
+      "args": [
+        "link"
+      ],
+      "fixture": "empty",
+      "host": "realpath",
+      "applet": "realpath",
+      "host_args": [
+        "link"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 146,
+      "validation_passes": 146,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.632,
+          "min_ms": 4.04,
+          "max_ms": 6.325
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 81.636,
+          "min_ms": 77.17,
+          "max_ms": 85.233
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 98.171,
+          "min_ms": 93.982,
+          "max_ms": 103.309
+        }
+      }
+    },
+    {
+      "id": "stat",
+      "loadable": "stat",
+      "args": [
+        "-c",
+        "%s",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "stat",
+      "applet": "stat",
+      "host_args": [
+        "-c",
+        "%s",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 151,
+      "validation_passes": 151,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.892,
+          "min_ms": 3.851,
+          "max_ms": 4.387
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 109.852,
+          "min_ms": 104.331,
+          "max_ms": 122.09
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 102.51,
+          "min_ms": 96.741,
+          "max_ms": 124.215
+        }
+      }
+    },
+    {
+      "id": "ls",
+      "loadable": "ls",
+      "args": [
+        "-1",
+        "tree"
+      ],
+      "fixture": "empty",
+      "host": "ls",
+      "applet": "ls",
+      "host_args": [
+        "-1",
+        "tree"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 13.854,
+          "min_ms": 13.719,
+          "max_ms": 14.051
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 74.29,
+          "min_ms": 68.892,
+          "max_ms": 78.228
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 80.236,
+          "min_ms": 73.046,
+          "max_ms": 86.994
+        }
+      }
+    },
+    {
+      "id": "find",
+      "loadable": "find",
+      "args": [
+        "tree",
+        "-type",
+        "f"
+      ],
+      "fixture": "empty",
+      "host": "find",
+      "applet": "find",
+      "host_args": [
+        "tree",
+        "-type",
+        "f"
+      ],
+      "normalizer": "lines",
+      "output": null,
+      "reference": "external",
+      "passes": 73,
+      "validation_passes": 73,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 20.666,
+          "min_ms": 20.427,
+          "max_ms": 26.13
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 66.175,
+          "min_ms": 63.862,
+          "max_ms": 80.548
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 66.131,
+          "min_ms": 63.506,
+          "max_ms": 75.595
+        }
+      }
+    },
+    {
+      "id": "cmp",
+      "loadable": "cmp",
+      "args": [
+        "text",
+        "copy"
+      ],
+      "fixture": "empty",
+      "host": "cmp",
+      "applet": "cmp",
+      "host_args": [
+        "text",
+        "copy"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 65,
+      "validation_passes": 65,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 34.946,
+          "min_ms": 34.352,
+          "max_ms": 37.967
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 43.839,
+          "min_ms": 43.799,
+          "max_ms": 48.697
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 197.742,
+          "min_ms": 192.141,
+          "max_ms": 205.228
+        }
+      }
+    },
+    {
+      "id": "diff",
+      "loadable": "diff",
+      "args": [
+        "text",
+        "copy"
+      ],
+      "fixture": "empty",
+      "host": "diff",
+      "applet": "diff",
+      "host_args": [
+        "text",
+        "copy"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 35,
+      "validation_passes": 35,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 57.149,
+          "min_ms": 53.95,
+          "max_ms": 63.045
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 37.012,
+          "min_ms": 33.625,
+          "max_ms": 39.294
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 50.077,
+          "min_ms": 49.382,
+          "max_ms": 53.403
+        }
+      }
+    },
+    {
+      "id": "dd",
+      "loadable": "dd",
+      "args": [
+        "if=text",
+        "bs=64K",
+        "status=none"
+      ],
+      "fixture": "empty",
+      "host": "dd",
+      "applet": "dd",
+      "host_args": [
+        "if=text",
+        "bs=64K",
+        "status=none"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 5.771,
+          "min_ms": 5.392,
+          "max_ms": 7.107
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 49.247,
+          "min_ms": 48.666,
+          "max_ms": 57.553
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 59.411,
+          "min_ms": 54.937,
+          "max_ms": 62.334
+        }
+      }
+    },
+    {
+      "id": "cp",
+      "loadable": "cp",
+      "args": [
+        "text",
+        "copied"
+      ],
+      "fixture": "empty",
+      "host": "cp",
+      "applet": "cp",
+      "host_args": [
+        "text",
+        "copied"
+      ],
+      "normalizer": "exact",
+      "output": "copied",
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 13.826,
+          "min_ms": 12.871,
+          "max_ms": 18.906
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 76.063,
+          "min_ms": 71.687,
+          "max_ms": 88.88
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 64.407,
+          "min_ms": 60.753,
+          "max_ms": 73.756
+        }
+      }
+    },
+    {
+      "id": "cksum",
+      "loadable": "cksum",
+      "args": [],
+      "fixture": "text",
+      "host": "cksum",
+      "applet": "cksum",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 49,
+      "validation_passes": 49,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 52.015,
+          "min_ms": 49.62,
+          "max_ms": 53.274
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 75.268,
+          "min_ms": 71.322,
+          "max_ms": 89.649
+        }
+      }
+    },
+    {
+      "id": "bashbase64",
+      "loadable": "bashbase64",
+      "args": [
+        "-w",
+        "0"
+      ],
+      "fixture": "bytes",
+      "host": "base64",
+      "applet": "base64",
+      "host_args": [
+        "-w",
+        "0"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 7.893,
+          "min_ms": 7.781,
+          "max_ms": 8.143
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 60.144,
+          "min_ms": 49.279,
+          "max_ms": 70.989
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 62.127,
+          "min_ms": 59.853,
+          "max_ms": 76.323
+        }
+      }
+    },
+    {
+      "id": "bashjson",
+      "loadable": "bashjson",
+      "args": [
+        "get",
+        ".answer"
+      ],
+      "fixture": "object",
+      "host": "jq",
+      "applet": "jq",
+      "host_args": [
+        ".answer"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 75,
+      "validation_passes": 75,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 32.663,
+          "min_ms": 32.363,
+          "max_ms": 34.502
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 263.797,
+          "min_ms": 251.975,
+          "max_ms": 279.998
+        }
+      }
+    },
+    {
+      "id": "awk",
+      "loadable": "awk",
+      "args": [
+        "{sum += $2} END {print sum}"
+      ],
+      "fixture": "records",
+      "host": "awk",
+      "applet": "awk",
+      "host_args": [
+        "{sum += $2} END {print sum}"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 14,
+      "validation_passes": 14,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 65.226,
+          "min_ms": 61.065,
+          "max_ms": 68.631
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 73.818,
+          "min_ms": 68.227,
+          "max_ms": 85.894
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 146.354,
+          "min_ms": 143.856,
+          "max_ms": 149.684
+        }
+      }
+    },
+    {
+      "id": "jq",
+      "loadable": "jq",
+      "args": [
+        "-c",
+        "[.[] | select(. > 50)]"
+      ],
+      "fixture": "array",
+      "host": "jq",
+      "applet": "jq",
+      "host_args": [
+        "-c",
+        "[.[] | select(. > 50)]"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 56.124,
+          "min_ms": 52.692,
+          "max_ms": 77.907
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 82.983,
+          "min_ms": 76.997,
+          "max_ms": 96.065
+        }
+      }
+    },
+    {
+      "id": "bc",
+      "loadable": "bc",
+      "args": [],
+      "fixture": "arithmetic",
+      "host": "bc",
+      "applet": "bc",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "batch-mismatch"
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 66.245,
+          "min_ms": 59.338,
+          "max_ms": 77.397
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 59.262,
+          "min_ms": 57.61,
+          "max_ms": 77.483
+        }
+      }
+    },
+    {
+      "id": "expr",
+      "loadable": "expr",
+      "args": [
+        "123",
+        "*",
+        "456"
+      ],
+      "fixture": "empty",
+      "host": "expr",
+      "applet": "expr",
+      "host_args": [
+        "123",
+        "*",
+        "456"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 151,
+      "validation_passes": 151,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.029,
+          "min_ms": 3.608,
+          "max_ms": 4.103
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 83.767,
+          "min_ms": 81.189,
+          "max_ms": 96.045
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 105.943,
+          "min_ms": 97.107,
+          "max_ms": 112.741
+        }
+      }
+    },
+    {
+      "id": "crypto",
+      "loadable": "crypto",
+      "args": [
+        "sha256",
+        "-x"
+      ],
+      "fixture": "blob",
+      "host": "sha256sum",
+      "applet": "sha256sum",
+      "host_args": [],
+      "normalizer": "digest",
+      "output": null,
+      "reference": "external",
+      "passes": 13,
+      "validation_passes": 13,
+      "date": "2026-09-08T05:48:27Z",
+      "runs": 5,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 73.1,
+          "min_ms": 72.006,
+          "max_ms": 75.358
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 55.292,
+          "min_ms": 52.204,
+          "max_ms": 56.972
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 86.568,
+          "min_ms": 73.745,
+          "max_ms": 90.036
+        }
+      }
+    }
+  ],
+  "gpu": {
+    "date": "2026-09-08T06:16:46Z",
+    "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
+    "binary_sha256": "ade3e597987655c3831ab00870bae58c49c4137e993b636d6c5776625380c650",
+    "width": 640,
+    "height": 360,
+    "updates": 30,
+    "runs": 5,
+    "harness": "bench/gpu.py",
+    "method": "Five runs per mode; wall time includes Python protocol peer and setup. TTY byte deltas exclude shared-memory pixel traffic. CPU affinity not pinned.",
+    "cases": [
+      {
+        "transport": "inline",
+        "mode": "full",
+        "median_seconds": 0.3,
+        "min_seconds": 0.267,
+        "max_seconds": 0.331,
+        "tty_bytes": 36984690,
+        "tty_bytes_min": 36984510,
+        "tty_bytes_max": 36984690,
+        "bytes_per_update": 1232823.0
+      },
+      {
+        "transport": "shm",
+        "mode": "full",
+        "median_seconds": 0.064,
+        "min_seconds": 0.051,
+        "max_seconds": 0.093,
+        "tty_bytes": 5430,
+        "tty_bytes_min": 5430,
+        "tty_bytes_max": 5520,
+        "bytes_per_update": 181.0
+      },
+      {
+        "transport": "inline",
+        "mode": "patch",
+        "median_seconds": 0.046,
+        "min_seconds": 0.034,
+        "max_seconds": 0.054,
+        "tty_bytes": 2520,
+        "tty_bytes_min": 2490,
+        "tty_bytes_max": 2550,
+        "bytes_per_update": 84.0
+      },
+      {
+        "transport": "shm",
+        "mode": "scroll",
+        "median_seconds": 0.069,
+        "min_seconds": 0.065,
+        "max_seconds": 0.077,
+        "tty_bytes": 235380,
+        "tty_bytes_min": 235320,
+        "tty_bytes_max": 235380,
+        "bytes_per_update": 7846.0
+      }
+    ]
+  }
+}

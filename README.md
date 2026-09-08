@@ -63,6 +63,9 @@ CC=riscv64-unknown-linux-musl-gcc ./build.sh --static \
 
 See [build profiles](docs/build-profiles.md) for the profile table, list format,
 output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
+The [loadable status table](docs/loadables-status.md) and
+[CSV](docs/loadables-status.csv) list every loadable, its profiles, test evidence,
+BusyBox/Linux comparison data and recommended next work.
 
 `gpu`, included in `desktop` and `full`, adds a persistent pixel canvas, terminal
 input, image export and optional GLES2 shader rendering. Run
@@ -159,6 +162,8 @@ tests/
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses
   grep-host.c                   grep as a program: the parity cases under ASan+UBSan
 docs/anatomy-of-a-loadable.md   how a builtin is put together, with docs/tutorial/greet.c
+docs/loadables-status.md       complete inventory, correctness findings and benchmarks
+docs/loadables-status.csv      filterable loadable status and work priorities
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
 
