@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-08",
-  "source_commit": "5fde494952a7fd101dc1c4d43870b74d659b379b",
+  "source_commit": "e1bae5ab3c17a8f07361bf368b190745261f3738",
   "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
   "measurement": "Untimed correctness probes; no performance claims.",
   "versions": {
@@ -13,7 +13,8 @@
     "ar": "GNU ar (GNU Binutils for Debian) 2.44",
     "tee": "tee (GNU coreutils) 9.7",
     "csplit": "csplit (GNU coreutils) 9.7",
-    "du": "du (GNU coreutils) 9.7"
+    "du": "du (GNU coreutils) 9.7",
+    "mv": "mv (GNU coreutils) 9.7"
   },
   "cases": [
     {
@@ -247,6 +248,29 @@
           "status": 1,
           "stdout": "",
           "stderr": "du: write error\n"
+        }
+      }
+    },
+    {
+      "loadable": "mv",
+      "kind": "correctness",
+      "command": "mv file file",
+      "fixture": {
+        "file": "abc"
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/mv",
+      "finding": "Moving a file to itself incorrectly reports success.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "mv: 'file' and 'file' are the same file\n"
         }
       }
     }

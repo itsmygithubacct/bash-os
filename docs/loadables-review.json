@@ -1301,28 +1301,28 @@
     },
     "colrm": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Integrate the standalone input fix with column, then validate both commands.",
-      "note": "Worker result 81571cc0bb41 is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "column": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Review the completed input and cleanup fix, then run its tests in the integrated build.",
-      "note": "Worker result 83474ede0b86 is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "strings": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Integrate the descriptor-input and scan changes, then validate the full build.",
-      "note": "Worker result 78f444f56882 is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "od": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Integrate the descriptor-input and error-handling fix, then validate the full build.",
-      "note": "Worker result 27452bfdab7b is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "hexdump": {
       "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Integrate the descriptor-input and buffered-output fix, then validate all supported formats.",
-      "note": "Worker result a65a1507dc7d is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "tac": {
       "note": "Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate.",
@@ -1351,8 +1351,8 @@
       "note": "Worker result dc8e848f5123 is complete and awaiting integration; current measurements still contain the earlier implementation."
     },
     "comm": {
-      "next": "Integrate the buffered-output and input-state fix, then validate and remeasure.",
-      "note": "Worker result ac93113b2809 is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "join": {
       "next": "Integrate field-storage, output and order-checking changes; validate duplicates and input state.",
@@ -1373,8 +1373,8 @@
     },
     "col": {
       "finding": "Only the first invocation emits input.",
-      "next": "Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors.",
-      "note": "Worker result c6059ab77c68 is complete and awaiting integration; the current untimed check still exercises the earlier implementation."
+      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
+      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "split": {
       "finding": "Only the first invocation creates output files.",
@@ -1402,6 +1402,11 @@
     "du": {
       "next": "Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing.",
       "finding": "A failed size-report write is incorrectly reported as successful."
+    },
+    "mv": {
+      "finding": "Moving a file to itself incorrectly reports success.",
+      "next": "Fix same-file status and establish dedicated move, cross-device failure, overwrite and input-state coverage before timing.",
+      "note": "No dedicated behavior suite or command timing in the published snapshot; review uses disposable filesystem fixtures."
     }
   },
   "repeat_input_findings": [
@@ -1440,44 +1445,45 @@
     "summary": "The integrated tests/run.sh passed all 69 groups, including native dynamic/static builds and seven focused ASan/UBSan suites. An additional 156 mixed-input and descriptor-ownership checks passed on native dynamic, native static and RISC-V musl static builds. The local RISC-V selection was core plus bc (90 loadables); broader new-option and Unicode cross parity is not claimed."
   },
   "assignments": {
-    "column": "bash-os-3 (integration)",
-    "colrm": "bash-os-3 (integration)",
-    "strings": "bash-os-3 (integration)",
-    "od": "bash-os-3 (integration)",
-    "hexdump": "bash-os-3 (integration)",
-    "comm": "bash-os-3 (integration)",
+    "column": "coordinator (combined validation)",
+    "colrm": "coordinator (combined validation)",
+    "strings": "coordinator (combined validation)",
+    "od": "coordinator (combined validation)",
+    "hexdump": "coordinator (combined validation)",
+    "comm": "coordinator (combined validation)",
     "sort": "bash-os-5 (integration)",
     "unexpand": "bash-os-5 (integration)",
     "rev": "bash-os-5 (integration)",
     "wc": "bash-os-5 (integration)",
     "join": "bash-os-5 (integration)",
     "csplit": "bash-os-5 (integration)",
-    "col": "bash-os-3 (integration)",
+    "col": "coordinator (combined validation)",
     "tee": "bash-os-2 (integration)",
     "split": "bash-os-5 (integration)",
     "crypto": "bash-os-2 (integration)",
     "diff": "bash-os-2 (integration)",
     "tail": "bash-os-6",
     "ar": "bash-os-4",
-    "du": "bash-os-1"
+    "du": "bash-os-1",
+    "mv": "bash-os-3"
   },
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
   "ci_followup": "[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.",
   "pending_integration": {
-    "column": "83474ede0b86af7865c1a516f206d902987b1060",
-    "strings": "78f444f56882c42f7a64debe67aa33d262261d72",
-    "od": "27452bfdab7b0f18117165e7421c6d3a125f3c72",
-    "colrm": "81571cc0bb4179f7d59017b27ad338cf08d1cf1e",
-    "comm": "ac93113b28093489e3a9d3ee29658331057a5271",
+    "column": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
+    "strings": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
+    "od": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
+    "colrm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
+    "comm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "sort": "da10ca15ebaf32b337ea86541303e85eedc6a64d",
     "unexpand": "51995a1d3a3c14b2e91628b3a361c871de3cb494",
     "rev": "7ef842c066aac9cb37e3f465676c8cb849d714f5",
     "crypto": "c670eb7873308195c333f4446c857b2abc8ea4d4",
     "wc": "dc8e848f512302763ca6dac87d40537b9c299f12",
     "diff": "e23fb1e5c95987ca591b7de50422fadfa6fee77b",
-    "hexdump": "a65a1507dc7de88c8a4500a72c013e7530eadecd",
+    "hexdump": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "join": "e534b8dd725e3a42c1f698e3b0f423f4cc38b402",
-    "col": "c6059ab77c68851c54ca246faaef26b2de312c2f",
+    "col": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "split": "6514793faa09b2092374a4c480cbfab821f4bc6b",
     "tee": "380ca0b001046e297a98c747bc0294384a3e1bc7",
     "csplit": "69d728321989ef81d7f1b6f9e9abd01faf5683c2"

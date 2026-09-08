@@ -19,10 +19,17 @@ Dedicated scope, regression and benchmark reports cover
 [nl](nl.md), [pr](pr.md) and [tac](tac.md). A corrected invalid baseline is not
 reported as a speedup. Raw run logs stay outside the repository.
 
+The seven-reader integration (`column`, `colrm`, `col`, `strings`, `od`,
+`hexdump` and `comm`) has completed review at `c3c8e0e48e38`: 8,664 native
+and 8,660 static parity checks passed, along with all seven native sanitizer
+suites. The coordinator independently verified 162 native and 141 static
+reader-state checks. This series is prepared on the combined review branch;
+publication and measurements await the remaining integration groups.
+
 <!-- BEGIN SUMMARY -->
 Catalog: **278 loadables** (247 local sources, 31 stock Bash sources). Command benchmark: **49 cases covering 45 loadables**; 40 loadables passed the selected output checks, 5 have confirmed correctness findings. The other 233 have no individual command timings here; GPU transport measurements are reported separately.
 
-Separate [untimed checks](#additional-correctness-checks) record 9 further correctness findings.
+Separate [untimed checks](#additional-correctness-checks) record 10 further correctness findings.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -56,20 +63,21 @@ three times as long. A speed ratio is never published for incorrect output.
 | Priority | Loadable / case | Evidence | Next step |
 | --- | --- | --- | --- |
 | P1 | ar | A truncated member header is incorrectly accepted as a valid archive. Untimed check. | Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing. Assigned to bash-os-4. |
-| P1 | col | Only the first invocation emits input. Untimed check. | Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors. Assigned to bash-os-3 (integration). |
-| P1 | colrm | Repeated redirected input fails output validation. | Integrate the standalone input fix with column, then validate both commands. Assigned to bash-os-3 (integration). |
-| P1 | column | Repeated redirected input fails output validation. | Review the completed input and cleanup fix, then run its tests in the integrated build. Assigned to bash-os-3 (integration). |
+| P1 | col | Only the first invocation emits input. Untimed check. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| P1 | colrm | Repeated redirected input fails output validation. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| P1 | column | Repeated redirected input fails output validation. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | P1 | crypto | A failed digest write is incorrectly reported as successful. Untimed check. | Review and integrate the SHA-256 I/O fixes; investigate backend cost separately. Assigned to bash-os-2 (integration). |
 | P1 | csplit | Later invocations create empty pieces after the first call exhausts shared stdin. Untimed check. | Integrate the private input streams and failure cleanup; retain per-file validation and explicit static primer coverage. Assigned to bash-os-5 (integration). |
 | P1 | diff | Files differing only in the final newline are incorrectly reported equal. Untimed check. | Fix the remaining binary-input, write-status and FIFO defects found during review, then complete integration validation. Assigned to bash-os-2 (integration). |
 | P1 | du | A failed size-report write is incorrectly reported as successful. Untimed check. | Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing. Assigned to bash-os-1. |
-| P1 | hexdump | Repeated redirected input fails output validation. | Integrate the descriptor-input and buffered-output fix, then validate all supported formats. Assigned to bash-os-3 (integration). |
-| P1 | od | Repeated redirected input fails output validation. | Integrate the descriptor-input and error-handling fix, then validate the full build. Assigned to bash-os-3 (integration). |
+| P1 | hexdump | Repeated redirected input fails output validation. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| P1 | mv | Moving a file to itself incorrectly reports success. Untimed check. | Fix same-file status and establish dedicated move, cross-device failure, overwrite and input-state coverage before timing. Assigned to bash-os-3. |
+| P1 | od | Repeated redirected input fails output validation. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | P1 | split | Only the first invocation creates output files. Untimed check. | Integrate the completed input/output fix, check growth bounds and retain a stdio primer after head integration. Assigned to bash-os-5 (integration). |
-| P1 | strings | Repeated redirected input fails output validation. | Integrate the descriptor-input and scan changes, then validate the full build. Assigned to bash-os-3 (integration). |
+| P1 | strings | Repeated redirected input fails output validation. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | P1 | tail | Only the first small-input invocation emits its last line; the larger timed fixture passes. Untimed check. | Fix repeated small-input redirections and affected pipe modes; preserve seekable fast paths and verify follow behavior. Assigned to bash-os-6. |
 | P1 | tee | A read from closed stdin reports an error but incorrectly returns success. Untimed check. | Integrate the stock-source patch with existing head build wiring; validate read errors, resource ownership and interrupt cleanup. Assigned to bash-os-2 (integration). |
-| P2 | [comm](#case-comm) | 1.82× external time; output checks pass, seven samples. | Integrate the buffered-output and input-state fix, then validate and remeasure. Assigned to bash-os-3 (integration). |
+| P2 | [comm](#case-comm) | 1.82× external time; output checks pass, seven samples. | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | P2 | [sort-text](#case-sort-text) | 1.70× external time; 1.01× BusyBox time; output checks pass, seven samples. | Integrate the text-comparison and input-state changes, then validate and remeasure. Assigned to bash-os-5 (integration). |
 | P3 | join | Completed worker result; current timings still describe the earlier implementation. | Integrate field-storage, output and order-checking changes; validate duplicates and input state. Assigned to bash-os-5 (integration). |
 | P3 | rev | Completed worker result; current timings still describe the earlier implementation. | Integrate the buffered-output and input-ownership changes, then verify byte and locale contracts. Assigned to bash-os-5 (integration). |
@@ -155,10 +163,10 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`clip`](../loadables/clip.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cluster`](../loadables/cluster.c) | F | [Smoke](../tests/misc-smoke.py) | —; API fixture | N/M | P3 | Add peer membership, timeout and disconnect fixtures. |
 | [`cmp`](../loadables/cmp.c) | C D S T F | [Bench checked](#case-cmp) | cmp; cmp | 39.013 / 170.186 / 59.701; [cmp](#case-cmp), 27 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`col`](../loadables/col.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; col | N/M | P1 | Integrate the standalone col input fix with column and colrm; validate byte/control scope and output errors. Assigned to bash-os-3 (integration). |
-| [`colrm`](../loadables/colrm.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; colrm | INVALID / — / 266.510; [colrm](#case-colrm), 22 passes | P1 | Integrate the standalone input fix with column, then validate both commands. Assigned to bash-os-3 (integration). |
-| [`column`](../loadables/column.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; column | INVALID / — / 1106.052; [column](#case-column), 10 passes | P1 | Review the completed input and cleanup fix, then run its tests in the integrated build. Assigned to bash-os-3 (integration). |
-| [`comm`](../loadables/comm.c) | C D S T F | [Bench checked](#case-comm) | —; comm | 80.052 / — / 43.888; [comm](#case-comm), 10 passes | P2 | Integrate the buffered-output and input-state fix, then validate and remeasure. Assigned to bash-os-3 (integration). |
+| [`col`](../loadables/col.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; col | N/M | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| [`colrm`](../loadables/colrm.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; colrm | INVALID / — / 266.510; [colrm](#case-colrm), 22 passes | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| [`column`](../loadables/column.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | —; column | INVALID / — / 1106.052; [column](#case-column), 10 passes | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
+| [`comm`](../loadables/comm.c) | C D S T F | [Bench checked](#case-comm) | —; comm | 80.052 / — / 43.888; [comm](#case-comm), 10 passes | P2 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | [`coreutils`](../loadables/coreutils.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; Individual coreutils programs | N/M | P3 | Add a matched workload and timing. |
 | [`cp`](../loadables/cp.c) | C D S T F | [Contract](../tests/host-smoke.sh) | cp; cp | 21.224 / 127.327 / 144.062; [cp](#case-cp), 54 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`cred`](../loadables/cred.c) | S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -211,7 +219,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`grep`](../loadables/grep.c) | C D S T F | [Parity](../tests/grep-parity.sh); [limited](#scope-notes); [S](../tests/grep-host.c) | grep; grep | 45.471 / 347.407 / 64.404; [grep-lines](#case-grep-lines), 25 passes; 2 cases total | P3 | Decide required option scope; see limitations. |
 | [`halt`](../loadables/halt.c) | D S F | Build/help | halt; halt | N/M | P3 | Add behavioral fixtures, then timing. |
 | `head`* | P C D S T F | [Parity](../tests/head-sed-parity.py); [limited](#scope-notes); [S](../tests/head-sed-sanitize.sh) | head; head | 13.814 / 131.198 / 112.680; [head](#case-head), 67 passes | P3 | Decide required option scope; see limitations. |
-| [`hexdump`](../loadables/hexdump.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | hexdump; hexdump | INVALID / 316.349 / 465.534; [hexdump](#case-hexdump), 18 passes | P1 | Integrate the descriptor-input and buffered-output fix, then validate all supported formats. Assigned to bash-os-3 (integration). |
+| [`hexdump`](../loadables/hexdump.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | hexdump; hexdump | INVALID / 316.349 / 465.534; [hexdump](#case-hexdump), 18 passes | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | [`hl`](../loadables/hl.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; highlight (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`hostid`](../loadables/hostid.c) | D S F | Build/help | hostid; hostid | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`hostname`](../loadables/hostname.c) | C D S T F | [Contract](../tests/rootfs-smoke.sh) | hostname; hostname | N/M | P3 | Add a matched workload and timing. |
@@ -255,7 +263,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`mlock`](../loadables/mlock.c) | D S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`more`](../loadables/more.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | more; more | N/M | P3 | Add a matched workload and timing. |
 | [`mouse`](../loadables/mouse.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
-| [`mv`](../loadables/mv.c) | C D S T F | Build/help | mv; mv | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`mv`](../loadables/mv.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | mv; mv | N/M | P1 | Fix same-file status and establish dedicated move, cross-device failure, overwrite and input-state coverage before timing. Assigned to bash-os-3. |
 | [`nano`](../loadables/nano.c) | T F | [Contract](../tests/final-smoke.py); [limited](#scope-notes); [S](../tests/final-sanitize.sh) | —; nano | N/M | P3 | Decide required option scope; see limitations. |
 | [`nano2`](../loadables/nano2.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; nano | N/M | P3 | Add a matched workload and timing. |
 | [`nc`](../loadables/nc.c) | D S F | [Contract](../tests/network-smoke.py) | nc; nc | N/M | P3 | Add a matched workload and timing. |
@@ -269,7 +277,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`ns`](../loadables/ns.c) | S F | [Smoke](../tests/system-smoke.sh) | unshare; unshare / nsenter | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ntp`](../loadables/ntp.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | ntpd (not in build); chronyc / ntpd | N/M | P3 | Add a matched workload and timing. |
 | [`obj`](../loadables/obj.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; git hash-object / cat-file | N/M | P3 | Add a matched workload and timing. |
-| [`od`](../loadables/od.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | od; od | INVALID / 206.415 / 410.833; [od](#case-od), 19 passes | P1 | Integrate the descriptor-input and error-handling fix, then validate the full build. Assigned to bash-os-3 (integration). |
+| [`od`](../loadables/od.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | od; od | INVALID / 206.415 / 410.833; [od](#case-od), 19 passes | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | [`opt`](../loadables/opt.c) | T F | [Contract](../tests/misc-smoke.py) | getopt; getopt | N/M | P3 | Add a matched workload and timing. |
 | [`pack`](../loadables/pack.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; git pack-objects / index-pack | N/M | P3 | Add a matched workload and timing. |
 | [`passwd`](../loadables/passwd.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | passwd; passwd | N/M | P3 | Add a matched workload and timing. |
@@ -326,7 +334,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`stat`](../loadables/stat.c) | P C D S T F | [Parity](../tests/stat-parity.sh) | stat; stat | 7.082 / 120.170 / 125.461; [stat](#case-stat), 86 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`strace`](../loadables/strace.c) | F | [Contract](../tests/large-smoke.py) | —; strace (missing) | N/M | P3 | Add a matched workload and timing. |
 | `strftime`* | P C D S T F | Build/help | date; date / Bash printf | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`strings`](../loadables/strings.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | strings; strings | INVALID / 127.122 / 174.345; [strings](#case-strings), 43 passes | P1 | Integrate the descriptor-input and scan changes, then validate the full build. Assigned to bash-os-3 (integration). |
+| [`strings`](../loadables/strings.c) | C D S T F | [Repeat-input bug](#repeated-input-findings) | strings; strings | INVALID / 127.122 / 174.345; [strings](#case-strings), 43 passes | P1 | Combine the reviewed integration with the remaining batch, run full CI and remeasure. Assigned to coordinator (combined validation). |
 | `strptime`* | P C D S T F | Build/help | —; Python datetime.strptime | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`su`](../loadables/su.c) | S F | [Negative checks](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | su; su | N/M | P3 | Add credential-transition and policy fixtures before benchmarking authentication. |
 | [`sudo`](../loadables/sudo.c) | S F | [Negative checks](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; sudo | N/M | P3 | Add credential-transition and policy fixtures before benchmarking authentication. |
@@ -436,7 +444,7 @@ checks that opening a named file while stdin is closed leaves stdin closed.
 ## Additional correctness checks
 
 <!-- BEGIN UNTIMED -->
-These checks used source `5fde494952a7fd101dc1c4d43870b74d659b379b` and the same binary as the command measurements. The [evidence JSON](data/loadable-untimed-findings.json) records fixtures, references, exit statuses, output and created files. These cases have no timing measurements.
+These checks used source `e1bae5ab3c17a8f07361bf368b190745261f3738` and the same binary as the command measurements. The [evidence JSON](data/loadable-untimed-findings.json) records fixtures, references, exit statuses, output and created files. These cases have no timing measurements.
 
 | Loadable | Invocation | Finding |
 | --- | --- | --- |
@@ -446,6 +454,7 @@ These checks used source `5fde494952a7fd101dc1c4d43870b74d659b379b` and the same
 | `csplit` | `csplit -s -f "pieces/$i-" - 2 < input (three fresh redirections)` | Later invocations create empty pieces after the first call exhausts shared stdin. |
 | `diff` | `diff input input-newline` | Files differing only in the final newline are incorrectly reported equal. |
 | `du` | `du -b file > /dev/full` | A failed size-report write is incorrectly reported as successful. |
+| `mv` | `mv file file` | Moving a file to itself incorrectly reports success. |
 | `split` | `split -l 2 - "pieces/$i-" < input (three fresh redirections)` | Only the first invocation creates output files. |
 | `tail` | `tail -n 1 < input (three fresh redirections)` | Only the first small-input invocation emits its last line; the larger timed fixture passes. |
 | `tee` | `tee <&- > /dev/null` | A read from closed stdin reports an error but incorrectly returns success. |
@@ -461,10 +470,10 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | --- | --- |
 | `bc` | Repeated stdin is fixed. User functions, output-base printing, control flow, comments and file operands remain outside the supported language subset. [source](../docs/bc.md) |
 | `cluster` | Only a version smoke check is mapped here. |
-| `col` | Worker result c6059ab77c68 is complete and awaiting integration; the current untimed check still exercises the earlier implementation. |
-| `colrm` | Worker result 81571cc0bb41 is complete and awaiting integration; current measurements still contain the earlier implementation. |
-| `column` | Worker result 83474ede0b86 is complete and awaiting integration; current measurements still contain the earlier implementation. |
-| `comm` | Worker result ac93113b2809 is complete and awaiting integration; current measurements still contain the earlier implementation. |
+| `col` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
+| `colrm` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
+| `column` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
+| `comm` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
 | `crypto` | Worker result c670eb787330 is complete and awaiting integration; current measurements still contain the earlier implementation. The wrapper changes make no throughput improvement claim; profiling found most CPU time in the shared SHA-256 backend. |
 | `csplit` | Worker result 69d728321989 is complete and awaiting integration, with 543 native/sanitizer parity checks, 541 static checks and 1,569 fault/cleanup checks. Full-input memory and regex/CLI limits remain; no speedup is claimed. |
 | `diff` | Worker result e23fb1e5c959 is complete and awaiting integration; current measurements still contain the earlier implementation. The timed catalog case compares identical files; it does not measure edit-script generation or the reported large-difference memory failure. |
@@ -475,14 +484,15 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `gpu` | CPU/protocol, native driver and isolated Kilix checks exist. Static builds support CPU presentation; native shaders require dynamic linking. |
 | `grep` | Default build disables -P; the separate pcre loadable supplies PCRE2 operations. See the source build switch. [source](../loadables/grep.c) |
 | `head` | Repeated stdin is fixed. The stock Bash option subset remains; private streams restore seekable read-ahead and use unbuffered pipe input. [source](../docs/head-sed.md) |
-| `hexdump` | Worker result a65a1507dc7d is complete and awaiting integration; current measurements still contain the earlier implementation. |
+| `hexdump` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
 | `join` | Worker result e534b8dd725e is complete and awaiting integration; current measurements still contain the earlier implementation. |
 | `ldap` | BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured. |
 | `lpr` | Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim. [source](../loadables/lpr.c) |
 | `mail` | Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement. |
+| `mv` | No dedicated behavior suite or command timing in the published snapshot; review uses disposable filesystem fixtures. |
 | `nano` | Editor selftests pass; justify, spell and completion still report unimplemented. [source](../loadables/nano.c) |
 | `nl` | Repeated stdin, stale stream read-ahead and named-file descriptor ownership are fixed. BRE matching uses the host regex library; without REG_STARTEND, patterns cannot match past embedded NUL bytes. [source](../docs/nl.md) |
-| `od` | Worker result 27452bfdab7b is complete and awaiting integration; current measurements still contain the earlier implementation. |
+| `od` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
 | `payload` | Install/remove invoke a helper outside this repository; the current fixture only calls help. [source](../loadables/payload.c) |
 | `pgrep` | Matching is substring-based unless exact matching is selected; not full procps regular-expression behavior. [source](../loadables/pgrep.c) |
 | `pkill` | Shares pgrep matching and process traversal; validate signals only against owned child fixtures. [source](../loadables/pkill.c) |
@@ -497,7 +507,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `split` | Worker result 6514793faa09 passed 741 native, static and sanitizer checks and awaits integration. Output validation compares all piece names and bytes; suffix-width and option limits remain. |
 | `ssh` | Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements. |
 | `sshd` | Loopback interoperability and malformed setup cases pass; no concurrent-session measurements. |
-| `strings` | Worker result 78f444f56882 is complete and awaiting integration; current measurements still contain the earlier implementation. |
+| `strings` | Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation. |
 | `su` | Current integration test rejects an invalid option before credential transition. |
 | `sudo` | Current integration test rejects an invalid option before credential transition. |
 | `tac` | Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate. [source](../docs/tac.md) |
