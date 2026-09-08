@@ -14,6 +14,7 @@ BASH_OS_RUNNER="$runner" python3 tests/profile-smoke.py "$binary"
   "$BASH" -c "[[ 2+3 -eq 5 ]]"
 '
 python3 tests/tac-parity.py "$d/bash-os"
+python3 tests/input-lifetime.py "$d/bash-os"
 python3 tests/helper-smoke.py "$d/bash-os"
 python3 tests/final-smoke.py "$d/bash-os"
 python3 tests/gpu-smoke.py "$d/bash-os"

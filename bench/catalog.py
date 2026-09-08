@@ -23,9 +23,8 @@ RANK = {'Build/help': 0, 'Negative checks': 1, 'Smoke': 2, 'Contract': 3,
         'Query parity': 4, 'Parity': 5}
 PROFILE_CODES = {'pure': 'P', 'core': 'C', 'device': 'D', 'server': 'S',
                  'desktop': 'T', 'full': 'F'}
-# Pending candidates from the historical snapshot; completed work is linked
-# from the reviewed notes while its original measurements remain unchanged.
-PERFORMANCE = ['fold', 'expand', 'comm', 'sort-text']
+# Candidates confirmed in the baseline and checked again in the current run.
+PERFORMANCE = ['comm', 'sort-text']
 
 
 def cell(value):
@@ -78,7 +77,7 @@ def generate():
         raise ValueError('Unset EXTRA_LOADABLES when generating the repository catalog')
     catalog = config.parse_list(ROOT/'config/bash-loadables.list')
     review = json.loads((ROOT/'docs/loadables-review.json').read_text())
-    data = json.loads((ROOT/'docs/data/loadable-benchmarks.json').read_text())
+    data = json.loads((ROOT/review.get('measurement_file', 'docs/data/loadable-benchmarks.json')).read_text())
     assert review['source_commit'] == data['source_commit']
     assert data['catalog_sha256'] == hashlib.sha256((ROOT/'config/bash-loadables.list').read_bytes()).hexdigest(), 'Refresh the reviewed snapshot after changing the catalog'
     profiles = {}
@@ -106,6 +105,7 @@ def generate():
             assert (ROOT/note['evidence']).is_file(), note['evidence']
     assert set(review['repeat_input_findings']) <= catalog.keys()
     assert set(review['limitations']) <= catalog.keys()
+    assert review.get('assignments', {}).keys() <= catalog.keys()
     benchmarks = {name: [] for name in catalog}
     ids = set()
     for case in data['cases']:
@@ -169,7 +169,7 @@ def generate():
             action = note['next']
         elif priorities:
             priority = 'P2'
-            action = f"Profile {priorities[0]['id']}: {ratio(priorities[0]):.2f}× external time."
+            action = note.get('next') or f"Profile {priorities[0]['id']}: {ratio(priorities[0]):.2f}× external time."
         elif note.get('next'):
             priority, action = 'P3', note['next']
         elif selected and ratio(selected) is not None and ratio(selected) > 1.25:
@@ -185,6 +185,8 @@ def generate():
                 action = 'Define an API workload and metric, then measure.'
         else:
             priority, action = 'P4', 'Extend sizes/options; no selected-case performance priority.'
+        if name in review.get('assignments', {}):
+            action += f" Assigned to {review['assignments'][name]}."
         members = [p for p in PROFILE_CODES if name in profiles[p]]
         source = f'loadables/{name}.c' if name in local else f'Bash examples/loadables/{name}.c'
         name_text = link(source, f'`{name}`') if name in local else f'`{name}`*'
@@ -235,16 +237,21 @@ def generate():
                f"{measured-valid} have confirmed correctness findings. The other {len(catalog)-measured} have no individual command timings here; "
                "GPU transport measurements are reported separately.\n\n")
     summary += table(['Profile','Included loadables'], [[p,len(names)] for p,names in profiles.items()])
-    summary += f"\n\nCode snapshot: `{data['source_commit']}`; [baseline CI]({review['ci']}) passed all nine jobs "
-    summary += '(including 48 native test groups). Those suites did not detect the repeated-input findings below. '
-    summary += 'All catalog entries were built and registered in the full native and static RISC-V binaries; this is not full CLI conformance. '
+    summary += f"\n\nCommand measurement source: `{data['source_commit']}`. "
+    validation = review['validation']
+    assert validation['source_commit'] == data['source_commit']
+    summary += validation['summary'] + '\n\n'
+    baseline = review['baseline']
+    summary += f"Historical baseline: `{baseline['source_commit']}`; [CI]({baseline['ci']}) passed all nine jobs "
+    summary += '(including 48 native test groups). Those older suites did not detect the repeated-input findings. '
     summary += 'Coverage labels describe the mapped fixtures, not a guarantee that every option works.'
     document = replace_section(document,'SUMMARY',summary)
-    queue = [['P1','head, sed','Repeated redirected input is wrong; common text paths.',
-              'Fix persistent-shell input handling and add regressions before any optimization.'],
-             ['P1','bc, colrm, column, hexdump, nl, od, pr, strings',
-              'The same three-call check also produces wrong output.',
-              'Audit each command; share a fix only after establishing its cause.']]
+    queue = []
+    for name in sorted(review['repeat_input_findings']):
+        action = review['notes'][name]['next']
+        if name in review.get('assignments', {}):
+            action += f" Assigned to {review['assignments'][name]}."
+        queue.append(['P1', name, 'Repeated redirected input fails output validation.', action])
     for identifier in PERFORMANCE:
         case = next(c for c in data['cases'] if c['id']==identifier)
         assert case['confirmed'] and case['runs'] == 7
@@ -252,10 +259,12 @@ def generate():
         detail = f"{ratio(case):.2f}× external time"
         if bb:
             detail += f"; {value(case,'bashos')/bb:.2f}× BusyBox time"
-        queue.append(['P2',f'[{identifier}](#case-{identifier})',detail+'; output checks pass, seven samples.',
-                      'Profile input/output and allocation costs on this fixture, then measure the proposed change.'])
-    queue += [['P3','unexpand, wc -m, diff, join, crypto sha256','Slower than the external reference in the first five-sample run.',
-               'Confirm across input sizes before optimizing; crypto covers SHA-256 only.'],
+        action = review['notes'].get(case['loadable'], {}).get('next') or 'Profile input/output and allocation costs on this fixture, then measure the proposed change.'
+        if case['loadable'] in review.get('assignments', {}):
+            action += f" Assigned to {review['assignments'][case['loadable']]}."
+        queue.append(['P2',f'[{identifier}](#case-{identifier})',detail+'; output checks pass, seven samples.', action])
+    queue += [['P3','unexpand, wc -m, diff, join, crypto sha256','Candidates from the baseline; current case timings appear below.',
+               'Check the current ratio and several input sizes before optimizing; crypto covers SHA-256 only.'],
               ['P3','Unmeasured commands and APIs','No per-command timing is available; many only have small fixtures.',
                'Choose by target profile and application use, establish equivalent outputs, then time.']]
     document = replace_section(document,'PRIORITIES',table(['Priority','Loadable / case','Evidence','Next step'],queue))
@@ -278,13 +287,24 @@ def generate():
                           case['passes'],timing(case,'bashos'),timing(case,'busybox'),timing(case,'external'),
                           f'{ratio(case):.2f}×' if ratio(case) is not None else '—',case['runs']])
     document = replace_section(document,'CASES',table(['Case','Builtin command','External command','Input','Passes','BOS ms','BB ms','External ms','BOS / external','Samples'],case_rows))
-    gpu = data['gpu']
-    assert gpu['binary_sha256'] == data['binary_sha256'] and gpu['source_commit'] == data['source_commit']
+    method = f"The command measurements use the native dynamic full `out/bash` at the source above, SHA-256 `{data['binary_sha256']}`. "
+    method += f"Host: {data['cpu_model']}, {data['architecture']} Linux {data['kernel']}; pinned CPUs: {', '.join(map(str, data['cpus']))}. "
+    method += 'Reference versions and fixture hashes are recorded in the measurement JSON. '
+    method += 'These are host measurements; no per-command RISC-V or appliance performance is claimed.\n\n'
+    method += f"Every case uses {', '.join(map(str, sorted({c['runs'] for c in data['cases']})))} timed samples after output validation and warm-up. "
+    method += f"The one-minute host load was {data['load_average_start'][0]:.1f} at the start and {data['load_average_end'][0]:.1f} at the end. "
+    method += 'A shared lock serialized participating benchmarks; builds and other host activity could still contend. '
+    method += 'Use the recorded ranges for prioritization and repeat on the intended device before claiming small performance differences.'
+    document = replace_section(document,'METHOD',method)
+    graphics_data = json.loads((ROOT/review['graphics_measurement_file']).read_text())
+    gpu = graphics_data['gpu']
+    assert gpu['binary_sha256'] == graphics_data['binary_sha256'] and gpu['source_commit'] == graphics_data['source_commit']
     for result in gpu['cases']:
         assert result['tty_bytes_min'] <= result['tty_bytes'] <= result['tty_bytes_max']
         assert result['bytes_per_update'] == result['tty_bytes']/gpu['updates']
         assert 0 < result['min_seconds'] <= result['median_seconds'] <= result['max_seconds']
-    graphics = table(['Transport / change','Median TTY bytes / 30 updates','Median TTY bytes / update','Median seconds','Min–max seconds'],
+    graphics = f"Historical graphics measurement source: `{gpu['source_commit']}`; binary SHA-256 `{gpu['binary_sha256']}`. These transport timings were not rerun with the current command measurements.\n\n"
+    graphics += table(['Transport / change','Median TTY bytes / 30 updates','Median TTY bytes / update','Median seconds','Min–max seconds'],
                      [[r['transport']+' / '+r['mode'],f"{r['tty_bytes']:,}",f"{r['bytes_per_update']:,.0f}",
                        f"{r['median_seconds']:.3f}",f"{r['min_seconds']:.3f}–{r['max_seconds']:.3f}"] for r in gpu['cases']])
     document = replace_section(document,'GPU',graphics)

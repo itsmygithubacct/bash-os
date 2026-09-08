@@ -36,13 +36,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl bison python3-cryptography \
             libpcre2-dev zlib1g-dev liblzma-dev libzstd-dev libbz2-dev \
-            busybox bsdextrautils ed sharutils zstd openssh-client bubblewrap
+            busybox bsdextrautils bc ed sharutils zstd openssh-client bubblewrap
           if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
       - name: Build and check full, pure, static and runtime modules
         run: |
+          python3 bench/catalog.py --check
           bash tests/run.sh | tee test.log
+          python3 tests/input-lifetime.py out/bash
+          python3 tests/input-lifetime.py out/bash-static
           python3 tests/profile-smoke.py out/bash
           python3 tests/profile-smoke.py out/bash-static
           python3 tests/profile-smoke.py out/bash-pure
@@ -111,7 +114,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y build-essential gcc-riscv64-linux-gnu cmake curl \
-            bison qemu-user qemu-user-binfmt binfmt-support python3-cryptography openssh-client
+            bison bc qemu-user qemu-user-binfmt binfmt-support python3-cryptography openssh-client
           sudo update-binfmts --enable qemu-riscv64
       - name: Build pinned target libraries and a static full executable
         run: |

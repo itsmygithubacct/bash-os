@@ -66,6 +66,10 @@ output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
 The [loadable status table](docs/loadables-status.md) and
 [CSV](docs/loadables-status.csv) list every loadable, its profiles, test evidence,
 BusyBox/Linux comparison data and recommended next work.
+The [head/sed](docs/head-sed.md), [fold](docs/fold.md),
+[expand](docs/expand.md), [bc](docs/bc.md), [nl](docs/nl.md),
+[pr](docs/pr.md) and [tac](docs/tac.md) reports describe the corrected behavior,
+measured workloads and remaining option limits.
 
 `gpu`, included in `desktop` and `full`, adds a persistent pixel canvas, terminal
 input, image export and optional GLES2 shader rendering. Run
@@ -124,6 +128,7 @@ tests/
   profiles.py                   selection and dependency contracts
   profile-smoke.py BIN          exact injected set and manifest checksum
   cross-smoke.sh BIN            full RISC-V fixtures under QEMU
+  input-lifetime.py [BIN]       mixed readers and descriptor ownership across libcs
   fuzz.sh                       bounded LDAP, image and TOML parser fuzzing
   host-smoke.sh [BIN] [LIST]    every listed name is a builtin with help text,
                                 and runs with an empty PATH (stat, pax, pipes …)
@@ -157,6 +162,10 @@ tests/
   gpu-smoke.py [BIN]           canvas pixels, transport fallback, input and cleanup
   gpu-sanitize.sh [BIN]        graphics and raster code under ASan/UBSan
   gpu-live.py [BIN]            optional isolated Kilix integration check
+  {head-sed,fold,expand,bc,nl,pr,tac}-parity.py [BIN]
+                                command parity and persistent-shell input/output
+  {head-sed,fold,expand,bc,nl,pr,tac}-sanitize.sh [BIN]
+                                the same focused checks under ASan+UBSan
   paste-uniq-parity.py [BIN]    record/group parity, output errors and shell state
   text-tools-parity.sh [BIN]    expand, tac, join, pr, expr, hexdump, column … vs the host's
   httpd-host.c  rngseed-host.c  zstd-host.c   ASan+UBSan unit harnesses

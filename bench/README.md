@@ -3,6 +3,10 @@
 The [loadable status table](../docs/loadables-status.md) covers all 278 loadables
 and recommends the next work from correctness checks and individual timings.
 Its [CSV](../docs/loadables-status.csv) supports filtering by profile and status.
+The current table uses one integrated full build and seven samples per case.
+The [original measurement](../docs/data/loadable-benchmarks.json) and its
+graphics data retain their separate source and binary provenance.
+Completed input fixes receive timings only after the repeated-call output check passes.
 
 ## Individual commands
 
