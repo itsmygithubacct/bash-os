@@ -19,6 +19,7 @@ check(){
   fi
 }
 check licence-check bash tests/licence-check.sh
+check 'atomic executable publication' python3 tests/publish-binary.py
 check profiles python3 tests/profiles.py
 if ./build.sh >"$scratch/build.log" 2>&1; then
   echo 'PASS builds out/bash'; pass=$((pass+1))

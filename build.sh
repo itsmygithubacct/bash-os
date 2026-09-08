@@ -135,7 +135,7 @@ exec {BUILD_LOCK}> "$HERE/build/.lock"
 flock "$BUILD_LOCK"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py build.sh;
+           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py config/publish-binary.py build.sh;
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
@@ -259,11 +259,8 @@ make -j"$JOBS" >>"$LOG" 2>&1 || { grep -nE 'error|Error' "$LOG" | tail -30; die 
 [[ -f bash ]] || die "no bash binary"
 
 # --- 9. output + manifest --------------------------------------------------
-cp bash "$STAGE_PARENT/output-binary"
-if [[ $STRIP == 1 ]]; then
-  if command -v "$STRIPTOOL" >/dev/null; then "$STRIPTOOL" "$STAGE_PARENT/output-binary"; else say "warning: $STRIPTOOL not found, output left unstripped"; fi
-fi
-mv "$STAGE_PARENT/output-binary" "$OUTBIN"
+STRIP_ARGS=(); [[ $STRIP != 1 ]] || STRIP_ARGS=("$STRIPTOOL")
+python3 "$HERE/config/publish-binary.py" bash "$OUTBIN" "${STRIP_ARGS[@]}"
 {
   echo "# bash-os manifest  $(date -u +%FT%TZ)"
   echo "bash $BASH_SRC_VERSION patchlevel $BASH_PATCHLEVEL  target=$TARGET static=$STATIC stripped=$STRIP"
