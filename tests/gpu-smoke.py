@@ -49,6 +49,10 @@ class Terminal:
         self.tty = os.ttyname(self.slave)
         fcntl.ioctl(self.slave,termios.TIOCSWINSZ,struct.pack('HHHH',30,100,800,480))
         self.saved = termios.tcgetattr(self.slave)
+        if blocked_output:
+            # Clearing IXON during gpu start would resume stopped output.
+            self.saved[0] &= ~termios.IXON
+            termios.tcsetattr(self.slave,termios.TCSANOW,self.saved)
         self.buffer = b''
         self.stream = bytearray()
         self.images = {}
@@ -241,14 +245,8 @@ class Terminal:
                                  'TERM_PROGRAM':None,'XTERM_VERSION':None,'TMUX':None,
                                  'SSH_CONNECTION':None,'SSH_TTY':None,**(env or {})})
         if self.blocked_output:
-            flags = fcntl.fcntl(self.slave,fcntl.F_GETFL)
-            try:
-                fcntl.fcntl(self.slave,fcntl.F_SETFL,flags | os.O_NONBLOCK)
-                for size in (4096,1):
-                    while True:
-                        try: os.write(self.slave,b'x'*size)
-                        except BlockingIOError: break
-            finally: fcntl.fcntl(self.slave,fcntl.F_SETFL,flags)
+            # Flow control blocks writes independently of PTY buffer timing.
+            termios.tcflow(self.slave,termios.TCOOFF)
         def acquire_tty():
             os.setsid()
             fcntl.ioctl(0,termios.TIOCSCTTY,0)
@@ -288,6 +286,7 @@ class Terminal:
             return stdout
         finally:
             if p.poll() is None: p.kill(); p.wait()
+            if self.blocked_output: termios.tcflow(self.slave,termios.TCOON)
             os.close(self.master); os.close(self.slave)
             for path in self.shm_names: path.unlink(missing_ok=True)
             for fd,_ in self.held_fds: os.close(fd)
@@ -467,6 +466,7 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term.run(start+'--transport inline',rc=1)
         assert b'sending Kitty graphics probe (inline transport):' in term.stderr
         assert b'no reply from terminal' not in term.stderr and b'Kitty graphics support' not in term.stderr
+        assert term.counts['query'] == 0,'blocked output delivered a probe'
         nested_env = {'TERM':'xterm','TERM_PROGRAM':'kitty','XTERM_VERSION':'XTerm(398)',
                       'KITTY_WINDOW_ID':'42','KITTY_KILIX_RENDERING':'1'}
         term = Terminal(respond=False)
