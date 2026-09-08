@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 269 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 270 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 ```
-./build.sh                                        # host, 277 builtins  -> out/bash
+./build.sh                                        # host, 278 builtins  -> out/bash
 ./build.sh --static                               # one self-contained file -> out/bash-static
 ./build.sh --list config/bash-loadables-pure.list # the 28-name POSIX baseline -> out/bash-pure
 CC=riscv64-unknown-linux-musl-gcc ./build.sh      # cross -> out/riscv64-unknown-linux-musl/bash
@@ -46,6 +46,13 @@ database, Unicode, image, and parsing helpers build from checked-in sources.
 The pure list keeps the smaller dependency set. The full test suite also uses
 Python 3 with `cryptography`, Git, host reference utilities, and a C compiler
 with ASan/UBSan support.
+
+`gpu` adds a persistent pixel canvas, terminal input, image export, and optional
+GLES2 shader rendering. Run `out/bash examples/gpu-dashboard.sh` for a live system
+graph, or `out/bash examples/gpu-shader.sh` for an animated shader.
+[Graphics from Bash](docs/gpu.md) covers drawing, transport fallback, and the
+Kilix DMA-BUF path. The canvas works without graphics drivers; shader rendering
+loads GBM/EGL/GLES libraries on demand.
 
 For cross-compilation, `--host` is derived from `CC`, and the
 configure answers a cross build cannot measure itself (job control, named pipes,
@@ -101,7 +108,7 @@ build.sh                        the build
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.sh                  the one parser of a loadables list
-  bash-loadables.list           the full set (NAME|short-doc per line), 277 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 278 entries
   bash-loadables-pure.list      the 28 POSIX-utility loadables from bash's own tree
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
@@ -130,6 +137,8 @@ tests/
   network-smoke.py [BIN]       framing, loopback transfers, subprocess failures
   terminal-smoke.py [BIN]      key decoding, pseudo-terminals, editing and replay
   terminal-sanitize.sh [BIN]   the terminal checks with instrumented modules
+  gpu-smoke.py [BIN]           canvas pixels, Kitty protocol replay, input and cleanup
+  gpu-sanitize.sh [BIN]        graphics and raster helper under ASan/UBSan
   misc-smoke.py [BIN]          arithmetic, scheduling, file formats and helpers
   large-smoke.py [BIN]         calculators, JSON, services, disks and tool subsets
   helper-smoke.py [BIN]        compression, SQLite, TOML, Unicode and terminal helpers
@@ -141,6 +150,9 @@ tests/
   grep-host.c                   grep as a program: the parity cases under ASan+UBSan
 docs/anatomy-of-a-loadable.md   how a builtin is put together, with docs/tutorial/greet.c
 docs/PROVENANCE.md              where the code came from, and its licences
+docs/gpu.md                     graphics API, examples, shaders and transports
+examples/gpu-*.sh               live dashboard and shader animation
+bench/gpu.py [BIN]              full-frame and retained graphics traffic
 ```
 
 Names in a list that have no `loadables/NAME.c` here are bash's own
