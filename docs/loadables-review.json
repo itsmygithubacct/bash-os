@@ -1343,24 +1343,24 @@
       "finding": "Files differing only in the final newline are incorrectly reported equal."
     },
     "unexpand": {
-      "next": "Integrate the buffered I/O and input-state fix, then validate and remeasure.",
-      "note": "Worker result 51995a1d3a3c is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "wc": {
-      "next": "Integrate descriptor input and specialized character counting; validate C and UTF-8 cases.",
-      "note": "Worker result dc8e848f5123 is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Keep every requested word-count assertion across GNU versions, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "comm": {
       "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
       "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
     },
     "join": {
-      "next": "Integrate field-storage, output and order-checking changes; validate duplicates and input state.",
-      "note": "Worker result e534b8dd725e is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Stop on write failure before reading more input; complete bounds and cleanup review, then validate the combined build.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "sort": {
-      "next": "Integrate the text-comparison and input-state changes, then validate and remeasure.",
-      "note": "Worker result da10ca15ebaf is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "crypto": {
       "next": "Review and integrate the SHA-256 I/O fixes; investigate backend cost separately.",
@@ -1368,8 +1368,8 @@
       "finding": "A failed digest write is incorrectly reported as successful."
     },
     "rev": {
-      "next": "Integrate the buffered-output and input-ownership changes, then verify byte and locale contracts.",
-      "note": "Worker result 7ef842c066aa is complete and awaiting integration; current measurements still contain the earlier implementation."
+      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "col": {
       "finding": "Only the first invocation emits input.",
@@ -1378,12 +1378,12 @@
     },
     "split": {
       "finding": "Only the first invocation creates output files.",
-      "next": "Integrate the completed input/output fix, check growth bounds and retain a stdio primer after head integration.",
-      "note": "Worker result 6514793faa09 passed 741 native, static and sanitizer checks and awaits integration. Output validation compares all piece names and bytes; suffix-width and option limits remain."
+      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
     },
     "csplit": {
-      "next": "Integrate the private input streams and failure cleanup; retain per-file validation and explicit static primer coverage.",
-      "note": "Worker result 69d728321989 is complete and awaiting integration, with 543 native/sanitizer parity checks, 541 static checks and 1,569 fault/cleanup checks. Full-input memory and regex/CLI limits remain; no speedup is claimed.",
+      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
+      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged.",
       "finding": "Later invocations create empty pieces after the first call exhausts shared stdin."
     },
     "tee": {
@@ -1392,21 +1392,28 @@
       "finding": "A read from closed stdin reports an error but incorrectly returns success."
     },
     "tail": {
-      "next": "Fix repeated small-input redirections and affected pipe modes; preserve seekable fast paths and verify follow behavior.",
-      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes."
+      "next": "Fix the reviewed candidate's allocation-failure use-after-free and output-error hang; require valid native/static test boundaries before integration.",
+      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes.",
+      "note": "Candidate 7a32aec034f9 fixes the repeated-input finding but coordinator fault/stream probes found additional failures. Review follow-up is active; the frozen 17-command batch excludes tail."
     },
     "ar": {
       "next": "Reject truncated archives and establish dedicated archive/member, mutation and error-path coverage before timing.",
       "finding": "A truncated member header is incorrectly accepted as a valid archive."
     },
     "du": {
-      "next": "Fix output-error status and establish allocated/apparent-size, link, traversal and repeated-call coverage before timing.",
-      "finding": "A failed size-report write is incorrectly reported as successful."
+      "next": "Integrate the reviewed traversal, allocation and output-error fixes in the next batch, then validate and remeasure.",
+      "finding": "A failed size-report write is incorrectly reported as successful.",
+      "note": "Reviewed worker result 94f501a4f54c: 274 native/static/sanitizer parity checks per run and 940 fault checks. Coordinator also passed 274 checks on each native/static binary against GNU 9.4; published measurement still uses the earlier source."
     },
     "mv": {
       "finding": "Moving a file to itself incorrectly reports success.",
       "next": "Fix same-file status and establish dedicated move, cross-device failure, overwrite and input-state coverage before timing.",
       "note": "No dedicated behavior suite or command timing in the published snapshot; review uses disposable filesystem fixtures."
+    },
+    "truncate": {
+      "finding": "An overflowing size extension incorrectly succeeds and empties the existing file.",
+      "next": "Reject size arithmetic overflow while preserving existing data; establish dedicated size, reference, I/O-error and recovery coverage before timing.",
+      "note": "Confirmed on a disposable three-byte file; GNU rejects the extension and preserves its bytes."
     }
   },
   "repeat_input_findings": [
@@ -1451,21 +1458,22 @@
     "od": "coordinator (combined validation)",
     "hexdump": "coordinator (combined validation)",
     "comm": "coordinator (combined validation)",
-    "sort": "bash-os-5 (integration)",
-    "unexpand": "bash-os-5 (integration)",
-    "rev": "bash-os-5 (integration)",
-    "wc": "bash-os-5 (integration)",
-    "join": "bash-os-5 (integration)",
-    "csplit": "bash-os-5 (integration)",
+    "sort": "bash-os-5 (review follow-up)",
+    "unexpand": "bash-os-5 (review follow-up)",
+    "rev": "bash-os-5 (review follow-up)",
+    "wc": "bash-os-5 (review follow-up)",
+    "join": "bash-os-5 (review follow-up)",
+    "csplit": "bash-os-5 (review follow-up)",
     "col": "coordinator (combined validation)",
     "tee": "bash-os-2 (integration)",
-    "split": "bash-os-5 (integration)",
+    "split": "bash-os-5 (review follow-up)",
     "crypto": "bash-os-2 (integration)",
     "diff": "bash-os-2 (integration)",
-    "tail": "bash-os-6",
+    "tail": "bash-os-6 (review follow-up)",
     "ar": "bash-os-4",
-    "du": "bash-os-1",
-    "mv": "bash-os-3"
+    "du": "coordinator (next batch)",
+    "mv": "bash-os-3",
+    "truncate": "bash-os-1"
   },
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
   "ci_followup": "[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.",
@@ -1475,17 +1483,17 @@
     "od": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "colrm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
     "comm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "sort": "da10ca15ebaf32b337ea86541303e85eedc6a64d",
-    "unexpand": "51995a1d3a3c14b2e91628b3a361c871de3cb494",
-    "rev": "7ef842c066aac9cb37e3f465676c8cb849d714f5",
+    "sort": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
+    "unexpand": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
+    "rev": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "crypto": "c670eb7873308195c333f4446c857b2abc8ea4d4",
-    "wc": "dc8e848f512302763ca6dac87d40537b9c299f12",
+    "wc": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "diff": "e23fb1e5c95987ca591b7de50422fadfa6fee77b",
     "hexdump": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "join": "e534b8dd725e3a42c1f698e3b0f423f4cc38b402",
+    "join": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "col": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "split": "6514793faa09b2092374a4c480cbfab821f4bc6b",
+    "split": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
     "tee": "380ca0b001046e297a98c747bc0294384a3e1bc7",
-    "csplit": "69d728321989ef81d7f1b6f9e9abd01faf5683c2"
+    "csplit": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347"
   }
 }

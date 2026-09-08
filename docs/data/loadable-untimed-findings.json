@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-08",
-  "source_commit": "e1bae5ab3c17a8f07361bf368b190745261f3738",
+  "source_commit": "83dd53014cf454ed3deec8f765a682e091f1c0cd",
   "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
   "measurement": "Untimed correctness probes; no performance claims.",
   "versions": {
@@ -14,7 +14,8 @@
     "tee": "tee (GNU coreutils) 9.7",
     "csplit": "csplit (GNU coreutils) 9.7",
     "du": "du (GNU coreutils) 9.7",
-    "mv": "mv (GNU coreutils) 9.7"
+    "mv": "mv (GNU coreutils) 9.7",
+    "truncate": "truncate (GNU coreutils) 9.7"
   },
   "cases": [
     {
@@ -271,6 +272,35 @@
           "status": 1,
           "stdout": "",
           "stderr": "mv: 'file' and 'file' are the same file\n"
+        }
+      }
+    },
+    {
+      "loadable": "truncate",
+      "kind": "correctness",
+      "command": "truncate -s +9223372036854775807 file",
+      "fixture": {
+        "file": "abc"
+      },
+      "invocations": 1,
+      "reference": "/usr/bin/truncate",
+      "finding": "An overflowing size extension incorrectly succeeds and empties the existing file.",
+      "results": {
+        "bashos": {
+          "status": 0,
+          "stdout": "",
+          "stderr": "",
+          "files": {
+            "file": ""
+          }
+        },
+        "reference": {
+          "status": 1,
+          "stdout": "",
+          "stderr": "truncate: overflow extending size of file 'file'\n",
+          "files": {
+            "file": "abc"
+          }
         }
       }
     }
