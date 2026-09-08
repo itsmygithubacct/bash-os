@@ -135,20 +135,32 @@ longer may miss that final frame. No userspace cleanup runs after `SIGKILL`;
 its abandoned objects have the `/bashos-gpu-…` prefix. Large inline frames are
 uncompressed and consume approximately `W*H*4*4/3` stream bytes.
 
-Inside tmux, graphics commands use DCS passthrough. Enable `allow-passthrough`
-in tmux and use a terminal supporting Kitty graphics. Graphics and keyboard
-query handling still depend on the multiplexer and terminal; unsupported
-probes fail within a bounded timeout. Output goes to `/dev/tty` (or `--tty`),
-leaving stdout available for application data and diagnostics.
+With a nonempty `TMUX`, graphics commands use DCS passthrough. Enable
+`allow-passthrough` in tmux and use a terminal supporting Kitty graphics. A
+nonempty `SSH_CONNECTION` or `SSH_TTY` makes automatic transport selection and
+DMA-BUF fallback skip shared memory. Empty values are ignored. These routing
+settings are captured at `start`, so changing shell variables during a session
+does not change how its frames or cleanup commands are sent. With `--tty`, set
+the routing variables for that destination before starting.
+
+Graphics and keyboard queries still depend on the multiplexer and terminal.
+Unsupported probes fail within a bounded timeout. Output goes to `/dev/tty` (or `--tty`),
+leaving stdout available for application data and diagnostics. A rejected
+`--tty` file receives no graphics or cleanup commands, and open failures report
+the original system error.
 
 If a probe receives no reply or the terminal rejects it, `start` reports the
-failed transport, `TERM` and `TERM_PROGRAM`, and suggests how to proceed.
-`XTERM_VERSION`, `TMUX`, and SSH variables add environment-specific guidance.
-These are hints only: names such as `xterm-256color` are shared by different
-terminals, and nested terminals can inherit another terminal's variables.
-The graphics probe decides whether presentation can start. XTerm ignores Kitty
-graphics commands, including when launched with `kilix run xterm`; run the
-examples directly in a Kitty or Kilix shell tab. For drawing and image export
+failed transport, `TERM` and `TERM_PROGRAM`, and suggests how to proceed. Rejected
+probes include the terminal's error text; displayed values are bounded and
+control characters are replaced. Local failures to prepare, send, or read a
+probe report that operation and the system error instead of claiming a missing
+graphics capability. `XTERM_VERSION`, tmux, and SSH add guidance where relevant.
+Terminal identity variables are hints only: names such as `xterm-256color` are
+shared by different terminals, and nested terminals can inherit another
+terminal's variables. The graphics probe decides whether presentation can
+start. XTerm ignores Kitty graphics commands, including when launched with
+`kilix run xterm`. Run the examples directly in a Kitty or Kilix shell tab.
+For drawing and image export
 without terminal graphics, use `gpu start W H --headless`.
 
 ## GPU shaders and DMA-BUF

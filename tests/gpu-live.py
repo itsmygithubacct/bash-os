@@ -45,7 +45,7 @@ def handle_result(args, data, target_window_id, boss):
     request_callback_with_thumbnail('gpu_test_capture', window.os_window_id, window.id, False, 1.0, 10000)
     return 'scheduled'
 """)
-    base_env = {k:v for k,v in os.environ.items() if k not in ('TMUX','SSH_CONNECTION')
+    base_env = {k:v for k,v in os.environ.items() if k not in ('TMUX','SSH_CONNECTION','SSH_TTY')
                 and not k.startswith(('KITTY_','KILIX_','GPU_TERMINAL_'))}
     base_env.update(GPU_LIVE_DIR=tmp, KILIX_SESSION_HOME=str(d/'session'),
                     KITTY_KILIX_RENDERING='1')

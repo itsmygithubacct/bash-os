@@ -31,6 +31,7 @@
 #define BG_TIMEOUT 1000
 typedef struct { int x, y, w, h; } bg_rect;
 typedef enum { BG_AUTO, BG_SHM, BG_INLINE, BG_DMABUF } bg_transport;
+typedef enum { BG_PROBE_SETUP, BG_PROBE_SEND, BG_PROBE_WAIT, BG_PROBE_REJECTED } bg_probe_phase;
 static const char *bg_transports[] = {"auto", "shm", "inline", "dmabuf"};
 
 static struct {
@@ -38,13 +39,15 @@ static struct {
     sr_canvas canvas, previous, output;
     unsigned char *rgba;
     int active, tty, fullscreen, displayed, image_slot, gpu_valid, output_valid;
+    int tmux, remote;
     int scroll_pending, scroll_x, scroll_y, sync_active, broken_packet;
     bg_rect scroll_rect;
     bg_transport requested, transport;
+    bg_probe_phase probe_phase;
     uint32_t image, probes;
     uint64_t nonce, serial, frames, bytes, patches, composes, fallbacks, readbacks, uploads;
     char shm[3][96], directory[108], socket_path[108], device[PATH_MAX];
-    char fallback[512], pending[4096];
+    char fallback[512], pending[4096], probe_detail[160];
     size_t pending_len;
     struct winsize size;
     char *fragment;
@@ -53,6 +56,25 @@ static struct {
 static int bg_exit_registered;
 static int bg_cleaning;
 static void bg_wait_shm(void);
+
+static int bg_env_set(const char *name)
+{
+    const char *value = getenv(name);
+    return value && *value;
+}
+
+/* Bound and sanitize both environment hints and terminal-supplied errors.
+   All callers provide at least four bytes for a terminator and ellipsis. */
+static void bg_label(const char *value, size_t length, char *label, size_t size)
+{
+    size_t count = length < size ? length : size - 4;
+    for (size_t i = 0; i < count; i++) {
+        unsigned char c = value[i];
+        label[i] = c >= 32 && c <= 126 ? c : '?';
+    }
+    if (count < length) { memcpy(label + count, "...", 3); count += 3; }
+    label[count] = 0;
+}
 
 static int64_t bg_now(void)
 {
@@ -96,7 +118,7 @@ static int bg_emit(const char *text)
 {
     size_t length = strlen(text);
     int graphics = strstr(text, BG_ESC "_G") != NULL;
-    if (!getenv("TMUX") || !graphics) {
+    if (!bg.tmux || !graphics) {
         int rc = bg_write(text, length);
         if (rc && graphics) bg.broken_packet = 1;
         return rc;
@@ -283,10 +305,17 @@ static int bg_take_reply(uint32_t id)
             unsigned got = 0; int offset = 0;
             if (sscanf(reply, "i=%u;%n", &got, &offset) == 1 && offset &&
                 got >= bg.image + 2 && got < bg.image + 2 + bg.probes) {
-                int ok = !strcmp(reply + offset, "OK");
+                size_t detail_len = len - (size_t)offset;
+                int ok = detail_len == 2 && !memcmp(reply + offset, "OK", 2);
                 bg_consume(i, j + 2 - i);
                 if (got == id) {
-                    if (!ok) errno = ENOTSUP;
+                    if (!ok) {
+                        bg_label(detail_len ? reply + offset : "(empty reply)",
+                            detail_len ? detail_len : strlen("(empty reply)"),
+                            bg.probe_detail, sizeof(bg.probe_detail));
+                        bg.probe_phase = BG_PROBE_REJECTED;
+                        errno = ENOTSUP;
+                    }
                     return ok ? 1 : -1;
                 }
                 removed = 1;
@@ -371,19 +400,22 @@ static int bg_probe(bg_transport transport)
     char control[160];
     int slot = -1, rc;
     struct termios saved;
+    bg.probe_phase = BG_PROBE_SETUP; bg.probe_detail[0] = 0;
     if (bg_raw(&saved, 0)) return -1;
     uint32_t id = bg.image + 2 + bg.probes++;
     if (transport == BG_SHM) {
         rc = bg_shm_create(pixel, sizeof(pixel), &slot);
         if (!rc) {
             snprintf(control, sizeof(control), "a=q,t=s,f=32,s=1,v=1,i=%u", id);
+            bg.probe_phase = BG_PROBE_SEND;
             rc = bg_packet(control, (unsigned char *)bg.shm[slot], strlen(bg.shm[slot]));
         }
     } else {
         snprintf(control, sizeof(control), "a=q,t=d,f=32,s=1,v=1,i=%u", id);
+        bg.probe_phase = BG_PROBE_SEND;
         rc = bg_packet(control, pixel, sizeof(pixel));
     }
-    if (!rc) rc = bg_reply(id);
+    if (!rc) { bg.probe_phase = BG_PROBE_WAIT; rc = bg_reply(id); }
     int error = errno;
     tcsetattr(bg.tty, TCSANOW, &saved);
     if (slot >= 0) { shm_unlink(bg.shm[slot]); bg.shm[slot][0] = 0; }
@@ -393,7 +425,7 @@ static int bg_probe(bg_transport transport)
 static int bg_fallback(void)
 {
     bg.fallbacks++;
-    if (!bg_probe(BG_SHM)) { bg.transport = BG_SHM; return 0; }
+    if (!bg.tmux && !bg.remote && !bg_probe(BG_SHM)) { bg.transport = BG_SHM; return 0; }
     if (!bg_probe(BG_INLINE)) { bg.transport = BG_INLINE; return 0; }
     return -1;
 }
@@ -643,46 +675,36 @@ done:
     return rc;
 }
 
-static int bg_env_set(const char *name)
-{
-    const char *value = getenv(name);
-    return value && *value;
-}
-
-/* Environment values are hints, not capability checks. Keep diagnostics on
-   one line and never echo terminal controls from an inherited value. */
 static void bg_env_label(const char *name, char label[64])
 {
     const char *value = getenv(name);
     if (!value || !*value) value = "(unset)";
-    size_t i = 0;
-    for (; i < 60 && value[i]; i++) {
-        unsigned char c = value[i];
-        label[i] = c >= 32 && c <= 126 ? c : '?';
-    }
-    if (value[i]) { memcpy(label + i, "...", 3); i += 3; }
-    label[i] = 0;
+    bg_label(value, strlen(value), label, 64);
 }
 
 static void bg_probe_error(bg_transport transport, int error)
 {
-    if (error != ETIMEDOUT && error != ENOTSUP) {
-        builtin_error("start: %s", strerror(error)); return;
+    int rejected = bg.probe_phase == BG_PROBE_REJECTED;
+    if (!rejected && !(bg.probe_phase == BG_PROBE_WAIT && error == ETIMEDOUT)) {
+        const char *stage = bg.probe_phase == BG_PROBE_SETUP ? "preparing Kitty graphics probe" :
+            bg.probe_phase == BG_PROBE_SEND ? "sending Kitty graphics probe" : "reading Kitty graphics reply";
+        builtin_error("start: %s (%s transport): %s", stage, bg_transports[transport], strerror(error));
+        return;
     }
     char term[64], program[64];
     bg_env_label("TERM", term); bg_env_label("TERM_PROGRAM", program);
-    builtin_error("start: Kitty graphics probe failed (%s, %s transport; TERM=%s, TERM_PROGRAM=%s)",
-        error == ETIMEDOUT ? "no reply from terminal" : "terminal rejected the request",
-        bg_transports[transport], term, program);
+    builtin_error("start: Kitty graphics probe failed (%s, %s transport; TERM=%s, TERM_PROGRAM=%s)%s%s",
+        rejected ? "terminal rejected the request" : "no reply from terminal",
+        bg_transports[transport], term, program, rejected ? ": " : "", bg.probe_detail);
     if (transport == BG_SHM)
         builtin_error("start: try --transport auto or --transport inline in a terminal with Kitty graphics support");
+    else if (bg_env_set("XTERM_VERSION"))
+        builtin_error("start: XTERM_VERSION is set; if using XTerm, run directly in Kitty or Kilix instead, or use --headless to save images");
     else
         builtin_error("start: use a terminal with Kitty graphics support, such as Kitty or Kilix, or --headless to draw and save images");
-    if (bg_env_set("XTERM_VERSION"))
-        builtin_error("start: XTERM_VERSION is set; if running inside XTerm, run directly in Kitty or Kilix instead (nested XTerm does not support Kitty graphics)");
-    if (bg_env_set("TMUX"))
+    if (bg.tmux)
         builtin_error("start: TMUX is set; enable allow-passthrough in tmux and check the outer terminal supports Kitty graphics");
-    if (bg_env_set("SSH_CONNECTION") || bg_env_set("SSH_TTY"))
+    if (bg.remote)
         builtin_error("start: SSH environment detected; the local terminal must support Kitty graphics");
 }
 
@@ -707,6 +729,8 @@ static int bg_start(int argc, char **argv)
     if ((headless && fullscreen) || (device && strlen(device) >= sizeof(bg.device))) return EX_USAGE;
     if (bg.active) { builtin_error("session already open; call gpu stop first"); return EXECUTION_FAILURE; }
     bg.active = 1; bg.owner = getpid(); bg.transport = bg.requested = transport;
+    bg.tmux = bg_env_set("TMUX");
+    bg.remote = bg_env_set("SSH_CONNECTION") || bg_env_set("SSH_TTY");
     if (getrandom(&bg.nonce, sizeof(bg.nonce), 0) != sizeof(bg.nonce) || bg_resize(width, height)) goto fail;
     bg.image = ((uint32_t)bg.nonce & 0x7ffffffc) + 4;
     if (device) strcpy(bg.device, device);
@@ -715,10 +739,20 @@ static int bg_start(int argc, char **argv)
         bg_exit_registered = 1;
     }
     if (headless) return EXECUTION_SUCCESS;
-    bg.tty = open(tty, O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
-    if (bg.tty < 0 || !isatty(bg.tty)) { errno = ENOTTY; goto fail; }
+    /* Do not let cleanup write image-deletion commands to a rejected file. */
+    int terminal = open(tty, O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+    if (terminal < 0) {
+        builtin_error("start: cannot open terminal: %s", strerror(errno));
+        bg_close(); return EXECUTION_FAILURE;
+    }
+    if (!isatty(terminal)) {
+        int error = errno; close(terminal);
+        builtin_error("start: cannot use terminal: %s", strerror(error));
+        bg_close(); return EXECUTION_FAILURE;
+    }
+    bg.tty = terminal;
     ioctl(bg.tty, TIOCGWINSZ, &bg.size);
-    if (transport == BG_AUTO && !getenv("SSH_CONNECTION") && !getenv("TMUX") && !bg_probe(BG_SHM))
+    if (transport == BG_AUTO && !bg.tmux && !bg.remote && !bg_probe(BG_SHM))
         bg.transport = BG_SHM;
     else {
         bg_transport probe_transport = transport == BG_SHM ? BG_SHM : BG_INLINE;

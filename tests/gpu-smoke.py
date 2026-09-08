@@ -44,7 +44,7 @@ def run(script, rc=0, env=None):
 class Terminal:
     def __init__(self, *, shm=True, respond=True, retain=False, keys=b'', resize=None,
                  dmabuf_ack=True, partial_reply=False, input_only=False, slow_keys=False,
-                 late_shm=False, inline=True, tmux=False):
+                 late_shm=False, inline=True, tmux=False, rejection=b'ENOENT', blocked_output=False):
         self.master,self.slave = pty.openpty()
         self.tty = os.ttyname(self.slave)
         fcntl.ioctl(self.slave,termios.TIOCSWINSZ,struct.pack('HHHH',30,100,800,480))
@@ -61,6 +61,7 @@ class Terminal:
         self.dmabuf_ack,self.partial_reply = dmabuf_ack,partial_reply
         self.input_only = input_only
         self.slow_keys,self.late_shm,self.inline,self.tmux = slow_keys,late_shm,inline,tmux
+        self.rejection,self.blocked_output = rejection,blocked_output
         self.late_reply = b''
         self.outer = b''
         self.dmabuf_records = []
@@ -138,7 +139,7 @@ class Terminal:
             if self.resize:
                 fcntl.ioctl(self.slave,termios.TIOCSWINSZ,struct.pack('HHHH',*self.resize))
                 self.resize = None
-            response = b'\x1b_Gi='+str(image_id).encode()+b';'+(b'OK' if success else b'ENOENT')+b'\x1b\\'
+            response = b'\x1b_Gi='+str(image_id).encode()+b';'+(b'OK' if success else self.rejection)+b'\x1b\\'
             if c.get(b't') == b's' and self.late_shm:
                 self.late_reply = response
                 return
@@ -236,9 +237,18 @@ class Terminal:
 
     def run(self,script,*,rc=0,env=None,controlling=False,signal_input=False):
         global checks
-        child_env = environment({'GPU_TEST_TTY':self.tty,'TERM':'xterm-256color',
+        child_env = environment({'GPU_TEST_TTY':self.tty,'TERM':'xterm-256color','LC_ALL':'C',
                                  'TERM_PROGRAM':None,'XTERM_VERSION':None,'TMUX':None,
                                  'SSH_CONNECTION':None,'SSH_TTY':None,**(env or {})})
+        if self.blocked_output:
+            flags = fcntl.fcntl(self.slave,fcntl.F_GETFL)
+            try:
+                fcntl.fcntl(self.slave,fcntl.F_SETFL,flags | os.O_NONBLOCK)
+                for size in (4096,1):
+                    while True:
+                        try: os.write(self.slave,b'x'*size)
+                        except BlockingIOError: break
+            finally: fcntl.fcntl(self.slave,fcntl.F_SETFL,flags)
         def acquire_tty():
             os.setsid()
             fcntl.ioctl(0,termios.TIOCSCTTY,0)
@@ -256,7 +266,8 @@ class Terminal:
                 if self.keys and self.input_only and not (termios.tcgetattr(self.slave)[3] & termios.ISIG):
                     os.write(self.master,self.keys[:1] if self.slow_keys else self.keys)
                     self.keys = self.keys[1:] if self.slow_keys else b''
-                if select.select([self.master],[],[],0.005 if self.slow_keys else 0.02)[0]:
+                if self.blocked_output: time.sleep(0.02)
+                elif select.select([self.master],[],[],0.005 if self.slow_keys else 0.02)[0]:
                     self.receive(os.read(self.master,65536))
             while select.select([self.master],[],[],0)[0]: self.receive(os.read(self.master,65536))
             stdout,stderr = p.communicate(timeout=1)
@@ -288,6 +299,16 @@ def main():
         run('gpu --help'); run('gpu stop; gpu stop'); run('gpu pixel 1 1 ff0000',rc=1)
         for args in ('0 1','10000 10000','1 nope','4 4 --transport wrong','4 4 --headless --fullscreen','4 4 --device'):
             run('gpu start '+args,rc=2)
+        not_tty = d/'not-a-terminal'
+        not_tty.write_bytes(b'preserve this file\n'*8)
+        term = Terminal()
+        term.run('gpu start 4 4 --tty "$GPU_TEST_DIR/not-a-terminal"',rc=1,env=env)
+        assert not_tty.read_bytes() == b'preserve this file\n'*8,'rejected --tty file was modified'
+        assert b'cannot use terminal' in term.stderr and term.counts['query'] == 0
+        term = Terminal()
+        term.run('gpu start 4 4 --tty "$GPU_TEST_DIR/missing-tty"',rc=1,env=env)
+        assert b'cannot open terminal: No such file or directory' in term.stderr
+        assert term.counts['query'] == 0
         run('gpu start 4 4 --headless; gpu start 4 4 --headless',rc=1)
         run('gpu start 4 4 --headless; gpu present',rc=1)
         run('gpu start 4 4 --headless; gpu clear abc',rc=2)
@@ -420,6 +441,7 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term = Terminal(shm=False)
         term.run(start+'--transport shm',rc=1)
         assert b'terminal rejected the request, shm transport' in term.stderr
+        assert b': ENOENT' in term.stderr
         assert b'--transport auto or --transport inline' in term.stderr
         term = Terminal(respond=False)
         before = time.monotonic()
@@ -432,6 +454,19 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term = Terminal(late_shm=True,inline=False)
         term.run(start+'--transport auto',rc=1)
         assert b'terminal rejected the request, inline transport' in term.stderr
+        assert b': ENOENT' in term.stderr
+        term = Terminal(inline=False,rejection=b'EPERM: denied\n\x1b]2;title\x07\x00'+b'x'*300)
+        term.run(start+'--transport inline',rc=1)
+        assert b': EPERM: denied??]2;title??' in term.stderr and b'...' in term.stderr
+        assert b'\x1b' not in term.stderr and b'\x07' not in term.stderr and b'\x00' not in term.stderr
+        assert term.stderr.count(b'\n') == 2 and len(term.stderr) < 600
+        term = Terminal(inline=False,rejection=b'OK\x00invalid acknowledgement')
+        term.run(start+'--transport inline',rc=1)
+        assert b'terminal rejected the request' in term.stderr and b'OK?invalid acknowledgement' in term.stderr
+        term = Terminal(blocked_output=True)
+        term.run(start+'--transport inline',rc=1)
+        assert b'sending Kitty graphics probe (inline transport):' in term.stderr
+        assert b'no reply from terminal' not in term.stderr and b'Kitty graphics support' not in term.stderr
         nested_env = {'TERM':'xterm','TERM_PROGRAM':'kitty','XTERM_VERSION':'XTerm(398)',
                       'KITTY_WINDOW_ID':'42','KITTY_KILIX_RENDERING':'1'}
         term = Terminal(respond=False)
@@ -439,7 +474,7 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         assert term.counts['query'] == 2
         assert b'XTERM_VERSION is set' in term.stderr
         assert b'run directly in Kitty or Kilix' in term.stderr
-        assert b'nested XTerm does not support Kitty graphics' in term.stderr
+        assert b'--headless' in term.stderr and term.stderr.count(b'\n') == 2
         for hints in (nested_env,{'TERM':'xterm-256color'},{'TERM':'dumb'},{'TERM':None}):
             term = Terminal()
             term.run('gpu start 4 4 --headless; gpu stop\n'+start+'--transport inline',env=hints)
@@ -450,6 +485,13 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term = Terminal(respond=False)
         term.run(start+'--transport auto',rc=1,env={'SSH_CONNECTION':'gpu-test'})
         assert term.counts['query'] == 1 and b'the local terminal must support Kitty graphics' in term.stderr
+        for name in ('TMUX','SSH_CONNECTION','SSH_TTY'):
+            term = Terminal()
+            out = term.run(start+'--transport auto; gpu info',env={name:''})
+            assert b'transport=shm' in out and b'\x1bPtmux;' not in term.stream and not term.stderr
+        term = Terminal()
+        out = term.run(start+'--transport auto; gpu info',env={'SSH_TTY':'gpu-test'})
+        assert b'transport=inline' in out and not term.shm_names
         term = Terminal(respond=False)
         term.run(start+'--transport inline',rc=1,
                  env={'TERM':'bad\n\x1b]2;title\x07'+100*'x','TERM_PROGRAM':'bad\r\x1b[31m'})
@@ -457,14 +499,22 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         assert b'\x1b' not in term.stderr and b'\x07' not in term.stderr and b'\r' not in term.stderr
         assert term.stderr.count(b'\n') == 2 and len(term.stderr) < 512
         term = Terminal(tmux=True)
-        term.run(start+'--transport inline\ngpu clear 123456; gpu present; gpu pixel 3 4 ff0000; gpu present',
+        term.run(start+'--transport inline\nunset TMUX; gpu clear 123456; gpu present; gpu pixel 3 4 ff0000; gpu present',
                  env={'TMUX':'gpu-test'})
         assert term.counts['full'] == 1 and term.counts['patch'] == 1
+        term = Terminal()
+        term.run(start+'--transport inline\nexport TMUX=gpu-test; gpu clear 123456; gpu present')
+        assert term.counts['full'] == 1 and b'\x1bPtmux;' not in term.stream
         term = Terminal()
         out = term.run(start+'--transport dmabuf\ngpu clear 0000ff; gpu present; gpu info',
                        env={'BASHOS_GPU_GBM_LIB':'/nonexistent-bashos-gpu-library'})
         assert b'transport=shm' in out and b'fallbacks=1' in out
         assert term.last_frame == bytes((0,0,255,255))*768
+        term = Terminal()
+        out = term.run(start+'--transport dmabuf\nunset SSH_TTY; gpu clear 0000ff; gpu present; gpu info',
+                       env={'SSH_TTY':'gpu-test','BASHOS_GPU_GBM_LIB':'/nonexistent-bashos-gpu-library'})
+        assert b'transport=inline' in out and b'fallbacks=1' in out and not term.shm_names
+        assert term.counts['query'] == 2 and term.last_frame == bytes((0,0,255,255))*768
         term = Terminal(keys=b'q\x1b[A\xc3\xa9\x1b[<0;10;12M')
         out = term.run(start+'--transport inline --fullscreen\n'+'''for ((i=0;i<4;i++)); do
     gpu input key 100
