@@ -1189,6 +1189,11 @@
       "applet": null,
       "scope": "Interactive graphics demo; frame time and terminal traffic are the useful metrics."
     },
+    "zstd": {
+      "program": "zstd",
+      "applet": null,
+      "scope": "Default-level stdin compress/decompress; validate by round-trip, not frame bytes."
+    },
     "zstdcat": {
       "program": "zstdcat",
       "applet": null,
@@ -1419,6 +1424,11 @@
     "cp": {
       "next": "Preserve the existing destination when a forced copy cannot read its source; establish dedicated copy, link, metadata and failure-recovery coverage.",
       "finding": "An unreadable source causes forced copy to delete the existing destination before failing."
+    },
+    "zstd": {
+      "note": "Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain.",
+      "evidence": "docs/zstd.md",
+      "next": "See the dedicated zstd report; extend sizes and levels if a slower case appears."
     }
   },
   "repeat_input_findings": [

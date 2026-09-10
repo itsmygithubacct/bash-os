@@ -53,4 +53,41 @@ with tempfile.TemporaryDirectory(prefix='loadable-bench-test-') as directory:
             assert actual['status'] == 'batch-mismatch', (name, actual)
             assert 'median_ms' not in actual, (name, actual)
         print(f'PASS {name}: {actual["status"]}')
-print(f'bench-loadables: {len(variants)} producer scenarios passed')
+
+    # The uname case is a newly added query builtin. Drive the same shipped
+    # harness: a later invocation that changes output must not get a timing.
+    uname_variants = {
+        'uname-valid': "printf 'Linux\\n'",
+        'uname-missing': ':',
+        'uname-changed': "printf 'Other\\n'",
+    }
+    for name, second_record in uname_variants.items():
+        prefix = ('uname_test_calls=0\nuname() { '
+                  'uname_test_calls=$((uname_test_calls + 1)); '
+                  f'if [[ $uname_test_calls -eq 2 ]]; then {second_record}; '
+                  f'else printf "Linux\\n"; fi; return 0; }}\n')
+        binary = scratch / f'shell-{name}'
+        binary.write_text('#!/usr/bin/python3\nimport os, sys\n'
+                          'args = sys.argv[1:]\n'
+                          'if "-c" in args:\n'
+                          '    index = args.index("-c") + 1\n'
+                          f'    args[index] = {prefix!r} + args[index]\n'
+                          'os.execv("/bin/bash", ["/bin/bash", *args])\n')
+        binary.chmod(0o700)
+        report = scratch / f'{name}.json'
+        result = subprocess.run(
+            ['python3', str(ROOT / 'bench/loadables.py'), '--binary', str(binary),
+             '--busybox', '', '--only', 'uname', '--quick', '--output', str(report)],
+            capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (name, result.stdout, result.stderr)
+        case, = json.loads(report.read_text())['cases']
+        assert case['validation_passes'] >= 3
+        assert case['results']['external']['status'] == 'ok', case
+        actual = case['results']['bashos']
+        if name == 'uname-valid':
+            assert actual['status'] == 'ok' and actual['median_ms'] > 0, actual
+        else:
+            assert actual['status'] == 'batch-mismatch', (name, actual)
+            assert 'median_ms' not in actual, (name, actual)
+        print(f'PASS {name}: {actual["status"]}')
+print(f'bench-loadables: {len(variants) + len(uname_variants)} producer scenarios passed')

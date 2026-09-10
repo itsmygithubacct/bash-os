@@ -43,6 +43,13 @@ and remaining limits. Reproduce it with `python3 bench/tac.py --before OLD_BINAR
 --after NEW_BINARY --cpu N --runs 7 --output /tmp/tac.json`; both binaries
 must include `tac`. Keep the builds and CPU fixed and serialize timed runs.
 
+The [zstd report](../docs/zstd.md) compares the builtin with host `zstd(1)` on
+stdin compress and decompress. Frames are not byte-identical, so validation is
+a GNU round-trip rather than an exact match. Reproduce it with
+`python3 bench/zstd.py --binary out/bash --cpu N --runs 7 --output /tmp/zstd.json`.
+The binary must include `zstd`. BusyBox has no applet in the Debian builds
+this has been run against.
+
 ## Whole scripts
 
 `bench/run.sh` runs the same POSIX `sh` scripts under three userlands and

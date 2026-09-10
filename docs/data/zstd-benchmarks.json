@@ -1,0 +1,319 @@
+{
+  "schema": 1,
+  "command": "zstd",
+  "date": "2026-09-10T21:52:42Z",
+  "source_commit": "66320238ad5e74d6f231b874bd55a400cbc98a59",
+  "binary": "bash",
+  "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
+  "kernel": "6.12.96+deb13-amd64",
+  "architecture": "x86_64",
+  "cpus": [
+    11
+  ],
+  "load_average_start": [
+    6.43896484375,
+    6.98486328125,
+    8.0263671875
+  ],
+  "runs": 7,
+  "method": "Same bash-os shell; builtin or absolute /usr/bin/zstd; median untraced batch wall time; stdout /dev/null; warm file cache. Compress validation is GNU zstd -d of the captured frame; decompress validation is byte identity with the original fixture. Frames themselves are not compared.",
+  "cpu_model": "Intel(R) Core(TM) i7-9850H CPU @ 2.60GHz",
+  "versions": {
+    "bash": "GNU bash, version 5.3.15(1)-release (x86_64-pc-linux-gnu)",
+    "zstd": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary."
+  },
+  "libzstd": "libzstd.so.1 => /lib/x86_64-linux-gnu/libzstd.so.1 (0x00007f4e2ba46000)",
+  "cases": [
+    {
+      "id": "compress-text",
+      "loadable": "zstd",
+      "mode": "compress",
+      "args": [
+        "-c",
+        "-"
+      ],
+      "fixture": "text",
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 49.486,
+          "min_ms": 45.782,
+          "max_ms": 61.16,
+          "runs_ms": [
+            49.486,
+            45.782,
+            47.315,
+            51.094,
+            61.16,
+            57.871,
+            46.905
+          ]
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 151.354,
+          "min_ms": 147.747,
+          "max_ms": 181.635,
+          "runs_ms": [
+            159.328,
+            158.795,
+            149.644,
+            150.776,
+            147.747,
+            151.354,
+            181.635
+          ]
+        }
+      },
+      "frames": {
+        "bashos": {
+          "bytes": 77236,
+          "sha256": "3e4685fc8c6087b2f0334b6c5c29e1aa62f40086b5afc4a10e93e75785e89b54"
+        },
+        "external": {
+          "bytes": 77237,
+          "sha256": "8374a837bba6315e035f7fa31f6fcdd687881ce0e667823667fd02836486926b"
+        }
+      },
+      "passes": 33,
+      "validation_passes": 33
+    },
+    {
+      "id": "compress-blob",
+      "loadable": "zstd",
+      "mode": "compress",
+      "args": [
+        "-c",
+        "-"
+      ],
+      "fixture": "blob",
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 45.168,
+          "min_ms": 40.38,
+          "max_ms": 56.876,
+          "runs_ms": [
+            47.916,
+            56.876,
+            48.556,
+            43.307,
+            45.168,
+            40.38,
+            44.016
+          ]
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 169.623,
+          "min_ms": 160.489,
+          "max_ms": 179.675,
+          "runs_ms": [
+            162.555,
+            164.988,
+            177.433,
+            172.791,
+            169.623,
+            179.675,
+            160.489
+          ]
+        }
+      },
+      "frames": {
+        "bashos": {
+          "bytes": 363,
+          "sha256": "8384e15a218d7ceee9000d4d8b8b9befeecbfcae2e809f86070413e661a629db"
+        },
+        "external": {
+          "bytes": 364,
+          "sha256": "c91ca3e4dc9a009bdc0bc3fd93e60c0cfbc2efb24173cb5fa8ddf1baac4abace"
+        }
+      },
+      "passes": 41,
+      "validation_passes": 41
+    },
+    {
+      "id": "decompress-text",
+      "loadable": "zstd",
+      "mode": "decompress",
+      "args": [
+        "-d",
+        "-c",
+        "-"
+      ],
+      "fixture": "text.zst",
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 39.639,
+          "min_ms": 29.729,
+          "max_ms": 47.259,
+          "runs_ms": [
+            30.219,
+            39.639,
+            36.088,
+            44.982,
+            47.259,
+            43.741,
+            29.729
+          ]
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 156.202,
+          "min_ms": 126.429,
+          "max_ms": 178.563,
+          "runs_ms": [
+            126.429,
+            152.132,
+            156.202,
+            164.37,
+            131.455,
+            164.113,
+            178.563
+          ]
+        }
+      },
+      "passes": 45,
+      "validation_passes": 45
+    },
+    {
+      "id": "decompress-blob",
+      "loadable": "zstd",
+      "mode": "decompress",
+      "args": [
+        "-d",
+        "-c",
+        "-"
+      ],
+      "fixture": "blob.zst",
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 20.964,
+          "min_ms": 16.254,
+          "max_ms": 28.48,
+          "runs_ms": [
+            16.64,
+            16.254,
+            22.045,
+            20.964,
+            28.188,
+            28.48,
+            20.062
+          ]
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 181.932,
+          "min_ms": 155.597,
+          "max_ms": 187.98,
+          "runs_ms": [
+            155.597,
+            187.98,
+            182.18,
+            181.932,
+            163.21,
+            184.904,
+            181.401
+          ]
+        }
+      },
+      "passes": 62,
+      "validation_passes": 62
+    }
+  ],
+  "fixtures": {
+    "empty": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "text": {
+      "bytes": 423000,
+      "sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee"
+    },
+    "copy": {
+      "bytes": 423000,
+      "sha256": "fb6bb6eb8b1cfd98fb3003298131a665522fd5b2df04e7d9c7574a2dd63241ee"
+    },
+    "numbers": {
+      "bytes": 369296,
+      "sha256": "fc2b8203a5e4f2add44ab8b0e2969ab2bed449db7c0d2575a37ec45e5b1f275d"
+    },
+    "duplicates": {
+      "bytes": 1680000,
+      "sha256": "27b777784c9b2451929fb1bcc63c125b2889c2cd41423422616b97d662bdded6"
+    },
+    "left": {
+      "bytes": 120000,
+      "sha256": "2c5464ec33f4f39052d5c5f60f8c3c21c3684b682e6aa56905998d21731d70ce"
+    },
+    "right": {
+      "bytes": 65000,
+      "sha256": "49f2849d2abdd0caebfe0aaa3d4e2132b917950d48c3aab0fe5ea66f0a8ea7f7"
+    },
+    "tabs": {
+      "bytes": 340000,
+      "sha256": "74d1f666fd82d6efeabf216977af7ff24937cedf2d5eceeec89112066c529a9a"
+    },
+    "spaces": {
+      "bytes": 440000,
+      "sha256": "25278250aad7572498dafabd623d99472c481b303934a68dfea07e13d22848a0"
+    },
+    "bytes": {
+      "bytes": 65536,
+      "sha256": "7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2"
+    },
+    "blob": {
+      "bytes": 1048576,
+      "sha256": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83"
+    },
+    "records": {
+      "bytes": 162830,
+      "sha256": "5906ae008da5b44553238be62e56a2b9c08fa3c550a1cef1b757f339e7f83d14"
+    },
+    "array": {
+      "bytes": 39109,
+      "sha256": "3c6ee3ce155c2db8fa11c02479963dc4f050d1abb6356137411010f375e74bdb"
+    },
+    "object": {
+      "bytes": 39133,
+      "sha256": "4c92fdaf0d2c7dbb0e0d0a1f01ac97ccb2f029a94e3862a41191a7820e35fed0"
+    },
+    "arithmetic": {
+      "bytes": 18,
+      "sha256": "e7361793f23d4b1b51c8c89f7b4d86d99c0ab43fd1d5215f5817ff4bda489b33"
+    },
+    "text.zst": {
+      "bytes": 77237,
+      "sha256": "8374a837bba6315e035f7fa31f6fcdd687881ce0e667823667fd02836486926b",
+      "producer": "gnu-zstd -c -q -"
+    },
+    "blob.zst": {
+      "bytes": 364,
+      "sha256": "c91ca3e4dc9a009bdc0bc3fd93e60c0cfbc2efb24173cb5fa8ddf1baac4abace",
+      "producer": "gnu-zstd -c -q -"
+    }
+  },
+  "load_average_end": [
+    6.564453125,
+    7.001953125,
+    8.02587890625
+  ],
+  "catalog_source_commit": "97284d62efcf57067557540861b6a81577b841c6",
+  "catalog_binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
+  "note": "Timed against the catalog full binary on the catalog host and CPU. git HEAD is later; zstd.c is unchanged since the catalog snapshot. Contention recorded, not gated."
+}

@@ -88,6 +88,12 @@ def cases():
     add('expr', ['123', '*', '456'], fixture='empty', maximum=200)
     add('crypto', ['sha256', '-x'], fixture='blob', host='sha256sum',
         host_args=[], normalizer='digest')
+    add('uname', fixture='empty', maximum=200)
+    add('whoami', fixture='empty', maximum=200)
+    add('logname', fixture='empty', maximum=200)
+    add('hostname', fixture='empty', maximum=200)
+    add('id', ['-u'], label='id-uid', fixture='empty', maximum=200)
+    add('printenv', ['LC_ALL'], label='printenv-lcall', fixture='empty', maximum=200)
     return rows
 
 
