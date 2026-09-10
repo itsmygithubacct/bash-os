@@ -3238,6 +3238,472 @@
           "max_ms": 47.144
         }
       }
+    },
+    {
+      "id": "rm",
+      "loadable": "rm",
+      "args": [
+        "-f",
+        "nosuch"
+      ],
+      "fixture": "empty",
+      "host": "rm",
+      "applet": "rm",
+      "host_args": [
+        "-f",
+        "nosuch"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 17,
+      "validation_passes": 17,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 22.753,
+          "min_ms": 19.229,
+          "max_ms": 41.72
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 159.692,
+          "min_ms": 116.034,
+          "max_ms": 271.487
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 183.164,
+          "min_ms": 127.944,
+          "max_ms": 242.73
+        }
+      }
+    },
+    {
+      "id": "chown",
+      "loadable": "chown",
+      "args": [
+        "pleb",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "chown",
+      "applet": "chown",
+      "host_args": [
+        "pleb",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 13,
+      "validation_passes": 13,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 39.907,
+          "min_ms": 31.812,
+          "max_ms": 53.602
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 164.001,
+          "min_ms": 146.816,
+          "max_ms": 227.167
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 169.31,
+          "min_ms": 128.376,
+          "max_ms": 206.48
+        }
+      }
+    },
+    {
+      "id": "chgrp",
+      "loadable": "chgrp",
+      "args": [
+        "pleb",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "chgrp",
+      "applet": "chgrp",
+      "host_args": [
+        "pleb",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 8,
+      "validation_passes": 8,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 54.855,
+          "min_ms": 32.877,
+          "max_ms": 71.641
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 117.169,
+          "min_ms": 112.502,
+          "max_ms": 129.365
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 139.735,
+          "min_ms": 101.686,
+          "max_ms": 157.613
+        }
+      }
+    },
+    {
+      "id": "sleep",
+      "loadable": "sleep",
+      "args": [
+        "0"
+      ],
+      "fixture": "empty",
+      "host": "sleep",
+      "applet": "sleep",
+      "host_args": [
+        "0"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 11,
+      "validation_passes": 11,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 28.869,
+          "min_ms": 21.177,
+          "max_ms": 44.255
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 113.526,
+          "min_ms": 85.44,
+          "max_ms": 150.344
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 139.573,
+          "min_ms": 107.998,
+          "max_ms": 171.519
+        }
+      }
+    },
+    {
+      "id": "nice",
+      "loadable": "nice",
+      "args": [
+        "-n",
+        "0",
+        "/bin/true"
+      ],
+      "fixture": "empty",
+      "host": "nice",
+      "applet": "nice",
+      "host_args": [
+        "-n",
+        "0",
+        "/bin/true"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 57.931,
+          "min_ms": 41.45,
+          "max_ms": 83.059
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 102.763,
+          "min_ms": 81.621,
+          "max_ms": 121.933
+        }
+      }
+    },
+    {
+      "id": "nohup",
+      "loadable": "nohup",
+      "args": [
+        "/bin/true"
+      ],
+      "fixture": "empty",
+      "host": "nohup",
+      "applet": "nohup",
+      "host_args": [
+        "/bin/true"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 6,
+      "validation_passes": 6,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 61.035,
+          "min_ms": 47.528,
+          "max_ms": 86.081
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 80.196,
+          "min_ms": 59.733,
+          "max_ms": 99.637
+        }
+      }
+    },
+    {
+      "id": "setsid",
+      "loadable": "setsid",
+      "args": [
+        "/bin/true"
+      ],
+      "fixture": "empty",
+      "host": "setsid",
+      "applet": "setsid",
+      "host_args": [
+        "/bin/true"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 77.859,
+          "min_ms": 63.187,
+          "max_ms": 99.519
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 114.652,
+          "min_ms": 90.936,
+          "max_ms": 159.139
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 127.635,
+          "min_ms": 86.716,
+          "max_ms": 192.672
+        }
+      }
+    },
+    {
+      "id": "flock",
+      "loadable": "flock",
+      "args": [
+        "-n",
+        "lockfile",
+        "/bin/true"
+      ],
+      "fixture": "empty",
+      "host": "flock",
+      "applet": "flock",
+      "host_args": [
+        "-n",
+        "lockfile",
+        "/bin/true"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 83.79,
+          "min_ms": 68.741,
+          "max_ms": 123.507
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 134.493,
+          "min_ms": 111.463,
+          "max_ms": 162.577
+        }
+      }
+    },
+    {
+      "id": "taskset",
+      "loadable": "taskset",
+      "args": [
+        "-p",
+        "1"
+      ],
+      "fixture": "empty",
+      "host": "taskset",
+      "applet": "taskset",
+      "host_args": [
+        "-p",
+        "1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 21,
+      "validation_passes": 21,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 25.579,
+          "min_ms": 18.198,
+          "max_ms": 43.869
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 159.312,
+          "min_ms": 144.815,
+          "max_ms": 170.64
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 173.561,
+          "min_ms": 165.508,
+          "max_ms": 220.959
+        }
+      }
+    },
+    {
+      "id": "ionice",
+      "loadable": "ionice",
+      "args": [
+        "-p",
+        "1"
+      ],
+      "fixture": "empty",
+      "host": "ionice",
+      "applet": "ionice",
+      "host_args": [
+        "-p",
+        "1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 14,
+      "validation_passes": 14,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 24.161,
+          "min_ms": 18.67,
+          "max_ms": 37.959
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 128.491,
+          "min_ms": 98.747,
+          "max_ms": 137.818
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 123.017,
+          "min_ms": 98.11,
+          "max_ms": 169.011
+        }
+      }
+    },
+    {
+      "id": "env",
+      "loadable": "env",
+      "args": [
+        "-i",
+        "FOO=bar",
+        "/usr/bin/printenv",
+        "FOO"
+      ],
+      "fixture": "empty",
+      "host": "env",
+      "applet": "env",
+      "host_args": [
+        "-i",
+        "FOO=bar",
+        "/usr/bin/printenv",
+        "FOO"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 8,
+      "validation_passes": 8,
+      "date": "2026-09-10T22:06:01Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 72.071,
+          "min_ms": 62.547,
+          "max_ms": 109.17
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 114.899,
+          "min_ms": 90.933,
+          "max_ms": 139.087
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 123.814,
+          "min_ms": 101.644,
+          "max_ms": 160.989
+        }
+      }
     }
   ]
 }

@@ -376,9 +376,8 @@ timeout_builtin (WORD_LIST *list)
         setpgid (child, child);  /* close parent/child process-group setup race */
     free (argv);
 
-    /* Parent: poll waitpid+clock_gettime instead of arming SIGALRM.
-       Bash also manages SIGALRM (TMOUT / read -t) so signal-based
-       timing is fragile. 50ms poll is cheap. */
+    /* Parent: SIGCHLD is blocked, so wait with sigtimedwait rather than
+       SIGALRM (Bash owns TMOUT / read -t) or a 50ms poll. */
     struct timespec start, now;
     clock_gettime (CLOCK_MONOTONIC, &start);
 
@@ -395,25 +394,52 @@ timeout_builtin (WORD_LIST *list)
             sigprocmask (SIG_SETMASK, &prev_set, NULL);
             return 125;
         }
-        /* r == 0 — child still alive. Check elapsed time. */
         clock_gettime (CLOCK_MONOTONIC, &now);
         double elapsed = (double)(now.tv_sec - start.tv_sec)
                        + (double)(now.tv_nsec - start.tv_nsec) / 1e9;
         /* DURATION of 0 disables the timeout (run CMD to completion), matching
            timeout(1): "A duration of 0 disables the associated timeout." */
-        if (!timed_out && duration > 0 && elapsed >= duration) {
-            if (verbose) bto_verbose_signal (sig, cmd_name);
-            bto_kill_pg (child, sig);
-            timed_out = 1;
-            elapsed_at_signal = elapsed;
-        } else if (timed_out && !killed_hard && kill_after > 0
-                   && elapsed >= elapsed_at_signal + kill_after) {
-            if (verbose) bto_verbose_signal (SIGKILL, cmd_name);
-            bto_kill_pg (child, SIGKILL);
-            killed_hard = 1;
+        double deadline = -1;
+        if (!timed_out && duration > 0)
+            deadline = duration;
+        else if (timed_out && !killed_hard && kill_after > 0)
+            deadline = elapsed_at_signal + kill_after;
+        if (deadline >= 0 && elapsed >= deadline) {
+            if (!timed_out) {
+                if (verbose) bto_verbose_signal (sig, cmd_name);
+                bto_kill_pg (child, sig);
+                timed_out = 1;
+                elapsed_at_signal = elapsed;
+            } else {
+                if (verbose) bto_verbose_signal (SIGKILL, cmd_name);
+                bto_kill_pg (child, SIGKILL);
+                killed_hard = 1;
+            }
+            continue;
         }
-        struct timespec slp = { 0, 50 * 1000 * 1000 };  /* 50ms */
-        nanosleep (&slp, NULL);
+        if (killed_hard || deadline < 0) {
+            r = waitpid (child, &status, 0);
+            if (r == child) break;
+            if (r < 0 && errno == EINTR) continue;
+            if (r < 0) {
+                builtin_error ("waitpid: %s", strerror (errno));
+                sigprocmask (SIG_SETMASK, &prev_set, NULL);
+                return 125;
+            }
+            continue;
+        }
+        double remain = deadline - elapsed;
+        struct timespec wait_ts;
+        wait_ts.tv_sec = (time_t) remain;
+        wait_ts.tv_nsec = (long) ((remain - (double) wait_ts.tv_sec) * 1e9);
+        if (wait_ts.tv_nsec < 0) wait_ts.tv_nsec = 0;
+        if (wait_ts.tv_nsec >= 1000000000L) {
+            wait_ts.tv_sec += 1;
+            wait_ts.tv_nsec -= 1000000000L;
+        }
+        if (sigtimedwait (&chld_set, NULL, &wait_ts) < 0
+            && errno != EAGAIN && errno != EINTR)
+            continue;
     }
 
     /* Restore the prior signal mask before returning. */

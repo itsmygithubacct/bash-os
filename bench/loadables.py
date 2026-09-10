@@ -102,6 +102,17 @@ def cases():
     add('pathchk', ['text'], fixture='empty', maximum=200)
     add('ln', ['-f', 'text', 'lnout'], fixture='empty', output='lnout', maximum=200)
     add('sync', fixture='empty', maximum=20)
+    add('rm', ['-f', 'nosuch'], fixture='empty', maximum=200)
+    add('chown', ['pleb', 'text'], fixture='empty', maximum=200)
+    add('chgrp', ['pleb', 'text'], fixture='empty', maximum=200)
+    add('sleep', ['0'], fixture='empty', maximum=200)
+    add('nice', ['-n', '0', '/bin/true'], fixture='empty', maximum=200)
+    add('nohup', ['/bin/true'], fixture='empty', maximum=200)
+    add('setsid', ['/bin/true'], fixture='empty', maximum=200)
+    add('flock', ['-n', 'lockfile', '/bin/true'], fixture='empty', maximum=200)
+    add('taskset', ['-p', '1'], fixture='empty', maximum=200)
+    add('ionice', ['-p', '1'], fixture='empty', maximum=200)
+    add('env', ['-i', 'FOO=bar', '/usr/bin/printenv', 'FOO'], fixture='empty', maximum=200)
     return rows
 
 

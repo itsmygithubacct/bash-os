@@ -47,7 +47,7 @@ assigned: a forced copy can delete the old destination when its source cannot
 be read.
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **63 cases covering 59 loadables**; 54 loadables passed the selected output checks, 5 have confirmed correctness findings. The other 220 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **74 cases covering 70 loadables**; 65 loadables passed the selected output checks, 5 have confirmed correctness findings. The other 209 have no individual command timings here; GPU transport measurements are reported separately.
 
 Separate [untimed checks](#additional-correctness-checks) record 12 further correctness findings.
 
@@ -176,9 +176,9 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`caps`](../loadables/caps.c) | S F | [Smoke](../tests/system-smoke.sh) | —; capsh / setpriv | N/M | P3 | Add behavioral fixtures, then timing. |
 | `cat`* | P C D S T F | [Contract](../tests/host-smoke.sh) | cat; cat | 12.687 / 129.153 / 142.050; [cat](#case-cat), 68 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`chattr`](../loadables/chattr.c) | D S F | Build/help | —; chattr | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`chgrp`](../loadables/chgrp.c) | C D S T F | Build/help | chgrp; chgrp | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`chgrp`](../loadables/chgrp.c) | C D S T F | [Bench checked](#case-chgrp) | chgrp; chgrp | 54.855 / 139.735 / 117.169; [chgrp](#case-chgrp), 8 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `chmod`* | P C D S T F | [Bench checked](#case-chmod) | chmod; chmod | 5.552 / 112.928 / 106.084; [chmod](#case-chmod), 100 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`chown`](../loadables/chown.c) | C D S T F | Build/help | chown; chown | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`chown`](../loadables/chown.c) | C D S T F | [Bench checked](#case-chown) | chown; chown | 39.907 / 169.310 / 164.001; [chown](#case-chown), 13 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`chrt`](../loadables/chrt.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | —; chrt | N/M | P3 | Add a matched workload and timing. |
 | [`cksum`](../loadables/cksum.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; cksum | 58.118 / — / 126.292; [cksum](#case-cksum), 30 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`claude`](../loadables/claude.c) | F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -213,7 +213,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`doas`](../loadables/doas.c) | S F | [Negative checks](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; doas (missing) | N/M | P3 | Add credential-transition and policy fixtures before benchmarking authentication. |
 | [`du`](../loadables/du.c) | C D S T F | [Correctness bug](#additional-correctness-checks) | du; du | N/M | P1 | Integrate the reviewed traversal, allocation and output-error fixes in the next batch, then validate and remeasure. Assigned to coordinator (next batch). |
 | [`ed`](../loadables/ed.c) | C D S T F | Build/help | ed; ed (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`env`](../loadables/env.c) | C D S T F | [Contract](../tests/regressions.py) | env; env | N/M | P3 | Add a matched workload and timing. |
+| [`env`](../loadables/env.c) | C D S T F | [Contract](../tests/regressions.py) | env; env | 72.071 / 123.814 / 114.899; [env](#case-env), 8 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`escdelay`](../loadables/escdelay.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`expand`](../loadables/expand.c) | C D S T F | [Parity](../tests/expand-parity.py); [limited](#scope-notes); [S](../tests/expand-sanitize.sh) | expand; expand | 78.072 / 333.488 / 108.563; [expand](#case-expand), 20 passes | P3 | Decide required option scope; see limitations. |
 | [`expect`](../loadables/expect.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; expect (missing) | N/M | P3 | Add a matched workload and timing. |
@@ -226,7 +226,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`fincore`](../loadables/fincore.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; fincore | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`find`](../loadables/find.c) | C D S T F | [Contract](../tests/regressions.py) | find; find | 32.276 / 138.756 / 142.607; [find](#case-find), 53 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `finfo`* | D S F | Build/help | stat; stat | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`flock`](../loadables/flock.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | —; flock | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`flock`](../loadables/flock.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | —; flock | 83.790 / — / 134.493; [flock](#case-flock), 9 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `fltexpr`* | D S F | Build/help | awk; awk / bc | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`fold`](../loadables/fold.c) | C D S T F | [Parity](../tests/fold-parity.py); [limited](#scope-notes); [S](../tests/fold-sanitize.sh) | fold; fold | 40.649 / 132.239 / 99.830; [fold](#case-fold), 16 passes | P3 | Decide required option scope; see limitations. |
 | [`free`](../loadables/free.c) | C D S T F | Build/help | free; free | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -251,7 +251,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | `id`* | P C D S T F | [Contract](../tests/rootfs-smoke.sh) | id; id | 4.553 / 89.266 / 77.098; [id-uid](#case-id-uid), 60 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`index`](../loadables/index.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; git update-index | N/M | P3 | Add a matched workload and timing. |
 | [`integrity`](../loadables/integrity.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
-| [`ionice`](../loadables/ionice.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | ionice; ionice | N/M | P3 | Add a matched workload and timing. |
+| [`ionice`](../loadables/ionice.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | ionice; ionice | 24.161 / 123.017 / 128.491; [ionice](#case-ionice), 14 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`ip`](../loadables/ip.c) | D S F | Build/help | ip; ip | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ipcctl`](../loadables/ipcctl.c) | D S F | Build/help | ipcs (not in build); ipcs / ipcrm | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ipcmk`](../loadables/ipcmk.c) | D S F | Build/help | —; ipcmk | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -292,9 +292,9 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`ncdu`](../loadables/ncdu.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; ncdu | N/M | P3 | Add a matched workload and timing. |
 | [`netids`](../loadables/netids.c) | S F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; suricata (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`netstat`](../loadables/netstat.c) | D S F | Build/help | netstat; netstat (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`nice`](../loadables/nice.c) | C D S T F | [Contract](../tests/regressions.py) | —; nice | N/M | P3 | Add a matched workload and timing. |
+| [`nice`](../loadables/nice.c) | C D S T F | [Contract](../tests/regressions.py) | —; nice | 57.931 / — / 102.763; [nice](#case-nice), 9 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`nl`](../loadables/nl.c) | C D S T F | [Parity](../tests/nl-parity.py); [limited](#scope-notes); [S](../tests/nl-sanitize.sh) | nl; nl | 62.440 / 292.162 / 186.691; [nl](#case-nl), 40 passes | P3 | Decide required option scope; see limitations. |
-| [`nohup`](../loadables/nohup.c) | C D S T F | [Contract](../tests/regressions.py) | —; nohup | N/M | P3 | Add a matched workload and timing. |
+| [`nohup`](../loadables/nohup.c) | C D S T F | [Contract](../tests/regressions.py) | —; nohup | 61.035 / — / 80.196; [nohup](#case-nohup), 6 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`notify`](../loadables/notify.c) | T F | [Contract](../tests/misc-smoke.py) | —; systemd-notify | N/M | P3 | Add a matched workload and timing. |
 | [`ns`](../loadables/ns.c) | S F | [Smoke](../tests/system-smoke.sh) | unshare; unshare / nsenter | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ntp`](../loadables/ntp.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | ntpd (not in build); chronyc / ntpd | N/M | P3 | Add a matched workload and timing. |
@@ -328,7 +328,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`reboot`](../loadables/reboot.c) | D S F | Build/help | reboot; reboot | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`renice`](../loadables/renice.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | renice; renice | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`rev`](../loadables/rev.c) | C D S T F | [Bench checked](#case-rev) | rev; rev | 74.139 / 56.947 / 156.231; [rev](#case-rev), 9 passes | P3 | Complete the integration review follow-up, then validate the combined build and remeasure. Assigned to bash-os-5 (review follow-up). |
-| `rm`* | P C D S T F | Build/help | rm; rm | N/M | P3 | Add behavioral fixtures, then timing. |
+| `rm`* | P C D S T F | [Bench checked](#case-rm) | rm; rm | 22.753 / 183.164 / 159.692; [rm](#case-rm), 17 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `rmdir`* | P C D S T F | Build/help | rmdir; rmdir | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`rngseed`](../loadables/rngseed.c) | D S F | [Contract](../tests/rngseed-host.c); [S](../tests/run.sh) | seedrng (not in build); systemd-random-seed (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`rsync`](../loadables/rsync.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; rsync | N/M | P3 | Add a matched workload and timing. |
@@ -342,12 +342,12 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`seq`](../loadables/seq.c) | P C D S T F | [Parity](../tests/seq-parity.sh) | seq; seq | 53.875 / 1265.578 / 81.544; [seq](#case-seq), 21 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`setfacl`](../loadables/setfacl.c) | D S F | Build/help | —; setfacl (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | `setpgid`* | D S F | Build/help | —; Python os.setpgid | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`setsid`](../loadables/setsid.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | setsid; setsid | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`setsid`](../loadables/setsid.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | setsid; setsid | 77.859 / 127.635 / 114.652; [setsid](#case-setsid), 9 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sftp`](../loadables/sftp.c) | S F | [Contract](../tests/network-smoke.py) | —; sftp | N/M | P3 | Add a matched workload and timing. |
 | [`signal`](../loadables/signal.c) | D S F | [Contract](../tests/system-smoke.sh) | kill; kill -l / Bash kill | N/M | P3 | Add a matched workload and timing. |
 | [`sixel`](../loadables/sixel.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh); [Fz](../tests/fuzz-image.c) | —; img2sixel (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`slabtop`](../loadables/slabtop.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; slabtop | N/M | P3 | Add a matched workload and timing. |
-| `sleep`* | P C D S T F | Build/help | sleep; sleep | N/M | P3 | Add behavioral fixtures, then timing. |
+| `sleep`* | P C D S T F | [Bench checked](#case-sleep) | sleep; sleep | 28.869 / 139.573 / 113.526; [sleep](#case-sleep), 11 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sort`](../loadables/sort.c) | C D S T F | [Parity](../tests/sort-parity.sh) | sort; sort | 72.043 / 71.119 / 42.286; [sort-text](#case-sort-text), 7 passes; 2 cases total | P2 | Complete the integration review follow-up, then validate the combined build and remeasure. Assigned to bash-os-5 (review follow-up). |
 | [`split`](../loadables/split.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | —; split | N/M | P1 | Complete the integration review follow-up, then validate the combined build and remeasure. Assigned to bash-os-5 (review follow-up). |
 | [`sqlite`](../loadables/sqlite.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; sqlite3 / Python sqlite3 | N/M | P3 | Add a matched workload and timing. |
@@ -368,7 +368,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`sysctl`](../loadables/sysctl.c) | D S F | [Contract](../tests/system-smoke.sh) | sysctl; sysctl | N/M | P3 | Add a matched workload and timing. |
 | [`tac`](../loadables/tac.c) | C D S T F | [Parity](../tests/tac-parity.py); [limited](#scope-notes); [S](../tests/tac-sanitize.sh) | tac; tac | 23.403 / 512.412 / 161.792; [tac](#case-tac), 53 passes | P3 | Decide bounded-memory input and GNU regex scope; see the tac follow-up. |
 | [`tail`](../loadables/tail.c) | C D S T F | [Repeat-input bug](#additional-correctness-checks) | tail; tail | 7.483 / 158.041 / 91.356; [tail](#case-tail), 49 passes | P1 | Fix the reviewed candidate's allocation-failure use-after-free and output-error hang; require valid native/static test boundaries before integration. Assigned to bash-os-6 (review follow-up). |
-| [`taskset`](../loadables/taskset.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | taskset; taskset | N/M | P3 | Add a matched workload and timing. |
+| [`taskset`](../loadables/taskset.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | taskset; taskset | 25.579 / 173.561 / 159.312; [taskset](#case-taskset), 21 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `tee`* | P C D S T F | [Correctness bug](#additional-correctness-checks) | tee; tee | N/M | P1 | Stop reading when every output has failed, preserving healthy destinations and interrupt cleanup; then validate the combined build. Assigned to bash-os-2 (review follow-up). |
 | [`termpixel`](../loadables/termpixel.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`termpixel_pong`](../loadables/termpixel_pong.c) | F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -615,6 +615,17 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | <a id="case-pathchk"></a>pathchk | `pathchk text` | `pathchk text` | No stdin; named fixtures / arguments | 79 | 6.388 | — | 104.317 | 0.06× | 7 |
 | <a id="case-ln"></a>ln | `ln -f text lnout` | `ln -f text lnout` | No stdin; named fixtures / arguments | 76 | 7.029 | 124.416 | 111.177 | 0.06× | 7 |
 | <a id="case-sync"></a>sync | `sync` | `sync` | No stdin; named fixtures / arguments | 20 | 7.631 | 37.993 | 31.737 | 0.24× | 7 |
+| <a id="case-rm"></a>rm | `rm -f nosuch` | `rm -f nosuch` | No stdin; named fixtures / arguments | 17 | 22.753 | 183.164 | 159.692 | 0.14× | 7 |
+| <a id="case-chown"></a>chown | `chown pleb text` | `chown pleb text` | No stdin; named fixtures / arguments | 13 | 39.907 | 169.310 | 164.001 | 0.24× | 7 |
+| <a id="case-chgrp"></a>chgrp | `chgrp pleb text` | `chgrp pleb text` | No stdin; named fixtures / arguments | 8 | 54.855 | 139.735 | 117.169 | 0.47× | 7 |
+| <a id="case-sleep"></a>sleep | `sleep 0` | `sleep 0` | No stdin; named fixtures / arguments | 11 | 28.869 | 139.573 | 113.526 | 0.25× | 7 |
+| <a id="case-nice"></a>nice | `nice -n 0 /bin/true` | `nice -n 0 /bin/true` | No stdin; named fixtures / arguments | 9 | 57.931 | — | 102.763 | 0.56× | 7 |
+| <a id="case-nohup"></a>nohup | `nohup /bin/true` | `nohup /bin/true` | No stdin; named fixtures / arguments | 6 | 61.035 | — | 80.196 | 0.76× | 7 |
+| <a id="case-setsid"></a>setsid | `setsid /bin/true` | `setsid /bin/true` | No stdin; named fixtures / arguments | 9 | 77.859 | 127.635 | 114.652 | 0.68× | 7 |
+| <a id="case-flock"></a>flock | `flock -n lockfile /bin/true` | `flock -n lockfile /bin/true` | No stdin; named fixtures / arguments | 9 | 83.790 | — | 134.493 | 0.62× | 7 |
+| <a id="case-taskset"></a>taskset | `taskset -p 1` | `taskset -p 1` | No stdin; named fixtures / arguments | 21 | 25.579 | 173.561 | 159.312 | 0.16× | 7 |
+| <a id="case-ionice"></a>ionice | `ionice -p 1` | `ionice -p 1` | No stdin; named fixtures / arguments | 14 | 24.161 | 123.017 | 128.491 | 0.19× | 7 |
+| <a id="case-env"></a>env | `env -i FOO=bar /usr/bin/printenv FOO` | `env -i FOO=bar /usr/bin/printenv FOO` | No stdin; named fixtures / arguments | 8 | 72.071 | 123.814 | 114.899 | 0.63× | 7 |
 <!-- END CASES -->
 
 ## Method and limits
