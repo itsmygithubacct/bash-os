@@ -36,6 +36,8 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/syscall.h>
+#include <poll.h>
 #include <time.h>
 #include <fcntl.h>
 
@@ -187,6 +189,40 @@ bto_kill_pg (pid_t child, int sig)
 {
     if (kill (-child, sig) < 0 && errno == ESRCH)
         kill (child, sig);
+}
+
+/* Close the child's pidfd (if any) and restore the caller's mask.
+   SIGCHLD stays pending: we never dequeue it, so Bash still reaps
+   any background job that exited while we ran. */
+static void
+bto_restore (const sigset_t *prev, int pidfd)
+{
+    int saved = errno;
+    if (pidfd >= 0)
+        close (pidfd);
+    sigprocmask (SIG_SETMASK, prev, NULL);
+    errno = saved;
+}
+
+/* Sleep until the child exits or remain elapses. pidfd+ppoll wakes
+   on our child without consuming SIGCHLD. Without a pidfd, sleep the
+   remaining time; waitpid (WNOHANG) at the top of the loop reaps. */
+static void
+bto_wait_remain (int pidfd, const struct timespec *remain)
+{
+    if (pidfd >= 0) {
+        struct pollfd pfd;
+        pfd.fd = pidfd;
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+        if (ppoll (&pfd, 1, remain, NULL) < 0 && errno != EINTR)
+            return;
+        return;
+    }
+    {
+        int rc = clock_nanosleep (CLOCK_MONOTONIC, 0, remain, NULL);
+        (void) rc;
+    }
 }
 
 int
@@ -376,8 +412,14 @@ timeout_builtin (WORD_LIST *list)
         setpgid (child, child);  /* close parent/child process-group setup race */
     free (argv);
 
-    /* Parent: SIGCHLD is blocked, so wait with sigtimedwait rather than
-       SIGALRM (Bash owns TMOUT / read -t) or a 50ms poll. */
+    /* Parent: SIGCHLD stays blocked so Bash cannot steal this child, but
+       we must not dequeue it (sigtimedwait would). pidfd+ppoll wakes when
+       this child exits; leftover SIGCHLD still reaches Bash after restore.
+       SIGALRM is Bash's (TMOUT / read -t). No 50ms poll. */
+    int pidfd = -1;
+#ifdef SYS_pidfd_open
+    pidfd = (int) syscall (SYS_pidfd_open, child, 0);
+#endif
     struct timespec start, now;
     clock_gettime (CLOCK_MONOTONIC, &start);
 
@@ -391,7 +433,7 @@ timeout_builtin (WORD_LIST *list)
         if (r < 0 && errno == EINTR) continue;
         if (r < 0) {
             builtin_error ("waitpid: %s", strerror (errno));
-            sigprocmask (SIG_SETMASK, &prev_set, NULL);
+            bto_restore (&prev_set, pidfd);
             return 125;
         }
         clock_gettime (CLOCK_MONOTONIC, &now);
@@ -423,7 +465,7 @@ timeout_builtin (WORD_LIST *list)
             if (r < 0 && errno == EINTR) continue;
             if (r < 0) {
                 builtin_error ("waitpid: %s", strerror (errno));
-                sigprocmask (SIG_SETMASK, &prev_set, NULL);
+                bto_restore (&prev_set, pidfd);
                 return 125;
             }
             continue;
@@ -437,13 +479,10 @@ timeout_builtin (WORD_LIST *list)
             wait_ts.tv_sec += 1;
             wait_ts.tv_nsec -= 1000000000L;
         }
-        if (sigtimedwait (&chld_set, NULL, &wait_ts) < 0
-            && errno != EAGAIN && errno != EINTR)
-            continue;
+        bto_wait_remain (pidfd, &wait_ts);
     }
 
-    /* Restore the prior signal mask before returning. */
-    sigprocmask (SIG_SETMASK, &prev_set, NULL);
+    bto_restore (&prev_set, pidfd);
 
     if (timed_out) {
         if (preserve_status) {
