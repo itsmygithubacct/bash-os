@@ -94,6 +94,14 @@ def cases():
     add('hostname', fixture='empty', maximum=200)
     add('id', ['-u'], label='id-uid', fixture='empty', maximum=200)
     add('printenv', ['LC_ALL'], label='printenv-lcall', fixture='empty', maximum=200)
+    add('touch', ['touched'], fixture='empty', output='touched', maximum=200)
+    add('mkdir', ['-p', 'mdir'], fixture='empty', maximum=200)
+    add('chmod', ['644', 'text'], fixture='empty', maximum=200)
+    add('date', ['-u', '+%Y'], label='date-year', fixture='empty', maximum=200)
+    add('getconf', ['PAGE_SIZE'], fixture='empty', maximum=200)
+    add('pathchk', ['text'], fixture='empty', maximum=200)
+    add('ln', ['-f', 'text', 'lnout'], fixture='empty', output='lnout', maximum=200)
+    add('sync', fixture='empty', maximum=20)
     return rows
 
 
