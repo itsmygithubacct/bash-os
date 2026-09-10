@@ -120,6 +120,9 @@ def cases():
     add('uname', ['-s'], label='uname-s', fixture='empty', maximum=200)
     add('date', ['-u', '+%Y-%m-%d'], label='date-ymd', fixture='empty', maximum=200)
     add('getconf', ['_NPROCESSORS_ONLN'], label='getconf-nproc', fixture='empty', maximum=200)
+    # POSIX df -P on / changes used-counts between calls. /dev is a
+    # stable udev pin: GNU, BusyBox and the builtin match on fields.
+    add('df', ['-P', '/dev'], fixture='empty', normalizer='fields', maximum=200)
     return rows
 
 
