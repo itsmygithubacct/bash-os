@@ -145,9 +145,10 @@ The command names and references between imported loadables lose the upstream
 with an empty `PATH`, and restores the signal mask on a wait failure. The
 batch test checks queries, child status and timeout handling, temporary utmp
 records and extended attributes. Privileged host settings are not changed.
-These remain the upstream subsets: `hostid` prefers a machine-id-derived
-value, `dmesg` reads `/dev/kmsg`, and `userdb verify` needs the later password
-loadable. Help and registration are checked for every imported name.
+These remain the upstream subsets: `dmesg` reads `/dev/kmsg`, and `userdb
+verify` needs the later password loadable. `hostid` prints `gethostid(3)`
+like `hostid(1)`; `BASHHOSTID_MACHINE_ID_PATH` is a test override. Help and
+registration are checked for every imported name.
 
 ## What deliberately stays out
 

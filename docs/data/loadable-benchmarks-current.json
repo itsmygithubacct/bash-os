@@ -3704,6 +3704,294 @@
           "max_ms": 160.989
         }
       }
+    },
+    {
+      "id": "sysctl",
+      "loadable": "sysctl",
+      "args": [
+        "-n",
+        "kernel.osrelease"
+      ],
+      "fixture": "empty",
+      "host": "sysctl",
+      "applet": "sysctl",
+      "host_args": [
+        "-n",
+        "kernel.osrelease"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 42,
+      "validation_passes": 42,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 10.785,
+          "min_ms": 7.64,
+          "max_ms": 15.533
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 119.903,
+          "min_ms": 103.321,
+          "max_ms": 197.133
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 125.147,
+          "min_ms": 115.617,
+          "max_ms": 213.701
+        }
+      }
+    },
+    {
+      "id": "id-user",
+      "loadable": "id",
+      "args": [
+        "-un"
+      ],
+      "fixture": "empty",
+      "host": "id",
+      "applet": "id",
+      "host_args": [
+        "-un"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 26,
+      "validation_passes": 26,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 35.77,
+          "min_ms": 9.48,
+          "max_ms": 51.254
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 180.246,
+          "min_ms": 127.89,
+          "max_ms": 269.186
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 161.979,
+          "min_ms": 135.236,
+          "max_ms": 297.29
+        }
+      }
+    },
+    {
+      "id": "id-group",
+      "loadable": "id",
+      "args": [
+        "-gn"
+      ],
+      "fixture": "empty",
+      "host": "id",
+      "applet": "id",
+      "host_args": [
+        "-gn"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 26,
+      "validation_passes": 26,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 37.876,
+          "min_ms": 12.596,
+          "max_ms": 69.656
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 132.609,
+          "min_ms": 120.869,
+          "max_ms": 149.078
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 140.939,
+          "min_ms": 126.259,
+          "max_ms": 251.326
+        }
+      }
+    },
+    {
+      "id": "hostname-s",
+      "loadable": "hostname",
+      "args": [
+        "-s"
+      ],
+      "fixture": "empty",
+      "host": "hostname",
+      "applet": "hostname",
+      "host_args": [
+        "-s"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 28,
+      "validation_passes": 28,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 11.229,
+          "min_ms": 6.897,
+          "max_ms": 18.747
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 98.931,
+          "min_ms": 68.352,
+          "max_ms": 135.474
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 109.835,
+          "min_ms": 76.063,
+          "max_ms": 234.353
+        }
+      }
+    },
+    {
+      "id": "uname-s",
+      "loadable": "uname",
+      "args": [
+        "-s"
+      ],
+      "fixture": "empty",
+      "host": "uname",
+      "applet": "uname",
+      "host_args": [
+        "-s"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 23,
+      "validation_passes": 23,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 10.274,
+          "min_ms": 7.556,
+          "max_ms": 16.566
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 80.004,
+          "min_ms": 69.068,
+          "max_ms": 155.028
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 92.977,
+          "min_ms": 71.197,
+          "max_ms": 141.815
+        }
+      }
+    },
+    {
+      "id": "date-ymd",
+      "loadable": "date",
+      "args": [
+        "-u",
+        "+%Y-%m-%d"
+      ],
+      "fixture": "empty",
+      "host": "date",
+      "applet": "date",
+      "host_args": [
+        "-u",
+        "+%Y-%m-%d"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 25,
+      "validation_passes": 25,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 11.688,
+          "min_ms": 7.939,
+          "max_ms": 17.002
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 102.87,
+          "min_ms": 70.262,
+          "max_ms": 127.225
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 90.581,
+          "min_ms": 75.967,
+          "max_ms": 153.272
+        }
+      }
+    },
+    {
+      "id": "getconf-nproc",
+      "loadable": "getconf",
+      "args": [
+        "_NPROCESSORS_ONLN"
+      ],
+      "fixture": "empty",
+      "host": "getconf",
+      "applet": "getconf",
+      "host_args": [
+        "_NPROCESSORS_ONLN"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 11,
+      "validation_passes": 11,
+      "date": "2026-09-10T22:11:16Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 20.093,
+          "min_ms": 7.751,
+          "max_ms": 36.947
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 52.654,
+          "min_ms": 38.498,
+          "max_ms": 97.273
+        }
+      }
     }
   ]
 }

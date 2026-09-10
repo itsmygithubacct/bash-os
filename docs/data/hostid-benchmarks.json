@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "date": "2026-09-10T22:10:33Z",
+  "source_commit": "8fa503c2e97b8e41292e8a16f8dc16baae17c4e0",
+  "binary": "bash-hostid",
+  "binary_sha256": "8013db5361b36df35625624db342b8ba1a5bd32340ae4a9de8d6816aa7ca8855",
+  "kernel": "6.12.96+deb13-amd64",
+  "architecture": "x86_64",
+  "cpus": [
+    11
+  ],
+  "load_average_start": [
+    13.54833984375,
+    13.88525390625,
+    11.03173828125
+  ],
+  "runs": 7,
+  "method": "Same bash-os shell; builtin or absolute external command; median untraced batch wall time; stdout /dev/null; warm file cache",
+  "cases": [
+    {
+      "id": "hostid",
+      "loadable": "hostid",
+      "args": [],
+      "fixture": "empty",
+      "host": "hostid",
+      "applet": "hostid",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 11.41,
+          "min_ms": 9.571,
+          "max_ms": 13.287,
+          "runs_ms": [
+            12.724,
+            9.571,
+            10.985,
+            13.287,
+            11.928,
+            11.41,
+            10.122
+          ]
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 118.248,
+          "min_ms": 92.899,
+          "max_ms": 137.35,
+          "runs_ms": [
+            130.288,
+            92.899,
+            112.048,
+            119.257,
+            137.35,
+            118.248,
+            114.3
+          ]
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 131.253,
+          "min_ms": 119.859,
+          "max_ms": 159.225,
+          "runs_ms": [
+            121.587,
+            122.012,
+            131.736,
+            159.225,
+            131.253,
+            119.859,
+            134.127
+          ]
+        }
+      },
+      "reference": "external",
+      "passes": 58,
+      "validation_passes": 58
+    }
+  ],
+  "cpu_model": "Intel(R) Core(TM) i7-9850H CPU @ 2.60GHz",
+  "versions": {
+    "bash": "GNU bash, version 5.3.15(1)-release (x86_64-pc-linux-gnu)",
+    "coreutils": "wc (GNU coreutils) 9.7",
+    "grep": "grep (GNU grep) 3.11",
+    "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary."
+  },
+  "fixtures": {
+    "empty": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "load_average_end": [
+    13.54833984375,
+    13.88525390625,
+    11.03173828125
+  ]
+}

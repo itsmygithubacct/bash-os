@@ -80,7 +80,8 @@ with tempfile.TemporaryDirectory(prefix='loadable-bench-test-') as directory:
              '--busybox', '', '--only', 'uname', '--quick', '--output', str(report)],
             capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, (name, result.stdout, result.stderr)
-        case, = json.loads(report.read_text())['cases']
+        cases = json.loads(report.read_text())['cases']
+        case = next(c for c in cases if c['id'] == 'uname')
         assert case['validation_passes'] >= 3
         assert case['results']['external']['status'] == 'ok', case
         actual = case['results']['bashos']

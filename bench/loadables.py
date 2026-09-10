@@ -113,6 +113,13 @@ def cases():
     add('taskset', ['-p', '1'], fixture='empty', maximum=200)
     add('ionice', ['-p', '1'], fixture='empty', maximum=200)
     add('env', ['-i', 'FOO=bar', '/usr/bin/printenv', 'FOO'], fixture='empty', maximum=200)
+    add('sysctl', ['-n', 'kernel.osrelease'], fixture='empty', maximum=200)
+    add('id', ['-un'], label='id-user', fixture='empty', maximum=200)
+    add('id', ['-gn'], label='id-group', fixture='empty', maximum=200)
+    add('hostname', ['-s'], label='hostname-s', fixture='empty', maximum=200)
+    add('uname', ['-s'], label='uname-s', fixture='empty', maximum=200)
+    add('date', ['-u', '+%Y-%m-%d'], label='date-ymd', fixture='empty', maximum=200)
+    add('getconf', ['_NPROCESSORS_ONLN'], label='getconf-nproc', fixture='empty', maximum=200)
     return rows
 
 

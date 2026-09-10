@@ -1429,6 +1429,11 @@
       "note": "Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain.",
       "evidence": "docs/zstd.md",
       "next": "See the dedicated zstd report; extend sizes and levels if a slower case appears."
+    },
+    "hostid": {
+      "note": "Default is gethostid(3), matching hostid(1). The catalog snapshot binary still prefers /etc/machine-id; the dedicated report uses a rebuilt hostid-only binary.",
+      "evidence": "docs/hostid.md",
+      "next": "See the dedicated hostid report; fold into the catalog snapshot after rebuilding the measured full binary."
     }
   },
   "repeat_input_findings": [

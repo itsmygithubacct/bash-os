@@ -3,8 +3,9 @@
  *
  *   hostid               # print 32-bit host ID in hex (8 chars)
  *
- * Wraps gethostid(3); on Linux this comes from /etc/hostid (or 0 if
- * unset). POSIX-required utility (POSIX-CONFORMANCE-RESEARCH §4.1).
+ * Wraps gethostid(3), matching hostid(1): on Linux that is /etc/hostid,
+ * or an address-derived value when that file is unset. Tests may set
+ * BASHHOSTID_MACHINE_ID_PATH to a file of eight hex digits.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -94,8 +95,7 @@ hostid_builtin (WORD_LIST *list)
     const char *machine_id_path = getenv ("BASHHOSTID_MACHINE_ID_PATH");
     unsigned long id;
 
-    if (bhid_read_machine_id (machine_id_path, &id)
-        || bhid_read_machine_id ("/etc/machine-id", &id)) {
+    if (bhid_read_machine_id (machine_id_path, &id)) {
         printf ("%08lx\n", id);
         return EXECUTION_SUCCESS;
     }
@@ -110,8 +110,8 @@ char *hostid_doc[] = {
     "",
     "    hostid [--help|--version]",
     "",
-    "Reads /etc/machine-id when present, otherwise /etc/hostid via gethostid(3).",
-    "Output is 8 lowercase hex chars.",
+    "Prints gethostid(3) as 8 lowercase hex chars, like hostid(1).",
+    "BASHHOSTID_MACHINE_ID_PATH may name a test fixture of eight hex digits.",
     (char *)NULL
 };
 
