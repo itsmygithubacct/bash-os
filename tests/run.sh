@@ -41,7 +41,7 @@ if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
 else
   echo 'FAIL pure build has ls'; fail=$((fail+1))
 fi
-for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-parity sort-parity zstd-check hostid-check free-check timeout-check grep-parity cut-parity stat-parity; do
+for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-parity sort-parity zstd-check hostid-check free-check timeout-check uptime-check grep-parity cut-parity stat-parity; do
   check "$name" bash "tests/$name.sh" out/bash
 done
 check network-smoke python3 tests/network-smoke.py out/bash
