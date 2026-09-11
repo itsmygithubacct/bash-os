@@ -755,6 +755,14 @@ bs_cmp_bytes (const char *a, size_t la, const char *b, size_t lb, int icase, int
 {
     size_t ia = 0, ib = 0;
 
+    if (!icase && !ignore_nonprint && !dictionary_order) {
+        size_t m = la < lb ? la : lb;
+        int c = m ? memcmp (a, b, m) : 0;
+        if (c)
+            return c;
+        return (la > lb) - (la < lb);
+    }
+
     while (ia < la || ib < lb) {
         while (ignore_nonprint && ia < la && !isprint ((unsigned char) a[ia]))
             ia++;
@@ -844,9 +852,45 @@ bs_prefix (const bs_keyval *kv, const bs_keydef *k)
     return 0;
 }
 
+/* Default lexicographic sort: one whole-line text key, no -k and no
+   byte-skipping flags. The key is the record minus its delimiter, so a
+   key block is the same bytes as last-resort memcmp. */
+static int
+bs_plain_text (const bs_opts *o)
+{
+    const bs_keydef *k;
+
+    if (o->nkeys != 1 || o->Rflag)
+        return 0;
+    k = &o->keys[0];
+    if (k->field > 0 || k->end_field > 0 || k->start_char || k->end_char)
+        return 0;
+    if (k->skip_start_blanks || k->skip_end_blanks)
+        return 0;
+    if (k->dictionary_order || k->ignore_case || k->ignore_nonprinting)
+        return 0;
+    if (k->numeric || k->general_numeric || k->human_numeric || k->month || k->version)
+        return 0;
+    return 1;
+}
+
+static uint64_t
+bs_line_text_prefix (const bs_line *ln)
+{
+    uint64_t p = 0;
+    size_t llen = ln->len ? ln->len - 1 : 0;
+    size_t n = llen < 8 ? llen : 8;
+    size_t i;
+
+    for (i = 0; i < n; i++)
+        p = (p << 8) | (unsigned char) ln->buf[i];
+    return p << (8 * (8 - (int) n));
+}
+
 /* Compute the keys of every line -- one bs_keyval per key, in a single
    block -- and the array the sort permutes: the first key's prefix beside a
-   pointer to the line. The caller frees both. */
+   pointer to the line. The caller frees both. Default text sort stores
+   only the prefix array. */
 static int
 bs_prepare_keys (bs_line *lines, size_t n, const bs_opts *o, bs_keyval **blockp, bs_elem **elemsp)
 {
@@ -858,12 +902,24 @@ bs_prepare_keys (bs_line *lines, size_t n, const bs_opts *o, bs_keyval **blockp,
     *elemsp = NULL;
     if (n == 0)
         return 0;
-    if (n > ((size_t) -1) / sizeof *blk / nslots)
-        return -1;
-    blk = malloc (n * nslots * sizeof *blk);
     el = malloc (n * sizeof *el);
-    if (!blk || !el) {
-        free (blk);
+    if (!el)
+        return -1;
+    if (bs_plain_text (o)) {
+        for (size_t i = 0; i < n; i++) {
+            lines[i].keys = NULL;
+            el[i].pre = bs_line_text_prefix (&lines[i]);
+            el[i].ln = &lines[i];
+        }
+        *elemsp = el;
+        return 0;
+    }
+    if (n > ((size_t) -1) / sizeof *blk / nslots) {
+        free (el);
+        return -1;
+    }
+    blk = malloc (n * nslots * sizeof *blk);
+    if (!blk) {
         free (el);
         return -1;
     }
@@ -937,10 +993,15 @@ bs_compare_key (const bs_keyval *a, const bs_keyval *b, const bs_keydef *k)
     return cmp;
 }
 
-/* The keys, in order, each with its own -r. What -u calls equal is 0 here. */
+static int bs_last_resort (const bs_line *la, const bs_line *lb, const bs_opts *o);
+
+/* The keys, in order, each with its own -r. What -u calls equal is 0 here.
+   A NULL key list is the default whole-line text path: same as last resort. */
 static int
 bs_compare_keys (const bs_line *la, const bs_line *lb, const bs_opts *o)
 {
+    if (!la->keys || !lb->keys)
+        return bs_last_resort (la, lb, o);
     for (int i = 0; i < o->nkeys; i++) {
         int cmp = bs_compare_key (&la->keys[i], &lb->keys[i], &o->keys[i]);
         if (cmp)
@@ -1002,6 +1063,14 @@ bs_compare (const void *va, const void *vb)
     if (ea->pre != eb->pre) {
         cmp = (ea->pre < eb->pre) ? -1 : 1;
         return bs_pre_reverse ? -cmp : cmp;
+    }
+    if (!ea->ln->keys) {
+        cmp = bs_last_resort (ea->ln, eb->ln, o);
+        if (cmp)
+            return cmp;
+        if (o->sflag || o->uflag)
+            return bs_index_order (ea->ln, eb->ln);
+        return 0;
     }
     if (o->Rflag) {
         /* Equal ranks: the same key text, by construction. */
