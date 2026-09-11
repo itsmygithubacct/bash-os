@@ -60,6 +60,21 @@ bs_make_name (char *out, size_t cap, const char *prefix, int suflen, long index)
     return 0;
 }
 
+/* stdin's FILE belongs to the persistent shell. A private stream so a later
+   redirection is not stuck at EOF from this invocation. */
+static FILE *
+bs_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
 int
 split_builtin (WORD_LIST *list)
 {
@@ -105,8 +120,12 @@ split_builtin (WORD_LIST *list)
     if (list) { prefix = list->word->word; list = list->next; }
     if (list) { builtin_error ("split: extra argument: %s", list->word->word); builtin_usage (); return EX_USAGE; }
 
-    FILE *fin = (!input || !strcmp (input, "-")) ? stdin : fopen (input, "r");
-    if (!fin) { builtin_error ("%s: %s", input, strerror (errno)); return EXECUTION_FAILURE; }
+    int from_stdin = !input || !strcmp (input, "-");
+    FILE *fin = from_stdin ? bs_open_stdin () : fopen (input, "r");
+    if (!fin) {
+        if (!from_stdin) builtin_error ("%s: %s", input, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
 
     char namebuf[256];
     long idx = 0;
@@ -187,7 +206,7 @@ split_builtin (WORD_LIST *list)
         free (line);
     }
 
-    if (fin != stdin) fclose (fin);
+    fclose (fin);
     return rc;
 }
 

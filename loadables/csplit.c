@@ -180,6 +180,21 @@ cs_err_no_match (const char *pat, long applied)
         builtin_error (CS_LQUO "%s" CS_RQUO ": match not found", pat);
 }
 
+/* stdin's FILE belongs to the persistent shell. A private stream so a later
+   redirection is not stuck at EOF from this invocation. */
+static FILE *
+cs_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
 int
 csplit_builtin (WORD_LIST *list)
 {
@@ -314,8 +329,13 @@ csplit_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
-    FILE *fin = !strcmp (fname, "-") ? stdin : fopen (fname, "r");
-    if (!fin) { builtin_error ("%s: %s", fname, strerror (errno)); free (pats); return EXECUTION_FAILURE; }
+    int from_stdin = !strcmp (fname, "-");
+    FILE *fin = from_stdin ? cs_open_stdin () : fopen (fname, "r");
+    if (!fin) {
+        if (!from_stdin) builtin_error ("%s: %s", fname, strerror (errno));
+        free (pats);
+        return EXECUTION_FAILURE;
+    }
 
     /* Slurp the whole input into a line array. csplit needs random access
        both for negative regex offsets (split *before* an earlier line) and
@@ -331,12 +351,12 @@ csplit_builtin (WORD_LIST *list)
             if (nlines == lcap) {
                 long newcap = lcap ? lcap * 2 : 64;
                 cs_line *nl = realloc (lines, (size_t) newcap * sizeof *lines);
-                if (!nl) { free (raw); free (lines); if (fin != stdin) fclose (fin);
+                if (!nl) { free (raw); free (lines); fclose (fin);
                            builtin_error ("out of memory"); return EXECUTION_FAILURE; }
                 lines = nl; lcap = newcap;
             }
             lines[nlines].buf = malloc ((size_t) nread);
-            if (!lines[nlines].buf) { free (raw); if (fin != stdin) fclose (fin);
+            if (!lines[nlines].buf) { free (raw); fclose (fin);
                                       builtin_error ("out of memory"); return EXECUTION_FAILURE; }
             memcpy (lines[nlines].buf, raw, (size_t) nread);
             lines[nlines].len = (size_t) nread;
@@ -344,7 +364,7 @@ csplit_builtin (WORD_LIST *list)
         }
         free (raw);
     }
-    if (fin != stdin) fclose (fin);
+    fclose (fin);
 
     int err = 0;
     int chunk_idx = 0;
