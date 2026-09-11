@@ -38,85 +38,135 @@
 
 typedef struct { int uflag, qflag, iflag; } bd_opts;
 
-/* Binary probe: read first 4096 bytes, scan for NUL byte.
-   Returns: 1 if NUL found (binary), 0 if text or empty, -1 on error
-   (let bd_slurp report the error). */
 static int
-bd_probe_binary (const char *path)
+bd_is_stdin (const char *path)
 {
-    unsigned char buf[4096];
-    int fd = open (path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return -1;
-    ssize_t n = read (fd, buf, sizeof buf);
-    close (fd);
-    if (n < 0) return -1;
-    for (ssize_t i = 0; i < n; i++)
-        if (buf[i] == '\0') return 1;
+    return path && strcmp (path, "-") == 0;
+}
+
+/* Read PATH into a buffer. "-" is stdin and is never open(2)'d: a pipe
+   cannot be rewound, so `diff - -` must not read it twice. */
+static int
+bd_load (const char *path, unsigned char **data, size_t *len)
+{
+    int fd, owned = 0;
+    if (bd_is_stdin (path)) {
+        fd = STDIN_FILENO;
+    } else {
+        fd = open (path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+            builtin_error ("%s: %s", path, strerror (errno));
+            return -1;
+        }
+        owned = 1;
+    }
+    size_t cap = 4096, n = 0;
+    unsigned char *buf = malloc (cap);
+    if (!buf) {
+        builtin_error ("%s: out of memory", path);
+        if (owned) close (fd);
+        return -1;
+    }
+    for (;;) {
+        if (n == cap) {
+            if (cap > (size_t) -1 / 2) {
+                builtin_error ("%s: out of memory", path);
+                free (buf);
+                if (owned) close (fd);
+                return -1;
+            }
+            size_t ncap = cap * 2;
+            unsigned char *grown = realloc (buf, ncap);
+            if (!grown) {
+                builtin_error ("%s: out of memory", path);
+                free (buf);
+                if (owned) close (fd);
+                return -1;
+            }
+            buf = grown;
+            cap = ncap;
+        }
+        ssize_t r = read (fd, buf + n, cap - n);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            builtin_error ("%s: %s", path, strerror (errno));
+            free (buf);
+            if (owned) close (fd);
+            return -1;
+        }
+        if (r == 0) break;
+        n += (size_t) r;
+    }
+    if (owned) close (fd);
+    *data = buf;
+    *len = n;
+    return 0;
+}
+
+/* Binary probe: NUL in the first 4096 bytes of an already-loaded buffer. */
+static int
+bd_probe_binary (const unsigned char *data, size_t len)
+{
+    size_t n = len < 4096 ? len : 4096;
+    for (size_t i = 0; i < n; i++)
+        if (data[i] == '\0') return 1;
     return 0;
 }
 
 static int
-bd_files_equal (const char *a, const char *b)
+bd_files_equal (const unsigned char *a, size_t la, const unsigned char *b, size_t lb)
 {
-    int fda = open (a, O_RDONLY | O_CLOEXEC);
-    if (fda < 0) return -1;
-    int fdb = open (b, O_RDONLY | O_CLOEXEC);
-    if (fdb < 0) { close (fda); return -1; }
-
-    unsigned char ba[8192], bb[8192];
-    int same = 1;
-    for (;;) {
-        ssize_t ra = read (fda, ba, sizeof ba);
-        ssize_t rb = read (fdb, bb, sizeof bb);
-        if (ra < 0 || rb < 0) { same = -1; break; }
-        if (ra != rb || (ra > 0 && memcmp (ba, bb, (size_t) ra) != 0)) {
-            same = 0;
-            break;
-        }
-        if (ra == 0)
-            break;
-    }
-
-    close (fda);
-    close (fdb);
-    return same;
+    if (la != lb) return 0;
+    if (la == 0) return 1;
+    return memcmp (a, b, la) == 0;
 }
 
-/* Read a whole file into a NULL-terminated array of lines (no trailing
+/* Split a loaded buffer into a NULL-terminated array of lines (no trailing
    newline on each line). Returns NULL on error. *n_out gets line count. */
 static char **
-bd_slurp (const char *path, int *n_out, int *no_newline)
+bd_slurp (const unsigned char *data, size_t len, const char *path,
+          int *n_out, int *no_newline)
 {
-    FILE *f = fopen (path, "r");
-    if (!f) {
-        builtin_error ("%s: %s", path, strerror (errno));
-        return NULL;
-    }
     size_t cap = 256;
     char **lines = malloc (cap * sizeof (char *));
+    if (!lines) {
+        builtin_error ("%s: out of memory", path);
+        *n_out = 0; *no_newline = 0;
+        return NULL;
+    }
     int n = 0;
-    char *line = NULL;
-    size_t line_cap = 0;
-    ssize_t got;
     int last_had_nl = 0;
-    while ((got = getline (&line, &line_cap, f)) > 0) {
-        if (got > 0 && line[got - 1] == '\n') { line[got - 1] = '\0'; got--; last_had_nl = 1; }
-        else { last_had_nl = 0; }
+    size_t i = 0;
+    while (i < len) {
+        size_t start = i;
+        while (i < len && data[i] != '\n') i++;
+        int had_nl = (i < len && data[i] == '\n');
+        size_t llen = i - start;
         if ((size_t) n >= cap) {
             char **grown = realloc (lines, cap * 2 * sizeof (char *));
             if (!grown) {
                 builtin_error ("%s: out of memory", path);
-                for (int i = 0; i < n; i++) free (lines[i]);
-                free (lines); free (line); fclose (f);
+                for (int k = 0; k < n; k++) free (lines[k]);
+                free (lines);
                 *n_out = 0; *no_newline = 0;
                 return NULL;
             }
             lines = grown; cap *= 2;
         }
-        lines[n++] = strdup (line);
+        char *copy = malloc (llen + 1);
+        if (!copy) {
+            builtin_error ("%s: out of memory", path);
+            for (int k = 0; k < n; k++) free (lines[k]);
+            free (lines);
+            *n_out = 0; *no_newline = 0;
+            return NULL;
+        }
+        if (llen) memcpy (copy, data + start, llen);
+        copy[llen] = '\0';
+        lines[n++] = copy;
+        last_had_nl = had_nl;
+        if (had_nl) i++;
     }
-    free (line);
-    fclose (f);
     *n_out = n;
     *no_newline = (n > 0 && !last_had_nl);
     return lines;
@@ -409,33 +459,69 @@ diff_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
+    /* Load each operand once. Two "-" operands share one stdin slurp:
+       a pipe cannot be rewound, and a second read would be empty. */
+    unsigned char *da = NULL, *db = NULL;
+    size_t la = 0, lb = 0;
+    int same_stdin = bd_is_stdin (paths[0]) && bd_is_stdin (paths[1]);
+    if (bd_load (paths[0], &da, &la) < 0)
+        return 2;
+    if (same_stdin) {
+        db = da;
+        lb = la;
+    } else if (bd_load (paths[1], &db, &lb) < 0) {
+        free (da);
+        return 2;
+    }
+
     /* Binary detection: NUL in first 4096 bytes. Binary inputs are compared
        bytewise: identical files exit 0 silently; differing files report the
        standard binary-differ diagnostic and exit 1. */
-    int bin_a = bd_probe_binary (paths[0]);
-    int bin_b = bd_probe_binary (paths[1]);
-    if ((bin_a == 1 || bin_b == 1) && bin_a >= 0 && bin_b >= 0) {
-        int same = bd_files_equal (paths[0], paths[1]);
-        if (same == 1)
-            return 0;
-        if (same < 0)
-            return 2;
-        if (o.qflag)
-            printf ("Files %s and %s differ\n", paths[0], paths[1]);
-        else
-            printf ("Binary files %s and %s differ\n", paths[0], paths[1]);
-        return 1;
+    int bin_a = bd_probe_binary (da, la);
+    int bin_b = bd_probe_binary (db, lb);
+    if (bin_a == 1 || bin_b == 1) {
+        int same = bd_files_equal (da, la, db, lb);
+        int rc;
+        if (same)
+            rc = 0;
+        else {
+            if (o.qflag)
+                printf ("Files %s and %s differ\n", paths[0], paths[1]);
+            else
+                printf ("Binary files %s and %s differ\n", paths[0], paths[1]);
+            rc = 1;
+        }
+        free (da);
+        if (!same_stdin) free (db);
+        return rc;
     }
 
     int n, m, no_newline_a = 0, no_newline_b = 0;
-    char **A = bd_slurp (paths[0], &n, &no_newline_a);
-    if (!A) return 2;
-    char **B = bd_slurp (paths[1], &m, &no_newline_b);
-    if (!B) {
-        for (int i = 0; i < n; i++) free (A[i]);
-        free (A);
+    char **A = bd_slurp (da, la, paths[0], &n, &no_newline_a);
+    if (!A) {
+        free (da);
+        if (!same_stdin) free (db);
         return 2;
     }
+    char **B;
+    int shared_lines = 0;
+    if (same_stdin) {
+        B = A;
+        m = n;
+        no_newline_b = no_newline_a;
+        shared_lines = 1;
+    } else {
+        B = bd_slurp (db, lb, paths[1], &m, &no_newline_b);
+        if (!B) {
+            for (int i = 0; i < n; i++) free (A[i]);
+            free (A);
+            free (da);
+            free (db);
+            return 2;
+        }
+    }
+    free (da);
+    if (!same_stdin) free (db);
 
     int n_ops;
     bd_op *ops = bd_myers (A, n, B, m, o.iflag, &n_ops);
@@ -460,8 +546,10 @@ diff_builtin (WORD_LIST *list)
     free (ops);
     for (int i = 0; i < n; i++) free (A[i]);
     free (A);
-    for (int i = 0; i < m; i++) free (B[i]);
-    free (B);
+    if (!shared_lines) {
+        for (int i = 0; i < m; i++) free (B[i]);
+        free (B);
+    }
     return rc;
 }
 
