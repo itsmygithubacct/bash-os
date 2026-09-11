@@ -124,6 +124,9 @@ def cases():
     # stable udev pin: GNU, BusyBox and the builtin match on fields.
     add('df', ['-P', '/dev'], fixture='empty', normalizer='fields', maximum=200)
     add('free', ['-k'], fixture='empty', normalizer='fields', maximum=200)
+    # Default uptime includes the wall clock and load averages. -s is boot
+    # time from btime and is stable; GNU matches the builtin exactly.
+    add('uptime', ['-s'], fixture='empty', normalizer='exact', maximum=200)
     return rows
 
 
