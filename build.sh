@@ -135,7 +135,7 @@ exec {BUILD_LOCK}> "$HERE/build/.lock"
 flock "$BUILD_LOCK"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch;
+           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch patches/tee-io.patch;
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
@@ -203,6 +203,8 @@ for n in "${NAMES[@]}"; do
   case "$n" in
     head)
       patch --batch -s builtins/head.c < "$HERE/patches/head-stdin.patch" >>"$LOG" 2>&1 || die "head fixup did not apply (see $LOG)" ;;
+    tee)
+      patch --batch -s builtins/tee.c < "$HERE/patches/tee-io.patch" >>"$LOG" 2>&1 || die "tee fixup did not apply (see $LOG)" ;;
     fltexpr)
       sed -i 's|^static sh_float_t nanval, infval;$|static sh_float_t nanval = NAN, infval = INFINITY;|' builtins/fltexpr.c
       grep -q 'nanval = NAN' builtins/fltexpr.c || die "fltexpr fixup did not match" ;;

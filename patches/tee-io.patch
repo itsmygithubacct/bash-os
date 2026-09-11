@@ -1,0 +1,14 @@
+--- tee.c.orig
++++ tee.c
+@@ -142,7 +142,10 @@
+ 	while (n -= nw);
+       }
+   if (nr < 0)
+-    builtin_error ("read error: %s", strerror (errno));
++    {
++      builtin_error ("read error: %s", strerror (errno));
++      rval = EXECUTION_FAILURE;
++    }
+ 
+   /* Deallocate resources -- this is a builtin command. */
+   tee_flist = tee_flist->next;		/* skip bogus close of stdout */
