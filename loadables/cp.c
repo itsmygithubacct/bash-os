@@ -6,7 +6,7 @@
  *
  *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
  *           metadata, recursive). Matches GNU coreutils cp -a semantics.
- *   -f      force: unlink existing dest before write
+ *   -f      force: replace existing dest after the source is opened
  *   -i      interactive: prompt before overwrite (refused unless tty)
  *   -p      preserve mode/owner/group/timestamps
  *   -R, -r  recursive
@@ -162,17 +162,20 @@ bcp_copy_regular (const char *src, const char *dst,
             builtin_error ("%s: existing destination is a directory", dst);
             return -1;
         }
-        if (o->fflag) {
-            if (unlink (dst) < 0 && errno != ENOENT) {
-                builtin_error ("unlink %s: %s", dst, strerror (errno));
-                return -1;
-            }
-        }
     }
-    int sfd = open (src, O_RDONLY | O_NOFOLLOW * 0);
+    /* Open the source before replacing dest. -f must not unlink an
+       existing destination when the source cannot be read. */
+    int sfd = open (src, O_RDONLY);
     if (sfd < 0) {
         builtin_error ("open %s: %s", src, strerror (errno));
         return -1;
+    }
+    if (dst_exists && o->fflag) {
+        if (unlink (dst) < 0 && errno != ENOENT) {
+            builtin_error ("unlink %s: %s", dst, strerror (errno));
+            close (sfd);
+            return -1;
+        }
     }
     /* Open without truncating: dst may be a symlink back to src, and the
        lstat check above compares the link's inode rather than its target. */
@@ -438,7 +441,7 @@ char *cp_doc[] = {
     "",
     "    -a   archive: same as -dpR (clone symlinks as symlinks,",
     "         preserve metadata, recursive)",
-    "    -f   force: unlink existing dest before write",
+    "    -f   force: replace existing dest after the source is opened",
     "    -i   interactive: prompt before overwrite",
     "    -p   preserve mode/owner/group/timestamps",
     "    -R, -r   recursive",
