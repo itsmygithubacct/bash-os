@@ -127,6 +127,27 @@ def cases():
     # Default uptime includes the wall clock and load averages. -s is boot
     # time from btime and is stable; GNU matches the builtin exactly.
     add('uptime', ['-s'], fixture='empty', normalizer='exact', maximum=200)
+    # Previously unmeasured POSIX/text tools with GNU- or BusyBox-matching
+    # output on these fixtures. Mutators here overwrite the same dest bytes
+    # on every pass.
+    add('tee')
+    add('hostid', fixture='empty', maximum=200)
+    add('timeout', ['1', '/bin/true'], fixture='empty', maximum=200)
+    add('du', ['-b', 'tree'], fixture='empty', label='du-tree')
+    add('du', ['-b', 'text'], fixture='empty', label='du-file')
+    add('truncate', ['-s', '4096', 'truncout'], fixture='empty', output='truncout', maximum=200)
+    add('ar', ['t', 'tiny.a'], fixture='empty', maximum=200)
+    add('zstdcat', ['text.zst'], fixture='empty')
+    add('zstd', ['-d', '-c', 'text.zst'], fixture='empty', label='zstd-decompress')
+    add('zcat', ['text.gz'], fixture='empty')
+    add('file', ['text'], fixture='empty', maximum=200)
+    add('split', ['-l', '1000', 'text'], fixture='empty', output='xaa')
+    add('csplit', ['text', '10', '20'], fixture='empty', output='xx00')
+    add('xargs', ['-n', '10', '/bin/echo'], fixture='left')
+    add('opt', ['-o', 'ab:', '--', '-a', '-b', 'x'], fixture='empty',
+        host='getopt', maximum=200)
+    add('uuencode', ['bytes'], fixture='bytes')
+    add('uudecode', ['-o', '-'], fixture='uuencoded')
     return rows
 
 
@@ -157,8 +178,36 @@ def fixtures(root):
     (root/'tree').mkdir()
     for i in range(256):
         (root/'tree'/f'item-{i:04d}.txt').write_bytes(b'fixture\n')
-    return {name: {'bytes':len(value), 'sha256':hashlib.sha256(value).hexdigest()}
-            for name, value in data.items()}
+    hashes = {name: {'bytes': len(value), 'sha256': hashlib.sha256(value).hexdigest()}
+              for name, value in data.items()}
+
+    def record(path: Path, key: str):
+        blob = path.read_bytes()
+        hashes[key] = {'bytes': len(blob), 'sha256': hashlib.sha256(blob).hexdigest()}
+
+    (root/'mem').write_bytes(b'hello')
+    record(root/'mem', 'mem')
+    ar = shutil.which('ar', path=HOST_PATH)
+    if ar:
+        subprocess.check_call([ar, 'rcs', str(root/'tiny.a'), 'mem'], cwd=root)
+        record(root/'tiny.a', 'tiny.a')
+    gzip = shutil.which('gzip', path=HOST_PATH)
+    if gzip:
+        with (root/'text.gz').open('wb') as out:
+            subprocess.check_call([gzip, '-n', '-c', 'text'], cwd=root, stdout=out)
+        record(root/'text.gz', 'text.gz')
+    zstd = shutil.which('zstd', path=HOST_PATH)
+    if zstd:
+        with (root/'text.zst').open('wb') as out:
+            subprocess.check_call([zstd, '-q', '-c', '-3', 'text'], cwd=root, stdout=out)
+        record(root/'text.zst', 'text.zst')
+    busybox = shutil.which('busybox', path=HOST_PATH)
+    if busybox:
+        encoded = subprocess.check_output(
+            [busybox, 'uuencode', 'bytes'], cwd=root, input=(root/'bytes').read_bytes())
+        (root/'uuencoded').write_bytes(encoded)
+        record(root/'uuencoded', 'uuencoded')
+    return hashes
 
 
 def normalized(data, mode):

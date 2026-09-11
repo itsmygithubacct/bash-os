@@ -81,6 +81,26 @@
     "arithmetic": {
       "bytes": 18,
       "sha256": "e7361793f23d4b1b51c8c89f7b4d86d99c0ab43fd1d5215f5817ff4bda489b33"
+    },
+    "mem": {
+      "bytes": 5,
+      "sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    },
+    "tiny.a": {
+      "bytes": 74,
+      "sha256": "d012e6c3ce4866f592a51a7eb83f4f17eca396bf137e92e1b73d8dd7b0b7cf16"
+    },
+    "text.gz": {
+      "bytes": 62031,
+      "sha256": "f1ccab08982053725ad51bbd65db0e7360b941e4ebdca4c028cc4f18aac6ac14"
+    },
+    "text.zst": {
+      "bytes": 77240,
+      "sha256": "66f9d70dabb22d3b667046717716c00413a6456f37e85ae65c4edd37e3f9868c"
+    },
+    "uuencoded": {
+      "bytes": 90320,
+      "sha256": "e08c2336048dbb14d3c4568df1d1ad7f42f7e0370315bdd68f5ec1493a11319f"
     }
   },
   "load_average_end": [
@@ -4071,6 +4091,631 @@
           "median_ms": 84.491,
           "min_ms": 75.683,
           "max_ms": 88.898
+        }
+      }
+    },
+    {
+      "id": "tee",
+      "loadable": "tee",
+      "args": [],
+      "fixture": "text",
+      "host": "tee",
+      "applet": "tee",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 7.061,
+          "min_ms": 6.84,
+          "max_ms": 7.876
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 52.926,
+          "min_ms": 51.53,
+          "max_ms": 55.432
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 76.696,
+          "min_ms": 72.313,
+          "max_ms": 83.842
+        }
+      }
+    },
+    {
+      "id": "hostid",
+      "loadable": "hostid",
+      "args": [],
+      "fixture": "empty",
+      "host": "hostid",
+      "applet": "hostid",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 132,
+      "validation_passes": 132,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 6.507,
+          "min_ms": 4.807,
+          "max_ms": 7.075
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 114.184,
+          "min_ms": 81.526,
+          "max_ms": 120.512
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 137.975,
+          "min_ms": 96.398,
+          "max_ms": 143.846
+        }
+      }
+    },
+    {
+      "id": "timeout",
+      "loadable": "timeout",
+      "args": [
+        "1",
+        "/bin/true"
+      ],
+      "fixture": "empty",
+      "host": "timeout",
+      "applet": "timeout",
+      "host_args": [
+        "1",
+        "/bin/true"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 79,
+      "validation_passes": 79,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 45.541,
+          "min_ms": 41.375,
+          "max_ms": 55.584
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 84.175,
+          "min_ms": 76.469,
+          "max_ms": 85.586
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 91.302,
+          "min_ms": 85.008,
+          "max_ms": 97.99
+        }
+      }
+    },
+    {
+      "id": "du-tree",
+      "loadable": "du",
+      "args": [
+        "-b",
+        "tree"
+      ],
+      "fixture": "empty",
+      "host": "du",
+      "applet": "du",
+      "host_args": [
+        "-b",
+        "tree"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "output-mismatch",
+          "expected_sha256": "4f03ed16c89dd7d23fdcbc5837c0d6eeec9311ee80c3913652584fe8751c4a18",
+          "actual_sha256": "177bb7ba6269b2850c4f6357bc118b0f3e7b34cc510bb74e63e0bfe36ccd0eb5",
+          "expected_sample_b64": "MjA0OAl0cmVlCg==",
+          "actual_sample_b64": "NzIwOAl0cmVlCg=="
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 24.347,
+          "min_ms": 20.14,
+          "max_ms": 31.964
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 83.615,
+          "min_ms": 75.72,
+          "max_ms": 119.631
+        }
+      }
+    },
+    {
+      "id": "du-file",
+      "loadable": "du",
+      "args": [
+        "-b",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "du",
+      "applet": "du",
+      "host_args": [
+        "-b",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.562,
+          "min_ms": 3.696,
+          "max_ms": 5.25
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 68.621,
+          "min_ms": 48.033,
+          "max_ms": 70.571
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 81.444,
+          "min_ms": 63.862,
+          "max_ms": 85.209
+        }
+      }
+    },
+    {
+      "id": "truncate",
+      "loadable": "truncate",
+      "args": [
+        "-s",
+        "4096",
+        "truncout"
+      ],
+      "fixture": "empty",
+      "host": "truncate",
+      "applet": "truncate",
+      "host_args": [
+        "-s",
+        "4096",
+        "truncout"
+      ],
+      "normalizer": "exact",
+      "output": "truncout",
+      "reference": "external",
+      "passes": 116,
+      "validation_passes": 116,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.816,
+          "min_ms": 3.406,
+          "max_ms": 4.54
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 68.086,
+          "min_ms": 61.802,
+          "max_ms": 78.457
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 84.604,
+          "min_ms": 81.198,
+          "max_ms": 94.568
+        }
+      }
+    },
+    {
+      "id": "ar",
+      "loadable": "ar",
+      "args": [
+        "t",
+        "tiny.a"
+      ],
+      "fixture": "empty",
+      "host": "ar",
+      "applet": "ar",
+      "host_args": [
+        "t",
+        "tiny.a"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 114,
+      "validation_passes": 114,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 5.109,
+          "min_ms": 3.819,
+          "max_ms": 6.497
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 144.3,
+          "min_ms": 114.129,
+          "max_ms": 150.556
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 108.164,
+          "min_ms": 87.805,
+          "max_ms": 115.478
+        }
+      }
+    },
+    {
+      "id": "zstdcat",
+      "loadable": "zstdcat",
+      "args": [
+        "text.zst"
+      ],
+      "fixture": "empty",
+      "host": "zstdcat",
+      "applet": "zstdcat",
+      "host_args": [
+        "text.zst"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 59,
+      "validation_passes": 59,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 55.269,
+          "min_ms": 48.605,
+          "max_ms": 63.372
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 126.311,
+          "min_ms": 123.308,
+          "max_ms": 135.204
+        }
+      }
+    },
+    {
+      "id": "zstd-decompress",
+      "loadable": "zstd",
+      "args": [
+        "-d",
+        "-c",
+        "text.zst"
+      ],
+      "fixture": "empty",
+      "host": "zstd",
+      "applet": "zstd",
+      "host_args": [
+        "-d",
+        "-c",
+        "text.zst"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 36,
+      "validation_passes": 36,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 35.039,
+          "min_ms": 32.735,
+          "max_ms": 39.809
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 82.607,
+          "min_ms": 74.879,
+          "max_ms": 92.051
+        }
+      }
+    },
+    {
+      "id": "zcat",
+      "loadable": "zcat",
+      "args": [
+        "text.gz"
+      ],
+      "fixture": "empty",
+      "host": "zcat",
+      "applet": "zcat",
+      "host_args": [
+        "text.gz"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "busybox",
+      "passes": 48,
+      "validation_passes": 48,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "external": {
+          "status": "error",
+          "returncode": 127,
+          "stderr": "/usr/bin/zcat: 51: exec: gzip: not found\n"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 52.693,
+          "min_ms": 51.243,
+          "max_ms": 59.608
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 166.064,
+          "min_ms": 157.738,
+          "max_ms": 192.705
+        }
+      }
+    },
+    {
+      "id": "file",
+      "loadable": "file",
+      "args": [
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "file",
+      "applet": "file",
+      "host_args": [
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 106,
+      "validation_passes": 106,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.289,
+          "min_ms": 3.836,
+          "max_ms": 6.326
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 965.361,
+          "min_ms": 912.284,
+          "max_ms": 1074.487
+        }
+      }
+    },
+    {
+      "id": "split",
+      "loadable": "split",
+      "args": [
+        "-l",
+        "1000",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "split",
+      "applet": "split",
+      "host_args": [
+        "-l",
+        "1000",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": "xaa",
+      "reference": "external",
+      "passes": 64,
+      "validation_passes": 64,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 36.133,
+          "min_ms": 32.253,
+          "max_ms": 56.716
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 70.925,
+          "min_ms": 65.862,
+          "max_ms": 78.576
+        }
+      }
+    },
+    {
+      "id": "csplit",
+      "loadable": "csplit",
+      "args": [
+        "text",
+        "10",
+        "20"
+      ],
+      "fixture": "empty",
+      "host": "csplit",
+      "applet": "csplit",
+      "host_args": [
+        "text",
+        "10",
+        "20"
+      ],
+      "normalizer": "exact",
+      "output": "xx00",
+      "reference": "external",
+      "passes": 39,
+      "validation_passes": 39,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 36.451,
+          "min_ms": 32.593,
+          "max_ms": 49.473
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 47.426,
+          "min_ms": 43.847,
+          "max_ms": 53.017
+        }
+      }
+    },
+    {
+      "id": "opt",
+      "loadable": "opt",
+      "args": [
+        "-o",
+        "ab:",
+        "--",
+        "-a",
+        "-b",
+        "x"
+      ],
+      "fixture": "empty",
+      "host": "getopt",
+      "applet": "getopt",
+      "host_args": [
+        "-o",
+        "ab:",
+        "--",
+        "-a",
+        "-b",
+        "x"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 131,
+      "validation_passes": 131,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.558,
+          "min_ms": 4.244,
+          "max_ms": 5.75
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 86.712,
+          "min_ms": 81.332,
+          "max_ms": 98.49
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 105.866,
+          "min_ms": 96.514,
+          "max_ms": 125.698
+        }
+      }
+    },
+    {
+      "id": "uudecode",
+      "loadable": "uudecode",
+      "args": [
+        "-o",
+        "-"
+      ],
+      "fixture": "uuencoded",
+      "host": "uudecode",
+      "applet": "uudecode",
+      "host_args": [
+        "-o",
+        "-"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "busybox",
+      "passes": 55,
+      "validation_passes": 55,
+      "date": "2026-09-11T10:24:57Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "external": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 37.836,
+          "min_ms": 34.996,
+          "max_ms": 39.568
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 107.568,
+          "min_ms": 102.424,
+          "max_ms": 111.845
         }
       }
     }

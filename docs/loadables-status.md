@@ -26,11 +26,14 @@ speedup. Raw run logs stay outside the repository.
 
 Named P1 fixtures from the 2026-09-08 queue, including leftover `diff - -`,
 `tee` stop-when-all-outputs-failed, and `ar` extract write-error cleanup, are
-in this measured full build. Live `free -k` timings are not published because
+in this measured full build. A first unmeasured-catalog batch (`tee`,
+`hostid`, `timeout`, `du`, `truncate`, `ar t`, `zstd`/`zstdcat`, `zcat`,
+`file`, `split`, `csplit`, `opt`, `uudecode`) now has GNU- or BusyBox-matching
+timings on this binary. Live `free -k` timings are not published because
 counters move between invocations.
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **83 cases covering 73 loadables**; 73 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 206 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **98 cases covering 87 loadables**; 87 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 192 have no individual command timings here; GPU transport measurements are reported separately.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -42,7 +45,7 @@ Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command b
 | desktop | 155 |
 | full | 279 |
 
-Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7), including extract write-error cleanup, stop-when-all-outputs-failed, and minus operands as stdin. Live `free -k` timings are omitted because counters move between invocations; tests/free-check.sh still matches GNU on a private meminfo. tests/run.sh was not re-run in full for this refresh.
+Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). A first unmeasured-catalog batch (tee, hostid, timeout, du, truncate, ar t, zstd/zstdcat, zcat, file, split, csplit, opt, uudecode) matched GNU or BusyBox on this binary across seven samples. col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch, so they are not published. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
 
 Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `c591f19` after leftover ar/tee/diff follow-ups landed.
 
@@ -105,7 +108,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | --- | --- | --- | --- | --- | --- | --- |
 | [`acme`](../loadables/acme.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; certbot / acme.sh | N/M | P3 | Add a matched workload and timing. |
 | [`apropos`](../loadables/apropos.c) | T F | [Contract](../tests/misc-smoke.py) | —; apropos | N/M | P3 | Add a matched workload and timing. |
-| [`ar`](../loadables/ar.c) | C D S T F | Build/help | ar; ar | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`ar`](../loadables/ar.c) | C D S T F | [Bench checked](#case-ar) | ar; ar | 5.109 / 108.164 / 144.300; [ar](#case-ar), 114 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `asort`* | F | [Contract](../tests/misc-smoke.py) | —; gawk asort() | N/M | P3 | Add a matched workload and timing. |
 | [`at`](../loadables/at.c) | S F | [Contract](../tests/misc-smoke.py) | —; at (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`audit`](../loadables/audit.c) | S F | [Contract](../tests/network-smoke.py) | —; auditctl / ausearch | N/M | P3 | Add a matched workload and timing. |
@@ -155,7 +158,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`cron`](../loadables/cron.c) | S F | [Contract](../tests/large-smoke.py) | crond; cron / crond | N/M | P3 | Add a matched workload and timing. |
 | [`crontab`](../loadables/crontab.c) | S F | [Contract](../tests/misc-smoke.py) | crontab; crontab | N/M | P3 | Add a matched workload and timing. |
 | [`crypto`](../loadables/crypto.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | sha256sum; sha256sum / openssl | 74.817 / 74.245 / 50.746; [crypto](#case-crypto), 12 passes | P3 | Confirm crypto (1.47× external time), then profile. |
-| [`csplit`](../loadables/csplit.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; csplit | N/M | P3 | Add a matched workload and timing. |
+| [`csplit`](../loadables/csplit.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; csplit | 36.451 / — / 47.426; [csplit](#case-csplit), 39 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`curl`](../loadables/curl.c) | S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; curl | N/M | P3 | Add a matched workload and timing. |
 | [`cut`](../loadables/cut.c) | P C D S T F | [Parity](../tests/cut-parity.sh) | cut; cut | 30.193 / 333.940 / 160.108; [cut](#case-cut), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`date`](../loadables/date.c) | C D S T F | [Contract](../tests/rootfs-smoke.sh) | date; date | 3.255 / 58.465 / 46.877; [date-ymd](#case-date-ymd), 82 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -171,7 +174,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`dmsetup`](../loadables/dmsetup.c) | D S F | [Smoke](../tests/util-linux-smoke.sh); [limited](#scope-notes) | —; dmsetup | N/M | P3 | Define required mapper mutation verbs and add isolated device fixtures. |
 | [`dns`](../loadables/dns.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | nslookup; dig / drill | N/M | P3 | Add a matched workload and timing. |
 | [`doas`](../loadables/doas.c) | S F | [Negative checks](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; doas (missing) | N/M | P3 | Add credential-transition and policy fixtures before benchmarking authentication. |
-| [`du`](../loadables/du.c) | C D S T F | Build/help | du; du | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`du`](../loadables/du.c) | C D S T F | [Bench checked](#case-du-tree) | du; du | 24.347 / INVALID / 83.615; [du-tree](#case-du-tree), 80 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`ed`](../loadables/ed.c) | C D S T F | Build/help | ed; ed (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`env`](../loadables/env.c) | C D S T F | [Contract](../tests/regressions.py) | env; env | 34.064 / 65.522 / 57.376; [env](#case-env), 63 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`escdelay`](../loadables/escdelay.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -182,7 +185,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | `fdflags`* | D S F | Build/help | —; Python fcntl | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`fdisk`](../loadables/fdisk.c) | D S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | fdisk; fdisk | N/M | P3 | Add a matched workload and timing. |
 | [`fifo`](../loadables/fifo.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
-| [`file`](../loadables/file.c) | T F | [Contract](../tests/misc-smoke.py) | —; file | N/M | P3 | Add a matched workload and timing. |
+| [`file`](../loadables/file.c) | T F | [Contract](../tests/misc-smoke.py) | —; file | 4.289 / — / 965.361; [file](#case-file), 106 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`fincore`](../loadables/fincore.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; fincore | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`find`](../loadables/find.c) | C D S T F | [Contract](../tests/regressions.py) | find; find | 25.423 / 78.876 / 76.467; [find](#case-find), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `finfo`* | D S F | Build/help | stat; stat | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -203,7 +206,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | `head`* | P C D S T F | [Parity](../tests/head-sed-parity.py); [limited](#scope-notes); [S](../tests/head-sed-sanitize.sh) | head; head | 8.380 / 57.057 / 45.965; [head](#case-head), 80 passes | P3 | Decide required option scope; see limitations. |
 | [`hexdump`](../loadables/hexdump.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | hexdump; hexdump | 79.830 / 95.853 / 141.459; [hexdump](#case-hexdump), 12 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`hl`](../loadables/hl.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; highlight (missing) | N/M | P3 | Add a matched workload and timing. |
-| [`hostid`](../loadables/hostid.c) | D S F | Build/help | hostid; hostid | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`hostid`](../loadables/hostid.c) | D S F | [Bench checked](#case-hostid) | hostid; hostid | 6.507 / 137.975 / 114.184; [hostid](#case-hostid), 132 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`hostname`](../loadables/hostname.c) | C D S T F | [Contract](../tests/rootfs-smoke.sh) | hostname; hostname | 3.775 / 97.378 / 75.446; [hostname](#case-hostname), 143 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`http`](../loadables/http.c) | D S F | [Contract](../tests/network-smoke.py) | wget; curl | N/M | P3 | Add a matched workload and timing. |
 | [`httpd`](../loadables/httpd.c) | S F | [Contract](../tests/httpd-host.c); [S](../tests/run.sh) | httpd; HTTP server fixture | N/M | P3 | Add a matched workload and timing. |
@@ -260,7 +263,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`ntp`](../loadables/ntp.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | ntpd (not in build); chronyc / ntpd | N/M | P3 | Add a matched workload and timing. |
 | [`obj`](../loadables/obj.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; git hash-object / cat-file | N/M | P3 | Add a matched workload and timing. |
 | [`od`](../loadables/od.c) | C D S T F | [Bench checked](#case-od) | od; od | 67.196 / 57.117 / 128.984; [od](#case-od), 12 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`opt`](../loadables/opt.c) | T F | [Contract](../tests/misc-smoke.py) | getopt; getopt | N/M | P3 | Add a matched workload and timing. |
+| [`opt`](../loadables/opt.c) | T F | [Contract](../tests/misc-smoke.py) | getopt; getopt | 4.558 / 105.866 / 86.712; [opt](#case-opt), 131 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`pack`](../loadables/pack.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; git pack-objects / index-pack | N/M | P3 | Add a matched workload and timing. |
 | [`passwd`](../loadables/passwd.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | passwd; passwd | N/M | P3 | Add a matched workload and timing. |
 | [`paste`](../loadables/paste.c) | C D S T F | [Parity](../tests/paste-uniq-parity.py); [S](../tests/paste-uniq-sanitize.sh) | paste; paste | 78.052 / 424.001 / 79.017; [paste](#case-paste), 11 passes | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -309,7 +312,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`slabtop`](../loadables/slabtop.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; slabtop | N/M | P3 | Add a matched workload and timing. |
 | `sleep`* | P C D S T F | [Bench checked](#case-sleep) | sleep; sleep | 9.795 / 91.824 / 74.081; [sleep](#case-sleep), 94 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sort`](../loadables/sort.c) | C D S T F | [Parity](../tests/sort-parity.sh) | sort; sort | 75.082 / 79.791 / 36.701; [sort-text](#case-sort-text), 12 passes; 2 cases total | P2 | Profile input/output and allocation costs on the sort-text fixture, then measure the proposed change. |
-| [`split`](../loadables/split.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; split | N/M | P3 | Add a matched workload and timing. |
+| [`split`](../loadables/split.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; split | 36.133 / — / 70.925; [split](#case-split), 64 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sqlite`](../loadables/sqlite.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; sqlite3 / Python sqlite3 | N/M | P3 | Add a matched workload and timing. |
 | [`ss`](../loadables/ss.c) | D S F | Build/help | —; ss | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ssh`](../loadables/ssh.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; ssh | N/M | P3 | Add a matched workload and timing. |
@@ -329,10 +332,10 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`tac`](../loadables/tac.c) | C D S T F | [Parity](../tests/tac-parity.py); [limited](#scope-notes); [S](../tests/tac-sanitize.sh) | tac; tac | 14.556 / 373.698 / 77.264; [tac](#case-tac), 80 passes | P3 | Decide bounded-memory input and GNU regex scope; see the tac follow-up. |
 | [`tail`](../loadables/tail.c) | C D S T F | [Parity](../tests/wc-tail-parity.sh) | tail; tail | 5.152 / 119.914 / 52.184; [tail](#case-tail), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`taskset`](../loadables/taskset.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | taskset; taskset | 3.962 / 96.418 / 79.384; [taskset](#case-taskset), 140 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| `tee`* | P C D S T F | Build/help | tee; tee | N/M | P3 | Add behavioral fixtures, then timing. |
+| `tee`* | P C D S T F | [Bench checked](#case-tee) | tee; tee | 7.061 / 76.696 / 52.926; [tee](#case-tee), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`termpixel`](../loadables/termpixel.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`termpixel_pong`](../loadables/termpixel_pong.c) | F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
-| [`timeout`](../loadables/timeout.c) | C D S T F | [Contract](../tests/system-smoke.sh) | timeout; timeout | N/M | P3 | Add a matched workload and timing. |
+| [`timeout`](../loadables/timeout.c) | C D S T F | [Contract](../tests/system-smoke.sh) | timeout; timeout | 45.541 / 91.302 / 84.175; [timeout](#case-timeout), 79 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`tinfo`](../loadables/tinfo.c) | T F | Build/help | —; infocmp / tput | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`tiv`](../loadables/tiv.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh); [Fz](../tests/fuzz-image.c) | —; chafa (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`toml`](../loadables/toml.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh); [Fz](../tests/fuzz-toml.c) | —; Python tomllib | N/M | P3 | Add a matched workload and timing. |
@@ -341,7 +344,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`touch`](../loadables/touch.c) | C D S T F | [Bench checked](#case-touch) | touch; touch | 3.610 / 88.410 / 77.395; [touch](#case-touch), 118 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`tput`](../loadables/tput.c) | T F | Build/help | —; tput | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`tr`](../loadables/tr.c) | C D S T F | [Bench checked](#case-tr) | tr; tr | 32.987 / 61.804 / 39.122; [tr](#case-tr), 42 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`truncate`](../loadables/truncate.c) | C D S T F | Build/help | truncate; truncate | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`truncate`](../loadables/truncate.c) | C D S T F | [Bench checked](#case-truncate) | truncate; truncate | 3.816 / 84.604 / 68.086; [truncate](#case-truncate), 116 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`ts`](../loadables/ts.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; tree-sitter (missing) | N/M | P3 | Add a matched workload and timing. |
 | `tty`* | P C D S T F | Build/help | tty; tty | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`tui`](../loadables/tui.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -356,7 +359,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`userdb`](../loadables/userdb.c) | S F | [Contract](../tests/system-smoke.sh) | —; getent | N/M | P3 | Add a matched workload and timing. |
 | [`utf8`](../loadables/utf8.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; Python Unicode / grapheme library | N/M | P3 | Add a matched workload and timing. |
 | [`utmp`](../loadables/utmp.c) | D S F | [Contract](../tests/system-smoke.sh) | who; utmpdump / who | N/M | P3 | Add a matched workload and timing. |
-| [`uudecode`](../loadables/uudecode.c) | C D S T F | Build/help | uudecode; uudecode (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`uudecode`](../loadables/uudecode.c) | C D S T F | [Bench checked](#case-uudecode) | uudecode; uudecode (missing) | 37.836 / 107.568 / —; [uudecode](#case-uudecode), 55 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`uuencode`](../loadables/uuencode.c) | C D S T F | Build/help | uuencode; uuencode (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`uuidgen`](../loadables/uuidgen.c) | F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; uuidgen (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`vec`](../loadables/vec.c) | T F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; NumPy | N/M | P3 | Add a matched workload and timing. |
@@ -378,10 +381,10 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`write`](../loadables/write.c) | T F | [Negative checks](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; write (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`xargs`](../loadables/xargs.c) | C D S T F | [Contract](../tests/regressions.py) | xargs; xargs | N/M | P3 | Add a matched workload and timing. |
 | [`xattr`](../loadables/xattr.c) | S F | [Contract](../tests/system-smoke.sh) | —; getfattr / setfattr | N/M | P3 | Add a matched workload and timing. |
-| [`zcat`](../loadables/zcat.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | zcat; zcat | N/M | P3 | Add a matched workload and timing. |
+| [`zcat`](../loadables/zcat.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | zcat; zcat | 52.693 / 166.064 / ERROR; [zcat](#case-zcat), 48 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`zlib`](../loadables/zlib.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | gzip; gzip / xz / zstd / bzip2 | N/M | P3 | Add a matched workload and timing. |
-| [`zstd`](../loadables/zstd.c) | S T F | [Parity](../tests/zstd-check.sh); [S](../tests/zstd-host.c) | —; zstd | N/M | P3 | See the dedicated zstd report; extend sizes and levels if a slower case appears. |
-| [`zstdcat`](../loadables/zstdcat.c) | S T F | [Parity](../tests/zstd-check.sh) | —; zstdcat | N/M | P3 | Add a matched workload and timing. |
+| [`zstd`](../loadables/zstd.c) | S T F | [Parity](../tests/zstd-check.sh); [S](../tests/zstd-host.c) | —; zstd | 35.039 / — / 82.607; [zstd-decompress](#case-zstd-decompress), 36 passes | P3 | See the dedicated zstd report; extend sizes and levels if a slower case appears. |
+| [`zstdcat`](../loadables/zstdcat.c) | S T F | [Parity](../tests/zstd-check.sh) | —; zstdcat | 55.269 / — / 126.311; [zstdcat](#case-zstdcat), 59 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 <!-- END CATALOG -->
 
 ## Repeated-input findings
@@ -583,6 +586,21 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | <a id="case-getconf-nproc"></a>getconf-nproc | `getconf _NPROCESSORS_ONLN` | `getconf _NPROCESSORS_ONLN` | No stdin; named fixtures / arguments | 147 | 4.461 | — | 82.935 | 0.05× | 7 |
 | <a id="case-df"></a>df | `df -P /dev` | `df -P /dev` | No stdin; named fixtures / arguments | 99 | 14.781 | 94.035 | 85.720 | 0.17× | 7 |
 | <a id="case-uptime"></a>uptime | `uptime -s` | `uptime -s` | No stdin; named fixtures / arguments | 84 | 6.502 | INVALID | 84.491 | 0.08× | 7 |
+| <a id="case-tee"></a>tee | `tee` | `tee` | text (423,000 stdin bytes) | 80 | 7.061 | 76.696 | 52.926 | 0.13× | 7 |
+| <a id="case-hostid"></a>hostid | `hostid` | `hostid` | No stdin; named fixtures / arguments | 132 | 6.507 | 137.975 | 114.184 | 0.06× | 7 |
+| <a id="case-timeout"></a>timeout | `timeout 1 /bin/true` | `timeout 1 /bin/true` | No stdin; named fixtures / arguments | 79 | 45.541 | 91.302 | 84.175 | 0.54× | 7 |
+| <a id="case-du-tree"></a>du-tree | `du -b tree` | `du -b tree` | No stdin; named fixtures / arguments | 80 | 24.347 | INVALID | 83.615 | 0.29× | 7 |
+| <a id="case-du-file"></a>du-file | `du -b text` | `du -b text` | No stdin; named fixtures / arguments | 80 | 4.562 | 81.444 | 68.621 | 0.07× | 7 |
+| <a id="case-truncate"></a>truncate | `truncate -s 4096 truncout` | `truncate -s 4096 truncout` | No stdin; named fixtures / arguments | 116 | 3.816 | 84.604 | 68.086 | 0.06× | 7 |
+| <a id="case-ar"></a>ar | `ar t tiny.a` | `ar t tiny.a` | No stdin; named fixtures / arguments | 114 | 5.109 | 108.164 | 144.300 | 0.04× | 7 |
+| <a id="case-zstdcat"></a>zstdcat | `zstdcat text.zst` | `zstdcat text.zst` | No stdin; named fixtures / arguments | 59 | 55.269 | — | 126.311 | 0.44× | 7 |
+| <a id="case-zstd-decompress"></a>zstd-decompress | `zstd -d -c text.zst` | `zstd -d -c text.zst` | No stdin; named fixtures / arguments | 36 | 35.039 | — | 82.607 | 0.42× | 7 |
+| <a id="case-zcat"></a>zcat | `zcat text.gz` | `zcat text.gz` | No stdin; named fixtures / arguments | 48 | 52.693 | 166.064 | ERROR | — | 7 |
+| <a id="case-file"></a>file | `file text` | `file text` | No stdin; named fixtures / arguments | 106 | 4.289 | — | 965.361 | 0.00× | 7 |
+| <a id="case-split"></a>split | `split -l 1000 text` | `split -l 1000 text` | No stdin; named fixtures / arguments | 64 | 36.133 | — | 70.925 | 0.51× | 7 |
+| <a id="case-csplit"></a>csplit | `csplit text 10 20` | `csplit text 10 20` | No stdin; named fixtures / arguments | 39 | 36.451 | — | 47.426 | 0.77× | 7 |
+| <a id="case-opt"></a>opt | `opt -o ab: -- -a -b x` | `getopt -o ab: -- -a -b x` | No stdin; named fixtures / arguments | 131 | 4.558 | 105.866 | 86.712 | 0.05× | 7 |
+| <a id="case-uudecode"></a>uudecode | `uudecode -o -` | `uudecode -o -` | uuencoded (90,320 stdin bytes) | 55 | 37.836 | 107.568 | — | — | 7 |
 <!-- END CASES -->
 
 ## Method and limits

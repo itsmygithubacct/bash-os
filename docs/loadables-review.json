@@ -1428,7 +1428,7 @@
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
     "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
-    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7), including extract write-error cleanup, stop-when-all-outputs-failed, and minus operands as stdin. Live `free -k` timings are omitted because counters move between invocations; tests/free-check.sh still matches GNU on a private meminfo. tests/run.sh was not re-run in full for this refresh."
+    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). A first unmeasured-catalog batch (tee, hostid, timeout, du, truncate, ar t, zstd/zstdcat, zcat, file, split, csplit, opt, uudecode) matched GNU or BusyBox on this binary across seven samples. col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch, so they are not published. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh."
   },
   "assignments": {},
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
