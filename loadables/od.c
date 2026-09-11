@@ -504,6 +504,22 @@ od_parse_nonnegative_ll (const char *s, const char *what, long long *out)
     return 0;
 }
 
+/* Own stdin's stdio state for this invocation. Bash's persistent stdin FILE
+   keeps EOF across redirections. Repeated '-' operands share this stream.
+   Never fclose stdin. */
+static FILE *
+od_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "rb");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
 int
 od_builtin (WORD_LIST *list)
 {
@@ -677,22 +693,36 @@ od_builtin (WORD_LIST *list)
         od_add_spec (&o, 'i', 'o', 2);
 
     int rc = EXECUTION_SUCCESS;
+    FILE *input = NULL;
     if (!list) {
-        if (od_skip_input (stdin, o.skip_bytes) < 0) {
+        input = od_open_stdin ();
+        if (!input)
+            return EXECUTION_FAILURE;
+        if (od_skip_input (input, o.skip_bytes) < 0) {
             builtin_error ("stdin: cannot skip %lld bytes", o.skip_bytes);
             rc = EXECUTION_FAILURE;
-        } else if (o.gnu_strings_min) rc = od_strings_gnu (stdin, o.gnu_strings_min, o.addr_radix);
-        else if (o.strings_min) rc = od_strings (stdin, o.strings_min);
+        } else if (o.gnu_strings_min) rc = od_strings_gnu (input, o.gnu_strings_min, o.addr_radix);
+        else if (o.strings_min) rc = od_strings (input, o.strings_min);
         else {
             int seen = 0, dactive = 0; size_t pn = 0;
             unsigned char *prev = (unsigned char *) malloc ((size_t) o.width);
-            if (!prev) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
-            rc = od_dump (stdin, &o, &seen, prev, &pn, &dactive);
+            if (!prev) {
+                builtin_error ("out of memory");
+                fclose (input);
+                return EXECUTION_FAILURE;
+            }
+            rc = od_dump (input, &o, &seen, prev, &pn, &dactive);
             free (prev);
         }
+        fclose (input);
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
-            FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "rb");
+            FILE *f;
+            if (!strcmp (p->word->word, "-")) {
+                if (!input) input = od_open_stdin ();
+                f = input;
+            } else
+                f = fopen (p->word->word, "rb");
             if (!f) {
                 builtin_error ("%s: %s", p->word->word, strerror (errno));
                 rc = EXECUTION_FAILURE;
@@ -714,8 +744,9 @@ od_builtin (WORD_LIST *list)
                     rc = EXECUTION_FAILURE;
                 }
             }
-            if (f != stdin) fclose (f);
+            if (f != input) fclose (f);
         }
+        if (input) fclose (input);
     }
     return rc;
 }

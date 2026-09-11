@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* strings.c - printable strings extractor. */
 #include <config.h>
+#if defined (HAVE_UNISTD_H)
+#  include <unistd.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +11,21 @@
 #include <errno.h>
 #include <limits.h>
 #include "loadables.h"
+
+/* Own stdin's stdio state for this invocation. Bash's persistent stdin FILE
+   keeps EOF across redirections. Never fclose stdin. */
+static FILE *
+strings_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "rb");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
 
 /* Per-string output prefix, matching binutils print_filename_and_address():
    "FILENAME: " when -f/--print-file-name, then the byte offset of the string
@@ -186,9 +204,16 @@ int strings_builtin(WORD_LIST *list) {
         builtin_usage();
         return EX_USAGE;
     }
-    if (!list)
-        return strings_stream(stdin, min, "{standard input}", print_fname,
-                              radix, incl_ws) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (!list) {
+        FILE *in = strings_open_stdin ();
+        int src;
+        if (!in)
+            return EXECUTION_FAILURE;
+        src = strings_stream(in, min, "{standard input}", print_fname,
+                             radix, incl_ws);
+        fclose (in);
+        return src ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    }
     for (; list; list = list->next) {
         FILE *f = fopen(list->word->word, "rb");
         if (!f) { builtin_error("%s: %s", list->word->word, strerror(errno)); rc = EXECUTION_FAILURE; continue; }

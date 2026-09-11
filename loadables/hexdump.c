@@ -662,6 +662,36 @@ hd_collect_stream (FILE *f, long long *remaining, hd_buf *out)
 
 extern char *hexdump_doc[];
 
+/* Own stdin's stdio state for this invocation. Bash's persistent stdin FILE
+   keeps EOF across redirections. Repeated '-' operands share this stream.
+   Never fclose stdin. */
+static FILE *
+hd_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "rb");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
+static FILE *
+hd_open (const char *path, FILE **input)
+{
+    if (path == NULL || (path[0] == '-' && path[1] == '\0')) {
+        if (*input == NULL)
+            *input = hd_open_stdin ();
+        return *input;
+    }
+    FILE *f = fopen (path, "rb");
+    if (!f)
+        builtin_error ("%s: %s", path, strerror (errno));
+    return f;
+}
+
 int
 hexdump_builtin (WORD_LIST *list)
 {
@@ -746,22 +776,27 @@ hexdump_builtin (WORD_LIST *list)
         long long base = 0;
         hd_buf data = {0};
         int rc = EXECUTION_SUCCESS;
+        FILE *input = NULL;
 
         if (!list) {
-            if (skip_remaining > 0) {
-                long long skipped = hd_skip_bytes (stdin, skip_remaining);
-                base += skipped;
-                skip_remaining -= skipped;
+            FILE *f = hd_open (NULL, &input);
+            if (!f)
+                rc = EXECUTION_FAILURE;
+            else {
+                if (skip_remaining > 0) {
+                    long long skipped = hd_skip_bytes (f, skip_remaining);
+                    base += skipped;
+                    skip_remaining -= skipped;
+                }
+                int cr = hd_collect_stream (f, &remaining, &data);
+                if (cr == -2) { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
+                else if (cr < 0) { builtin_error ("stdin: read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
             }
-            int cr = hd_collect_stream (stdin, &remaining, &data);
-            if (cr == -2) { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
-            else if (cr < 0) { builtin_error ("stdin: read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
         } else {
             for (WORD_LIST *p = list; p; p = p->next) {
                 if (remaining == 0) break;
-                FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "rb");
+                FILE *f = hd_open (p->word->word, &input);
                 if (!f) {
-                    builtin_error ("%s: %s", p->word->word, strerror (errno));
                     rc = EXECUTION_FAILURE;
                     continue;
                 }
@@ -778,9 +813,10 @@ hexdump_builtin (WORD_LIST *list)
                         rc = EXECUTION_FAILURE;
                     }
                 }
-                if (f != stdin) fclose (f);
+                if (f != input) fclose (f);
             }
         }
+        if (input) fclose (input);
 
         if (rc == EXECUTION_SUCCESS) {
             hd_emit_custom (&prog, data.data, data.len, base);
@@ -811,22 +847,27 @@ hexdump_builtin (WORD_LIST *list)
        semantic ("skip is byte-count into the logical stream") is the
        documented intent. */
     long long skip_remaining = o.skip;
+    FILE *input = NULL;
 
     if (!list) {
-        if (skip_remaining > 0) {
-            long long skipped = hd_skip_bytes (stdin, skip_remaining);
-            off += skipped;
-            skip_remaining -= skipped;
+        FILE *f = hd_open (NULL, &input);
+        if (!f)
+            rc = EXECUTION_FAILURE;
+        else {
+            if (skip_remaining > 0) {
+                long long skipped = hd_skip_bytes (f, skip_remaining);
+                off += skipped;
+                skip_remaining -= skipped;
+            }
+            if (remaining != 0)
+                (void) hd_emit_stream (f, &o, &off, &remaining, rowbuf, &rowfill,
+                                       prev, &have_prev, &squeezing);
         }
-        if (remaining != 0)
-            (void) hd_emit_stream (stdin, &o, &off, &remaining, rowbuf, &rowfill,
-                                   prev, &have_prev, &squeezing);
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
             if (remaining == 0) break;
-            FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "rb");
+            FILE *f = hd_open (p->word->word, &input);
             if (!f) {
-                builtin_error ("%s: %s", p->word->word, strerror (errno));
                 rc = EXECUTION_FAILURE;
                 continue;
             }
@@ -842,9 +883,10 @@ hexdump_builtin (WORD_LIST *list)
                     rc = EXECUTION_FAILURE;
                 }
             }
-            if (f != stdin) fclose (f);
+            if (f != input) fclose (f);
         }
     }
+    if (input) fclose (input);
 
     /* Flush the partial trailing row (if any) and the final offset line. */
     if (rowfill > 0) {

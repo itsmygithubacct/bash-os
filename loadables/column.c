@@ -70,11 +70,33 @@
  * Shared helpers — stream slurp and getline-style read.
  * =================================================================== */
 
+/* Own stdin's stdio state for this invocation. Bash's persistent stdin FILE
+   keeps EOF and read-ahead across redirections. Repeated '-' operands share
+   this stream. Never fclose stdin. */
 static FILE *
-bcol_open (const char *path)
+bcol_open_stdin (void)
+{
+  int fd = dup (STDIN_FILENO);
+  FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+  if (!in)
+    {
+      int error = errno;
+      if (fd >= 0)
+        close (fd);
+      builtin_error ("stdin: %s", strerror (error));
+    }
+  return in;
+}
+
+static FILE *
+bcol_open (const char *path, FILE **in_stdin)
 {
   if (path == NULL || (path[0] == '-' && path[1] == '\0'))
-    return stdin;
+    {
+      if (*in_stdin == NULL)
+        *in_stdin = bcol_open_stdin ();
+      return *in_stdin;
+    }
   FILE *fp = fopen (path, "r");
   if (!fp)
     builtin_error ("%s: %s", path, strerror (errno));
@@ -420,10 +442,11 @@ column_builtin (WORD_LIST *list)
       size_t maxw = 0;
       int rc = EXECUTION_SUCCESS;
       int n_streams = n_files ? n_files : 1;
+      FILE *in_stdin = NULL;
 
       for (int fi = 0; fi < n_streams; fi++)
         {
-          FILE *fp = n_files ? bcol_open (files[fi]) : stdin;
+          FILE *fp = bcol_open (n_files ? files[fi] : NULL, &in_stdin);
           if (!fp)
             { rc = EXECUTION_FAILURE; continue; }
           char *line = NULL;
@@ -452,7 +475,7 @@ column_builtin (WORD_LIST *list)
           if (got < 0)
             { builtin_error ("read: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
           free (line);
-          if (fp != stdin) fclose (fp);
+          if (fp != in_stdin) fclose (fp);
         }
 
       if (n_items > 0)
@@ -501,6 +524,8 @@ column_builtin (WORD_LIST *list)
         }
 
 columnar_cleanup:
+      if (in_stdin)
+        fclose (in_stdin);
       for (int i = 0; i < n_items; i++)
         free (items[i]);
       free (items);
@@ -514,9 +539,10 @@ columnar_cleanup:
   int rc = EXECUTION_SUCCESS;
 
   int n_streams = n_files ? n_files : 1;
+  FILE *in_stdin = NULL;
   for (int fi = 0; fi < n_streams; fi++)
     {
-      FILE *fp = n_files ? bcol_open (files[fi]) : stdin;
+      FILE *fp = bcol_open (n_files ? files[fi] : NULL, &in_stdin);
       if (!fp)
         { rc = EXECUTION_FAILURE; continue; }
       char *line = NULL;
@@ -565,7 +591,7 @@ columnar_cleanup:
       if (got < 0)
         { builtin_error ("read: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
       free (line);
-      if (fp != stdin) fclose (fp);
+      if (fp != in_stdin) fclose (fp);
     }
 
   for (int r = 0; r < n_rows; r++)
@@ -584,6 +610,8 @@ columnar_cleanup:
     }
 
 cleanup:
+  if (in_stdin)
+    fclose (in_stdin);
   for (int r = 0; r < n_rows; r++)
     bcol_row_free (&rows[r]);
   free (rows);
@@ -629,9 +657,10 @@ col_builtin (WORD_LIST *list)
 
   int rc = EXECUTION_SUCCESS;
   int n_streams = n_files ? n_files : 1;
+  FILE *in_stdin = NULL;
   for (int fi = 0; fi < n_streams; fi++)
     {
-      FILE *fp = n_files ? bcol_open (files[fi]) : stdin;
+      FILE *fp = bcol_open (n_files ? files[fi] : NULL, &in_stdin);
       if (!fp) { rc = EXECUTION_FAILURE; continue; }
       /* Hold the most recent input byte so -b can drop the byte a
          backspace overstrikes. Without -b, preserve the overstrike bytes. */
@@ -665,8 +694,10 @@ col_builtin (WORD_LIST *list)
       if (pending != -1) putchar (pending);
       if (ferror (fp))
         { builtin_error ("read: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
-      if (fp != stdin) fclose (fp);
+      if (fp != in_stdin) fclose (fp);
     }
+  if (in_stdin)
+    fclose (in_stdin);
   return rc;
 }
 
@@ -722,7 +753,10 @@ colrm_builtin (WORD_LIST *list)
   size_t cap = 0;
   ssize_t got;
   int rc = EXECUTION_SUCCESS;
-  while ((got = bcol_getline (stdin, &line, &cap)) > 0)
+  FILE *in = bcol_open_stdin ();
+  if (!in)
+    return EXECUTION_FAILURE;
+  while ((got = bcol_getline (in, &line, &cap)) > 0)
     {
       int has_nl = (line[got - 1] == '\n');
       size_t dlen = has_nl ? (size_t) got - 1 : (size_t) got;
@@ -745,6 +779,7 @@ colrm_builtin (WORD_LIST *list)
   if (got < 0)
     { builtin_error ("read: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
   free (line);
+  fclose (in);
   return rc;
 }
 
