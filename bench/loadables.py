@@ -175,6 +175,29 @@ def cases():
     add('ip', ['-br', 'link', 'show', 'lo'], fixture='empty', maximum=200)
     add('tinfo', ['getnum', 'cols'], fixture='empty', host='tput',
         host_args=['cols'], maximum=200)
+    add('tput', ['lines'], fixture='empty', label='tput-lines', maximum=200)
+    add('signal', ['-s', '15'], fixture='empty', host='kill',
+        host_args=['-l', '15'], label='signal-name', maximum=200)
+    add('finfo', ['-o', 'text'], fixture='empty', host='stat',
+        host_args=['-c', '%a', 'text'], label='finfo-mode', maximum=200)
+    add('chrt', ['-p', '1'], fixture='empty', label='chrt-pid1', maximum=200)
+    add('zlib', ['-f', 'xz', 'text.xz'], fixture='empty', host='xz',
+        host_args=['-dc', 'text.xz'], label='zlib-xz')
+    add('zlib', ['-f', 'bzip2', 'text.bz2'], fixture='empty', host='bzip2',
+        host_args=['-dc', 'text.bz2'], label='zlib-bzip2')
+    add('coreutils', ['numfmt', '--to=iec', '1024', '4096'], fixture='empty',
+        host='numfmt', host_args=['--to=iec', '1024', '4096'],
+        label='coreutils-numfmt', maximum=200)
+    add('coreutils', ['tsort', 'chain'], fixture='empty', host='tsort',
+        host_args=['chain'], label='coreutils-tsort', maximum=200)
+    add('coreutils', ['factor', '1234567890', '97'], fixture='empty',
+        host='factor', host_args=['1234567890', '97'],
+        label='coreutils-factor', maximum=200)
+    add('coreutils', ['groups'], fixture='empty', host='groups',
+        host_args=[], label='coreutils-groups', maximum=200)
+    add('coreutils', ['install', '-m', '644', 'text', 'installed'], fixture='empty',
+        host='install', host_args=['-m', '644', 'text', 'installed'],
+        output='installed', label='coreutils-install')
     return rows
 
 
@@ -199,6 +222,7 @@ def fixtures(root):
         'object': json.dumps({'answer':42, 'data':[i%101 for i in range(10000)]}).encode()+b'\n',
         'arithmetic': b'scale=20; sqrt(2)\n',
         'edscript': b'1,2p\nq\n',
+        'chain': b'a b\nb c\nc d\n',
     }
     for name, value in data.items():
         (root/name).write_bytes(value)
@@ -233,6 +257,16 @@ def fixtures(root):
         with (root/'text.zst').open('wb') as out:
             subprocess.check_call([zstd, '-q', '-c', '-3', 'text'], cwd=root, stdout=out)
         record(root/'text.zst', 'text.zst')
+    xz = shutil.which('xz', path=HOST_PATH)
+    if xz:
+        with (root/'text.xz').open('wb') as out:
+            subprocess.check_call([xz, '-c', 'text'], cwd=root, stdout=out)
+        record(root/'text.xz', 'text.xz')
+    bzip2 = shutil.which('bzip2', path=HOST_PATH)
+    if bzip2:
+        with (root/'text.bz2').open('wb') as out:
+            subprocess.check_call([bzip2, '-c', 'text'], cwd=root, stdout=out)
+        record(root/'text.bz2', 'text.bz2')
     busybox = shutil.which('busybox', path=HOST_PATH)
     if busybox:
         encoded = subprocess.check_output(

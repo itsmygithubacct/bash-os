@@ -31,11 +31,13 @@ BusyBox-matching timings on this binary (`tee`, `hostid`, `timeout`, `du`,
 `truncate`, `ar t`, `zstd`/`zstdcat`, `zcat`, `file`, `split`, `csplit`,
 `opt`, `uudecode`, then `strftime`, `strptime`, `zlib`, `pax`, `tput`,
 `less`, `chrt`, `signal`, `cal`, `ed`, `finfo`, `fltexpr`, `pcre`,
-`uclampset`, `tz`, `ip`, `tinfo`). Live `free -k` timings are not published
-because counters move between invocations.
+`uclampset`, `tz`, `ip`, `tinfo`, plus extra `tput`/`signal`/`finfo`/`chrt`
+cases, `zlib` xz/bzip2, and `coreutils` numfmt/tsort/factor/groups/install).
+Live `free -k` timings are not published because counters move between
+invocations.
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **115 cases covering 104 loadables**; 104 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 175 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **126 cases covering 105 loadables**; 105 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 174 have no individual command timings here; GPU transport measurements are reported separately.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -47,7 +49,7 @@ Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command b
 | desktop | 155 |
 | full | 279 |
 
-Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Two unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (32 published cases). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils factor/nproc/install did not match a harness reference. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
+Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (43 published cases after the third batch). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
 
 Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `c591f19` after leftover ar/tee/diff follow-ups landed.
 
@@ -144,7 +146,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`chgrp`](../loadables/chgrp.c) | C D S T F | [Bench checked](#case-chgrp) | chgrp; chgrp | 5.311 / 86.114 / 72.067; [chgrp](#case-chgrp), 116 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `chmod`* | P C D S T F | [Bench checked](#case-chmod) | chmod; chmod | 4.484 / 90.870 / 73.351; [chmod](#case-chmod), 102 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`chown`](../loadables/chown.c) | C D S T F | [Bench checked](#case-chown) | chown; chown | 5.242 / 106.276 / 91.887; [chown](#case-chown), 144 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`chrt`](../loadables/chrt.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | —; chrt | 4.115 / — / 73.644; [chrt](#case-chrt), 127 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`chrt`](../loadables/chrt.c) | D S F | [Query parity](../tests/util-linux-smoke.sh) | —; chrt | 4.115 / — / 73.644; [chrt](#case-chrt), 127 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`cksum`](../loadables/cksum.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; cksum | 52.159 / — / 78.598; [cksum](#case-cksum), 48 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`claude`](../loadables/claude.c) | F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`clip`](../loadables/clip.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -154,7 +156,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`colrm`](../loadables/colrm.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; colrm | 65.306 / — / 125.531; [colrm](#case-colrm), 24 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`column`](../loadables/column.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; column | 82.020 / — / 343.863; [column](#case-column), 7 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`comm`](../loadables/comm.c) | C D S T F | [Bench checked](#case-comm) | —; comm | 71.590 / — / 27.610; [comm](#case-comm), 18 passes | P2 | Profile input/output and allocation costs on the comm fixture, then measure the proposed change. |
-| [`coreutils`](../loadables/coreutils.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; Individual coreutils programs | N/M | P3 | Add a matched workload and timing. |
+| [`coreutils`](../loadables/coreutils.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; Individual coreutils programs | 13.985 / 61.860 / 75.621; [coreutils-install](#case-coreutils-install), 59 passes; 5 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`cp`](../loadables/cp.c) | C D S T F | [Contract](../tests/host-smoke.sh) | cp; cp | 14.991 / 68.229 / 84.129; [cp](#case-cp), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`cred`](../loadables/cred.c) | S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cron`](../loadables/cron.c) | S F | [Contract](../tests/large-smoke.py) | crond; cron / crond | N/M | P3 | Add a matched workload and timing. |
@@ -190,7 +192,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`file`](../loadables/file.c) | T F | [Contract](../tests/misc-smoke.py) | —; file | 4.289 / — / 965.361; [file](#case-file), 106 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`fincore`](../loadables/fincore.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; fincore | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`find`](../loadables/find.c) | C D S T F | [Contract](../tests/regressions.py) | find; find | 25.423 / 78.876 / 76.467; [find](#case-find), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| `finfo`* | D S F | [Bench checked](#case-finfo) | stat; stat | 4.191 / 117.135 / 114.933; [finfo](#case-finfo), 159 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| `finfo`* | D S F | [Bench checked](#case-finfo-mode) | stat; stat | 3.729 / 87.294 / 84.916; [finfo-mode](#case-finfo-mode), 106 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`flock`](../loadables/flock.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | —; flock | 40.423 / — / 75.590; [flock](#case-flock), 81 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `fltexpr`* | D S F | [Bench checked](#case-fltexpr) | awk; awk / bc | 4.832 / 120.849 / 221.000; [fltexpr](#case-fltexpr), 130 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`fold`](../loadables/fold.c) | C D S T F | [Parity](../tests/fold-parity.py); [limited](#scope-notes); [S](../tests/fold-sanitize.sh) | fold; fold | 46.360 / 168.253 / 107.431; [fold](#case-fold), 43 passes | P3 | Decide required option scope; see limitations. |
@@ -309,7 +311,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | `setpgid`* | D S F | Build/help | —; Python os.setpgid | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`setsid`](../loadables/setsid.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | setsid; setsid | 55.379 / 102.391 / 88.526; [setsid](#case-setsid), 108 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sftp`](../loadables/sftp.c) | S F | [Contract](../tests/network-smoke.py) | —; sftp | N/M | P3 | Add a matched workload and timing. |
-| [`signal`](../loadables/signal.c) | D S F | [Contract](../tests/system-smoke.sh) | kill; kill -l / Bash kill | 3.605 / 93.127 / 76.166; [signal](#case-signal), 136 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`signal`](../loadables/signal.c) | D S F | [Contract](../tests/system-smoke.sh) | kill; kill -l / Bash kill | 3.605 / 93.127 / 76.166; [signal](#case-signal), 136 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`sixel`](../loadables/sixel.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh); [Fz](../tests/fuzz-image.c) | —; img2sixel (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`slabtop`](../loadables/slabtop.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; slabtop | N/M | P3 | Add a matched workload and timing. |
 | `sleep`* | P C D S T F | [Bench checked](#case-sleep) | sleep; sleep | 9.795 / 91.824 / 74.081; [sleep](#case-sleep), 94 passes | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -344,7 +346,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`top`](../loadables/top.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | top; top | N/M | P3 | Add a matched workload and timing. |
 | [`totp`](../loadables/totp.c) | F | [Contract](../tests/misc-smoke.py) | —; oathtool (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`touch`](../loadables/touch.c) | C D S T F | [Bench checked](#case-touch) | touch; touch | 3.610 / 88.410 / 77.395; [touch](#case-touch), 118 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`tput`](../loadables/tput.c) | T F | [Bench checked](#case-tput) | —; tput | 4.076 / — / 95.437; [tput](#case-tput), 141 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`tput`](../loadables/tput.c) | T F | [Bench checked](#case-tput-lines) | —; tput | 3.688 / — / 78.494; [tput-lines](#case-tput-lines), 100 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`tr`](../loadables/tr.c) | C D S T F | [Bench checked](#case-tr) | tr; tr | 32.987 / 61.804 / 39.122; [tr](#case-tr), 42 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`truncate`](../loadables/truncate.c) | C D S T F | [Bench checked](#case-truncate) | truncate; truncate | 3.816 / 84.604 / 68.086; [truncate](#case-truncate), 116 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`ts`](../loadables/ts.c) | T F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; tree-sitter (missing) | N/M | P3 | Add a matched workload and timing. |
@@ -384,7 +386,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`xargs`](../loadables/xargs.c) | C D S T F | [Contract](../tests/regressions.py) | xargs; xargs | N/M | P3 | Add a matched workload and timing. |
 | [`xattr`](../loadables/xattr.c) | S F | [Contract](../tests/system-smoke.sh) | —; getfattr / setfattr | N/M | P3 | Add a matched workload and timing. |
 | [`zcat`](../loadables/zcat.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | zcat; zcat | 52.693 / 166.064 / ERROR; [zcat](#case-zcat), 48 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`zlib`](../loadables/zlib.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | gzip; gzip / xz / zstd / bzip2 | 48.088 / 140.978 / 112.828; [zlib](#case-zlib), 50 passes | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`zlib`](../loadables/zlib.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | gzip; gzip / xz / zstd / bzip2 | 88.770 / 88.840 / 101.980; [zlib-bzip2](#case-zlib-bzip2), 7 passes; 3 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`zstd`](../loadables/zstd.c) | S T F | [Parity](../tests/zstd-check.sh); [S](../tests/zstd-host.c) | —; zstd | 35.039 / — / 82.607; [zstd-decompress](#case-zstd-decompress), 36 passes | P3 | See the dedicated zstd report; extend sizes and levels if a slower case appears. |
 | [`zstdcat`](../loadables/zstdcat.c) | S T F | [Parity](../tests/zstd-check.sh) | —; zstdcat | 55.269 / — / 126.311; [zstdcat](#case-zstdcat), 59 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 <!-- END CATALOG -->
@@ -620,6 +622,17 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | <a id="case-tz"></a>tz | `tz convert 0 -z UTC` | `date -u -d @0 '+%Y-%m-%d %H:%M:%S UTC +0000'` | No stdin; named fixtures / arguments | 128 | 3.830 | 94.323 | 76.262 | 0.05× | 7 |
 | <a id="case-ip"></a>ip | `ip -br link show lo` | `ip -br link show lo` | No stdin; named fixtures / arguments | 130 | 6.611 | ERROR | 151.618 | 0.04× | 7 |
 | <a id="case-tinfo"></a>tinfo | `tinfo getnum cols` | `tput cols` | No stdin; named fixtures / arguments | 118 | 4.312 | — | 87.535 | 0.05× | 7 |
+| <a id="case-tput-lines"></a>tput-lines | `tput lines` | `tput lines` | No stdin; named fixtures / arguments | 100 | 3.688 | — | 78.494 | 0.05× | 7 |
+| <a id="case-signal-name"></a>signal-name | `signal -s 15` | `kill -l 15` | No stdin; named fixtures / arguments | 138 | 3.905 | 105.640 | 83.385 | 0.05× | 7 |
+| <a id="case-finfo-mode"></a>finfo-mode | `finfo -o text` | `stat -c %a text` | No stdin; named fixtures / arguments | 106 | 3.729 | 87.294 | 84.916 | 0.04× | 7 |
+| <a id="case-chrt-pid1"></a>chrt-pid1 | `chrt -p 1` | `chrt -p 1` | No stdin; named fixtures / arguments | 135 | 4.286 | — | 86.193 | 0.05× | 7 |
+| <a id="case-zlib-xz"></a>zlib-xz | `zlib -f xz text.xz` | `xz -dc text.xz` | No stdin; named fixtures / arguments | 31 | 53.746 | 144.882 | 88.324 | 0.61× | 7 |
+| <a id="case-zlib-bzip2"></a>zlib-bzip2 | `zlib -f bzip2 text.bz2` | `bzip2 -dc text.bz2` | No stdin; named fixtures / arguments | 7 | 88.770 | 88.840 | 101.980 | 0.87× | 7 |
+| <a id="case-coreutils-numfmt"></a>coreutils-numfmt | `coreutils numfmt --to=iec 1024 4096` | `numfmt --to=iec 1024 4096` | No stdin; named fixtures / arguments | 66 | 3.363 | — | 42.022 | 0.08× | 7 |
+| <a id="case-coreutils-tsort"></a>coreutils-tsort | `coreutils tsort chain` | `tsort chain` | No stdin; named fixtures / arguments | 147 | 5.061 | — | 92.682 | 0.05× | 7 |
+| <a id="case-coreutils-factor"></a>coreutils-factor | `coreutils factor 1234567890 97` | `factor 1234567890 97` | No stdin; named fixtures / arguments | 141 | 5.827 | 102.189 | 91.381 | 0.06× | 7 |
+| <a id="case-coreutils-groups"></a>coreutils-groups | `coreutils groups` | `groups` | No stdin; named fixtures / arguments | 122 | 20.074 | 154.863 | 126.393 | 0.16× | 7 |
+| <a id="case-coreutils-install"></a>coreutils-install | `coreutils install -m 644 text installed` | `install -m 644 text installed` | No stdin; named fixtures / arguments | 59 | 13.985 | 61.860 | 75.621 | 0.18× | 7 |
 <!-- END CASES -->
 
 ## Method and limits

@@ -1428,7 +1428,7 @@
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
     "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
-    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Two unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (32 published cases). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils factor/nproc/install did not match a harness reference. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh."
+    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (43 published cases after the third batch). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh."
   },
   "assignments": {},
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",

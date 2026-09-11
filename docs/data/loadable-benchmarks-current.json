@@ -108,7 +108,19 @@
     },
     "tiny.tar": {
       "bytes": 10240,
-      "sha256": "061fe1f56d1fe546749d976c2b0b495678f789c2df8c00768a19fb39525be966"
+      "sha256": "ff05181b0840fa5c0651d5180657b377159b2a808341307e5bfb437d71deae8d"
+    },
+    "chain": {
+      "bytes": 12,
+      "sha256": "76eade5e5d3e46af6da4d1638533d695be8d23dfd1093cdd10bfea3d6002dab5"
+    },
+    "text.xz": {
+      "bytes": 49752,
+      "sha256": "d6d62b245190601b14ed20e55eb13a9048f1ccfd6bbe34cea69d49256e2de781"
+    },
+    "text.bz2": {
+      "bytes": 42932,
+      "sha256": "529ddc9b9ab7edb2c4741df700d4d4e8d7ef448d872031979ec4b94d5552bcd7"
     }
   },
   "load_average_end": [
@@ -693,7 +705,14 @@
       "zstdcat": true,
       "gzip": true,
       "tar": true,
-      "kill": true
+      "kill": true,
+      "xz": true,
+      "bzip2": true,
+      "numfmt": true,
+      "tsort": true,
+      "factor": true,
+      "groups": true,
+      "install": true
     }
   },
   "cases": [
@@ -5446,6 +5465,472 @@
           "median_ms": 87.535,
           "min_ms": 81.165,
           "max_ms": 93.943
+        }
+      }
+    },
+    {
+      "id": "tput-lines",
+      "loadable": "tput",
+      "args": [
+        "lines"
+      ],
+      "fixture": "empty",
+      "host": "tput",
+      "applet": "tput",
+      "host_args": [
+        "lines"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 100,
+      "validation_passes": 100,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.688,
+          "min_ms": 3.222,
+          "max_ms": 4.915
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 78.494,
+          "min_ms": 72.918,
+          "max_ms": 80.994
+        }
+      }
+    },
+    {
+      "id": "signal-name",
+      "loadable": "signal",
+      "args": [
+        "-s",
+        "15"
+      ],
+      "fixture": "empty",
+      "host": "kill",
+      "applet": "kill",
+      "host_args": [
+        "-l",
+        "15"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 138,
+      "validation_passes": 138,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.905,
+          "min_ms": 3.603,
+          "max_ms": 4.955
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 83.385,
+          "min_ms": 76.802,
+          "max_ms": 98.183
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 105.64,
+          "min_ms": 101.655,
+          "max_ms": 138.359
+        }
+      }
+    },
+    {
+      "id": "finfo-mode",
+      "loadable": "finfo",
+      "args": [
+        "-o",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "stat",
+      "applet": "stat",
+      "host_args": [
+        "-c",
+        "%a",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 106,
+      "validation_passes": 106,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.729,
+          "min_ms": 3.322,
+          "max_ms": 4.329
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 84.916,
+          "min_ms": 78.973,
+          "max_ms": 97.717
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 87.294,
+          "min_ms": 74.3,
+          "max_ms": 112.379
+        }
+      }
+    },
+    {
+      "id": "chrt-pid1",
+      "loadable": "chrt",
+      "args": [
+        "-p",
+        "1"
+      ],
+      "fixture": "empty",
+      "host": "chrt",
+      "applet": "chrt",
+      "host_args": [
+        "-p",
+        "1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 135,
+      "validation_passes": 135,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.286,
+          "min_ms": 3.735,
+          "max_ms": 6.745
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 86.193,
+          "min_ms": 80.454,
+          "max_ms": 95.92
+        }
+      }
+    },
+    {
+      "id": "zlib-xz",
+      "loadable": "zlib",
+      "args": [
+        "-f",
+        "xz",
+        "text.xz"
+      ],
+      "fixture": "empty",
+      "host": "xz",
+      "applet": "xz",
+      "host_args": [
+        "-dc",
+        "text.xz"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 31,
+      "validation_passes": 31,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 53.746,
+          "min_ms": 50.503,
+          "max_ms": 58.633
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 88.324,
+          "min_ms": 86.17,
+          "max_ms": 92.809
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 144.882,
+          "min_ms": 138.588,
+          "max_ms": 158.495
+        }
+      }
+    },
+    {
+      "id": "zlib-bzip2",
+      "loadable": "zlib",
+      "args": [
+        "-f",
+        "bzip2",
+        "text.bz2"
+      ],
+      "fixture": "empty",
+      "host": "bzip2",
+      "applet": "bzip2",
+      "host_args": [
+        "-dc",
+        "text.bz2"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 7,
+      "validation_passes": 7,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 88.77,
+          "min_ms": 79.319,
+          "max_ms": 91.322
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 101.98,
+          "min_ms": 88.86,
+          "max_ms": 123.342
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 88.84,
+          "min_ms": 84.821,
+          "max_ms": 97.808
+        }
+      }
+    },
+    {
+      "id": "coreutils-numfmt",
+      "loadable": "coreutils",
+      "args": [
+        "numfmt",
+        "--to=iec",
+        "1024",
+        "4096"
+      ],
+      "fixture": "empty",
+      "host": "numfmt",
+      "applet": "numfmt",
+      "host_args": [
+        "--to=iec",
+        "1024",
+        "4096"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 66,
+      "validation_passes": 66,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.363,
+          "min_ms": 2.976,
+          "max_ms": 4.14
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 42.022,
+          "min_ms": 39.539,
+          "max_ms": 47.879
+        }
+      }
+    },
+    {
+      "id": "coreutils-tsort",
+      "loadable": "coreutils",
+      "args": [
+        "tsort",
+        "chain"
+      ],
+      "fixture": "empty",
+      "host": "tsort",
+      "applet": "tsort",
+      "host_args": [
+        "chain"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 147,
+      "validation_passes": 147,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 5.061,
+          "min_ms": 4.373,
+          "max_ms": 6.116
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 92.682,
+          "min_ms": 88.804,
+          "max_ms": 111.52
+        }
+      }
+    },
+    {
+      "id": "coreutils-factor",
+      "loadable": "coreutils",
+      "args": [
+        "factor",
+        "1234567890",
+        "97"
+      ],
+      "fixture": "empty",
+      "host": "factor",
+      "applet": "factor",
+      "host_args": [
+        "1234567890",
+        "97"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 141,
+      "validation_passes": 141,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 5.827,
+          "min_ms": 5.177,
+          "max_ms": 6.39
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 91.381,
+          "min_ms": 84.202,
+          "max_ms": 101.87
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 102.189,
+          "min_ms": 97.785,
+          "max_ms": 123.305
+        }
+      }
+    },
+    {
+      "id": "coreutils-groups",
+      "loadable": "coreutils",
+      "args": [
+        "groups"
+      ],
+      "fixture": "empty",
+      "host": "groups",
+      "applet": "groups",
+      "host_args": [],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 122,
+      "validation_passes": 122,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 20.074,
+          "min_ms": 15.407,
+          "max_ms": 24.361
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 126.393,
+          "min_ms": 95.41,
+          "max_ms": 130.648
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 154.863,
+          "min_ms": 104.099,
+          "max_ms": 162.646
+        }
+      }
+    },
+    {
+      "id": "coreutils-install",
+      "loadable": "coreutils",
+      "args": [
+        "install",
+        "-m",
+        "644",
+        "text",
+        "installed"
+      ],
+      "fixture": "empty",
+      "host": "install",
+      "applet": "install",
+      "host_args": [
+        "-m",
+        "644",
+        "text",
+        "installed"
+      ],
+      "normalizer": "exact",
+      "output": "installed",
+      "reference": "external",
+      "passes": 59,
+      "validation_passes": 59,
+      "date": "2026-09-11T17:47:50Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 13.985,
+          "min_ms": 11.921,
+          "max_ms": 18.919
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 75.621,
+          "min_ms": 70.735,
+          "max_ms": 82.676
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 61.86,
+          "min_ms": 56.061,
+          "max_ms": 63.865
         }
       }
     }
