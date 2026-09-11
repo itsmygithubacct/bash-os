@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
@@ -234,24 +235,56 @@ truncate_builtin (WORD_LIST *list)
                 blocks = (long long) st.st_blksize;
         }
 
-        long long ssize = block_mode ? mag * blocks : mag;
+        long long ssize;
+        if (block_mode) {
+            /* st_blksize is positive; mag * blocks must not wrap. */
+            if (blocks > 1 && mag > 0 && mag > LLONG_MAX / blocks) {
+                builtin_error ("overflow extending size of file %s", path);
+                close (fd); rc = EXECUTION_FAILURE; continue;
+            }
+            if (blocks > 1 && mag < 0 && mag < LLONG_MIN / blocks) {
+                builtin_error ("overflow extending size of file %s", path);
+                close (fd); rc = EXECUTION_FAILURE; continue;
+            }
+            ssize = mag * blocks;
+        } else
+            ssize = mag;
         /* Base size for relative modes: the reference, else the file itself. */
         long long fsize = (ref_size >= 0) ? ref_size : (have_st ? (long long) st.st_size : 0);
-        long long nsize;
+        long long nsize = 0;
+        int overflow = 0;
         switch (mode) {
-            case RM_REL: nsize = fsize + ssize; break;
+            case RM_REL:
+                if (ssize > 0 && fsize > LLONG_MAX - ssize)
+                    overflow = 1;
+                else if (ssize < 0 && fsize < LLONG_MIN - ssize)
+                    overflow = 1;
+                else
+                    nsize = fsize + ssize;
+                break;
             case RM_MIN: nsize = fsize > ssize ? fsize : ssize; break;   /* >= */
             case RM_MAX: nsize = fsize < ssize ? fsize : ssize; break;   /* <= */
             case RM_RDN: nsize = ssize ? fsize - fsize % ssize : fsize; break;
             case RM_RUP: {
                 long long r = ssize ? fsize % ssize : 0;
-                nsize = fsize + (r ? ssize - r : 0);
+                long long add = r ? ssize - r : 0;
+                if (add > 0 && fsize > LLONG_MAX - add)
+                    overflow = 1;
+                else
+                    nsize = fsize + add;
                 break;
             }
             case RM_ABS:
             default:     nsize = ssize; break;
         }
-        if (nsize < 0) nsize = 0;
+        /* GNU: overflow on extend is an error and leaves the file alone.
+           A relative shrink past zero is not overflow; it becomes empty. */
+        if (!overflow && nsize < 0)
+            nsize = 0;
+        if (overflow || (long long) (off_t) nsize != nsize) {
+            builtin_error ("overflow extending size of file %s", path);
+            close (fd); rc = EXECUTION_FAILURE; continue;
+        }
 
         if (ftruncate (fd, (off_t) nsize) < 0) {
             builtin_error ("cannot truncate %s: %s", path, strerror (errno));
