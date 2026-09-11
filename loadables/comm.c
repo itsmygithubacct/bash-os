@@ -74,6 +74,18 @@ bc_write_record (const char *buf, size_t len, int delim)
         fputc (delim, stdout);
 }
 
+static int
+bc_out_err (int *err)
+{
+    if (*err)
+        return 1;
+    if (ferror (stdout)) {
+        *err = errno ? errno : EIO;
+        return 1;
+    }
+    return 0;
+}
+
 static void
 bc_prefix (int column, int suppress[3], const char *sep)
 {
@@ -169,8 +181,9 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
     int issued[2] = {0, 0};
     int disorder = 0;
     int seen_unpairable = 0;
+    int out_err = 0;
     /* POSIX column prefixes: col 1 = no tab, col 2 = 1 tab, col 3 = 2 tabs. */
-    while (na != -1 || nb != -1) {
+    while (!out_err && (na != -1 || nb != -1)) {
         int cmp;
         if (na == -1)      cmp =  1;
         else if (nb == -1) cmp = -1;
@@ -178,7 +191,11 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
         if (cmp < 0) {
             seen_unpairable = 1;
             total[0]++;
-            if (!suppress[0]) bc_write_record (la.buf, (size_t)la.len, delim);
+            if (!suppress[0]) {
+                bc_write_record (la.buf, (size_t)la.len, delim);
+                if (bc_out_err (&out_err))
+                    break;
+            }
             if (bc_advance (fa, &la, &prev_a, 1, delim, order_mode,
                             seen_unpairable, issued, &disorder) != EXECUTION_SUCCESS)
                 goto fail;
@@ -189,6 +206,8 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
             if (!suppress[1]) {
                 bc_prefix (2, suppress, sep);
                 bc_write_record (lb.buf, (size_t)lb.len, delim);
+                if (bc_out_err (&out_err))
+                    break;
             }
             if (bc_advance (fb, &lb, &prev_b, 2, delim, order_mode,
                             seen_unpairable, issued, &disorder) != EXECUTION_SUCCESS)
@@ -199,6 +218,8 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
             if (!suppress[2]) {
                 bc_prefix (3, suppress, sep);
                 bc_write_record (la.buf, (size_t)la.len, delim);
+                if (bc_out_err (&out_err))
+                    break;
             }
             if (bc_advance (fa, &la, &prev_a, 1, delim, order_mode,
                             seen_unpairable, issued, &disorder) != EXECUTION_SUCCESS)
@@ -210,7 +231,7 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
             nb = lb.len;
         }
     }
-    if (total_option)
+    if (!out_err && total_option)
         {
             printf ("%lu", total[0]);
             bc_write_sep (sep);
@@ -219,15 +240,20 @@ bc_run (FILE *fa, FILE *fb, int suppress[3], int total_option,
             printf ("%lu", total[2]);
             bc_write_sep (sep);
             printf ("total%c", delim);
+            bc_out_err (&out_err);
         }
+    if (!out_err && (fflush (stdout) == EOF || ferror (stdout)))
+        out_err = errno ? errno : EIO;
     /* GNU comm: after a default-mode (warning) disorder, emit a final
        "input is not in sorted order" diagnostic before failing. In
        --check-order mode the run already short-circuited via `goto fail`,
        so this only fires for the warn-then-continue default path. */
-    if (disorder)
+    if (out_err)
+        builtin_error ("write error: %s", strerror (out_err));
+    else if (disorder)
         builtin_error ("input is not in sorted order");
     free (la.buf); free (lb.buf); free (prev_a.buf); free (prev_b.buf);
-    return disorder ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    return (out_err || disorder) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 
 fail:
     free (la.buf); free (lb.buf); free (prev_a.buf); free (prev_b.buf);
@@ -322,6 +348,10 @@ comm_builtin (WORD_LIST *list)
     }
     const char *p1 = list->word->word;
     const char *p2 = list->next->word->word;
+    if (!strcmp (p1, "-") && !strcmp (p2, "-")) {
+        builtin_error ("standard input is listed more than once");
+        return EXECUTION_FAILURE;
+    }
 
     FILE *fa = !strcmp (p1, "-") ? stdin : fopen (p1, "r");
     if (!fa) { builtin_error ("%s: %s", p1, strerror (errno)); return EXECUTION_FAILURE; }

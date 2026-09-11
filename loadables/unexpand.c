@@ -107,6 +107,7 @@ bu_process (FILE *f, const bu_opts *o)
     int column = 0;
     int one_blank_before = 0;
     int prev_blank = 1;          /* a line is treated as preceded by a blank */
+    int out_failed = 0;
     int c;
 
     clearerr (f);
@@ -177,13 +178,20 @@ bu_process (FILE *f, const bu_opts *o)
             fputc ('\n', stdout);
             convert = 1; column = 0;
             one_blank_before = 0; prev_blank = 1; pending_n = 0;
-            continue;
-        }
-        if (!suppress)
+        } else if (!suppress) {
             fputc (c, stdout);
+        }
+        if (ferror (stdout)) {
+            out_failed = 1;
+            break;
+        }
     }
 
     free (pending);
+    if (out_failed || ferror (stdout) || fflush (stdout) == EOF) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        return EXECUTION_FAILURE;
+    }
     return ferror (f) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
@@ -258,7 +266,7 @@ unexpand_builtin (WORD_LIST *list)
 
     int rc = EXECUTION_SUCCESS;
     if (!list) {
-        bu_process (stdin, &o);
+        rc = bu_process (stdin, &o);
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
             FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "r");
@@ -267,8 +275,12 @@ unexpand_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
                 continue;
             }
-            bu_process (f, &o);
+            int prc = bu_process (f, &o);
             if (f != stdin) fclose (f);
+            if (prc != EXECUTION_SUCCESS) {
+                rc = prc;
+                break;
+            }
         }
     }
     return rc;

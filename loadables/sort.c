@@ -1436,6 +1436,10 @@ sort_builtin (WORD_LIST *list)
         else
             bs_emit_lines (&ob, elems, n, &o);
         bs_out_flush (&ob);
+        if (fflush (outf) == EOF || ferror (outf)) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            rc = EXECUTION_FAILURE;
+        }
     }
     if (outf != stdout && fclose (outf) != 0) {
         builtin_error ("%s: %s", output_file, strerror (errno));

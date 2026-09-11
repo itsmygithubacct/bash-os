@@ -25,6 +25,7 @@ br_process (FILE *f)
     char *line = NULL;
     size_t cap = 0;
     ssize_t n;
+    int out_failed = 0;
     clearerr (f);
     while ((n = getline (&line, &cap, f)) != -1) {
         size_t l = (size_t) n;
@@ -32,8 +33,16 @@ br_process (FILE *f)
         if (trail_nl) l--;
         for (size_t i = l; i > 0; i--) putchar (line[i - 1]);
         if (trail_nl) putchar ('\n');
+        if (ferror (stdout)) {
+            out_failed = 1;
+            break;
+        }
     }
     free (line);
+    if (out_failed || ferror (stdout) || fflush (stdout) == EOF) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        return EXECUTION_FAILURE;
+    }
     return EXECUTION_SUCCESS;
 }
 
@@ -75,8 +84,12 @@ rev_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             continue;
         }
-        br_process (f);
+        int prc = br_process (f);
         if (f != stdin) fclose (f);
+        if (prc != EXECUTION_SUCCESS) {
+            rc = prc;
+            break;
+        }
     }
     return rc;
 }

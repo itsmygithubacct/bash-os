@@ -437,6 +437,10 @@ wc_builtin (WORD_LIST *list)
             bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, "total");
         free (names);
         free (blob);
+        if (fflush (stdout) == EOF || ferror (stdout)) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            return EXECUTION_FAILURE;
+        }
         return rc;
     }
 
@@ -490,6 +494,10 @@ wc_builtin (WORD_LIST *list)
         }
         if (n_files > 1)
             bwc_print (&total, lflag, wflag, cflag, mflag, Lflag, width, "total");
+    }
+    if (fflush (stdout) == EOF || ferror (stdout)) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        return EXECUTION_FAILURE;
     }
     return rc;
 }

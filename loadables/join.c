@@ -235,6 +235,19 @@ bj_emit (const bj_opts *o, const bj_record *r1, const bj_record *r2)
     else               bj_emit_default (o, r1, r2);
 }
 
+/* Capture a stdout write failure before a later read overwrites errno. */
+static int
+bj_out_err (int *err)
+{
+    if (*err)
+        return 1;
+    if (ferror (stdout)) {
+        *err = errno ? errno : EIO;
+        return 1;
+    }
+    return 0;
+}
+
 static int
 bj_parse_ofmt (bj_opts *o, const char *s)
 {
@@ -402,6 +415,10 @@ join_builtin (WORD_LIST *list)
     }
     const char *p1 = list->word->word;
     const char *p2 = list->next->word->word;
+    if (!strcmp (p1, "-") && !strcmp (p2, "-")) {
+        builtin_error ("both files cannot be standard input");
+        return EXECUTION_FAILURE;
+    }
     FILE *fa = !strcmp (p1, "-") ? stdin : fopen (p1, "r");
     if (!fa) { builtin_error ("%s: %s", p1, strerror (errno)); return EXECUTION_FAILURE; }
     FILE *fb = !strcmp (p2, "-") ? stdin : fopen (p2, "r");
@@ -414,6 +431,8 @@ join_builtin (WORD_LIST *list)
     bj_record ra = { 0 }, rb = { 0 };
     char *la = NULL, *lb = NULL;
     size_t ca = 0, cb = 0;
+    int out_err = 0;
+    int rc = EXECUTION_SUCCESS;
     ssize_t na = getline (&la, &ca, fa);
     ssize_t nb = getline (&lb, &cb, fb);
     if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
@@ -444,17 +463,21 @@ join_builtin (WORD_LIST *list)
        order-checked. */
     if (o.header && (na != -1 || nb != -1)) {
         bj_emit (&o, na != -1 ? &ra : NULL, nb != -1 ? &rb : NULL);
-        if (na != -1) {
-            na = getline (&la, &ca, fa);
-            if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
-        }
-        if (nb != -1) {
-            nb = getline (&lb, &cb, fb);
-            if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+        if (!bj_out_err (&out_err)) {
+            if (na != -1) {
+                na = getline (&la, &ca, fa);
+                if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
+            }
+            if (nb != -1) {
+                nb = getline (&lb, &cb, fb);
+                if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+            }
         }
     }
 
-    while (na != -1 || nb != -1) {
+    /* Do not read another record after stdout has failed: with the producer
+       still open that read blocks, while GNU join has already exited. */
+    while (!out_err && (na != -1 || nb != -1)) {
         const char *ka = na != -1 ? bj_field (&ra, o.field1) : NULL;
         const char *kb = nb != -1 ? bj_field (&rb, o.field2) : NULL;
         int cmp;
@@ -481,37 +504,51 @@ join_builtin (WORD_LIST *list)
                 free (key);
                 bj_free_group (&ga);
                 bj_free_group (&gb);
-                free (la); free (lb);
-                bj_free_rec (&ra); bj_free_rec (&rb);
-                if (fa != stdin) fclose (fa);
-                if (fb != stdin) fclose (fb);
                 builtin_error ("out of memory");
-                return EXECUTION_FAILURE;
+                rc = EXECUTION_FAILURE;
+                goto done;
             }
 
             if (!o.only_unmatched)
-                for (size_t i = 0; i < ga.n; i++)
-                    for (size_t j = 0; j < gb.n; j++)
+                for (size_t i = 0; i < ga.n && !bj_out_err (&out_err); i++)
+                    for (size_t j = 0; j < gb.n && !bj_out_err (&out_err); j++) {
                         bj_emit (&o, &ga.v[i], &gb.v[j]);
+                        bj_out_err (&out_err);
+                    }
             free (key);
             bj_free_group (&ga);
             bj_free_group (&gb);
         } else if (cmp < 0) {
-            if (o.show_unmatched_1 && na != -1) bj_emit (&o, &ra, NULL);
+            if (o.show_unmatched_1 && na != -1) {
+                bj_emit (&o, &ra, NULL);
+                if (bj_out_err (&out_err))
+                    break;
+            }
             na = getline (&la, &ca, fa);
             if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
         } else {
-            if (o.show_unmatched_2 && nb != -1) bj_emit (&o, NULL, &rb);
+            if (o.show_unmatched_2 && nb != -1) {
+                bj_emit (&o, NULL, &rb);
+                if (bj_out_err (&out_err))
+                    break;
+            }
             nb = getline (&lb, &cb, fb);
             if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
         }
     }
 
+done:
     bj_free_rec (&ra); bj_free_rec (&rb);
     free (la); free (lb);
     if (fa != stdin) fclose (fa);
     if (fb != stdin) fclose (fb);
-    return EXECUTION_SUCCESS;
+    if (!out_err && (fflush (stdout) == EOF || ferror (stdout)))
+        out_err = errno ? errno : EIO;
+    if (out_err) {
+        builtin_error ("write error: %s", strerror (out_err));
+        return EXECUTION_FAILURE;
+    }
+    return rc;
 }
 
 char *join_doc[] = {
