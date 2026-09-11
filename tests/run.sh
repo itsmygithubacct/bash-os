@@ -48,6 +48,10 @@ check network-smoke python3 tests/network-smoke.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
+check ptybroker python3 tests/ptybroker.py --bash out/bash
+check ptybroker-io python3 tests/ptybroker-io.py --bash out/bash
+check screen-broker python3 tests/screen-broker.py --bash out/bash
+check pty-primitives python3 tests/pty-primitives.py out/bash
 check large-smoke python3 tests/large-smoke.py out/bash
 check helper-smoke python3 tests/helper-smoke.py out/bash
 check procstat-smoke python3 tests/procstat-smoke.py out/bash
