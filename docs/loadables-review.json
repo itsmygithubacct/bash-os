@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
+  "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
   "coverage_groups": [
     {
       "names": [
@@ -1333,9 +1333,7 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "finding": "A minus operand is opened as a file named '-'; two minus operands therefore fail instead of comparing the same stdin bytes.",
-      "next": "Treat \"-\" as stdin and compare two minus operands using the same input bytes, then remeasure.",
-      "note": "The final-newline-only difference is fixed and timed. The timed case still measures identical files, not edit-script generation."
+      "note": "Minus operands are stdin, including `diff - -`. The timed case still measures identical files, not edit-script generation."
     },
     "unexpand": {
       "note": "Write-failure stop and GNU comparison are covered by tests/unexpand-check.sh."
@@ -1370,16 +1368,13 @@
       "note": "Repeated redirected stdin is fixed; tests/csplit-check.sh matches GNU piece files across three redirections."
     },
     "tee": {
-      "finding": "After every output has failed the builtin keeps reading stdin until timeout 124; GNU tee returns 1 promptly.",
-      "next": "Stop reading when every output has failed, preserving healthy destinations; then remeasure.",
-      "note": "Closed-stdin now returns failure via patches/tee-io.patch. Stock examples/loadables/tee.c is still the source."
+      "note": "Closed-stdin and all-outputs-failed stop are covered by tests/tee-check.sh. Stock examples/loadables/tee.c is still the source."
     },
     "tail": {
       "note": "Repeated small-input redirections and write-error stop are covered by tests/tail-check.sh."
     },
     "ar": {
-      "note": "Truncated member headers are rejected (tests/ar-check.sh). Coordinator probes on this binary already match GNU 2.44 on symlink/hard-link archive updates and extract-over-symlink. Extract still copies with fgetc/fputc and does not check write errors; a remaining recovery review is assigned.",
-      "next": "Finish extraction write-error cleanup versus GNU without changing behaviors that already match."
+      "note": "Truncated headers, extract write errors and short member bodies are rejected; tests/ar-check.sh matches GNU 2.44 including /dev/full unlink and archive-link identity."
     },
     "du": {
       "note": "A failed size-report write now returns failure; tests/du-check.sh covers du -b file > /dev/full."
@@ -1432,15 +1427,11 @@
   "measurement_file": "docs/data/loadable-benchmarks-current.json",
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
-    "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
-    "summary": "The measured full binary passed the dedicated empty-PATH contract checks for the previously named P1/P2/P3 fixtures (ar, tee, diff, col, colrm, column, strings, od, hexdump, split, csplit, crypto, du, mv, truncate, cp, tail, join, comm, unexpand, rev, sort, wc, hostid, free, timeout, uptime). tests/run.sh was not re-run in full for this refresh. Live `free -k` timings are omitted because counters move between invocations; tests/free-check.sh still matches GNU on a private meminfo."
+    "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
+    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7), including extract write-error cleanup, stop-when-all-outputs-failed, and minus operands as stdin. Live `free -k` timings are omitted because counters move between invocations; tests/free-check.sh still matches GNU on a private meminfo. tests/run.sh was not re-run in full for this refresh."
   },
-  "assignments": {
-    "ar": "grok-bash-2",
-    "tee": "grok-bash-3",
-    "diff": "grok-bash-4"
-  },
+  "assignments": {},
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
-  "ci_followup": "Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `db921ad` after those named fixtures landed.",
+  "ci_followup": "Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `c591f19` after leftover ar/tee/diff follow-ups landed.",
   "pending_integration": {}
 }

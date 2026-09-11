@@ -1,59 +1,9 @@
 {
   "schema": 1,
   "date": "2026-09-11",
-  "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
-  "binary_sha256": "00063f9f3b758ac8423a6ef7314fb2d99e3bad373d38a72b931146072df0c517",
-  "measurement": "Untimed correctness probes; no performance claims.",
-  "versions": {
-    "diff": "diff (GNU diffutils) 3.10",
-    "tee": "tee (GNU coreutils) 9.7"
-  },
-  "cases": [
-    {
-      "loadable": "diff",
-      "kind": "correctness",
-      "command": "printf 'hello\\n' | diff - -",
-      "fixture": {
-        "input": "hello\n"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/diff",
-      "finding": "A minus operand is opened as a file named '-'; two minus operands therefore fail instead of comparing the same stdin bytes.",
-      "results": {
-        "bashos": {
-          "status": 2,
-          "stdout": "",
-          "stderr": "diff: -: No such file or directory\n"
-        },
-        "reference": {
-          "status": 0,
-          "stdout": "",
-          "stderr": ""
-        }
-      }
-    },
-    {
-      "loadable": "tee",
-      "kind": "correctness",
-      "command": "timeout 2 tee /dev/full >/dev/full < /dev/zero",
-      "fixture": {
-        "input": "/dev/zero"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/tee",
-      "finding": "After every output has failed the builtin keeps reading stdin until timeout 124; GNU tee returns 1 promptly.",
-      "results": {
-        "bashos": {
-          "status": 124,
-          "stdout": "",
-          "stderr": "tee: stdout: write error: No space left on device\n"
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "tee: 'standard output': No space left on device\ntee: /dev/full: No space left on device\n"
-        }
-      }
-    }
-  ]
+  "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
+  "binary_sha256": "00d0345a9fda86924c6a912f9264fe8050b51068c19982bcdb8d31b4f69d6e08",
+  "measurement": "Untimed correctness probes; no performance claims. No remaining findings on this binary.",
+  "versions": {},
+  "cases": []
 }
