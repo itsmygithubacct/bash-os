@@ -199,6 +199,39 @@ def cases():
         host='install', host_args=['-m', '644', 'text', 'installed'],
         output='installed', label='coreutils-install')
     add('lsblk', ['-d', '-n', '-o', 'NAME'], fixture='empty', maximum=200)
+    add('binhex', fixture='bytes', host='hexdump',
+        host_args=['-ve', '/1 "%02x"'])
+    add('binhex', ['-d'], fixture='hexbytes', host='xxd',
+        host_args=['-r', '-p'], label='binhex-decode')
+    add('prlimit', ['--nofile'], fixture='empty',
+        host_args=['-o', 'RESOURCE,SOFT,HARD', '--noheadings', '--nofile'],
+        maximum=200)
+    add('prlimit', ['--cpu'], fixture='empty',
+        host_args=['-o', 'RESOURCE,SOFT,HARD', '--noheadings', '--cpu'],
+        label='prlimit-cpu', maximum=200)
+    add('fincore', ['-n', 'text'], fixture='empty',
+        host_args=['-n', '--bytes', 'text'], normalizer='fields', maximum=200)
+    add('col', ['-b'], fixture='left')
+    add('coreutils', ['factor', '111111111111'], fixture='empty',
+        host='factor', host_args=['111111111111'],
+        label='coreutils-factor-big', maximum=200)
+    add('coreutils', ['fmt', '-w', '20', 'left'], fixture='empty',
+        host='fmt', host_args=['-w', '20', 'left'], label='coreutils-fmt')
+    add('coreutils', ['tac', 'left'], fixture='empty',
+        host='tac', host_args=['left'], label='coreutils-tac')
+    add('bignum', ['add', '999999999999999999', '1'], fixture='empty',
+        host='expr', host_args=['999999999999999999', '+', '1'], maximum=200)
+    add('bignum', ['mul', '123', '456'], fixture='empty',
+        host='expr', host_args=['123', '*', '456'],
+        label='bignum-mul', maximum=200)
+    add('ncdu', ['-a', '-p', 'tree'], fixture='empty', host='du',
+        host_args=['--apparent-size', '--block-size=1', 'tree'],
+        label='ncdu-print', maximum=200)
+    add('blkid', ['-s', 'TYPE', '-o', 'value', 'disk.img'], fixture='empty',
+        label='blkid-type', maximum=200)
+    add('blkid', ['-s', 'LABEL', '-o', 'value', 'disk.img'], fixture='empty',
+        label='blkid-label', maximum=200)
+    add('man', ['-w', 'ls'], fixture='empty', maximum=200)
     return rows
 
 
@@ -224,6 +257,7 @@ def fixtures(root):
         'arithmetic': b'scale=20; sqrt(2)\n',
         'edscript': b'1,2p\nq\n',
         'chain': b'a b\nb c\nc d\n',
+        'hexbytes': (bytes(range(256))*256).hex().encode(),
     }
     for name, value in data.items():
         (root/name).write_bytes(value)
@@ -274,6 +308,12 @@ def fixtures(root):
             [busybox, 'uuencode', 'bytes'], cwd=root, input=(root/'bytes').read_bytes())
         (root/'uuencoded').write_bytes(encoded)
         record(root/'uuencoded', 'uuencoded')
+    mkfs = shutil.which('mkfs.ext2', path=HOST_PATH)
+    if mkfs:
+        (root/'disk.img').write_bytes(b'\0' * (8 * 1024 * 1024))
+        subprocess.check_call(
+            [mkfs, '-F', '-q', '-L', 'fixture', str(root/'disk.img')])
+        record(root/'disk.img', 'disk.img')
     return hashes
 
 

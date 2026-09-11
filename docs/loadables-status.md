@@ -32,12 +32,13 @@ BusyBox-matching timings on this binary (`tee`, `hostid`, `timeout`, `du`,
 `opt`, `uudecode`, then `strftime`, `strptime`, `zlib`, `pax`, `tput`,
 `less`, `chrt`, `signal`, `cal`, `ed`, `finfo`, `fltexpr`, `pcre`,
 `uclampset`, `tz`, `ip`, `tinfo`, plus extra `tput`/`signal`/`finfo`/`chrt`
-cases, `zlib` xz/bzip2, `coreutils` numfmt/tsort/factor/groups/install, and
-`lsblk -d -n -o NAME`). Live `free -k` timings are not published because
-counters move between invocations.
+cases, `zlib` xz/bzip2, `coreutils` numfmt/tsort/factor/groups/install/fmt/tac,
+`lsblk`, `binhex`, `prlimit`, `fincore`, `col -b`, `bignum`, `ncdu`, `blkid`,
+and `man -w`). Live `free -k` timings are not published because counters
+move between invocations.
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **127 cases covering 106 loadables**; 106 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 173 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **142 cases covering 114 loadables**; 114 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 165 have no individual command timings here; GPU transport measurements are reported separately.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -49,7 +50,7 @@ Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command b
 | desktop | 155 |
 | full | 279 |
 
-Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (44 published cases including lsblk). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
+Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (59 published cases after binhex/prlimit/col/fincore/bignum/ncdu/blkid/man). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
 
 Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `c591f19` after leftover ar/tee/diff follow-ups landed.
 
@@ -133,9 +134,9 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`bashtermraw`](../loadables/bashtermraw.c) | D S F | Build/help | stty; stty | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`batch`](../loadables/batch.c) | S F | [Contract](../tests/misc-smoke.py) | —; batch (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`bc`](../loadables/bc.c) | S T F | [Parity](../tests/bc-parity.py); [limited](#scope-notes); [S](../tests/bc-sanitize.sh) | bc; bc | 4.644 / 64.313 / 65.473; [bc](#case-bc), 80 passes | P3 | Decide required option scope; see limitations. |
-| [`bignum`](../loadables/bignum.c) | T F | [Contract](../tests/misc-smoke.py) | bc; Python int / bc | N/M | P3 | Add a matched workload and timing. |
-| [`binhex`](../loadables/binhex.c) | D S F | Build/help | xxd; xxd | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`blkid`](../loadables/blkid.c) | D S F | Build/help | blkid; blkid | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`bignum`](../loadables/bignum.c) | T F | [Contract](../tests/misc-smoke.py) | bc; Python int / bc | 4.824 / 116.978 / 91.528; [bignum](#case-bignum), 132 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`binhex`](../loadables/binhex.c) | D S F | [Bench checked](#case-binhex-decode) | xxd; xxd | 31.396 / 187.850 / 167.220; [binhex-decode](#case-binhex-decode), 80 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`blkid`](../loadables/blkid.c) | D S F | [Bench checked](#case-blkid-type) | blkid; blkid | 5.277 / INVALID / 149.470; [blkid-type](#case-blkid-type), 112 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`blockdev`](../loadables/blockdev.c) | D S F | Build/help | blockdev; blockdev | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`bsdgames`](../loadables/bsdgames.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; bsdgames (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`buf`](../loadables/buf.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
@@ -152,11 +153,11 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`clip`](../loadables/clip.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cluster`](../loadables/cluster.c) | F | [Smoke](../tests/misc-smoke.py) | —; API fixture | N/M | P3 | Add peer membership, timeout and disconnect fixtures. |
 | [`cmp`](../loadables/cmp.c) | C D S T F | [Bench checked](#case-cmp) | cmp; cmp | 44.183 / 222.165 / 53.205; [cmp](#case-cmp), 70 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`col`](../loadables/col.c) | C D S T F | Build/help | —; col | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`col`](../loadables/col.c) | C D S T F | [Bench checked](#case-col) | —; col | 63.847 / — / 116.183; [col](#case-col), 19 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`colrm`](../loadables/colrm.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; colrm | 65.306 / — / 125.531; [colrm](#case-colrm), 24 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`column`](../loadables/column.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; column | 82.020 / — / 343.863; [column](#case-column), 7 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`comm`](../loadables/comm.c) | C D S T F | [Bench checked](#case-comm) | —; comm | 71.590 / — / 27.610; [comm](#case-comm), 18 passes | P2 | Profile input/output and allocation costs on the comm fixture, then measure the proposed change. |
-| [`coreutils`](../loadables/coreutils.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; Individual coreutils programs | 13.985 / 61.860 / 75.621; [coreutils-install](#case-coreutils-install), 59 passes; 5 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
+| [`coreutils`](../loadables/coreutils.c) | F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; Individual coreutils programs | 55.077 / 101.479 / 23.139; [coreutils-tac](#case-coreutils-tac), 21 passes; 8 cases total | P3 | Confirm coreutils-tac (2.38× external time), then profile. |
 | [`cp`](../loadables/cp.c) | C D S T F | [Contract](../tests/host-smoke.sh) | cp; cp | 14.991 / 68.229 / 84.129; [cp](#case-cp), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`cred`](../loadables/cred.c) | S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`cron`](../loadables/cron.c) | S F | [Contract](../tests/large-smoke.py) | crond; cron / crond | N/M | P3 | Add a matched workload and timing. |
@@ -190,7 +191,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`fdisk`](../loadables/fdisk.c) | D S F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | fdisk; fdisk | N/M | P3 | Add a matched workload and timing. |
 | [`fifo`](../loadables/fifo.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | N/M | P3 | Define an API workload and metric, then measure. |
 | [`file`](../loadables/file.c) | T F | [Contract](../tests/misc-smoke.py) | —; file | 4.289 / — / 965.361; [file](#case-file), 106 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`fincore`](../loadables/fincore.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; fincore | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`fincore`](../loadables/fincore.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; fincore | 5.656 / — / 90.871; [fincore](#case-fincore), 118 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`find`](../loadables/find.c) | C D S T F | [Contract](../tests/regressions.py) | find; find | 25.423 / 78.876 / 76.467; [find](#case-find), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `finfo`* | D S F | [Bench checked](#case-finfo-mode) | stat; stat | 3.729 / 87.294 / 84.916; [finfo-mode](#case-finfo-mode), 106 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`flock`](../loadables/flock.c) | C D S T F | [Smoke](../tests/util-linux-smoke.sh) | —; flock | 40.423 / — / 75.590; [flock](#case-flock), 81 passes | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -243,7 +244,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`lsblk`](../loadables/lsblk.c) | D S F | [Bench checked](#case-lsblk) | —; lsblk | 46.983 / — / 89.697; [lsblk](#case-lsblk), 62 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`lsof`](../loadables/lsof.c) | D S T F | [Smoke](../tests/system-smoke.sh) | —; lsof | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`mail`](../loadables/mail.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | sendmail (not in build); sendmail / mailq | N/M | P3 | Add a controlled submission/delivery benchmark. |
-| [`man`](../loadables/man.c) | T F | [Contract](../tests/misc-smoke.py) | —; man | N/M | P3 | Add a matched workload and timing. |
+| [`man`](../loadables/man.c) | T F | [Contract](../tests/misc-smoke.py) | —; man | 4.030 / — / 1248.570; [man](#case-man), 84 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `mkdir`* | P C D S T F | [Contract](../tests/rootfs-smoke.sh) | mkdir; mkdir | 5.168 / 121.505 / 131.795; [mkdir](#case-mkdir), 139 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | `mkfifo`* | P C D S T F | Build/help | mkfifo; mkfifo | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`mkfs`](../loadables/mkfs.c) | D S F | [Contract](../tests/misc-smoke.py) | —; mkfs | N/M | P3 | Add a matched workload and timing. |
@@ -256,7 +257,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`nano`](../loadables/nano.c) | T F | [Contract](../tests/final-smoke.py); [limited](#scope-notes); [S](../tests/final-sanitize.sh) | —; nano | N/M | P3 | Decide required option scope; see limitations. |
 | [`nano2`](../loadables/nano2.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; nano | N/M | P3 | Add a matched workload and timing. |
 | [`nc`](../loadables/nc.c) | D S F | [Contract](../tests/network-smoke.py) | nc; nc | N/M | P3 | Add a matched workload and timing. |
-| [`ncdu`](../loadables/ncdu.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; ncdu | N/M | P3 | Add a matched workload and timing. |
+| [`ncdu`](../loadables/ncdu.c) | T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; ncdu | 28.085 / ERROR / 104.802; [ncdu-print](#case-ncdu-print), 98 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`netids`](../loadables/netids.c) | S F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; suricata (missing) | N/M | P3 | Add a matched workload and timing. |
 | [`netstat`](../loadables/netstat.c) | D S F | Build/help | netstat; netstat (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`nice`](../loadables/nice.c) | C D S T F | [Contract](../tests/regressions.py) | —; nice | 40.315 / — / 66.109; [nice](#case-nice), 60 passes | P4 | Extend sizes/options; no selected-case performance priority. |
@@ -285,7 +286,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`poweroff`](../loadables/poweroff.c) | D S F | Build/help | poweroff; poweroff | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`pr`](../loadables/pr.c) | C D S T F | [Parity](../tests/pr-parity.py); [limited](#scope-notes); [S](../tests/pr-sanitize.sh) | —; pr | 20.020 / — / 283.951; [pr](#case-pr), 65 passes | P3 | Decide required option scope; see limitations. |
 | `printenv`* | P C D S T F | [Contract](../tests/rootfs-smoke.sh) | —; printenv | 4.182 / — / 71.297; [printenv-lcall](#case-printenv-lcall), 122 passes | P4 | Extend sizes/options; no selected-case performance priority. |
-| [`prlimit`](../loadables/prlimit.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; prlimit | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`prlimit`](../loadables/prlimit.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; prlimit | 4.625 / — / 104.772; [prlimit-cpu](#case-prlimit-cpu), 110 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`procstat`](../loadables/procstat.c) | D S T F | [Contract](../tests/procstat-smoke.py); [S](../tests/procstat-sanitize.sh) | —; iostat / mpstat / sar / pidstat / pmap / pldd | N/M | P3 | Add a matched workload and timing. |
 | [`ps`](../loadables/ps.c) | C D S T F | [Contract](../tests/rootfs-smoke.sh) | ps; ps | N/M | P3 | Add a matched workload and timing. |
 | [`pty`](../loadables/pty.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; Python pty | N/M | P3 | Add a matched workload and timing. |
@@ -634,6 +635,21 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | <a id="case-coreutils-groups"></a>coreutils-groups | `coreutils groups` | `groups` | No stdin; named fixtures / arguments | 122 | 20.074 | 154.863 | 126.393 | 0.16× | 7 |
 | <a id="case-coreutils-install"></a>coreutils-install | `coreutils install -m 644 text installed` | `install -m 644 text installed` | No stdin; named fixtures / arguments | 59 | 13.985 | 61.860 | 75.621 | 0.18× | 7 |
 | <a id="case-lsblk"></a>lsblk | `lsblk -d -n -o NAME` | `lsblk -d -n -o NAME` | No stdin; named fixtures / arguments | 62 | 46.983 | — | 89.697 | 0.52× | 7 |
+| <a id="case-binhex"></a>binhex | `binhex` | `hexdump -ve '/1 "%02x"'` | bytes (65,536 stdin bytes) | 80 | 9.642 | 513.777 | 578.622 | 0.02× | 7 |
+| <a id="case-binhex-decode"></a>binhex-decode | `binhex -d` | `xxd -r -p` | hexbytes (131,072 stdin bytes) | 80 | 31.396 | 187.850 | 167.220 | 0.19× | 7 |
+| <a id="case-prlimit"></a>prlimit | `prlimit --nofile` | `prlimit -o RESOURCE,SOFT,HARD --noheadings --nofile` | No stdin; named fixtures / arguments | 119 | 3.844 | — | 92.334 | 0.04× | 7 |
+| <a id="case-prlimit-cpu"></a>prlimit-cpu | `prlimit --cpu` | `prlimit -o RESOURCE,SOFT,HARD --noheadings --cpu` | No stdin; named fixtures / arguments | 110 | 4.625 | — | 104.772 | 0.04× | 7 |
+| <a id="case-fincore"></a>fincore | `fincore -n text` | `fincore -n --bytes text` | No stdin; named fixtures / arguments | 118 | 5.656 | — | 90.871 | 0.06× | 7 |
+| <a id="case-col"></a>col | `col -b` | `col -b` | left (120,000 stdin bytes) | 19 | 63.847 | — | 116.183 | 0.55× | 7 |
+| <a id="case-coreutils-factor-big"></a>coreutils-factor-big | `coreutils factor 111111111111` | `factor 111111111111` | No stdin; named fixtures / arguments | 129 | 4.103 | 99.244 | 84.306 | 0.05× | 7 |
+| <a id="case-coreutils-fmt"></a>coreutils-fmt | `coreutils fmt -w 20 left` | `fmt -w 20 left` | No stdin; named fixtures / arguments | 20 | 76.873 | — | 41.216 | 1.87× | 7 |
+| <a id="case-coreutils-tac"></a>coreutils-tac | `coreutils tac left` | `tac left` | No stdin; named fixtures / arguments | 21 | 55.077 | 101.479 | 23.139 | 2.38× | 7 |
+| <a id="case-bignum"></a>bignum | `bignum add 999999999999999999 1` | `expr 999999999999999999 + 1` | No stdin; named fixtures / arguments | 132 | 4.824 | 116.978 | 91.528 | 0.05× | 7 |
+| <a id="case-bignum-mul"></a>bignum-mul | `bignum mul 123 456` | `expr 123 '*' 456` | No stdin; named fixtures / arguments | 121 | 4.246 | 94.127 | 95.179 | 0.04× | 7 |
+| <a id="case-ncdu-print"></a>ncdu-print | `ncdu -a -p tree` | `du --apparent-size --block-size=1 tree` | No stdin; named fixtures / arguments | 98 | 28.085 | ERROR | 104.802 | 0.27× | 7 |
+| <a id="case-blkid-type"></a>blkid-type | `blkid -s TYPE -o value disk.img` | `blkid -s TYPE -o value disk.img` | No stdin; named fixtures / arguments | 112 | 5.277 | INVALID | 149.470 | 0.04× | 7 |
+| <a id="case-blkid-label"></a>blkid-label | `blkid -s LABEL -o value disk.img` | `blkid -s LABEL -o value disk.img` | No stdin; named fixtures / arguments | 142 | 6.064 | INVALID | 194.961 | 0.03× | 7 |
+| <a id="case-man"></a>man | `man -w ls` | `man -w ls` | No stdin; named fixtures / arguments | 84 | 4.030 | — | 1248.570 | 0.00× | 7 |
 <!-- END CASES -->
 
 ## Method and limits
