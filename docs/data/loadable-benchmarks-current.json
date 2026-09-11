@@ -101,6 +101,14 @@
     "uuencoded": {
       "bytes": 90320,
       "sha256": "e08c2336048dbb14d3c4568df1d1ad7f42f7e0370315bdd68f5ec1493a11319f"
+    },
+    "edscript": {
+      "bytes": 7,
+      "sha256": "3bc333802522a603afa8fa5a3053549c0e75f0eeeb71ac68d08d5be7b0d6edd0"
+    },
+    "tiny.tar": {
+      "bytes": 10240,
+      "sha256": "061fe1f56d1fe546749d976c2b0b495678f789c2df8c00768a19fb39525be966"
     }
   },
   "load_average_end": [
@@ -682,7 +690,10 @@
       "zcat": true,
       "zlib": false,
       "zstd": true,
-      "zstdcat": true
+      "zstdcat": true,
+      "gzip": true,
+      "tar": true,
+      "kill": true
     }
   },
   "cases": [
@@ -4716,6 +4727,725 @@
           "median_ms": 107.568,
           "min_ms": 102.424,
           "max_ms": 111.845
+        }
+      }
+    },
+    {
+      "id": "strftime",
+      "loadable": "strftime",
+      "args": [
+        "%Y-%m-%d",
+        "0"
+      ],
+      "fixture": "empty",
+      "host": "date",
+      "applet": "date",
+      "host_args": [
+        "-u",
+        "-d",
+        "@0",
+        "+%Y-%m-%d"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 140,
+      "validation_passes": 140,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.953,
+          "min_ms": 3.595,
+          "max_ms": 5.16
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 83.032,
+          "min_ms": 80.983,
+          "max_ms": 94.246
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 98.357,
+          "min_ms": 94.361,
+          "max_ms": 112.471
+        }
+      }
+    },
+    {
+      "id": "strptime",
+      "loadable": "strptime",
+      "args": [
+        "1970-01-01 00:00:00",
+        "%Y-%m-%d %H:%M:%S"
+      ],
+      "fixture": "empty",
+      "host": "date",
+      "applet": "date",
+      "host_args": [
+        "-u",
+        "-d",
+        "1970-01-01 00:00:00",
+        "+%s"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 126,
+      "validation_passes": 126,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 5.318,
+          "min_ms": 3.43,
+          "max_ms": 6.073
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 70.941,
+          "min_ms": 67.781,
+          "max_ms": 78.364
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 86.082,
+          "min_ms": 80.211,
+          "max_ms": 97.531
+        }
+      }
+    },
+    {
+      "id": "zlib",
+      "loadable": "zlib",
+      "args": [
+        "-f",
+        "gzip",
+        "text.gz"
+      ],
+      "fixture": "empty",
+      "host": "gzip",
+      "applet": "gzip",
+      "host_args": [
+        "-dc",
+        "text.gz"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 50,
+      "validation_passes": 50,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 48.088,
+          "min_ms": 46.487,
+          "max_ms": 51.568
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 112.828,
+          "min_ms": 105.468,
+          "max_ms": 132.716
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 140.978,
+          "min_ms": 137.807,
+          "max_ms": 146.71
+        }
+      }
+    },
+    {
+      "id": "pax",
+      "loadable": "pax",
+      "args": [
+        "-f",
+        "tiny.tar"
+      ],
+      "fixture": "empty",
+      "host": "tar",
+      "applet": "tar",
+      "host_args": [
+        "tf",
+        "tiny.tar"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.829,
+          "min_ms": 3.717,
+          "max_ms": 5.389
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 104.667,
+          "min_ms": 76.077,
+          "max_ms": 108.236
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 74.143,
+          "min_ms": 56.076,
+          "max_ms": 77.519
+        }
+      }
+    },
+    {
+      "id": "tput",
+      "loadable": "tput",
+      "args": [
+        "cols"
+      ],
+      "fixture": "empty",
+      "host": "tput",
+      "applet": "tput",
+      "host_args": [
+        "cols"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 141,
+      "validation_passes": 141,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.076,
+          "min_ms": 3.564,
+          "max_ms": 4.619
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 95.437,
+          "min_ms": 92.062,
+          "max_ms": 99.721
+        }
+      }
+    },
+    {
+      "id": "less",
+      "loadable": "less",
+      "args": [
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "less",
+      "applet": "less",
+      "host_args": [
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 23,
+      "validation_passes": 23,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 53.126,
+          "min_ms": 49.506,
+          "max_ms": 70.365
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 99.188,
+          "min_ms": 94.664,
+          "max_ms": 122.173
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 17.116,
+          "min_ms": 16.232,
+          "max_ms": 23.725
+        }
+      }
+    },
+    {
+      "id": "chrt",
+      "loadable": "chrt",
+      "args": [
+        "-m"
+      ],
+      "fixture": "empty",
+      "host": "chrt",
+      "applet": "chrt",
+      "host_args": [
+        "-m"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 127,
+      "validation_passes": 127,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.115,
+          "min_ms": 3.765,
+          "max_ms": 4.724
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 73.644,
+          "min_ms": 68.682,
+          "max_ms": 78.823
+        }
+      }
+    },
+    {
+      "id": "signal",
+      "loadable": "signal",
+      "args": [
+        "-n",
+        "TERM"
+      ],
+      "fixture": "empty",
+      "host": "kill",
+      "applet": "kill",
+      "host_args": [
+        "-l",
+        "TERM"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 136,
+      "validation_passes": 136,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.605,
+          "min_ms": 3.34,
+          "max_ms": 6.242
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 76.166,
+          "min_ms": 73.457,
+          "max_ms": 81.184
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 93.127,
+          "min_ms": 90.927,
+          "max_ms": 101.94
+        }
+      }
+    },
+    {
+      "id": "cal",
+      "loadable": "cal",
+      "args": [
+        "2",
+        "2024"
+      ],
+      "fixture": "empty",
+      "host": "cal",
+      "applet": "cal",
+      "host_args": [
+        "2",
+        "2024"
+      ],
+      "normalizer": "fields",
+      "output": null,
+      "reference": "busybox",
+      "passes": 132,
+      "validation_passes": 132,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "external": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.032,
+          "min_ms": 3.827,
+          "max_ms": 4.987
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 95.664,
+          "min_ms": 89.218,
+          "max_ms": 99.799
+        }
+      }
+    },
+    {
+      "id": "ed",
+      "loadable": "ed",
+      "args": [
+        "-s",
+        "left"
+      ],
+      "fixture": "edscript",
+      "host": "ed",
+      "applet": "ed",
+      "host_args": [
+        "-s",
+        "left"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "busybox",
+      "passes": 48,
+      "validation_passes": 48,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "external": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 45.937,
+          "min_ms": 41.709,
+          "max_ms": 52.529
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 66.697,
+          "min_ms": 64.402,
+          "max_ms": 72.869
+        }
+      }
+    },
+    {
+      "id": "finfo",
+      "loadable": "finfo",
+      "args": [
+        "-s",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "stat",
+      "applet": "stat",
+      "host_args": [
+        "-c",
+        "%s",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 159,
+      "validation_passes": 159,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.191,
+          "min_ms": 3.797,
+          "max_ms": 4.758
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 114.933,
+          "min_ms": 110.499,
+          "max_ms": 133.298
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 117.135,
+          "min_ms": 105.831,
+          "max_ms": 122.77
+        }
+      }
+    },
+    {
+      "id": "fltexpr",
+      "loadable": "fltexpr",
+      "args": [
+        "-p",
+        "1+2*3"
+      ],
+      "fixture": "empty",
+      "host": "awk",
+      "applet": "awk",
+      "host_args": [
+        "BEGIN{print 1+2*3}"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 130,
+      "validation_passes": 130,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.832,
+          "min_ms": 4.35,
+          "max_ms": 5.007
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 221.0,
+          "min_ms": 216.591,
+          "max_ms": 222.823
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 120.849,
+          "min_ms": 118.706,
+          "max_ms": 128.781
+        }
+      }
+    },
+    {
+      "id": "pcre",
+      "loadable": "pcre",
+      "args": [
+        "grep",
+        "alpha",
+        "text"
+      ],
+      "fixture": "empty",
+      "host": "grep",
+      "applet": "grep",
+      "host_args": [
+        "-P",
+        "alpha",
+        "text"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "error",
+          "returncode": 2,
+          "stderr": "grep: invalid option -- 'P'\nBusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary.\n\nUsage: grep [-HhnlLoqvsrRiwFEz] [-m N] [-A|B|C N] { PATTERN | -e PATTERN... | -f FILE... } [FILE]...\n\nSearch for PATTERN in FILEs (or stdin)\n\n\t-H\tAdd 'filename:' prefix\n\t-h\tDo not add 'filename:' prefix\n\t-n\tAdd 'line_no:' prefix\n\t-l\tShow only names of files that match\n\t-L\tShow only names of files that don't match\n\t-c\tShow only count of matching lines\n\t-o\tShow only the matching part of line\n\t-q\tQuiet. Return 0 if PATTERN is found, 1 otherwise\n\t-v\tSelect non-matching lines\n\t-s\tSuppress open and read errors\n\t-r\tRecurse\n\t-R\tRecurse and dereference symlinks\n\t-i\tIgnore case\n\t-w\tMatch whole words only\n\t-x\tMatch whole lines only\n\t-F\tPATTERN is a literal (not regexp)\n\t-E\tPATTERN is an extended regexp\n\t-z\tNUL terminated input\n\t-m N\tMatch up to N times per file\n\t-A N\tPrint N lines of trailing context\n\t-B N\tPrint N lines of leading context\n\t-C N\tSame as '-A N -B N'\n\t-e PTRN\tPattern to match\n\t-f FILE\tRead pattern from file\n"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 46.109,
+          "min_ms": 43.093,
+          "max_ms": 54.749
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 10.564,
+          "min_ms": 9.295,
+          "max_ms": 14.509
+        }
+      }
+    },
+    {
+      "id": "uclampset",
+      "loadable": "uclampset",
+      "args": [
+        "-p",
+        "1"
+      ],
+      "fixture": "empty",
+      "host": "uclampset",
+      "applet": "uclampset",
+      "host_args": [
+        "-p",
+        "1"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 120,
+      "validation_passes": 120,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.274,
+          "min_ms": 3.925,
+          "max_ms": 4.591
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 70.703,
+          "min_ms": 66.12,
+          "max_ms": 78.745
+        }
+      }
+    },
+    {
+      "id": "tz",
+      "loadable": "tz",
+      "args": [
+        "convert",
+        "0",
+        "-z",
+        "UTC"
+      ],
+      "fixture": "empty",
+      "host": "date",
+      "applet": "date",
+      "host_args": [
+        "-u",
+        "-d",
+        "@0",
+        "+%Y-%m-%d %H:%M:%S UTC +0000"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 128,
+      "validation_passes": 128,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 3.83,
+          "min_ms": 3.651,
+          "max_ms": 5.204
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 76.262,
+          "min_ms": 73.321,
+          "max_ms": 82.788
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 94.323,
+          "min_ms": 86.946,
+          "max_ms": 103.318
+        }
+      }
+    },
+    {
+      "id": "ip",
+      "loadable": "ip",
+      "args": [
+        "-br",
+        "link",
+        "show",
+        "lo"
+      ],
+      "fixture": "empty",
+      "host": "ip",
+      "applet": "ip",
+      "host_args": [
+        "-br",
+        "link",
+        "show",
+        "lo"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 130,
+      "validation_passes": 130,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "error",
+          "returncode": 1,
+          "stderr": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary.\n\nUsage: ip [OPTIONS] address|route|link|tunnel|neigh|rule [ARGS]\n\nOPTIONS := -f[amily] inet|inet6|link | -o[neline]\n\nip addr add|del IFADDR dev IFACE | show|flush [dev IFACE] [to PREFIX]\nip route list|flush|add|del|change|append|replace|test ROUTE\nip link set IFACE [up|down] [arp on|off] [multicast on|off]\n\t[promisc on|off] [mtu NUM] [name NAME] [qlen NUM] [address MAC]\n\t[master IFACE | nomaster] [netns PID] [type TYPE ARGS]\nip tunnel add|change|del|show [NAME]\n\t[mode ipip|gre|sit] [remote ADDR] [local ADDR] [ttl TTL]\nip neigh show|flush [to PREFIX] [dev DEV] [nud STATE]\nip rule [list] | add|del SELECTOR ACTION\n"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 6.611,
+          "min_ms": 6.238,
+          "max_ms": 7.141
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 151.618,
+          "min_ms": 145.329,
+          "max_ms": 159.909
+        }
+      }
+    },
+    {
+      "id": "tinfo",
+      "loadable": "tinfo",
+      "args": [
+        "getnum",
+        "cols"
+      ],
+      "fixture": "empty",
+      "host": "tput",
+      "applet": "tput",
+      "host_args": [
+        "cols"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 118,
+      "validation_passes": 118,
+      "date": "2026-09-11T10:37:22Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 4.312,
+          "min_ms": 4.024,
+          "max_ms": 6.141
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 87.535,
+          "min_ms": 81.165,
+          "max_ms": 93.943
         }
       }
     }

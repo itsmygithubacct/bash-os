@@ -148,6 +148,33 @@ def cases():
         host='getopt', maximum=200)
     add('uuencode', ['bytes'], fixture='bytes')
     add('uudecode', ['-o', '-'], fixture='uuencoded')
+    add('strftime', ['%Y-%m-%d', '0'], fixture='empty', host='date',
+        host_args=['-u', '-d', '@0', '+%Y-%m-%d'], maximum=200)
+    add('strptime', ['1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S'], fixture='empty',
+        host='date', host_args=['-u', '-d', '1970-01-01 00:00:00', '+%s'], maximum=200)
+    add('zlib', ['-f', 'gzip', 'text.gz'], fixture='empty', host='gzip',
+        host_args=['-dc', 'text.gz'])
+    add('pax', ['-f', 'tiny.tar'], fixture='empty', host='tar',
+        host_args=['tf', 'tiny.tar'])
+    add('tput', ['cols'], fixture='empty', maximum=200)
+    add('less', ['text'], fixture='empty')
+    add('chrt', ['-m'], fixture='empty', maximum=200)
+    add('signal', ['-n', 'TERM'], fixture='empty', host='kill',
+        host_args=['-l', 'TERM'], maximum=200)
+    add('cal', ['2', '2024'], fixture='empty', normalizer='fields', maximum=200)
+    add('ed', ['-s', 'left'], fixture='edscript')
+    add('finfo', ['-s', 'text'], fixture='empty', host='stat',
+        host_args=['-c', '%s', 'text'], maximum=200)
+    add('fltexpr', ['-p', '1+2*3'], fixture='empty', host='awk',
+        host_args=['BEGIN{print 1+2*3}'], maximum=200)
+    add('pcre', ['grep', 'alpha', 'text'], fixture='empty', host='grep',
+        host_args=['-P', 'alpha', 'text'])
+    add('uclampset', ['-p', '1'], fixture='empty', maximum=200)
+    add('tz', ['convert', '0', '-z', 'UTC'], fixture='empty', host='date',
+        host_args=['-u', '-d', '@0', '+%Y-%m-%d %H:%M:%S UTC +0000'], maximum=200)
+    add('ip', ['-br', 'link', 'show', 'lo'], fixture='empty', maximum=200)
+    add('tinfo', ['getnum', 'cols'], fixture='empty', host='tput',
+        host_args=['cols'], maximum=200)
     return rows
 
 
@@ -171,6 +198,7 @@ def fixtures(root):
         'array': json.dumps([i%101 for i in range(10000)]).encode()+b'\n',
         'object': json.dumps({'answer':42, 'data':[i%101 for i in range(10000)]}).encode()+b'\n',
         'arithmetic': b'scale=20; sqrt(2)\n',
+        'edscript': b'1,2p\nq\n',
     }
     for name, value in data.items():
         (root/name).write_bytes(value)
@@ -191,6 +219,10 @@ def fixtures(root):
     if ar:
         subprocess.check_call([ar, 'rcs', str(root/'tiny.a'), 'mem'], cwd=root)
         record(root/'tiny.a', 'tiny.a')
+    tar = shutil.which('tar', path=HOST_PATH)
+    if tar:
+        subprocess.check_call([tar, '-cf', 'tiny.tar', 'mem'], cwd=root)
+        record(root/'tiny.tar', 'tiny.tar')
     gzip = shutil.which('gzip', path=HOST_PATH)
     if gzip:
         with (root/'text.gz').open('wb') as out:
