@@ -207,6 +207,14 @@ bmv_one (const char *src, const char *dst, const bmv_opts *o)
             while (c != EOF && c != '\n') c = getchar ();
         }
     }
+    {
+        struct stat src_st;
+        if (lstat (src, &src_st) == 0 && dst_exists
+            && src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino) {
+            builtin_error ("'%s' and '%s' are the same file", src, dst);
+            return -1;
+        }
+    }
     /* rename(2) handles same-fs atomically. */
     if (rename (src, dst) == 0) return 0;
     if (errno != EXDEV) {

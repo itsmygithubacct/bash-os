@@ -213,9 +213,18 @@ static int list_or_extract(const char *arch, int extract, WORD_LIST *want) {
     if (!check_magic(f)) { builtin_error("%s: bad ar magic", arch); fclose(f); return EXECUTION_FAILURE; }
     struct ar_hdr h; int rc = EXECUTION_SUCCESS;
     char *strtab = NULL; size_t strtab_len = 0;
-    while (fread(&h,1,sizeof h,f) == sizeof h) {
+    for (;;) {
+        size_t nr = fread(&h,1,sizeof h,f);
+        if (nr == 0) {
+            if (ferror(f)) { builtin_error("%s: read error", arch); rc = EXECUTION_FAILURE; }
+            break;
+        }
+        if (nr != sizeof h) {
+            builtin_error("%s: file format not recognized", arch);
+            rc = EXECUTION_FAILURE; break;
+        }
         if(memcmp(h.fmag, AR_FMAG, 2)){
-            builtin_error("%s: corrupt ar header (bad fmag at member)", arch);
+            builtin_error("%s: file format not recognized", arch);
             rc = EXECUTION_FAILURE; break;
         }
         long sz = decfield(h.size, sizeof h.size);
@@ -459,9 +468,18 @@ static int read_members_without_symtab(const char *arch, struct ar_member **out_
     struct ar_hdr h;
     int rc = EXECUTION_SUCCESS;
 
-    while (fread(&h, 1, sizeof h, f) == sizeof h) {
+    for (;;) {
+        size_t nr = fread(&h, 1, sizeof h, f);
+        if (nr == 0) {
+            if (ferror(f)) { builtin_error("%s: read error", arch); rc = EXECUTION_FAILURE; }
+            break;
+        }
+        if (nr != sizeof h) {
+            builtin_error("%s: file format not recognized", arch);
+            rc = EXECUTION_FAILURE; break;
+        }
         if (memcmp(h.fmag, AR_FMAG, 2)) {
-            builtin_error("%s: corrupt ar header (bad fmag at member)", arch);
+            builtin_error("%s: file format not recognized", arch);
             rc = EXECUTION_FAILURE; break;
         }
         long sz = decfield(h.size, sizeof h.size);

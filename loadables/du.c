@@ -337,7 +337,11 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
         /* A file encountered during traversal prints only under -a. */
         should_print = (o->aflag && (o->max_depth < 0 || depth <= o->max_depth));
     }
-    if (should_print) bdu_print (total, path, o);
+    if (should_print) {
+        bdu_print (total, path, o);
+        if (ferror (stdout))
+            *err = 1;
+    }
     return total;
 }
 
@@ -573,6 +577,8 @@ du_builtin (WORD_LIST *list)
     }
     if (o.cflag)
         bdu_print (grand_total, "total", &o);
+    if (ferror (stdout))
+        err = 1;
     /* Free seen set. */
     free (bdu_seen);
     bdu_seen = NULL;

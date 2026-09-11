@@ -305,7 +305,11 @@ bc_emit (const unsigned char *buf, size_t len, int hex_out)
     {
       bc_print_hex (buf, len);
       putchar ('\n');
-      fflush (stdout);
+      if (fflush (stdout) != 0 || ferror (stdout))
+        {
+          builtin_error ("write error");
+          return -1;
+        }
       return 0;
     }
   if (bc_write_all (buf, len) < 0) return -1;
@@ -3979,6 +3983,10 @@ bc_sha256_mbedtls_cmd (WORD_LIST *args)
         printf ("%s\n", hex);
     } else {
         fwrite (digest, 1, 32, stdout);
+    }
+    if (fflush (stdout) != 0 || ferror (stdout)) {
+        builtin_error ("write error");
+        return EXECUTION_FAILURE;
     }
     return EXECUTION_SUCCESS;
 }

@@ -445,6 +445,8 @@ diff_builtin (WORD_LIST *list)
     for (int i = 0; i < n_ops; i++) {
         if (ops[i].op != BDOP_EQ) { differ = 1; break; }
     }
+    if (no_newline_a != no_newline_b)
+        differ = 1;
 
     int rc = differ ? 1 : 0;
     if (differ && !o.qflag) {
