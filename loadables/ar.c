@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <time.h>
 #include "loadables.h"
 
@@ -271,12 +272,43 @@ static int list_or_extract(const char *arch, int extract, WORD_LIST *want) {
         int ok = !want;
         for (WORD_LIST *p=want; p; p=p->next) if (!strcmp(p->word->word, name)) ok=1;
         if (extract && ok) {
-            FILE *o = fopen(name, "wb"); if (!o) { builtin_error("%s: %s", name, strerror(errno)); rc=EXECUTION_FAILURE; }
-            for (long i=0;i<sz;i++) { int c=fgetc(f); if (c==EOF) break; if (o) fputc(c,o); }
-            if (o) fclose(o);
+            /* Read the whole member before creating/truncating the dest so a
+               short body cannot leave a truncated regular file. Check fwrite
+               and fclose: fputc to /dev/full used to report success. */
+            unsigned char *buf = NULL;
+            if (sz > 0) {
+                buf = malloc((size_t)sz);
+                if (!buf) { builtin_error("out of memory"); rc=EXECUTION_FAILURE; break; }
+                if (fread(buf, 1, (size_t)sz, f) != (size_t)sz) {
+                    builtin_error("%s: file format not recognized", arch);
+                    free(buf); rc=EXECUTION_FAILURE; break;
+                }
+            }
+            FILE *o = fopen(name, "wb");
+            if (!o) {
+                builtin_error("%s: %s", name, strerror(errno));
+                rc = EXECUTION_FAILURE;
+            } else {
+                int wr_fail = 0;
+                int saved = 0;
+                if (sz > 0 && (fwrite(buf, 1, (size_t)sz, o) != (size_t)sz || ferror(o))) {
+                    wr_fail = 1;
+                    saved = errno;
+                }
+                if (fclose(o) != 0 && !wr_fail) {
+                    wr_fail = 1;
+                    saved = errno;
+                }
+                if (wr_fail) {
+                    builtin_error("%s: %s", name, saved ? strerror(saved) : "write error");
+                    unlink(name);
+                    rc = EXECUTION_FAILURE;
+                }
+            }
+            free(buf);
         } else {
             if (!extract && ok) printf("%s\n", name);
-            fseek(f, sz, SEEK_CUR);
+            if (sz > 0) fseek(f, sz, SEEK_CUR);
         }
         if (sz & 1) fseek(f, 1, SEEK_CUR);
     }
@@ -635,6 +667,11 @@ static int quick_append(const char *arch, WORD_LIST *files, int deterministic) {
 
 int ar_builtin(WORD_LIST *list) {
     int deterministic = 1;  /* Match GNU `ar -D` default since binutils 2.18+. */
+    if (list && list->word && list->word->word &&
+        (!strcmp(list->word->word, "--help") || !strcmp(list->word->word, "-h"))) {
+        builtin_usage();
+        return EXECUTION_SUCCESS;
+    }
     while(list && list->word && list->word->word
           && list->word->word[0]=='-' && list->word->word[1]
           && (list->word->word[1]=='D' || list->word->word[1]=='U')
