@@ -1,8 +1,7 @@
-/* bashtail.c — POSIX tail(1) as a bash builtin.
+/* SPDX-License-Identifier: MIT */
+/* tail.c — POSIX tail(1) as a bash builtin.
  *
- * Phase A.4 of bash-os shell-ergonomics. Replaces rootfs/bash/tail.sh.
- *
- *   bashtail [-n N | -N] [-c BYTES] [-f|-F] [-q|-v] [FILE...]
+ *   tail [-n N | -N] [-c BYTES] [-f|-F] [-q|-v] [FILE...]
  *
  * Flags: -n N (or POSIX shorthand -N), -c BYTES, -f follow,
  * -F follow by name and retry after rotation/disappearance.
@@ -35,6 +34,51 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+
+/* Never read through Bash's long-lived stdin FILE: its EOF flag and
+   buffer survive a builtin call, so the second `tail -n 1 < file` in
+   one shell prints nothing. Duplicate fd 0 for this invocation. */
+static FILE *
+bt_open_stdin (void)
+{
+    int fd = dup (STDIN_FILENO);
+    FILE *f = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!f) {
+        int e = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (e));
+        return NULL;
+    }
+    if (lseek (fd, 0, SEEK_CUR) == (off_t) -1)
+        setvbuf (f, NULL, _IONBF, 0);
+    return f;
+}
+
+static int
+bt_close_stdin (FILE *f)
+{
+    int rc = 0;
+    if (!f) return 0;
+    /* Return unread stdio bytes to the shared descriptor before fclose
+       drops the duplicate. */
+    if (lseek (fileno (f), 0, SEEK_CUR) != (off_t) -1 &&
+        fseeko (f, 0, SEEK_CUR) != 0)
+        rc = -1;
+    if (fclose (f) != 0)
+        rc = -1;
+    return rc;
+}
+
+static int
+bt_write (const void *p, size_t n)
+{
+    if (n == 0) return 0;
+    if (fwrite (p, 1, n, stdout) != n || ferror (stdout)) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        return -1;
+    }
+    return 0;
+}
 
 /* Print last N lines of a seekable file by reading it from the END: blocks
    backwards until N+1 delimiters (or the start) are found, then copy from
@@ -82,7 +126,7 @@ bt_tail_lines_seek (FILE *f, int n, char delim)
     if (fseeko (f, start, SEEK_SET) != 0) { clearerr (f); return 0; }
     size_t r;
     while ((r = fread (buf, 1, sizeof buf, f)) > 0)
-        fwrite (buf, 1, r, stdout);
+        if (bt_write (buf, r) < 0) return -1;
     return 1;
 }
 
@@ -93,29 +137,50 @@ static int
 bt_tail_lines (FILE *f, int n, char delim)
 {
     if (n <= 0) return 0;
-    if (bt_tail_lines_seek (f, n, delim)) return 0;
+    int sk = bt_tail_lines_seek (f, n, delim);
+    if (sk < 0) return -1;
+    if (sk > 0) return 0;
     char **ring = calloc ((size_t) n, sizeof *ring);
     int *rcap = calloc ((size_t) n, sizeof *rcap);
-    int head = 0, count = 0;
+    if (!ring || !rcap) {
+        free (ring); free (rcap);
+        builtin_error ("memory exhausted");
+        return -1;
+    }
+    int head = 0, count = 0, oom = 0;
     char *line = NULL; size_t cap = 0; ssize_t rd;
+    errno = 0;
     while ((rd = getdelim (&line, &cap, delim, f)) != -1) {
-        free (ring[head]);
-        char *p = malloc ((size_t) rd + 1);
-        if (p) memcpy (p, line, (size_t) rd);
+        /* Grow the occupied slot in place. Freeing first, then failing
+           malloc, left a dangling pointer for the emit/cleanup loops. */
+        char *p = realloc (ring[head], (size_t) rd + 1);
+        if (!p) { oom = 1; break; }
+        memcpy (p, line, (size_t) rd);
         ring[head] = p;
         rcap[head] = (int) rd;
         head = (head + 1) % n;
         if (count < n) count++;
     }
+    if (!oom && ferror (f) && errno == ENOMEM)
+        oom = 1;
     free (line);
-    int start = (count == n) ? head : 0;
-    for (int i = 0; i < count; i++) {
-        int idx = (start + i) % n;
-        if (ring[idx]) fwrite (ring[idx], 1, (size_t) rcap[idx], stdout);
-        free (ring[idx]);
+    int status = 0;
+    if (oom) {
+        builtin_error ("memory exhausted");
+        status = -1;
+    } else {
+        int start = (count == n) ? head : 0;
+        for (int i = 0; i < count; i++) {
+            int idx = (start + i) % n;
+            if (ring[idx] && bt_write (ring[idx], (size_t) rcap[idx]) < 0) {
+                status = -1;
+                break;
+            }
+        }
     }
+    for (int i = 0; i < n; i++) free (ring[i]);
     free (ring); free (rcap);
-    return 0;
+    return status;
 }
 
 static int
@@ -127,8 +192,10 @@ bt_tail_lines_from (FILE *f, long long start, char delim)
     ssize_t rd;
     long long nr = 1;
     while ((rd = getdelim (&line, &cap, delim, f)) != -1) {
-        if (nr >= start)
-            fwrite (line, 1, (size_t) rd, stdout);
+        if (nr >= start && bt_write (line, (size_t) rd) < 0) {
+            free (line);
+            return -1;
+        }
         nr++;
     }
     free (line);
@@ -140,20 +207,32 @@ static int
 bt_tail_bytes (FILE *f, long long c)
 {
     if (c <= 0) return 0;
-    /* Try seek-end first. */
-    if (fseeko (f, 0, SEEK_END) == 0) {
+    /* Try seek-end first, but never look behind the current offset. */
+    off_t begin = ftello (f);
+    if (begin >= 0 && fseeko (f, 0, SEEK_END) == 0) {
         off_t sz = ftello (f);
-        off_t off = sz > c ? sz - c : 0;
-        fseeko (f, off, SEEK_SET);
-        char buf[8192];
-        size_t r;
-        while ((r = fread (buf, 1, sizeof buf, f)) > 0)
-            fwrite (buf, 1, r, stdout);
-        return 0;
+        if (sz >= 0) {
+            off_t off = (sz - begin > c) ? sz - c : begin;
+            if (fseeko (f, off, SEEK_SET) == 0) {
+                char buf[8192];
+                size_t r;
+                while ((r = fread (buf, 1, sizeof buf, f)) > 0)
+                    if (bt_write (buf, r) < 0) return -1;
+                return 0;
+            }
+        }
+        clearerr (f);
+        if (fseeko (f, begin, SEEK_SET) != 0) clearerr (f);
+    } else {
+        clearerr (f);
     }
-    /* Stream fallback: buffer up to last C bytes. */
+    /* Stream fallback: buffer up to last C bytes. Must read to EOF
+       before any output, matching GNU. */
     char *buf = malloc ((size_t) c);
-    if (!buf) return -1;
+    if (!buf) {
+        builtin_error ("memory exhausted");
+        return -1;
+    }
     size_t total = 0;
     int rd;
     while ((rd = fgetc (f)) != EOF) {
@@ -163,9 +242,9 @@ bt_tail_bytes (FILE *f, long long c)
             buf[c - 1] = (char) rd;
         }
     }
-    fwrite (buf, 1, total, stdout);
+    int status = bt_write (buf, total);
     free (buf);
-    return 0;
+    return status;
 }
 
 static int
@@ -183,7 +262,7 @@ bt_tail_bytes_from (FILE *f, long long start)
     char buf[8192];
     size_t r;
     while ((r = fread (buf, 1, sizeof buf, f)) > 0)
-        fwrite (buf, 1, r, stdout);
+        if (bt_write (buf, r) < 0) return -1;
     return 0;
 }
 
@@ -303,19 +382,26 @@ bt_follow_open_one (int infd, struct bt_follow_file *f, int retry)
     return 0;
 }
 
-static void
+static int
 bt_follow_drain_one (struct bt_follow_file *f, int idx, int n_paths,
                      int *last_emitted, char *buf, size_t bufsz)
 {
-    if (f->fd < 0) return;
+    if (f->fd < 0) return 0;
     if (n_paths > 1 && *last_emitted != idx) {
-        printf ("\n==> %s <==\n", f->path);
+        if (printf ("\n==> %s <==\n", f->path) < 0 || ferror (stdout)) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            return -1;
+        }
         *last_emitted = idx;
     }
     ssize_t r;
     while ((r = read (f->fd, buf, bufsz)) > 0)
-        fwrite (buf, 1, (size_t) r, stdout);
-    fflush (stdout);
+        if (bt_write (buf, (size_t) r) < 0) return -1;
+    if (fflush (stdout) == EOF) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        return -1;
+    }
+    return 0;
 }
 
 static int
@@ -343,16 +429,22 @@ bt_follow (char **paths, int n_paths, int retry)
     }
 
     int last_emitted = -1;
+    int follow_rc = 0;
     char buf[8192];
     char evbuf[4096] __attribute__((aligned (8)));
     for (;;) {
         if (retry) {
             for (int i = 0; i < n_paths; i++) {
                 if (files[i].fd < 0 &&
-                    bt_follow_open_one (infd, &files[i], retry) == 0)
-                    bt_follow_drain_one (&files[i], i, n_paths, &last_emitted,
-                                         buf, sizeof buf);
+                    bt_follow_open_one (infd, &files[i], retry) == 0) {
+                    if (bt_follow_drain_one (&files[i], i, n_paths, &last_emitted,
+                                             buf, sizeof buf) < 0) {
+                        follow_rc = -1;
+                        break;
+                    }
+                }
             }
+            if (follow_rc < 0) break;
         }
 
         struct pollfd pfd;
@@ -392,14 +484,30 @@ bt_follow (char **paths, int n_paths, int retry)
             }
             if (!(e->mask & IN_MODIFY)) continue;
 
-            bt_follow_drain_one (&files[idx], idx, n_paths, &last_emitted,
-                                 buf, sizeof buf);
+            if (bt_follow_drain_one (&files[idx], idx, n_paths, &last_emitted,
+                                     buf, sizeof buf) < 0) {
+                follow_rc = -1;
+                break;
+            }
         }
+        if (follow_rc < 0) break;
     }
     for (int i = 0; i < n_paths; i++) if (files[i].fd >= 0) close (files[i].fd);
     close (infd);
     free (files);
-    return 0;
+    return follow_rc;
+}
+
+static int
+bt_process (FILE *f, long long n_bytes, int from_start, long long start_count,
+            int n_lines, char delim)
+{
+    if (n_bytes >= 0) {
+        if (from_start) return bt_tail_bytes_from (f, start_count);
+        return bt_tail_bytes (f, n_bytes);
+    }
+    if (from_start) return bt_tail_lines_from (f, start_count, delim);
+    return bt_tail_lines (f, n_lines, delim);
 }
 
 int
@@ -550,17 +658,20 @@ tail_builtin (WORD_LIST *list)
     int n_files = 0;
     for (WORD_LIST *p = list; p; p = p->next) n_files++;
     int rc = EXECUTION_SUCCESS;
+    FILE *stdin_f = NULL;
     if (n_files == 0) {
         if (follow) {
             builtin_error ("-f requires at least one FILE (cannot follow stdin)");
             return EX_USAGE;
         }
-        if (n_bytes >= 0) {
-            if (from_start) bt_tail_bytes_from (stdin, start_count);
-            else            bt_tail_bytes (stdin, n_bytes);
-        } else {
-            if (from_start) bt_tail_lines_from (stdin, start_count, delim);
-            else            bt_tail_lines (stdin, n_lines, delim);
+        stdin_f = bt_open_stdin ();
+        if (!stdin_f) return EXECUTION_FAILURE;
+        if (bt_process (stdin_f, n_bytes, from_start, start_count,
+                        n_lines, delim) < 0)
+            rc = EXECUTION_FAILURE;
+        if (fflush (stdout) == EOF) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            rc = EXECUTION_FAILURE;
         }
     } else {
         /* Initial tails. */
@@ -573,11 +684,18 @@ tail_builtin (WORD_LIST *list)
         for (WORD_LIST *p = list; p; p = p->next) {
             /* GNU treats "-" as standard input (header "standard input"). */
             int is_stdin = (strcmp (p->word->word, "-") == 0);
-            FILE *f = is_stdin ? stdin : fopen (p->word->word, "r");
+            FILE *f;
+            if (is_stdin) {
+                if (!stdin_f) stdin_f = bt_open_stdin ();
+                f = stdin_f;
+            } else {
+                f = fopen (p->word->word, "r");
+            }
             if (!f) {
                 /* Match GNU tail's open-failure diagnostic. */
-                builtin_error ("cannot open '%s' for reading: %s",
-                               p->word->word, strerror (errno));
+                if (!is_stdin)
+                    builtin_error ("cannot open '%s' for reading: %s",
+                                   p->word->word, strerror (errno));
                 rc = EXECUTION_FAILURE;
                 if (paths && follow_retry)
                     paths[p_idx++] = p->word->word;
@@ -589,25 +707,27 @@ tail_builtin (WORD_LIST *list)
             }
             first = 0;
             if (!initial_zero) {
-                if (n_bytes >= 0) {
-                    if (from_start) bt_tail_bytes_from (f, start_count);
-                    else            bt_tail_bytes (f, n_bytes);
-                } else {
-                    if (from_start) bt_tail_lines_from (f, start_count, delim);
-                    else            bt_tail_lines (f, n_lines, delim);
-                }
+                if (bt_process (f, n_bytes, from_start, start_count,
+                                n_lines, delim) < 0)
+                    rc = EXECUTION_FAILURE;
             }
             if (!is_stdin) fclose (f);
             /* Don't add "-" (stdin) to the inotify follow set — it can't be
                watched by pathname; GNU likewise won't follow a stdin pipe. */
             if (paths && !is_stdin) paths[p_idx++] = p->word->word;
         }
-        fflush (stdout);
+        if (fflush (stdout) == EOF) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            rc = EXECUTION_FAILURE;
+        }
         if (follow && p_idx > 0) {
-            bt_follow (paths, p_idx, follow_retry);
+            if (bt_follow (paths, p_idx, follow_retry) < 0)
+                rc = EXECUTION_FAILURE;
         }
         free (paths);
     }
+    if (stdin_f && bt_close_stdin (stdin_f) < 0)
+        rc = EXECUTION_FAILURE;
     return rc;
 }
 
@@ -639,11 +759,11 @@ char *tail_doc[] = {
     (char *)NULL
 };
 
-struct builtin bashtail_struct = {
-    "bashtail",
+struct builtin tail_struct = {
+    "tail",
     tail_builtin,
     BUILTIN_ENABLED,
     tail_doc,
-    "bashtail [-n N|-n +N|-N] [-c BYTES|-c +BYTES] [-f|-F] [-q|-v] [FILE...]",
+    "tail [-n N|-n +N|-N] [-c BYTES|-c +BYTES] [-f|-F] [-q|-v] [FILE...]",
     0
 };
