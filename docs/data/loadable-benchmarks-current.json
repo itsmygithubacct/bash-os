@@ -108,7 +108,7 @@
     },
     "tiny.tar": {
       "bytes": 10240,
-      "sha256": "ff05181b0840fa5c0651d5180657b377159b2a808341307e5bfb437d71deae8d"
+      "sha256": "05f4a1ec37c6e48f9db1859060788f04f7280370e797a6a7078f34f40ba814da"
     },
     "chain": {
       "bytes": 12,
@@ -5931,6 +5931,50 @@
           "median_ms": 61.86,
           "min_ms": 56.061,
           "max_ms": 63.865
+        }
+      }
+    },
+    {
+      "id": "lsblk",
+      "loadable": "lsblk",
+      "args": [
+        "-d",
+        "-n",
+        "-o",
+        "NAME"
+      ],
+      "fixture": "empty",
+      "host": "lsblk",
+      "applet": "lsblk",
+      "host_args": [
+        "-d",
+        "-n",
+        "-o",
+        "NAME"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 62,
+      "validation_passes": 62,
+      "date": "2026-09-11T17:53:30Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "busybox": {
+          "status": "unavailable"
+        },
+        "bashos": {
+          "status": "ok",
+          "median_ms": 46.983,
+          "min_ms": 46.325,
+          "max_ms": 50.349
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 89.697,
+          "min_ms": 84.111,
+          "max_ms": 96.165
         }
       }
     }

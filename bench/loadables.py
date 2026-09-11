@@ -198,6 +198,7 @@ def cases():
     add('coreutils', ['install', '-m', '644', 'text', 'installed'], fixture='empty',
         host='install', host_args=['-m', '644', 'text', 'installed'],
         output='installed', label='coreutils-install')
+    add('lsblk', ['-d', '-n', '-o', 'NAME'], fixture='empty', maximum=200)
     return rows
 
 

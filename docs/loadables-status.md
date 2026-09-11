@@ -32,12 +32,12 @@ BusyBox-matching timings on this binary (`tee`, `hostid`, `timeout`, `du`,
 `opt`, `uudecode`, then `strftime`, `strptime`, `zlib`, `pax`, `tput`,
 `less`, `chrt`, `signal`, `cal`, `ed`, `finfo`, `fltexpr`, `pcre`,
 `uclampset`, `tz`, `ip`, `tinfo`, plus extra `tput`/`signal`/`finfo`/`chrt`
-cases, `zlib` xz/bzip2, and `coreutils` numfmt/tsort/factor/groups/install).
-Live `free -k` timings are not published because counters move between
-invocations.
+cases, `zlib` xz/bzip2, `coreutils` numfmt/tsort/factor/groups/install, and
+`lsblk -d -n -o NAME`). Live `free -k` timings are not published because
+counters move between invocations.
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **126 cases covering 105 loadables**; 105 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 174 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **127 cases covering 106 loadables**; 106 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 173 have no individual command timings here; GPU transport measurements are reported separately.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -49,7 +49,7 @@ Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command b
 | desktop | 155 |
 | full | 279 |
 
-Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (43 published cases after the third batch). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
+Command measurement source: `c591f19db622d9b29af372c4689ba56f2838ff28`. The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (44 published cases including lsblk). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh.
 
 Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `c591f19` after leftover ar/tee/diff follow-ups landed.
 
@@ -240,7 +240,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`lpr`](../loadables/lpr.c) | F | [Smoke](../tests/misc-smoke.py); [limited](#scope-notes) | lpr (not in build); lpr (missing) | N/M | P3 | Decide whether real print delivery belongs in this loadable. |
 | [`ls`](../loadables/ls.c) | C D S T F | [Bench checked](#case-ls) | ls; ls | 14.262 / 86.634 / 77.091; [ls](#case-ls), 80 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`lsattr`](../loadables/lsattr.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; lsattr | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`lsblk`](../loadables/lsblk.c) | D S F | Build/help | —; lsblk | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`lsblk`](../loadables/lsblk.c) | D S F | [Bench checked](#case-lsblk) | —; lsblk | 46.983 / — / 89.697; [lsblk](#case-lsblk), 62 passes | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`lsof`](../loadables/lsof.c) | D S T F | [Smoke](../tests/system-smoke.sh) | —; lsof | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`mail`](../loadables/mail.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | sendmail (not in build); sendmail / mailq | N/M | P3 | Add a controlled submission/delivery benchmark. |
 | [`man`](../loadables/man.c) | T F | [Contract](../tests/misc-smoke.py) | —; man | N/M | P3 | Add a matched workload and timing. |
@@ -633,6 +633,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | <a id="case-coreutils-factor"></a>coreutils-factor | `coreutils factor 1234567890 97` | `factor 1234567890 97` | No stdin; named fixtures / arguments | 141 | 5.827 | 102.189 | 91.381 | 0.06× | 7 |
 | <a id="case-coreutils-groups"></a>coreutils-groups | `coreutils groups` | `groups` | No stdin; named fixtures / arguments | 122 | 20.074 | 154.863 | 126.393 | 0.16× | 7 |
 | <a id="case-coreutils-install"></a>coreutils-install | `coreutils install -m 644 text installed` | `install -m 644 text installed` | No stdin; named fixtures / arguments | 59 | 13.985 | 61.860 | 75.621 | 0.18× | 7 |
+| <a id="case-lsblk"></a>lsblk | `lsblk -d -n -o NAME` | `lsblk -d -n -o NAME` | No stdin; named fixtures / arguments | 62 | 46.983 | — | 89.697 | 0.52× | 7 |
 <!-- END CASES -->
 
 ## Method and limits
