@@ -45,7 +45,14 @@ read -r _ stot sused sfree <<< "$swp"
 [[ $mavail == 80000 ]] && ok "fixture MemAvailable 80000" || no "Mem available '$mavail'"
 [[ $mused == 344242 ]] && ok "used is total-available 344242" || no "Mem used '$mused'"
 [[ $mshared == 3333 ]] && ok "fixture Shmem 3333" || no "Mem shared '$mshared'"
-[[ $mbuff == 4444 ]] && ok "buff/cache from Buffers+Cached+SReclaimable-Shmem" || no "buff/cache '$mbuff'"
+# GNU: Buffers+Cached+SReclaimable = 1111+2222+4444 = 7777. Old builtin
+# subtracted Shmem (3333) and printed 4444.
+[[ $mbuff == 7777 && $mbuff != 4444 ]] \
+  && ok "buff/cache is GNU Buffers+Cached+SReclaimable, not Shmem-subtracted" \
+  || no "buff/cache '$mbuff' (want 7777, not 4444)"
+line=$(BASHOS_PROC_ROOT=$d/proc "$BX" -c 'PATH=; free -k -L')
+read -r _ _ _ cachuse _ _ _ memfree <<< "$line"
+[[ $cachuse == 7777 ]] && ok "-L CachUse follows buff/cache" || no "-L CachUse '$cachuse' line '$line'"
 [[ $stot == 50000 && $sused == 10000 && $sfree == 40000 ]] \
   && ok "fixture Swap columns" || no "Swap '$swp'"
 

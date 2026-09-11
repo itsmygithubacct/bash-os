@@ -154,17 +154,22 @@ static int
 bf_print_snapshot (bf_unit u, int human, int si, int total, int wide, int line)
 {
     bf_meminfo m = { 0 };
-    long used, buff_cache, swap_used;
+    long used, cache, buff_cache, swap_used;
 
     if (bf_read_meminfo (&m) < 0) {
         builtin_error ("read /proc/meminfo: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
 
-    long cache = m.cached + m.sreclaimable - m.shared;
+    /* procps free(1) leaves Shmem inside buff/cache and the wide cache
+       column: Buffers + Cached + SReclaimable. used stays MemTotal -
+       MemAvailable when available is present. */
+    cache = m.cached + m.sreclaimable;
     if (cache < 0)
         cache = 0;
     buff_cache = m.buffers + cache;
+    if (buff_cache < 0)
+        buff_cache = 0;
     used = m.available > 0 ? m.total - m.available
                             : m.total - m.free - buff_cache;
     swap_used = m.swap_total - m.swap_free;
