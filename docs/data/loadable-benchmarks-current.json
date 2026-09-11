@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "date": "2026-09-08T08:59:21Z",
-  "source_commit": "97284d62efcf57067557540861b6a81577b841c6",
-  "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
+  "date": "2026-09-11T08:02:03Z",
+  "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
+  "binary_sha256": "00063f9f3b758ac8423a6ef7314fb2d99e3bad373d38a72b931146072df0c517",
   "kernel": "6.12.96+deb13-amd64",
   "architecture": "x86_64",
   "cpus": [
     11
   ],
   "load_average_start": [
-    14.1669921875,
-    17.73193359375,
-    18.07568359375
+    3.1845703125,
+    3.52392578125,
+    3.640625
   ],
   "method": "Same bash-os shell; builtin or absolute external command; median untraced batch wall time; stdout /dev/null; warm file cache",
   "cpu_model": "Intel(R) Core(TM) i7-9850H CPU @ 2.60GHz",
@@ -84,9 +84,9 @@
     }
   },
   "load_average_end": [
-    18.48095703125,
-    18.20751953125,
-    18.19921875
+    4.5009765625,
+    4.0400390625,
+    3.826171875
   ],
   "catalog_sha256": "f5a6bc6a2480bfcc4385596e83d1d66e5e4f4365568e9c7fff0d5ac8e329ded2",
   "tool_inventory": {
@@ -677,29 +677,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 68,
-      "validation_passes": 68,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 12.687,
-          "min_ms": 10.059,
-          "max_ms": 20.879
+          "median_ms": 8.371,
+          "min_ms": 7.798,
+          "max_ms": 11.502
         },
         "external": {
           "status": "ok",
-          "median_ms": 142.05,
-          "min_ms": 119.126,
-          "max_ms": 161.526
+          "median_ms": 64.67,
+          "min_ms": 56.671,
+          "max_ms": 66.457
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 129.153,
-          "min_ms": 117.512,
-          "max_ms": 166.019
+          "median_ms": 63.602,
+          "min_ms": 55.958,
+          "max_ms": 69.569
         }
       }
     },
@@ -720,29 +720,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 67,
-      "validation_passes": 67,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 13.814,
-          "min_ms": 9.468,
-          "max_ms": 16.021
+          "median_ms": 9.653,
+          "min_ms": 8.294,
+          "max_ms": 13.31
         },
         "external": {
           "status": "ok",
-          "median_ms": 112.68,
-          "min_ms": 103.342,
-          "max_ms": 126.64
+          "median_ms": 51.55,
+          "min_ms": 46.7,
+          "max_ms": 67.798
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 131.198,
-          "min_ms": 114.394,
-          "max_ms": 147.58
+          "median_ms": 64.14,
+          "min_ms": 59.456,
+          "max_ms": 68.471
         }
       }
     },
@@ -763,29 +763,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 49,
-      "validation_passes": 49,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 7.483,
-          "min_ms": 5.891,
-          "max_ms": 14.449
+          "median_ms": 5.092,
+          "min_ms": 4.948,
+          "max_ms": 6.816
         },
         "external": {
           "status": "ok",
-          "median_ms": 91.356,
-          "min_ms": 56.047,
-          "max_ms": 115.107
+          "median_ms": 57.093,
+          "min_ms": 49.305,
+          "max_ms": 68.092
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 158.041,
-          "min_ms": 130.363,
-          "max_ms": 209.425
+          "median_ms": 133.554,
+          "min_ms": 126.08,
+          "max_ms": 165.079
         }
       }
     },
@@ -804,29 +804,29 @@
       "normalizer": "fields",
       "output": null,
       "reference": "external",
-      "passes": 25,
-      "validation_passes": 25,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 30,
+      "validation_passes": 30,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 52.281,
-          "min_ms": 44.903,
-          "max_ms": 64.798
+          "median_ms": 44.928,
+          "min_ms": 44.009,
+          "max_ms": 49.143
         },
         "external": {
           "status": "ok",
-          "median_ms": 98.355,
-          "min_ms": 83.763,
-          "max_ms": 105.623
+          "median_ms": 61.979,
+          "min_ms": 54.587,
+          "max_ms": 63.176
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.582,
-          "min_ms": 119.224,
-          "max_ms": 150.423
+          "median_ms": 96.619,
+          "min_ms": 93.143,
+          "max_ms": 106.608
         }
       }
     },
@@ -845,29 +845,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 28,
-      "validation_passes": 28,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 34,
+      "validation_passes": 34,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 55.659,
-          "min_ms": 50.969,
-          "max_ms": 67.305
+          "median_ms": 55.391,
+          "min_ms": 46.705,
+          "max_ms": 69.545
         },
         "external": {
           "status": "ok",
-          "median_ms": 67.31,
-          "min_ms": 57.803,
-          "max_ms": 84.066
+          "median_ms": 28.314,
+          "min_ms": 23.913,
+          "max_ms": 37.628
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 150.397,
-          "min_ms": 140.417,
-          "max_ms": 192.881
+          "median_ms": 114.215,
+          "min_ms": 105.446,
+          "max_ms": 138.86
         }
       }
     },
@@ -886,29 +886,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 19,
-      "validation_passes": 19,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 39,
+      "validation_passes": 39,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 51.222,
-          "min_ms": 44.84,
-          "max_ms": 58.643
+          "median_ms": 57.907,
+          "min_ms": 52.856,
+          "max_ms": 76.637
         },
         "external": {
           "status": "ok",
-          "median_ms": 92.517,
-          "min_ms": 57.831,
-          "max_ms": 107.009
+          "median_ms": 76.296,
+          "min_ms": 69.854,
+          "max_ms": 92.694
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.55,
-          "min_ms": 100.054,
-          "max_ms": 139.527
+          "median_ms": 126.906,
+          "min_ms": 118.654,
+          "max_ms": 156.351
         }
       }
     },
@@ -933,29 +933,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 35,
-      "validation_passes": 35,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 59,
+      "validation_passes": 59,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 28.551,
-          "min_ms": 24.72,
-          "max_ms": 30.933
+          "median_ms": 24.896,
+          "min_ms": 23.961,
+          "max_ms": 31.042
         },
         "external": {
           "status": "ok",
-          "median_ms": 142.033,
-          "min_ms": 135.412,
-          "max_ms": 162.444
+          "median_ms": 130.581,
+          "min_ms": 127.921,
+          "max_ms": 131.764
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 280.054,
-          "min_ms": 251.111,
-          "max_ms": 317.082
+          "median_ms": 267.905,
+          "min_ms": 251.984,
+          "max_ms": 281.962
         }
       }
     },
@@ -976,29 +976,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 38,
-      "validation_passes": 38,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 61,
+      "validation_passes": 61,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 49.08,
-          "min_ms": 35.4,
-          "max_ms": 55.018
+          "median_ms": 41.825,
+          "min_ms": 40.673,
+          "max_ms": 47.17
         },
         "external": {
           "status": "ok",
-          "median_ms": 95.986,
-          "min_ms": 81.384,
-          "max_ms": 114.136
+          "median_ms": 51.422,
+          "min_ms": 50.168,
+          "max_ms": 52.512
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 516.053,
-          "min_ms": 424.843,
-          "max_ms": 569.345
+          "median_ms": 424.334,
+          "min_ms": 400.833,
+          "max_ms": 438.577
         }
       }
     },
@@ -1017,29 +1017,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 25,
-      "validation_passes": 25,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 64,
+      "validation_passes": 64,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 45.471,
-          "min_ms": 30.562,
-          "max_ms": 53.262
+          "median_ms": 60.645,
+          "min_ms": 55.525,
+          "max_ms": 93.804
         },
         "external": {
           "status": "ok",
-          "median_ms": 64.404,
-          "min_ms": 52.786,
-          "max_ms": 74.954
+          "median_ms": 51.343,
+          "min_ms": 47.151,
+          "max_ms": 73.983
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 347.407,
-          "min_ms": 302.319,
-          "max_ms": 367.51
+          "median_ms": 464.223,
+          "min_ms": 440.873,
+          "max_ms": 506.773
         }
       }
     },
@@ -1058,29 +1058,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 6,
-      "validation_passes": 6,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 79.527,
-          "min_ms": 63.777,
-          "max_ms": 84.8
+          "median_ms": 69.457,
+          "min_ms": 68.31,
+          "max_ms": 75.415
         },
         "external": {
           "status": "ok",
-          "median_ms": 66.245,
-          "min_ms": 56.645,
-          "max_ms": 85.225
+          "median_ms": 57.735,
+          "min_ms": 56.435,
+          "max_ms": 59.224
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 92.227,
-          "min_ms": 72.22,
-          "max_ms": 100.833
+          "median_ms": 80.76,
+          "min_ms": 77.655,
+          "max_ms": 89.402
         }
       }
     },
@@ -1101,27 +1101,27 @@
       "reference": "external",
       "passes": 5,
       "validation_passes": 5,
-      "date": "2026-09-08T08:59:21Z",
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 95.502,
-          "min_ms": 92.287,
-          "max_ms": 107.828
+          "median_ms": 71.899,
+          "min_ms": 70.934,
+          "max_ms": 76.315
         },
         "external": {
           "status": "ok",
-          "median_ms": 189.435,
-          "min_ms": 180.084,
-          "max_ms": 222.159
+          "median_ms": 135.083,
+          "min_ms": 131.899,
+          "max_ms": 145.112
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 797.345,
-          "min_ms": 720.311,
-          "max_ms": 928.194
+          "median_ms": 534.49,
+          "min_ms": 526.857,
+          "max_ms": 559.103
         }
       }
     },
@@ -1136,29 +1136,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 7,
-      "validation_passes": 7,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": true,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 72.043,
-          "min_ms": 66.574,
-          "max_ms": 78.055
+          "median_ms": 73.756,
+          "min_ms": 69.724,
+          "max_ms": 77.5
         },
         "external": {
           "status": "ok",
-          "median_ms": 42.286,
-          "min_ms": 30.858,
-          "max_ms": 44.585
+          "median_ms": 31.66,
+          "min_ms": 28.54,
+          "max_ms": 33.835
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 71.119,
-          "min_ms": 67.357,
-          "max_ms": 75.751
+          "median_ms": 72.196,
+          "min_ms": 66.253,
+          "max_ms": 75.805
         }
       }
     },
@@ -1177,29 +1177,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 21,
-      "validation_passes": 21,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 40,
+      "validation_passes": 40,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 53.875,
-          "min_ms": 43.969,
-          "max_ms": 70.143
+          "median_ms": 52.803,
+          "min_ms": 50.4,
+          "max_ms": 54.683
         },
         "external": {
           "status": "ok",
-          "median_ms": 81.544,
-          "min_ms": 65.312,
-          "max_ms": 92.15
+          "median_ms": 52.144,
+          "min_ms": 50.437,
+          "max_ms": 57.569
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 1265.578,
-          "min_ms": 1089.719,
-          "max_ms": 1315.884
+          "median_ms": 1422.523,
+          "min_ms": 1368.505,
+          "max_ms": 1506.063
         }
       }
     },
@@ -1220,29 +1220,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 27,
-      "validation_passes": 27,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 62,
+      "validation_passes": 62,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 38.204,
-          "min_ms": 27.607,
-          "max_ms": 52.982
+          "median_ms": 46.042,
+          "min_ms": 43.41,
+          "max_ms": 50.585
         },
         "external": {
           "status": "ok",
-          "median_ms": 62.239,
-          "min_ms": 45.278,
-          "max_ms": 77.69
+          "median_ms": 52.194,
+          "min_ms": 48.127,
+          "max_ms": 58.21
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 87.345,
-          "min_ms": 77.018,
-          "max_ms": 109.161
+          "median_ms": 90.49,
+          "min_ms": 86.37,
+          "max_ms": 92.512
         }
       }
     },
@@ -1257,29 +1257,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 12,
-      "validation_passes": 12,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 19,
+      "validation_passes": 19,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 84.954,
-          "min_ms": 79.047,
-          "max_ms": 91.929
+          "median_ms": 74.467,
+          "min_ms": 68.075,
+          "max_ms": 78.019
         },
         "external": {
           "status": "ok",
-          "median_ms": 115.611,
-          "min_ms": 93.91,
-          "max_ms": 119.592
+          "median_ms": 94.957,
+          "min_ms": 84.721,
+          "max_ms": 101.545
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 468.766,
-          "min_ms": 434.157,
-          "max_ms": 502.295
+          "median_ms": 439.148,
+          "min_ms": 415.074,
+          "max_ms": 461.322
         }
       }
     },
@@ -1300,29 +1300,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 8,
-      "validation_passes": 8,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 10,
+      "validation_passes": 10,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 98.727,
-          "min_ms": 76.764,
-          "max_ms": 111.811
+          "median_ms": 75.32,
+          "min_ms": 74.428,
+          "max_ms": 78.73
         },
         "external": {
           "status": "ok",
-          "median_ms": 91.571,
-          "min_ms": 85.015,
-          "max_ms": 105.946
+          "median_ms": 73.93,
+          "min_ms": 72.275,
+          "max_ms": 88.32
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 514.843,
-          "min_ms": 477.815,
-          "max_ms": 571.731
+          "median_ms": 401.296,
+          "min_ms": 384.652,
+          "max_ms": 447.437
         }
       }
     },
@@ -1341,29 +1341,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 40,
-      "validation_passes": 40,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 55,
+      "validation_passes": 55,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 62.44,
-          "min_ms": 53.949,
-          "max_ms": 73.796
+          "median_ms": 50.805,
+          "min_ms": 50.046,
+          "max_ms": 55.473
         },
         "external": {
           "status": "ok",
-          "median_ms": 186.691,
-          "min_ms": 165.852,
-          "max_ms": 195.664
+          "median_ms": 124.638,
+          "min_ms": 117.954,
+          "max_ms": 137.213
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 292.162,
-          "min_ms": 281.833,
-          "max_ms": 341.774
+          "median_ms": 230.896,
+          "min_ms": 225.618,
+          "max_ms": 252.959
         }
       }
     },
@@ -1378,29 +1378,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 9,
-      "validation_passes": 9,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 14,
+      "validation_passes": 14,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 74.139,
-          "min_ms": 56.559,
-          "max_ms": 90.064
+          "median_ms": 66.166,
+          "min_ms": 63.487,
+          "max_ms": 73.522
         },
         "external": {
           "status": "ok",
-          "median_ms": 156.231,
-          "min_ms": 133.437,
-          "max_ms": 183.479
+          "median_ms": 127.183,
+          "min_ms": 118.896,
+          "max_ms": 134.872
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 56.947,
-          "min_ms": 39.566,
-          "max_ms": 69.726
+          "median_ms": 37.455,
+          "min_ms": 32.412,
+          "max_ms": 39.817
         }
       }
     },
@@ -1421,29 +1421,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 16,
-      "validation_passes": 16,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 50,
+      "validation_passes": 50,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 40.649,
-          "min_ms": 34.572,
-          "max_ms": 46.497
+          "median_ms": 53.248,
+          "min_ms": 52.077,
+          "max_ms": 61.183
         },
         "external": {
           "status": "ok",
-          "median_ms": 99.83,
-          "min_ms": 81.296,
-          "max_ms": 113.807
+          "median_ms": 126.044,
+          "min_ms": 121.542,
+          "max_ms": 138.894
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 132.239,
-          "min_ms": 118.251,
-          "max_ms": 152.994
+          "median_ms": 207.353,
+          "min_ms": 197.475,
+          "max_ms": 217.974
         }
       }
     },
@@ -1458,29 +1458,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 53,
-      "validation_passes": 53,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 40,
+      "validation_passes": 40,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 23.403,
-          "min_ms": 21.671,
-          "max_ms": 34.424
+          "median_ms": 9.074,
+          "min_ms": 8.847,
+          "max_ms": 9.92
         },
         "external": {
           "status": "ok",
-          "median_ms": 161.792,
-          "min_ms": 139.013,
-          "max_ms": 167.513
+          "median_ms": 39.204,
+          "min_ms": 38.173,
+          "max_ms": 40.869
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 512.412,
-          "min_ms": 405.054,
-          "max_ms": 572.73
+          "median_ms": 188.217,
+          "min_ms": 185.636,
+          "max_ms": 203.092
         }
       }
     },
@@ -1501,9 +1501,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 10,
-      "validation_passes": 10,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 16,
+      "validation_passes": 16,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": true,
       "results": {
@@ -1512,15 +1512,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 80.052,
-          "min_ms": 74.329,
-          "max_ms": 84.893
+          "median_ms": 66.232,
+          "min_ms": 64.045,
+          "max_ms": 68.293
         },
         "external": {
           "status": "ok",
-          "median_ms": 43.888,
-          "min_ms": 38.199,
-          "max_ms": 52.474
+          "median_ms": 26.309,
+          "min_ms": 24.1,
+          "max_ms": 27.697
         }
       }
     },
@@ -1541,9 +1541,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 9,
-      "validation_passes": 9,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 19,
+      "validation_passes": 19,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -1552,15 +1552,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 74.481,
-          "min_ms": 61.087,
-          "max_ms": 84.344
+          "median_ms": 73.366,
+          "min_ms": 70.452,
+          "max_ms": 87.055
         },
         "external": {
           "status": "ok",
-          "median_ms": 62.679,
-          "min_ms": 47.045,
-          "max_ms": 95.116
+          "median_ms": 46.391,
+          "min_ms": 42.513,
+          "max_ms": 56.138
         }
       }
     },
@@ -1581,29 +1581,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 20,
-      "validation_passes": 20,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 34,
+      "validation_passes": 34,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 78.072,
-          "min_ms": 60.673,
-          "max_ms": 81.52
+          "median_ms": 57.677,
+          "min_ms": 53.886,
+          "max_ms": 79.362
         },
         "external": {
           "status": "ok",
-          "median_ms": 108.563,
-          "min_ms": 70.717,
-          "max_ms": 132.721
+          "median_ms": 66.695,
+          "min_ms": 66.133,
+          "max_ms": 75.599
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 333.488,
-          "min_ms": 306.991,
-          "max_ms": 378.156
+          "median_ms": 258.313,
+          "min_ms": 250.641,
+          "max_ms": 267.323
         }
       }
     },
@@ -1622,29 +1622,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 6,
-      "validation_passes": 6,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 9,
+      "validation_passes": 9,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 92.155,
-          "min_ms": 68.432,
-          "max_ms": 111.4
+          "median_ms": 80.489,
+          "min_ms": 74.313,
+          "max_ms": 83.875
         },
         "external": {
           "status": "ok",
-          "median_ms": 50.734,
-          "min_ms": 40.373,
-          "max_ms": 62.245
+          "median_ms": 39.995,
+          "min_ms": 36.628,
+          "max_ms": 44.838
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 131.42,
-          "min_ms": 98.248,
-          "max_ms": 161.319
+          "median_ms": 97.339,
+          "min_ms": 95.342,
+          "max_ms": 113.471
         }
       }
     },
@@ -1663,9 +1663,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 43,
-      "validation_passes": 43,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -1674,15 +1674,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 33.805,
-          "min_ms": 25.229,
-          "max_ms": 38.754
+          "median_ms": 24.147,
+          "min_ms": 22.626,
+          "max_ms": 26.416
         },
         "external": {
           "status": "ok",
-          "median_ms": 449.002,
-          "min_ms": 357.276,
-          "max_ms": 470.078
+          "median_ms": 370.658,
+          "min_ms": 360.39,
+          "max_ms": 383.025
         }
       }
     },
@@ -1701,9 +1701,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 22,
-      "validation_passes": 22,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 23,
+      "validation_passes": 23,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -1711,17 +1711,16 @@
           "status": "unavailable"
         },
         "bashos": {
-          "status": "batch-mismatch",
-          "expected_bytes": 709434,
-          "actual_bytes": 32247,
-          "expected_sha256": "b942a61e12c5c62558d4b6f7ccec2dd62dd70ebf2649a87314577fbb4b900b78",
-          "actual_sha256": "f2001e7b4f7cc58810e6390cab6dfcddc357067506dd2aa8ae431adf1b7a61df"
+          "status": "ok",
+          "median_ms": 67.889,
+          "min_ms": 63.555,
+          "max_ms": 72.388
         },
         "external": {
           "status": "ok",
-          "median_ms": 266.51,
-          "min_ms": 217.485,
-          "max_ms": 289.458
+          "median_ms": 122.633,
+          "min_ms": 116.166,
+          "max_ms": 143.139
         }
       }
     },
@@ -1740,9 +1739,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 10,
-      "validation_passes": 10,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 7,
+      "validation_passes": 7,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -1750,17 +1749,16 @@
           "status": "unavailable"
         },
         "bashos": {
-          "status": "batch-mismatch",
-          "expected_bytes": 3800000,
-          "actual_bytes": 380000,
-          "expected_sha256": "482c4f47f98b9008b0210181d04bda497ca8c4771531fa1689e25fb8a075c6b1",
-          "actual_sha256": "15332a027ee31535caa7694e7d714dabf9b000bfd406c482f5e0b01d6789ca98"
+          "status": "ok",
+          "median_ms": 88.266,
+          "min_ms": 83.912,
+          "max_ms": 96.267
         },
         "external": {
           "status": "ok",
-          "median_ms": 1106.052,
-          "min_ms": 949.81,
-          "max_ms": 1184.323
+          "median_ms": 360.43,
+          "min_ms": 346.783,
+          "max_ms": 415.483
         }
       }
     },
@@ -1781,30 +1779,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 43,
-      "validation_passes": 43,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
-          "status": "batch-mismatch",
-          "expected_bytes": 1056768,
-          "actual_bytes": 24576,
-          "expected_sha256": "697ce826dbb29f64a6555004b8823020be96728eec95605d9b0b0692dd12905d",
-          "actual_sha256": "23e0a887d7332b95e9f9291be4087eb15dfd4dff22896cf17500275127a469d0"
+          "status": "ok",
+          "median_ms": 28.865,
+          "min_ms": 27.85,
+          "max_ms": 31.489
         },
         "external": {
           "status": "ok",
-          "median_ms": 174.345,
-          "min_ms": 157.021,
-          "max_ms": 227.462
+          "median_ms": 126.163,
+          "min_ms": 118.144,
+          "max_ms": 140.665
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.122,
-          "min_ms": 112.52,
-          "max_ms": 150.031
+          "median_ms": 83.415,
+          "min_ms": 81.106,
+          "max_ms": 102.81
         }
       }
     },
@@ -1825,30 +1822,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 19,
-      "validation_passes": 19,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 12,
+      "validation_passes": 12,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
-          "status": "batch-mismatch",
-          "expected_bytes": 3813376,
-          "actual_bytes": 200704,
-          "expected_sha256": "6d45c3fd5bdf9857914d94dd36fe3e11a8bff4b8984555e9f0fb300a26731bd3",
-          "actual_sha256": "be19a0e60ec92b0f18e7b1dedf3689aed634b106c9e79ea466433208a91fee19"
+          "status": "ok",
+          "median_ms": 72.697,
+          "min_ms": 68.441,
+          "max_ms": 83.005
         },
         "external": {
           "status": "ok",
-          "median_ms": 410.833,
-          "min_ms": 391.058,
-          "max_ms": 512.08
+          "median_ms": 133.747,
+          "min_ms": 127.74,
+          "max_ms": 146.982
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 206.415,
-          "min_ms": 162.265,
-          "max_ms": 248.396
+          "median_ms": 60.78,
+          "min_ms": 57.242,
+          "max_ms": 67.065
         }
       }
     },
@@ -1867,30 +1863,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 18,
-      "validation_passes": 18,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 11,
+      "validation_passes": 11,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
-          "status": "batch-mismatch",
-          "expected_bytes": 5824674,
-          "actual_bytes": 323746,
-          "expected_sha256": "a959fb00c4c0bf92992685888714ef900b22eedefe9ccbd2c2b74c0116380f22",
-          "actual_sha256": "b71b529dea54a5d1838bf9f8278bfba8b3ecc468c81efcb53223afd8a763af1d"
+          "status": "ok",
+          "median_ms": 81.659,
+          "min_ms": 71.533,
+          "max_ms": 97.704
         },
         "external": {
           "status": "ok",
-          "median_ms": 465.534,
-          "min_ms": 368.572,
-          "max_ms": 494.282
+          "median_ms": 131.27,
+          "min_ms": 128.402,
+          "max_ms": 146.202
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 316.349,
-          "min_ms": 244.74,
-          "max_ms": 352.712
+          "median_ms": 100.196,
+          "min_ms": 87.88,
+          "max_ms": 107.593
         }
       }
     },
@@ -1909,29 +1904,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 61,
-      "validation_passes": 61,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 119,
+      "validation_passes": 119,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 5.845,
-          "min_ms": 4.236,
-          "max_ms": 8.972
+          "median_ms": 3.89,
+          "min_ms": 3.526,
+          "max_ms": 4.453
         },
         "external": {
           "status": "ok",
-          "median_ms": 103.101,
-          "min_ms": 65.825,
-          "max_ms": 133.768
+          "median_ms": 73.538,
+          "min_ms": 70.221,
+          "max_ms": 81.653
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 102.123,
-          "min_ms": 84.761,
-          "max_ms": 152.606
+          "median_ms": 89.303,
+          "min_ms": 80.771,
+          "max_ms": 100.951
         }
       }
     },
@@ -1950,29 +1945,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 106,
-      "validation_passes": 106,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 129,
+      "validation_passes": 129,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 5.454,
-          "min_ms": 4.781,
-          "max_ms": 6.99
+          "median_ms": 4.341,
+          "min_ms": 3.774,
+          "max_ms": 5.309
         },
         "external": {
           "status": "ok",
-          "median_ms": 134.315,
-          "min_ms": 115.897,
-          "max_ms": 156.415
+          "median_ms": 76.056,
+          "min_ms": 73.774,
+          "max_ms": 83.481
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 146.953,
-          "min_ms": 116.492,
-          "max_ms": 181.803
+          "median_ms": 92.567,
+          "min_ms": 88.443,
+          "max_ms": 120.354
         }
       }
     },
@@ -1991,29 +1986,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 49,
-      "validation_passes": 49,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 120,
+      "validation_passes": 120,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 6.165,
-          "min_ms": 3.614,
-          "max_ms": 9.81
+          "median_ms": 3.833,
+          "min_ms": 3.506,
+          "max_ms": 5.051
         },
         "external": {
           "status": "ok",
-          "median_ms": 62.119,
-          "min_ms": 54.106,
-          "max_ms": 69.721
+          "median_ms": 75.698,
+          "min_ms": 70.029,
+          "max_ms": 80.667
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 73.257,
-          "min_ms": 60.05,
-          "max_ms": 92.215
+          "median_ms": 92.081,
+          "min_ms": 83.357,
+          "max_ms": 95.858
         }
       }
     },
@@ -2032,29 +2027,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 44,
-      "validation_passes": 44,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 124,
+      "validation_passes": 124,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 6.021,
-          "min_ms": 3.887,
-          "max_ms": 7.549
+          "median_ms": 5.531,
+          "min_ms": 5.209,
+          "max_ms": 5.615
         },
         "external": {
           "status": "ok",
-          "median_ms": 56.307,
-          "min_ms": 48.842,
-          "max_ms": 72.14
+          "median_ms": 98.15,
+          "min_ms": 74.885,
+          "max_ms": 100.32
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 67.748,
-          "min_ms": 60.748,
-          "max_ms": 88.826
+          "median_ms": 120.401,
+          "min_ms": 88.528,
+          "max_ms": 127.562
         }
       }
     },
@@ -2077,29 +2072,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 86,
-      "validation_passes": 86,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 124,
+      "validation_passes": 124,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 7.082,
-          "min_ms": 5.139,
-          "max_ms": 23.222
+          "median_ms": 4.189,
+          "min_ms": 3.642,
+          "max_ms": 5.051
         },
         "external": {
           "status": "ok",
-          "median_ms": 125.461,
-          "min_ms": 117.794,
-          "max_ms": 146.21
+          "median_ms": 95.729,
+          "min_ms": 89.752,
+          "max_ms": 105.539
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 120.17,
-          "min_ms": 107.944,
-          "max_ms": 134.29
+          "median_ms": 99.154,
+          "min_ms": 83.66,
+          "max_ms": 109.449
         }
       }
     },
@@ -2120,29 +2115,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 51,
-      "validation_passes": 51,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 19.562,
-          "min_ms": 15.755,
-          "max_ms": 32.555
+          "median_ms": 16.441,
+          "min_ms": 15.268,
+          "max_ms": 19.09
         },
         "external": {
           "status": "ok",
-          "median_ms": 123.565,
-          "min_ms": 115.504,
-          "max_ms": 186.69
+          "median_ms": 81.621,
+          "min_ms": 77.032,
+          "max_ms": 87.546
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 141.513,
-          "min_ms": 131.369,
-          "max_ms": 176.417
+          "median_ms": 90.824,
+          "min_ms": 88.579,
+          "max_ms": 97.02
         }
       }
     },
@@ -2165,29 +2160,29 @@
       "normalizer": "lines",
       "output": null,
       "reference": "external",
-      "passes": 53,
-      "validation_passes": 53,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 32.276,
-          "min_ms": 24.634,
-          "max_ms": 42.609
+          "median_ms": 25.817,
+          "min_ms": 23.868,
+          "max_ms": 28.913
         },
         "external": {
           "status": "ok",
-          "median_ms": 142.607,
-          "min_ms": 114.543,
-          "max_ms": 185.067
+          "median_ms": 83.396,
+          "min_ms": 81.651,
+          "max_ms": 88.028
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 138.756,
-          "min_ms": 126.87,
-          "max_ms": 163.172
+          "median_ms": 91.764,
+          "min_ms": 83.023,
+          "max_ms": 97.556
         }
       }
     },
@@ -2208,29 +2203,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 27,
-      "validation_passes": 27,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 55,
+      "validation_passes": 55,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 39.013,
-          "min_ms": 26.937,
-          "max_ms": 58.583
+          "median_ms": 37.25,
+          "min_ms": 32.988,
+          "max_ms": 56.613
         },
         "external": {
           "status": "ok",
-          "median_ms": 59.701,
-          "min_ms": 47.193,
-          "max_ms": 82.04
+          "median_ms": 48.53,
+          "min_ms": 43.446,
+          "max_ms": 58.721
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 170.186,
-          "min_ms": 150.598,
-          "max_ms": 196.389
+          "median_ms": 223.32,
+          "min_ms": 192.664,
+          "max_ms": 262.527
         }
       }
     },
@@ -2251,29 +2246,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 21,
-      "validation_passes": 21,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 35,
+      "validation_passes": 35,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 89.585,
-          "min_ms": 82.747,
-          "max_ms": 107.6
+          "median_ms": 70.291,
+          "min_ms": 61.402,
+          "max_ms": 89.442
         },
         "external": {
           "status": "ok",
-          "median_ms": 78.184,
-          "min_ms": 68.308,
-          "max_ms": 85.296
+          "median_ms": 44.839,
+          "min_ms": 40.841,
+          "max_ms": 55.322
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 88.45,
-          "min_ms": 81.685,
-          "max_ms": 106.562
+          "median_ms": 66.84,
+          "min_ms": 56.276,
+          "max_ms": 76.546
         }
       }
     },
@@ -2296,29 +2291,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 50,
-      "validation_passes": 50,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 8.805,
-          "min_ms": 6.891,
-          "max_ms": 12.243
+          "median_ms": 5.781,
+          "min_ms": 5.645,
+          "max_ms": 7.645
         },
         "external": {
           "status": "ok",
-          "median_ms": 84.026,
-          "min_ms": 81.991,
-          "max_ms": 105.524
+          "median_ms": 53.996,
+          "min_ms": 49.484,
+          "max_ms": 70.153
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 112.337,
-          "min_ms": 97.544,
-          "max_ms": 121.175
+          "median_ms": 62.028,
+          "min_ms": 58.119,
+          "max_ms": 80.35
         }
       }
     },
@@ -2339,29 +2334,29 @@
       "normalizer": "exact",
       "output": "copied",
       "reference": "external",
-      "passes": 54,
-      "validation_passes": 54,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 21.224,
-          "min_ms": 15.693,
-          "max_ms": 33.51
+          "median_ms": 13.928,
+          "min_ms": 12.971,
+          "max_ms": 14.901
         },
         "external": {
           "status": "ok",
-          "median_ms": 144.062,
-          "min_ms": 112.758,
-          "max_ms": 147.232
+          "median_ms": 83.254,
+          "min_ms": 76.302,
+          "max_ms": 87.574
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.327,
-          "min_ms": 111.333,
-          "max_ms": 134.492
+          "median_ms": 71.24,
+          "min_ms": 64.658,
+          "max_ms": 80.248
         }
       }
     },
@@ -2376,9 +2371,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 30,
-      "validation_passes": 30,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 47,
+      "validation_passes": 47,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -2387,15 +2382,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 58.118,
-          "min_ms": 40.781,
-          "max_ms": 93.714
+          "median_ms": 53.171,
+          "min_ms": 52.028,
+          "max_ms": 53.407
         },
         "external": {
           "status": "ok",
-          "median_ms": 126.292,
-          "min_ms": 110.97,
-          "max_ms": 161.024
+          "median_ms": 80.17,
+          "min_ms": 71.276,
+          "max_ms": 88.66
         }
       }
     },
@@ -2418,27 +2413,27 @@
       "reference": "external",
       "passes": 80,
       "validation_passes": 80,
-      "date": "2026-09-08T08:59:21Z",
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 16.357,
-          "min_ms": 12.873,
-          "max_ms": 22.685
+          "median_ms": 9.732,
+          "min_ms": 8.074,
+          "max_ms": 11.062
         },
         "external": {
           "status": "ok",
-          "median_ms": 160.052,
-          "min_ms": 129.839,
-          "max_ms": 185.541
+          "median_ms": 58.131,
+          "min_ms": 51.82,
+          "max_ms": 61.641
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 199.209,
-          "min_ms": 139.906,
-          "max_ms": 213.387
+          "median_ms": 69.07,
+          "min_ms": 64.819,
+          "max_ms": 75.417
         }
       }
     },
@@ -2458,9 +2453,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 34,
-      "validation_passes": 34,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 74,
+      "validation_passes": 74,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -2469,15 +2464,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 41.327,
-          "min_ms": 33.503,
-          "max_ms": 51.994
+          "median_ms": 35.666,
+          "min_ms": 33.662,
+          "max_ms": 36.727
         },
         "external": {
           "status": "ok",
-          "median_ms": 318.365,
-          "min_ms": 275.812,
-          "max_ms": 351.441
+          "median_ms": 280.212,
+          "min_ms": 270.343,
+          "max_ms": 298.842
         }
       }
     },
@@ -2496,29 +2491,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 7,
-      "validation_passes": 7,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 12,
+      "validation_passes": 12,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 81.469,
-          "min_ms": 65.926,
-          "max_ms": 95.845
+          "median_ms": 62.731,
+          "min_ms": 59.598,
+          "max_ms": 74.194
         },
         "external": {
           "status": "ok",
-          "median_ms": 87.363,
-          "min_ms": 79.7,
-          "max_ms": 99.665
+          "median_ms": 66.181,
+          "min_ms": 64.845,
+          "max_ms": 72.345
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 156.228,
-          "min_ms": 143.075,
-          "max_ms": 180.972
+          "median_ms": 127.772,
+          "min_ms": 122.225,
+          "max_ms": 154.364
         }
       }
     },
@@ -2539,9 +2534,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 7,
-      "validation_passes": 7,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 12,
+      "validation_passes": 12,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -2550,15 +2545,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 78.267,
-          "min_ms": 66.428,
-          "max_ms": 109.752
+          "median_ms": 74.028,
+          "min_ms": 71.429,
+          "max_ms": 98.374
         },
         "external": {
           "status": "ok",
-          "median_ms": 145.329,
-          "min_ms": 123.069,
-          "max_ms": 203.275
+          "median_ms": 102.11,
+          "min_ms": 99.845,
+          "max_ms": 141.719
         }
       }
     },
@@ -2573,29 +2568,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 48,
-      "validation_passes": 48,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 80,
+      "validation_passes": 80,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 10.359,
-          "min_ms": 6.597,
-          "max_ms": 23.399
+          "median_ms": 4.848,
+          "min_ms": 4.494,
+          "max_ms": 6.446
         },
         "external": {
           "status": "ok",
-          "median_ms": 121.628,
-          "min_ms": 86.572,
-          "max_ms": 156.757
+          "median_ms": 63.779,
+          "min_ms": 61.774,
+          "max_ms": 73.252
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 111.76,
-          "min_ms": 88.71,
-          "max_ms": 126.151
+          "median_ms": 64.443,
+          "min_ms": 60.834,
+          "max_ms": 68.14
         }
       }
     },
@@ -2618,29 +2613,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 67,
-      "validation_passes": 67,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 146,
+      "validation_passes": 146,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 7.161,
-          "min_ms": 6.708,
-          "max_ms": 33.093
+          "median_ms": 4.065,
+          "min_ms": 3.682,
+          "max_ms": 5.044
         },
         "external": {
           "status": "ok",
-          "median_ms": 83.593,
-          "min_ms": 75.173,
-          "max_ms": 99.333
+          "median_ms": 89.712,
+          "min_ms": 85.265,
+          "max_ms": 100.203
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 152.531,
-          "min_ms": 135.441,
-          "max_ms": 175.535
+          "median_ms": 103.137,
+          "min_ms": 100.189,
+          "max_ms": 106.206
         }
       }
     },
@@ -2658,29 +2653,29 @@
       "normalizer": "digest",
       "output": null,
       "reference": "external",
-      "passes": 6,
-      "validation_passes": 6,
-      "date": "2026-09-08T08:59:21Z",
+      "passes": 12,
+      "validation_passes": 12,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 86.6,
-          "min_ms": 58.322,
-          "max_ms": 92.69
+          "median_ms": 83.783,
+          "min_ms": 74.766,
+          "max_ms": 85.434
         },
         "external": {
           "status": "ok",
-          "median_ms": 59.482,
-          "min_ms": 41.163,
-          "max_ms": 65.835
+          "median_ms": 55.084,
+          "min_ms": 50.068,
+          "max_ms": 57.973
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 86.511,
-          "min_ms": 67.463,
-          "max_ms": 90.81
+          "median_ms": 81.154,
+          "min_ms": 74.745,
+          "max_ms": 86.919
         }
       }
     },
@@ -2695,29 +2690,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 87,
-      "validation_passes": 87,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 138,
+      "validation_passes": 138,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 6.187,
-          "min_ms": 5.155,
-          "max_ms": 10.292
+          "median_ms": 3.981,
+          "min_ms": 3.525,
+          "max_ms": 4.329
         },
         "external": {
           "status": "ok",
-          "median_ms": 121.701,
-          "min_ms": 101.2,
-          "max_ms": 129.536
+          "median_ms": 76.509,
+          "min_ms": 75.403,
+          "max_ms": 80.322
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 136.027,
-          "min_ms": 114.064,
-          "max_ms": 164.19
+          "median_ms": 96.189,
+          "min_ms": 91.595,
+          "max_ms": 101.269
         }
       }
     },
@@ -2732,29 +2727,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 94,
-      "validation_passes": 94,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 156,
+      "validation_passes": 156,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 5.338,
-          "min_ms": 4.112,
-          "max_ms": 6.556
+          "median_ms": 4.283,
+          "min_ms": 3.591,
+          "max_ms": 4.706
         },
         "external": {
           "status": "ok",
-          "median_ms": 137.057,
-          "min_ms": 118.486,
-          "max_ms": 164.842
+          "median_ms": 104.245,
+          "min_ms": 94.848,
+          "max_ms": 107.658
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 153.589,
-          "min_ms": 138.065,
-          "max_ms": 179.653
+          "median_ms": 119.815,
+          "min_ms": 114.998,
+          "max_ms": 125.585
         }
       }
     },
@@ -2769,29 +2764,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 94,
-      "validation_passes": 94,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 127,
+      "validation_passes": 127,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 18.051,
-          "min_ms": 14.072,
-          "max_ms": 27.684
+          "median_ms": 5.043,
+          "min_ms": 4.732,
+          "max_ms": 6.127
         },
         "external": {
           "status": "ok",
-          "median_ms": 125.831,
-          "min_ms": 114.363,
-          "max_ms": 132.816
+          "median_ms": 78.951,
+          "min_ms": 73.721,
+          "max_ms": 86.107
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 142.71,
-          "min_ms": 121.821,
-          "max_ms": 171.829
+          "median_ms": 98.179,
+          "min_ms": 91.233,
+          "max_ms": 109.189
         }
       }
     },
@@ -2806,29 +2801,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 89,
-      "validation_passes": 89,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 146,
+      "validation_passes": 146,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 5.933,
-          "min_ms": 4.765,
-          "max_ms": 8.748
+          "median_ms": 3.834,
+          "min_ms": 3.475,
+          "max_ms": 4.284
         },
         "external": {
           "status": "ok",
-          "median_ms": 96.275,
-          "min_ms": 82.874,
-          "max_ms": 115.582
+          "median_ms": 79.442,
+          "min_ms": 74.841,
+          "max_ms": 81.882
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 119.174,
-          "min_ms": 97.38,
-          "max_ms": 128.29
+          "median_ms": 98.834,
+          "min_ms": 93.69,
+          "max_ms": 102.623
         }
       }
     },
@@ -2847,29 +2842,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 60,
-      "validation_passes": 60,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 135,
+      "validation_passes": 135,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 4.553,
-          "min_ms": 4.194,
-          "max_ms": 6.109
+          "median_ms": 4.053,
+          "min_ms": 3.487,
+          "max_ms": 5.38
         },
         "external": {
           "status": "ok",
-          "median_ms": 77.098,
-          "min_ms": 74.396,
-          "max_ms": 93.896
+          "median_ms": 96.912,
+          "min_ms": 92.43,
+          "max_ms": 134.038
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 89.266,
-          "min_ms": 79.544,
-          "max_ms": 110.559
+          "median_ms": 106.809,
+          "min_ms": 99.693,
+          "max_ms": 111.776
         }
       }
     },
@@ -2888,9 +2883,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 91,
-      "validation_passes": 91,
-      "date": "2026-09-10T21:57:14Z",
+      "passes": 112,
+      "validation_passes": 112,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -2899,15 +2894,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 5.166,
-          "min_ms": 4.456,
-          "max_ms": 7.833
+          "median_ms": 3.938,
+          "min_ms": 2.729,
+          "max_ms": 4.464
         },
         "external": {
           "status": "ok",
-          "median_ms": 105.212,
-          "min_ms": 88.044,
-          "max_ms": 117.516
+          "median_ms": 63.41,
+          "min_ms": 60.259,
+          "max_ms": 64.522
         }
       }
     },
@@ -2926,29 +2921,29 @@
       "normalizer": "exact",
       "output": "touched",
       "reference": "external",
-      "passes": 96,
-      "validation_passes": 96,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 118,
+      "validation_passes": 118,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 4.704,
-          "min_ms": 4.067,
-          "max_ms": 5.619
+          "median_ms": 3.721,
+          "min_ms": 3.48,
+          "max_ms": 4.406
         },
         "external": {
           "status": "ok",
-          "median_ms": 95.596,
-          "min_ms": 81.753,
-          "max_ms": 110.482
+          "median_ms": 65.572,
+          "min_ms": 64.968,
+          "max_ms": 73.272
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 119.411,
-          "min_ms": 109.977,
-          "max_ms": 130.509
+          "median_ms": 78.002,
+          "min_ms": 75.977,
+          "max_ms": 94.707
         }
       }
     },
@@ -2969,29 +2964,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 100,
-      "validation_passes": 100,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 134,
+      "validation_passes": 134,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 4.93,
-          "min_ms": 4.423,
-          "max_ms": 5.405
+          "median_ms": 3.963,
+          "min_ms": 3.504,
+          "max_ms": 4.31
         },
         "external": {
           "status": "ok",
-          "median_ms": 133.881,
-          "min_ms": 126.182,
-          "max_ms": 157.262
+          "median_ms": 103.401,
+          "min_ms": 96.176,
+          "max_ms": 112.748
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 123.316,
-          "min_ms": 112.069,
-          "max_ms": 138.325
+          "median_ms": 95.221,
+          "min_ms": 91.741,
+          "max_ms": 100.6
         }
       }
     },
@@ -3012,29 +3007,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 100,
-      "validation_passes": 100,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 119,
+      "validation_passes": 119,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 5.552,
-          "min_ms": 4.49,
-          "max_ms": 6.097
+          "median_ms": 4.041,
+          "min_ms": 3.787,
+          "max_ms": 4.395
         },
         "external": {
           "status": "ok",
-          "median_ms": 106.084,
-          "min_ms": 84.417,
-          "max_ms": 116.612
+          "median_ms": 72.428,
+          "min_ms": 68.822,
+          "max_ms": 77.328
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 112.928,
-          "min_ms": 108.853,
-          "max_ms": 131.196
+          "median_ms": 89.295,
+          "min_ms": 79.284,
+          "max_ms": 103.496
         }
       }
     },
@@ -3055,29 +3050,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 84,
-      "validation_passes": 84,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 142,
+      "validation_passes": 142,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 6.05,
-          "min_ms": 3.736,
-          "max_ms": 8.922
+          "median_ms": 4.785,
+          "min_ms": 3.814,
+          "max_ms": 6.067
         },
         "external": {
           "status": "ok",
-          "median_ms": 97.458,
-          "min_ms": 75.004,
-          "max_ms": 127.932
+          "median_ms": 91.274,
+          "min_ms": 83.073,
+          "max_ms": 117.109
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.071,
-          "min_ms": 90.191,
-          "max_ms": 175.931
+          "median_ms": 110.431,
+          "min_ms": 102.025,
+          "max_ms": 145.576
         }
       }
     },
@@ -3096,9 +3091,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 50,
-      "validation_passes": 50,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 107,
+      "validation_passes": 107,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3107,15 +3102,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 6.191,
-          "min_ms": 5.039,
-          "max_ms": 8.411
+          "median_ms": 4.934,
+          "min_ms": 3.773,
+          "max_ms": 5.242
         },
         "external": {
           "status": "ok",
-          "median_ms": 76.249,
-          "min_ms": 61.65,
-          "max_ms": 90.052
+          "median_ms": 89.946,
+          "min_ms": 65.317,
+          "max_ms": 99.794
         }
       }
     },
@@ -3134,9 +3129,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 79,
-      "validation_passes": 79,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 107,
+      "validation_passes": 107,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3145,15 +3140,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 6.388,
-          "min_ms": 5.074,
-          "max_ms": 9.022
+          "median_ms": 3.88,
+          "min_ms": 3.596,
+          "max_ms": 5.027
         },
         "external": {
           "status": "ok",
-          "median_ms": 104.317,
-          "min_ms": 90.633,
-          "max_ms": 129.395
+          "median_ms": 77.178,
+          "min_ms": 65.47,
+          "max_ms": 92.83
         }
       }
     },
@@ -3176,29 +3171,29 @@
       "normalizer": "exact",
       "output": "lnout",
       "reference": "external",
-      "passes": 76,
-      "validation_passes": 76,
-      "date": "2026-09-10T22:01:36Z",
+      "passes": 121,
+      "validation_passes": 121,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 7.029,
-          "min_ms": 5.643,
-          "max_ms": 11.537
+          "median_ms": 4.898,
+          "min_ms": 3.149,
+          "max_ms": 5.599
         },
         "external": {
           "status": "ok",
-          "median_ms": 111.177,
-          "min_ms": 100.252,
-          "max_ms": 119.753
+          "median_ms": 76.325,
+          "min_ms": 68.774,
+          "max_ms": 80.385
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 124.416,
-          "min_ms": 101.795,
-          "max_ms": 162.464
+          "median_ms": 86.318,
+          "min_ms": 80.412,
+          "max_ms": 97.398
         }
       }
     },
@@ -3215,27 +3210,27 @@
       "reference": "external",
       "passes": 20,
       "validation_passes": 20,
-      "date": "2026-09-10T22:01:36Z",
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 7.631,
-          "min_ms": 6.803,
-          "max_ms": 10.216
+          "median_ms": 6.07,
+          "min_ms": 5.81,
+          "max_ms": 7.811
         },
         "external": {
           "status": "ok",
-          "median_ms": 31.737,
-          "min_ms": 23.876,
-          "max_ms": 34.051
+          "median_ms": 19.131,
+          "min_ms": 17.113,
+          "max_ms": 23.223
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 37.993,
-          "min_ms": 28.675,
-          "max_ms": 47.144
+          "median_ms": 22.557,
+          "min_ms": 18.596,
+          "max_ms": 27.983
         }
       }
     },
@@ -3256,29 +3251,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 17,
-      "validation_passes": 17,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 136,
+      "validation_passes": 136,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 22.753,
-          "min_ms": 19.229,
-          "max_ms": 41.72
+          "median_ms": 3.869,
+          "min_ms": 3.591,
+          "max_ms": 3.996
         },
         "external": {
           "status": "ok",
-          "median_ms": 159.692,
-          "min_ms": 116.034,
-          "max_ms": 271.487
+          "median_ms": 79.475,
+          "min_ms": 75.825,
+          "max_ms": 86.363
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 183.164,
-          "min_ms": 127.944,
-          "max_ms": 242.73
+          "median_ms": 97.782,
+          "min_ms": 95.71,
+          "max_ms": 113.7
         }
       }
     },
@@ -3299,29 +3294,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 13,
-      "validation_passes": 13,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 118,
+      "validation_passes": 118,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 39.907,
-          "min_ms": 31.812,
-          "max_ms": 53.602
+          "median_ms": 4.76,
+          "min_ms": 4.536,
+          "max_ms": 7.199
         },
         "external": {
           "status": "ok",
-          "median_ms": 164.001,
-          "min_ms": 146.816,
-          "max_ms": 227.167
+          "median_ms": 75.419,
+          "min_ms": 71.707,
+          "max_ms": 87.547
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 169.31,
-          "min_ms": 128.376,
-          "max_ms": 206.48
+          "median_ms": 90.487,
+          "min_ms": 84.119,
+          "max_ms": 97.159
         }
       }
     },
@@ -3342,29 +3337,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 8,
-      "validation_passes": 8,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 150,
+      "validation_passes": 150,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 54.855,
-          "min_ms": 32.877,
-          "max_ms": 71.641
+          "median_ms": 5.511,
+          "min_ms": 4.634,
+          "max_ms": 6.16
         },
         "external": {
           "status": "ok",
-          "median_ms": 117.169,
-          "min_ms": 112.502,
-          "max_ms": 129.365
+          "median_ms": 92.705,
+          "min_ms": 91.794,
+          "max_ms": 96.245
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 139.735,
-          "min_ms": 101.686,
-          "max_ms": 157.613
+          "median_ms": 111.758,
+          "min_ms": 109.143,
+          "max_ms": 137.138
         }
       }
     },
@@ -3383,29 +3378,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 11,
-      "validation_passes": 11,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 136,
+      "validation_passes": 136,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 28.869,
-          "min_ms": 21.177,
-          "max_ms": 44.255
+          "median_ms": 11.39,
+          "min_ms": 10.997,
+          "max_ms": 14.555
         },
         "external": {
           "status": "ok",
-          "median_ms": 113.526,
-          "min_ms": 85.44,
-          "max_ms": 150.344
+          "median_ms": 84.003,
+          "min_ms": 78.937,
+          "max_ms": 87.313
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 139.573,
-          "min_ms": 107.998,
-          "max_ms": 171.519
+          "median_ms": 98.537,
+          "min_ms": 93.905,
+          "max_ms": 104.934
         }
       }
     },
@@ -3428,9 +3423,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 9,
-      "validation_passes": 9,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 52,
+      "validation_passes": 52,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3439,15 +3434,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 57.931,
-          "min_ms": 41.45,
-          "max_ms": 83.059
+          "median_ms": 27.322,
+          "min_ms": 25.808,
+          "max_ms": 31.513
         },
         "external": {
           "status": "ok",
-          "median_ms": 102.763,
-          "min_ms": 81.621,
-          "max_ms": 121.933
+          "median_ms": 43.83,
+          "min_ms": 41.208,
+          "max_ms": 48.766
         }
       }
     },
@@ -3466,9 +3461,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 6,
-      "validation_passes": 6,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 71,
+      "validation_passes": 71,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3477,15 +3472,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 61.035,
-          "min_ms": 47.528,
-          "max_ms": 86.081
+          "median_ms": 36.118,
+          "min_ms": 33.045,
+          "max_ms": 40.619
         },
         "external": {
           "status": "ok",
-          "median_ms": 80.196,
-          "min_ms": 59.733,
-          "max_ms": 99.637
+          "median_ms": 60.124,
+          "min_ms": 58.262,
+          "max_ms": 62.028
         }
       }
     },
@@ -3504,29 +3499,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 9,
-      "validation_passes": 9,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 74,
+      "validation_passes": 74,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 77.859,
-          "min_ms": 63.187,
-          "max_ms": 99.519
+          "median_ms": 37.899,
+          "min_ms": 36.55,
+          "max_ms": 45.319
         },
         "external": {
           "status": "ok",
-          "median_ms": 114.652,
-          "min_ms": 90.936,
-          "max_ms": 159.139
+          "median_ms": 65.282,
+          "min_ms": 62.763,
+          "max_ms": 67.967
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 127.635,
-          "min_ms": 86.716,
-          "max_ms": 192.672
+          "median_ms": 74.902,
+          "min_ms": 70.199,
+          "max_ms": 79.265
         }
       }
     },
@@ -3549,9 +3544,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 9,
-      "validation_passes": 9,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 83,
+      "validation_passes": 83,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3560,15 +3555,15 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 83.79,
-          "min_ms": 68.741,
-          "max_ms": 123.507
+          "median_ms": 41.078,
+          "min_ms": 38.778,
+          "max_ms": 42.36
         },
         "external": {
           "status": "ok",
-          "median_ms": 134.493,
-          "min_ms": 111.463,
-          "max_ms": 162.577
+          "median_ms": 80.069,
+          "min_ms": 76.065,
+          "max_ms": 84.037
         }
       }
     },
@@ -3589,29 +3584,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 21,
-      "validation_passes": 21,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 113,
+      "validation_passes": 113,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 25.579,
-          "min_ms": 18.198,
-          "max_ms": 43.869
+          "median_ms": 3.779,
+          "min_ms": 3.577,
+          "max_ms": 4.677
         },
         "external": {
           "status": "ok",
-          "median_ms": 159.312,
-          "min_ms": 144.815,
-          "max_ms": 170.64
+          "median_ms": 64.532,
+          "min_ms": 62.236,
+          "max_ms": 87.967
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 173.561,
-          "min_ms": 165.508,
-          "max_ms": 220.959
+          "median_ms": 80.443,
+          "min_ms": 74.731,
+          "max_ms": 84.352
         }
       }
     },
@@ -3632,29 +3627,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 14,
-      "validation_passes": 14,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 142,
+      "validation_passes": 142,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 24.161,
-          "min_ms": 18.67,
-          "max_ms": 37.959
+          "median_ms": 4.049,
+          "min_ms": 3.619,
+          "max_ms": 4.489
         },
         "external": {
           "status": "ok",
-          "median_ms": 128.491,
-          "min_ms": 98.747,
-          "max_ms": 137.818
+          "median_ms": 81.121,
+          "min_ms": 78.358,
+          "max_ms": 85.508
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 123.017,
-          "min_ms": 98.11,
-          "max_ms": 169.011
+          "median_ms": 98.877,
+          "min_ms": 95.66,
+          "max_ms": 102.239
         }
       }
     },
@@ -3679,29 +3674,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 8,
-      "validation_passes": 8,
-      "date": "2026-09-10T22:06:01Z",
+      "passes": 70,
+      "validation_passes": 70,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 72.071,
-          "min_ms": 62.547,
-          "max_ms": 109.17
+          "median_ms": 38.598,
+          "min_ms": 36.0,
+          "max_ms": 39.396
         },
         "external": {
           "status": "ok",
-          "median_ms": 114.899,
-          "min_ms": 90.933,
-          "max_ms": 139.087
+          "median_ms": 60.351,
+          "min_ms": 56.085,
+          "max_ms": 66.744
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 123.814,
-          "min_ms": 101.644,
-          "max_ms": 160.989
+          "median_ms": 69.16,
+          "min_ms": 66.425,
+          "max_ms": 79.866
         }
       }
     },
@@ -3722,29 +3717,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 42,
-      "validation_passes": 42,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 124,
+      "validation_passes": 124,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 10.785,
-          "min_ms": 7.64,
-          "max_ms": 15.533
+          "median_ms": 4.725,
+          "min_ms": 4.5,
+          "max_ms": 5.483
         },
         "external": {
           "status": "ok",
-          "median_ms": 119.903,
-          "min_ms": 103.321,
-          "max_ms": 197.133
+          "median_ms": 72.179,
+          "min_ms": 69.583,
+          "max_ms": 78.404
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 125.147,
-          "min_ms": 115.617,
-          "max_ms": 213.701
+          "median_ms": 86.759,
+          "min_ms": 80.258,
+          "max_ms": 91.728
         }
       }
     },
@@ -3763,29 +3758,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 26,
-      "validation_passes": 26,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 141,
+      "validation_passes": 141,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 35.77,
-          "min_ms": 9.48,
-          "max_ms": 51.254
+          "median_ms": 4.98,
+          "min_ms": 4.556,
+          "max_ms": 5.596
         },
         "external": {
           "status": "ok",
-          "median_ms": 180.246,
-          "min_ms": 127.89,
-          "max_ms": 269.186
+          "median_ms": 109.788,
+          "min_ms": 108.505,
+          "max_ms": 112.113
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 161.979,
-          "min_ms": 135.236,
-          "max_ms": 297.29
+          "median_ms": 105.972,
+          "min_ms": 102.33,
+          "max_ms": 110.83
         }
       }
     },
@@ -3804,29 +3799,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 26,
-      "validation_passes": 26,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 127,
+      "validation_passes": 127,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 37.876,
-          "min_ms": 12.596,
-          "max_ms": 69.656
+          "median_ms": 5.817,
+          "min_ms": 5.192,
+          "max_ms": 6.197
         },
         "external": {
           "status": "ok",
-          "median_ms": 132.609,
-          "min_ms": 120.869,
-          "max_ms": 149.078
+          "median_ms": 101.429,
+          "min_ms": 97.697,
+          "max_ms": 112.133
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 140.939,
-          "min_ms": 126.259,
-          "max_ms": 251.326
+          "median_ms": 97.085,
+          "min_ms": 92.332,
+          "max_ms": 129.037
         }
       }
     },
@@ -3845,29 +3840,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 28,
-      "validation_passes": 28,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 122,
+      "validation_passes": 122,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 11.229,
-          "min_ms": 6.897,
-          "max_ms": 18.747
+          "median_ms": 4.717,
+          "min_ms": 4.531,
+          "max_ms": 4.892
         },
         "external": {
           "status": "ok",
-          "median_ms": 98.931,
-          "min_ms": 68.352,
-          "max_ms": 135.474
+          "median_ms": 90.821,
+          "min_ms": 87.407,
+          "max_ms": 91.823
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 109.835,
-          "min_ms": 76.063,
-          "max_ms": 234.353
+          "median_ms": 112.777,
+          "min_ms": 109.219,
+          "max_ms": 116.722
         }
       }
     },
@@ -3886,29 +3881,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 23,
-      "validation_passes": 23,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 87,
+      "validation_passes": 87,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 10.274,
-          "min_ms": 7.556,
-          "max_ms": 16.566
+          "median_ms": 4.143,
+          "min_ms": 3.962,
+          "max_ms": 4.567
         },
         "external": {
           "status": "ok",
-          "median_ms": 80.004,
-          "min_ms": 69.068,
-          "max_ms": 155.028
+          "median_ms": 65.265,
+          "min_ms": 64.441,
+          "max_ms": 68.43
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 92.977,
-          "min_ms": 71.197,
-          "max_ms": 141.815
+          "median_ms": 81.471,
+          "min_ms": 80.285,
+          "max_ms": 82.608
         }
       }
     },
@@ -3929,29 +3924,29 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 25,
-      "validation_passes": 25,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 107,
+      "validation_passes": 107,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
         "bashos": {
           "status": "ok",
-          "median_ms": 11.688,
-          "min_ms": 7.939,
-          "max_ms": 17.002
+          "median_ms": 4.185,
+          "min_ms": 3.358,
+          "max_ms": 5.004
         },
         "external": {
           "status": "ok",
-          "median_ms": 102.87,
-          "min_ms": 70.262,
-          "max_ms": 127.225
+          "median_ms": 62.543,
+          "min_ms": 57.353,
+          "max_ms": 79.032
         },
         "busybox": {
           "status": "ok",
-          "median_ms": 90.581,
-          "min_ms": 75.967,
-          "max_ms": 153.272
+          "median_ms": 73.782,
+          "min_ms": 69.443,
+          "max_ms": 79.486
         }
       }
     },
@@ -3970,9 +3965,9 @@
       "normalizer": "exact",
       "output": null,
       "reference": "external",
-      "passes": 11,
-      "validation_passes": 11,
-      "date": "2026-09-10T22:11:16Z",
+      "passes": 123,
+      "validation_passes": 123,
+      "date": "2026-09-11T08:02:03Z",
       "runs": 7,
       "confirmed": false,
       "results": {
@@ -3981,15 +3976,99 @@
         },
         "bashos": {
           "status": "ok",
-          "median_ms": 20.093,
-          "min_ms": 7.751,
-          "max_ms": 36.947
+          "median_ms": 4.94,
+          "min_ms": 4.21,
+          "max_ms": 5.265
         },
         "external": {
           "status": "ok",
-          "median_ms": 52.654,
-          "min_ms": 38.498,
-          "max_ms": 97.273
+          "median_ms": 68.731,
+          "min_ms": 67.192,
+          "max_ms": 77.473
+        }
+      }
+    },
+    {
+      "id": "df",
+      "loadable": "df",
+      "args": [
+        "-P",
+        "/dev"
+      ],
+      "fixture": "empty",
+      "host": "df",
+      "applet": "df",
+      "host_args": [
+        "-P",
+        "/dev"
+      ],
+      "normalizer": "fields",
+      "output": null,
+      "reference": "external",
+      "passes": 109,
+      "validation_passes": 109,
+      "date": "2026-09-11T08:02:03Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 18.652,
+          "min_ms": 13.355,
+          "max_ms": 18.887
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 99.389,
+          "min_ms": 70.514,
+          "max_ms": 109.287
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 107.771,
+          "min_ms": 83.596,
+          "max_ms": 110.485
+        }
+      }
+    },
+    {
+      "id": "uptime",
+      "loadable": "uptime",
+      "args": [
+        "-s"
+      ],
+      "fixture": "empty",
+      "host": "uptime",
+      "applet": "uptime",
+      "host_args": [
+        "-s"
+      ],
+      "normalizer": "exact",
+      "output": null,
+      "reference": "external",
+      "passes": 95,
+      "validation_passes": 95,
+      "date": "2026-09-11T08:02:03Z",
+      "runs": 7,
+      "confirmed": false,
+      "results": {
+        "bashos": {
+          "status": "ok",
+          "median_ms": 8.76,
+          "min_ms": 6.072,
+          "max_ms": 9.07
+        },
+        "external": {
+          "status": "ok",
+          "median_ms": 119.479,
+          "min_ms": 85.643,
+          "max_ms": 127.679
+        },
+        "busybox": {
+          "status": "ok",
+          "median_ms": 89.558,
+          "min_ms": 65.997,
+          "max_ms": 90.978
         }
       }
     }

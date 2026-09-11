@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_commit": "97284d62efcf57067557540861b6a81577b841c6",
+  "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
   "coverage_groups": [
     {
       "names": [
@@ -1305,29 +1305,19 @@
       "evidence": "docs/pr.md"
     },
     "colrm": {
-      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/colrm-check.sh matches GNU on three fresh redirections."
     },
     "column": {
-      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/column-check.sh matches GNU on three fresh redirections."
     },
     "strings": {
-      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/strings-check.sh matches GNU on three fresh redirections."
     },
     "od": {
-      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/od-check.sh matches GNU on three fresh redirections."
     },
     "hexdump": {
-      "finding": "Repeated redirected stdin produces different output from a fresh external command; confirmed with three invocations.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/hexdump-check.sh matches GNU on three fresh redirections."
     },
     "tac": {
       "note": "Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate.",
@@ -1343,87 +1333,65 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "next": "Fix comparison of two stdin operands, then complete the integration and combined-build validation.",
-      "note": "Integration candidate 036215f2a625 fixes the raw-binary, write-status and FIFO-reopening defects; the coordinator independently passed 173 native and 173 static regression checks. Review found that two minus operands compare stdin against an exhausted second read. The current timed case still measures the earlier identical-file path, not edit-script generation.",
-      "finding": "Files differing only in the final newline are incorrectly reported equal."
+      "finding": "A minus operand is opened as a file named '-'; two minus operands therefore fail instead of comparing the same stdin bytes.",
+      "next": "Treat \"-\" as stdin and compare two minus operands using the same input bytes, then remeasure.",
+      "note": "The final-newline-only difference is fixed and timed. The timed case still measures identical files, not edit-script generation."
     },
     "unexpand": {
-      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "note": "Write-failure stop and GNU comparison are covered by tests/unexpand-check.sh."
     },
     "wc": {
-      "next": "Keep every requested word-count assertion across GNU versions, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "note": "Requested word-count assertions are covered by tests/wc-check.sh and tests/wc-tail-parity.sh."
     },
     "comm": {
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated-input and write-failure contracts are covered by tests/comm-check.sh. The timed comm case remains slower than GNU on this host.",
+      "next": "Profile input/output and allocation costs on the comm fixture, then measure the proposed change."
     },
     "join": {
-      "next": "Stop on write failure before reading more input; complete bounds and cleanup review, then validate the combined build.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "note": "Write-failure stop and GNU comparison are covered by tests/join-check.sh."
     },
     "sort": {
-      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "next": "Profile input/output and allocation costs on the sort-text fixture, then measure the proposed change.",
+      "note": "Write-failure stop and GNU comparison are covered by tests/sort-check.sh. sort-text remains a timed performance candidate."
     },
     "crypto": {
-      "next": "Complete the three-command integration review, then validate the combined build; investigate backend cost separately.",
-      "note": "SHA-256 I/O fixes are included in integration candidate 036215f2a625; current measurements still describe the earlier implementation. No backend throughput improvement is claimed. The benchmark harness already validated every digest record before this work.",
-      "finding": "A failed digest write is incorrectly reported as successful."
+      "note": "A failed digest write now returns failure; tests/crypto-check.sh covers sha256 -x > /dev/full."
     },
     "rev": {
-      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
     },
     "col": {
-      "finding": "Only the first invocation emits input.",
-      "next": "Combine the reviewed integration with the remaining batch, run full CI and remeasure.",
-      "note": "Seven-reader integration c3c8e0e48e38 passed native/static parity and native sanitizers. Prepared on the combined review branch; published measurements still describe the earlier implementation."
+      "note": "Repeated redirected stdin is fixed; tests/col-check.sh matches GNU on three fresh redirections."
     },
     "split": {
-      "finding": "Only the first invocation creates output files.",
-      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged."
+      "note": "Repeated redirected stdin is fixed; tests/split-check.sh matches GNU piece files across three redirections."
     },
     "csplit": {
-      "next": "Complete the integration review follow-up, then validate the combined build and remeasure.",
-      "note": "Integration candidate 9f8997f915fc requires corrected test setup, native/static primer boundaries, complete word-count assertions and join error handling before acceptance. Existing measurements remain unchanged.",
-      "finding": "Later invocations create empty pieces after the first call exhausts shared stdin."
+      "note": "Repeated redirected stdin is fixed; tests/csplit-check.sh matches GNU piece files across three redirections."
     },
     "tee": {
-      "next": "Stop reading when every output has failed, preserving healthy destinations and interrupt cleanup; then validate the combined build.",
-      "note": "Integration candidate 036215f2a625 includes the stock-source patch, interrupt cleanup and closed-stdout correction. Review found that it waits on an open input pipe after all outputs fail. The buffer is unchanged and contended timing ranges do not establish a throughput improvement.",
-      "finding": "A read from closed stdin reports an error but incorrectly returns success."
+      "finding": "After every output has failed the builtin keeps reading stdin until timeout 124; GNU tee returns 1 promptly.",
+      "next": "Stop reading when every output has failed, preserving healthy destinations; then remeasure.",
+      "note": "Closed-stdin now returns failure via patches/tee-io.patch. Stock examples/loadables/tee.c is still the source."
     },
     "tail": {
-      "next": "Fix the reviewed candidate's allocation-failure use-after-free and output-error hang; require valid native/static test boundaries before integration.",
-      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes.",
-      "note": "Candidate 7a32aec034f9 fixes the repeated-input finding but coordinator fault/stream probes found additional failures. Review follow-up is active; the frozen 17-command batch excludes tail."
+      "note": "Repeated small-input redirections and write-error stop are covered by tests/tail-check.sh."
     },
     "ar": {
-      "next": "Fix extraction descriptor cleanup and archive-link update behavior; complete the bounds and test follow-up before next-batch integration.",
-      "finding": "A truncated member header is incorrectly accepted as a valid archive.",
-      "note": "Candidate 03deb15bcc44 rejects truncated headers and preserves ordinary archives during failed updates. Review found descriptor leaks after failed extraction and successful updates that break symlink/hard-link relationships; it is not yet accepted. Extraction and sanitizer/recovery tests also need correction."
+      "note": "Truncated member headers are rejected (tests/ar-check.sh). Coordinator probes on this binary already match GNU 2.44 on symlink/hard-link archive updates and extract-over-symlink. Extract still copies with fgetc/fputc and does not check write errors; a remaining recovery review is assigned.",
+      "next": "Finish extraction write-error cleanup versus GNU without changing behaviors that already match."
     },
     "du": {
-      "next": "Integrate the reviewed traversal, allocation and output-error fixes in the next batch, then validate and remeasure.",
-      "finding": "A failed size-report write is incorrectly reported as successful.",
-      "note": "Reviewed worker result 94f501a4f54c: 274 native/static/sanitizer parity checks per run and 940 fault checks. Coordinator also passed 274 checks on each native/static binary against GNU 9.4; published measurement still uses the earlier source."
+      "note": "A failed size-report write now returns failure; tests/du-check.sh covers du -b file > /dev/full."
     },
     "mv": {
-      "finding": "Moving a file to itself incorrectly reports success.",
-      "next": "Integrate the reviewed same-file and staged cross-device fixes in the next batch, then validate and remeasure.",
-      "note": "Candidate 06f04fdaf41f passed review, including independent 158 ASan/UBSan/LSan fault cases and 186 static cases with 480 reference comparisons. Cross-device failures before publication preserve source and destination; later source-removal failure may leave a partial source tree with a complete destination. Copied-tree hard links, ACLs/xattrs and crash durability remain outside scope."
+      "note": "Moving a file to itself now fails and preserves bytes; tests/mv-check.sh matches GNU."
     },
     "truncate": {
-      "finding": "An overflowing size extension incorrectly succeeds and empties the existing file.",
-      "next": "Reject size arithmetic overflow while preserving existing data; establish dedicated size, reference, I/O-error and recovery coverage before timing.",
-      "note": "Confirmed on a disposable three-byte file; GNU rejects the extension and preserves its bytes."
+      "note": "Size arithmetic overflow is rejected and existing bytes are preserved; tests/truncate-check.sh matches GNU."
     },
     "cp": {
-      "next": "Preserve the existing destination when a forced copy cannot read its source; establish dedicated copy, link, metadata and failure-recovery coverage.",
-      "finding": "An unreadable source causes forced copy to delete the existing destination before failing."
+      "note": "A forced copy that cannot read its source keeps the existing destination; tests/cp-check.sh matches GNU."
     },
     "zstd": {
       "note": "Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain.",
@@ -1431,18 +1399,14 @@
       "next": "See the dedicated zstd report; extend sizes and levels if a slower case appears."
     },
     "hostid": {
-      "note": "Default is gethostid(3), matching hostid(1). The catalog snapshot binary still prefers /etc/machine-id; the dedicated report uses a rebuilt hostid-only binary.",
-      "evidence": "docs/hostid.md",
-      "next": "See the dedicated hostid report; fold into the catalog snapshot after rebuilding the measured full binary."
+      "note": "Default is gethostid(3), matching hostid(1), including on this measured full binary. tests/hostid-check.sh covers override files and the machine-id fallback.",
+      "evidence": "docs/hostid.md"
+    },
+    "free": {
+      "note": "tests/free-check.sh matches GNU field layout on a private meminfo, including buff/cache as Buffers+Cached+SReclaimable. Live `free -k` timings are not published because counters move between invocations."
     }
   },
-  "repeat_input_findings": [
-    "colrm",
-    "column",
-    "strings",
-    "od",
-    "hexdump"
-  ],
+  "repeat_input_findings": [],
   "limitations": [
     "bc",
     "dmsetup",
@@ -1468,53 +1432,15 @@
   "measurement_file": "docs/data/loadable-benchmarks-current.json",
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
-    "source_commit": "97284d62efcf57067557540861b6a81577b841c6",
-    "summary": "The integrated tests/run.sh passed all 69 groups, including native dynamic/static builds and seven focused ASan/UBSan suites. An additional 156 mixed-input and descriptor-ownership checks passed on native dynamic, native static and RISC-V musl static builds. The local RISC-V selection was core plus bc (90 loadables); broader new-option and Unicode cross parity is not claimed."
+    "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
+    "summary": "The measured full binary passed the dedicated empty-PATH contract checks for the previously named P1/P2/P3 fixtures (ar, tee, diff, col, colrm, column, strings, od, hexdump, split, csplit, crypto, du, mv, truncate, cp, tail, join, comm, unexpand, rev, sort, wc, hostid, free, timeout, uptime). tests/run.sh was not re-run in full for this refresh. Live `free -k` timings are omitted because counters move between invocations; tests/free-check.sh still matches GNU on a private meminfo."
   },
   "assignments": {
-    "column": "coordinator (combined validation)",
-    "colrm": "coordinator (combined validation)",
-    "strings": "coordinator (combined validation)",
-    "od": "coordinator (combined validation)",
-    "hexdump": "coordinator (combined validation)",
-    "comm": "coordinator (combined validation)",
-    "sort": "bash-os-5 (review follow-up)",
-    "unexpand": "bash-os-5 (review follow-up)",
-    "rev": "bash-os-5 (review follow-up)",
-    "wc": "bash-os-5 (review follow-up)",
-    "join": "bash-os-5 (review follow-up)",
-    "csplit": "bash-os-5 (review follow-up)",
-    "col": "coordinator (combined validation)",
-    "tee": "bash-os-2 (review follow-up)",
-    "split": "bash-os-5 (review follow-up)",
-    "crypto": "bash-os-2 (review follow-up)",
-    "diff": "bash-os-2 (review follow-up)",
-    "tail": "bash-os-6 (review follow-up)",
-    "ar": "bash-os-4 (review follow-up)",
-    "du": "coordinator (next batch)",
-    "mv": "coordinator (next batch)",
-    "truncate": "bash-os-1",
-    "cp": "bash-os-3"
+    "ar": "grok-bash-2",
+    "tee": "grok-bash-3",
+    "diff": "grok-bash-4"
   },
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
-  "ci_followup": "[CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs, including 70 native test groups. The nl suite passed all 1,556 reference and contract checks against GNU 9.4 on native, static and ASan/UBSan paths; the six benchmark-producer regressions passed too. This CI covers the published implementation before the pending integration batch.",
-  "pending_integration": {
-    "column": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "strings": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "od": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "colrm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "comm": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "sort": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "unexpand": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "rev": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "crypto": "036215f2a6259664d6aeeedb6d247a004efc4756",
-    "wc": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "diff": "036215f2a6259664d6aeeedb6d247a004efc4756",
-    "hexdump": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "join": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "col": "c3c8e0e48e38e0aa4067e2d2a52178d186ed7345",
-    "split": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347",
-    "tee": "036215f2a6259664d6aeeedb6d247a004efc4756",
-    "csplit": "9f8997f915fcc3c27ff9680e05b3c0242c3fb347"
-  }
+  "ci_followup": "Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. This measurement is `db921ad` after those named fixtures landed.",
+  "pending_integration": {}
 }

@@ -1,341 +1,58 @@
 {
   "schema": 1,
-  "date": "2026-09-08",
-  "source_commit": "7b287fab0b35d607dc9c2e231c5592dea227335d",
-  "binary_sha256": "9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73",
+  "date": "2026-09-11",
+  "source_commit": "db921ad9d9d73177d37cf5288e23a598620f7da7",
+  "binary_sha256": "00063f9f3b758ac8423a6ef7314fb2d99e3bad373d38a72b931146072df0c517",
   "measurement": "Untimed correctness probes; no performance claims.",
   "versions": {
-    "col": "col from util-linux 2.41",
-    "split": "split (GNU coreutils) 9.7",
     "diff": "diff (GNU diffutils) 3.10",
-    "sha256sum": "sha256sum (GNU coreutils) 9.7",
-    "tail": "tail (GNU coreutils) 9.7",
-    "ar": "GNU ar (GNU Binutils for Debian) 2.44",
-    "tee": "tee (GNU coreutils) 9.7",
-    "csplit": "csplit (GNU coreutils) 9.7",
-    "du": "du (GNU coreutils) 9.7",
-    "mv": "mv (GNU coreutils) 9.7",
-    "truncate": "truncate (GNU coreutils) 9.7",
-    "cp": "cp (GNU coreutils) 9.7"
+    "tee": "tee (GNU coreutils) 9.7"
   },
   "cases": [
     {
-      "loadable": "col",
-      "kind": "repeat-input",
-      "command": "col -b < input (three fresh redirections)",
-      "fixture": {
-        "input": "alpha\nbeta\n"
-      },
-      "invocations": 3,
-      "reference": "/usr/bin/col",
-      "finding": "Only the first invocation emits input.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "alpha\nbeta\n",
-          "stderr": ""
-        },
-        "reference": {
-          "status": 0,
-          "stdout": "alpha\nbeta\nalpha\nbeta\nalpha\nbeta\n",
-          "stderr": ""
-        }
-      }
-    },
-    {
-      "loadable": "split",
-      "kind": "repeat-input",
-      "command": "split -l 2 - \"pieces/$i-\" < input (three fresh redirections)",
-      "fixture": {
-        "input": "alpha\nbeta\ngamma\n"
-      },
-      "invocations": 3,
-      "reference": "/usr/bin/split",
-      "finding": "Only the first invocation creates output files.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": "",
-          "files": {
-            "1-aa": "alpha\nbeta\n",
-            "1-ab": "gamma\n"
-          }
-        },
-        "reference": {
-          "status": 0,
-          "stdout": "",
-          "stderr": "",
-          "files": {
-            "1-aa": "alpha\nbeta\n",
-            "1-ab": "gamma\n",
-            "2-aa": "alpha\nbeta\n",
-            "2-ab": "gamma\n",
-            "3-aa": "alpha\nbeta\n",
-            "3-ab": "gamma\n"
-          }
-        }
-      }
-    },
-    {
       "loadable": "diff",
       "kind": "correctness",
-      "command": "diff input input-newline",
+      "command": "printf 'hello\\n' | diff - -",
       "fixture": {
-        "input": "a",
-        "input-newline": "a\n"
+        "input": "hello\n"
       },
       "invocations": 1,
       "reference": "/usr/bin/diff",
-      "finding": "Files differing only in the final newline are incorrectly reported equal.",
+      "finding": "A minus operand is opened as a file named '-'; two minus operands therefore fail instead of comparing the same stdin bytes.",
       "results": {
         "bashos": {
-          "status": 0,
+          "status": 2,
           "stdout": "",
-          "stderr": ""
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "1c1\n< a\n\\ No newline at end of file\n---\n> a\n",
-          "stderr": ""
-        }
-      }
-    },
-    {
-      "loadable": "crypto",
-      "kind": "correctness",
-      "command": "crypto sha256 -x < input > /dev/full",
-      "fixture": {
-        "input": "a"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/sha256sum",
-      "finding": "A failed digest write is incorrectly reported as successful.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": ""
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "sha256sum: write error\n"
-        }
-      }
-    },
-    {
-      "loadable": "tail",
-      "kind": "repeat-input",
-      "command": "tail -n 1 < input (three fresh redirections)",
-      "fixture": {
-        "input": "alpha\nbeta\n"
-      },
-      "invocations": 3,
-      "reference": "/usr/bin/tail",
-      "finding": "Only the first small-input invocation emits its last line; the larger timed fixture passes.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "beta\n",
-          "stderr": ""
+          "stderr": "diff: -: No such file or directory\n"
         },
         "reference": {
           "status": 0,
-          "stdout": "beta\nbeta\nbeta\n",
-          "stderr": ""
-        }
-      }
-    },
-    {
-      "loadable": "ar",
-      "kind": "correctness",
-      "command": "ar t partial.a",
-      "fixture": {
-        "partial.a": "!<arch>\nX"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/ar",
-      "finding": "A truncated member header is incorrectly accepted as a valid archive.",
-      "results": {
-        "bashos": {
-          "status": 0,
           "stdout": "",
           "stderr": ""
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "/usr/bin/ar: partial.a: file format not recognized\n"
         }
       }
     },
     {
       "loadable": "tee",
       "kind": "correctness",
-      "command": "tee <&- > /dev/null",
+      "command": "timeout 2 tee /dev/full >/dev/full < /dev/zero",
       "fixture": {
-        "input": ""
+        "input": "/dev/zero"
       },
       "invocations": 1,
       "reference": "/usr/bin/tee",
-      "finding": "A read from closed stdin reports an error but incorrectly returns success.",
+      "finding": "After every output has failed the builtin keeps reading stdin until timeout 124; GNU tee returns 1 promptly.",
       "results": {
         "bashos": {
-          "status": 0,
+          "status": 124,
           "stdout": "",
-          "stderr": "probe: line 1: tee: read error: Bad file descriptor\n"
+          "stderr": "tee: stdout: write error: No space left on device\n"
         },
         "reference": {
           "status": 1,
           "stdout": "",
-          "stderr": "tee: read error: Bad file descriptor\ntee: standard input: Bad file descriptor\n"
+          "stderr": "tee: 'standard output': No space left on device\ntee: /dev/full: No space left on device\n"
         }
-      }
-    },
-    {
-      "loadable": "csplit",
-      "kind": "repeat-input",
-      "command": "csplit -s -f \"pieces/$i-\" - 2 < input (three fresh redirections)",
-      "fixture": {
-        "input": "alpha\nbeta\ngamma\n"
-      },
-      "invocations": 3,
-      "reference": "/usr/bin/csplit",
-      "finding": "Later invocations create empty pieces after the first call exhausts shared stdin.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": "",
-          "files": {
-            "1-00": "alpha\n",
-            "1-01": "beta\ngamma\n",
-            "2-00": "",
-            "3-00": ""
-          }
-        },
-        "reference": {
-          "status": 0,
-          "stdout": "",
-          "stderr": "",
-          "files": {
-            "1-00": "alpha\n",
-            "1-01": "beta\ngamma\n",
-            "2-00": "alpha\n",
-            "2-01": "beta\ngamma\n",
-            "3-00": "alpha\n",
-            "3-01": "beta\ngamma\n"
-          }
-        }
-      }
-    },
-    {
-      "loadable": "du",
-      "kind": "correctness",
-      "command": "du -b file > /dev/full",
-      "fixture": {
-        "file": "abc"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/du",
-      "finding": "A failed size-report write is incorrectly reported as successful.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": ""
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "du: write error\n"
-        }
-      }
-    },
-    {
-      "loadable": "mv",
-      "kind": "correctness",
-      "command": "mv file file",
-      "fixture": {
-        "file": "abc"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/mv",
-      "finding": "Moving a file to itself incorrectly reports success.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": ""
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "mv: 'file' and 'file' are the same file\n"
-        }
-      }
-    },
-    {
-      "loadable": "truncate",
-      "kind": "correctness",
-      "command": "truncate -s +9223372036854775807 file",
-      "fixture": {
-        "file": "abc"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/truncate",
-      "finding": "An overflowing size extension incorrectly succeeds and empties the existing file.",
-      "results": {
-        "bashos": {
-          "status": 0,
-          "stdout": "",
-          "stderr": "",
-          "files": {
-            "file": ""
-          }
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "truncate: overflow extending size of file 'file'\n",
-          "files": {
-            "file": "abc"
-          }
-        }
-      }
-    },
-    {
-      "loadable": "cp",
-      "kind": "correctness",
-      "command": "cp -f source target (source mode 000)",
-      "fixture": {
-        "source": "source\n",
-        "target": "old destination\n"
-      },
-      "invocations": 1,
-      "reference": "/usr/bin/cp",
-      "finding": "An unreadable source causes forced copy to delete the existing destination before failing.",
-      "results": {
-        "bashos": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "probe: line 1: cp: open source: Permission denied\n",
-          "files": {
-            "target": null
-          }
-        },
-        "reference": {
-          "status": 1,
-          "stdout": "",
-          "stderr": "cp: cannot open 'source' for reading: Permission denied\n",
-          "files": {
-            "target": "old destination\n"
-          }
-        }
-      },
-      "fixture_modes": {
-        "source": "0o0"
       }
     }
   ]
