@@ -6,7 +6,10 @@ CC=${CC:-cc}
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 names=(crypto claude ldap integrity dns login passwd auth su doas cksum obj index pack
-       ssh pkg ntp mail rsync wg acme uuidgen screen sshd tiv kitty sixel nano ts hl sudo)
+       ssh pkg ntp mail rsync wg acme uuidgen screen ptybroker sshd tiv kitty sixel
+       nano ts hl sudo)
+# ptybroker is here because screen declares it as a required companion builtin in
+# config/helpers.json, and stage-helpers.py refuses a selection that omits it.
 mkdir -p "$d/helpers/builtins" "$d/helpers/examples/loadables"
 python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" "${names[@]}"
 sources=("$d/helpers/builtins/"*.c)
