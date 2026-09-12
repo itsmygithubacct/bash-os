@@ -23,8 +23,17 @@ RANK = {'Build/help': 0, 'Negative checks': 1, 'Smoke': 2, 'Contract': 3,
         'Query parity': 4, 'Parity': 5}
 PROFILE_CODES = {'pure': 'P', 'core': 'C', 'device': 'D', 'server': 'S',
                  'desktop': 'T', 'full': 'F'}
-# Candidates confirmed in the baseline and checked again in the current run.
-PERFORMANCE = ['comm', 'sort-text']
+# The curated P2 set: cases someone has confirmed and is actively working. It is
+# deliberately narrow, and it is empty right now. comm and sort-text sat here
+# until the 2026-09-12 refresh measured the binary that actually carries the
+# wave-6 changes: comm is 0.50x external time and sort-text 0.91x, so the work
+# they described is done and a P2 row asking for it would be wrong.
+# Cases slower than 1.25x external time are surfaced as P3 automatically, with
+# their ratio, so nothing is lost by leaving this empty -- the current
+# candidates, in order, are bsdgames-rot13 (12.56x), pcre (4.22x), sv-log
+# (3.36x), more (3.32x) and buf-text (3.13x). Promote one here when someone
+# takes it on. bench/publish.py imports this list; do not copy it.
+PERFORMANCE = []
 
 
 def cell(value):
@@ -70,7 +79,7 @@ def metric_kind(cases):
     if any(case['results'].get(label, {}).get('status') == 'ok'
            for case in cases for label in ('external', 'busybox')):
         return 'compared'
-    if any(case.get('reference') == 'self' for case in cases):
+    if any(case.get('self_timed') for case in cases):
         return 'self-timed'
     return 'compared'
 

@@ -20,6 +20,7 @@ rows describe two different executables cannot be compared row to row.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -27,14 +28,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST_PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
-# Cases the performance queue tracks. Only these are marked confirmed, so only
-# these can become a P2 row in the catalog.
-PERFORMANCE = {'comm', 'sort-text'}
+def _performance():
+    """The curated P2 set, read from catalog.py so the two cannot drift.
+
+    Two copies of this list is exactly the failure the publication checklist
+    warns about: the catalog would assert on a `confirmed` flag this file had
+    stopped setting, or worse, stop asserting on one it still set.
+    """
+    spec = importlib.util.spec_from_file_location('bashos_catalog', ROOT/'bench/catalog.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return set(module.PERFORMANCE)
 # Fields copied from a raw case. Anything else in the raw report (stderr text,
 # per-run samples, captured output) stays out of the published file.
 CASE_FIELDS = ['id', 'loadable', 'args', 'fixture', 'host', 'applet',
-               'host_args', 'normalizer', 'output', 'reference', 'mode',
-               'reset', 'env', 'work', 'passes', 'validation_passes']
+               'host_args', 'normalizer', 'output', 'reference', 'self_timed',
+               'mode', 'reset', 'env', 'work', 'passes', 'validation_passes']
 
 
 def inventory(raw, previous):
@@ -86,6 +95,7 @@ def main():
     if args.omit and not args.omit_reason:
         parser.error('--omit requires --omit-reason: an undocumented gap reads as an oversight')
     previous = json.loads(args.base.read_text()) if args.base.is_file() else {}
+    performance = _performance()
 
     published = {
         'schema': 1,
@@ -117,9 +127,13 @@ def main():
         if results.get('bashos', {}).get('status') != 'ok':
             invalid.append(f"{case['id']}={results.get('bashos', {}).get('status')}")
         row = {field: case.get(field) for field in CASE_FIELDS}
+        # A report written before self_timed existed still identifies the case:
+        # only a self-referenced one resolves its expected output to 'bashos'.
+        if row['self_timed'] is None:
+            row['self_timed'] = case.get('reference') == 'bashos'
         row['date'] = raw['date']
         row['runs'] = raw['runs']
-        row['confirmed'] = (case['id'] in PERFORMANCE
+        row['confirmed'] = (case['id'] in performance
                             and results.get('bashos', {}).get('status') == 'ok')
         row['results'] = {label: clean(result) for label, result in results.items()}
         kept.append(row)
@@ -144,7 +158,7 @@ def main():
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(published, indent=2)+'\n')
-    selftimed = sum(1 for case in published['cases'] if case.get('reference') == 'self')
+    selftimed = sum(1 for case in published['cases'] if case.get('self_timed'))
     print(f'{args.output}: {len(published["cases"])} cases '
           f'({len({case["loadable"] for case in published["cases"]})} loadables, '
           f'{selftimed} self-timed), catalog {published["catalog_sha256"][:12]}')

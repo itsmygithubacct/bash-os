@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
+  "source_commit": "63cb23df1c3012dde4b07657cc27e4f1e5015b2f",
   "coverage_groups": [
     {
       "names": [
@@ -1399,11 +1399,48 @@
       "evidence": "docs/hostid.md"
     },
     "free": {
-      "note": "tests/free-check.sh matches GNU field layout on a private meminfo, including buff/cache as Buffers+Cached+SReclaimable. Live `free -k` timings are not published because counters move between invocations."
+      "note": "Measured against a pinned /proc via BASHOS_PROC_ROOT, self-timed: the live counters move between the reference call and the repeated batch, so a live ratio could only ever fail. tests/free-check.sh holds the GNU parity.",
+      "evidence": "tests/free-check.sh"
     },
     "coreutils": {
       "note": "Dispatcher; each subcommand is measured separately. nproc's default counts the affinity mask, as GNU's does, so it follows a taskset pin; --all reports every configured processor. GNU's OMP_NUM_THREADS and OMP_THREAD_LIMIT overrides are deliberately not implemented.",
       "evidence": "loadables/coreutils.c"
+    },
+    "mktemp": {
+      "note": "`-u` does the filesystem work it is supposed to skip: sh_mktmpfd() runs unconditionally and -u is applied afterwards, so the builtin creates (O_CREAT|O_EXCL) and then unlinks, while GNU and BusyBox only expand the template. The builtin therefore fails where both references succeed whenever the template's directory is not writable.",
+      "next": "Apply -u before sh_mktmpfd so the template is only expanded."
+    },
+    "passwd": {
+      "note": "`list -l` misparses any record with an empty field: bpw_list_cmd splits with strtok_r(copy, \":\", &save), and strtok_r collapses consecutive delimiters, so fields shift left from the first empty one. bpw_lookup_user uses the same pattern, so the lookup path shares the defect. The benchmark fixture keeps all seven fields populated and must stay that way for its reference to hold.",
+      "next": "Split passwd records on a fixed field count rather than strtok_r."
+    },
+    "vi": {
+      "note": "After `dd` deletes the buffer's last line the cursor is left on a line that no longer exists, and every later `dd` is a silent no-op returning 0; nvim clamps the cursor and keeps deleting. The benchmark fixture deliberately omits `G` before its dd run: with it the case would have measured one edit instead of 250 while still validating.",
+      "next": "Clamp the cursor to the new last line after a delete."
+    },
+    "dmesg": {
+      "note": "On the BASHDMESG_DEV_KMSG_FILE path, bd_drain() reads into a fixed 8192-byte buffer and silently truncates or drops a record that straddles the boundary.",
+      "next": "Carry the partial record across reads instead of dropping it."
+    },
+    "fstrim": {
+      "note": "`-I/--listed-in` reports, and would trim, any path in the list file that merely stat()s; util-linux cross-checks each entry against the live mount table and reports only mounted filesystems. This is why the case is self-timed: there is no output to compare against util-linux, which exits non-zero on the same input."
+    },
+    "rsync": {
+      "note": "For a non-existent single-file DEST the builtin creates the destination as a directory, while stock rsync treats DEST as a directory only when it already exists or ends in '/'. The measured case uses the trailing-slash form into a reset-recreated directory, where the two agree byte for byte."
+    },
+    "lsattr": {
+      "note": "The flag field is 14 columns where e2fsprogs prints 22 for the same file, so the two cannot be compared on exact bytes."
+    },
+    "obj": {
+      "note": "The getline(stdin) loops now clearerr(stdin) at the builtin entry: without it a second in-process `--batch-check`, `--batch`, `hash --stdin-paths` or `tree` emitted nothing while still exiting 0, because a builtin does not fork and the stream keeps its EOF flag.",
+      "evidence": "tests/repeat-input-check.sh"
+    },
+    "bsdgames": {
+      "note": "The headless games read stdin with fgets and now clearerr(stdin) at the builtin entry; before, a second game in the same shell read nothing and exited 0 without playing.",
+      "evidence": "tests/repeat-input-check.sh"
+    },
+    "ts": {
+      "note": "Capture precedence takes the last matching pattern rather than the most specific: in span mode a JSON object key yields both string.special.key and string, and the renderer paints it with the later, less specific rule."
     }
   },
   "repeat_input_findings": [],
@@ -1432,8 +1469,8 @@
   "measurement_file": "docs/data/loadable-benchmarks-current.json",
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
-    "source_commit": "c591f19db622d9b29af372c4689ba56f2838ff28",
-    "summary": "The measured full binary passed tests/ar-check.sh (18), tests/tee-check.sh (7) and tests/diff-check.sh (7). Unmeasured-catalog batches matched GNU or BusyBox on this binary across seven samples (59 published cases after binhex/prlimit/col/fincore/bignum/ncdu/blkid/man). col was omitted (GNU adds a trailing byte under LC_ALL=C). xargs and uuencode matched on the first pass but failed the repeated-input batch. coreutils nproc is omitted because BusyBox reports the pinned CPU. Live `free -k` timings are omitted because counters move between invocations. tests/run.sh was not re-run in full for this refresh."
+    "source_commit": "63cb23df1c3012dde4b07657cc27e4f1e5015b2f",
+    "summary": "This refresh measured the full build at `63cb23d` on one binary: **297 cases covering 248 of 279 loadables**, seven samples each, pinned to one CPU under the shared benchmark lock. 0 loadables are self-timed, having no external program or BusyBox applet that implements them; for those the repeated batch is a determinism check and no ratio is shown. The 31 loadables still without a metric each carry a written blocker rather than an empty row. The measured binary also carries the repeated-input fix: more, less, uuencode, xargs, obj and bsdgames read the persistent stdin stream and left its EOF flag set, so a second in-process invocation read nothing and still exited 0; tests/repeat-input-check.sh is the gate. coreutils nproc now counts the affinity mask as GNU's does, and col terminates its output like util-linux, which is what let col's large text fixture be measured. tests/run.sh was not re-run in full for this refresh."
   },
   "assignments": {},
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",

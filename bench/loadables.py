@@ -2436,6 +2436,11 @@ def main():
         for case in inventory:
             name = case['loadable']
             row = {k:v for k,v in case.items() if k not in ['max_passes']}
+            # row['reference'] below becomes the label whose output was the
+            # expected bytes, so the declared intent has to be recorded
+            # separately or a self-timed case is indistinguishable from a
+            # compared one and the catalog would show it as carrying a ratio.
+            row['self_timed'] = case['reference'] == 'self'
             row['results'] = {}
             commands = {'bashos':[name,*case['args']]}
             if case['reference'] == 'self':
