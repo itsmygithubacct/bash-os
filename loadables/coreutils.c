@@ -10,7 +10,7 @@
  *   coreutils yes    [STRING...]                infinite repeat
  *   coreutils fmt    [-w WIDTH] [FILE...]       collapse paragraphs
  *   coreutils tsort  [FILE]                     topological sort
- *   coreutils nproc                             sysconf(_SC_NPROCESSORS_ONLN)
+ *   coreutils nproc                             sched_getaffinity count; --all is configured
  *   coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N
  *   coreutils shred  [-n N] [-u] [-z] FILE...   overwrite + unlink
  *   coreutils groups [USER]                     list user groups
@@ -57,6 +57,7 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <time.h>
+#include <sched.h>
 
 #include "loadables.h"
 #include "error.h"
@@ -1034,15 +1035,32 @@ bcu_tsort_cmd (WORD_LIST *list)
 }
 
 /* ===================================================================
- * nproc — _SC_NPROCESSORS_ONLN
+ * nproc — processors available to this process; --all is every configured one
  * =================================================================== */
+
+/* Processors this process may actually run on. GNU nproc's default counts the
+   affinity mask, not the online CPUs, so under `taskset -c 3` it prints 1 while
+   _SC_NPROCESSORS_ONLN still says 12. Returns 0 when the mask is unavailable so
+   the caller can fall back.
+
+   Scope: GNU also lets OMP_NUM_THREADS and OMP_THREAD_LIMIT override the
+   default. That is deliberately not implemented here -- this is not an OpenMP
+   runtime host -- and is recorded as a scope difference, not parity. */
+static long
+bcu_nproc_available (void)
+{
+  cpu_set_t set;
+  if (sched_getaffinity (0, sizeof set, &set) != 0)
+    return 0;
+  return CPU_COUNT (&set);
+}
 
 static int
 bcu_nproc_cmd (WORD_LIST *list)
 {
-  /* GNU nproc accepts --all and --ignore=N; we honor --all by
-   * returning _SC_NPROCESSORS_CONF instead, and --ignore=N by
-   * subtracting from the count (floored at 1). */
+  /* GNU nproc accepts --all and --ignore=N; --all reports every configured
+   * processor, the default reports the ones this process may run on, and
+   * --ignore=N subtracts from the count (floored at 1). */
   long ignore = 0;
   int use_all = 0;
   for (WORD_LIST *w = list; w; w = w->next)
@@ -1059,7 +1077,11 @@ bcu_nproc_cmd (WORD_LIST *list)
       bcu_usage ("nproc");
       return EX_USAGE;
     }
-  long n = sysconf (use_all ? _SC_NPROCESSORS_CONF : _SC_NPROCESSORS_ONLN);
+  long n = 0;
+  if (!use_all)
+    n = bcu_nproc_available ();
+  if (n < 1)
+    n = sysconf (use_all ? _SC_NPROCESSORS_CONF : _SC_NPROCESSORS_ONLN);
   if (n < 1) n = 1;
   n -= ignore;
   if (n < 1) n = 1;
