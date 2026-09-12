@@ -1,6 +1,6 @@
 # bench — bash-os against busybox and against bash with the GNU userland
 
-The [loadable status table](../docs/loadables-status.md) covers all 278 loadables
+The [loadable status table](../docs/loadables-status.md) covers all 279 loadables
 and recommends the next work from correctness checks and individual timings.
 Its [CSV](../docs/loadables-status.csv) supports filtering by profile and status.
 The current table uses one integrated full build and seven samples per case.
@@ -10,16 +10,16 @@ Completed input fixes receive timings only after the repeated-call output check 
 
 ## Individual commands
 
-`bench/loadables.py` measures 49 selected workloads across 45 loadables. It runs
-the builtin, BusyBox applet and external program from the same bash-os shell,
-validates outputs across repeated invocations, then records batch wall time.
-Incorrect results are marked in JSON and receive no builtin timing or ratio.
-The report continues after mismatches; a successful harness exit does not mean
-every loadable passed. `--quick` still checks at least three invocations.
-Digest comparisons preserve every output record while ignoring the reference
-tool's filename field. Missing, changed, extra or blank later records fail
-validation; `tests/bench-loadables.py` exercises those failure paths.
-The `diff` case compares identical files and measures no edit-script generation.
+`bench/loadables.py` runs the builtin, the BusyBox applet and the external
+program from the same bash-os shell, validates outputs across repeated
+invocations, then records batch wall time. Incorrect results are marked in JSON
+and receive no builtin timing or ratio. The report continues after mismatches; a
+successful harness exit does not mean every loadable passed. `--quick` still
+checks at least three invocations. Digest comparisons preserve every output
+record while ignoring the reference tool's filename field. Missing, changed,
+extra or blank later records fail validation; `tests/bench-loadables.py`
+exercises those failure paths. The `diff` case compares identical files and
+measures no edit-script generation.
 
 ```sh
 python3 bench/loadables.py --output /tmp/loadables.json
@@ -27,6 +27,70 @@ python3 bench/loadables.py --only fold --passes 9 --runs 7 --output /tmp/fold.js
 python3 bench/loadables.py --quick --only head,sed,bc --output /tmp/input-check.json
 python3 bench/catalog.py --check
 ```
+
+### What a case can be
+
+Each case is one `add()` call in `cases()`. By default it compares the builtin
+with an external program and a BusyBox applet on the same fixture, in one shell
+process, with the fixture redirected onto stdin for every pass. Four options
+cover the loadables that default shape cannot measure:
+
+| option | what it does | when it is the honest choice |
+|---|---|---|
+| `reference='self'` | Times the builtin alone. Pass 1 becomes its own expected output, so the repeated batch is a **determinism check**, and both reference columns print an em dash instead of a ratio. | No external program or applet implements the thing at all — the persistent-handle and terminal APIs. A self-timed figure is comparable with another run of the same case on the same host, and with nothing else. |
+| `mode='fresh'` | Runs each pass in a subshell, so the fork gives it a private copy of the process. Costs one fork per pass on every implementation being compared. | A command whose state is *meant* to persist between calls. Not a workaround for a reader that forgets to reset its stream — see below. |
+| `reset='...'` | A snippet re-run before every pass, with the same empty `PATH`, so it must use builtins only. | A mutator that destroys its own precondition: `unlink`, `rmdir`, `mkfifo`, `link`, `mv`. |
+| `env={...}` | Extra environment for every implementation in the case. | A fixture-root hook such as `BASHOS_PROC_ROOT`, which turns a live-counter tool into a fixed, deterministic workload. |
+
+`work='...'` records the fixed work one pass does — bytes parsed, records
+emitted, operations performed. It is documentation for the number, not an input
+to it: a timing whose work is unstated cannot be compared across a change.
+
+`mode='fresh'` deserves care. A builtin runs in the shell process, so its stdio
+state outlives the call, and a reader that leaves stdin's EOF flag set will read
+nothing on the *next* invocation while still exiting 0. That is a defect in the
+loadable, not a property to be measured around — `clearerr` at entry is what the
+stdin readers in this tree do, and `tests/repeat-input-check.sh` is the gate.
+Reach for `fresh` only once you have established the in-process failure is
+intended behaviour.
+
+### Publishing a measurement
+
+`bench/loadables.py` writes a raw report: everything the harness saw, including
+failed validation. `bench/publish.py` turns that into the file the catalog is
+allowed to describe. It strips every timing from a result that failed output
+validation, records which comparison tools this host actually has, and refuses
+to merge reports measured on different binaries.
+
+```sh
+flock /home/pleb/research/projects/bash-os/parallel-loadable-bench.lock \
+  python3 bench/loadables.py --binary out/bash --runs 7 --cpu 11 --output /tmp/raw.json
+python3 bench/publish.py /tmp/raw.json docs/data/loadable-benchmarks-current.json
+python3 bench/catalog.py && python3 bench/catalog.py --check
+```
+
+Add `--merge` to keep cases measured earlier **on the same binary**; a different
+binary is refused, because rows describing two executables cannot be compared
+with each other. `--omit CASE --omit-reason '...'` drops a case that must not be
+published, and records why — an undocumented gap reads as an oversight.
+
+### The iteration loop
+
+One loadable at a time:
+
+1. Measure the current binary (`--only NAME`), keeping the raw JSON outside Git.
+2. Change the implementation.
+3. Rebuild with `JOBS=2 ./build.sh --include NAME --name NAME` for a
+   single-loadable binary, or a full `./build.sh` before publishing.
+4. Re-run the loadable's `tests/*-check.sh` against the new binary, with an
+   empty `PATH`, comparing against GNU — or BusyBox where GNU is absent.
+5. Re-measure `--only NAME` under the lock, on the same pinned CPU.
+6. Publish and regenerate only when the output checks still pass.
+
+A ratio is never published for output that does not match, and a corrected
+invalid baseline is not a speedup. Both directions of that rule matter: a change
+that makes a command faster and wrong has made the table worse, and a change
+that makes a wrong command correct will often look like a regression.
 
 Use `--cpu N` to pin to an allowed CPU, `--binary` to choose a build and
 `--busybox` to choose a BusyBox binary. Inputs and writable destinations use a

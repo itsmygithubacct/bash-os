@@ -40,6 +40,8 @@ move between invocations.
 <!-- BEGIN SUMMARY -->
 Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **142 cases covering 114 loadables**; 114 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 165 have no individual command timings here; GPU transport measurements are reported separately.
 
+Metric kinds: **114 compared** against an external program or a BusyBox applet, **0 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **165 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
+
 | Profile | Included loadables |
 | --- | --- |
 | shell | 0 |
@@ -102,6 +104,21 @@ three times as long. A speed ratio is never published for incorrect output.
   means not measured, never zero. **INVALID** means output validation failed.
   Where a command has several cases, the main row shows a failing case first,
   otherwise the largest BOS/external ratio; the appendix includes every case.
+- A metric is one of two kinds, and the difference decides what it can be used
+  for. A **compared** metric validates the builtin's bytes against an external
+  program or a BusyBox applet on the same fixture and reports a ratio; it
+  answers "is this faster or slower than the userland it replaces". A
+  **self-timed** metric applies where no counterpart implements the thing at
+  all — the persistent-handle, terminal and protocol APIs — and reports the
+  builtin's own batch time with an em dash in both reference columns. It
+  answers only "did this get faster or slower than it was", which is enough to
+  iterate on, and it is never presented as a ratio. In a self-timed case the
+  repeated batch is a **determinism check**: identical passes must produce
+  identical bytes, so a correctness regression still fails the case rather than
+  quietly producing a better number.
+- An em dash in a reference column therefore means one of two things, separated
+  in the CSV: the tool is absent from this host, or no counterpart applies.
+  Neither is a measurement and neither is a failure.
 - `*` marks a stock source from Bash's `examples/loadables/`; other names link
   to local sources. See [provenance](PROVENANCE.md). Helpers, aliases and
   dispatcher subcommands are not additional catalog entries.

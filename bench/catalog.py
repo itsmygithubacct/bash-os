@@ -57,6 +57,24 @@ def ratio(case):
     return ours/external if ours is not None and external else None
 
 
+def metric_kind(cases):
+    """What kind of number a loadable has, which decides how it can be used.
+
+    'compared' validates the builtin's bytes against an external program or a
+    BusyBox applet and yields a ratio. 'self-timed' has no counterpart at all:
+    the repeated batch is a determinism check and the figure is comparable only
+    with another run of the same case. 'none' has no measurement.
+    """
+    if not cases:
+        return 'none'
+    if any(case['results'].get(label, {}).get('status') == 'ok'
+           for case in cases for label in ('external', 'busybox')):
+        return 'compared'
+    if any(case.get('reference') == 'self' for case in cases):
+        return 'self-timed'
+    return 'compared'
+
+
 def table(headers, rows):
     return '\n'.join(['| '+' | '.join(headers)+' |',
                       '| '+' | '.join('---' for _ in headers)+' |',
@@ -153,6 +171,7 @@ def generate():
         groups = sorted(coverage[name], key=lambda g: RANK[g['status']], reverse=True)
         note = review['notes'].get(name, {})
         cases = benchmarks[name]
+        kind = metric_kind(cases)
         failures = [case for case in cases if case['results']['bashos']['status'] != 'ok']
         selected = (failures or sorted(cases, key=lambda c: ratio(c) or 0, reverse=True) or [None])[0]
         base_status = groups[0]['status'] if groups else 'Build/help'
@@ -209,6 +228,10 @@ def generate():
                       else 'Add a matched workload and timing.')
             if not program and not applet:
                 action = 'Define an API workload and metric, then measure.'
+        elif kind == 'self-timed':
+            priority = 'P4'
+            action = ('Self-timed baseline: no external program or applet implements this, '
+                      'so compare a change against this figure rather than a ratio.')
         else:
             priority, action = 'P4', 'Extend sizes/options; no selected-case performance priority.'
         if name in review.get('assignments', {}):
@@ -222,6 +245,8 @@ def generate():
         if selected:
             bench_text = ' / '.join(timing(selected, label) for label in ['bashos','busybox','external'])
             bench_text += f'; [{selected["id"]}](#case-{selected["id"]}), {selected["passes"]} passes'
+            if kind == 'self-timed':
+                bench_text += '; self-timed'
             if len(cases) > 1:
                 bench_text += f'; {len(cases)} cases total'
         rows.append([name_text, ' '.join(PROFILE_CODES[p] for p in members), status_text,
@@ -238,6 +263,8 @@ def generate():
                      busybox_applet=applet or '', busybox_availability=applet_state,
                      external_program=program or '', external_availability=external_state,
                      comparison_scope=comparison.get('scope','Same-name candidate; only measured arguments are compared.'),
+                     metric_kind=kind,
+                     work_unit=(selected.get('work') or '') if selected else '',
                      benchmark_cases=';'.join(c['id'] for c in cases),
                      selected_case=selected['id'] if selected else '',
                      fixture=selected['fixture'] if selected else '',
@@ -259,10 +286,17 @@ def generate():
     document = DOC.read_text()
     measured = sum(bool(cases) for cases in benchmarks.values())
     valid = sum(bool(cases) and all(c['results']['bashos']['status']=='ok' for c in cases) for cases in benchmarks.values())
+    kinds = {name: metric_kind(cases) for name, cases in benchmarks.items()}
+    compared = sum(1 for k in kinds.values() if k == 'compared')
+    selftimed = sum(1 for k in kinds.values() if k == 'self-timed')
     summary = (f"Catalog: **{len(catalog)} loadables** ({len(local)} local sources, {len(catalog)-len(local)} stock Bash sources). "
                f"Command benchmark: **{len(data['cases'])} cases covering {measured} loadables**; {valid} loadables passed the selected output checks, "
                f"{measured-valid} have confirmed correctness findings. The other {len(catalog)-measured} have no individual command timings here; "
-               "GPU transport measurements are reported separately.\n\n")
+               "GPU transport measurements are reported separately.\n\n"
+               f"Metric kinds: **{compared} compared** against an external program or a BusyBox applet, "
+               f"**{selftimed} self-timed** where no counterpart implements the command and the repeated batch "
+               f"is a determinism check instead, **{len(catalog)-measured} with no metric**. A self-timed figure "
+               "is comparable with another run of the same case, never presented as a ratio.\n\n")
     if untimed:
         summary += f"Separate [untimed checks](#additional-correctness-checks) record {len(untimed)} further correctness findings.\n\n"
     summary += table(['Profile','Included loadables'], [[p,len(names)] for p,names in profiles.items()])
