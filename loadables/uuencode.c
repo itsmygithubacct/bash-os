@@ -82,6 +82,9 @@ int uuencode_builtin(WORD_LIST *list) {
         mode = 0666 & ~um;
     }
     printf(base64_mode ? "begin-base64 %o %s\n" : "begin %o %s\n", mode, name);
+    /* stdin's FILE persists between builtin calls; a stale EOF flag would
+       encode an empty body and still report success. */
+    clearerr(f);
     int rc = base64_mode ? enc_b64(f) : enc_classic(f);
     if (base64_mode) printf("====\n");   /* classic trailer is emitted by enc_classic */
     if (f != stdin) fclose(f);

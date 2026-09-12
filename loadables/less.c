@@ -88,6 +88,9 @@ bl_lines_push (bl_lines *ls, const char *s, size_t n)
 static int
 bl_read_stream (FILE *f, bl_lines *ls)
 {
+    /* Clear the EOF flag a previous invocation left on a persistent stream:
+       a builtin does not fork, so stdin's FILE is reused across calls. */
+    clearerr (f);
     char *line = NULL;
     size_t cap = 0;
     ssize_t n;

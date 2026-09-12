@@ -261,6 +261,10 @@ bm_show_key_help (void)
 static int
 bm_pager (FILE *f, int rows, int hint)
 {
+    /* A builtin runs in the shell process, so the stdio stream outlives the
+       call. Without this, the EOF flag left by a previous invocation makes
+       every later `more < FILE' read nothing and still exit 0. */
+    clearerr (f);
     char *line = NULL;
     size_t cap = 0;
     ssize_t n;

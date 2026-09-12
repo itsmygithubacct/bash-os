@@ -356,6 +356,9 @@ xargs_builtin (WORD_LIST *list)
 {
     int nul_sep = 0, rflag = 0, tflag = 0, pflag = 0;
     int max_n = 0, max_l = 0, max_p = 1;
+    /* Reading stdin in the shell process leaves the EOF flag set for the next
+       invocation, which would then build no command lines and exit 0. */
+    clearerr (stdin);
     long s_flag = 0;          /* -s SIZE: 0 = unset (use default cap). */
     char *Iflag = NULL;
 

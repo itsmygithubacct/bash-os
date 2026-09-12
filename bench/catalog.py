@@ -44,7 +44,10 @@ def timing(case, implementation):
     result = case['results'][implementation]
     if result['status'] == 'ok':
         return f"{result['median_ms']:.3f}"
-    if result['status'] == 'unavailable':
+    # 'unavailable' is a tool this host does not have; 'not-applicable' is a
+    # self-timed case with no counterpart to compare against. Neither is a
+    # measurement, and neither is a failure.
+    if result['status'] in ('unavailable', 'not-applicable'):
         return '—'
     return 'INVALID' if 'mismatch' in result['status'] else result['status'].upper()
 

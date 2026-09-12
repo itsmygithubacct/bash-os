@@ -31,12 +31,20 @@ def cases():
 
     def add(name, args=(), *, fixture='text', label=None, host=None,
             applet=None, host_args=None, normalizer='exact', maximum=80,
-            output=None):
+            output=None, reference=None, mode='inprocess', reset=None,
+            env=None, work=None):
+        # reference='self' measures a loadable that has no external or applet
+        # counterpart. Pass 1 becomes its own expected output, so the repeated
+        # batch is a determinism check and the reference columns stay empty.
+        # A self-timed figure is comparable only with another run of the same
+        # case on the same host; it is never presented as a ratio.
         rows.append(dict(id=label or name, loadable=name, args=list(args),
                          fixture=fixture, host=host or name,
                          applet=applet or host or name,
                          host_args=list(host_args) if host_args is not None else list(args),
-                         normalizer=normalizer, max_passes=maximum, output=output))
+                         normalizer=normalizer, max_passes=maximum, output=output,
+                         reference=reference, mode=mode, reset=reset,
+                         env=dict(env or {}), work=work))
 
     add('cat')
     add('head', ['-n', '100'])
@@ -390,13 +398,23 @@ def main():
         root = Path(directory)
         report['fixtures'] = fixtures(root)
 
-        def run(command, fixture, count, *, capture=False):
-            script = 'input=$1; count=$2; shift 2; for ((i=0;i<count;i++)); do "$@" < "$input" || exit; done'
-            argv = [str(binary),'--noprofile','--norc','-c',script,'bench',fixture,str(count),*command]
+        def run(command, case, count, *, capture=False):
+            # mode='fresh' runs each pass in a subshell. The fork gives the pass
+            # a private copy of the process, so a command that keeps stdio or
+            # other state across calls starts clean every time, the way it would
+            # in a pipeline. It costs one fork per pass on both sides, so a
+            # fresh-mode timing is only comparable with another fresh-mode one.
+            body = '( "$@" < "$input" )' if case['mode'] == 'fresh' else '"$@" < "$input"'
+            # reset restores a mutator's precondition before every pass; it runs
+            # with the same empty PATH, so it must use builtins only.
+            step = f'{{ {case["reset"]}; }} || exit; {body} || exit' if case['reset'] else f'{body} || exit'
+            script = f'input=$1; count=$2; shift 2; for ((i=0;i<count;i++)); do {step}; done'
+            argv = [str(binary),'--noprofile','--norc','-c',script,'bench',case['fixture'],str(count),*command]
+            environ = {**environment, **case['env']}
             with tempfile.TemporaryFile() as output:
                 start = time.perf_counter_ns()
                 try:
-                    p = subprocess.run(argv, cwd=root, env=environment,
+                    p = subprocess.run(argv, cwd=root, env=environ,
                                        stdout=output if capture else subprocess.DEVNULL,
                                        # Waiting for pipe EOF avoids wait(timeout)'s
                                        # polling intervals rounding up short timings.
@@ -415,25 +433,38 @@ def main():
             row = {k:v for k,v in case.items() if k not in ['max_passes']}
             row['results'] = {}
             commands = {'bashos':[name,*case['args']]}
-            external = shutil.which(case['host'], path=HOST_PATH)
-            if external:
-                commands['external'] = [external,*case['host_args']]
+            if case['reference'] == 'self':
+                # No counterpart exists to compare against, so neither column
+                # is a missing tool: record that no comparison applies and
+                # measure the builtin on its own.
+                row['results']['external'] = {'status':'not-applicable'}
+                row['results']['busybox'] = {'status':'not-applicable'}
             else:
-                row['results']['external'] = {'status':'unavailable'}
-            if busybox and case['applet'] in applets:
-                commands['busybox'] = [busybox,case['applet'],*case['host_args']]
-            else:
-                row['results']['busybox'] = {'status':'unavailable'}
+                external = shutil.which(case['host'], path=HOST_PATH)
+                if external:
+                    commands['external'] = [external,*case['host_args']]
+                else:
+                    row['results']['external'] = {'status':'unavailable'}
+                if busybox and case['applet'] in applets:
+                    commands['busybox'] = [busybox,case['applet'],*case['host_args']]
+                else:
+                    row['results']['busybox'] = {'status':'unavailable'}
             initial = {}
             for implementation, command in commands.items():
                 if case['output']:
                     (root/case['output']).unlink(missing_ok=True)
-                result = run(command, case['fixture'], 1, capture=True)
+                result = run(command, case, 1, capture=True)
                 if result['status'] == 'ok' and case['output']:
                     result['data'] = (root/case['output']).read_bytes() if (root/case['output']).is_file() else b''
                 initial[implementation] = result
-            reference = next((label for label in ['external','busybox']
-                              if label in initial and initial[label]['status']=='ok'), None)
+            # A self-referenced case validates the builtin against its own first
+            # pass, which makes the repeated batch below a determinism check.
+            # A first pass that failed is not an expected output.
+            if case['reference'] == 'self':
+                reference = 'bashos' if initial['bashos']['status'] == 'ok' else None
+            else:
+                reference = next((label for label in ['external','busybox']
+                                  if label in initial and initial[label]['status']=='ok'), None)
             if reference is None:
                 for label,result in initial.items():
                     row['results'][label] = {k:v for k,v in result.items() if k not in ['data','ms']}
@@ -457,7 +488,7 @@ def main():
                 else:
                     accepted.append(label)
             probe_label = 'bashos' if 'bashos' in accepted else reference
-            probe = run(commands[probe_label],case['fixture'],5)
+            probe = run(commands[probe_label],case,5)
             if probe['status'] != 'ok':
                 row['results'][probe_label] = {k:v for k,v in probe.items() if k not in ['data','ms']}
                 report['cases'].append(row); save(); continue
@@ -468,7 +499,7 @@ def main():
             # Validate a complete batch too: stale stdio state can silently
             # make later invocations produce no output despite success status.
             for label in list(accepted):
-                batch = run(commands[label],case['fixture'],validation_passes,capture=True)
+                batch = run(commands[label],case,validation_passes,capture=True)
                 actual = batch.get('data',b'')
                 wanted = expected*validation_passes
                 if case['output']:
@@ -487,7 +518,7 @@ def main():
                 if round_number%2:
                     order.reverse()
                 for label in order:
-                    timed = run(commands[label],case['fixture'],passes)
+                    timed = run(commands[label],case,passes)
                     if timed['status'] != 'ok':
                         row['results'][label] = {k:v for k,v in timed.items() if k not in ['data','ms']}
                     else:
