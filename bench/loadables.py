@@ -220,6 +220,11 @@ def cases():
     add('fincore', ['-n', 'text'], fixture='empty',
         host_args=['-n', '--bytes', 'text'], normalizer='fields', maximum=200)
     add('col', ['-b'], fixture='left')
+    # The large fixture is truncated to a byte count, so its last line has no
+    # newline. util-linux col terminates its output; the builtin now does too,
+    # which is what kept this case out of the table before.
+    add('col', ['-b'], fixture='text', label='col-text',
+        work='423,000 bytes filtered, unterminated final line')
     add('coreutils', ['factor', '111111111111'], fixture='empty',
         host='factor', host_args=['111111111111'],
         label='coreutils-factor-big', maximum=200)
