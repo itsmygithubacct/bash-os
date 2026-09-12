@@ -658,6 +658,11 @@ col_builtin (WORD_LIST *list)
   int rc = EXECUTION_SUCCESS;
   int n_streams = n_files ? n_files : 1;
   FILE *in_stdin = NULL;
+  /* util-linux col terminates its output: an input whose last line has no
+     newline still gets one. Track the last byte written across every stream so
+     the newline is added once, after the final operand, and not at all for
+     empty input -- where util-linux writes nothing. */
+  int last = -1;
   for (int fi = 0; fi < n_streams; fi++)
     {
       FILE *fp = bcol_open (n_files ? files[fi] : NULL, &in_stdin);
@@ -682,20 +687,24 @@ col_builtin (WORD_LIST *list)
                   if (pending != -1)
                     {
                       putchar (pending);
+                      last = pending;
                       pending = -1;
                     }
                   putchar ('\b');
+                  last = '\b';
                 }
               continue;
             }
-          if (pending != -1) putchar (pending);
+          if (pending != -1) { putchar (pending); last = pending; }
           pending = c;
         }
-      if (pending != -1) putchar (pending);
+      if (pending != -1) { putchar (pending); last = pending; pending = -1; }
       if (ferror (fp))
         { builtin_error ("read: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
       if (fp != in_stdin) fclose (fp);
     }
+  if (last != -1 && last != '\n')
+    putchar ('\n');
   if (in_stdin)
     fclose (in_stdin);
   return rc;
