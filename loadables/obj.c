@@ -1343,6 +1343,11 @@ int
 obj_builtin (WORD_LIST *list)
 {
     if (!list) { builtin_usage (); return EX_USAGE; }
+    /* --batch, --batch-check and hash --stdin-paths read stdin with getline.
+       A builtin does not fork, so the stream outlives the call: without this,
+       the EOF flag from a previous invocation makes the next one read no
+       objects at all and still exit 0. */
+    clearerr (stdin);
     const char *cmd = list->word->word;
     WORD_LIST *args = list->next;
     /* read */

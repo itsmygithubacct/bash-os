@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Exercise benchmark validation with a producer that corrupts later records."""
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -91,4 +92,54 @@ with tempfile.TemporaryDirectory(prefix='loadable-bench-test-') as directory:
             assert actual['status'] == 'batch-mismatch', (name, actual)
             assert 'median_ms' not in actual, (name, actual)
         print(f'PASS {name}: {actual["status"]}')
-print(f'bench-loadables: {len(variants) + len(uname_variants)} producer scenarios passed')
+
+    # A self-referenced case has no external or applet to compare with, so its
+    # only correctness gate is that identical passes produce identical bytes.
+    # Prove the gate bites: a builtin whose second call differs must lose its
+    # timing, exactly as a reference mismatch does. Selected by property rather
+    # than by name so the test survives the case list changing.
+    spec = importlib.util.spec_from_file_location(
+        'bench_loadables', ROOT / 'bench/loadables.py')
+    harness = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(harness)
+    self_timed = [c for c in harness.cases() if c['reference'] == 'self']
+    assert self_timed, 'no self-referenced case to test the determinism gate with'
+    probe = self_timed[0]
+    builtin = probe['loadable']
+    self_variants = {'self-deterministic': "printf 'fixed\\n'",
+                     'self-drifting': "printf 'drifted\\n'"}
+    for name, second_record in self_variants.items():
+        prefix = (f'{builtin}_calls=0\n{builtin}() {{ '
+                  f'{builtin}_calls=$(({builtin}_calls + 1)); '
+                  f'if [[ ${builtin}_calls -eq 2 ]]; then {second_record}; '
+                  f'else printf "fixed\\n"; fi; return 0; }}\n')
+        binary = scratch / f'shell-{name}'
+        binary.write_text('#!/usr/bin/python3\nimport os, sys\n'
+                          'args = sys.argv[1:]\n'
+                          'if "-c" in args:\n'
+                          '    index = args.index("-c") + 1\n'
+                          f'    args[index] = {prefix!r} + args[index]\n'
+                          'os.execv("/bin/bash", ["/bin/bash", *args])\n')
+        binary.chmod(0o700)
+        report = scratch / f'{name}.json'
+        result = subprocess.run(
+            ['python3', str(ROOT / 'bench/loadables.py'), '--binary', str(binary),
+             '--busybox', '', '--only', probe['id'], '--quick', '--output', str(report)],
+            capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (name, result.stdout, result.stderr)
+        case = next(c for c in json.loads(report.read_text())['cases']
+                    if c['id'] == probe['id'])
+        # Neither reference column is a missing tool: no counterpart applies.
+        for label in ('external', 'busybox'):
+            assert case['results'][label]['status'] == 'not-applicable', (name, case)
+            assert 'median_ms' not in case['results'][label], (name, case)
+        assert case['validation_passes'] >= 3
+        actual = case['results']['bashos']
+        if name == 'self-deterministic':
+            assert actual['status'] == 'ok' and actual['median_ms'] > 0, actual
+        else:
+            assert actual['status'] == 'batch-mismatch', (name, actual)
+            assert 'median_ms' not in actual, (name, actual)
+        print(f'PASS {name} ({probe["id"]}): {actual["status"]}')
+print(f'bench-loadables: '
+      f'{len(variants) + len(uname_variants) + len(self_variants)} producer scenarios passed')

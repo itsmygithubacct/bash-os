@@ -25268,6 +25268,10 @@ int
 bsdgames_builtin (WORD_LIST *list)
 {
     if (!list) { builtin_error ("subcommand or game required (try list)"); return EX_USAGE; }
+    /* The headless games read stdin with fgets. A builtin does not fork, so a
+       stale EOF flag from a previous invocation would make the next game read
+       nothing and exit 0 without playing. */
+    clearerr (stdin);
     const char *cmd = list->word->word;
 
     if (!strcmp (cmd, "--help") || !strcmp (cmd, "-h")) { builtin_usage (); return EXECUTION_SUCCESS; }

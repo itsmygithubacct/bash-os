@@ -83,6 +83,34 @@ done
 check uuencode A uuencode payload
 check_second uuencode uuencode payload
 
+# obj and bsdgames read the persistent stdin stream too; found by the metric
+# coverage sweep, 2026-09-12. obj's --batch-check and bsdgames' headless filters
+# both silently processed nothing on a second call.
+if "$BX" --noprofile --norc -c 'PATH=; type -t obj' 2>/dev/null | grep -q builtin; then
+  # hash --stdin-paths drives the same getline(stdin) loop as --batch-check but
+  # needs no repository, so the check works anywhere.
+  printf 'hello\n' > h.txt
+  printf 'h.txt\n' > objpaths
+  a=$("$BX" --noprofile --norc -c 'PATH=; obj hash --stdin-paths < objpaths > o1 2>/dev/null'; wc -c < o1)
+  b=$("$BX" --noprofile --norc -c 'PATH=; obj hash --stdin-paths < objpaths > /dev/null 2>&1
+                                    obj hash --stdin-paths < objpaths > o2 2>/dev/null'; wc -c < o2)
+  if [[ $a -eq 0 ]]; then
+    no "obj hash --stdin-paths produced nothing on the first call; check the fixture"
+  elif [[ $b -eq $a ]]; then
+    ok "obj hash --stdin-paths second invocation emits $b bytes"
+  else
+    no "obj hash --stdin-paths: first $a bytes, second $b bytes"
+  fi
+fi
+if "$BX" --noprofile --norc -c 'PATH=; type -t bsdgames' 2>/dev/null | grep -q builtin; then
+  printf 'sos\n' > morsein
+  a=$("$BX" --noprofile --norc -c 'PATH=; bsdgames morse < morsein > m1 2>/dev/null'; wc -c < m1)
+  b=$("$BX" --noprofile --norc -c 'PATH=; bsdgames morse < morsein > /dev/null 2>&1
+                                    bsdgames morse < morsein > m2 2>/dev/null'; wc -c < m2)
+  [[ $a -gt 0 && $b -eq $a ]] && ok "bsdgames morse second invocation emits $b bytes" \
+    || no "bsdgames morse: first $a bytes, second $b bytes"
+fi
+
 # Controls: these already reset their stream, and must stay correct.
 for c in cat tac rev "nl -ba" "fold -w 40" "sort" "wc -l" "strings -n 4"; do
   # shellcheck disable=SC2086
