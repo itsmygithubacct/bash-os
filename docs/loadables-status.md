@@ -466,10 +466,11 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `ar` | Truncated headers, extract write errors and short member bodies are rejected; tests/ar-check.sh matches GNU 2.44 including /dev/full unlink and archive-link identity. |
 | `bc` | Repeated stdin is fixed. User functions, output-base printing, control flow, comments and file operands remain outside the supported language subset. [source](../docs/bc.md) |
 | `cluster` | Only a version smoke check is mapped here. |
-| `col` | Repeated redirected stdin is fixed; tests/col-check.sh matches GNU on three fresh redirections. |
+| `col` | Repeated redirected stdin is fixed; tests/col-check.sh matches GNU on three fresh redirections. Output is newline-terminated as util-linux does, including an unterminated final line, which is what the large text fixture has. File operands are a bash-os extension: util-linux col reads stdin only and rejects an operand, so that path has no reference. [source](../tests/col-newline-check.sh) |
 | `colrm` | Repeated redirected stdin is fixed; tests/colrm-check.sh matches GNU on three fresh redirections. |
 | `column` | Repeated redirected stdin is fixed; tests/column-check.sh matches GNU on three fresh redirections. |
 | `comm` | Repeated-input and write-failure contracts are covered by tests/comm-check.sh. The timed comm case remains slower than GNU on this host. |
+| `coreutils` | Dispatcher; each subcommand is measured separately. nproc's default counts the affinity mask, as GNU's does, so it follows a taskset pin; --all reports every configured processor. GNU's OMP_NUM_THREADS and OMP_THREAD_LIMIT overrides are deliberately not implemented. [source](../loadables/coreutils.c) |
 | `cp` | A forced copy that cannot read its source keeps the existing destination; tests/cp-check.sh matches GNU. |
 | `crypto` | A failed digest write now returns failure; tests/crypto-check.sh covers sha256 -x > /dev/full. |
 | `csplit` | Repeated redirected stdin is fixed; tests/csplit-check.sh matches GNU piece files across three redirections. |

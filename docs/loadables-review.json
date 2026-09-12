@@ -1359,7 +1359,8 @@
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
     },
     "col": {
-      "note": "Repeated redirected stdin is fixed; tests/col-check.sh matches GNU on three fresh redirections."
+      "note": "Repeated redirected stdin is fixed; tests/col-check.sh matches GNU on three fresh redirections. Output is newline-terminated as util-linux does, including an unterminated final line, which is what the large text fixture has. File operands are a bash-os extension: util-linux col reads stdin only and rejects an operand, so that path has no reference.",
+      "evidence": "tests/col-newline-check.sh"
     },
     "split": {
       "note": "Repeated redirected stdin is fixed; tests/split-check.sh matches GNU piece files across three redirections."
@@ -1399,6 +1400,10 @@
     },
     "free": {
       "note": "tests/free-check.sh matches GNU field layout on a private meminfo, including buff/cache as Buffers+Cached+SReclaimable. Live `free -k` timings are not published because counters move between invocations."
+    },
+    "coreutils": {
+      "note": "Dispatcher; each subcommand is measured separately. nproc's default counts the affinity mask, as GNU's does, so it follows a taskset pin; --all reports every configured processor. GNU's OMP_NUM_THREADS and OMP_THREAD_LIMIT overrides are deliberately not implemented.",
+      "evidence": "loadables/coreutils.c"
     }
   },
   "repeat_input_findings": [],
