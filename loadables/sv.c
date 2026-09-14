@@ -2978,6 +2978,82 @@ bsv_run_foreground (void)
   return EXECUTION_SUCCESS;
 }
 
+/* Seek through a regular log from the end so a short tail does not require
+   allocating and replacing a ring entry for every line in the file. */
+static int
+bsv_log_regular (FILE *f, off_t end, int nlines)
+{
+  unsigned char buf[32768];
+  off_t pos = end, start = 0;
+  int remaining = nlines;
+  unsigned int retries = 0;
+restart:
+  pos = end;
+  start = 0;
+  remaining = nlines;
+  while (pos > 0)
+    {
+      size_t want = pos < (off_t) sizeof buf ? (size_t) pos : sizeof buf;
+      pos -= (off_t) want;
+      if (fseeko (f, pos, SEEK_SET) != 0)
+        goto read_error;
+      size_t got = fread (buf, 1, want, f);
+      if (ferror (f))
+        goto read_error;
+      if (got != want)
+        {
+          /* A truncation invalidates both the saved end and the trailing
+             newline test. Retry a bounded number of times before any output. */
+          struct stat current;
+          if (++retries > 3 || fstat (fileno (f), &current) != 0)
+            goto read_error;
+          end = current.st_size;
+          clearerr (f);
+          goto restart;
+        }
+      while (got > 0)
+        {
+          --got;
+          if (buf[got] == '\n' && pos + (off_t) got != end - 1 &&
+              --remaining == 0)
+            {
+              start = pos + (off_t) got + 1;
+              goto emit;
+            }
+        }
+    }
+emit:
+  if (fseeko (f, start, SEEK_SET) != 0)
+    goto read_error;
+  while (start < end)
+    {
+      /* Appends belong to the next invocation. Bound this one to the end
+         used to select its lines so an active writer cannot extend it. */
+      size_t want = end - start < (off_t) sizeof buf ?
+                    (size_t) (end - start) : sizeof buf;
+      size_t got = fread (buf, 1, want, f);
+      if (got && fwrite (buf, 1, got, stdout) != got)
+        {
+          builtin_error ("log: write error: %s", strerror (errno ? errno : EIO));
+          return EXECUTION_FAILURE;
+        }
+      if (ferror (f))
+        goto read_error;
+      if (got == 0)
+        break;
+      start += (off_t) got;
+    }
+  if (fflush (stdout) == EOF || ferror (stdout))
+    {
+      builtin_error ("log: write error: %s", strerror (errno ? errno : EIO));
+      return EXECUTION_FAILURE;
+    }
+  return EXECUTION_SUCCESS;
+read_error:
+  builtin_error ("log: read error: %s", strerror (errno ? errno : EIO));
+  return EXECUTION_FAILURE;
+}
+
 static int
 bsv_log (const char *name, int nlines)
 {
@@ -2987,11 +3063,18 @@ bsv_log (const char *name, int nlines)
   int idx = 0, count = 0;
   if (!bsv_valid_name (name)) { builtin_error ("bad service name"); return EX_USAGE; }
   if (nlines < 1) nlines = 20;
-  ring = calloc ((size_t) nlines, sizeof *ring);
-  if (!ring) return EXECUTION_FAILURE;
   bsv_path (p, sizeof p, bsv_log_dir, name, NULL);
   f = fopen (p, "r");
-  if (!f) { free (ring); return EXECUTION_FAILURE; }
+  if (!f) return EXECUTION_FAILURE;
+  struct stat st;
+  if (fstat (fileno (f), &st) == 0 && S_ISREG (st.st_mode) && st.st_size > 0)
+    {
+      int rc = bsv_log_regular (f, st.st_size, nlines);
+      fclose (f);
+      return rc;
+    }
+  ring = calloc ((size_t) nlines, sizeof *ring);
+  if (!ring) { fclose (f); return EXECUTION_FAILURE; }
   char line[512];
   while (fgets (line, sizeof line, f))
     {

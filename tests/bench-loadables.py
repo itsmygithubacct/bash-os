@@ -6,10 +6,55 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def fixture_selection_checks():
+    """Exercise real --only selection without creating fixtures or timing."""
+    spec = importlib.util.spec_from_file_location(
+        'bench_fixture_selection', ROOT / 'bench/loadables.py')
+    harness = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(harness)
+
+    class FixturesReached(Exception):
+        pass
+
+    selections = [(None, None), ('xattr', {'empty', 'xattrs'}),
+                  ('xattr-list', {'empty', 'xattrs'}),
+                  ('xattr-read', {'empty', 'xattrs'}), ('crypto', {'blob'}),
+                  ('buf,index,pack,xargs', {'empty', 'left'}),
+                  ('xattr-read,buf', {'empty', 'xattrs'})]
+    with tempfile.TemporaryDirectory(prefix='bench-fixture-selection-') as directory:
+        for selection, expected in selections:
+            argv = ['loadables.py', '--binary', '/bin/bash', '--busybox', '',
+                    '--output', str(Path(directory) / 'report.json')]
+            if selection is not None:
+                argv += ['--only', selection]
+            with patch.object(sys, 'argv', argv), \
+                 patch.object(harness.subprocess, 'check_output', return_value='fixture-commit'), \
+                 patch.object(harness.subprocess, 'run') as versions, \
+                 patch.object(harness, 'fixtures', side_effect=FixturesReached) as build:
+                versions.return_value.stdout = 'fixture version\n'
+                versions.return_value.stderr = ''
+                try:
+                    harness.main()
+                except FixturesReached:
+                    pass
+                else:
+                    raise AssertionError('selection did not reach fixture setup')
+                build.assert_called_once()
+                _, needed = build.call_args.args
+            assert needed == expected, (selection, needed, expected)
+    assert harness.fixtures.__defaults__ == (None,)
+    print(f'PASS fixture selection: {len(selections)} full/selected scenarios')
+
+
+fixture_selection_checks()
 digest = hashlib.sha256(bytes(range(256)) * 4096).hexdigest()
 record = f"printf '%s\\n' {digest}"
 variants = {

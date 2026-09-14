@@ -233,6 +233,26 @@ static void
 od_emit_spec_line (const od_spec *s, const unsigned char *buf, size_t n,
                    int width, int groupbytes, int gwidth)
 {
+    if (s->kind == 'i' && s->base == 'x' && s->bytes == 1 &&
+        groupbytes == 1 && gwidth == 3) {
+        /* Hex bytes need no general integer formatting or column padding.
+           Encode bounded chunks, including for arbitrarily wide -w lines. */
+        static const char hex[] = "0123456789abcdef";
+        char text[768];
+        size_t used = 0;
+        for (size_t i = 0; i < n; i++) {
+            text[used++] = ' ';
+            text[used++] = hex[buf[i] >> 4];
+            text[used++] = hex[buf[i] & 15];
+            if (used == sizeof text) {
+                fwrite (text, 1, used, stdout);
+                used = 0;
+            }
+        }
+        text[used++] = '\n';
+        fwrite (text, 1, used, stdout);
+        return;
+    }
     /* Each group of `groupbytes` bytes is a column of total width `gwidth`,
        shared by this spec's `elems_per_group` elements. GNU divides the
        column evenly; any remainder is added to the FIRST element's field. */
@@ -692,6 +712,12 @@ od_builtin (WORD_LIST *list)
     if (!o.strings_min && !o.gnu_strings_min && o.nspecs == 0)
         od_add_spec (&o, 'i', 'o', 2);
 
+    /* od_dump rounds a short requested width up to one complete element.
+       The previous-line buffer must hold that same effective width. */
+    int buffer_width = o.width;
+    for (int k = 0; k < o.nspecs; k++)
+        if (o.specs[k].bytes > buffer_width) buffer_width = o.specs[k].bytes;
+
     int rc = EXECUTION_SUCCESS;
     FILE *input = NULL;
     if (!list) {
@@ -705,7 +731,7 @@ od_builtin (WORD_LIST *list)
         else if (o.strings_min) rc = od_strings (input, o.strings_min);
         else {
             int seen = 0, dactive = 0; size_t pn = 0;
-            unsigned char *prev = (unsigned char *) malloc ((size_t) o.width);
+            unsigned char *prev = (unsigned char *) malloc ((size_t) buffer_width);
             if (!prev) {
                 builtin_error ("out of memory");
                 fclose (input);
@@ -735,7 +761,7 @@ od_builtin (WORD_LIST *list)
             else if (o.strings_min) od_strings (f, o.strings_min);
             else {
                 int seen = 0, dactive = 0; size_t pn = 0;
-                unsigned char *prev = (unsigned char *) malloc ((size_t) o.width);
+                unsigned char *prev = (unsigned char *) malloc ((size_t) buffer_width);
                 if (prev) {
                     od_dump (f, &o, &seen, prev, &pn, &dactive);
                     free (prev);

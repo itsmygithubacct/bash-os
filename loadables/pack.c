@@ -161,6 +161,51 @@ bp_sha1 (const unsigned char *data, size_t n, unsigned char digest[20])
     return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
 }
 
+/* Repeated object reads may reuse only a successful pack checksum result,
+   and only after comparing every byte of the newly read private buffer with
+   this owned snapshot (including the trailer). No pathname, timestamp, index
+   or decoded-object state is cached. Keep at most 8 MiB until replacement,
+   dynamic builtin unload, or process exit in a static build. */
+#define BP_CHECKSUM_CACHE_LIMIT ((size_t) 8 * 1024 * 1024)
+static unsigned char *bp_verified_pack;
+static size_t bp_verified_pack_len;
+
+static int
+bp_pack_checksum_cached (const unsigned char *pack, size_t plen)
+{
+    return bp_verified_pack && plen == bp_verified_pack_len &&
+           memcmp (pack, bp_verified_pack, plen) == 0;
+}
+
+static void
+bp_remember_verified_pack (const unsigned char *pack, size_t plen)
+{
+    if (plen > BP_CHECKSUM_CACHE_LIMIT) return;
+    int saved_errno = errno;
+    if (plen != bp_verified_pack_len) {
+        /* Release first so two snapshots never contribute to the RAM cap.
+           Allocation failure simply leaves normal validation in use. */
+        free (bp_verified_pack);
+        bp_verified_pack = NULL;
+        bp_verified_pack_len = 0;
+        bp_verified_pack = malloc (plen);
+    }
+    if (bp_verified_pack) {
+        memcpy (bp_verified_pack, pack, plen);
+        bp_verified_pack_len = plen;
+    }
+    errno = saved_errno;
+}
+
+void
+pack_builtin_unload (char *name)
+{
+    (void) name;
+    free (bp_verified_pack);
+    bp_verified_pack = NULL;
+    bp_verified_pack_len = 0;
+}
+
 static int
 bp_deflate (const unsigned char *data, size_t n, unsigned char **out, size_t *out_len)
 {
@@ -405,37 +450,50 @@ bp_read_obj_header (const unsigned char *pack, size_t plen, uint64_t off,
 }
 
 /* Inflate src[srcn] into a malloc'd buffer of expected size (may be
-   larger; we just decompress until Z_STREAM_END). Returns 0 + sets *out,
-   *bytes_used (input bytes consumed). */
+   larger; we just decompress until Z_STREAM_END). Z_FINISH lets zlib omit
+   its sliding-window allocation when the advertised size fits in one pass.
+   Unknown sizes and larger streams still grow and resume normally. Returns
+   0 + sets *out, *bytes_used (input bytes consumed). */
 static int
 bp_inflate (const unsigned char *src, size_t srcn, size_t expected,
             unsigned char **out, size_t *out_len, size_t *bytes_used)
 {
     z_stream s = {0};
     if (inflateInit (&s) != Z_OK) return -1;
-    s.next_in = (unsigned char *) src;
-    s.avail_in = (uInt) srcn;
-    size_t cap = expected + 64;
+    size_t cap = expected <= SIZE_MAX - 64 ? expected + 64 : expected;
     if (cap < 64) cap = 64;
     unsigned char *buf = malloc (cap);
-    size_t total = 0;
+    if (!buf) { inflateEnd (&s); return -1; }
+    size_t total = 0, consumed = 0;
     int rc;
     do {
-        if (total + 4096 > cap) {
+        if (total == cap) {
+            if (cap > (SIZE_MAX - 4096) / 2) {
+                free (buf); inflateEnd (&s); return -1;
+            }
             cap = cap * 2 + 4096;
             unsigned char *nb = realloc (buf, cap);
             if (!nb) { free (buf); inflateEnd (&s); return -1; }
             buf = nb;
         }
+        size_t input = srcn - consumed;
+        size_t output = cap - total;
+        s.next_in = (unsigned char *) src + consumed;
+        s.avail_in = input > UINT_MAX ? UINT_MAX : (uInt) input;
         s.next_out = buf + total;
-        s.avail_out = (uInt) (cap - total);
-        rc = inflate (&s, Z_NO_FLUSH);
-        if (rc != Z_OK && rc != Z_STREAM_END) {
+        s.avail_out = output > UINT_MAX ? UINT_MAX : (uInt) output;
+        uInt available_in = s.avail_in, available_out = s.avail_out;
+        rc = inflate (&s, Z_FINISH);
+        size_t read_count = available_in - s.avail_in;
+        size_t write_count = available_out - s.avail_out;
+        consumed += read_count;
+        total += write_count;
+        if ((rc != Z_OK && rc != Z_STREAM_END && rc != Z_BUF_ERROR) ||
+            (rc != Z_STREAM_END && read_count == 0 && write_count == 0)) {
             free (buf); inflateEnd (&s); return -1;
         }
-        total = cap - s.avail_out;
     } while (rc != Z_STREAM_END);
-    *bytes_used = srcn - s.avail_in;
+    *bytes_used = consumed;
     inflateEnd (&s);
     *out = buf;
     *out_len = total;
@@ -723,16 +781,19 @@ bp_cat_cmd (WORD_LIST *args)
         builtin_error ("cat: too short (no trailer)");
         return EXECUTION_FAILURE;
     }
-    unsigned char pack_sha[20];
-    if (bp_sha1 (pack, plen - 20, pack_sha) < 0) {
-        free (idx); free (pack);
-        builtin_error ("cat: SHA-1 init failed");
-        return EXECUTION_FAILURE;
-    }
-    if (memcmp (pack_sha, pack + plen - 20, 20) != 0) {
-        free (idx); free (pack);
-        builtin_error ("cat: packfile SHA-1 mismatch (corrupt)");
-        return EXECUTION_FAILURE;
+    int checksum_cached = bp_pack_checksum_cached (pack, plen);
+    if (!checksum_cached) {
+        unsigned char pack_sha[20];
+        if (bp_sha1 (pack, plen - 20, pack_sha) < 0) {
+            free (idx); free (pack);
+            builtin_error ("cat: SHA-1 init failed");
+            return EXECUTION_FAILURE;
+        }
+        if (memcmp (pack_sha, pack + plen - 20, 20) != 0) {
+            free (idx); free (pack);
+            builtin_error ("cat: packfile SHA-1 mismatch (corrupt)");
+            return EXECUTION_FAILURE;
+        }
     }
     if (bp_verify_idx (idx, ilen, pack + plen - 20) < 0) {
         free (idx); free (pack);
@@ -753,6 +814,7 @@ bp_cat_cmd (WORD_LIST *args)
         builtin_error ("cat: read failed for %s", sha_hex);
         return EXECUTION_FAILURE;
     }
+    if (!checksum_cached) bp_remember_verified_pack (pack, plen);
     fwrite (content, 1, clen, stdout);
     free (content); free (idx); free (pack);
     (void) type;

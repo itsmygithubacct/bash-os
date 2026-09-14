@@ -635,7 +635,7 @@ def cases():
     add('bsdgames', ['rot13'], fixture='duplicates', host='tr',
         host_args=['A-Za-z', 'N-ZA-Mn-za-m'], maximum=20,
         label='bsdgames-rot13',
-        work='1,680,000 bytes ROT13-filtered through a getchar/putchar loop')
+        work='1,680,000 input bytes transformed with ROT13 and emitted as 1,680,000 bytes')
     add('bsdgames', ['primes', '1', '200000'], fixture='empty',
         reference='self', maximum=10, label='bsdgames-primes',
         work='primality test of the range 1..200,000 with 17,984 primes '
@@ -820,7 +820,7 @@ def cases():
     # BASHSV_RUNDIR is load-bearing, not documentary: sv.c:3691-3692 runs
     # bsv_mkdir_p(bsv_run_dir) unconditionally before verb dispatch, so
     # without it every read-only pass attempts mkdir('/run/sv') on the host.
-    add('sv', ['log', 'fixture', '-n', '200'], fixture='empty', host='tail', host_args=['-n', '200', 'svlog/fixture'], label='sv-log', env={'BASHSV_LOGDIR': 'svlog', 'BASHSV_RUNDIR': 'svrun', 'BASHSV_DIR': 'svetc'}, work='2800000-byte / 40000-line service log read line by line with fgets into a 200-slot strdup ring (sv.c:2982-3014); last 200 lines / 14000 bytes out')
+    add('sv', ['log', 'fixture', '-n', '200'], fixture='empty', host='tail', host_args=['-n', '200', 'svlog/fixture'], label='sv-log', env={'BASHSV_LOGDIR': 'svlog', 'BASHSV_RUNDIR': 'svrun', 'BASHSV_DIR': 'svetc'}, work='last 200 lines / 14000 bytes emitted from a 2800000-byte / 40000-line service log')
     add('claude', ['parse-response'], fixture='sseresponse', label='claude-parse-response', reference='self', maximum=40, work='3153699-byte HTTP/1.1 chunked response de-chunked (3150431 bytes of body), ~60000 SSE lines split and strstr-scanned, 20000 text_delta JSON strings decoded; 848050 bytes of assistant text out')
     # jq -j (join output: raw, no trailing newline) is what makes both the
     # single pass and the concatenated batch byte-exact. The encode direction
@@ -1038,7 +1038,7 @@ def cases():
     return rows
 
 
-def fixtures(root):
+def fixtures(root, needed=None):
     rng = random.Random(20260908)
     words = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'the', 'and', 'of']
     text = ''.join(' '.join(rng.choice(words) for _ in range(10))+'\n'
@@ -1378,12 +1378,15 @@ def fixtures(root):
         os.setxattr(root/'aclset'/'f00', 'system.posix_acl_access', seeded_acl)
     # xattr: 64 small attributes plus one 32 KiB value, shared by the
     # xattr-list name walk and the xattr-read ERANGE growth loop.
-    if not (root/'xattrs').exists():
-        (root/'xattrs').write_bytes(b'xattr fixture\n')
-        for i in range(64):
-            os.setxattr(root/'xattrs', f'user.attr{i:02d}', b'value-%03d' % i)
-        os.setxattr(root/'xattrs', 'user.big', bytes(range(256))*128)
-    record(root/'xattrs', 'xattrs')
+    # Only xattr cases need filesystem support for large extended attributes.
+    # Other selected cases retain all of their existing fixture setup.
+    if needed is None or 'xattrs' in needed:
+        if not (root/'xattrs').exists():
+            (root/'xattrs').write_bytes(b'xattr fixture\n')
+            for i in range(64):
+                os.setxattr(root/'xattrs', f'user.attr{i:02d}', b'value-%03d' % i)
+            os.setxattr(root/'xattrs', 'user.big', bytes(range(256))*128)
+        record(root/'xattrs', 'xattrs')
     # scrub: 5,000 history lines, every fifth one a secret form that the
     # baked-in denylist drops (4,000 kept, 1,000 dropped). scrub-current
     # rewrites the file in place, so scrubseed is the pristine copy the case's
@@ -2401,7 +2404,13 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix='bash-os-loadable-bench-') as directory:
         root = Path(directory)
-        report['fixtures'] = fixtures(root)
+        needed = None
+        if selected:
+            needed = {case['fixture'] for case in inventory}
+            # xattr reads the xattrs operand with empty stdin.
+            if any(case['loadable'] == 'xattr' for case in inventory):
+                needed.add('xattrs')
+        report['fixtures'] = fixtures(root, needed)
 
         def run(command, case, count, *, capture=False):
             # mode='fresh' runs each pass in a subshell. The fork gives the pass

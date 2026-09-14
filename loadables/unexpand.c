@@ -25,8 +25,11 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
+#include "unwind_prot.h"
+#include "bl-output.h"
 
 #define BU_MAX_STOPS 64
 
@@ -82,13 +85,29 @@ static int
 bu_next_stop (int col, const bu_opts *o, int *last_tab)
 {
     *last_tab = 0;
-    if (o->every > 0)
-        return col + (o->every - col % o->every);
+    if (o->every > 0) {
+        int offset = (o->every & (o->every - 1)) == 0
+                     ? col & (o->every - 1) : col % o->every;
+        return col + (o->every - offset);
+    }
     for (int i = 0; i < o->n_stops; i++)
         if (o->stops[i] > col)
             return o->stops[i];
     *last_tab = 1;
     return col + 1;
+}
+
+static void
+bu_output_byte (bl_output *out, unsigned char c)
+{
+    if (!out) {
+        putc_unlocked (c, stdout);
+        return;
+    }
+    if (out->error) return;
+    out->data[out->used++] = c;
+    if (out->used == sizeof out->data)
+        bl_output_flush (out);
 }
 
 /* Convert one input stream, faithfully porting GNU unexpand's per-line state
@@ -97,6 +116,13 @@ bu_next_stop (int col, const bu_opts *o, int *last_tab)
    tab stop with a preceding blank, and a lone blank sitting on a stop is kept
    as a space (`one_blank_before`). `o->all` is GNU's convert_entire_line:
    when false, conversion stops after the first non-blank on each line. */
+static void
+bu_free_pending (void *arg)
+{
+    /* The pointer can change when the pending buffer grows. */
+    free (*(char **) arg);
+}
+
 static int
 bu_process (FILE *f, const bu_opts *o)
 {
@@ -108,20 +134,76 @@ bu_process (FILE *f, const bu_opts *o)
     int one_blank_before = 0;
     int prev_blank = 1;          /* a line is treated as preceded by a blank */
     int out_failed = 0;
+    int next_tab = 0, last_tab = 0;
     int c;
+    unsigned char input[65536];
+    size_t pos = 0, have = 0;
+    bl_output output, *out = NULL;
+    struct stat st;
 
+    begin_unwind_frame ("unexpand pending");
+    add_unwind_protect (bu_free_pending, &pending);
     clearerr (f);
+    /* Full-block reads are suitable for regular files. Pipes and terminals
+       keep their existing byte I/O and early output-error detection; terminal
+       stdout keeps stdio's line buffering too. */
+    if (fstat (fileno (f), &st) == 0 && S_ISREG (st.st_mode) &&
+        !isatty (STDOUT_FILENO)) {
+        bl_output_init (&output, stdout);
+        out = &output;
+    }
     for (;;) {
         int suppress = 0;        /* set when the current char is consumed (g.len=0) */
-        c = fgetc (f);
+        if (out) {
+            if (out->error) { out_failed = 1; break; }
+            if (pos == have) {
+                have = fread (input, 1, sizeof input, f);
+                pos = 0;
+                QUIT;
+            }
+            if (pos < have && !pending_n) {
+                /* Ordinary runs need no blank/backspace/newline transition.
+                   After leading-only conversion stops, everything up to the
+                   next newline can be copied unchanged. */
+                static const unsigned char special[256] = {
+                    [' '] = 1, ['\t'] = 1, ['\b'] = 1, ['\n'] = 1
+                };
+                size_t end = pos;
+                if (!convert) {
+                    unsigned char *nl = memchr (input + pos, '\n', have - pos);
+                    end = nl ? (size_t) (nl - input) : have;
+                } else {
+                    while (end < have && !special[input[end]]) end++;
+                }
+                if (end > pos) {
+                    bl_output_write (out, input + pos, end - pos);
+                    if (convert) {
+                        column += (int) (end - pos);
+                        prev_blank = 0;
+                        convert = o->all;
+                    }
+                    pos = end;
+                    continue;
+                }
+            }
+            c = pos < have ? input[pos++] : EOF;
+        } else {
+            c = getc_unlocked (f);
+        }
 
         /* EOF is processed too: like GNU, it triggers the final pending flush
            (with the pending>1 conversion) before the loop ends. */
         if (convert) {
             int blank = (c != EOF && (c == ' ' || c == '\t'));
             if (blank) {
-                int last_tab = 0;
-                int next_tab = bu_next_stop (column, o, &last_tab);
+                if (column >= next_tab) {
+                    if (o->every > 0 && column == next_tab) {
+                        next_tab = column + o->every;
+                        last_tab = 0;
+                    } else {
+                        next_tab = bu_next_stop (column, o, &last_tab);
+                    }
+                }
                 if (last_tab)
                     convert = 0;
                 if (convert) {
@@ -135,7 +217,7 @@ bu_process (FILE *f, const bu_opts *o)
                             if (pending_n + 1 > pending_cap) {
                                 size_t nc = pending_cap ? pending_cap * 2 : 64;
                                 char *nb = realloc (pending, nc);
-                                if (!nb) { free (pending); builtin_error ("realloc"); return EXECUTION_FAILURE; }
+                                if (!nb) { run_unwind_frame ("unexpand pending"); builtin_error ("realloc"); return EXECUTION_FAILURE; }
                                 pending = nb;
                                 pending_cap = nc;
                             }
@@ -144,10 +226,10 @@ bu_process (FILE *f, const bu_opts *o)
                             continue;            /* hold the blank; emit nothing yet */
                         }
                         /* Replace the pending blanks by a tab (or two). */
-                        fputc ('\t', stdout);
+                        bu_output_byte (out, '\t');
                         if (pending_cap == 0) {
                             pending = malloc (pending_cap = 64);
-                            if (!pending) { builtin_error ("malloc"); return EXECUTION_FAILURE; }
+                            if (!pending) { run_unwind_frame ("unexpand pending"); builtin_error ("malloc"); return EXECUTION_FAILURE; }
                         }
                         pending[0] = '\t';
                         suppress = 1;
@@ -157,13 +239,15 @@ bu_process (FILE *f, const bu_opts *o)
                 }
             } else if (c == '\b') {
                 if (column > 0) column--;
+                next_tab = 0;
             } else if (c != '\n' && c != EOF) {
                 column += 1;
             }
 
             if (pending_n) {
                 if (pending_n > 1 && one_blank_before) pending[0] = '\t';
-                fwrite (pending, 1, pending_n, stdout);
+                if (out) bl_output_write (out, pending, pending_n);
+                else fwrite (pending, 1, pending_n, stdout);
                 pending_n = 0;
                 one_blank_before = 0;
             }
@@ -175,21 +259,24 @@ bu_process (FILE *f, const bu_opts *o)
             break;
 
         if (c == '\n') {
-            fputc ('\n', stdout);
+            bu_output_byte (out, '\n');
             convert = 1; column = 0;
             one_blank_before = 0; prev_blank = 1; pending_n = 0;
+            next_tab = 0; last_tab = 0;
         } else if (!suppress) {
-            fputc (c, stdout);
+            bu_output_byte (out, (unsigned char) c);
         }
-        if (ferror (stdout)) {
+        if ((out && out->error) || ferror_unlocked (stdout)) {
             out_failed = 1;
             break;
         }
     }
 
-    free (pending);
-    if (out_failed || ferror (stdout) || fflush (stdout) == EOF) {
-        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+    run_unwind_frame ("unexpand pending");
+    if (out) bl_output_flush (out);
+    if (out_failed || (out && out->error) || ferror (stdout) || fflush (stdout) == EOF) {
+        int error = out && out->error ? out->error : errno;
+        builtin_error ("write error: %s", strerror (error ? error : EIO));
         return EXECUTION_FAILURE;
     }
     return ferror (f) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
@@ -206,6 +293,12 @@ bu_help (void)
     puts ("  -t, --tabs=LIST    tab stops (single N or comma-separated)");
     puts ("  -h, --help         show this help");
     puts ("  -V, --version      show version");
+}
+
+static void
+bu_close_input (void *arg)
+{
+    fclose ((FILE *) arg);
 }
 
 int
@@ -275,8 +368,12 @@ unexpand_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
                 continue;
             }
+            if (f != stdin) {
+                begin_unwind_frame ("unexpand input");
+                add_unwind_protect (bu_close_input, f);
+            }
             int prc = bu_process (f, &o);
-            if (f != stdin) fclose (f);
+            if (f != stdin) run_unwind_frame ("unexpand input");
             if (prc != EXECUTION_SUCCESS) {
                 rc = prc;
                 break;

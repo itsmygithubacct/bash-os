@@ -474,6 +474,15 @@ diff_builtin (WORD_LIST *list)
         return 2;
     }
 
+    /* Equal bytes imply equal lines for every supported comparison mode.
+       Avoid allocating one string per line and building an edit trace when
+       the complete inputs already establish that there is no difference. */
+    if (bd_files_equal (da, la, db, lb)) {
+        free (da);
+        if (!same_stdin) free (db);
+        return EXECUTION_SUCCESS;
+    }
+
     /* Binary detection: NUL in first 4096 bytes. Binary inputs are compared
        bytewise: identical files exit 0 silently; differing files report the
        standard binary-differ diagnostic and exit 1. */

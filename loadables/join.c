@@ -33,6 +33,7 @@
 #include <strings.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 
@@ -54,6 +55,7 @@ typedef struct {
     /* Output format: array of (filenum, fieldnum). filenum 0 = key. */
     int   ofmt[BJ_MAX_OFMT][2];
     int   n_ofmt;
+    FILE *out;
 } bj_opts;
 
 extern char *join_doc[];
@@ -72,7 +74,7 @@ typedef struct {
     int   nf;
     /* Owned storage for the split — `fields` point into a copy. */
     char *split_buf;
-    size_t split_len;
+    size_t split_len, split_cap;
 } bj_record;
 
 static void
@@ -82,7 +84,7 @@ bj_free_rec (bj_record *r)
     free (r->split_buf);
     r->line = NULL;
     r->split_buf = NULL;
-    r->cap = r->split_len = 0;
+    r->cap = r->split_len = r->split_cap = 0;
 }
 
 typedef struct {
@@ -94,36 +96,37 @@ typedef struct {
 static void
 bj_free_group (bj_group *g)
 {
-    for (size_t i = 0; i < g->n; i++)
+    for (size_t i = 0; i < g->cap; i++)
         bj_free_rec (&g->v[i]);
     free (g->v);
     g->v = NULL;
     g->n = g->cap = 0;
 }
 
-/* Split LINE into FIELDS using SEP (0 = whitespace runs). Mutates a
-   newly-malloc'd copy. Returns the number of fields. */
+/* Split LINE into FIELDS using SEP (0 = whitespace runs), reusing the
+   record storage. Returns the field count, or -1 on allocation failure. */
 static int
 bj_split (bj_record *r, const char *line, size_t llen, int sep)
 {
     /* Strip trailing newline. */
     while (llen > 0 && (line[llen - 1] == '\n' || line[llen - 1] == '\r')) llen--;
-    char *raw = malloc (llen + 1);
-    char *buf = malloc (llen + 1);
-    if (!raw || !buf) {
-        free (raw);
-        free (buf);
-        return 0;
+    if (r->cap < llen + 1) {
+        char *raw = realloc (r->line, llen + 1);
+        if (!raw) return -1;
+        r->line = raw;
+        r->cap = llen + 1;
     }
-    memcpy (raw, line, llen);
-    raw[llen] = '\0';
+    if (r->split_cap < llen + 1) {
+        char *buf = realloc (r->split_buf, llen + 1);
+        if (!buf) return -1;
+        r->split_buf = buf;
+        r->split_cap = llen + 1;
+    }
+    char *buf = r->split_buf;
+    memcpy (r->line, line, llen);
+    r->line[llen] = '\0';
     memcpy (buf, line, llen);
     buf[llen] = '\0';
-    free (r->line);
-    free (r->split_buf);
-    r->line = raw;
-    r->cap = llen + 1;
-    r->split_buf = buf;
     r->split_len = llen;
     r->nf = 0;
     if (sep == 0) {
@@ -164,8 +167,7 @@ bj_group_add (bj_group *g, const bj_record *src, int sep)
         g->cap = ncap;
     }
     bj_record *dst = &g->v[g->n];
-    memset (dst, 0, sizeof (*dst));
-    bj_split (dst, src->line ? src->line : "", src->split_len, sep);
+    if (bj_split (dst, src->line ? src->line : "", src->split_len, sep) < 0) return -1;
     g->n++;
     return 0;
 }
@@ -179,10 +181,9 @@ bj_field (const bj_record *r, int n1based)
 }
 
 static void
-bj_emit_outsep (int sep)
+bj_emit_outsep (int sep, FILE *out)
 {
-    if (sep == 0) putchar (' ');
-    else          putchar ((char) sep);
+    fputc (sep == 0 ? ' ' : (char) sep, out);
 }
 
 /* Default join layout: KEY <sep> rest-of-FILE1 <sep> rest-of-FILE2. */
@@ -192,40 +193,40 @@ bj_emit_default (const bj_opts *o, const bj_record *r1, const bj_record *r2)
     const bj_record *key_rec = r1 ? r1 : r2;
     int key_field = r1 ? o->field1 : o->field2;
     const char *key = bj_field (key_rec, key_field);
-    fputs (key && *key ? key : (o->empty ? o->empty : ""), stdout);
+    fputs (key && *key ? key : (o->empty ? o->empty : ""), o->out);
     if (r1) {
         for (int i = 1; i <= r1->nf; i++) {
             if (i == o->field1) continue;
-            bj_emit_outsep (o->sep);
+            bj_emit_outsep (o->sep, o->out);
             const char *v = bj_field (r1, i);
-            fputs (v && *v ? v : (o->empty ? o->empty : ""), stdout);
+            fputs (v && *v ? v : (o->empty ? o->empty : ""), o->out);
         }
     }
     if (r2) {
         for (int i = 1; i <= r2->nf; i++) {
             if (i == o->field2) continue;
-            bj_emit_outsep (o->sep);
+            bj_emit_outsep (o->sep, o->out);
             const char *v = bj_field (r2, i);
-            fputs (v && *v ? v : (o->empty ? o->empty : ""), stdout);
+            fputs (v && *v ? v : (o->empty ? o->empty : ""), o->out);
         }
     }
-    putchar ('\n');
+    fputc ('\n', o->out);
 }
 
 static void
 bj_emit_format (const bj_opts *o, const bj_record *r1, const bj_record *r2)
 {
     for (int i = 0; i < o->n_ofmt; i++) {
-        if (i) bj_emit_outsep (o->sep);
+        if (i) bj_emit_outsep (o->sep, o->out);
         int filenum = o->ofmt[i][0];
         int fnum    = o->ofmt[i][1];
         const char *v;
         if (filenum == 0) v = bj_field (r1 ? r1 : r2, filenum == 0 ? (r1 ? o->field1 : o->field2) : 0);
         else if (filenum == 1) v = r1 ? bj_field (r1, fnum) : "";
         else                    v = r2 ? bj_field (r2, fnum) : "";
-        fputs (v && *v ? v : (o->empty ? o->empty : ""), stdout);
+        fputs (v && *v ? v : (o->empty ? o->empty : ""), o->out);
     }
-    putchar ('\n');
+    fputc ('\n', o->out);
 }
 
 static void
@@ -237,11 +238,11 @@ bj_emit (const bj_opts *o, const bj_record *r1, const bj_record *r2)
 
 /* Capture a stdout write failure before a later read overwrites errno. */
 static int
-bj_out_err (int *err)
+bj_out_err (const bj_opts *o, int *err)
 {
     if (*err)
         return 1;
-    if (ferror (stdout)) {
+    if (ferror (o->out)) {
         *err = errno ? errno : EIO;
         return 1;
     }
@@ -298,7 +299,7 @@ bj_optarg (WORD_LIST **lp, const char *attached)
 int
 join_builtin (WORD_LIST *list)
 {
-    bj_opts o = { .field1 = 1, .field2 = 1 };
+    bj_opts o = { .field1 = 1, .field2 = 1, .out = stdout };
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -428,15 +429,38 @@ join_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
+    /* A private output stream avoids Bash's line buffering for regular
+       input files. Keep immediate writes for pipe/FIFO input: a producer
+       may remain open after an output failure and must not make us wait. */
+    struct stat sa, sb;
+    if (!isatty (STDOUT_FILENO)
+        && fstat (fileno (fa), &sa) == 0 && S_ISREG (sa.st_mode)
+        && fstat (fileno (fb), &sb) == 0 && S_ISREG (sb.st_mode)
+        && fflush (stdout) == 0) {
+        int fd = dup (STDOUT_FILENO);
+        FILE *buffered = fd < 0 ? NULL : fdopen (fd, "w");
+        if (buffered) o.out = buffered;
+        else if (fd >= 0) close (fd);
+    }
+
     bj_record ra = { 0 }, rb = { 0 };
+    /* Duplicate groups normally contain one row. Keep their records and
+       split buffers for the next key instead of allocating a group per row. */
+    bj_group ga = { 0 }, gb = { 0 };
+    char *key = NULL;
+    size_t keycap = 0;
     char *la = NULL, *lb = NULL;
     size_t ca = 0, cb = 0;
     int out_err = 0;
     int rc = EXECUTION_SUCCESS;
     ssize_t na = getline (&la, &ca, fa);
     ssize_t nb = getline (&lb, &cb, fb);
-    if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
-    if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+    if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
+        builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+    }
+    if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
+        builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+    }
 
     /* -o auto: infer a fixed output layout from the field counts of the
        first records — key, then every non-key field of FILE1, then every
@@ -463,14 +487,18 @@ join_builtin (WORD_LIST *list)
        order-checked. */
     if (o.header && (na != -1 || nb != -1)) {
         bj_emit (&o, na != -1 ? &ra : NULL, nb != -1 ? &rb : NULL);
-        if (!bj_out_err (&out_err)) {
+        if (!bj_out_err (&o, &out_err)) {
             if (na != -1) {
                 na = getline (&la, &ca, fa);
-                if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
+                if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
+                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                }
             }
             if (nb != -1) {
                 nb = getline (&lb, &cb, fb);
-                if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+                if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
+                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                }
             }
         }
     }
@@ -485,64 +513,76 @@ join_builtin (WORD_LIST *list)
         else if (nb == -1) cmp = -1;
         else               cmp = bj_keycmp (ka, kb, &o);
         if (cmp == 0) {
-            char *key = strdup (ka);
-            bj_group ga = { 0 }, gb = { 0 };
-            int oom = key == NULL;
+            size_t keylen = strlen (ka) + 1;
+            int oom = 0;
+            if (keycap < keylen) {
+                char *next = realloc (key, keylen);
+                if (!next) oom = 1;
+                else { key = next; keycap = keylen; }
+            }
+            if (!oom) memcpy (key, ka, keylen);
+            ga.n = gb.n = 0;
 
             while (!oom && na != -1 && bj_keycmp (bj_field (&ra, o.field1), key, &o) == 0) {
                 if (bj_group_add (&ga, &ra, o.sep) < 0) { oom = 1; break; }
                 na = getline (&la, &ca, fa);
-                if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
+                if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
+                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                }
             }
             while (!oom && nb != -1 && bj_keycmp (bj_field (&rb, o.field2), key, &o) == 0) {
                 if (bj_group_add (&gb, &rb, o.sep) < 0) { oom = 1; break; }
                 nb = getline (&lb, &cb, fb);
-                if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+                if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
+                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                }
             }
 
             if (oom) {
-                free (key);
-                bj_free_group (&ga);
-                bj_free_group (&gb);
                 builtin_error ("out of memory");
                 rc = EXECUTION_FAILURE;
                 goto done;
             }
 
             if (!o.only_unmatched)
-                for (size_t i = 0; i < ga.n && !bj_out_err (&out_err); i++)
-                    for (size_t j = 0; j < gb.n && !bj_out_err (&out_err); j++) {
+                for (size_t i = 0; i < ga.n && !bj_out_err (&o, &out_err); i++)
+                    for (size_t j = 0; j < gb.n && !bj_out_err (&o, &out_err); j++) {
                         bj_emit (&o, &ga.v[i], &gb.v[j]);
-                        bj_out_err (&out_err);
+                        bj_out_err (&o, &out_err);
                     }
-            free (key);
-            bj_free_group (&ga);
-            bj_free_group (&gb);
         } else if (cmp < 0) {
             if (o.show_unmatched_1 && na != -1) {
                 bj_emit (&o, &ra, NULL);
-                if (bj_out_err (&out_err))
+                if (bj_out_err (&o, &out_err))
                     break;
             }
             na = getline (&la, &ca, fa);
-            if (na > 0) bj_split (&ra, la, (size_t) na, o.sep);
+            if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
+                builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+            }
         } else {
             if (o.show_unmatched_2 && nb != -1) {
                 bj_emit (&o, NULL, &rb);
-                if (bj_out_err (&out_err))
+                if (bj_out_err (&o, &out_err))
                     break;
             }
             nb = getline (&lb, &cb, fb);
-            if (nb > 0) bj_split (&rb, lb, (size_t) nb, o.sep);
+            if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
+                builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+            }
         }
     }
 
 done:
+    free (key);
+    bj_free_group (&ga); bj_free_group (&gb);
     bj_free_rec (&ra); bj_free_rec (&rb);
     free (la); free (lb);
     if (fa != stdin) fclose (fa);
     if (fb != stdin) fclose (fb);
-    if (!out_err && (fflush (stdout) == EOF || ferror (stdout)))
+    if (!out_err && (fflush (o.out) == EOF || ferror (o.out)))
+        out_err = errno ? errno : EIO;
+    if (o.out != stdout && fclose (o.out) != 0 && !out_err)
         out_err = errno ? errno : EIO;
     if (out_err) {
         builtin_error ("write error: %s", strerror (out_err));

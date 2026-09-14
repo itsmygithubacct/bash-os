@@ -37,8 +37,10 @@
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
+#include "unwind_prot.h"
 
 /* Shared CSI/SS3 key decoder. Wired in 2026-05-18 so arrow keys,
  * PgUp/PgDn and Home/End map onto the existing letter bindings.
@@ -259,12 +261,41 @@ bm_show_key_help (void)
 }
 
 static int
+bm_copy_stream (FILE *f)
+{
+    unsigned char buf[65536];
+    for (;;) {
+        size_t n = fread (buf, 1, sizeof buf, f);
+        int read_errno = errno;
+        QUIT;
+        if (n && fwrite (buf, 1, n, stdout) != n) goto write_error;
+        if (ferror (f)) {
+            if (read_errno == EINTR) { clearerr (f); continue; }
+            builtin_error ("read error: %s", strerror (read_errno));
+            return EXECUTION_FAILURE;
+        }
+        if (feof (f)) break;
+    }
+    if (fflush (stdout) != EOF) return EXECUTION_SUCCESS;
+write_error:
+    builtin_error ("write error: %s", strerror (errno));
+    return EXECUTION_FAILURE;
+}
+
+static int
 bm_pager (FILE *f, int rows, int hint)
 {
     /* A builtin runs in the shell process, so the stdio stream outlives the
        call. Without this, the EOF flag left by a previous invocation makes
        every later `more < FILE' read nothing and still exit 0. */
     clearerr (f);
+    /* No line boundaries or screen state are needed for redirected output.
+       Restrict full-block reads to regular files so a pipe or terminal still
+       emits complete lines without waiting for a large buffer to fill. */
+    struct stat st;
+    if (!isatty (STDOUT_FILENO) && fstat (fileno (f), &st) == 0 &&
+        S_ISREG (st.st_mode))
+        return bm_copy_stream (f);
     char *line = NULL;
     size_t cap = 0;
     ssize_t n;
@@ -345,7 +376,21 @@ bm_pager (FILE *f, int rows, int hint)
     }
     bm_restore_sigwinch (&old_winch, have_winch);
     free (line);
+    if (ferror (f)) {
+        builtin_error ("read error: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    if (fflush (stdout) == EOF) {
+        builtin_error ("write error: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
     return EXECUTION_SUCCESS;
+}
+
+static void
+bm_close_input (void *arg)
+{
+    fclose ((FILE *) arg);
 }
 
 int
@@ -415,8 +460,15 @@ more_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             continue;
         }
-        bm_pager (f, rows, hint);
-        if (f != stdin) fclose (f);
+        /* The bulk pager checks QUIT; close owned operands on that unwind
+           as well as on a normal return, without closing borrowed stdin. */
+        if (f != stdin) {
+            begin_unwind_frame ("more input");
+            add_unwind_protect (bm_close_input, f);
+        }
+        if (bm_pager (f, rows, hint) != EXECUTION_SUCCESS)
+            rc = EXECUTION_FAILURE;
+        if (f != stdin) run_unwind_frame ("more input");
     }
     return rc;
 }

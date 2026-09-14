@@ -410,6 +410,22 @@ bc_rotate (WORD_LIST *args, int delta)
 }
 
 static int
+bc_write_all (int fd, const unsigned char *bytes, size_t len)
+{
+    while (len) {
+        ssize_t n = write (fd, bytes, len);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (n == 0) { errno = EIO; return -1; }
+        bytes += n;
+        len -= (size_t) n;
+    }
+    return 0;
+}
+
+static int
 bc_text_cmd (WORD_LIST *args)
 {
     if (!args) { builtin_error ("text: HANDLE [-F FD] [-N SLOT] [-X]"); return EX_USAGE; }
@@ -464,25 +480,34 @@ bc_text_cmd (WORD_LIST *args)
         if (hex) { fputs (hex, stdout); putchar ('\n'); free (hex); }
         free (all);
     } else {
+        /* Coalesce short lines and separators without retaining another
+           copy of the yank slot. Long lines can be written directly. */
+        unsigned char output[65536];
+        size_t used = 0;
         for (size_t i = 0; i < S->n_lines; i++) {
-            size_t off = 0;
-            while (off < S->lengths[i]) {
-                ssize_t w = write (out_fd, S->lines[i] + off, S->lengths[i] - off);
-                if (w < 0) {
-                    if (errno == EINTR) continue;
-                    builtin_error ("text: write: %s", strerror (errno));
-                    return EXECUTION_FAILURE;
-                }
-                off += (size_t) w;
+            size_t len = S->lengths[i];
+            if (len > sizeof output - used) {
+                if (bc_write_all (out_fd, output, used) < 0) goto write_error;
+                used = 0;
             }
-            while (write (out_fd, "\n", 1) < 0) {
-                if (errno == EINTR) continue;
-                builtin_error ("text: write: %s", strerror (errno));
-                return EXECUTION_FAILURE;
+            if (len >= sizeof output) {
+                if (bc_write_all (out_fd, S->lines[i], len) < 0) goto write_error;
+            } else if (len) {
+                memcpy (output + used, S->lines[i], len);
+                used += len;
             }
+            if (used == sizeof output) {
+                if (bc_write_all (out_fd, output, used) < 0) goto write_error;
+                used = 0;
+            }
+            output[used++] = '\n';
         }
+        if (bc_write_all (out_fd, output, used) < 0) goto write_error;
     }
     return EXECUTION_SUCCESS;
+write_error:
+    builtin_error ("text: write: %s", strerror (errno));
+    return EXECUTION_FAILURE;
 }
 
 static int

@@ -114,6 +114,9 @@ typedef struct {
     /* s/// */
     regex_t    s_re;
     int        s_re_ok;
+    char      *s_literal;    /* nonempty ASCII regex without operators */
+    size_t     s_literal_len, s_repl_len;
+    int        s_repl_literal;
     int        s_empty_re;   /* s//repl/ : reuse the last regex at runtime */
     char      *s_repl;       /* replacement, may contain & and \1..\9 */
     int        s_global;     /* g flag */
@@ -544,6 +547,7 @@ bs_cmd_free (bs_cmd *c)
     if (c->addr2.re_ok) regfree (&c->addr2.re);
     if (c->s_re_ok)     regfree (&c->s_re);
     free (c->s_repl);
+    free (c->s_literal);
     free (c->label);
     free (c->text);
     free (c->s_wfile);
@@ -629,6 +633,8 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
                 size_t replen = (size_t) (p - rep_start);
                 c->s_repl = strndup (rep_start, replen);
                 if (!c->s_repl) { free (pat); goto err; }
+                c->s_repl_len = replen;
+                c->s_repl_literal = strpbrk (c->s_repl, "&\\") == NULL;
                 p++;   /* skip closing delim */
                 /* flags */
                 while (*p && *p != ';' && *p != '\n')
@@ -682,8 +688,18 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
                     builtin_error ("s/// bad regex: %s", pat_compat);
                     free (pat_compat); goto err;
                 }
-                free (pat_compat);
                 c->s_re_ok = 1;
+                if (!c->s_icase && *pat_compat
+                    && strpbrk (pat_compat, "\\.^$*+?[](){}|") == NULL) {
+                    const unsigned char *q = (const unsigned char *) pat_compat;
+                    while (*q && *q < 0x80) q++;
+                    if (!*q) {
+                        c->s_literal = pat_compat;
+                        c->s_literal_len = strlen (pat_compat);
+                        pat_compat = NULL;
+                    }
+                }
+                free (pat_compat);
                 break;
             }
             case 'd': c->kind = BS_D; break;
@@ -921,6 +937,11 @@ bs_case_append (bs_string *out, const char *s, size_t n, int *mode, int *one)
 static void
 bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string *out)
 {
+    if (c->s_repl_literal) {
+        bs_str_append (out, c->s_repl, c->s_repl_len);
+        return;
+    }
+
     int mode = 0;   /* 0 / 'U' / 'L' : \U \L span, ended by \E */
     int one  = 0;   /* 0 / 'u' / 'l' : \u \l one-shot */
     for (const char *r = c->s_repl; *r; r++)
@@ -979,6 +1000,14 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     if (!re) { builtin_error ("no previous regular expression"); return 0; }
     bs_last_re = re;
     bs_str_init (&out);
+    /* A byte search is equivalent for ASCII subjects in every locale and
+       for arbitrary byte subjects in a single-byte locale. Keep the regex
+       engine for multibyte text, including invalid encoding sequences. */
+    int literal = c->s_literal != NULL;
+    if (literal && MB_CUR_MAX > 1) {
+        for (size_t i = 0; i < pat->len; i++)
+            if ((unsigned char) pat->str[i] >= 0x80) { literal = 0; break; }
+    }
 
     /* POSIX/GNU occurrence semantics. `s_n` is the numeric flag (0 if absent):
          s///        -> replace occurrence 1 only      (start=1, !global)
@@ -992,7 +1021,17 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
 
     while (off <= pat->len)
     {
-        if (regexec (re, pat->str + off, 10, m, off > 0 ? REG_NOTBOL : 0) != 0)
+        if (literal) {
+            /* strstr preserves regexec's existing NUL-terminated subject
+               contract. Literal regexes have no capture groups. */
+            const char *hit = strstr (pat->str + off, c->s_literal);
+            if (!hit) break;
+            m[0].rm_so = (regoff_t) (hit - pat->str - off);
+            m[0].rm_eo = m[0].rm_so + (regoff_t) c->s_literal_len;
+            if (!c->s_repl_literal)
+                for (int i = 1; i < 10; i++) m[i].rm_so = m[i].rm_eo = -1;
+        }
+        else if (regexec (re, pat->str + off, 10, m, off > 0 ? REG_NOTBOL : 0) != 0)
             break;
         /* GNU/POSIX: an empty match is suppressed when it sits exactly at the
            end of the previous match (prevents a spurious extra replacement
@@ -1638,6 +1677,19 @@ sed_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
+    /* A script that only uses its main input/output can buffer regular
+       file output. Auxiliary streams and execution retain their original
+       ordering and may block, so keep immediate stdout delivery for them. */
+    int buffer_output = !isatty (STDOUT_FILENO);
+    for (int i = 0; i < n_cmds; i++) {
+        bs_cmd *c = &cmds[i];
+        if (c->kind == BS_R || c->kind == BS_BIGR
+            || c->kind == BS_W || c->kind == BS_BIGW || c->kind == BS_E
+            || c->s_wfile || c->s_exec) {
+            buffer_output = 0;
+            break;
+        }
+    }
     int rc = EXECUTION_SUCCESS;
     bs_stdout = (bs_output) { stdout, 0 };
     bs_stderr = (bs_output) { stderr, 0 };
@@ -1664,8 +1716,26 @@ sed_builtin (WORD_LIST *list)
             }
             int seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
             if (!seekable) setvbuf (f, NULL, _IONBF, 0);
+            /* Bash line-buffers stdout. A private stream batches regular
+               file output without changing the shell's buffering or the
+               prompt delivery of lines read from a pipe/FIFO/terminal. */
+            FILE *buffered = NULL;
+            struct stat sb;
+            if (buffer_output && fstat (fd, &sb) == 0 && S_ISREG (sb.st_mode)
+                && fflush (stdout) == 0) {
+                int outfd = dup (STDOUT_FILENO);
+                buffered = outfd < 0 ? NULL : fdopen (outfd, "w");
+                if (buffered) bs_stdout.fp = buffered;
+                else if (outfd >= 0) close (outfd);
+            }
             if (bs_run (cmds, n_cmds, f, &bs_stdout, suppress_default, name) < 0)
                 rc = EXECUTION_FAILURE;
+            if (buffered) {
+                /* Flush/close before opening the next potentially live file.
+                   Keep missing_newline across files on the shared bs_output. */
+                if (fclose (buffered) != 0) rc = EXECUTION_FAILURE;
+                bs_stdout.fp = stdout;
+            }
             /* Reconcile stdio read-ahead with the shared descriptor offset.
                fclose alone would discard bytes that shell read still needs. */
             if (use_stdin && seekable && fseeko (f, 0, SEEK_CUR) != 0) {

@@ -192,6 +192,62 @@ bwc_digits (unsigned long long v)
     return width;
 }
 
+/* Byte counts and single-byte character counts do not require word or
+   display-width classification. Count only the requested fields, keeping
+   the existing decoding path for multibyte characters and display widths.
+   Reading the stream (rather than using a cached file size) also preserves
+   its current position and works for pipes and changing pseudo-files. */
+static int
+bwc_count_selected (FILE *f, bwc_counts *c, int lflag, int wflag,
+                    int cflag, int mflag, int Lflag)
+{
+    if ((lflag || cflag || mflag) && !wflag && !Lflag &&
+        (!mflag || MB_CUR_MAX == 1)) {
+        unsigned char buf[65536];
+        size_t n;
+        while ((n = fread (buf, 1, sizeof buf, f)) != 0) {
+            c->bytes += (long long) n;
+            c->chars += (long long) n;
+            if (lflag) {
+                const unsigned char *p = buf, *end = buf + n;
+                while ((p = memchr (p, '\n', (size_t) (end - p))) != NULL) {
+                    c->lines++;
+                    p++;
+                }
+            }
+        }
+        return 0;
+    }
+    if (Lflag && !wflag && MB_CUR_MAX == 1) {
+        unsigned char buf[65536];
+        long long width = 0;
+        size_t n;
+        while ((n = fread (buf, 1, sizeof buf, f)) != 0) {
+            c->bytes += (long long) n;
+            c->chars += (long long) n;
+            const unsigned char *p = buf, *end = buf + n;
+            while (p < end) {
+                /* Printable ASCII runs need only their byte length. Keep
+                   the locale classification for other single-byte values. */
+                const unsigned char *start = p;
+                while (p < end && *p >= 0x20 && *p < 0x7f) p++;
+                width += (long long) (p - start);
+                if (p == end) break;
+                unsigned char b = *p++;
+                if (b == '\n' || b == '\r' || b == '\f') {
+                    if (width > c->max_line) c->max_line = width;
+                    width = 0;
+                    if (b == '\n') c->lines++;
+                } else if (b == '\t') width += 8 - width % 8;
+                else if (isprint (b)) width++;
+            }
+        }
+        if (width > c->max_line) c->max_line = width;
+        return 0;
+    }
+    return (mflag || Lflag) ? bwc_count_stream (f, c) : bwc_count_fast (f, c);
+}
+
 /* Print one row of counts according to enabled flags, right-aligning each
  * count column to field width `w` (GNU wc's number_width). Columns are
  * separated by a single space; the first column is also padded to `w`. */
@@ -422,7 +478,7 @@ wc_builtin (WORD_LIST *list)
                 }
             }
             bwc_counts c = {0};
-            ((mflag || Lflag) ? bwc_count_stream : bwc_count_fast) (f, &c);
+            bwc_count_selected (f, &c, lflag, wflag, cflag, mflag, Lflag);
             if (!from_stdin)
                 fclose (f);
             bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, names[k]);
@@ -447,7 +503,7 @@ wc_builtin (WORD_LIST *list)
     if (!list) {
         int width = bwc_number_width ((char *[]){ (char *) "-" }, 1, ncols);
         bwc_counts c = {0};
-        ((mflag || Lflag) ? bwc_count_stream : bwc_count_fast) (stdin, &c);
+        bwc_count_selected (stdin, &c, lflag, wflag, cflag, mflag, Lflag);
         bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, NULL);
     } else {
         int n_files = 0;
@@ -481,7 +537,7 @@ wc_builtin (WORD_LIST *list)
                 }
             }
             bwc_counts c = {0};
-            ((mflag || Lflag) ? bwc_count_stream : bwc_count_fast) (f, &c);
+            bwc_count_selected (f, &c, lflag, wflag, cflag, mflag, Lflag);
             if (!from_stdin)
                 fclose (f);
             bwc_print (&c, lflag, wflag, cflag, mflag, Lflag, width, p->word->word);

@@ -58,6 +58,11 @@
 #include <sys/sysmacros.h>
 #include <time.h>
 #include <sched.h>
+#if defined (__linux__)
+#  include <sys/syscall.h>
+#  include <sys/vfs.h>
+#  include <linux/magic.h>
+#endif
 
 #include "loadables.h"
 #include "error.h"
@@ -185,6 +190,40 @@ bcu_usage (const char *verb)
  * tac — reverse lines.
  * =================================================================== */
 
+/* Coalesce small records while retaining stdio ordering with other Bash
+   builtins. A large record goes directly to stdout without another copy. */
+typedef struct {
+  char bytes[65536];
+  size_t used;
+  int failed;
+} BCU_OUTPUT;
+
+static void
+bcu_output_flush (BCU_OUTPUT *out)
+{
+  if (!out->failed && out->used &&
+      fwrite (out->bytes, 1, out->used, stdout) != out->used)
+    out->failed = 1;
+  out->used = 0;
+}
+
+static void
+bcu_output_append (BCU_OUTPUT *out, const char *bytes, size_t len)
+{
+  if (out->failed || !len) return;
+  if (len > sizeof out->bytes - out->used) bcu_output_flush (out);
+  if (out->failed) return;
+  if (len >= sizeof out->bytes)
+    {
+      if (fwrite (bytes, 1, len, stdout) != len) out->failed = 1;
+    }
+  else
+    {
+      memcpy (out->bytes + out->used, bytes, len);
+      out->used += len;
+    }
+}
+
 static int
 bcu_tac_stream (FILE *fp, const char *sep)
 {
@@ -208,31 +247,38 @@ bcu_tac_stream (FILE *fp, const char *sep)
                       if (!starts) { free (buf); builtin_error ("tac: oom"); return EXECUTION_FAILURE; } } \
       starts[n++] = (o); } while (0)
   BCU_TAC_PUSH (0);
-  if (seplen > 0)
+  if (seplen > 0 && seplen <= (size_t) len)
     {
-      ssize_t i = 0;
-      while (i + (ssize_t) seplen <= len)
+      size_t i = 0, last = (size_t) len - seplen;
+      while (i <= last)
         {
-          if (memcmp (buf + i, sep, seplen) == 0)
+          const char *found = memchr (buf + i, (unsigned char) sep[0],
+                                      last - i + 1);
+          if (!found) break;
+          i = (size_t) (found - buf);
+          if (seplen == 1 || memcmp (found, sep, seplen) == 0)
             {
-              size_t next = (size_t) i + seplen;
-              if ((ssize_t) next < len) BCU_TAC_PUSH (next);
-              i += (ssize_t) seplen;
+              size_t next = i + seplen;
+              if (next < (size_t) len) BCU_TAC_PUSH (next);
+              i = next;
             }
           else
             i++;
         }
     }
   #undef BCU_TAC_PUSH
+  BCU_OUTPUT out;
+  out.used = 0; out.failed = 0;
   for (ssize_t k = (ssize_t) n - 1; k >= 0; k--)
     {
       size_t s = starts[k];
       size_t e = (k + 1 < (ssize_t) n) ? starts[k + 1] : (size_t) len;
-      fwrite (buf + s, 1, e - s, stdout);
+      bcu_output_append (&out, buf + s, e - s);
     }
+  bcu_output_flush (&out);
   free (starts);
   free (buf);
-  return EXECUTION_SUCCESS;
+  return out.failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 static int
@@ -602,9 +648,7 @@ typedef long int BCU_COST;
 #define BCU_LINE_CREDIT   BCU_EQUIV (3)
 
 typedef struct bcu_word {
-  const char *text;        /* the text of the word. */
   int length;              /* length of this word. */
-  int space;               /* size of the following space (1 or 2). */
   unsigned int paren:1;    /* starts with open paren. */
   unsigned int period:1;   /* ends in [.?!])* */
   unsigned int punct:1;    /* ends in punctuation. */
@@ -633,9 +677,8 @@ typedef struct {
 
 /* GNU check_punctuation: set paren/punct/period flags for word W. */
 static void
-bcu_fmt_check_punctuation (BCU_WORD *w)
+bcu_fmt_check_punctuation (BCU_WORD *w, const char *start)
 {
-  const char *start = w->text;
   const char *finish = start + (w->length - 1);
   unsigned char fin = (unsigned char) *finish;
 
@@ -734,7 +777,7 @@ bcu_fmt_paragraph (BCU_FMTCTX *ctx)
           if (w == ctx->word_limit)
             break;
 
-          len += (w - 1)->space + w->length;  /* w > start >= word. */
+          len += 1 + w->length;  /* Parsing collapses every gap to one space. */
         }
       while (len <= ctx->max_width);
       start->best_cost = best + bcu_fmt_base_cost (ctx, start);
@@ -746,33 +789,11 @@ bcu_fmt_paragraph (BCU_FMTCTX *ctx)
 /* Emit one paragraph's words with GNU-optimal line breaks. Re-emits the
  * paragraph prefix at the start of each output line. */
 static void
-bcu_fmt_emit_para (char **words, size_t n, const char *prefix, int width)
+bcu_fmt_emit_para (char *text, BCU_WORD *word, size_t n,
+                   const char *prefix, int width, BCU_OUTPUT *out)
 {
   if (!n) return;
   size_t prefixlen = prefix ? strlen (prefix) : 0;
-
-  /* Build the WORD array: n words plus a sentinel slot (GNU style). */
-  BCU_WORD *word = bcu_calloc (n + 1, sizeof *word);
-  if (!word)
-    {
-      /* Out of memory: degrade to one-word-per-line so we still emit. */
-      for (size_t i = 0; i < n; i++)
-        {
-          if (prefix) fputs (prefix, stdout);
-          fputs (words[i], stdout);
-          putchar ('\n');
-        }
-      return;
-    }
-
-  for (size_t i = 0; i < n; i++)
-    {
-      word[i].text = words[i];
-      word[i].length = (int) strlen (words[i]);
-      bcu_fmt_check_punctuation (&word[i]);   /* sets paren/punct/period. */
-      word[i].final = 0;
-      word[i].space = 1;
-    }
 
   /* GNU sets a word's 'final' flag only when its period is followed by
    * end-of-line or >1 space in the SOURCE. The stream feeding us has
@@ -796,33 +817,28 @@ bcu_fmt_emit_para (char **words, size_t n, const char *prefix, int width)
 
   bcu_fmt_paragraph (&ctx);
 
-  /* put_paragraph + put_line (GNU): the outer loop iterates the line-start
-   * words via the next_break chain; each line emits its words up to (but
-   * not including) the next break, separated by w->space. A distinct inner
-   * cursor is used so the chain pointer is never clobbered. */
+  /* Word text and its single-space gaps are contiguous. The optimizer's
+     line length already gives the span to emit, excluding the prefix. */
+  char *line_text = text;
   for (BCU_WORD *line = word; line != ctx.word_limit; line = line->next_break)
     {
-      if (prefix) fputs (prefix, stdout);
-      BCU_WORD *endline = line->next_break - 1;
-      BCU_WORD *w = line;
-      for (; w != endline; w++)
-        {
-          fwrite (w->text, 1, (size_t) w->length, stdout);
-          for (int s = 0; s < w->space; s++) putchar (' ');
-        }
-      fwrite (w->text, 1, (size_t) w->length, stdout);
-      putchar ('\n');
+      if (prefix) bcu_output_append (out, prefix, prefixlen);
+      size_t len = (size_t) line->line_length - prefixlen;
+      line_text[len] = '\n';
+      bcu_output_append (out, line_text, len + 1);
+      line_text += len + 1;
     }
-
-  free (word);
 }
 
 static int
 bcu_fmt_stream (FILE *fp, int width)
 {
   char *line = NULL; size_t llen = 0; ssize_t r;
-  char **words = NULL; size_t n = 0, cap = 0;
+  BCU_WORD *word = NULL; size_t n = 0, cap = 0;
+  char *text = NULL; size_t textlen = 0, textcap = 0;
   char *prefix = NULL;
+  BCU_OUTPUT out;
+  out.used = 0; out.failed = 0;
 
   while ((r = getline (&line, &llen, fp)) != -1)
     {
@@ -832,10 +848,9 @@ bcu_fmt_stream (FILE *fp, int width)
         if (!isspace ((unsigned char) line[i])) { blank = 0; break; }
       if (blank)
         {
-          bcu_fmt_emit_para (words, n, prefix, width);
-          if (n) putchar ('\n');
-          for (size_t i = 0; i < n; i++) free (words[i]);
-          n = 0;
+          bcu_fmt_emit_para (text, word, n, prefix, width, &out);
+          if (n) bcu_output_append (&out, "\n", 1);
+          n = 0; textlen = 0;
           free (prefix); prefix = NULL;
           continue;
         }
@@ -860,17 +875,41 @@ bcu_fmt_stream (FILE *fp, int width)
           char *start = p;
           while (*p && !isspace ((unsigned char) *p)) p++;
           size_t wlen = (size_t) (p - start);
-          if (n == cap) { cap = cap ? cap * 2 : 64; words = xrealloc (words, cap * sizeof (*words)); }
-          char *w = xmalloc (wlen + 1);
-          memcpy (w, start, wlen);
-          w[wlen] = '\0';
-          words[n++] = w;
+          if (n == cap) {
+            if (cap > (SIZE_MAX / sizeof *word - 1) / 2) {
+              fatal_error ("coreutils fmt: allocation too large"); abort ();
+            }
+            cap = cap ? cap * 2 : 64;
+            word = xrealloc (word, (cap + 1) * sizeof *word);
+          }
+          if (wlen == SIZE_MAX || textlen > SIZE_MAX - wlen - 1) {
+            fatal_error ("coreutils fmt: allocation too large"); abort ();
+          }
+          size_t need = textlen + wlen + 1;
+          if (need > textcap) {
+            size_t grow = textcap ? textcap : 4096;
+            while (grow < need) {
+              if (grow > SIZE_MAX / 2) { grow = need; break; }
+              grow *= 2;
+            }
+            text = xrealloc (text, grow);
+            textcap = grow;
+          }
+          word[n].length = (int) wlen;
+          word[n].final = 0;
+          bcu_fmt_check_punctuation (&word[n], start);
+          n++;
+          /* The final slot remains available for the optimizer's sentinel. */
+          word[n].length = 0;
+          memcpy (text + textlen, start, wlen);
+          text[textlen + wlen] = ' ';
+          textlen = need;
         }
     }
-  bcu_fmt_emit_para (words, n, prefix, width);
-  for (size_t i = 0; i < n; i++) free (words[i]);
-  free (words); free (prefix); free (line);
-  return EXECUTION_SUCCESS;
+  bcu_fmt_emit_para (text, word, n, prefix, width, &out);
+  bcu_output_flush (&out);
+  free (word); free (text); free (prefix); free (line);
+  return (out.failed || ferror (fp)) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 static int
@@ -1418,14 +1457,80 @@ bcu_groups_cmd (WORD_LIST *list)
  * matches GNU install behavior on non-root invocations).
  * =================================================================== */
 
+/* Limit deferred truncation to ordinary ext-family storage. S_ISREG alone
+   also includes memfds with seals and virtual files whose truncate operation
+   has different rules. Unsupported filesystems keep the original open flags. */
+static int
+bcu_install_storage_fd (int fd)
+{
+#if defined (__linux__)
+  struct statfs fs;
+  return fstatfs (fd, &fs) == 0 && fs.f_type == EXT4_SUPER_MAGIC;
+#else
+  (void) fd;
+  return 0;
+#endif
+}
+
 static int
 bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, gid_t gid)
 {
   int rfd = open (src, O_RDONLY);
   if (rfd < 0) { builtin_error ("install: %s: %s", src, strerror (errno)); return EXECUTION_FAILURE; }
-  int wfd = open (dst, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-  if (wfd < 0) { close (rfd); builtin_error ("install: %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
-  char buf[BUFSZ];
+  struct stat src_st, dst_st;
+  int regular_src = fstat (rfd, &src_st) == 0 && S_ISREG (src_st.st_mode);
+  /* Overwriting an existing regular file avoids discarding its cached pages
+     before replacing the data. Keep the inode (including hard/symbolic link
+     aliases), then remove the old tail once copying ends. Readers may still
+     see that tail during the copy; an interrupted process cannot remove it.
+     Streams, special files and same-inode copies keep immediate truncation. */
+  int truncate_late = 0;
+#if defined (__linux__)
+  struct statfs dst_fs;
+  truncate_late = regular_src && bcu_install_storage_fd (rfd) &&
+                  stat (dst, &dst_st) == 0 && S_ISREG (dst_st.st_mode) &&
+                  (src_st.st_dev != dst_st.st_dev || src_st.st_ino != dst_st.st_ino) &&
+                  statfs (dst, &dst_fs) == 0 && dst_fs.f_type == EXT4_SUPER_MAGIC;
+#endif
+  int wfd = open (dst, O_WRONLY | O_CREAT | (truncate_late ? 0 : O_TRUNC), 0600);
+  if (wfd < 0)
+    { int e = errno; close (rfd); builtin_error ("install: %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+  /* Recheck the actual descriptor in case the path changed since stat.
+     Linux ignores O_TRUNC on nonregular files, so that case needs no action.
+     Never reopen a changed path: it might now name a different inode or FIFO. */
+  if (truncate_late)
+    {
+      if (fstat (wfd, &dst_st) < 0)
+        { int e = errno; close (rfd); close (wfd); builtin_error ("install: stat %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+      if (!S_ISREG (dst_st.st_mode))
+        truncate_late = 0;
+      else if ((src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino) ||
+               !bcu_install_storage_fd (wfd))
+        {
+          truncate_late = 0;
+          if (ftruncate (wfd, 0) < 0)
+            { int e = errno; close (rfd); close (wfd); builtin_error ("install: truncate %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+        }
+    }
+  off_t copied = 0;
+  int write_error = 0, truncate_error = 0;
+#if defined (__linux__) && defined (SYS_copy_file_range)
+  /* Unsupported filesystems (or a short kernel copy) continue through
+     read/write at the descriptors' current offsets. */
+  if (regular_src && (truncate_late ||
+                     (fstat (wfd, &dst_st) == 0 && S_ISREG (dst_st.st_mode))))
+    {
+      ssize_t moved;
+      while ((moved = syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
+                               (size_t) 1024 * 1024 * 1024, 0)) > 0)
+        if (truncate_late) copied += moved;
+    }
+  /* Always finish with read, including after a zero return: some virtual
+     regular files report zero size yet still yield data when read. */
+#endif
+  /* Amortize read/write calls for streams and portable fallback copies.
+     Short reads still emit at once. */
+  char buf[128 * 1024];
   ssize_t n;
   while ((n = read (rfd, buf, sizeof buf)) > 0)
     {
@@ -1433,11 +1538,29 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
       while (off < n)
         {
           ssize_t w = write (wfd, buf + off, (size_t) (n - off));
-          if (w < 0) { close (rfd); close (wfd); builtin_error ("install: write: %s", strerror (errno)); return EXECUTION_FAILURE; }
+          if (w <= 0) { write_error = w < 0 ? errno : EIO; goto copy_done; }
           off += w;
+          if (truncate_late) copied += w;
         }
     }
+copy_done:
+  /* Trim even after a partial write failure, matching the prefix left by an
+     immediately truncated destination. Preserve the primary write diagnostic
+     if trimming fails as well, and report both errors before metadata work. */
+  if (truncate_late)
+    {
+      int rc;
+      do rc = ftruncate (wfd, copied); while (rc < 0 && errno == EINTR);
+      if (rc < 0) truncate_error = errno;
+    }
   close (rfd);
+  if (write_error || truncate_error)
+    {
+      close (wfd);
+      if (write_error) builtin_error ("install: write: %s", strerror (write_error));
+      if (truncate_error) builtin_error ("install: truncate %s: %s", dst, strerror (truncate_error));
+      return EXECUTION_FAILURE;
+    }
   if (fchmod (wfd, mode) < 0)
     { close (wfd); builtin_error ("install: chmod %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
   if (geteuid () == 0 && (uid != (uid_t) -1 || gid != (gid_t) -1))

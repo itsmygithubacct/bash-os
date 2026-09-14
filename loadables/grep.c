@@ -1333,6 +1333,40 @@ bg_range_nomatch (bg_state *st, size_t end)
     st->pos = end;
 }
 
+/* The common unadorned single-literal search needs no per-line option,
+   prefix, or context bookkeeping. Work over complete windows and coalesce
+   adjacent selected lines before copying them to the output buffer. Binary
+   windows and multibyte encoding errors retain the general path below. */
+static void
+bg_fixed_window (bg_state *st)
+{
+    bg_opts *o = st->o;
+    char *buf = st->in.buf;
+    size_t pos = st->pos, begin = 0, end = 0;
+    while (pos < st->lim)
+    {
+        size_t at = bg_memfind (o, buf, st->lim, pos, &o->needles[0]);
+        if (at == BG_NOHIT) break;
+        char *e = memchr (buf + at, o->delim, st->lim - at);
+        size_t next = (size_t) (e - buf) + 1;
+        st->count++;
+        if (!o->cflag)
+        {
+            char *b = at > pos ? memrchr (buf + pos, o->delim, at - pos) : NULL;
+            size_t first = b ? (size_t) (b - buf) + 1 : pos;
+            if (first != end)
+            {
+                if (end > begin) bg_out (o, buf + begin, end - begin);
+                begin = first;
+            }
+            end = next;
+        }
+        pos = next;
+    }
+    if (end > begin) bg_out (o, buf + begin, end - begin);
+    st->pos = st->lim;
+}
+
 /* ------------------------------------------------------------- one file --- */
 
 static void
@@ -1373,6 +1407,11 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
     st.done_on_match = o->lflag || o->Lflag || o->qflag;
     st.quiet = o->cflag || st.done_on_match;
     st.printmode = !st.quiet;
+    int simple_fixed = o->mode == BG_FIXED && o->n_needles == 1
+        && o->needles[0].n > 0 && !o->fold && !o->wrap_l && !o->wrap_r
+        && !o->wflag && !o->xflag && !o->vflag && !o->ctx && !o->mflag_set
+        && !st.done_on_match && !o->oflag && !o->nflag && !o->bflag
+        && (o->cflag || !st.prefix);
 
     for (;;)
     {
@@ -1387,6 +1426,13 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
                 break;
             }
             if (r == 0) break;
+        }
+        if (simple_fixed && !st.binary
+            && (o->cflag || o->aflag
+                || !bg_encoding_error (o, st.in.buf + st.pos, st.lim - st.pos)))
+        {
+            bg_fixed_window (&st);
+            continue;
         }
         if (st.outleft == 0)
         {

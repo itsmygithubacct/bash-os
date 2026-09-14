@@ -95,11 +95,17 @@ bidx_put_be16 (unsigned char *buf, uint16_t v)
 static void
 bidx_sha_to_hex (const unsigned char *sha, char *out)
 {
-    static const char d[] = "0123456789abcdef";
-    for (int i = 0; i < 20; i++) {
-        out[2*i]   = d[sha[i] >> 4];
-        out[2*i+1] = d[sha[i] & 0xF];
-    }
+    static const char pairs[] =
+        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+        "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+        "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f"
+        "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+        "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
+        "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff";
+    for (int i = 0; i < 20; i++)
+        memcpy (out + 2*i, pairs + 2*sha[i], 2);
     out[40] = '\0';
 }
 
@@ -163,6 +169,13 @@ typedef struct {
     char *path;
 } bidx_entry;
 
+/* Read-only commands need only the validated on-disk entry and its path.
+   Keep views compact; decode complete stat records only for editing. */
+typedef struct {
+    const unsigned char *disk;
+    const char *path;
+} bidx_view;
+
 static void
 bidx_entry_set_stat (bidx_entry *e, const struct stat *st)
 {
@@ -205,9 +218,57 @@ bidx_slurp (const char *path, size_t *out_len)
     return buf;
 }
 
-/* Parse index file. Returns 0 + sets *out, *n_out on success. */
+/* Keep one bounded, owned snapshot of successfully checksum-validated bytes.
+   Every parse still reads and validates entries anew. Only exact equality of
+   the entire file, including its trailer, reuses the earlier checksum result;
+   no pathname, metadata, parsed entries or borrowed paths are cached. */
+#define BIDX_CHECKSUM_CACHE_LIMIT ((size_t) 8 * 1024 * 1024)
+static unsigned char *bidx_verified_bytes;
+static size_t bidx_verified_len;
+
 static int
-bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
+bidx_checksum_cached (const unsigned char *buf, size_t len)
+{
+    return bidx_verified_bytes && len == bidx_verified_len &&
+           memcmp (buf, bidx_verified_bytes, len) == 0;
+}
+
+static void
+bidx_remember_verified (const unsigned char *buf, size_t len)
+{
+    if (len > BIDX_CHECKSUM_CACHE_LIMIT) return;
+    int saved_errno = errno;
+    if (len != bidx_verified_len) {
+        /* Release first to retain no more than one snapshot. An optional
+           allocation failure leaves ordinary checksum validation active. */
+        free (bidx_verified_bytes);
+        bidx_verified_bytes = NULL;
+        bidx_verified_len = 0;
+        bidx_verified_bytes = malloc (len);
+    }
+    if (bidx_verified_bytes) {
+        memcpy (bidx_verified_bytes, buf, len);
+        bidx_verified_len = len;
+    }
+    errno = saved_errno;
+}
+
+/* Static builds retain the snapshot until replacement or process exit. */
+void
+index_builtin_unload (char *name)
+{
+    (void) name;
+    free (bidx_verified_bytes);
+    bidx_verified_bytes = NULL;
+    bidx_verified_len = 0;
+}
+
+/* Parse and validate an index, borrowing path spans from the returned backing
+   buffer. Read-only callers can release both allocations together; editing
+   callers below materialize independently owned paths after validation. */
+static int
+bidx_parse_view (const char *path, bidx_view **out, size_t *n_out,
+                 unsigned char **backing)
 {
     size_t flen;
     unsigned char *buf = bidx_slurp (path, &flen);
@@ -235,29 +296,20 @@ bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
     if (n_entries > (flen - 32) / 64) {
         free (buf); builtin_error ("truncated index (entry count)"); return -1;
     }
-    bidx_entry *entries = calloc (n_entries ? n_entries : 1, sizeof (bidx_entry));
+    bidx_view *entries = calloc (n_entries ? n_entries : 1, sizeof *entries);
     if (!entries) { free (buf); return -1; }
 
     size_t off = 12;
     for (uint32_t i = 0; i < n_entries; i++) {
         if (off + 62 > flen - 20) { /* -20 for trailer */
-            free (buf); bidx_free_entries (entries, i);
+            free (buf); free (entries);
             builtin_error ("truncated index");
             return -1;
         }
-        bidx_entry *e = &entries[i];
-        e->ctime_sec  = bidx_be32 (buf, off);      off += 4;
-        e->ctime_nsec = bidx_be32 (buf, off);      off += 4;
-        e->mtime_sec  = bidx_be32 (buf, off);      off += 4;
-        e->mtime_nsec = bidx_be32 (buf, off);      off += 4;
-        e->dev        = bidx_be32 (buf, off);      off += 4;
-        e->ino        = bidx_be32 (buf, off);      off += 4;
-        e->mode       = bidx_be32 (buf, off);      off += 4;
-        e->uid        = bidx_be32 (buf, off);      off += 4;
-        e->gid        = bidx_be32 (buf, off);      off += 4;
-        e->size       = bidx_be32 (buf, off);      off += 4;
-        memcpy (e->sha, buf + off, 20);            off += 20;
-        e->flags      = bidx_be16 (buf, off);      off += 2;
+        bidx_view *e = &entries[i];
+        e->disk = buf + off;
+        uint16_t flags = bidx_be16 (buf, off + 60);
+        off += 62;
 
         /* v3+ CE_EXTENDED (0x4000) entries carry a second 16-bit flags
            field (flags2) before the path — git's create_from_disk reads it
@@ -267,9 +319,9 @@ bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
            extended_len feeds the 8-byte padding so the on-disk size matches
            git's ondisk_data_size(). */
         size_t extended_len = 0;
-        if (ver >= 3 && (e->flags & 0x4000)) {
+        if (ver >= 3 && (flags & 0x4000)) {
             if (off + 2 > flen - 20) {
-                free (buf); bidx_free_entries (entries, i);
+                free (buf); free (entries);
                 builtin_error ("truncated index (extended flags)");
                 return -1;
             }
@@ -277,18 +329,15 @@ bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
             extended_len = 2;
         }
 
-        size_t path_len = e->flags & 0xFFF;
+        size_t path_len = flags & 0xFFF;
         const unsigned char *nul = memchr (buf + off, 0, flen - 20 - off);
         if (path_len == 0xFFF && nul) path_len = (size_t) (nul - buf - off);
         if (!nul || (size_t) (nul - buf - off) != path_len) {
-            free (buf); bidx_free_entries (entries, i);
+            free (buf); free (entries);
             builtin_error ("truncated index (path)");
             return -1;
         }
-        e->path = malloc (path_len + 1);
-        if (!e->path) { free (buf); bidx_free_entries (entries, i); return -1; }
-        memcpy (e->path, buf + off, path_len);
-        e->path[path_len] = '\0';
+        e->path = (char *) buf + off;
         off += path_len;
         /* Pad to 8-byte boundary. The entry start is 12 bytes into the
            file, so total entry length so far = 62 (+2 if extended) +
@@ -297,12 +346,12 @@ bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
         size_t pad = (8 - (entry_len % 8));
         if (pad == 0) pad = 8;
         if (pad > flen - 20 - off) {
-            free (buf); bidx_free_entries (entries, i + 1);
+            free (buf); free (entries);
             builtin_error ("truncated index (padding)"); return -1;
         }
         for (size_t j = 0; j < pad; j++) {
             if (buf[off + j] != 0) {
-                free (buf); bidx_free_entries (entries, i + 1);
+                free (buf); free (entries);
                 builtin_error ("invalid index padding"); return -1;
             }
         }
@@ -313,27 +362,70 @@ bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
        Git computes the trailer over the entire index body including headers
        and all entries (everything before the trailer itself). */
     if (flen < 20) {
-        free (buf); bidx_free_entries (entries, n_entries);
+        free (buf); free (entries);
         builtin_error ("index too short (no trailer)");
         return -1;
     }
-    unsigned char stored[20];
-    memcpy (stored, buf + flen - 20, 20);
-    SHA1_CTX ctx;
-    SHA1DCInit (&ctx);
-    SHA1DCSetSafeHash (&ctx, 0);
-    SHA1DCUpdate (&ctx, (const char *) buf, flen - 20);
-    unsigned char computed[20];
-    SHA1DCFinal (computed, &ctx);
-    if (memcmp (computed, stored, 20) != 0) {
-        free (buf); bidx_free_entries (entries, n_entries);
-        builtin_error ("index checksum mismatch");
-        return -1;
+    if (!bidx_checksum_cached (buf, flen)) {
+        unsigned char stored[20];
+        memcpy (stored, buf + flen - 20, 20);
+        SHA1_CTX ctx;
+        SHA1DCInit (&ctx);
+        SHA1DCSetSafeHash (&ctx, 0);
+        SHA1DCUpdate (&ctx, (const char *) buf, flen - 20);
+        unsigned char computed[20];
+        int collision = SHA1DCFinal (computed, &ctx);
+        if (memcmp (computed, stored, 20) != 0) {
+            free (buf); free (entries);
+            builtin_error ("index checksum mismatch");
+            return -1;
+        }
+        /* Retain existing acceptance behavior, but never reuse a result
+           for which SHA1DC reported a collision. */
+        if (!collision) bidx_remember_verified (buf, flen);
     }
 
-    free (buf);
+    *backing = buf;
     *out = entries;
     *n_out = n_entries;
+    return 0;
+}
+
+/* Mutation verbs retain the original separately-owned path representation. */
+static int
+bidx_parse (const char *path, bidx_entry **out, size_t *n_out)
+{
+    bidx_view *views;
+    size_t n;
+    unsigned char *backing;
+    if (bidx_parse_view (path, &views, &n, &backing) < 0) return -1;
+    bidx_entry *entries = calloc (n ? n : 1, sizeof *entries);
+    if (!entries) { free (views); free (backing); return -1; }
+    for (size_t i = 0; i < n; i++) {
+        const unsigned char *disk = views[i].disk;
+        bidx_entry *e = &entries[i];
+        e->ctime_sec  = bidx_be32 (disk, 0);
+        e->ctime_nsec = bidx_be32 (disk, 4);
+        e->mtime_sec  = bidx_be32 (disk, 8);
+        e->mtime_nsec = bidx_be32 (disk, 12);
+        e->dev        = bidx_be32 (disk, 16);
+        e->ino        = bidx_be32 (disk, 20);
+        e->mode       = bidx_be32 (disk, 24);
+        e->uid        = bidx_be32 (disk, 28);
+        e->gid        = bidx_be32 (disk, 32);
+        e->size       = bidx_be32 (disk, 36);
+        memcpy (e->sha, disk + 40, 20);
+        e->flags = bidx_be16 (disk, 60);
+        e->path = strdup (views[i].path);
+        if (!e->path) {
+            bidx_free_entries (entries, i);
+            free (views); free (backing);
+            return -1;
+        }
+    }
+    free (views); free (backing);
+    *out = entries;
+    *n_out = n;
     return 0;
 }
 
@@ -449,30 +541,71 @@ bidx_read_cmd (WORD_LIST *args)
         } else { if (path) { builtin_error ("read: too many"); return EX_USAGE; } path = w; }
     }
     if (!path) { builtin_error ("read: PATH required"); return EX_USAGE; }
-    bidx_entry *entries; size_t n;
-    if (bidx_parse (path, &entries, &n) < 0) return EXECUTION_FAILURE;
+    bidx_view *entries; size_t n;
+    unsigned char *backing;
+    if (bidx_parse_view (path, &entries, &n, &backing) < 0)
+        return EXECUTION_FAILURE;
 
     SHELL_VAR *arr = NULL;
     if (var) {
         unbind_variable ((char *) var);
         arr = find_or_make_array_variable ((char *) var, 1);
     }
+    char output[65536];
+    size_t used = 0;
+    int rc = EXECUTION_SUCCESS;
     for (size_t i = 0; i < n; i++) {
-        char hex[41];
-        bidx_sha_to_hex (entries[i].sha, hex);
-        int stage = (entries[i].flags >> 12) & 0x3;
-        char line[8192];
-        snprintf (line, sizeof line, "%o %s %d %s",
-                  entries[i].mode, hex, stage, entries[i].path);
+        char array_line[8192], octal[11];
+        size_t digits = 0, len = 0;
+        uint32_t mode = bidx_be32 (entries[i].disk, 24);
+        uint16_t flags = bidx_be16 (entries[i].disk, 60);
+        size_t pathlen = flags & 0xFFF;
+        if (pathlen == 0xFFF) pathlen = strlen (entries[i].path);
+        if (!arr) {
+            /* At most 11 octal digits, 40 hex digits, one stage digit,
+               three spaces and a newline. Reserve before formatting so
+               stdout records need no intermediate line copy. */
+            size_t reserve = pathlen > sizeof array_line - 56 ?
+                             sizeof array_line : pathlen + 56;
+            if (sizeof output - used < reserve) {
+                if (fwrite (output, 1, used, stdout) != used) {
+                    rc = EXECUTION_FAILURE;
+                    used = 0;
+                    break;
+                }
+                used = 0;
+            }
+        }
+        char *line = arr ? array_line : output + used;
+        do {
+            octal[digits++] = '0' + (mode & 7);
+            mode >>= 3;
+        } while (mode);
+        while (digits) line[len++] = octal[--digits];
+        line[len++] = ' ';
+        bidx_sha_to_hex (entries[i].disk + 40, line + len);
+        len += 40;
+        line[len++] = ' ';
+        line[len++] = '0' + ((flags >> 12) & 0x3);
+        line[len++] = ' ';
+        if (pathlen > sizeof array_line - len - 1)
+            pathlen = sizeof array_line - len - 1;
+        memcpy (line + len, entries[i].path, pathlen);
+        len += pathlen;
+        line[len] = '\0';
         if (arr) {
             ARRAY *a = array_cell (arr);
             array_insert (a, (arrayind_t) i, line);
         } else {
-            puts (line);
+            line[len] = '\n';
+            used += len + 1;
         }
     }
-    bidx_free_entries (entries, n);
-    return EXECUTION_SUCCESS;
+    if (used && fwrite (output, 1, used, stdout) != used)
+        rc = EXECUTION_FAILURE;
+    free (entries);
+    free (backing);
+    return rc;
 }
 
 /* Parse one "<mode> <sha> <stage> <path>" line into an entry. Stat

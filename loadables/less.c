@@ -34,6 +34,7 @@
 #include <sys/ioctl.h>
 
 #include "loadables.h"
+#include "unwind_prot.h"
 
 /* Shared CSI/SS3 key decoder (arrows, PgUp/PgDn, Home/End, Delete).
  * The inline ESC-[ parser this file used to ship was replaced
@@ -107,6 +108,33 @@ bl_read_stream (FILE *f, bl_lines *ls)
 }
 
 static int
+bl_copy_stream (FILE *f)
+{
+    /* Redirected plain output needs neither a line index nor one allocation
+       per line. Bound memory use independently of the length of the input. */
+    unsigned char buf[65536];
+    clearerr (f);
+    for (;;) {
+        size_t n = fread (buf, 1, sizeof buf, f);
+        int read_errno = errno;
+        QUIT;
+        if (n && fwrite (buf, 1, n, stdout) != n) return -1;
+        if (ferror (f)) {
+            if (read_errno == EINTR) { clearerr (f); continue; }
+            errno = read_errno;
+            return -1;
+        }
+        if (feof (f)) return 0;
+    }
+}
+
+static void
+bl_close_input (void *arg)
+{
+    fclose ((FILE *) arg);
+}
+
+static int
 bl_read_file_operand (const char *path, bl_lines *ls)
 {
     FILE *f = !strcmp (path, "-") ? stdin : fopen (path, "r");
@@ -115,10 +143,17 @@ bl_read_file_operand (const char *path, bl_lines *ls)
         builtin_error ("%s: %s", path, strerror (errno));
         return -1;
     }
-    int rc = bl_read_stream (f, ls);
-    if (f != stdin) fclose (f);
+    /* QUIT in the copy loop can unwind past this caller. Borrowed stdin
+       remains the shell's responsibility; only owned operands are closed. */
+    if (f != stdin) {
+        begin_unwind_frame ("less input");
+        add_unwind_protect (bl_close_input, f);
+    }
+    int rc = ls ? bl_read_stream (f, ls) : bl_copy_stream (f);
+    int read_errno = errno;
+    if (f != stdin) run_unwind_frame ("less input");
     if (rc < 0)
-        builtin_error ("%s: %s", path, strerror (errno));
+        builtin_error ("%s: %s", path, strerror (read_errno));
     return rc;
 }
 
@@ -488,9 +523,10 @@ less_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
+    int drain = !numbers && !chop && !isatty (STDOUT_FILENO);
     if (!list)
     {
-        if (bl_read_stream (stdin, &ls) < 0)
+        if ((drain ? bl_copy_stream (stdin) : bl_read_stream (stdin, &ls)) < 0)
             rc = EXECUTION_FAILURE;
     }
     else
@@ -504,14 +540,24 @@ less_builtin (WORD_LIST *list)
                 char hdr[512];
                 snprintf (hdr, sizeof hdr, "::::::::::::::\n%s\n::::::::::::::\n",
                           p->word->word);
-                bl_lines_push (&ls, hdr, strlen (hdr));
+                size_t len = strlen (hdr);
+                if (drain) {
+                    if (fwrite (hdr, 1, len, stdout) != len)
+                        rc = EXECUTION_FAILURE;
+                } else if (bl_lines_push (&ls, hdr, len) < 0)
+                    rc = EXECUTION_FAILURE;
             }
-            if (bl_read_file_operand (p->word->word, &ls) < 0)
+            if (bl_read_file_operand (p->word->word, drain ? NULL : &ls) < 0)
                 rc = EXECUTION_FAILURE;
         }
     }
 
-    if (rc == EXECUTION_SUCCESS)
+    if (drain) {
+        if (fflush (stdout) == EOF) {
+            builtin_error ("write error: %s", strerror (errno));
+            rc = EXECUTION_FAILURE;
+        }
+    } else if (rc == EXECUTION_SUCCESS)
         rc = bl_interactive (&ls, rows, chop, numbers, quit_if_one);
     bl_lines_free (&ls);
     return rc;

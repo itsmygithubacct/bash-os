@@ -61,6 +61,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdint.h>
+#include <sys/stat.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
@@ -649,6 +651,150 @@ bp_find_all_cmd (WORD_LIST *args)
 }
 
 /* ---- grep: stream lines, print matching ---------------------------- */
+#define BP_GREP_OUT_SIZE (64 * 1024)
+
+typedef struct {
+  char data[BP_GREP_OUT_SIZE];
+  size_t used;
+  int buffered;
+} bp_grep_output;
+
+static void
+bp_grep_flush (bp_grep_output *out)
+{
+  if (out->used) {
+    fwrite (out->data, 1, out->used, stdout);
+    out->used = 0;
+  }
+}
+
+/* Bash line-buffers stdout. Batch regular-file output only: terminals
+   and live input streams retain immediate line delivery and write errors. */
+static void
+bp_grep_write (bp_grep_output *out, const char *data, size_t len)
+{
+  if (!out->buffered) { fwrite (data, 1, len, stdout); return; }
+  if (len > sizeof out->data - out->used) bp_grep_flush (out);
+  if (len > sizeof out->data) { fwrite (data, 1, len, stdout); return; }
+  memcpy (out->data + out->used, data, len);
+  out->used += len;
+}
+
+/* A plain ASCII pattern has exactly literal substring semantics. Keep
+   PCRE2 for flags that change its meaning and for explicitly configured
+   match limits, whose error behavior also belongs to the regex engine. */
+static size_t
+bp_grep_literal_length (const char *pattern, uint32_t flags)
+{
+  const char *limit = getenv ("BASHPCRE_MATCH_LIMIT");
+  const char *depth = getenv ("BASHPCRE_DEPTH_LIMIT");
+  if ((flags & (PCRE2_CASELESS | PCRE2_EXTENDED))
+      || (limit && *limit) || (depth && *depth)) return 0;
+  size_t n = 0;
+  for (; pattern[n]; n++) {
+    unsigned char c = (unsigned char) pattern[n];
+    if (c >= 0x80 || c == '\n' || strchr ("\\.^$*+?[](){}|", c)) return 0;
+  }
+  return n;
+}
+
+static int
+bp_grep_ascii (const char *p, size_t n)
+{
+  size_t i = 0;
+  for (; i + sizeof (uint64_t) <= n; i += sizeof (uint64_t)) {
+    uint64_t word;
+    memcpy (&word, p + i, sizeof word);
+    if (word & UINT64_C(0x8080808080808080)) return 0;
+  }
+  for (; i < n; i++) if ((unsigned char) p[i] >= 0x80) return 0;
+  return 1;
+}
+
+static const char *
+bp_grep_literal_match (const char *line, size_t len, const char *pat, size_t plen)
+{
+  if (plen > len) return 0;
+  const char *p = line, *end = line + len - plen + 1;
+  while (p < end) {
+    p = memchr (p, (unsigned char) pat[0], (size_t) (end - p));
+    if (!p) break;
+    if (!memcmp (p, pat, plen)) return p;
+    p++;
+  }
+  return 0;
+}
+
+/* Regular-file literal searches can find selected lines directly in a
+   block. Non-ASCII UTF windows still use PCRE2 per line, so invalid UTF is
+   rejected exactly as before. The retained tail may grow for a long line. */
+static int
+bp_grep_literal_file (FILE *f, const char *pat, size_t plen, uint32_t flags,
+                      pcre2_code *code, pcre2_match_data *md,
+                      pcre2_match_context *ctx, bp_grep_output *out, int *matched)
+{
+  size_t cap = 64 * 1024, used = 0;
+  char *buf = malloc (cap);
+  if (!buf) { builtin_error ("out of memory"); return -1; }
+  while (!ferror (stdout)) {
+    if (used == cap) {
+      if (cap > SIZE_MAX / 2) { free (buf); builtin_error ("line too long"); return -1; }
+      char *next = realloc (buf, cap * 2);
+      if (!next) { free (buf); builtin_error ("out of memory"); return -1; }
+      buf = next; cap *= 2;
+    }
+    size_t n = fread (buf + used, 1, cap - used, f);
+    if (!n) break;
+    used += n;
+    char *last = memrchr (buf, '\n', used);
+    if (!last) continue;
+    size_t complete = (size_t) (last - buf) + 1, pos = 0;
+    if (!(flags & PCRE2_UTF) || bp_grep_ascii (buf, complete)) {
+      size_t begin = 0, end = 0;
+      while (pos < complete) {
+        const char *hit = bp_grep_literal_match (buf + pos, complete - pos, pat, plen);
+        if (!hit) break;
+        const char *before = memrchr (buf + pos, '\n', (size_t) (hit - buf - pos));
+        size_t first = before ? (size_t) (before - buf) + 1 : pos;
+        const char *after = memchr (hit, '\n', complete - (size_t) (hit - buf));
+        size_t next = (size_t) (after - buf) + 1;
+        if (first != end) {
+          if (end > begin) bp_grep_write (out, buf + begin, end - begin);
+          begin = first;
+        }
+        end = next;
+        pos = next;
+        *matched = 1;
+      }
+      if (end > begin) bp_grep_write (out, buf + begin, end - begin);
+    } else {
+      while (pos < complete) {
+        char *after = memchr (buf + pos, '\n', complete - pos);
+        size_t len = (size_t) (after - buf - pos);
+        if (pcre2_match (code, (PCRE2_SPTR) buf + pos, len, 0, 0, md, ctx) >= 0) {
+          bp_grep_write (out, buf + pos, len + 1);
+          *matched = 1;
+        }
+        pos += len + 1;
+      }
+    }
+    used -= complete;
+    if (used) memmove (buf, buf + complete, used);
+  }
+  if (used && !ferror (f) && !ferror (stdout)) {
+    int hit = (!(flags & PCRE2_UTF) || bp_grep_ascii (buf, used))
+      ? bp_grep_literal_match (buf, used, pat, plen) != NULL
+      : pcre2_match (code, (PCRE2_SPTR) buf, used, 0, 0, md, ctx) >= 0;
+    if (hit) {
+      bp_grep_write (out, buf, used);
+      bp_grep_write (out, "\n", 1);
+      *matched = 1;
+    }
+  }
+  free (buf);
+  return 0;
+}
+
 static int
 bp_grep_cmd (WORD_LIST *args)
 {
@@ -671,41 +817,80 @@ bp_grep_cmd (WORD_LIST *args)
   pcre2_code *code = bp_compile (pat, flags);
   if (!code) return EXECUTION_FAILURE;
   pcre2_match_data *md = pcre2_match_data_create_from_pattern (code, NULL);
-
-  int hits_total = 0;
+  if (!md) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  /* Environment limits cannot change while this synchronous command runs. */
+  pcre2_match_context *ctx = bp_match_ctx ();
+  size_t literal_len = bp_grep_literal_length (pat, flags);
+  bp_grep_output out;
+  out.used = 0;
+  out.buffered = 0;
+  int terminal = isatty (STDOUT_FILENO);
+  int matched = 0, io_error = 0;
   int show_filename = nfiles > 1;
 
   for (int fi = 0; fi == 0 || fi < nfiles; fi++)
     {
       FILE *f;
       const char *fname;
-      if (nfiles == 0) { f = stdin; fname = "-"; }
+      if (nfiles == 0) {
+        /* A fresh stream prevents sticky EOF/read-ahead state in Bash's
+           process-lifetime stdin from crossing redirected invocations. */
+        int fd = dup (STDIN_FILENO);
+        f = fd < 0 ? NULL : fdopen (fd, "r");
+        if (!f && fd >= 0) close (fd);
+        fname = "-";
+      }
       else { fname = files[fi]; f = fopen (fname, "r"); }
       if (!f) { builtin_error ("%s: %s", fname, strerror (errno)); continue; }
 
       char *line = NULL;
       size_t linecap = 0;
       ssize_t n;
-      while ((n = getline (&line, &linecap, f)) > 0)
+      struct stat sb;
+      int regular = fstat (fileno (f), &sb) == 0 && S_ISREG (sb.st_mode);
+      out.buffered = regular && !terminal;
+      if (literal_len && !show_filename && out.buffered) {
+        if (bp_grep_literal_file (f, pat, literal_len, flags, code, md, ctx,
+                                  &out, &matched) < 0) io_error = 1;
+      }
+      else while ((n = getline (&line, &linecap, f)) > 0)
         {
           /* Strip trailing newline for match (re-add on print). */
           size_t mlen = (size_t) n;
           if (mlen > 0 && line[mlen - 1] == '\n') mlen--;
-          int rc = pcre2_match (code, (PCRE2_SPTR) line, mlen, 0, 0, md, bp_match_ctx ());
+          int rc;
+          if (literal_len && (!(flags & PCRE2_UTF) || bp_grep_ascii (line, mlen)))
+            rc = bp_grep_literal_match (line, mlen, pat, literal_len) ? 1 : PCRE2_ERROR_NOMATCH;
+          else
+            rc = pcre2_match (code, (PCRE2_SPTR) line, mlen, 0, 0, md, ctx);
           if (rc >= 0)
             {
-              if (show_filename) printf ("%s:", fname);
-              fwrite (line, 1, (size_t) n, stdout);
-              if (n > 0 && line[n - 1] != '\n') putchar ('\n');
-              hits_total++;
+              if (show_filename) {
+                bp_grep_write (&out, fname, strlen (fname));
+                bp_grep_write (&out, ":", 1);
+              }
+              bp_grep_write (&out, line, (size_t) n);
+              if (n > 0 && line[n - 1] != '\n') bp_grep_write (&out, "\n", 1);
+              matched = 1;
+              if (ferror (stdout)) { io_error = 1; break; }
             }
         }
+      if (ferror (f)) { builtin_error ("%s: read error: %s", fname, strerror (errno)); io_error = 1; }
       free (line);
-      if (f != stdin) fclose (f);
-      if (nfiles == 0) break;
+      if (fclose (f) != 0) io_error = 1;
+      /* Finish this file before opening another potentially blocking input. */
+      bp_grep_flush (&out);
+      if (ferror (stdout)) io_error = 1;
+      if (io_error || nfiles == 0) break;
     }
+  bp_grep_flush (&out);
+  if (fflush (stdout) == EOF || ferror (stdout)) {
+    builtin_error ("write error: %s", strerror (errno));
+    clearerr (stdout);
+    io_error = 1;
+  }
   pcre2_match_data_free (md);
-  return hits_total > 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  return matched && !io_error ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- sed: per-line global substitution ----------------------------- */

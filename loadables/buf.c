@@ -377,6 +377,7 @@ bb_write_all (int fd, const char *s, size_t n)
             if (errno == EINTR) continue;
             return -1;
         }
+        if (w == 0) { errno = EIO; return -1; }
         off += (size_t) w;
     }
     return 0;
@@ -1366,18 +1367,32 @@ bb_text_cmd (WORD_LIST *args)
     }
     size_t start = (size_t) start_l;
     size_t count = (size_t) count_l;
-    if (start + count > b->n_lines) count = b->n_lines - start;
+    if (count > b->n_lines - start) count = b->n_lines - start;
     if (hex_mode && out_fd != STDOUT_FILENO) {
         builtin_error ("text: -X and -F are mutually exclusive");
         return EX_USAGE;
     }
-    /* Stream the range out line-by-line instead of building one joined
-       whole-buffer copy. A separating '\n' is emitted between lines, and
-       after the last line iff the source carried a trailing newline — the
-       same byte sequence the former whole-buffer join produced. The raw
-       (-F / stdout) path writes each line directly from its own storage, so
-       a single huge line goes out with zero extra allocation; the -X path
-       reuses one growable hex scratch buffer across lines. */
+    /* An unedited mapped range already has the required separators. Resolve
+       just its boundaries and emit the span without rescanning every line.
+       A partial range excludes its final separator, matching the joined
+       representation; only the actual final line retains a trailing NL. */
+    if (!hex_mode && b->paged && count) {
+        size_t begin = 0, end = b->map_size, len;
+        if (start) bb_span (b, start, &begin, &len);
+        if (start + count < b->n_lines) {
+            bb_span (b, start + count - 1, &end, &len);
+            end += len;
+        }
+        if (bb_write_all (out_fd, (const char *) b->map_base + begin,
+                          end - begin) < 0) {
+            builtin_error ("text: write: %s", strerror (errno));
+            return EXECUTION_FAILURE;
+        }
+        return EXECUTION_SUCCESS;
+    }
+    /* Edited/stream-loaded lines use a bounded output buffer. A long line
+       still goes out directly, so output never allocates a whole-buffer
+       copy. The hex path reuses one growable scratch buffer across lines. */
     bb_iter it;
     bb_iter_init (&it, b, start);
     if (hex_mode) {
@@ -1405,24 +1420,37 @@ bb_text_cmd (WORD_LIST *args)
         putchar ('\n');                        /* terminate the hex string */
         free (hex);
     } else {
+        char output[65536];
+        size_t used = 0;
         for (size_t i = start; i < start + count; i++) {
             const char *lp;
             size_t len;
             bb_iter_next (&it, &lp, &len);
-            if (len && bb_write_all (out_fd, lp, len) < 0) {
-                builtin_error ("text: write: %s", strerror (errno));
-                return EXECUTION_FAILURE;
+            if (len > sizeof output - used) {
+                if (bb_write_all (out_fd, output, used) < 0) goto write_error;
+                used = 0;
+            }
+            if (len >= sizeof output) {
+                if (bb_write_all (out_fd, lp, len) < 0) goto write_error;
+            } else if (len) {
+                memcpy (output + used, lp, len);
+                used += len;
             }
             if (i + 1 < start + count ||
                 (i + 1 == b->n_lines && b->had_trailing_nl)) {
-                if (bb_write_all (out_fd, "\n", 1) < 0) {
-                    builtin_error ("text: write: %s", strerror (errno));
-                    return EXECUTION_FAILURE;
+                if (used == sizeof output) {
+                    if (bb_write_all (out_fd, output, used) < 0) goto write_error;
+                    used = 0;
                 }
+                output[used++] = '\n';
             }
         }
+        if (bb_write_all (out_fd, output, used) < 0) goto write_error;
     }
     return EXECUTION_SUCCESS;
+write_error:
+    builtin_error ("text: write: %s", strerror (errno));
+    return EXECUTION_FAILURE;
 }
 
 static int

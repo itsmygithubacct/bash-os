@@ -34,6 +34,9 @@ check 'tac parity' python3 tests/tac-parity.py out/bash
 for name in head-sed fold expand bc nl pr; do
   check "$name parity" python3 "tests/$name-parity.py" out/bash
 done
+for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams core-fastpaths coreutils-fastpaths pack-cache index-cache xargs-spawn pager-interrupts install-truncate; do
+  check "$name" python3 "tests/$name.py" out/bash
+done
 check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
 check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list
 if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
@@ -61,6 +64,9 @@ check 'static builtin regressions' python3 tests/regressions.py out/bash-static
 check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 for name in head-sed fold expand bc nl pr; do
   check "static $name parity" python3 "tests/$name-parity.py" out/bash-static
+done
+for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams core-fastpaths coreutils-fastpaths pack-cache index-cache xargs-spawn pager-interrupts install-truncate; do
+  check "static $name" python3 "tests/$name.py" out/bash-static
 done
 check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
