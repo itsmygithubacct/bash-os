@@ -35,6 +35,8 @@ if [[ -n ${PRIMITIVES_LOAD_DIR-} ]]; then
     enable -f "$PRIMITIVES_LOAD_DIR/bashpoll.so" bashpoll || exit 98
 fi
 FIXTURE_SHELL_PID=$BASHPID
+# Read it as ${ mask; }: a forked $(mask) can sample the shell mid-fork,
+# while every signal is transiently blocked.
 mask() {
     local field rest
     while read -r field rest; do
@@ -167,25 +169,25 @@ pty waitpid "$pid1" code; first=$?
 [[ $observed == 0 && $first == 17 && $code == 17 && $second == 143 ]] || exit 5
 ''')
     run("overlapping signalfd masks close independently", r'''
-before=$(mask)
+before=${ mask; }
 bashpoll signalfd SIGUSR1 a || exit 1
 bashpoll signalfd USR1 USR2 b || exit 2
-both=$(mask)
+both=${ mask; }
 bashpoll close "$a" || exit 3
-after_one=$(mask)
+after_one=${ mask; }
 [[ $after_one == "$both" && $both != "$before" ]] || exit 4
 bashpoll close "$b" || exit 5
-[[ $(mask) == "$before" ]] || exit 6
+[[ ${ mask; } == "$before" ]] || exit 6
 ''')
     run("preexisting blocked signal remains blocked", r'''
-before=$(mask)
+before=${ mask; }
 (( (16#$before & (1 << 9)) != 0 )) || exit 1
 bashpoll signalfd SIGUSR1 SIGUSR2 fd || exit 2
 bashpoll close "$fd" || exit 3
-[[ $(mask) == "$before" ]] || exit 4
+[[ ${ mask; } == "$before" ]] || exit 4
 ''', preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR1}))
     run("signalfd failures restore masks and descriptor count", r'''
-before=$(mask); fds_before=(/proc/$BASHPID/fd/*)
+before=${ mask; }; fds_before=(/proc/$BASHPID/fd/*)
 readonly locked=old
 for var in locked 'bad-name'; do
     if bashpoll signalfd SIGUSR1 "$var"; then exit 1; fi
@@ -200,24 +202,24 @@ bashpoll signalfd SIGUSR1 fd; failed=$?
 ulimit -Sn "$soft"
 exec 3<&- 4<&-
 fds_after=(/proc/$BASHPID/fd/*)
-[[ $failed != 0 && $(mask) == "$before" && ${#fds_before[@]} == ${#fds_after[@]} ]] || exit 4
+[[ $failed != 0 && ${ mask; } == "$before" && ${#fds_before[@]} == ${#fds_after[@]} ]] || exit 4
 ''')
     run("subshell signalfd close changes only child mask", r'''
-before=$(mask)
+before=${ mask; }
 bashpoll signalfd SIGUSR1 a || exit 1
-blocked=$(mask)
-( FIXTURE_SHELL_PID=$BASHPID; bashpoll close "$a"; [[ $(mask) == "$before" ]] ) || exit 2
-[[ $(mask) == "$blocked" ]] || exit 3
+blocked=${ mask; }
+( FIXTURE_SHELL_PID=$BASHPID; bashpoll close "$a"; [[ ${ mask; } == "$before" ]] ) || exit 2
+[[ ${ mask; } == "$blocked" ]] || exit 3
 bashpoll close "$a" || exit 4
-[[ $(mask) == "$before" ]] || exit 5
+[[ ${ mask; } == "$before" ]] || exit 5
 ''')
     if args.load_dir:
         run("unloading signalfd loadable restores masks", r'''
-before=$(mask)
+before=${ mask; }
 bashpoll signalfd SIGUSR1 a || exit 1
 bashpoll signalfd SIGUSR1 SIGUSR2 b || exit 2
 enable -d bashpoll || exit 3
-[[ $(mask) == "$before" ]] || exit 4
+[[ ${ mask; } == "$before" ]] || exit 4
 ''')
 
     # Independent sockets make writability and read readiness deterministic.
