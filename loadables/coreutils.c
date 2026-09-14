@@ -60,8 +60,6 @@
 #include <sched.h>
 #if defined (__linux__)
 #  include <sys/syscall.h>
-#  include <sys/vfs.h>
-#  include <linux/magic.h>
 #endif
 
 #include "loadables.h"
@@ -1457,90 +1455,50 @@ bcu_groups_cmd (WORD_LIST *list)
  * matches GNU install behavior on non-root invocations).
  * =================================================================== */
 
-/* Limit deferred truncation to ordinary ext-family storage. S_ISREG alone
-   also includes memfds with seals and virtual files whose truncate operation
-   has different rules. Unsupported filesystems keep the original open flags. */
-static int
-bcu_install_storage_fd (int fd)
-{
-#if defined (__linux__)
-  struct statfs fs;
-  return fstatfs (fd, &fs) == 0 && fs.f_type == EXT4_SUPER_MAGIC;
-#else
-  (void) fd;
-  return 0;
-#endif
-}
-
 static int
 bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, gid_t gid)
 {
   int rfd = open (src, O_RDONLY);
   if (rfd < 0) { builtin_error ("install: %s: %s", src, strerror (errno)); return EXECUTION_FAILURE; }
   struct stat src_st, dst_st;
-  int have_src = fstat (rfd, &src_st) == 0;
-  int regular_src = have_src && S_ISREG (src_st.st_mode);
+  if (fstat (rfd, &src_st) < 0)
+    { int e = errno; close (rfd); builtin_error ("install: stat %s: %s", src, strerror (e)); return EXECUTION_FAILURE; }
   /* Opening the source's own inode for writing would destroy the only copy
      of the data. Refuse, as GNU install does, whether the operands name the
      file directly or reach it through a hard or symbolic link. */
-  if (have_src && stat (dst, &dst_st) == 0 &&
+  if (stat (dst, &dst_st) == 0 &&
       src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino)
     {
       close (rfd);
       builtin_error ("install: '%s' and '%s' are the same file", src, dst);
       return EXECUTION_FAILURE;
     }
-  /* Overwriting an existing regular file avoids discarding its cached pages
-     before replacing the data. Keep the inode (including hard/symbolic link
-     aliases), then remove the old tail once copying ends. Readers may still
-     see that tail during the copy; an interrupted process cannot remove it.
-     Streams and special files keep immediate truncation. */
-  int truncate_late = 0;
-#if defined (__linux__)
-  struct statfs dst_fs;
-  truncate_late = regular_src && bcu_install_storage_fd (rfd) &&
-                  stat (dst, &dst_st) == 0 && S_ISREG (dst_st.st_mode) &&
-                  (src_st.st_dev != dst_st.st_dev || src_st.st_ino != dst_st.st_ino) &&
-                  statfs (dst, &dst_fs) == 0 && dst_fs.f_type == EXT4_SUPER_MAGIC;
-#endif
-  int wfd = open (dst, O_WRONLY | O_CREAT | (truncate_late ? 0 : O_TRUNC), 0600);
+  /* Truncate before copying, so an interrupted copy leaves a short file and
+     never new data followed by the old tail. Open without O_TRUNC and check
+     the descriptor first, because the path may have become a link to the
+     source since it was examined. Streams and special files are not
+     truncated. The inode, and any other links to the destination, are kept. */
+  int wfd = open (dst, O_WRONLY | O_CREAT, 0600);
   if (wfd < 0)
     { int e = errno; close (rfd); builtin_error ("install: %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-  /* Recheck the actual descriptor in case the path changed since stat.
-     Linux ignores O_TRUNC on nonregular files, so that case needs no action.
-     Never reopen a changed path: it might now name a different inode or FIFO. */
-  if (truncate_late)
+  if (fstat (wfd, &dst_st) < 0)
+    { int e = errno; close (rfd); close (wfd); builtin_error ("install: stat %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+  if (dst_st.st_dev == src_st.st_dev && dst_st.st_ino == src_st.st_ino)
     {
-      if (fstat (wfd, &dst_st) < 0)
-        { int e = errno; close (rfd); close (wfd); builtin_error ("install: stat %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-      if (!S_ISREG (dst_st.st_mode))
-        truncate_late = 0;
-      else if (src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino)
-        {
-          close (rfd); close (wfd);
-          builtin_error ("install: '%s' and '%s' are the same file", src, dst);
-          return EXECUTION_FAILURE;
-        }
-      else if (!bcu_install_storage_fd (wfd))
-        {
-          truncate_late = 0;
-          if (ftruncate (wfd, 0) < 0)
-            { int e = errno; close (rfd); close (wfd); builtin_error ("install: truncate %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-        }
+      close (rfd); close (wfd);
+      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
+      return EXECUTION_FAILURE;
     }
-  off_t copied = 0;
-  int write_error = 0, truncate_error = 0;
+  if (S_ISREG (dst_st.st_mode) && ftruncate (wfd, 0) < 0)
+    { int e = errno; close (rfd); close (wfd); builtin_error ("install: truncate %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+  int write_error = 0;
 #if defined (__linux__) && defined (SYS_copy_file_range)
   /* Unsupported filesystems (or a short kernel copy) continue through
      read/write at the descriptors' current offsets. */
-  if (regular_src && (truncate_late ||
-                     (fstat (wfd, &dst_st) == 0 && S_ISREG (dst_st.st_mode))))
-    {
-      ssize_t moved;
-      while ((moved = syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
-                               (size_t) 1024 * 1024 * 1024, 0)) > 0)
-        if (truncate_late) copied += moved;
-    }
+  if (S_ISREG (src_st.st_mode) && S_ISREG (dst_st.st_mode))
+    while (syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
+                    (size_t) 1024 * 1024 * 1024, 0) > 0)
+      ;
   /* Always finish with read, including after a zero return: some virtual
      regular files report zero size yet still yield data when read. */
 #endif
@@ -1556,25 +1514,14 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
           ssize_t w = write (wfd, buf + off, (size_t) (n - off));
           if (w <= 0) { write_error = w < 0 ? errno : EIO; goto copy_done; }
           off += w;
-          if (truncate_late) copied += w;
         }
     }
 copy_done:
-  /* Trim even after a partial write failure, matching the prefix left by an
-     immediately truncated destination. Preserve the primary write diagnostic
-     if trimming fails as well, and report both errors before metadata work. */
-  if (truncate_late)
-    {
-      int rc;
-      do rc = ftruncate (wfd, copied); while (rc < 0 && errno == EINTR);
-      if (rc < 0) truncate_error = errno;
-    }
   close (rfd);
-  if (write_error || truncate_error)
+  if (write_error)
     {
       close (wfd);
-      if (write_error) builtin_error ("install: write: %s", strerror (write_error));
-      if (truncate_error) builtin_error ("install: truncate %s: %s", dst, strerror (truncate_error));
+      builtin_error ("install: write: %s", strerror (write_error));
       return EXECUTION_FAILURE;
     }
   if (fchmod (wfd, mode) < 0)

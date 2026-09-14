@@ -117,9 +117,9 @@ def check_directory(root):
         if existing:
             assert dst.stat().st_ino == before.st_ino
 
-# Delayed truncation is limited to ext-family filesystems, and the default
-# temporary directory is often tmpfs. Repeat the checks beside the binary when
-# that is a different filesystem, so both truncation paths are exercised.
+# Kernel copying and truncation behave differently across filesystems, and the
+# default temporary directory is often tmpfs. Repeat the checks beside the
+# binary when that is a different filesystem.
 filesystems = set()
 for place in [Path(tempfile.gettempdir()), Path(binary).parent]:
     device = place.stat().st_dev
