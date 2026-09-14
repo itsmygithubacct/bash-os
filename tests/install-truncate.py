@@ -34,8 +34,7 @@ def run(src, dst, *, limit=None, expected_status=0):
     return p
 
 
-with tempfile.TemporaryDirectory(prefix='install-truncate-') as tmp:
-    root = Path(tmp)
+def check_directory(root):
     src, dst = root / 'source', root / 'destination'
     old = b'previous destination\n' * 4096
     for length in [0, 1, 1023, len(old), len(old) + 1, 262147]:
@@ -64,12 +63,16 @@ with tempfile.TemporaryDirectory(prefix='install-truncate-') as tmp:
         assert dst.stat().st_ino == linked.stat().st_ino == before.st_ino
         assert dst.read_bytes() == linked.read_bytes() == src.read_bytes()
 
-    # Preserve the existing immediate-truncation behavior for same-inode
-    # operands, whether spelled directly or reached through either alias.
+    # Same-inode operands are refused before the destination is opened, so
+    # the only copy of the data survives, whether spelled directly or reached
+    # through either alias.
     for source in [dst, linked, symbolic]:
         dst.write_bytes(old)
-        run(source, dst)
-        assert dst.read_bytes() == linked.read_bytes() == b''
+        dst.chmod(0o640)
+        p = run(source, dst, expected_status=1)
+        assert b'are the same file' in p.stderr, p.stderr
+        assert dst.read_bytes() == linked.read_bytes() == old
+        assert stat.S_IMODE(dst.stat().st_mode) == 0o640
 
     for data in [b'', bytes(range(256)) * 513 + b'last']:
         src.write_bytes(data)
@@ -114,4 +117,16 @@ with tempfile.TemporaryDirectory(prefix='install-truncate-') as tmp:
         if existing:
             assert dst.stat().st_ino == before.st_ino
 
-print(f'install-truncate: {checks} checks passed')
+# Delayed truncation is limited to ext-family filesystems, and the default
+# temporary directory is often tmpfs. Repeat the checks beside the binary when
+# that is a different filesystem, so both truncation paths are exercised.
+filesystems = set()
+for place in [Path(tempfile.gettempdir()), Path(binary).parent]:
+    device = place.stat().st_dev
+    if device in filesystems or not os.access(place, os.W_OK):
+        continue
+    filesystems.add(device)
+    with tempfile.TemporaryDirectory(prefix='install-truncate-', dir=place) as tmp:
+        check_directory(Path(tmp))
+
+print(f'install-truncate: {checks} checks passed on {len(filesystems)} filesystems')

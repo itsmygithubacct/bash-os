@@ -1478,12 +1478,23 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
   int rfd = open (src, O_RDONLY);
   if (rfd < 0) { builtin_error ("install: %s: %s", src, strerror (errno)); return EXECUTION_FAILURE; }
   struct stat src_st, dst_st;
-  int regular_src = fstat (rfd, &src_st) == 0 && S_ISREG (src_st.st_mode);
+  int have_src = fstat (rfd, &src_st) == 0;
+  int regular_src = have_src && S_ISREG (src_st.st_mode);
+  /* Opening the source's own inode for writing would destroy the only copy
+     of the data. Refuse, as GNU install does, whether the operands name the
+     file directly or reach it through a hard or symbolic link. */
+  if (have_src && stat (dst, &dst_st) == 0 &&
+      src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino)
+    {
+      close (rfd);
+      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
+      return EXECUTION_FAILURE;
+    }
   /* Overwriting an existing regular file avoids discarding its cached pages
      before replacing the data. Keep the inode (including hard/symbolic link
      aliases), then remove the old tail once copying ends. Readers may still
      see that tail during the copy; an interrupted process cannot remove it.
-     Streams, special files and same-inode copies keep immediate truncation. */
+     Streams and special files keep immediate truncation. */
   int truncate_late = 0;
 #if defined (__linux__)
   struct statfs dst_fs;
@@ -1504,8 +1515,13 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
         { int e = errno; close (rfd); close (wfd); builtin_error ("install: stat %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
       if (!S_ISREG (dst_st.st_mode))
         truncate_late = 0;
-      else if ((src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino) ||
-               !bcu_install_storage_fd (wfd))
+      else if (src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino)
+        {
+          close (rfd); close (wfd);
+          builtin_error ("install: '%s' and '%s' are the same file", src, dst);
+          return EXECUTION_FAILURE;
+        }
+      else if (!bcu_install_storage_fd (wfd))
         {
           truncate_late = 0;
           if (ftruncate (wfd, 0) < 0)
