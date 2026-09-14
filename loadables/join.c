@@ -33,6 +33,7 @@
 #include <strings.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
@@ -49,7 +50,7 @@ typedef struct {
     int   only_unmatched;
     int   ignore_case;
     int   header;       /* --header: pass first line through as headers */
-    int   nocheck;      /* --nocheck-order: suppress input-order check */
+    int   order;        /* input-order check: BJ_ORDER_OFF, _DEFAULT or _ON */
     int   auto_fmt;     /* -o auto: infer field count from first records */
     const char *empty;
     /* Output format: array of (filenum, fieldnum). filenum 0 = key. */
@@ -282,6 +283,62 @@ bj_keycmp (const char *a, const char *b, const bj_opts *o)
     return o->ignore_case ? strcasecmp (a, b) : strcmp (a, b);
 }
 
+/* Input-order checking, as GNU join does it. By default a disorder is
+   reported, once per file, only after an unpairable line has been seen
+   while both inputs remained, and the command fails at the end;
+   --check-order makes the first disorder fatal. */
+enum { BJ_ORDER_OFF, BJ_ORDER_DEFAULT, BJ_ORDER_ON };
+
+typedef struct {
+    const char *name[2];
+    long long   lineno[2];
+    char       *prev[2];        /* key of the record being replaced */
+    size_t      prevcap[2];
+    int         warned[2];
+    int         seen_unpairable;
+} bj_order;
+
+/* Read the next record of input WHICH (0 or 1) into R, replacing the one it
+   holds. With TRACK set, R holds a data record and the new one is checked
+   against its key; the first record, and the one after a header, are not.
+   Returns 0, with *N == -1 at the end of input, or -1 after reporting an
+   allocation failure or a fatal disorder. */
+static int
+bj_advance (const bj_opts *o, bj_order *ord, int which, FILE *f, char **line,
+            size_t *cap, ssize_t *n, bj_record *r, int track)
+{
+    int field = which ? o->field2 : o->field1;
+    int check = track && *n != -1 && o->order != BJ_ORDER_OFF && !ord->warned[which];
+    if (check) {
+        const char *k = bj_field (r, field);
+        size_t len = strlen (k) + 1;
+        if (ord->prevcap[which] < len) {
+            char *next = realloc (ord->prev[which], len);
+            if (!next) { builtin_error ("out of memory"); return -1; }
+            ord->prev[which] = next;
+            ord->prevcap[which] = len;
+        }
+        memcpy (ord->prev[which], k, len);
+    }
+    *n = getline (line, cap, f);
+    if (*n == -1) return 0;
+    ord->lineno[which]++;
+    if (bj_split (r, *line, (size_t) *n, o->sep) < 0) {
+        builtin_error ("out of memory");
+        return -1;
+    }
+    if (check && (o->order == BJ_ORDER_ON || ord->seen_unpairable)
+        && bj_keycmp (ord->prev[which], bj_field (r, field), o) > 0) {
+        size_t len = (size_t) *n;
+        if (len && (*line)[len - 1] == '\n') len--;
+        builtin_error ("%s:%lld: is not sorted: %.*s", ord->name[which],
+                       ord->lineno[which], (int) (len > INT_MAX ? INT_MAX : len), *line);
+        if (o->order == BJ_ORDER_ON) return -1;
+        ord->warned[which] = 1;
+    }
+    return 0;
+}
+
 /* Resolve a short option's argument, supporting both the attached form
    (-t:, -a1, -o1.1) and the separate form (-t : / -a 1). ATTACHED is the
    suffix of the current option word (w+2) or NULL when the word is bare.
@@ -299,7 +356,7 @@ bj_optarg (WORD_LIST **lp, const char *attached)
 int
 join_builtin (WORD_LIST *list)
 {
-    bj_opts o = { .field1 = 1, .field2 = 1, .out = stdout };
+    bj_opts o = { .field1 = 1, .field2 = 1, .order = BJ_ORDER_DEFAULT, .out = stdout };
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -324,12 +381,12 @@ join_builtin (WORD_LIST *list)
             continue;
         }
         if (!strcmp (w, "--nocheck-order")) {
-            o.nocheck = 1;
+            o.order = BJ_ORDER_OFF;
             list = list->next;
             continue;
         }
         if (!strcmp (w, "--check-order")) {
-            o.nocheck = 0;
+            o.order = BJ_ORDER_ON;
             list = list->next;
             continue;
         }
@@ -453,13 +510,11 @@ join_builtin (WORD_LIST *list)
     size_t ca = 0, cb = 0;
     int out_err = 0;
     int rc = EXECUTION_SUCCESS;
-    ssize_t na = getline (&la, &ca, fa);
-    ssize_t nb = getline (&lb, &cb, fb);
-    if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
-        builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
-    }
-    if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
-        builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+    bj_order ord = { .name = { p1, p2 } };
+    ssize_t na = 0, nb = 0;
+    if (bj_advance (&o, &ord, 0, fa, &la, &ca, &na, &ra, 0) < 0 ||
+        bj_advance (&o, &ord, 1, fb, &lb, &cb, &nb, &rb, 0) < 0) {
+        rc = EXECUTION_FAILURE; goto done;
     }
 
     /* -o auto: infer a fixed output layout from the field counts of the
@@ -488,17 +543,9 @@ join_builtin (WORD_LIST *list)
     if (o.header && (na != -1 || nb != -1)) {
         bj_emit (&o, na != -1 ? &ra : NULL, nb != -1 ? &rb : NULL);
         if (!bj_out_err (&o, &out_err)) {
-            if (na != -1) {
-                na = getline (&la, &ca, fa);
-                if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
-                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
-                }
-            }
-            if (nb != -1) {
-                nb = getline (&lb, &cb, fb);
-                if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
-                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
-                }
+            if ((na != -1 && bj_advance (&o, &ord, 0, fa, &la, &ca, &na, &ra, 0) < 0) ||
+                (nb != -1 && bj_advance (&o, &ord, 1, fb, &lb, &cb, &nb, &rb, 0) < 0)) {
+                rc = EXECUTION_FAILURE; goto done;
             }
         }
     }
@@ -525,16 +572,14 @@ join_builtin (WORD_LIST *list)
 
             while (!oom && na != -1 && bj_keycmp (bj_field (&ra, o.field1), key, &o) == 0) {
                 if (bj_group_add (&ga, &ra, o.sep) < 0) { oom = 1; break; }
-                na = getline (&la, &ca, fa);
-                if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
-                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                if (bj_advance (&o, &ord, 0, fa, &la, &ca, &na, &ra, 1) < 0) {
+                    rc = EXECUTION_FAILURE; goto done;
                 }
             }
             while (!oom && nb != -1 && bj_keycmp (bj_field (&rb, o.field2), key, &o) == 0) {
                 if (bj_group_add (&gb, &rb, o.sep) < 0) { oom = 1; break; }
-                nb = getline (&lb, &cb, fb);
-                if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
-                    builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+                if (bj_advance (&o, &ord, 1, fb, &lb, &cb, &nb, &rb, 1) < 0) {
+                    rc = EXECUTION_FAILURE; goto done;
                 }
             }
 
@@ -556,24 +601,36 @@ join_builtin (WORD_LIST *list)
                 if (bj_out_err (&o, &out_err))
                     break;
             }
-            na = getline (&la, &ca, fa);
-            if (na > 0 && bj_split (&ra, la, (size_t) na, o.sep) < 0) {
-                builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+            /* As in GNU join, only an unpairable line met while both inputs
+               remain enables the default order check, and only after the
+               read that follows it. */
+            int both = nb != -1;
+            if (bj_advance (&o, &ord, 0, fa, &la, &ca, &na, &ra, 1) < 0) {
+                rc = EXECUTION_FAILURE; goto done;
             }
+            if (both) ord.seen_unpairable = 1;
         } else {
             if (o.show_unmatched_2 && nb != -1) {
                 bj_emit (&o, NULL, &rb);
                 if (bj_out_err (&o, &out_err))
                     break;
             }
-            nb = getline (&lb, &cb, fb);
-            if (nb > 0 && bj_split (&rb, lb, (size_t) nb, o.sep) < 0) {
-                builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done;
+            int both = na != -1;
+            if (bj_advance (&o, &ord, 1, fb, &lb, &cb, &nb, &rb, 1) < 0) {
+                rc = EXECUTION_FAILURE; goto done;
             }
+            if (both) ord.seen_unpairable = 1;
         }
     }
 
+    /* A reported disorder fails the command once all output is written. */
+    if (rc == EXECUTION_SUCCESS && (ord.warned[0] || ord.warned[1])) {
+        builtin_error ("input is not in sorted order");
+        rc = EXECUTION_FAILURE;
+    }
+
 done:
+    free (ord.prev[0]); free (ord.prev[1]);
     free (key);
     bj_free_group (&ga); bj_free_group (&gb);
     bj_free_rec (&ra); bj_free_rec (&rb);
@@ -608,11 +665,14 @@ char *join_doc[] = {
     "    -o FORMAT   comma-separated FILENUM.FIELDNUM list (or 0 = key);",
     "                -o auto infers a fixed layout from the first records",
     "    --header    treat the first line of each file as field headers",
+    "    --check-order    fail at the first line that is out of order",
     "    --nocheck-order  do not check that input is correctly sorted",
     "    --help      display this help and exit",
     "    --version   display version information and exit",
     "",
-    "Both files must be pre-sorted on the join key (LC_COLLATE=C).",
+    "Both files must be pre-sorted on the join key (LC_COLLATE=C). By default",
+    "a file found out of order once an unpairable line has been seen is",
+    "reported, and join then exits with status 1.",
     "Use `-` for FILE1 or FILE2 to read stdin.",
     (char *)NULL
 };

@@ -46,6 +46,38 @@ if [[ -x /usr/bin/join ]]; then
     || no "GNU full rc=$grc err=$(cat "$d/gnu.err")"
 fi
 
+# Order checking follows GNU join: by default a disorder is reported once an
+# unpairable line has been seen while both inputs remain, --check-order makes
+# the first one fatal, and --nocheck-order turns the check off. Standard
+# output, the diagnostics and the exit status must all match.
+if [[ -x /usr/bin/join ]]; then
+  printf 'b 1\na 2\nc 3\n' > u1; printf 'a x\nb y\nc z\n' > s1
+  printf 'a 1\nb 2\nd 4\nc 3\ne 5\n' > late; printf 'a x\nb y\nc z\ne w\n' > s4
+  printf 'c 9\nb 8\n' > u2; printf 'H1 h\nb 1\na 2\n' > hu; printf 'H2 g\na x\nb y\n' > hs
+  printf 'a\n' > one; printf 'a\nc\nb\n' > tailu
+  while IFS= read -r c; do
+    g_out=$(PATH=/usr/bin:/bin bash -c "$c" 2>"$d/g.err"); g_rc=$?
+    b_out=$("$BX" -c "PATH=; $c" 2>"$d/b.err"); b_rc=$?
+    g_err=$(sed 's#^[^ ]*join: #join: #' "$d/g.err"); b_err=$(sed -E 's#^[^ ]*: line [0-9]+: ##' "$d/b.err")
+    [[ $g_out == "$b_out" && $g_rc == "$b_rc" && $g_err == "$b_err" ]] && ok "order check matches GNU: $c" \
+      || no "order check differs: $c: rc $g_rc/$b_rc out [$g_out]/[$b_out] err [$g_err]/[$b_err]"
+  done <<'CASES'
+join u1 s1
+join --check-order u1 s1
+join --nocheck-order u1 s1
+join --check-order --nocheck-order u1 s1
+join late s4
+join --check-order late s4
+join u1 u2
+join -v1 u1 s1
+join -a2 -e X -o 0,1.2,2.2 u1 s1
+join --header hu hs
+join - s1 < u1
+join one tailu
+join -i u1 s1
+CASES
+fi
+
 B join - - </dev/null >/dev/null 2>"$d/both"; rc=$?
 [[ $rc != 0 ]] && grep -q 'standard input' "$d/both" \
   && ok "both files as stdin fail" || no "both-stdin rc=$rc err=$(cat "$d/both")"
