@@ -361,6 +361,7 @@ bx_batch_reserve (bx_batch_buffers *buffers, size_t capacity, int tmpl_n)
 typedef struct {
     int prepared;
     int mask_error;
+    int sigchld_taken;          /* a wait consumed a pending SIGCHLD */
 #if defined (_POSIX_SPAWN) && _POSIX_SPAWN >= 0
     posix_spawnattr_t attr;
 #endif
@@ -1349,20 +1350,29 @@ bx_status_to_rc (const char *cmd, int status)
     return BX_ANY_FAIL;
 }
 
+/* Wait for one of this invocation's children. Waiting on any child would
+   also collect the shell's own background jobs and lose their statuses.
+   SIGCHLD stays blocked for the whole call, so an exit leaves it pending and
+   sigtimedwait wakes for it; the timeout only bounds a missed wakeup. A
+   consumed SIGCHLD is raised again before the call returns to Bash. */
 static int
-bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal)
+bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal,
+             bx_spawn_state *state)
 {
+    sigset_t chld;
+    sigemptyset (&chld);
+    sigaddset (&chld, SIGCHLD);
     while (*n_pids > 0) {
-        int status = 0;
-        pid_t pid = waitpid (-1, &status, 0);
-        if (pid < 0) {
-            if (errno == EINTR) continue;
-            builtin_error ("waitpid: %s", strerror (errno));
-            return BX_BAD;
-        }
         for (int i = 0; i < *n_pids; i++) {
-            if (pids[i] != pid) continue;
-            int rc = bx_status_to_rc (cmds[i], status);
+            int status = 0, rc;
+            pid_t pid = waitpid (pids[i], &status, WNOHANG);
+            if (pid == 0) continue;
+            if (pid < 0) {
+                if (errno == EINTR) { i--; continue; }
+                builtin_error ("waitpid(%ld): %s", (long) pids[i], strerror (errno));
+                rc = BX_BAD;
+            } else
+                rc = bx_status_to_rc (cmds[i], status);
             free (cmds[i]);
             pids[i] = pids[*n_pids - 1];
             cmds[i] = cmds[*n_pids - 1];
@@ -1370,6 +1380,9 @@ bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal)
             if (bx_is_fatal (rc)) *fatal = 1;
             return rc;
         }
+        struct timespec timeout = { 1, 0 };
+        if (sigtimedwait (&chld, NULL, &timeout) == SIGCHLD)
+            state->sigchld_taken = 1;
     }
     return BX_OK;
 }
@@ -1622,7 +1635,7 @@ xargs_builtin (WORD_LIST *list)
             if (!pflag || bx_prompt_yes (argv, tmpl_n)) {
                 if (parallel) {
                     while (pool_n >= max_p) {
-                        r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal);
+                        r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
                         rc = bx_fold (rc, r);
                         if (pool_fatal) break;
                     }
@@ -1712,7 +1725,7 @@ xargs_builtin (WORD_LIST *list)
                 if (!pflag || bx_prompt_yes (argv, total)) {
                     if (parallel) {
                         while (pool_n >= max_p) {
-                            r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal);
+                            r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
                             rc = bx_fold (rc, r);
                             if (pool_fatal) break;
                         }
@@ -1766,7 +1779,7 @@ xargs_builtin (WORD_LIST *list)
             if (!pflag || bx_prompt_yes (argv, total)) {
                 if (parallel) {
                     while (pool_n >= max_p) {
-                        r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal);
+                        r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
                         rc = bx_fold (rc, r);
                         if (pool_fatal) break;
                     }
@@ -1818,7 +1831,7 @@ cleanup:
             if (pool_cmds[pool_n]) free (pool_cmds[pool_n]);
         }
     } else while (parallel && pool_n > 0) {
-        int r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal);
+        int r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
         rc = bx_fold (rc, r);
     }
     if (parallel) {
@@ -1827,6 +1840,8 @@ cleanup:
     }
 
     if (default_echo) free (tmpl); else free (tmpl);
+    /* Still blocked: Bash handles it once the mask is restored. */
+    if (spawn_state.sigchld_taken) raise (SIGCHLD);
     run_unwind_frame ("bashxargs-signal-mask");
     return rc;
 }

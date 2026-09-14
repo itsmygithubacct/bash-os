@@ -24,12 +24,19 @@ HELPER = r"""
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
 
 int main(int argc, char **argv)
 {
     if (argc < 2) return 2;
     if (!strcmp(argv[1], "status")) return argc > 2 ? atoi(argv[2]) : 0;
     if (!strcmp(argv[1], "signal")) { raise(SIGTERM); return 2; }
+    if (!strcmp(argv[1], "sleep")) {
+        long ms = argc > 2 ? atol(argv[2]) : 0;
+        struct timespec delay = { ms / 1000, ms % 1000 * 1000000L };
+        nanosleep(&delay, NULL);
+        return argc > 3 ? atoi(argv[3]) : 0;
+    }
     if (!strcmp(argv[1], "notify")) {
         struct sigaction action;
         if (kill(getppid(), SIGUSR1) || sigaction(SIGUSR2, NULL, &action)) return 2;
@@ -354,6 +361,12 @@ def main():
         checks.check('/bin/sh -c "exit 23" & background=$!; '
                      'xargs -n 1 /bin/echo; wait "$background"; printf "job:%s\\n" "$?"',
                      data=b"one\ntwo\n", output=b"one\ntwo\njob:23\n")
+        # A shell job that exits while -P waits stays the shell's to collect.
+        for parallel in (1, 2):
+            checks.check('"$1" sleep 100 23 & background=$!; '
+                         'xargs -n 1 -P "$2" "$1" sleep; wait "$background"; '
+                         'printf "job:%s\\n" "$?"', helper, parallel,
+                         data=b"400\n400\n", output=b"job:23\n")
         fixture = root / "input"
         fixture.write_bytes(b"one two\n")
         checks.check('xargs /bin/echo < "$1"; xargs /bin/echo < "$1"', fixture,
