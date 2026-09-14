@@ -400,6 +400,10 @@ def terminal(d):
                    '-resize', '-statusbar', '-yank-ring', '-atomic-save', '-undo-redo']:
         output = run('nano','selftest'+suffix)
         assert b'not ok ' not in output
+    # Screen sessions run on ptybroker, which must become a child subreaper.
+    if os.environ.get('BASH_OS_NO_SUBREAPER'):
+        print(f"SKIP screen sessions: {os.environ['BASH_OS_NO_SUBREAPER']}", flush=True)
+        return
     env = {'BASHSCREEN_STATE_DIR':str(d/'screen')}
     run('screen','run','-n','fixture','-d',env=env)
     assert b'fixture' in run('screen','list',env=env)

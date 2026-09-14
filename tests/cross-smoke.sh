@@ -7,6 +7,14 @@ runner=$(command -v "${QEMU_RISCV64:-qemu-riscv64}")
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 printf '#!/bin/bash\nexec %q %q "$@"\n' "$runner" "$binary" > "$d/bash-os"
 chmod +x "$d/bash-os"
+# qemu-user before 9.0 answers prctl(PR_SET_CHILD_SUBREAPER) with EINVAL (its
+# linux-user layer lists the option as TODO), and the ptybroker backend under
+# screen sessions must become a subreaper. Kernels have provided it since 3.4,
+# so only the screen session checks are skipped, and only on such an emulator.
+qemu_version=$("$runner" --version | sed -n '1s/.* version \([0-9][0-9.]*\).*/\1/p')
+if [[ -n $qemu_version ]] && (( ${qemu_version%%.*} < 9 )); then
+  export BASH_OS_NO_SUBREAPER="qemu-user $qemu_version does not emulate prctl(PR_SET_CHILD_SUBREAPER), which ptybroker requires"
+fi
 BASH_OS_RUNNER="$runner" python3 tests/profile-smoke.py "$binary"
 "$d/bash-os" -e -o pipefail -c '
   PATH=
