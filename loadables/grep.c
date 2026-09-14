@@ -21,7 +21,8 @@
  * the line; -m keeps printing trailing context; a NUL makes a file binary
  * (NULs then separate lines, output goes quiet, "binary file matches" goes
  * to stderr), and a printed line that is not valid in the locale's
- * encoding does the same; stdin is left positioned just after the last
+ * encoding is withheld while later lines still print, followed by the same
+ * message; stdin is left positioned just after the last
  * match for -m, or at its end when grep stopped early. tests/grep-parity.sh
  * holds the output to GNU's.
  *
@@ -1217,16 +1218,11 @@ bg_prefix (bg_state *st, size_t ls, off_t boff, int sep)
     if (o->bflag) { bg_out_num (o, (long long) boff); bg_outc (o, sep); }
 }
 
-/* Output switches off: a printed line was not valid in the locale (GNU
-   then reports the file as binary and stops at this match). */
-static void
-bg_go_quiet (bg_state *st)
-{
-    st->enc_err = 1; st->quiet = 1; st->done_on_match = 1; st->pending = 0;
-}
-
 /* Print the line [LS, LE) with SEP (':' selected, '-' context). MATCHING
-   says whether it matches the pattern: with -o only its matches print. */
+   says whether it matches the pattern: with -o only its matches print.
+   Output that is not valid in the locale is withheld, as GNU grep 3.11
+   does: that line (or the rest of its -o matches) is skipped, later lines
+   still print, and the file is reported as binary at the end. */
 static void
 bg_emit (bg_state *st, size_t ls, size_t le, int sep, int matching)
 {
@@ -1246,7 +1242,7 @@ bg_emit (bg_state *st, size_t ls, size_t le, int sep, int matching)
                 if (!r) break;
                 if (m.rm_eo == m.rm_so) { pos = (size_t) m.rm_so + 1; continue; }
                 if (!o->aflag && bg_encoding_error (o, line + m.rm_so, (size_t) (m.rm_eo - m.rm_so)))
-                { bg_go_quiet (st); return; }
+                { st->enc_err = 1; return; }
                 bg_prefix (st, ls, base + m.rm_so, sep);
                 bg_out (o, line + m.rm_so, (size_t) (m.rm_eo - m.rm_so));
                 bg_outc (o, o->delim);
@@ -1256,7 +1252,7 @@ bg_emit (bg_state *st, size_t ls, size_t le, int sep, int matching)
     }
     else
     {
-        if (!o->aflag && bg_encoding_error (o, line, llen)) { bg_go_quiet (st); return; }
+        if (!o->aflag && bg_encoding_error (o, line, llen)) { st->enc_err = 1; return; }
         bg_prefix (st, ls, base, sep);
         bg_out (o, line, llen);
         bg_outc (o, o->delim);

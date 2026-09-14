@@ -27,6 +27,7 @@ printf 'no newline at end' > nonl.txt
 printf 'a\nb\0c\nd\0' > zrec.bin
 printf 'ſ\nK\nİ\nı\ns\nk\ni\n' > fold.txt
 printf 'ab\0cd\n' > nulline
+printf 'ok foo\ncaf\xe9 foo\nok2 foo\nzz\nok3 foo\n' > enc.txt
 printf 'tab\there\r\nplain\nfoo\tbar\nÜber café\nnaïve foo\n' > misc.txt
 mkdir -p dir sub/deep; echo foo > dir/f; echo foo > sub/deep/g
 python3 - <<'PYX'
@@ -415,6 +416,16 @@ printf 'caf\xe9 foo\n' | grep foo
 printf 'caf\xe9 foo\n' | grep -c foo
 printf 'caf\xe9 foo\n' | grep -o foo
 printf 'caf\xe9 foo\n' | grep -a foo | od -c | sed -n '1,1p'
+# only the lines with encoding errors are withheld; later lines still print
+grep foo enc.txt
+grep -n foo enc.txt
+grep -b foo enc.txt
+grep -v zz enc.txt
+grep -c foo enc.txt
+grep -m 2 foo enc.txt
+grep -o '.* foo' enc.txt
+grep foo enc.txt t.txt
+grep -h foo enc.txt enc.txt
 printf 'x\nfoo\n\0\nfoo\n' | grep foo
 printf 'x\nfoo\n\0\nfoo\n' | grep -c foo
 printf 'x\nfoo\n\0\nfoo\n' | grep -c ''
