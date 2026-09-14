@@ -1455,6 +1455,70 @@ bcu_groups_cmd (WORD_LIST *list)
  * matches GNU install behavior on non-root invocations).
  * =================================================================== */
 
+/* Whether two paths name one directory entry: the same last component in
+   the same parent directory, however either path is spelled. An answer that
+   cannot be established counts as the same entry, so the caller refuses
+   instead of removing the source's only name. */
+static int
+bcu_install_same_entry (const char *a, const char *b)
+{
+  const char *paths[2] = { a, b };
+  char parents[2][PATH_MAX];
+  struct stat dirs[2];
+  const char *sa = strrchr (a, '/'), *sb = strrchr (b, '/');
+  if (strcmp (sa ? sa + 1 : a, sb ? sb + 1 : b))
+    return 0;
+  for (int i = 0; i < 2; i++)
+    {
+      const char *slash = strrchr (paths[i], '/');
+      size_t len = slash ? (size_t) (slash - paths[i]) : 0;
+      if (len >= PATH_MAX)
+        return 1;
+      if (!slash)
+        strcpy (parents[i], ".");
+      else if (len == 0)
+        strcpy (parents[i], "/");
+      else
+        {
+          memcpy (parents[i], paths[i], len);
+          parents[i][len] = '\0';
+        }
+      if (stat (parents[i], &dirs[i]) < 0)
+        return 1;
+    }
+  return dirs[0].st_dev == dirs[1].st_dev && dirs[0].st_ino == dirs[1].st_ino;
+}
+
+/* Handle a destination that already names the source's inode as GNU install
+   does. The same directory entry, or a source that reaches the destination
+   through a symbolic link, is refused. Another hard link or a symbolic link
+   to the source is removed, so a fresh file takes its name and the source
+   keeps its data. Returns -1 after reporting a refusal or failure. */
+static int
+bcu_install_same_file (const char *src, const char *dst, const struct stat *src_st)
+{
+  struct stat st;
+  if (stat (dst, &st) < 0 || st.st_dev != src_st->st_dev || st.st_ino != src_st->st_ino)
+    return 0;
+  int replace;
+  if (lstat (dst, &st) == 0 && S_ISLNK (st.st_mode))
+    replace = 1;
+  else
+    replace = !(lstat (src, &st) == 0 && S_ISLNK (st.st_mode)) &&
+              !bcu_install_same_entry (src, dst);
+  if (!replace)
+    {
+      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
+      return -1;
+    }
+  if (unlink (dst) < 0)
+    {
+      builtin_error ("install: cannot remove %s: %s", dst, strerror (errno));
+      return -1;
+    }
+  return 0;
+}
+
 static int
 bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, gid_t gid)
 {
@@ -1463,16 +1527,8 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
   struct stat src_st, dst_st;
   if (fstat (rfd, &src_st) < 0)
     { int e = errno; close (rfd); builtin_error ("install: stat %s: %s", src, strerror (e)); return EXECUTION_FAILURE; }
-  /* Opening the source's own inode for writing would destroy the only copy
-     of the data. Refuse, as GNU install does, whether the operands name the
-     file directly or reach it through a hard or symbolic link. */
-  if (stat (dst, &dst_st) == 0 &&
-      src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino)
-    {
-      close (rfd);
-      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
-      return EXECUTION_FAILURE;
-    }
+  if (bcu_install_same_file (src, dst, &src_st) < 0)
+    { close (rfd); return EXECUTION_FAILURE; }
   /* Truncate before copying, so an interrupted copy leaves a short file and
      never new data followed by the old tail. Open without O_TRUNC and check
      the descriptor first, because the path may have become a link to the

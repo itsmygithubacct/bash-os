@@ -63,15 +63,26 @@ def check_directory(root):
         assert dst.stat().st_ino == linked.stat().st_ino == before.st_ino
         assert dst.read_bytes() == linked.read_bytes() == src.read_bytes()
 
-    # Same-inode operands are refused before the destination is opened, so
-    # the only copy of the data survives, whether spelled directly or reached
-    # through either alias.
-    for source in [dst, linked, symbolic]:
+    # Operands that are one file follow GNU install. The same directory entry,
+    # however it is spelled, and a source that is a symbolic link to the
+    # destination are refused, and the data survives.
+    for source, target in [(dst, dst), (dst, f'{root}/./destination'), (symbolic, dst)]:
         dst.write_bytes(old)
         dst.chmod(0o640)
-        p = run(source, dst, expected_status=1)
+        p = run(source, target, expected_status=1)
         assert b'are the same file' in p.stderr, p.stderr
         assert dst.read_bytes() == linked.read_bytes() == old
+        assert stat.S_IMODE(dst.stat().st_mode) == 0o640
+
+    # A destination that is another hard link or a symbolic link to the source
+    # is removed and a fresh file takes its name; the source is untouched.
+    for alias in [linked, symbolic]:
+        dst.write_bytes(old)
+        dst.chmod(0o640)
+        run(dst, alias)
+        assert not alias.is_symlink() and alias.stat().st_ino != dst.stat().st_ino
+        assert alias.read_bytes() == dst.read_bytes() == old
+        assert stat.S_IMODE(alias.stat().st_mode) == 0o751
         assert stat.S_IMODE(dst.stat().st_mode) == 0o640
 
     for data in [b'', bytes(range(256)) * 513 + b'last']:
