@@ -98,4 +98,14 @@ with tempfile.TemporaryDirectory() as directory:
         stop(process)
         os.close(writer)
         os.unlink('input.fifo')
+    # An unreadable operand (a directory) fails the command without ending
+    # the search: the files after it are still read.
+    Path('before').write_bytes(b'match before\n')
+    os.mkdir('directory')
+    Path('after').write_bytes(b'match after\n')
+    result = subprocess.run([binary, '-c', setup + 'pcre grep match before directory after'],
+                            stdin=subprocess.DEVNULL, capture_output=True, env=env, timeout=10)
+    assert result.stdout == b'before:match before\nafter:match after\n', result.stdout
+    assert result.returncode != 0 and b'directory: read error' in result.stderr, result
+    checks += 1
 print(f'pcre-streams: {checks} checks passed')

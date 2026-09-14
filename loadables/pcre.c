@@ -825,7 +825,7 @@ bp_grep_cmd (WORD_LIST *args)
   out.used = 0;
   out.buffered = 0;
   int terminal = isatty (STDOUT_FILENO);
-  int matched = 0, io_error = 0;
+  int matched = 0, io_error = 0, read_error = 0;
   int show_filename = nfiles > 1;
 
   for (int fi = 0; fi == 0 || fi < nfiles; fi++)
@@ -875,9 +875,11 @@ bp_grep_cmd (WORD_LIST *args)
               if (ferror (stdout)) { io_error = 1; break; }
             }
         }
-      if (ferror (f)) { builtin_error ("%s: read error: %s", fname, strerror (errno)); io_error = 1; }
+      /* A file that cannot be read (a directory, say) fails the command but
+         does not stop the search; only output and allocation errors do. */
+      if (ferror (f)) { builtin_error ("%s: read error: %s", fname, strerror (errno)); read_error = 1; }
       free (line);
-      if (fclose (f) != 0) io_error = 1;
+      if (fclose (f) != 0) read_error = 1;
       /* Finish this file before opening another potentially blocking input. */
       bp_grep_flush (&out);
       if (ferror (stdout)) io_error = 1;
@@ -890,7 +892,7 @@ bp_grep_cmd (WORD_LIST *args)
     io_error = 1;
   }
   pcre2_match_data_free (md);
-  return matched && !io_error ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  return matched && !io_error && !read_error ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- sed: per-line global substitution ----------------------------- */
