@@ -266,5 +266,22 @@ class WrapperTests(BuiltinTest):
         self.assertEqual(result.stdout, f"{self.root}/files\n" * 2)
 
 
+class PagerTests(BuiltinTest):
+    def test_redirected_write_failure_is_reported(self):
+        if not os.access("/dev/full", os.W_OK):
+            self.skipTest("no /dev/full")
+        (self.root / "a").write_text("line\n")
+        # Bash line-buffers stdout, so with several files the header write
+        # fails first and later fwrite/fflush calls can still report success.
+        for command in ("more a", "more a a", "less a", "less a a"):
+            with self.subTest(command=command):
+                result = self.shell(
+                    f'{command} > /dev/full; echo "status=$?" >&2; {command} > out')
+                self.assertIn("write error", result.stderr)
+                self.assertIn("status=1", result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertGreater((self.root / "out").stat().st_size, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

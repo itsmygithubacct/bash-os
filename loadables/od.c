@@ -774,6 +774,10 @@ od_builtin (WORD_LIST *list)
         }
         if (input) fclose (input);
     }
+    if (fflush (stdout) == EOF || ferror (stdout)) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        rc = EXECUTION_FAILURE;
+    }
     return rc;
 }
 

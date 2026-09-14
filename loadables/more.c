@@ -276,7 +276,9 @@ bm_copy_stream (FILE *f)
         }
         if (feof (f)) break;
     }
-    if (fflush (stdout) != EOF) return EXECUTION_SUCCESS;
+    /* Bash line-buffers stdout, so a failed write (the multi-file header, for
+       one) can empty the buffer and leave only the error flag behind. */
+    if (fflush (stdout) != EOF && !ferror (stdout)) return EXECUTION_SUCCESS;
 write_error:
     builtin_error ("write error: %s", strerror (errno));
     return EXECUTION_FAILURE;
@@ -469,6 +471,8 @@ more_builtin (WORD_LIST *list)
         if (bm_pager (f, rows, hint) != EXECUTION_SUCCESS)
             rc = EXECUTION_FAILURE;
         if (f != stdin) run_unwind_frame ("more input");
+        /* Output already failed: later files could only repeat the error. */
+        if (ferror (stdout)) break;
     }
     return rc;
 }

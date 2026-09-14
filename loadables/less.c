@@ -553,7 +553,7 @@ less_builtin (WORD_LIST *list)
     }
 
     if (drain) {
-        if (fflush (stdout) == EOF) {
+        if (fflush (stdout) == EOF || ferror (stdout)) {
             builtin_error ("write error: %s", strerror (errno));
             rc = EXECUTION_FAILURE;
         }
