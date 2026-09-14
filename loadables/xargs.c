@@ -1592,6 +1592,7 @@ xargs_builtin (WORD_LIST *list)
     bx_batch_buffers buffers = { 0 };
     int rc = BX_OK;
     int got_any = 0;
+    int too_long = 0;         /* a command line exceeded the byte limit */
     int pool_n = 0, pool_fatal = 0;
     pid_t *pool_pids = NULL;
     char **pool_cmds = NULL;
@@ -1625,6 +1626,14 @@ xargs_builtin (WORD_LIST *list)
         rc = BX_BAD;
         goto cleanup;
     }
+
+    /* GNU xargs refuses a command line whose bytes, counting every argument
+       and its terminating NUL, exceed -s SIZE or its 131072-byte buffer. It
+       runs the lines already complete, reports "argument line too long" and
+       exits 1 rather than launching the oversized command. */
+    size_t line_limit = s_flag > 0 ? (size_t) s_flag : 131072;
+    size_t tmpl_bytes = 0;
+    for (int i = 0; i < tmpl_n; i++) tmpl_bytes += strlen (tmpl[i]) + 1;
 
     if (Iflag) {
         /* -I REPL: run CMD once per input, with REPL replaced by the input. */
@@ -1683,6 +1692,16 @@ xargs_builtin (WORD_LIST *list)
                 argv[i] = out;
             }
             argv[tmpl_n] = NULL;
+            size_t line_bytes = 0;
+            for (int i = 0; i < tmpl_n; i++) line_bytes += (argv[i] ? strlen (argv[i]) : 0) + 1;
+            if (line_bytes > line_limit) {
+                builtin_error ("argument line too long");
+                too_long = 1;
+                for (int i = 0; i < tmpl_n; i++) free (argv[i]);
+                free (argv);
+                free (arg);
+                break;
+            }
             int r = BX_OK;
             if (!pflag || bx_prompt_yes (argv, tmpl_n)) {
                 if (parallel) {
@@ -1730,8 +1749,6 @@ xargs_builtin (WORD_LIST *list)
         if (arg_max <= 0) arg_max = 131072;
         size_t cap_bytes;
         if (s_flag > 0) {
-            size_t tmpl_bytes = 0;
-            for (int i = 0; i < tmpl_n; i++) tmpl_bytes += strlen (tmpl[i]) + 1;
             if ((size_t) s_flag <= tmpl_bytes) {
                 builtin_error ("-s %ld: argument list too long (template alone needs %zu bytes)",
                                s_flag, tmpl_bytes);
@@ -1795,6 +1812,12 @@ xargs_builtin (WORD_LIST *list)
                 batch_n = 0; batch_bytes = 0;
                 if (spawn_state.mask_error) { rc = BX_BAD; goto cleanup; }
                 if (bx_is_fatal (r) || pool_fatal) { aborted_fatal = 1; break; }
+            }
+            /* The batch before it has already run. Stop without launching. */
+            if (tmpl_bytes + alen > line_limit) {
+                builtin_error ("argument line too long");
+                too_long = 1;
+                break;
             }
             if (batch_n >= buffers.capacity) {
                 if (bx_batch_reserve (&buffers, buffers.capacity * 2, tmpl_n) < 0) {
@@ -1891,6 +1914,8 @@ cleanup:
         free (pool_cmds);
     }
 
+    /* GNU exits 1 at once; here the commands already started were waited for. */
+    if (too_long) rc = BX_BAD;
     if (default_echo) free (tmpl); else free (tmpl);
     /* Still blocked: Bash handles it once the mask is restored. */
     if (spawn_state.sigchld_taken) raise (SIGCHLD);

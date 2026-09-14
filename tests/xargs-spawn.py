@@ -196,6 +196,28 @@ def argv_size_checks(checks, helper):
     for total_bytes in (512, 513):
         check([b"v" * (total_bytes - fixed - 1)])
 
+    # GNU xargs refuses a command line over -s SIZE or its 131072-byte buffer,
+    # counting each argument and its NUL. Complete lines before it still run,
+    # nothing after it does, and xargs exits 1.
+    def hexed(*words):
+        return b"".join(word.hex().encode() + b"\n" for word in words)
+    command = len(os.fsencode(helper)) + 1 + len(b"args") + 1
+    fits = b"f" * (131072 - command - 1)
+    checks.check('xargs -n 1 "$1" args', helper, data=b"x\n" + fits + b"\ny\n",
+                 output=hexed(b"x", fits, b"y"))
+    checks.check('xargs -n 1 "$1" args', helper, data=b"x\n" + fits + b"f\ny\n",
+                 output=hexed(b"x"), status=1)
+    checks.check('xargs "$1" args', helper, data=b"x " + fits + b"f y",
+                 output=hexed(b"x"), status=1)
+    checks.check('xargs -s "$2" "$1" args', helper, command + 40,
+                 data=b"x " + b"s" * 40 + b" y", output=hexed(b"x"), status=1)
+    replaced = len(os.fsencode(helper)) + 1 + len(b"args") + 1
+    checks.check('xargs -I {} "$1" args {}', helper,
+                 data=b"f" * (131072 - replaced - 1) + b"\n",
+                 output=hexed(b"f" * (131072 - replaced - 1)))
+    checks.check('xargs -I {} "$1" args {}', helper,
+                 data=b"f" * (131072 - replaced) + b"\ny\n", status=1)
+
 
 def environment_checks(checks, helper, root):
     # Keep the small case independent of the invoking developer/CI environment.
