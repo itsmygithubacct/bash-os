@@ -9,6 +9,7 @@ import mmap
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import signal
 import socket
@@ -22,6 +23,12 @@ import time
 binary = str(Path(sys.argv[1] if len(sys.argv)>1 else 'out/bash').resolve())
 checks = 0
 prefix = 'if [[ -n ${GPU_MODULE:-} ]]; then enable -f "$GPU_MODULE" gpu; fi\nPATH=\n'
+
+def diagnostic(stderr):
+    """Drop bash's "NAME: line N: " prefix. NAME is the running executable's
+    path, so it varies with the checkout and, under an emulator, differs from
+    the wrapper this script was given."""
+    return re.sub(rb'(?m)^.*?: line [0-9]+: ', b'', stderr)
 
 def environment(extra=None):
     env = {**os.environ, **(extra or {})}
@@ -458,7 +465,7 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
         term.run(start+'--transport inline',rc=1)
         assert b': EPERM: denied??]2;title??' in term.stderr and b'...' in term.stderr
         assert b'\x1b' not in term.stderr and b'\x07' not in term.stderr and b'\x00' not in term.stderr
-        assert term.stderr.count(b'\n') == 2 and len(term.stderr.replace(binary.encode(),b'')) < 600
+        assert term.stderr.count(b'\n') == 2 and len(diagnostic(term.stderr)) < 600
         term = Terminal(inline=False,rejection=b'OK\x00invalid acknowledgement')
         term.run(start+'--transport inline',rc=1)
         assert b'terminal rejected the request' in term.stderr and b'OK?invalid acknowledgement' in term.stderr
@@ -497,7 +504,7 @@ gpu save "$GPU_TEST_DIR/multiple.rgba" rgba
                  env={'TERM':'bad\n\x1b]2;title\x07'+100*'x','TERM_PROGRAM':'bad\r\x1b[31m'})
         assert b'TERM=bad??]2;title?' in term.stderr and b'...' in term.stderr
         assert b'\x1b' not in term.stderr and b'\x07' not in term.stderr and b'\r' not in term.stderr
-        assert term.stderr.count(b'\n') == 2 and len(term.stderr.replace(binary.encode(),b'')) < 512
+        assert term.stderr.count(b'\n') == 2 and len(diagnostic(term.stderr)) < 512
         term = Terminal(tmux=True)
         term.run(start+'--transport inline\nunset TMUX; gpu clear 123456; gpu present; gpu pixel 3 4 ff0000; gpu present',
                  env={'TMUX':'gpu-test'})
