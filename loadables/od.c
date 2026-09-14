@@ -426,7 +426,9 @@ od_skip_input (FILE *f, long long n)
     if (n <= 0)
         return 0;
 
-    if (fseeko (f, (off_t)n, SEEK_SET) == 0)
+    /* Skip from the current position, as GNU od does: stdin is shared with
+       the shell, and a `read' before od leaves its offset past the start. */
+    if (fseeko (f, (off_t)n, SEEK_CUR) == 0)
         return 0;
 
     if (ferror (f))

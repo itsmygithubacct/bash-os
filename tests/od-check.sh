@@ -34,5 +34,14 @@ if [[ -w /dev/full ]]; then
     || no "od after a failed write: exit $rc"
 fi
 
+# -j skips from where a shell read left shared stdin, as GNU od does.
+printf 'first line\nsecond line and more bytes\nthird\n' > "$d/lines"
+for c in '{ read x; od -An -c -j 3 -N 8; } < "$1"' '{ read x; read y; od -An -c -j 1; } < "$1"' \
+         'od -An -c -j 3 -N 8 "$1"'; do
+  want=$(PATH=/usr/bin:/bin bash -c "$c" _ "$d/lines")
+  got=$("$BX" -c "PATH=; $c" _ "$d/lines")
+  [[ $got == "$want" ]] && ok "matches GNU: $c" || no "differs from GNU: $c"
+done
+
 echo "od-check: $pass passed, $fail failed"
 exit $(( fail>0 ? 1 : 0 ))
