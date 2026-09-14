@@ -31,6 +31,11 @@ int main(int argc, char **argv)
     if (argc < 2) return 2;
     if (!strcmp(argv[1], "status")) return argc > 2 ? atoi(argv[2]) : 0;
     if (!strcmp(argv[1], "signal")) { raise(SIGTERM); return 2; }
+    if (!strcmp(argv[1], "stdin")) {
+        char buffer[64];
+        printf("stdin:%zd\n", read(0, buffer, sizeof buffer));
+        return ferror(stdout) != 0;
+    }
     if (!strcmp(argv[1], "sleep")) {
         long ms = argc > 2 ? atol(argv[2]) : 0;
         struct timespec delay = { ms / 1000, ms % 1000 * 1000000L };
@@ -361,6 +366,20 @@ def main():
         checks.check('/bin/sh -c "exit 23" & background=$!; '
                      'xargs -n 1 /bin/echo; wait "$background"; printf "job:%s\\n" "$?"',
                      data=b"one\ntwo\n", output=b"one\ntwo\njob:23\n")
+        # Each command reads /dev/null, as with GNU xargs, so it cannot consume
+        # the arguments that follow. Input needing many reads shows that xargs
+        # regains its own standard input between launches.
+        for parallel in (1, 2):
+            checks.check('xargs -n 1 -P "$2" "$1" stdin', helper, parallel,
+                         data=b"one\ntwo\nthree\n", output=b"stdin:0\n" * 3)
+            checks.check('xargs -n 10000 -P "$2" "$1" stdin', helper, parallel,
+                         data=b"x\n" * 100000, output=b"stdin:0\n" * 10)
+        checks.check('xargs -I {} "$1" stdin', helper, data=b"one\ntwo\n",
+                     output=b"stdin:0\n" * 2)
+        stdin_input = root / "stdin-input"
+        stdin_input.write_bytes(b"one\ntwo\n")
+        checks.check('xargs -n 1 "$1" stdin < "$2"', helper, stdin_input,
+                     output=b"stdin:0\n" * 2)
         # A shell job that exits while -P waits stays the shell's to collect.
         for parallel in (1, 2):
             checks.check('"$1" sleep 100 23 & background=$!; '

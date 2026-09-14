@@ -34,6 +34,7 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <ctype.h>
 #include <limits.h>
@@ -362,6 +363,9 @@ typedef struct {
     int prepared;
     int mask_error;
     int sigchld_taken;          /* a wait consumed a pending SIGCHLD */
+    int stdin_ready;            /* 1: descriptors below are open; -1: unavailable */
+    int stdin_copy;             /* the shell's standard input, or -1 when closed */
+    int null_fd;                /* /dev/null, given to each command */
 #if defined (_POSIX_SPAWN) && _POSIX_SPAWN >= 0
     posix_spawnattr_t attr;
 #endif
@@ -438,6 +442,11 @@ bx_plain_span_allowed (const bx_spawn_state *state)
 static void
 bx_spawn_state_free (bx_spawn_state *state)
 {
+    if (state->stdin_ready > 0) {
+        close (state->null_fd);
+        if (state->stdin_copy >= 0) close (state->stdin_copy);
+        state->stdin_ready = 0;
+    }
 #if defined (BX_PRIVATE_SPAWN)
 #if defined (BX_OWNED_ASYNC)
     if (state->async_live) bx_async_quarantine (state);
@@ -1182,6 +1191,42 @@ unavailable:
     return 0;
 }
 
+/* GNU xargs gives each command /dev/null as its standard input, so it cannot
+   consume arguments still waiting to be read. Every launch path copies the
+   descriptor table when it creates the child, so descriptor 0 points at
+   /dev/null only while a child is being started. Both saved descriptors sit
+   at 10 or above, clear of Bash's redirections, and close on exec. */
+static int
+bx_stdin_detach (bx_spawn_state *state)
+{
+    if (!state->stdin_ready) {
+        state->stdin_ready = -1;
+        int copy = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 10);
+        if (copy >= 0 || errno == EBADF) {
+            int opened = open ("/dev/null", O_RDONLY | O_CLOEXEC);
+            int null_fd = opened < 0 ? -1 : fcntl (opened, F_DUPFD_CLOEXEC, 10);
+            if (opened >= 0) close (opened);
+            if (null_fd >= 0) {
+                state->stdin_copy = copy;
+                state->null_fd = null_fd;
+                state->stdin_ready = 1;
+            } else if (copy >= 0)
+                close (copy);
+        }
+    }
+    return state->stdin_ready > 0 && dup2 (state->null_fd, STDIN_FILENO) == STDIN_FILENO;
+}
+
+static void
+bx_stdin_attach (const bx_spawn_state *state, int detached)
+{
+    if (!detached) return;
+    int saved = errno;
+    if (state->stdin_copy >= 0) dup2 (state->stdin_copy, STDIN_FILENO);
+    else close (STDIN_FILENO);
+    errno = saved;
+}
+
 static pid_t
 bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
 {
@@ -1210,11 +1255,17 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
     fflush (stderr);
 #endif
     pid_t pid;
+    int detached = bx_stdin_detach (state);
     int launched = bx_try_spawn_external (&pid, argv, mask, state);
-    if (launched > 0) return pid;
-    if (launched < 0) return -1;
+    if (launched != 0) {
+        bx_stdin_attach (state, detached);
+        return launched > 0 ? pid : -1;
+    }
     /* fork may run application-registered parent atfork callbacks. */
-    if (bx_end_mask_interval (state) < 0) return -1;
+    if (bx_end_mask_interval (state) < 0) {
+        bx_stdin_attach (state, detached);
+        return -1;
+    }
     pid = fork ();
     if (pid == 0) {
         bos_prepare_child ();
@@ -1225,6 +1276,7 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
         fprintf (stderr, "bashxargs: %s: %s\n", argv[0], strerror (errno));
         _exit (code);
     }
+    bx_stdin_attach (state, detached);
     return pid;
 }
 
