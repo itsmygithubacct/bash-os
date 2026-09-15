@@ -803,17 +803,27 @@ bpw_temp_open (const char *path, char *tmp, size_t tmpsz, mode_t mode)
 
   int n = snprintf (tmp, tmpsz, "%s/.%s.XXXXXX", dir, strrchr (path, '/') ? strrchr (path, '/') + 1 : path);
   if (n <= 0 || (size_t) n >= tmpsz)
-    { errno = ENAMETOOLONG; return -1; }
+    {
+      builtin_error ("temp file name too long for %s", path);
+      errno = ENAMETOOLONG;
+      return -1;
+    }
 
   int fd = mkstemp (tmp);
   if (fd < 0)
-    return -1;
+    {
+      int saved = errno;
+      builtin_error ("create temp file in %s: %s", dir, strerror (saved));
+      errno = saved;
+      return -1;
+    }
   if (fcntl (fd, F_SETFD, FD_CLOEXEC) < 0 ||
       fchmod (fd, mode) < 0)
     {
       int saved = errno;
       close (fd);
       unlink (tmp);
+      builtin_error ("prepare temp file %s: %s", tmp, strerror (saved));
       errno = saved;
       return -1;
     }
@@ -845,7 +855,7 @@ bpw_shadow_set (const char *user, const char *phc, int add_missing)
 
   char tmp[512];
   int fd = bpw_temp_open (path, tmp, sizeof tmp, 0600);
-  if (fd < 0) { if (in) fclose (in); builtin_error ("open %s: %s", tmp, strerror (errno)); return -1; }
+  if (fd < 0) { if (in) fclose (in); return -1; }
   FILE *out = fdopen (fd, "w");
   if (!out) { close (fd); unlink (tmp); if (in) fclose (in); return -1; }
 

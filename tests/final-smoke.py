@@ -32,7 +32,7 @@ binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
 selected = set(sys.argv[2:])
 checks = 0
 
-def run(*args, data=None, rc=0, env=None):
+def run(*args, data=None, rc=0, env=None, stderr=None):
     global checks
     child_env = {**os.environ, 'LC_ALL': 'C', 'TZ': 'UTC', **(env or {})}
     if os.environ.get('FINAL_LOAD_ENV'):
@@ -43,6 +43,8 @@ def run(*args, data=None, rc=0, env=None):
                        input=data, capture_output=True, timeout=30, env=child_env, start_new_session=True)
     assert b'AddressSanitizer' not in p.stderr and b'runtime error:' not in p.stderr, (args, p.stderr)
     assert p.returncode == rc, (args, p.returncode, p.stdout[:300], p.stderr[:4000])
+    if stderr is not None and not os.environ.get('FINAL_LOAD_ENV'):
+        assert p.stderr == stderr, (args, p.stderr[:4000])
     checks += 1
     return p.stdout
 
@@ -189,6 +191,13 @@ def accounts(d):
     run('passwd', 'lock', 'fixture', env=env)
     assert (d/'shadow').read_text().split(':')[1].startswith('!')
     run('passwd', 'unlock', 'fixture', env=env)
+    run('passwd', 'verify-fd', 'fixture', 0, data=b'fixture-password\n', env=env)
+    # passwd will not write beside files others can replace, says so once, and
+    # leaves the password as it was.
+    d.chmod(0o770)
+    run('passwd', 'set-fd', 'fixture', 0, data=b'other-password\n', env=env, rc=1,
+        stderr=f'_: line 1: passwd: refusing temp file in group/world-writable dir: {d}\n'.encode())
+    d.chmod(0o700)
     run('passwd', 'verify-fd', 'fixture', 0, data=b'fixture-password\n', env=env)
     original = (d/'passwd').read_text()
     for bad_id in ['oops', '-1', '', '4294967296', '1junk']:
@@ -420,7 +429,9 @@ assert not selected-set(f.__name__ for f in groups), selected
 with tempfile.TemporaryDirectory() as temporary:
     for group in groups:
         if selected and group.__name__ not in selected: continue
-        d = Path(temporary)/group.__name__; d.mkdir()
+        # Private like the temporary directory itself: passwd refuses to write
+        # beside group-writable files, which a umask of 0002 would otherwise give.
+        d = Path(temporary)/group.__name__; d.mkdir(mode=0o700)
         before = checks
         group(d)
         print(f'final-smoke/{group.__name__}: {checks-before} checks passed',flush=True)
