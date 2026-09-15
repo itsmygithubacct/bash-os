@@ -27,6 +27,11 @@ BASH should be the smallest dynamic build for the target (out/bash-shell by
 default), so that a package loads into every dynamic profile. A static
 executable cannot load packages at all.
 
+--data NAME=DIR adds DIR/libexec/NAME/ and DIR/share/NAME/ to NAME's package,
+which pkg installs under /usr/lib/bash-os. MANIFEST declares each of those
+files with its mode and SHA-256, and such a package is xz-compressed. NAME
+may also come from config/bash-loadables-optional.list.
+
 The output directory receives the packages, an unsigned INDEX and
 build-report.tsv. sign-packages.sh signs one or more of these directories
 into a release.
@@ -36,6 +41,7 @@ import concurrent.futures
 import hashlib
 import io
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -96,6 +102,25 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def data_members(name, directory):
+    """The files under DIRECTORY/libexec/NAME and DIRECTORY/share/NAME, as package members."""
+    if not directory.is_dir():
+        die(f'--data {directory}: not a directory')
+    members = []
+    for top in sorted(directory.iterdir()):
+        if top.name not in ('libexec', 'share') or [p.name for p in top.iterdir()] != [name]:
+            die(f'--data {directory}: only libexec/{name}/ and share/{name}/ may be present')
+        for path in sorted((top/name).rglob('*')):
+            if path.is_symlink() or not (path.is_dir() or path.is_file()):
+                die(f'--data {path}: only regular files and directories can be packaged')
+            if path.is_file():
+                mode = 0o755 if path.stat().st_mode & 0o111 else 0o644
+                members.append((path.relative_to(directory).as_posix(), path.read_bytes(), mode))
+    if not members:
+        die(f'--data {directory}: no files')
+    return members
+
+
 def tar_bytes(members):
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode='w', format=tarfile.USTAR_FORMAT) as archive:
@@ -153,6 +178,8 @@ def parse_args():
     parser.add_argument('--out', type=Path, help='output directory (default out/packages/ARCH)')
     parser.add_argument('--version', help='package version (default: HEAD commit date)')
     parser.add_argument('--runner', default='', help='command that runs target executables')
+    parser.add_argument('--data', action='append', default=[], metavar='NAME=DIR',
+                        help="add DIR/libexec/NAME and DIR/share/NAME to NAME's package")
     parser.add_argument('--jobs', type=int, default=int(os.environ.get('JOBS') or os.cpu_count() or 2))
     parser.add_argument('names', nargs='*')
     return parser.parse_args()
@@ -191,11 +218,19 @@ def main():
     if runner and not shutil.which(runner[0]):
         die(f'runner {runner[0]} not found')
 
-    catalog = parse_list(ROOT/'config/bash-loadables.list')
-    names = args.names or list(catalog)
+    main_catalog = parse_list(ROOT/'config/bash-loadables.list')
+    optional = ROOT/'config/bash-loadables-optional.list'
+    catalog = {**main_catalog, **(parse_list(optional) if optional.is_file() else {})}
+    names = args.names or list(main_catalog)
     unknown = [name for name in names if name not in catalog]
     if unknown:
-        die('not in config/bash-loadables.list: ' + ', '.join(unknown))
+        die('not in config/bash-loadables.list or its optional list: ' + ', '.join(unknown))
+    data = {}
+    for item in args.data:
+        name, separator, directory = item.partition('=')
+        if not separator or name not in names:
+            die(f'--data {item!r}: expected NAME=DIR for a NAME being built')
+        data[name] = data_members(name, Path(directory))
 
     # The symbols a loaded object may use.
     available = tools.defined(bash)
@@ -379,24 +414,28 @@ def main():
                 detail = ' | '.join(loaded.stderr.strip().splitlines()[:2])[:300]
                 raise Failure(f'enable -f failed (exit {loaded.returncode}): {detail}')
             body = shared.read_bytes()
+            extra = data.get(name, [])
             manifest_text = (
                 f'name: {name}\ntype: loadable\nversion: {version}\nbuiltin: {name}\n'
                 f'abi: bash-{bash_version}\narch: {tools.arch}\nsha256: {sha256(body)}\n'
-                f'description: {catalog[name]}\nmode: {LOADABLES_DIR}/{name}.so 0755\n')
-            data = tar_bytes([('MANIFEST', manifest_text.encode(), 0o644),
-                              (f'loadable/{name}.so', body, 0o755)])
+                f'description: {catalog[name]}\nmode: {LOADABLES_DIR}/{name}.so 0755\n'
+                + ''.join(f'data: {path} {mode:04o} {sha256(content)}\n' for path, content, mode in extra))
+            archive = tar_bytes([('MANIFEST', manifest_text.encode(), 0o644),
+                                 (f'loadable/{name}.so', body, 0o755), *extra])
+            if extra:
+                archive = lzma.compress(archive, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64, preset=9)
             package = f'{name}_{version}_{tools.arch}.pkg'
-            (work/'out'/package).write_bytes(data)
+            (work/'out'/package).write_bytes(archive)
             shared.unlink()
             record = (f'pkg-loadable-v1 name={name} version={version} builtin={name} '
                       f'abi=bash-{bash_version} arch={tools.arch} package={package} '
-                      f'sha256={sha256(data)} sig={package}.sig deps=-')
+                      f'sha256={sha256(archive)} sig={package}.sig deps=-')
             return f'{len(body)} bytes', record
 
         def attempt(name):
             try:
                 return name, build(name)
-            except (Failure, subprocess.TimeoutExpired) as failure:
+            except (Failure, subprocess.TimeoutExpired, ValueError) as failure:
                 return name, failure
 
         records = []

@@ -118,5 +118,6 @@ fi
 # Last, because the packages compile against the tree this build leaves behind.
 check 'builds out/bash-shell' ./build.sh --profile shell --clean
 check 'package producer and signed release' python3 tests/packages.py out/bash
+check 'loadable package data files' python3 tests/pkg-data.py out/bash
 printf '\nrun: %s passed, %s failed\n' "$pass" "$fail"
 [[ $fail == 0 ]]

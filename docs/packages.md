@@ -22,6 +22,23 @@ object: helper sources, builtins it calls, static libraries from
 symbols first, so loading it into a shell that already has a builtin of that
 name replaces that builtin without mixing code from the two.
 
+A package may also carry files of its own under `libexec/NAME/` and
+`share/NAME/`, such as a program the builtin runs or a library it reads.
+pkg installs them under `/usr/lib/bash-os/libexec/NAME` and
+`/usr/lib/bash-os/share/NAME`. MANIFEST declares each file with its permission
+bits and SHA-256:
+
+```
+data: share/NAME/lib/os.py 0644 SHA256
+```
+
+Every file in those trees must be declared, and every declared file present
+with the same mode and content; links, setuid bits and paths outside the two
+trees are refused. Install writes each tree beside the old one and swaps it
+in, so an upgrade leaves no stale files and a failed install leaves the old
+tree in place. `pkg remove` deletes the trees with the loadable, and
+`pkg verify NAME` reports missing, extra and changed files.
+
 Packages load only into dynamic executables built for the same architecture,
 with glibc, from the same Bash release. A static executable cannot load shared
 objects at all.
@@ -62,6 +79,10 @@ command's object size or failure reason. The exit status is 1 if any command
 failed. The version defaults to the date of the HEAD commit; `--version`
 overrides it. With the same sources, compiler and version, the packages and
 the INDEX are identical byte for byte.
+
+`--data NAME=DIR` adds `DIR/libexec/NAME/` and `DIR/share/NAME/` to NAME's
+package, which is then xz-compressed. Names may also come from
+`config/bash-loadables-optional.list`, which the default catalog leaves out.
 
 For another architecture, set `CC` as for `build.sh`, and pass `--runner` with
 a command that runs the target's executables, such as qemu-user with the
@@ -134,4 +155,7 @@ that the producer and the signer refuse bad input, serves a signed release
 over HTTP, and installs every package with an empty `PATH`. It then runs each
 builtin in `out/bash-shell` and compares the output with the same builtin
 compiled into `out/bash`. `tests/pkg-signify.py` covers pkg's signature,
-trust, revocation and dependency checks. `tests/run.sh` runs both.
+trust, revocation and dependency checks. `tests/pkg-data.py` installs,
+verifies, upgrades and removes a package with data trees, and checks that
+archives whose data disagrees with MANIFEST are refused. `tests/run.sh` runs
+all three.

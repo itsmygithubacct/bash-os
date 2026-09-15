@@ -121,6 +121,8 @@
 #define BPKG_SOURCES_LIST  "/etc/pkg/sources.list"
 #define BPKG_INSTALL_ROOT  "/"
 #define BPKG_LOADABLES_DIR "/usr/lib/bash-os/loadables"
+/* A loadable package's own libexec/NAME/ and share/NAME/ trees install here. */
+#define BPKG_DATA_ROOT     "/usr/lib/bash-os"
 
 #define BPKG_TAR_BLOCK     512
 #define BPKG_PATH_MAX      4096
@@ -1864,6 +1866,278 @@ bp_verify_loadable_mode (const char *root, const bp_buf *manifest,
     return 0;
 }
 
+/* ---- Loadable data files -------------------------------------------- */
+
+/* Besides loadable/NAME.so, a loadable package may carry files of its own
+ * under libexec/NAME/ and share/NAME/, installed beneath BPKG_DATA_ROOT.
+ * MANIFEST declares every regular file with its permission bits and content:
+ *
+ *   data: share/NAME/lib/os.py 0644 SHA256
+ *
+ * Each file member must be declared and each declaration present, with the
+ * same mode and SHA-256. Directories need no declaration; links and other
+ * member types are refused. */
+
+static const char *const bp_data_kinds[2] = { "libexec", "share" };
+
+typedef struct {
+    char  *path;
+    mode_t mode;
+    char   hex[65];
+    int    seen;
+} bp_data_entry;
+
+typedef struct {
+    bp_data_entry *items;
+    size_t         n;
+    size_t         cap;
+} bp_data_list;
+
+static void
+bp_data_list_free (bp_data_list *l)
+{
+    for (size_t i = 0; i < l->n; i++) free (l->items[i].path);
+    free (l->items);
+    memset (l, 0, sizeof *l);
+}
+
+static int
+bp_data_entry_cmp (const void *a, const void *b)
+{
+    return strcmp (((const bp_data_entry *) a)->path,
+                   ((const bp_data_entry *) b)->path);
+}
+
+static bp_data_entry *
+bp_data_find (const bp_data_list *l, const char *path)
+{
+    bp_data_entry key = { .path = (char *) path };
+    return l->n ? bsearch (&key, l->items, l->n, sizeof *l->items,
+                           bp_data_entry_cmp) : NULL;
+}
+
+/* The kind (0 libexec, 1 share) when PATH names something under KIND/NAME/,
+   or with DIR_OK also KIND/NAME itself; -1 otherwise. */
+static int
+bp_data_kind (const char *path, const char *name, int dir_ok)
+{
+    size_t nl = strlen (name);
+    for (int k = 0; k < 2; k++) {
+        size_t kl = strlen (bp_data_kinds[k]);
+        if (strncmp (path, bp_data_kinds[k], kl) != 0 || path[kl] != '/' ||
+            strncmp (path + kl + 1, name, nl) != 0)
+            continue;
+        const char *rest = path + kl + 1 + nl;
+        if (rest[0] == '/' && rest[1])
+            return k;
+        if (dir_ok && (!rest[0] || (rest[0] == '/' && !rest[1])))
+            return k;
+    }
+    return -1;
+}
+
+/* A relative file path with no empty, "." or ".." component and no control
+   bytes. */
+static int
+bp_data_path_ok (const char *path)
+{
+    size_t len = strlen (path);
+    if (!len || path[0] == '/' || path[len - 1] == '/' || !bp_safe_path (path))
+        return 0;
+    for (const char *c = path; ; ) {
+        const char *slash = strchr (c, '/');
+        size_t n = slash ? (size_t) (slash - c) : strlen (c);
+        if (n == 0 || (n == 1 && c[0] == '.') ||
+            (n == 2 && c[0] == '.' && c[1] == '.'))
+            return 0;
+        for (size_t i = 0; i < n; i++)
+            if ((unsigned char) c[i] < 0x20 || c[i] == 0x7f)
+                return 0;
+        if (!slash)
+            return 1;
+        c = slash + 1;
+    }
+}
+
+/* Collect NAME's data: lines from MANIFEST, sorted by path. */
+static int
+bp_parse_data_lines (const bp_buf *manifest, const char *name,
+                     bp_data_list *out)
+{
+    size_t off = 0;
+    while (off < manifest->len) {
+        size_t end = off;
+        while (end < manifest->len && manifest->data[end] != '\n') end++;
+        size_t ll = end - off;
+        const unsigned char *start = manifest->data + off;
+        off = end + 1;
+        char line[4096];
+        if (ll == 0)
+            continue;
+        if (ll >= sizeof line) {
+            if (ll >= 5 && !memcmp (start, "data:", 5)) {
+                builtin_error ("data: line too long");
+                return -1;
+            }
+            continue;
+        }
+        memcpy (line, start, ll);
+        line[ll] = 0;
+        char *p = bp_strip (line);
+        if (strncmp (p, "data", 4) != 0)
+            continue;
+        p += 4;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p != ':')
+            continue;
+        char path[4096], mode_text[16], hex[128], extra[2];
+        if (sscanf (p + 1, " %4095s %15s %127s %1s", path, mode_text, hex,
+                    extra) != 3) {
+            builtin_error ("data: expected PATH MODE SHA256: %s", p + 1);
+            return -1;
+        }
+        if (!bp_data_path_ok (path) || bp_data_kind (path, name, 0) < 0) {
+            builtin_error ("data: %s is not under libexec/%s/ or share/%s/",
+                           path, name, name);
+            return -1;
+        }
+        char *mode_end;
+        unsigned long mode = strtoul (mode_text, &mode_end, 8);
+        if (*mode_end || mode_text[0] < '0' || mode_text[0] > '7' ||
+            (mode & ~0777UL)) {
+            builtin_error ("data: mode for %s must be permission bits only "
+                           "(got %s)", path, mode_text);
+            return -1;
+        }
+        if (!bp_hex64 (hex)) {
+            builtin_error ("data: hash for %s is not 64 hex digits", path);
+            return -1;
+        }
+        if (out->n >= BPKG_MAX_FILES) {
+            builtin_error ("data: more than %d files", BPKG_MAX_FILES);
+            return -1;
+        }
+        if (out->n == out->cap) {
+            size_t cap = out->cap ? out->cap * 2 : 64;
+            bp_data_entry *items = realloc (out->items, cap * sizeof *items);
+            if (!items) {
+                builtin_error ("out of memory");
+                return -1;
+            }
+            out->items = items;
+            out->cap = cap;
+        }
+        bp_data_entry *e = &out->items[out->n];
+        memset (e, 0, sizeof *e);
+        if (!(e->path = strdup (path))) {
+            builtin_error ("out of memory");
+            return -1;
+        }
+        e->mode = (mode_t) mode;
+        for (int i = 0; i < 64; i++)
+            e->hex[i] = (char) tolower ((unsigned char) hex[i]);
+        out->n++;
+    }
+    if (out->n)
+        qsort (out->items, out->n, sizeof *out->items, bp_data_entry_cmp);
+    for (size_t i = 1; i < out->n; i++) {
+        if (!strcmp (out->items[i - 1].path, out->items[i].path)) {
+            builtin_error ("data: %s declared twice", out->items[i].path);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+typedef struct {
+    const char   *name;
+    bp_data_list *list;
+    size_t        files;
+    int           bad;
+} bp_data_check;
+
+static int
+bp_data_check_cb (const bp_tar_hdr *h, const char *path,
+                  const unsigned char *body, size_t body_len, void *opaque)
+{
+    bp_data_check *c = opaque;
+    int top = !strcmp (path, "libexec") || !strcmp (path, "libexec/") ||
+              !strcmp (path, "share") || !strcmp (path, "share/");
+    if (!top && strncmp (path, "libexec/", 8) != 0 &&
+        strncmp (path, "share/", 6) != 0)
+        return 0;
+    if (h->typeflag == '5') {
+        if (!top && bp_data_kind (path, c->name, 1) < 0) {
+            builtin_error ("data directory %s is not under libexec/%s/ or "
+                           "share/%s/", path, c->name, c->name);
+            c->bad = 1;
+        }
+        return 0;
+    }
+    if (h->typeflag != '0' && h->typeflag != 0) {
+        builtin_error ("data member %s is not a regular file or directory",
+                       path);
+        c->bad = 1;
+        return 0;
+    }
+    if (!bp_data_path_ok (path) || bp_data_kind (path, c->name, 0) < 0) {
+        builtin_error ("data file %s is not under libexec/%s/ or share/%s/",
+                       path, c->name, c->name);
+        c->bad = 1;
+        return 0;
+    }
+    bp_data_entry *e = bp_data_find (c->list, path);
+    if (!e) {
+        builtin_error ("data file %s is not declared in MANIFEST", path);
+        c->bad = 1;
+        return 0;
+    }
+    if (e->seen++) {
+        builtin_error ("data file %s appears twice", path);
+        c->bad = 1;
+        return 0;
+    }
+    mode_t mode = (mode_t) (bp_octal (h->mode, sizeof h->mode) & 07777);
+    if (mode != e->mode) {
+        builtin_error ("data file %s has mode 0%o, but MANIFEST declares 0%o",
+                       path, (unsigned) mode, (unsigned) e->mode);
+        c->bad = 1;
+    }
+    char got[65];
+    if (bp_sha256_bytes_hex (body, body_len, got) < 0 ||
+        strcasecmp (got, e->hex) != 0) {
+        builtin_error ("data file %s does not match its MANIFEST sha256", path);
+        c->bad = 1;
+    }
+    c->files++;
+    return 0;
+}
+
+/* Check the data members of a loadable archive for package NAME against
+   MANIFEST. Returns the number of data files, or -1. */
+static long
+bp_check_loadable_data (const unsigned char *tar, size_t len,
+                        const char *name, const bp_buf *manifest)
+{
+    bp_data_list list = {0};
+    if (bp_parse_data_lines (manifest, name, &list) < 0) {
+        bp_data_list_free (&list);
+        return -1;
+    }
+    bp_data_check c = { name, &list, 0, 0 };
+    if (bp_tar_iter (tar, len, bp_data_check_cb, &c) < 0)
+        c.bad = 1;
+    for (size_t i = 0; i < list.n; i++) {
+        if (!list.items[i].seen) {
+            builtin_error ("declared data file %s is missing",
+                           list.items[i].path);
+            c.bad = 1;
+        }
+    }
+    bp_data_list_free (&list);
+    return c.bad ? -1 : (long) c.files;
+}
+
 /* ---- Install: extract ---------------------------------------------- */
 
 typedef struct {
@@ -1895,6 +2169,13 @@ typedef struct {
     char         state_backup[BPKG_PATH_MAX];
     int          state_dir_active;
     int          state_backup_active;
+    int          data_count;  /* libexec/ and share/ members */
+    bp_buf       data_tar;    /* the archive, kept to install data files */
+    char         data_final[2][BPKG_PATH_MAX];
+    char         data_stage[2][BPKG_PATH_MAX];
+    char         data_backup[2][BPKG_PATH_MAX];
+    int          data_final_active[2];
+    int          data_backup_active[2];
 } bp_install_ctx;
 
 static void
@@ -1908,6 +2189,7 @@ bp_install_ctx_free (bp_install_ctx *ctx)
     bp_buf_free (&ctx->hook_prerm);
     bp_buf_free (&ctx->hook_postrm);
     bp_buf_free (&ctx->loadable_body);
+    bp_buf_free (&ctx->data_tar);
 }
 
 static void
@@ -1983,6 +2265,17 @@ bp_rollback_install (const char *root, bp_install_ctx *ctx)
         if (rename (ctx->loadable_backup, ctx->loadable_dest) == 0)
             ctx->loadable_backup_active = 0;
     }
+    for (int k = 0; k < 2; k++) {
+        if (ctx->data_final_active[k]) {
+            bp_remove_tree (ctx->data_final[k]);
+            ctx->data_final_active[k] = 0;
+        }
+        if (ctx->data_backup_active[k] &&
+            rename (ctx->data_backup[k], ctx->data_final[k]) == 0)
+            ctx->data_backup_active[k] = 0;
+        if (ctx->data_stage[k][0])
+            bp_remove_tree (ctx->data_stage[k]);
+    }
     if (ctx->state_dir_active && ctx->state_dir[0]) {
         bp_remove_tree (ctx->state_dir);
         if (ctx->state_backup_active) {
@@ -2006,6 +2299,13 @@ bp_commit_install (bp_install_ctx *ctx)
         ctx->state_backup_active = 0;
     }
     ctx->state_dir_active = 0;
+    for (int k = 0; k < 2; k++) {
+        if (ctx->data_backup_active[k]) {
+            bp_remove_tree (ctx->data_backup[k]);
+            ctx->data_backup_active[k] = 0;
+        }
+        ctx->data_final_active[k] = 0;
+    }
 }
 
 static int
@@ -2061,6 +2361,211 @@ bp_install_staged_loadable (bp_install_ctx *ctx, const char *root)
     }
 
     return 0;
+}
+
+typedef struct {
+    const char         *name;
+    const char         *stage[2];
+    const bp_data_list *list;
+} bp_data_write;
+
+static int
+bp_data_write_cb (const bp_tar_hdr *h, const char *path,
+                  const unsigned char *body, size_t body_len, void *opaque)
+{
+    bp_data_write *w = opaque;
+    if (h->typeflag != '0' && h->typeflag != 0)
+        return 0;
+    int k = bp_data_kind (path, w->name, 0);
+    if (k < 0)
+        return 0;
+    const bp_data_entry *e = bp_data_find (w->list, path);
+    char got[65];
+    if (!e || !w->stage[k][0] ||
+        bp_sha256_bytes_hex (body, body_len, got) < 0 ||
+        strcasecmp (got, e->hex) != 0) {
+        builtin_error ("data file %s does not match its MANIFEST sha256", path);
+        return -1;
+    }
+    const char *rest = path + strlen (bp_data_kinds[k]) + 1 +
+                       strlen (w->name) + 1;
+    char dest[BPKG_PATH_MAX];
+    if (snprintf (dest, sizeof dest, "%s/%s", w->stage[k], rest) >=
+        (int) sizeof dest) {
+        builtin_error ("path too long: %s", path);
+        return -1;
+    }
+    char parent[BPKG_PATH_MAX];
+    snprintf (parent, sizeof parent, "%s", dest);
+    char *slash = strrchr (parent, '/');
+    if (slash) {
+        *slash = 0;
+        if (bp_mkdir_p (parent) < 0) {
+            builtin_error ("mkdir %s: %s", parent, strerror (errno));
+            return -1;
+        }
+    }
+    if (bp_write_file_atomic (dest, body, body_len, e->mode) < 0 ||
+        chmod (dest, e->mode) < 0) {
+        builtin_error ("write %s: %s", dest, strerror (errno));
+        return -1;
+    }
+    return 0;
+}
+
+/* Install NAME's data trees from the archive kept in CTX. Each tree is
+   written to a staging directory beside its final place and swapped in;
+   whatever was there stays as a backup until bp_commit_install. An old tree
+   is moved aside even when the package no longer has one, so an upgrade
+   drops stale files. */
+static int
+bp_install_staged_data (bp_install_ctx *ctx, const char *root,
+                        const char *name)
+{
+    bp_data_list list = {0};
+    if (bp_parse_data_lines (&ctx->manifest, name, &list) < 0)
+        goto fail;
+    int has[2] = { 0, 0 };
+    for (size_t i = 0; i < list.n; i++)
+        has[bp_data_kind (list.items[i].path, name, 0)] = 1;
+    const char *prefix = root[0] && strcmp (root, "/") ? root : "";
+    int pid = (int) getpid ();
+    for (int k = 0; k < 2; k++) {
+        if (snprintf (ctx->data_final[k], sizeof ctx->data_final[k],
+                      "%s%s/%s/%s", prefix, BPKG_DATA_ROOT, bp_data_kinds[k],
+                      name) >= (int) sizeof ctx->data_final[k] ||
+            snprintf (ctx->data_stage[k], sizeof ctx->data_stage[k],
+                      "%s.new.%d", ctx->data_final[k], pid) >=
+                (int) sizeof ctx->data_stage[k] ||
+            snprintf (ctx->data_backup[k], sizeof ctx->data_backup[k],
+                      "%s.bak.%d", ctx->data_final[k], pid) >=
+                (int) sizeof ctx->data_backup[k]) {
+            builtin_error ("path too long: %s", name);
+            goto fail;
+        }
+        bp_remove_tree (ctx->data_stage[k]);
+        if (!has[k]) {
+            ctx->data_stage[k][0] = 0;
+        } else if (bp_mkdir_p (ctx->data_stage[k]) < 0) {
+            builtin_error ("mkdir %s: %s", ctx->data_stage[k], strerror (errno));
+            goto fail;
+        }
+    }
+    bp_data_write w = { name, { ctx->data_stage[0], ctx->data_stage[1] },
+                        &list };
+    if ((has[0] || has[1]) &&
+        bp_tar_iter (ctx->data_tar.data, ctx->data_tar.len,
+                     bp_data_write_cb, &w) < 0)
+        goto fail;
+    for (int k = 0; k < 2; k++) {
+        struct stat st;
+        if (lstat (ctx->data_final[k], &st) == 0) {
+            if (rename (ctx->data_final[k], ctx->data_backup[k]) < 0) {
+                builtin_error ("backup %s: %s", ctx->data_final[k],
+                               strerror (errno));
+                goto fail;
+            }
+            ctx->data_backup_active[k] = 1;
+        }
+        if (has[k]) {
+            if (rename (ctx->data_stage[k], ctx->data_final[k]) < 0) {
+                builtin_error ("install %s: %s", ctx->data_final[k],
+                               strerror (errno));
+                goto fail;
+            }
+            ctx->data_stage[k][0] = 0;
+            ctx->data_final_active[k] = 1;
+        }
+    }
+    bp_data_list_free (&list);
+    return 0;
+fail:
+    bp_data_list_free (&list);
+    return -1;
+}
+
+static void
+bp_verify_data_tree (const char *dir, const char *rel,
+                     const bp_data_list *list, int *bad, size_t *files)
+{
+    DIR *d = opendir (dir);
+    if (!d)
+        return;
+    struct dirent *de;
+    while ((de = readdir (d)) != NULL) {
+        if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, ".."))
+            continue;
+        char path[BPKG_PATH_MAX], sub[BPKG_PATH_MAX];
+        if (snprintf (path, sizeof path, "%s/%s", dir, de->d_name) >=
+                (int) sizeof path ||
+            snprintf (sub, sizeof sub, "%s/%s", rel, de->d_name) >=
+                (int) sizeof sub) {
+            printf ("BAD-DATA-PATH\t%s/%s\n", dir, de->d_name);
+            (*bad)++;
+            continue;
+        }
+        struct stat st;
+        if (lstat (path, &st) < 0) {
+            printf ("MISSING\t%s\n", path);
+            (*bad)++;
+        } else if (S_ISDIR (st.st_mode)) {
+            bp_verify_data_tree (path, sub, list, bad, files);
+        } else {
+            bp_data_entry *e = S_ISREG (st.st_mode)
+                               ? bp_data_find (list, sub) : NULL;
+            char got[65];
+            if (!e) {
+                printf ("EXTRA\t%s\n", path);
+                (*bad)++;
+                continue;
+            }
+            e->seen = 1;
+            (*files)++;
+            if ((st.st_mode & 07777) != e->mode) {
+                printf ("MODE-MISMATCH\t%s\n", path);
+                (*bad)++;
+            }
+            if (bp_sha256_file_hex (path, got) < 0 ||
+                strcasecmp (got, e->hex) != 0) {
+                printf ("SHA256-MISMATCH\t%s\n", path);
+                (*bad)++;
+            }
+        }
+    }
+    closedir (d);
+}
+
+/* Recheck NAME's installed data trees against MANIFEST, printing a line per
+   problem: missing, extra or changed files. Returns the number of problems,
+   or -1 for invalid data: lines, and stores the number of files checked. */
+static int
+bp_verify_installed_data (const char *root, const char *name,
+                          const bp_buf *manifest, size_t *files)
+{
+    bp_data_list list = {0};
+    *files = 0;
+    if (bp_parse_data_lines (manifest, name, &list) < 0) {
+        bp_data_list_free (&list);
+        return -1;
+    }
+    const char *prefix = root[0] && strcmp (root, "/") ? root : "";
+    int bad = 0;
+    for (int k = 0; k < 2; k++) {
+        char dir[BPKG_PATH_MAX], rel[BPKG_PATH_MAX];
+        snprintf (dir, sizeof dir, "%s%s/%s/%s", prefix, BPKG_DATA_ROOT,
+                  bp_data_kinds[k], name);
+        snprintf (rel, sizeof rel, "%s/%s", bp_data_kinds[k], name);
+        bp_verify_data_tree (dir, rel, &list, &bad, files);
+    }
+    for (size_t i = 0; i < list.n; i++) {
+        if (!list.items[i].seen) {
+            printf ("MISSING\t%s%s/%s\n", prefix, BPKG_DATA_ROOT,
+                    list.items[i].path);
+            bad++;
+        }
+    }
+    bp_data_list_free (&list);
+    return bad;
 }
 
 static int
@@ -2308,6 +2813,14 @@ bp_extract_cb (const bp_tar_hdr *h, const char *path,
         return 0;
     }
 
+    /* A loadable package's own files: bp_check_loadable_data checks them,
+       and bp_install_staged_data writes them. */
+    if (!strcmp (path, "libexec") || !strcmp (path, "share") ||
+        !strncmp (path, "libexec/", 8) || !strncmp (path, "share/", 6)) {
+        ctx->data_count++;
+        return 0;
+    }
+
     /* Only files/ entries become rootfs paths for legacy packages. */
     if (strncmp (path, "files/", 6) != 0) {
         ctx->other_payload_count++;
@@ -2410,38 +2923,14 @@ bp_extract_cb (const bp_tar_hdr *h, const char *path,
     return 0;
 }
 
+/* bp_validate_loadable_archive's checks, on an archive already in memory. */
 static int
-bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
-                              int require_loadable,
-                              bp_manifest *out_manifest)
+bp_validate_loadable_tar (const char *pkgfile, const unsigned char *tar_data,
+                          size_t tar_len, const char *expected_name,
+                          int require_loadable, bp_manifest *out_manifest)
 {
-    bp_buf raw = {0};
-    if (bp_read_file (pkgfile, &raw) < 0) {
-        builtin_error ("read %s: %s", pkgfile, strerror (errno));
-        return -1;
-    }
-
-    bp_buf tar = {0};
-    const unsigned char *tar_data;
-    size_t tar_len;
-    if (bp_is_xz (raw.data, raw.len)) {
-        if (bp_xz_decompress (raw.data, raw.len, &tar) < 0) {
-            builtin_error ("xz decode failed: %s", pkgfile);
-            bp_buf_free (&raw);
-            bp_buf_free (&tar);
-            return -1;
-        }
-        tar_data = tar.data;
-        tar_len = tar.len;
-    } else {
-        tar_data = raw.data;
-        tar_len = raw.len;
-    }
-
     bp_install_ctx ctx = {0};
     int rc = bp_tar_iter (tar_data, tar_len, bp_extract_cb, &ctx);
-    bp_buf_free (&raw);
-    bp_buf_free (&tar);
     if (rc < 0) {
         builtin_error ("tar parse failed: %s", pkgfile);
         bp_install_ctx_free (&ctx);
@@ -2508,8 +2997,8 @@ bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
     if (ctx.files_payload_count || ctx.other_payload_count || ctx.hook_count ||
         ctx.hook_pre.len || ctx.hook_post.len ||
         ctx.hook_prerm.len || ctx.hook_postrm.len) {
-        builtin_error ("loadable package may contain only MANIFEST "
-                       "and loadable/<name>.so");
+        builtin_error ("loadable package may contain only MANIFEST, "
+                       "loadable/<name>.so, libexec/<name>/ and share/<name>/");
         bad = 1;
     }
     if (ctx.loadable_name[0]) {
@@ -2548,6 +3037,9 @@ bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
         }
     }
 
+    if (bp_check_loadable_data (tar_data, tar_len, m.name, &ctx.manifest) < 0)
+        bad = 1;
+
     if (bad) {
         bp_install_ctx_free (&ctx);
         bp_manifest_free (&m);
@@ -2561,6 +3053,34 @@ bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
     }
     bp_install_ctx_free (&ctx);
     return 1;
+}
+
+static int
+bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
+                              int require_loadable,
+                              bp_manifest *out_manifest)
+{
+    bp_buf raw = {0};
+    if (bp_read_file (pkgfile, &raw) < 0) {
+        builtin_error ("read %s: %s", pkgfile, strerror (errno));
+        bp_buf_free (&raw);
+        return -1;
+    }
+    bp_buf tar = {0};
+    int is_xz = bp_is_xz (raw.data, raw.len);
+    if (is_xz && bp_xz_decompress (raw.data, raw.len, &tar) < 0) {
+        builtin_error ("xz decode failed: %s", pkgfile);
+        bp_buf_free (&raw);
+        bp_buf_free (&tar);
+        return -1;
+    }
+    int rc = bp_validate_loadable_tar (pkgfile, is_xz ? tar.data : raw.data,
+                                       is_xz ? tar.len : raw.len,
+                                       expected_name, require_loadable,
+                                       out_manifest);
+    bp_buf_free (&raw);
+    bp_buf_free (&tar);
+    return rc;
 }
 
 static int
@@ -2721,6 +3241,12 @@ bp_install_pkgfile (const char *pkgfile, const char *root,
             return EXECUTION_FAILURE;
         }
     }
+    if (is_loadable_pkg) {
+        /* Keep the archive: bp_install_staged_data writes data files from it. */
+        bp_buf *archive = tar.data ? &tar : &raw;
+        ctx.data_tar = *archive;
+        memset (archive, 0, sizeof *archive);
+    }
     bp_buf_free (&raw);
     bp_buf_free (&tar);
 
@@ -2783,6 +3309,13 @@ bp_install_pkgfile (const char *pkgfile, const char *root,
         bp_verify_loadable_mode (root, &ctx.manifest, ctx.loadable_dest) < 0)
     {
         builtin_error ("mode-bit check failed: %s", pkgfile);
+        bp_rollback_install (root, &ctx);
+        bp_install_ctx_free (&ctx);
+        bp_manifest_free (&m);
+        return EXECUTION_FAILURE;
+    }
+    if (is_loadable_pkg && bp_install_staged_data (&ctx, root, m.name) < 0) {
+        builtin_error ("data file install failed: %s", pkgfile);
         bp_rollback_install (root, &ctx);
         bp_install_ctx_free (&ctx);
         bp_manifest_free (&m);
@@ -6051,6 +6584,13 @@ verb_remove (WORD_LIST *args)
 
         if (unlink (so_path) < 0 && errno != ENOENT)
             errs++;
+        for (int k = 0; k < 2; k++) {
+            char tree[BPKG_PATH_MAX];
+            snprintf (tree, sizeof tree, "%s%s/%s/%s",
+                      root[0] && strcmp (root, "/") ? root : "",
+                      BPKG_DATA_ROOT, bp_data_kinds[k], name);
+            bp_remove_tree (tree);
+        }
 
         bp_remove_state_dir (dir);
         bp_manifest_free (&mf);
@@ -7423,7 +7963,20 @@ verb_verify (WORD_LIST *args)
                         printf ("SHA256-MISMATCH\t%s\n", so_path);
                         bad = 1;
                     } else {
-                        printf ("verify %s\tloadable=ok\n", name);
+                        size_t data_files = 0;
+                        int data_bad = bp_verify_installed_data (
+                            root, name, &manifest, &data_files);
+                        if (data_bad < 0) {
+                            printf ("BAD-DATA-METADATA\t%s\n", name);
+                            bad = 1;
+                        } else if (data_bad > 0) {
+                            bad = 1;
+                        } else if (data_files) {
+                            printf ("verify %s\tloadable=ok\tdata=%zu\n", name,
+                                    data_files);
+                        } else {
+                            printf ("verify %s\tloadable=ok\n", name);
+                        }
                     }
                 }
             }
@@ -7848,6 +8401,10 @@ char *pkg_doc[] = {
     "delegating to Bash's native `enable -f PATH BUILTIN`.",
     "unload verifies installed v2 loadable state and delegates to",
     "Bash's native `enable -d BUILTIN` dlclose path.",
+    "A loadable package may also carry libexec/NAME/ and share/NAME/ trees,",
+    "installed under /usr/lib/bash-os. MANIFEST `data: PATH MODE SHA256` lines",
+    "declare every file; install swaps the trees in whole, remove deletes",
+    "them, and verify PKGNAME rechecks them.",
     "",
     "update local-fetch: sources.list entries of the form",
     "  file:///abs/path/to/INDEX     copy INDEX in place",

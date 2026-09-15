@@ -162,6 +162,7 @@ tests/
   regressions.py                builtin regressions in a real bash-os process
   packages.py [BIN]             package producer, signed release and pkg install
   pkg-signify.py [BIN]          pkg's signature checks and remote fetch
+  pkg-data.py [BIN]             package data trees: install, verify, upgrade, refusals
   licence-check.sh              source licences and third-party notices
   zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
