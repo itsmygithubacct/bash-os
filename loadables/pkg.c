@@ -779,6 +779,15 @@ bp_abi_matches (const char *abi)
 
 /* ---- Path safety ---------------------------------------------------- */
 
+/* Whether S ends in SUFFIX. Deriving the length from SUFFIX keeps a renamed
+   file extension from leaving a stale fixed offset behind. */
+static int
+bp_has_suffix (const char *s, const char *suffix)
+{
+    size_t n = strlen (s), k = strlen (suffix);
+    return n > k && strcmp (s + n - k, suffix) == 0;
+}
+
 static int
 bp_safe_path (const char *p)
 {
@@ -2754,7 +2763,7 @@ bp_find_in_cache (const char *root, const char *name, char *out,
         if (dn <= nlen + 1) continue;
         if (strncmp (de->d_name, name, nlen) != 0) continue;
         if (de->d_name[nlen] != '-' && de->d_name[nlen] != '.') continue;
-        if (dn < 9 || strcmp (de->d_name + dn - 8, ".pkg") != 0)
+        if (!bp_has_suffix (de->d_name, ".pkg"))
             continue;
         char candidate[BPKG_PATH_MAX];
         if (snprintf (candidate, sizeof candidate, "%s/%s", dir,
@@ -3159,8 +3168,7 @@ bp_index_pkg_candidate (const char *line, const char *name,
             return -1;
         }
         if (delta[0] &&
-            (strlen (delta) < 15 ||
-             strcmp (delta + strlen (delta) - 14, ".pkg.delta") != 0)) {
+            !bp_has_suffix (delta, ".pkg.delta")) {
             builtin_error ("loadable index entry for %s has bad delta=REF",
                            name);
             return -1;
@@ -3170,8 +3178,7 @@ bp_index_pkg_candidate (const char *line, const char *name,
                            "delta_from=HEX64 and delta_to=HEX64", name);
             return -1;
         }
-        size_t plen = strlen (pkg);
-        if (plen < 9 || strcmp (pkg + plen - 8, ".pkg") != 0)
+        if (!bp_has_suffix (pkg, ".pkg"))
             return 0;
         if (snprintf (out, outsz, "%s", pkg) >= (int) outsz)
             return -1;
