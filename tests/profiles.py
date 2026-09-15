@@ -35,6 +35,10 @@ for level,name in enumerate(['shell','pure','core','device','server','full']):
 assert plan()['names']==p['full']['names']
 assert plan('--profile=core')['names']==p['core']['names']
 assert plan('--include','cut,seq','--include','cut')['names']==['cut','seq']
+assert plan('--include','bashperl')['names']==['bashperl']
+assert '_perl' in plan('--include','bashperl')['helpers']
+assert 'bashperl' not in p['full']['names']
+assert plan('--profile','core','--include','bashperl')['names'][-1]=='bashperl'
 assert plan('--profile','core','--include','nano,ts')['names'][-2:]==['nano','ts']
 assert 'ed' not in plan('--profile','core','--exclude','ed')['names']
 assert plan('--include','cut','--exclude','cut')['names']==[]

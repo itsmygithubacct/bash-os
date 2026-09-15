@@ -99,6 +99,13 @@ in an inclusion list or `--include`. See the [loadable tutorial](anatomy-of-a-lo
 
 ## Dependency libraries and cross builds
 
+`bashperl` is an optional integration listed in
+[`config/bash-loadables-optional.list`](../config/bash-loadables-optional.list).
+Add it with `--include bashperl`. Its pinned static Perl installation is built
+by `build-perl.sh`, or supplied using `--perl-prefix DIR`. It can be added to
+any profile; existing profiles do not select it automatically.
+See [Perl inside Bash](perl.md) for module data, runtime loading and checks.
+
 All builds need a C compiler, make, Python 3.9+, curl, patch, GNU binutils and
 `flock`. The `shell`, `pure`, `core`, and `device` profiles need no extra codec,
 regex, database or TLS development libraries. Other selections may use PCRE2,

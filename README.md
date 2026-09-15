@@ -40,6 +40,8 @@ Three uses drive it:
 ```
 
 Choose `shell`, `pure`, `core`, `device`, `server`, `desktop`, or `full`.
+`--include bashperl` adds an optional real Perl interpreter with `libperl`
+linked into the executable; see [Perl inside Bash](docs/perl.md).
 Levels 0–5 range from no injected loadables to the full collection. Lists and
 repeatable `--include`, `--include-list`, and `--exclude` options let you choose
 exactly what goes into a binary. Required companion builtins are checked before

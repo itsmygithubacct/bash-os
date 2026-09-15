@@ -17,7 +17,8 @@ selection=json.loads(manifest.read_text())
 assert binary.stat().st_size==selection['bytes'], 'binary size differs from manifest'
 assert hashlib.sha256(binary.read_bytes()).hexdigest()==selection['binary_sha256'], 'binary checksum differs from manifest'
 names=selection['names']
-all_names=list(dict.fromkeys([*parse_list(root/'config/bash-loadables.list'),*names]))
+all_names=list(dict.fromkeys([*parse_list(root/'config/bash-loadables.list'),
+                             *parse_list(root/'config/bash-loadables-optional.list'),*names]))
 script='PATH=\n'
 for name in all_names:
     script+=f'if [[ $(type -t {shlex.quote(name)}) == builtin ]]; then printf "%s\\n" {shlex.quote(name)}; fi\n'

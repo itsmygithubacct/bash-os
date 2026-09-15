@@ -24,6 +24,42 @@ env:
   LC_ALL: C.UTF-8
 
 jobs:
+  perl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl bison \
+            libpcre2-dev zlib1g-dev liblzma-dev libzstd-dev libbz2-dev
+      - name: Check embedded, static and runtime-loadable Perl
+        run: bash tests/perl-check.sh
+      - name: Check the embedding wrapper under ASan and UBSan
+        run: bash tests/bashperl-sanitize.sh out/bash-shell
+      - name: Check Perl alongside the full builtin collection
+        run: |
+          ./build.sh --profile full --include bashperl --name full-perl
+          python3 tests/bashperl.py out/bash-full-perl
+          python3 tests/profile-smoke.py out/bash-full-perl
+          bash tests/host-smoke.sh out/bash-full-perl out/bash-full-perl.loadables.list
+      - name: Preserve build records
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perl-logs
+          path: |
+            out/bash-perl*.log
+            out/bash-perl*.manifest.*
+            out/bash-full-perl.log
+            out/bash-full-perl.manifest.*
+            out/perl/*.log
+            out/perl/*/bash-os-perl.json
+          retention-days: 14
+
   native:
     runs-on: ubuntu-24.04
     timeout-minutes: 60

@@ -171,7 +171,9 @@ def generate():
         assert any(actual.get(key) != expected.get(key) for key in ('status', 'stdout', 'files'))
         assert not any('ms' in key for result in case['results'].values() for key in result)
     local = {p.stem for p in (ROOT/'loadables').glob('*.c')}
-    assert local <= catalog.keys(), 'Source missing from full catalog'
+    optional = config.parse_list(ROOT/'config/bash-loadables-optional.list')
+    assert local <= catalog.keys() | optional.keys(), 'Source missing from catalogs'
+    local &= catalog.keys()
     inventory = data['tool_inventory']
     applets = set(inventory['busybox_applets'])
     helpers = json.loads((ROOT/'config/helpers.json').read_text())['commands']

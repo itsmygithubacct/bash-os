@@ -56,10 +56,21 @@ bash-os is assembled from these sources:
 
 ## Licences, file by file
 
+`bashperl.c` and `_perl` are new MIT implementations using Perl's public
+embedding API, studied alongside GNU Bash's `examples/loadables/perl` and
+Perl's `perlembed` documentation. No upstream interpreter source is vendored
+in the project. `config/perl.json` pins Perl 5.44.0, downloaded and built in a
+private prefix with its original `Artistic` and `Copying` notices. The static
+embedding archives redirect C environment API references to the wrapper's
+private environment because Bash exports versions that mutate shell variables.
+The standard native extension registrations are generated from Perl's build
+configuration. See [Perl inside Bash](perl.md).
+
 | Files | Licence |
 |---|---|
 | command sources and `loadables/common/` | MIT (`LICENSE`) |
 | `_ptybroker` native client and service | MIT, original project code |
+| `_perl` embedding and environment helpers | MIT, original project code |
 | `_jsmn`, `_bl_key`, `_bl_screen`, `_bl_proc`, `_tomlc17` helpers | MIT, per-tree notices |
 | `_libgrapheme` | ISC, per-tree notice |
 | `_sqlite` | Public domain, upstream disclaimer retained |

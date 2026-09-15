@@ -49,14 +49,16 @@ Customized outputs receive a content-derived name unless --name is supplied.
 Build options:
   --static             link a static executable
   --deps-prefix DIR    use target headers and libraries prepared by build-deps.sh
+  --perl-prefix DIR    use an existing static Perl installation for bashperl
   --no-strip           retain symbols
   --clean              force rebuilding
   --help               show this help
+Selecting bashperl builds pinned static libperl automatically on native builds.
 Environment: CC, JOBS, CFLAGS, CPPFLAGS, LOCAL_LIBS, LDFLAGS_EXTRA,
 CONFIGURE_EXTRA, BASH_TARBALL, EXTRA_LOADABLES (space-separated source directories).
 HELP
 }
-STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; INFO=""; SELECT_ARGS=()
+STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; PERL_PREFIX=""; INFO=""; SELECT_ARGS=()
 while [[ $# -gt 0 ]]; do case "$1" in
   --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
   --profile|--level|--list|--include|--include-list|--exclude|--name)
@@ -65,6 +67,9 @@ while [[ $# -gt 0 ]]; do case "$1" in
   --deps-prefix)
     [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires a directory"
     DEPS_PREFIX=$(cd "$2" && pwd); shift 2 ;;
+  --perl-prefix)
+    [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires a directory"
+    PERL_PREFIX=$(cd "$2" && pwd); shift 2 ;;
   --list-profiles|--list-loadables)
     [[ -z $INFO ]] || die "choose one reporting option"
     SELECT_ARGS+=("$1"); INFO="$1"; shift ;;
@@ -122,6 +127,18 @@ fi
 # LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
 # fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz).
 LOCAL_LIBS="${LOCAL_LIBS:--lm} $(python3 config/stage-helpers.py --libs "$HERE" - "${NAMES[@]}")"
+PERL_CONFIG=""
+if [[ " ${NAMES[*]} " == *" bashperl "* ]]; then
+  if [[ -z $PERL_PREFIX ]]; then
+    [[ $CROSS == 0 ]] || die "cross bashperl builds need a prepared target --perl-prefix"
+    CC="$CC" JOBS="$JOBS" ./build-perl.sh
+    PERL_PREFIX="$HERE/out/perl/$TARGET"
+  fi
+  PERL_CONFIG=$(CC="$CC" python3 config/build-perl.py --prefix "$PERL_PREFIX" --flags) || exit $?
+  LDFLAGS+=" $(python3 -c 'import json,sys; print(json.load(sys.stdin)["flags"]["ldflags"])' <<< "$PERL_CONFIG")"
+  LOCAL_LIBS+=" $(python3 -c 'import json,sys; print(json.load(sys.stdin)["flags"]["libraries"])' <<< "$PERL_CONFIG")"
+fi
+export PERL_CONFIG
 # A cross configure cannot run test programs; these are the Linux answers.
 CROSS_CACHE=(bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present
   bash_cv_sys_named_pipes=present bash_cv_func_sigsetjmp=present bash_cv_printf_a_format=yes
@@ -135,7 +152,8 @@ exec {BUILD_LOCK}> "$HERE/build/.lock"
 flock "$BUILD_LOCK"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/helpers.json config/profiles.json config/loadables.py config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch patches/tee-io.patch;
+           cat config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch patches/tee-io.patch;
+           printf '%s\n' "$PERL_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
@@ -229,6 +247,10 @@ p = Path("builtins/Makefile.in"); s = p.read_text()
 old = "OFILES = builtins.o \\\n"
 assert s.count(old) == 1, "OFILES anchor not found"
 p.write_text(s.replace(old, "OFILES = builtins.o " + ''.join(n+'.o ' for n in json.loads(os.environ['SELECTION'])['names']) + Path("builtins/.helper-objs").read_text() + "\\\n", 1))
+if os.environ.get('PERL_CONFIG'):
+    flags = json.loads(os.environ['PERL_CONFIG'])['flags']['cppflags']
+    with p.open('a') as output:
+        output.write('\n_perl_engine.o: CPPFLAGS += '+flags+'\n')
 PY
 
 # --- 6. configure ----------------------------------------------------------
@@ -280,6 +302,8 @@ from pathlib import Path
 p = Path(sys.argv[1]); selection = json.loads(os.environ['SELECTION'])
 selection.update(target=sys.argv[2], static=sys.argv[3]=='1', stripped=sys.argv[4]=='1',
                  binary_sha256=hashlib.sha256(p.read_bytes()).hexdigest(), bytes=p.stat().st_size)
+if os.environ.get('PERL_CONFIG'):
+    selection['perl'] = json.loads(os.environ['PERL_CONFIG'])
 p.with_name(p.name+'.loadables.list').write_text(selection['list'])
 p.with_name(p.name+'.manifest.json').write_text(json.dumps(selection, indent=2)+'\n')
 PYMANIFEST

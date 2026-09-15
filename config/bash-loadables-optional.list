@@ -1,0 +1,2 @@
+# Explicitly selected integrations with their own runtime dependencies.
+bashperl|bashperl [PERL-OPTION ...] [-e PROGRAM | SCRIPT] [ARG ...]

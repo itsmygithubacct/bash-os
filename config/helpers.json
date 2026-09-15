@@ -383,6 +383,11 @@
       "libs": [
         "-ldl"
       ]
+    },
+    "bashperl": {
+      "helpers": [
+        "_perl"
+      ]
     }
   },
   "helpers": {
@@ -502,6 +507,10 @@
       "notice": "LICENSE.txt"
     },
     "_ptybroker": {
+      "license": "MIT",
+      "notice": "LICENSE.txt"
+    },
+    "_perl": {
       "license": "MIT",
       "notice": "LICENSE.txt"
     }
