@@ -48,6 +48,7 @@ for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-p
   check "$name" bash "tests/$name.sh" out/bash
 done
 check network-smoke python3 tests/network-smoke.py out/bash
+check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
