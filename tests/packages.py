@@ -189,4 +189,43 @@ with tempfile.TemporaryDirectory(prefix='packages-') as directory:
     pkg('pkg load seq --root "$1" && seq 2', root,
         stdout=f'loaded seq\tseq\t{installed}/seq.so\n1\n2\n')
 
+    # The layout bash-os publishes: one signed INDEX naming each package by
+    # URL in a release per architecture. The INDEX also lists a package for
+    # another architecture, whose release is not served, so update succeeds
+    # only if pkg leaves that record alone.
+    foreign = tmp / 'foreign'
+    foreign.mkdir()
+    seq_package = next(first.glob('seq_*.pkg'))
+    alien = foreign / seq_package.name.replace(f'_{arch}.pkg', '_alien.pkg')
+    shutil.copy(seq_package, alien)
+    (foreign / 'INDEX').write_text(
+        f'pkg-loadable-v1 name=seq version=1.0 builtin=seq abi=bash-5.3 arch=alien '
+        f'package={alien.name} sha256={sha256(alien.read_bytes())} sig={alien.name}.sig deps=-\n')
+    hosted = tmp / 'hosted'
+    hosted.mkdir()
+    server = http.server.ThreadingHTTPServer(
+        ('127.0.0.1', 0), functools.partial(QuietHandler, directory=str(hosted)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        port = server.server_address[1]
+        split = tmp / 'split'
+        tool(SIGN, 'release', '--key', keys / 'publisher.sec', '--out', split,
+             '--asset-url', f'http://127.0.0.1:{port}/packages-{{version}}-{{arch}}', first, foreign)
+        check(sorted(p.name for p in split.iterdir()) == sorted(['INDEX', 'INDEX.sig', 'SHA256SUMS', 'alien', arch]))
+        check(all(f' url=http://127.0.0.1:{port}/packages-1.0-' in line and ' package=' not in line
+                  for line in (split / 'INDEX').read_text().splitlines()))
+        shutil.copytree(split / arch, hosted / f'packages-1.0-{arch}')
+        (hosted / 'packages').mkdir()
+        for name in ('INDEX', 'INDEX.sig'):
+            shutil.copy(split / name, hosted / 'packages' / name)
+        split_sources = tmp / 'split-sources.list'
+        split_sources.write_text(f'http://127.0.0.1:{port}/packages\n')
+        split_root = tmp / 'split-root'
+        split_root.mkdir()
+        pkg('pkg update --root "$1" --sources "$2" --remote-insecure', split_root, split_sources)
+        pkg('pkg install seq --root "$1" --sources "$2"', split_root, split_sources)
+    finally:
+        server.shutdown()
+    check((split_root / 'usr/lib/bash-os/loadables/seq.so').read_bytes() == (installed / 'seq.so').read_bytes())
+
 print(f'packages: {checks} checks passed')

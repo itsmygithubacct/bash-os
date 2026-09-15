@@ -254,6 +254,34 @@ bp_read_file (const char *path, bp_buf *out)
     return rc;
 }
 
+/* Used when a root has no sources.list: the signed package releases of
+   bash-os. Like any https source, it is fetched only when remote fetching
+   is allowed. */
+#define BPKG_DEFAULT_SOURCE \
+    "https://github.com/itsmygithubacct/bash-os/releases/download/packages\n"
+
+/* Read the sources given with --sources, or ROOT's sources.list. If ROOT has
+   no sources.list and DEFAULT_OK is set, the default source stands in for
+   it. PATH receives the file name, for messages. */
+static int
+bp_read_sources (const char *root, const char *sources, int default_ok,
+                 char *path, size_t pathsz, bp_buf *body)
+{
+    if (sources)
+        snprintf (path, pathsz, "%s", sources);
+    else
+        snprintf (path, pathsz, "%s%s",
+                  root[0] && strcmp (root, "/") ? root : "",
+                  BPKG_SOURCES_LIST);
+    if (bp_read_file (path, body) == 0)
+        return 0;
+    if (sources || errno != ENOENT || !default_ok)
+        return -1;
+    bp_buf_free (body);
+    return bp_buf_append (body, BPKG_DEFAULT_SOURCE,
+                          sizeof BPKG_DEFAULT_SOURCE - 1);
+}
+
 static int
 bp_write_file_atomic (const char *path, const void *data, size_t n,
                       mode_t mode)
@@ -1030,6 +1058,14 @@ bp_run_script (const char *path, const char *pkgname,
 #define BPKG_TRUSTED_KEYS_DIR "/etc/bashsignify/trusted"
 #define BPKG_REVOKED_KEYS     "/etc/bashsignify/revoked-keys"
 #define BPKG_SIGNIFY_PUB_LEN  42
+
+/* The bash-os package publisher key and its successor, kept for rotation.
+   Both are trusted as if they were in the trusted keys directory, and
+   listing a key number in the revoked-keys file refuses them as well. */
+static const char *const bp_builtin_keys[] = {
+    "RWStSteo0OF2FpFqWx3tKeltHMC2NR2XTmJXU5Whyf3oFH8cubYpO/Ox",   /* bash-os-pkg-2026 */
+    "RWQQhemkz824lHqAEW+JapTMy+ZUWBj5CNGfC/6HX+xPfFAoBdxctsiM",   /* bash-os-pkg-2026-successor */
+};
 #define BPKG_SIGNIFY_SIG_LEN  74
 
 static const char *
@@ -1108,14 +1144,11 @@ bp_signify_trusted_key (const unsigned char *keynum, unsigned char key[32])
                                          BPKG_TRUSTED_KEYS_DIR);
     char id[17];
     bp_signify_hex (keynum, 8, id);
-    DIR *d = opendir (dir);
-    if (!d) {
-        builtin_error ("no trusted keys directory %s: %s", dir, strerror (errno));
-        return -1;
-    }
     int found = 0;
+    DIR *d = opendir (dir);
+    int dir_errno = d ? 0 : errno;
     struct dirent *entry;
-    while (!found && (entry = readdir (d))) {
+    while (d && !found && (entry = readdir (d))) {
         size_t n = strlen (entry->d_name);
         char path[BPKG_PATH_MAX];
         unsigned char pub[BPKG_SIGNIFY_PUB_LEN];
@@ -1127,9 +1160,22 @@ bp_signify_trusted_key (const unsigned char *keynum, unsigned char key[32])
         memcpy (key, pub + 10, 32);
         found = 1;
     }
-    closedir (d);
-    if (!found)
-        builtin_error ("no trusted key matching keynum %s (looked in %s)", id, dir);
+    if (d)
+        closedir (d);
+    for (size_t i = 0; !found && i < sizeof bp_builtin_keys / sizeof *bp_builtin_keys; i++) {
+        unsigned char pub[BPKG_SIGNIFY_PUB_LEN];
+        if (bp_base64_decode (bp_builtin_keys[i], strlen (bp_builtin_keys[i]), pub, sizeof pub)
+                == BPKG_SIGNIFY_PUB_LEN && !memcmp (pub + 2, keynum, 8)) {
+            memcpy (key, pub + 10, 32);
+            found = 1;
+        }
+    }
+    if (!found && d)
+        builtin_error ("no trusted key matching keynum %s (looked in %s and the built-in keys)",
+                       id, dir);
+    else if (!found)
+        builtin_error ("no trusted key matching keynum %s (the built-in keys; %s: %s)",
+                       id, dir, strerror (dir_errno));
     return found ? 0 : -1;
 }
 
@@ -3680,6 +3726,9 @@ bp_fetch_url (const char *url, const char *out_path, const char *cacert,
         int argc = 0;
         argv[argc++] = "curl";
         argv[argc++] = "-fsS";
+        /* Release hosting redirects downloads to a storage host. Following
+           is safe: every INDEX and package is checked against its signature. */
+        argv[argc++] = "-L";
         argv[argc++] = "-m";
         argv[argc++] = timeout_buf;
         if (cacert && *cacert) {
@@ -4388,15 +4437,9 @@ bp_find_repo_hit (const char *root, const char *sources,
         return -1;
 
     char src_path[BPKG_PATH_MAX];
-    if (sources) {
-        snprintf (src_path, sizeof src_path, "%s", sources);
-    } else {
-        snprintf (src_path, sizeof src_path, "%s%s",
-                  root[0] && strcmp (root, "/") ? root : "",
-                  BPKG_SOURCES_LIST);
-    }
     bp_buf sources_body = {0};
-    if (bp_read_file (src_path, &sources_body) < 0) {
+    if (bp_read_sources (root, sources, 1, src_path, sizeof src_path,
+                         &sources_body) < 0) {
         builtin_error ("no sources configured at %s", src_path);
         bp_buf_free (&sources_body);
         return -1;
@@ -4567,15 +4610,9 @@ bp_find_payload_repo_dir (const char *root, const char *sources,
         return -1;
 
     char src_path[BPKG_PATH_MAX];
-    if (sources) {
-        snprintf (src_path, sizeof src_path, "%s", sources);
-    } else {
-        snprintf (src_path, sizeof src_path, "%s%s",
-                  root[0] && strcmp (root, "/") ? root : "",
-                  BPKG_SOURCES_LIST);
-    }
     bp_buf sources_body = {0};
-    if (bp_read_file (src_path, &sources_body) < 0) {
+    if (bp_read_sources (root, sources, 1, src_path, sizeof src_path,
+                         &sources_body) < 0) {
         bp_buf_free (&sources_body);
         return 0;
     }
@@ -6484,15 +6521,9 @@ verb_update (WORD_LIST *args)
     if (bp_select_arch (arch_override, selected_arch, sizeof selected_arch) < 0)
         return EX_USAGE;
     char src_path[BPKG_PATH_MAX];
-    if (sources) {
-        snprintf (src_path, sizeof src_path, "%s", sources);
-    } else {
-        snprintf (src_path, sizeof src_path, "%s%s",
-                  root[0] && strcmp (root, "/") ? root : "",
-                  BPKG_SOURCES_LIST);
-    }
     bp_buf body = {0};
-    if (bp_read_file (src_path, &body) < 0) {
+    if (bp_read_sources (root, sources, allow_remote, src_path, sizeof src_path,
+                         &body) < 0) {
         printf ("no sources configured at %s\n", src_path);
         bp_buf_free (&body);
         return EXECUTION_SUCCESS;
@@ -6733,15 +6764,9 @@ verb_fetch (WORD_LIST *args)
     if (bp_select_arch (arch_override, selected_arch, sizeof selected_arch) < 0)
         return EX_USAGE;
     char src_path[BPKG_PATH_MAX];
-    if (sources) {
-        snprintf (src_path, sizeof src_path, "%s", sources);
-    } else {
-        snprintf (src_path, sizeof src_path, "%s%s",
-                  root[0] && strcmp (root, "/") ? root : "",
-                  BPKG_SOURCES_LIST);
-    }
     bp_buf body = {0};
-    if (bp_read_file (src_path, &body) < 0) {
+    if (bp_read_sources (root, sources, 1, src_path, sizeof src_path,
+                         &body) < 0) {
         printf ("no sources configured at %s\n", src_path);
         bp_buf_free (&body);
         return EXECUTION_SUCCESS;
@@ -7812,8 +7837,9 @@ char *pkg_doc[] = {
     "",
     "Trust: installs require a sibling <PKGFILE>.sig, a signify-format",
     "Ed25519 signature checked against a key in $BASHSIGNIFY_TRUSTED_KEYS_DIR",
-    "(default /etc/bashsignify/trusted); key ids listed in",
-    "$BASHSIGNIFY_REVOKED_KEYS are refused. That is the default policy;",
+    "(default /etc/bashsignify/trusted) or one of the compiled-in bash-os",
+    "publisher keys; key ids listed in $BASHSIGNIFY_REVOKED_KEYS (default",
+    "/etc/bashsignify/revoked-keys) are refused. That is the default policy;",
     "-S spells it explicitly,",
     "and -A allows unsigned bootstrap/development installs.",
     "Legacy rootfs packages are additionally disabled by default and",
@@ -7833,7 +7859,9 @@ char *pkg_doc[] = {
     "are rejected by default. With --remote, https:// sources (and http://",
     "only under --remote-insecure) are materialized through the curl builtin before",
     "the same INDEX.sig gate; sources.list may prefix a line with `remote`",
-    "or `remote-insecure` for persistent opt-in. A sibling <INDEX>.sig is verified by the signature check when",
+    "or `remote-insecure` for persistent opt-in. Without sources.list, --remote",
+    "uses https://github.com/itsmygithubacct/bash-os/releases/download/packages.",
+    "Redirects are followed. A sibling <INDEX>.sig is verified by the signature check when",
     "present; verification failure refuses to copy the source INDEX",
     "content; the destination remains absent or keeps its previous snapshot.",
     "",

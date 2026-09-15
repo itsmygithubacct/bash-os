@@ -84,15 +84,35 @@ then fills a new directory with:
 - one `INDEX` covering every architecture, and `INDEX.sig`;
 - `SHA256SUMS`.
 
-Nothing is nested, so the directory can be uploaded as the assets of one
-GitHub release.
+A GitHub release holds at most 1000 assets, and every package for three
+architectures, with signatures, needs about 1700. So bash-os publishes each
+architecture's packages as a release of its own, and a rolling release named
+`packages` holds only the signed INDEX:
+
+```sh
+./sign-packages.sh release --key ~/keys/bash-os-2026.sec --out out/release \
+  --asset-url 'https://github.com/itsmygithubacct/bash-os/releases/download/packages-{version}-{arch}' \
+  out/packages/x86_64 out/packages/aarch64 out/packages/riscv64
+```
+
+With `--asset-url`, each INDEX record names its package and signature by
+absolute URL, and they go in one directory per architecture. Upload
+`out/release/ARCH` as release `packages-VERSION-ARCH`, then replace `INDEX`,
+`INDEX.sig` and `SHA256SUMS` in release `packages`. pkg refuses an INDEX
+until its matching `INDEX.sig` is in place, so a half-finished upload is never
+trusted. Without `--asset-url`, nothing is nested, and the directory can be
+served as a repository as it is.
 
 ## Installing
 
-A system trusts a publisher when its `.pub` file is in
+pkg trusts the bash-os publisher key, and its successor for rotation, with no
+configuration: both are compiled in. It also trusts any `.pub` file in
 `/etc/bashsignify/trusted` (or `$BASHSIGNIFY_TRUSTED_KEYS_DIR`). Key numbers
-listed in `/etc/bashsignify/revoked-keys` are refused. Put the release URL in
-`/etc/pkg/sources.list`, then:
+listed in `/etc/bashsignify/revoked-keys` are refused, the built-in keys
+included.
+
+With no `/etc/pkg/sources.list`, pkg uses the bash-os releases,
+`https://github.com/itsmygithubacct/bash-os/releases/download/packages`:
 
 ```sh
 pkg update --remote    # fetch the INDEX and check INDEX.sig
@@ -100,9 +120,12 @@ pkg install awk        # fetch the package and check its signature and object
 pkg load awk           # enable it in this shell
 ```
 
-`https://` sources need `--remote`, and `http://` sources need
-`--remote-insecure`. A line in `sources.list` may instead begin with `remote`
-or `remote-insecure`.
+To use other repositories, list their URLs in `/etc/pkg/sources.list`, one per
+line. `https://` sources need `--remote`, and `http://` sources need
+`--remote-insecure`; a line may instead begin with `remote` or
+`remote-insecure`. Downloads follow redirects, as release hosting sends them
+to a storage host, and every INDEX and package is still checked against its
+signature.
 
 ## Tests
 

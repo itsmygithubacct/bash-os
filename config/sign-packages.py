@@ -3,14 +3,20 @@
 """Create a pkg publisher key, or sign built packages into a release directory.
 
   keygen DIR NAME                              write DIR/NAME.pub and DIR/NAME.sec
-  release --key NAME.sec --out DIR PKGDIR...   sign packages from build-packages.sh
+  release --key NAME.sec --out DIR [--asset-url TEMPLATE] PKGDIR...
+                                               sign packages from build-packages.sh
 
 Keys use the signify format that pkg verifies. The secret key has no
 passphrase and is written with mode 0600, so keep it on the signing machine
 only, never in a repository or a CI secret. A release directory holds every
 package with its signature, one INDEX covering all architectures with its
-INDEX.sig, and SHA256SUMS. Nothing is nested, so the directory can be uploaded
-as the assets of one GitHub release.
+INDEX.sig, and SHA256SUMS.
+
+Without --asset-url, nothing is nested and INDEX names packages relative to
+itself. A GitHub release holds at most 1000 assets, too few for every package
+of several architectures, so --asset-url TEMPLATE (with {version} and {arch})
+gives each package and signature an absolute URL instead, and puts them in
+one directory per architecture, each uploaded as its own release.
 """
 import argparse
 import base64
@@ -109,8 +115,10 @@ def parse_record(line, origin):
     return fields
 
 
-def release(key, out, sources):
+def release(key, out, sources, asset_url=None):
     signer = Signer(key)
+    if asset_url is not None and not re.fullmatch(r'https?://\S+', asset_url):
+        die(f'--asset-url must be an http or https URL: {asset_url!r}')
     if out.exists() and any(out.iterdir()):
         die(f'{out} is not empty')
     out.mkdir(parents=True, exist_ok=True)
@@ -135,16 +143,30 @@ def release(key, out, sources):
             data = (source/package).read_bytes()
             if hashlib.sha256(data).hexdigest() != fields['sha256']:
                 die(f'{source/package} does not match the sha256 in {origin}')
-            (out/package).write_bytes(data)
-            signer.sign(out/package)
-            records[slot] = ' '.join(line.split())
+            directory = out
+            if asset_url is not None:
+                if not re.fullmatch(r'[A-Za-z0-9_.+-]+', fields['arch']):
+                    die(f'{origin}: arch {fields["arch"]!r} cannot name a directory')
+                directory = out/fields['arch']
+                directory.mkdir(exist_ok=True)
+                try:
+                    base = asset_url.format(version=fields['version'], arch=fields['arch']).rstrip('/')
+                except (KeyError, IndexError, ValueError) as error:
+                    die(f'--asset-url {asset_url!r}: {error}')
+                fields = {('url' if key == 'package' else key):
+                          (f'{base}/{package}' if key == 'package' else
+                           f'{base}/{package}.sig' if key == 'sig' else value)
+                          for key, value in fields.items()}
+            (directory/package).write_bytes(data)
+            signer.sign(directory/package)
+            records[slot] = ' '.join([RECORD] + [f'{key}={value}' for key, value in fields.items()])
     if not records:
         die('no packages to sign')
     (out/'INDEX').write_text(''.join(records[slot] + '\n' for slot in sorted(records)))
     signer.sign(out/'INDEX')
     (out/'SHA256SUMS').write_text(''.join(
-        f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
-        for path in sorted(out.iterdir()) if path.name != 'SHA256SUMS'))
+        f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(out).as_posix()}\n'
+        for path in sorted(out.rglob('*')) if path.is_file() and path != out/'SHA256SUMS'))
     print(f'release: signed {len(records)} packages and INDEX in {out} '
           f'(key number {signer.keynum.hex()})')
 
@@ -158,6 +180,8 @@ def main():
     publish = commands.add_parser('release', help='sign packages into a release directory')
     publish.add_argument('--key', type=Path, required=True)
     publish.add_argument('--out', type=Path, required=True)
+    publish.add_argument('--asset-url', metavar='TEMPLATE',
+                         help='absolute package URLs, with {version} and {arch}')
     publish.add_argument('sources', type=Path, nargs='+')
     args = parser.parse_args()
     if args.command == 'keygen':
@@ -165,7 +189,7 @@ def main():
             die(f'invalid key name {args.name!r}')
         keygen(args.directory, args.name)
     else:
-        release(args.key, args.out, args.sources)
+        release(args.key, args.out, args.sources, args.asset_url)
 
 
 if __name__ == '__main__':

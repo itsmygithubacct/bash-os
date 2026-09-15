@@ -166,7 +166,7 @@ with tempfile.TemporaryDirectory(prefix='pkg-signify-') as directory:
     shutil.copy(package, unsigned)
     run('pkg verify "$1"', unsigned, env=env, status=1, stderr='no signature for')
     run('pkg verify "$1"', package, env={**env, 'BASHSIGNIFY_TRUSTED_KEYS_DIR': tmp / 'absent'},
-        status=1, stderr='no trusted keys directory')
+        status=1, stderr='(the built-in keys; ')
 
     # A signed per-arch repository served over HTTP, fetched by the curl builtin.
     # pkg names its mirror after the URL's last path segment, so a source needs
