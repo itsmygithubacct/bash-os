@@ -2602,6 +2602,18 @@ bp_elf64_vaddr_to_offset (const unsigned char *data, size_t len,
     return -1;
 }
 
+/* glibc's own libraries, present beside every dynamic bash. A loadable
+   links against them so that each reference records the symbol version it
+   was built for: unversioned, glibc binds the oldest compatibility version
+   (regexec without REG_STARTEND, the old pthread_cond API). glibc's libm.a
+   also cannot be linked into a shared object. */
+static int
+bp_glibc_library (const char *name)
+{
+    return !strcmp (name, "libc.so.6") || !strcmp (name, "libm.so.6") ||
+           (!strncmp (name, "ld-linux", 8) && strstr (name, ".so.") != NULL);
+}
+
 static int
 bp_loadable_reject_nonbundled_needed (const unsigned char *data, size_t len)
 {
@@ -2687,9 +2699,7 @@ bp_loadable_reject_nonbundled_needed (const unsigned char *data, size_t len)
             builtin_error ("unterminated ELF shared library dependency");
             return -1;
         }
-        /* glibc installs libm beside libc, and its libm.a cannot be linked
-           into a shared object, so a loadable may take math from libm.so.6. */
-        if (strcmp (needed, "libm.so.6") == 0)
+        if (bp_glibc_library (needed))
             continue;
         builtin_error ("loadable has non-bundled shared library dependency: "
                        "%s", needed);

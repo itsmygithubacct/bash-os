@@ -33,10 +33,12 @@ arch = platform.machine()
 # A plain command, one defined in a sibling's source, one with helpers, one
 # that needs glibc's static atexit, bash's own examples with build.sh's
 # fixups, one registered only through build.sh's builtin table, one that
-# needs libm, and a pair that require each other.
-NAMES = ['seq', 'col', 'cksum', 'crypto', 'head', 'mkdir', 'wc', 'awk', 'sudo', 'doas']
+# needs libm, one that hung when its regexec lacked a symbol version, and a
+# pair that require each other.
+NAMES = ['seq', 'grep', 'col', 'cksum', 'crypto', 'head', 'mkdir', 'wc', 'awk', 'sudo', 'doas']
 CASES = {
     'seq': 'seq -s, 5',
+    'grep': "printf 'ab\\nzz\\n' | grep -n '[a-z]$'",
     'wc': "printf 'a b\\nc\\n' | wc",
     'awk': "awk 'BEGIN { printf \"%.4f\\n\", atan2(0, -1) }'",
     'col': "printf 'a\\bb\\n' | col -b",
@@ -102,7 +104,11 @@ with tempfile.TemporaryDirectory(prefix='packages-') as directory:
         shared.write_bytes(body)
         needed = re.findall(r'\(NEEDED\)\s+Shared library: \[([^\]]+)\]',
                             subprocess.run(['readelf', '-d', str(shared)], capture_output=True, text=True).stdout)
-        check(needed == (['libm.so.6'] if name == 'awk' else []), name, needed)
+        check('libc.so.6' in needed and ('libm.so.6' in needed) == (name == 'awk') and
+              all(n in ('libc.so.6', 'libm.so.6') or n.startswith('ld-linux') for n in needed),
+              name, needed)
+        versions = subprocess.run(['readelf', '-V', str(shared)], capture_output=True, text=True).stdout
+        check('File: libc.so.6' in versions, name, versions[-400:])
     tool(BUILD, '--version', '1.0', '--out', second, *NAMES)
     check(sorted(p.name for p in first.iterdir()) == sorted(p.name for p in second.iterdir()))
     for path in first.iterdir():

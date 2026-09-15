@@ -14,13 +14,15 @@ two members:
   the object with;
 - `loadable/NAME.so`: the builtin as a shared object.
 
-The object needs no shared library except `libm.so.6`. pkg accepts that one
-because glibc installs libm beside libc, and glibc's `libm.a` cannot be linked
-into a shared object. Everything else the builtin uses is linked into the
-object: helper sources, builtins it calls, static libraries from
-`build-deps.sh`, and the static part of glibc. The object binds its own
-symbols first, so loading it into a shell that already has a builtin of that
-name replaces that builtin without mixing code from the two.
+The object needs no shared library but glibc's own: `libc.so.6`, `libm.so.6`
+and the dynamic loader, which are present beside every dynamic bash. Linking
+against them records the symbol version of each reference; an unversioned
+reference binds glibc's oldest compatibility version, such as a `regexec` that
+ignores `REG_STARTEND`. Everything else the builtin uses is linked into the
+object: helper sources, builtins it calls, and static libraries from
+`build-deps.sh`. The object binds its own symbols first, so loading it into a
+shell that already has a builtin of that name replaces that builtin without
+mixing code from the two.
 
 A package may also carry files of its own under `libexec/NAME/` and
 `share/NAME/`, such as a program the builtin runs or a library it reads.
@@ -62,9 +64,9 @@ different build has replaced the tree, add `--clean`.
 An object is packed only after two gates:
 
 1. every strong undefined symbol is defined by `out/bash-shell` (`--bash`), by
-   a library it needs, or by its program interpreter. Checking against the
-   smallest build means a package that passes loads into every dynamic
-   profile;
+   a library it needs, or by its program interpreter, and every reference to
+   glibc carries a symbol version. Checking against the smallest build means a
+   package that passes loads into every dynamic profile;
 2. that bash loads the object with `enable -f`, and `type -t` reports a
    builtin.
 

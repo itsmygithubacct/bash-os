@@ -8,8 +8,9 @@ Usage: build-packages.sh [--bash BASH] [--tree DIR] [--deps-prefix DIR]
 With no NAME, every command in config/bash-loadables.list is built. Each
 package holds a MANIFEST and one loadable/NAME.so. The object carries its own
 copy of the helper sources, required commands and static libraries it uses,
-needs no shared library except libm.so.6 (the one DT_NEEDED entry pkg
-accepts), and binds its own symbols locally, so it also loads into a shell
+needs no shared library but glibc's libc.so.6, libm.so.6 and dynamic loader
+(the DT_NEEDED entries pkg accepts), with a symbol version on every reference
+to them, and binds its own symbols locally, so it also loads into a shell
 that already has a builtin of that name. A source without NAME_struct gets
 the entry build.sh's builtin table gives it.
 
@@ -59,9 +60,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LOADABLES_DIR = '/usr/lib/bash-os/loadables'
 # glibc 2.34 moved these into libc.so.6, which every bash already needs.
 IN_LIBC = {'-lpthread', '-ldl', '-lrt', '-lutil'}
-# glibc installs libm beside libc, and its libm.a cannot go into a shared
-# object, so pkg accepts this one dependency.
-LIBM = 'libm.so.6'
+# glibc's libraries, which pkg accepts as dependencies along with the dynamic
+# loader: linking against them records the symbol version of every reference
+# (unversioned, glibc binds the oldest compatibility version), and glibc's
+# libm.a cannot go into a shared object.
+GLIBC = ('libc.so.6', 'libm.so.6')
 LOAD_CHECK = ('PATH=; enable -f "$1" "$2" || exit 1; '
               '[[ $(type -t "$2") == builtin ]] || exit 1; help -s "$2" > /dev/null')
 # build.sh's fixups for bash's own example loadables, applied only when this
@@ -160,6 +163,11 @@ class Toolchain:
         return {fields[1].split('@')[0] for fields in map(str.split, output.splitlines())
                 if len(fields) == 2 and fields[0] == 'U'}
 
+    def unversioned_undefined(self, path):
+        output = run([self.nm, '-D', '--undefined-only', path])
+        return {fields[1] for fields in map(str.split, output.splitlines())
+                if len(fields) == 2 and fields[0] in ('U', 'w') and '@' not in fields[1]}
+
     def needed(self, path):
         return re.findall(r'\(NEEDED\)\s+Shared library: \[([^\]]+)\]', run([self.readelf, '-d', path]))
 
@@ -232,15 +240,17 @@ def main():
             die(f'--data {item!r}: expected NAME=DIR for a NAME being built')
         data[name] = data_members(name, Path(directory))
 
-    # The symbols a loaded object may use.
-    available = tools.defined(bash)
-    for library in [*tools.needed(bash), Path(interpreter).name]:
+    # The symbols a loaded object may use, and those glibc itself defines.
+    allowed_needed = {*GLIBC, Path(interpreter).name}
+    available, glibc_symbols = tools.defined(bash), set()
+    for library in dict.fromkeys([*tools.needed(bash), *allowed_needed]):
         path = tools.library(library)
         if not path:
             die(f'{Path(tools.cc).name} cannot find {library}, which {bash.name} needs')
-        available |= tools.defined(path)
-    libm = tools.library(LIBM)
-    libm_symbols = tools.defined(libm) if libm else set()
+        symbols = tools.defined(path)
+        available |= symbols
+        if library in allowed_needed:
+            glibc_symbols |= symbols
 
     manifest = json.loads((ROOT/'config/helpers.json').read_text())
     sources = {}
@@ -355,10 +365,6 @@ def main():
                 archives[command] = work/'lib'/f'cmd-{command}.a'
                 run([tools.ar, 'rcsD', archives[command], units[command][1]])
 
-        # The static half of glibc (atexit, for one) goes into the object. glibc's
-        # libm.a is not position-independent, so math has to come from BASH.
-        runtime = [path for path in (tools.library('libc_nonshared.a'),) if path]
-
         def static_libraries(flags):
             found = []
             for flag in flags:
@@ -369,7 +375,7 @@ def main():
                 if not path:
                     raise Failure(f'no static {name} for {flag}; run ./build-deps.sh')
                 found.append(path)
-            return found + runtime
+            return found
 
         def build(name):
             definer, closure = definers[name], closures[name]
@@ -399,12 +405,14 @@ def main():
                  *[archives[command] for command in closure if command != definer and command in archives],
                  *[archives[helper] for helper in helpers if helper in archives],
                  *static_libraries(flags), '-Wl,--end-group',
-                 '-Wl,--as-needed', '-lm', '-Wl,--no-as-needed', '-lgcc'])
+                 '-Wl,--as-needed', '-lm', '-Wl,--no-as-needed', '-lgcc', '-lc', '-lgcc'])
             needed = tools.needed(shared)
-            if set(needed) - {LIBM}:
+            if set(needed) - allowed_needed:
                 raise Failure('links shared libraries: ' + ', '.join(needed))
-            missing = sorted(tools.strong_undefined(shared) - available
-                             - (libm_symbols if LIBM in needed else set()))
+            unversioned = sorted(tools.unversioned_undefined(shared) & glibc_symbols)
+            if unversioned:
+                raise Failure('unversioned glibc references: ' + ' '.join(unversioned[:6]))
+            missing = sorted(tools.strong_undefined(shared) - available)
             if missing:
                 raise Failure(f'{len(missing)} symbols no dynamic bash provides: ' + ' '.join(missing[:6]))
             loaded = subprocess.run([*runner, bash, '--noprofile', '--norc', '-c', LOAD_CHECK, '_', shared, name],

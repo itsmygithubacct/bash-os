@@ -103,7 +103,7 @@ with tempfile.TemporaryDirectory(prefix='pkg-signify-') as directory:
     env = {'HOME': tmp, 'BASHSIGNIFY_TRUSTED_KEYS_DIR': trusted,
            'BASHSIGNIFY_REVOKED_KEYS': tmp / 'no-revocations'}
 
-    # A libc-free loadable. pkg refuses a DT_NEEDED dependency other than libm.so.6.
+    # A small loadable. pkg refuses DT_NEEDED dependencies other than glibc's own.
     source = tmp / 'pkgprobe.c'
     source.write_text(LOADABLE)
 
@@ -129,6 +129,8 @@ with tempfile.TemporaryDirectory(prefix='pkg-signify-') as directory:
     # Verification with an empty PATH: good, untrusted, revoked, tampered.
     run('pkg verify "$1"', package, env=env, stdout='verify pkgprobe\tpackage=ok\n')
     run('pkg verify "$1"', make_package('libm', '-Wl,--no-as-needed', '-lm'), env=env,
+        stdout='verify pkgprobe\tpackage=ok\n')
+    run('pkg verify "$1"', make_package('libc', '-Wl,--no-as-needed', '-lc'), env=env,
         stdout='verify pkgprobe\tpackage=ok\n')
     run('pkg verify "$1"', make_package('libz', '-Wl,--no-as-needed', '-lz'), env=env, status=1,
         stderr='non-bundled shared library dependency: libz.so.1')
