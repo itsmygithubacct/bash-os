@@ -114,5 +114,8 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
 else
   echo "SKIP C harnesses (need a built tree + $CC)"
 fi
+# Last, because the packages compile against the tree this build leaves behind.
+check 'builds out/bash-shell' ./build.sh --profile shell --clean
+check 'package producer and signed release' python3 tests/packages.py out/bash
 printf '\nrun: %s passed, %s failed\n' "$pass" "$fail"
 [[ $fail == 0 ]]

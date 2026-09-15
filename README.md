@@ -61,6 +61,11 @@ CC=riscv64-unknown-linux-musl-gcc ./build.sh --static \
   --deps-prefix out/deps/riscv64-unknown-linux-musl
 ```
 
+Dynamic builds can also load commands at runtime from packages.
+`build-packages.sh` builds one `pkg` package per loadable and checks that the
+smallest dynamic build loads it; `sign-packages.sh` signs packages into a
+release. See [loadable packages](docs/packages.md).
+
 See [build profiles](docs/build-profiles.md) for the profile table, list format,
 output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
 The [loadable status table](docs/loadables-status.md) and
@@ -118,6 +123,8 @@ command lookup.
 ```
 build.sh                        the build
 build-deps.sh                   pinned host/target dependency libraries
+build-packages.sh               loadables as pkg packages (config/build-packages.py)
+sign-packages.sh                publisher keys and signed releases (config/sign-packages.py)
 config/
   versions.sh                   pinned bash source (sha256) + build number
   loadables.py                  list parser and profile resolver
@@ -151,6 +158,8 @@ tests/
                                 a script using a dozen commands (needs bwrap)
   tutorial.sh                   the tutorial's loadable, as a .so and compiled in
   regressions.py                builtin regressions in a real bash-os process
+  packages.py [BIN]             package producer, signed release and pkg install
+  pkg-signify.py [BIN]          pkg's signature checks and remote fetch
   licence-check.sh              source licences and third-party notices
   zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity
