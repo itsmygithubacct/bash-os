@@ -72,6 +72,7 @@ check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
+check 'pkg signatures and remote install' python3 tests/pkg-signify.py out/bash
 check tutorial bash tests/tutorial.sh
 if command -v busybox >/dev/null; then
   check 'bench outputs agree across userlands' bash bench/run.sh --quick

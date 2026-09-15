@@ -208,7 +208,7 @@
     },
     "pkg": {
       "helpers": [
-        "_mbedtls"
+        "_mbedtls", "_monocypher"
       ],
       "libs": [
         "-llzma"

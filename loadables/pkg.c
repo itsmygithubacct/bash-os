@@ -41,15 +41,16 @@
  *   /var/lib/pkg/installed/<name>/files     — legacy newline path list
  *
  * Trust: install requires a sibling <PKGFILE>.sig by default and refuses
- * to proceed unless bashsignify verification succeeds. download verifies
+ * to proceed unless its signify-format Ed25519 signature verifies against a
+ * trusted key (see bp_verify_signature_with_sig). download verifies
  * indexed package SHA-256 and caches the indexed signature sidecar for the
  * install gate. Delta upgrade reconstructs a full candidate blob and feeds it
  * back through this same signed install path. Unsigned bootstrap/development
  * installs require the explicit -A override; legacy rootfs packages
  * additionally require the explicit compatibility opt-in.
  * For multi-arch repositories, each <repo>/<arch>/INDEX is independently
- * verified against its own sibling INDEX.sig by the same bashsignify path.
- * The operator-supplied bashsignify trust anchor authorizes those signatures:
+ * verified against its own sibling INDEX.sig by the same signature check.
+ * The operator's trusted keys directory authorizes those signatures:
  * publishers may use one key for all arch INDEXes or distinct per-arch keys,
  * but key trust is operator-managed, not embedded in INDEX records.
  *
@@ -100,6 +101,8 @@
 
 #include "loadables.h"
 #include "_mbedtls_sha256.h"
+#include "_monocypher_monocypher-ed25519.h"
+#include "command-run.h"
 
 /* gcc's -Wformat-truncation flags every "%s/suffix" composition where
  * the source could theoretically fill BPKG_PATH_MAX, even though the
@@ -1017,6 +1020,144 @@ bp_run_script (const char *path, const char *pkgname,
 
 /* ---- Signature verification --------------------------------------- */
 
+/* Signatures use OpenBSD signify's two-line format: "untrusted comment: ..."
+   followed by base64 of "Ed", an 8-byte key number and a 64-byte Ed25519
+   signature (a public key file holds a 32-byte key instead). The public key
+   is found by key number among the *.pub files in
+   $BASHSIGNIFY_TRUSTED_KEYS_DIR, and a key number listed in
+   $BASHSIGNIFY_REVOKED_KEYS is refused, keeping the rules of the retired
+   shell helper. The check runs in this process, so it needs nothing on PATH. */
+#define BPKG_TRUSTED_KEYS_DIR "/etc/bashsignify/trusted"
+#define BPKG_REVOKED_KEYS     "/etc/bashsignify/revoked-keys"
+#define BPKG_SIGNIFY_PUB_LEN  42
+#define BPKG_SIGNIFY_SIG_LEN  74
+
+static const char *
+bp_shell_value_or (const char *name, const char *fallback)
+{
+    const char *value = get_string_value (name);
+    return value && *value ? value : fallback;
+}
+
+static long
+bp_base64_decode (const char *in, size_t n, unsigned char *out, size_t outsz)
+{
+    size_t len = 0;
+    unsigned acc = 0;
+    int bits = 0, padding = 0;
+    for (size_t i = 0; i < n; i++) {
+        int c = (unsigned char) in[i], v;
+        if (c == '=') { padding++; continue; }
+        if (padding) return -1;
+        if (c >= 'A' && c <= 'Z') v = c - 'A';
+        else if (c >= 'a' && c <= 'z') v = c - 'a' + 26;
+        else if (c >= '0' && c <= '9') v = c - '0' + 52;
+        else if (c == '+') v = 62;
+        else if (c == '/') v = 63;
+        else return -1;
+        acc = (acc << 6) | (unsigned) v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            if (len == outsz) return -1;
+            out[len++] = (unsigned char) (acc >> bits);
+        }
+    }
+    return padding > 2 ? -1 : (long) len;
+}
+
+static void
+bp_signify_hex (const unsigned char *in, size_t n, char *out)
+{
+    static const char digits[] = "0123456789abcdef";
+    for (size_t i = 0; i < n; i++) {
+        out[2 * i] = digits[in[i] >> 4];
+        out[2 * i + 1] = digits[in[i] & 15];
+    }
+    out[2 * n] = '\0';
+}
+
+/* Read signify file PATH, which must decode to exactly LEN bytes that start
+   with "Ed". QUIET suppresses diagnostics while scanning the trusted keys. */
+static int
+bp_signify_read (const char *path, unsigned char *out, size_t len, int quiet)
+{
+    char comment[1024], data[1024];
+    FILE *f = fopen (path, "re");
+    if (!f) {
+        if (!quiet) builtin_error ("cannot read %s: %s", path, strerror (errno));
+        return -1;
+    }
+    int lines = fgets (comment, sizeof comment, f) && fgets (data, sizeof data, f);
+    fclose (f);
+    const char *problem = NULL;
+    if (!lines || strncmp (comment, "untrusted comment: ", 19))
+        problem = "is not in signify format";
+    else if (bp_base64_decode (data, strcspn (data, "\r\n"), out, len) != (long) len)
+        problem = "has the wrong length for a signify key or signature";
+    else if (out[0] != 'E' || out[1] != 'd')
+        problem = "is not an Ed25519 key or signature";
+    if (problem && !quiet) builtin_error ("%s %s", path, problem);
+    return problem ? -1 : 0;
+}
+
+static int
+bp_signify_trusted_key (const unsigned char *keynum, unsigned char key[32])
+{
+    const char *dir = bp_shell_value_or ("BASHSIGNIFY_TRUSTED_KEYS_DIR",
+                                         BPKG_TRUSTED_KEYS_DIR);
+    char id[17];
+    bp_signify_hex (keynum, 8, id);
+    DIR *d = opendir (dir);
+    if (!d) {
+        builtin_error ("no trusted keys directory %s: %s", dir, strerror (errno));
+        return -1;
+    }
+    int found = 0;
+    struct dirent *entry;
+    while (!found && (entry = readdir (d))) {
+        size_t n = strlen (entry->d_name);
+        char path[BPKG_PATH_MAX];
+        unsigned char pub[BPKG_SIGNIFY_PUB_LEN];
+        if (n < 5 || strcmp (entry->d_name + n - 4, ".pub") ||
+            snprintf (path, sizeof path, "%s/%s", dir, entry->d_name) >= (int) sizeof path ||
+            bp_signify_read (path, pub, sizeof pub, 1) < 0 ||
+            memcmp (pub + 2, keynum, 8))
+            continue;
+        memcpy (key, pub + 10, 32);
+        found = 1;
+    }
+    closedir (d);
+    if (!found)
+        builtin_error ("no trusted key matching keynum %s (looked in %s)", id, dir);
+    return found ? 0 : -1;
+}
+
+/* One 16-hex key number per line; '#' comments and blank lines are ignored.
+   A missing list means no key is revoked. */
+static int
+bp_signify_revoked (const unsigned char *keynum)
+{
+    const char *path = bp_shell_value_or ("BASHSIGNIFY_REVOKED_KEYS", BPKG_REVOKED_KEYS);
+    char id[17], line[256];
+    bp_signify_hex (keynum, 8, id);
+    FILE *f = fopen (path, "re");
+    if (!f) return 0;
+    int revoked = 0;
+    while (!revoked && fgets (line, sizeof line, f)) {
+        char entry[sizeof line];
+        size_t n = 0;
+        for (char *p = line; *p && *p != '#'; p++)
+            if (!isspace ((unsigned char) *p)) entry[n++] = *p;
+        entry[n] = '\0';
+        revoked = n && !strcasecmp (entry, id);
+    }
+    fclose (f);
+    if (revoked)
+        builtin_error ("key id %s has been revoked (per %s)", id, path);
+    return revoked;
+}
+
 static int
 bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
 {
@@ -1025,48 +1166,25 @@ bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
         /* No sig — caller decides whether to allow. */
         return 1;
     }
-    /* Use bashsignify if available on PATH. Sync Bash's exported-
-     * variable cache to environ before fork so the child sees env
-     * knobs the caller set via `VAR=val pkg install` (notably
-     * BASHSIGNIFY_TRUSTED_KEYS_DIR and BASHSIGNIFY_REVOKED_KEYS).
-     * Without this, those vars are in Bash's symbol table but not
-     * in environ — the forked execlp child has the stale snapshot. */
-    maybe_make_export_env ();
-    struct bpkg_child_guard guard;
-    if (bpkg_child_guard_begin (&guard) < 0)
+    unsigned char signature[BPKG_SIGNIFY_SIG_LEN], key[32];
+    if (bp_signify_read (sig, signature, sizeof signature, 0) < 0 ||
+        bp_signify_trusted_key (signature + 2, key) < 0 ||
+        bp_signify_revoked (signature + 2))
         return -1;
-    pid_t pid = fork ();
-    if (pid < 0) {
-        bpkg_child_guard_parent_end (&guard);
+    bp_buf message = {0};
+    int fd = open (pkgfile, O_RDONLY | O_CLOEXEC);
+    if (fd < 0 || bp_read_all_fd (fd, &message) < 0) {
+        builtin_error ("cannot read %s: %s", pkgfile, strerror (errno));
+        if (fd >= 0) close (fd);
+        bp_buf_free (&message);
         return -1;
     }
-    if (pid == 0) {
-        bpkg_child_guard_child_end (&guard);
-        /* Suppress bashsignify's success-path stdout ("Signature
-         * Verified") so a quiet pkg install stays quiet, but let
-         * stderr pass through so the operator sees revoked-key,
-         * unknown-key, keynum-mismatch, malformed-sig, etc. diagnostics.
-         * Without this, every install-time signature refusal looked
-         * like a generic non-zero rc from pkg with no hint of why. */
-        int devnull = open ("/dev/null", O_WRONLY);
-        if (devnull >= 0) {
-            dup2 (devnull, 1);
-            close (devnull);
-        }
-        execlp ("bashsignify", "bashsignify", "verify",
-                "-x", sig, "-m", pkgfile, (char *) NULL);
-        _exit (127);
-    }
-    int status = 0;
-    while (waitpid (pid, &status, 0) < 0) {
-        if (errno != EINTR) {
-            bpkg_child_guard_parent_end (&guard);
-            return -1;
-        }
-    }
-    bpkg_child_guard_parent_end (&guard);
-    if (WIFEXITED (status) && WEXITSTATUS (status) == 0) return 0;
-    return -1;
+    close (fd);
+    int bad = crypto_ed25519_check (signature + 10, key, message.data, message.len);
+    bp_buf_free (&message);
+    if (bad)
+        builtin_error ("%s does not match its signature %s", pkgfile, sig);
+    return bad ? -1 : 0;
 }
 
 static int
@@ -2417,7 +2535,7 @@ bp_install_pkgfile (const char *pkgfile, const char *root,
                     int allow_unsigned, int force,
                     int allow_legacy_rootfs)
 {
-    /* Verify signature (if present + bashsignify on PATH). */
+    /* Verify the signature when a sibling .sig is present. */
     int sigrc = bp_verify_signature (pkgfile);
     if (sigrc < 0) {
         builtin_error ("signature verification failed: %s", pkgfile);
@@ -3554,22 +3672,29 @@ bp_fetch_url (const char *url, const char *out_path, const char *cacert,
         if (dup2 (pipefd[1], STDOUT_FILENO) < 0)
             _exit (126);
         close (pipefd[1]);
-        if (cacert && *cacert && insecure)
-            execlp ("curl", "curl", "-fsS", "-m", timeout_buf,
-                    "--cacert", cacert, "-k", "-o", out_path,
-                    "-w", "%{http_code}", url, (char *) NULL);
-        else if (cacert && *cacert)
-            execlp ("curl", "curl", "-fsS", "-m", timeout_buf,
-                    "--cacert", cacert, "-o", out_path,
-                    "-w", "%{http_code}", url, (char *) NULL);
-        else if (insecure)
-            execlp ("curl", "curl", "-fsS", "-m", timeout_buf,
-                    "-k", "-o", out_path, "-w", "%{http_code}", url,
-                    (char *) NULL);
-        else
-            execlp ("curl", "curl", "-fsS", "-m", timeout_buf,
-                    "-o", out_path, "-w", "%{http_code}", url,
-                    (char *) NULL);
+        char *argv[16];
+        int argc = 0;
+        argv[argc++] = "curl";
+        argv[argc++] = "-fsS";
+        argv[argc++] = "-m";
+        argv[argc++] = timeout_buf;
+        if (cacert && *cacert) {
+            argv[argc++] = "--cacert";
+            argv[argc++] = (char *) cacert;
+        }
+        if (insecure)
+            argv[argc++] = "-k";
+        argv[argc++] = "-o";
+        argv[argc++] = (char *) out_path;
+        argv[argc++] = "-w";
+        argv[argc++] = "%{http_code}";
+        argv[argc++] = (char *) url;
+        argv[argc] = NULL;
+        /* Run the curl builtin in this child, which works with an empty PATH.
+           An external curl is used only when the builtin is not enabled. */
+        bos_prepare_child ();
+        bos_run_builtin ("curl", argv, NULL);
+        execvp ("curl", argv);
         _exit (127);
     }
     close (pipefd[1]);
@@ -6374,7 +6499,7 @@ verb_update (WORD_LIST *args)
 	     * BPKG_REPOS_DIR/<repo>/INDEX. Remote sources remain rejected by
 	     * update; pkg fetch materializes them into this local mirror.
 	     * Trust mirrors install: a sibling <INDEX>.sig is verified via
-     * bashsignify when present; verification failure refuses
+     * the signature check when present; verification failure refuses
      * to write that source's INDEX. */
     char rdir[BPKG_PATH_MAX];
     snprintf (rdir, sizeof rdir, "%s%s",
@@ -6503,7 +6628,7 @@ verb_update (WORD_LIST *args)
                     /* Per-arch trust boundary: each arch-scoped INDEX copy
                      * below enters bp_update_copy_index(), which verifies
                      * that <arch>/INDEX against its own sibling INDEX.sig.
-                     * The operator's bashsignify wrapper chooses the trusted
+                     * The operator's trusted keys directory chooses the
                      * pubkey(s); INDEX does not carry per-arch key binding. */
                     const char *arch_segments[3] = {
                         selected_arch, "noarch", "any"
@@ -7681,8 +7806,11 @@ char *pkg_doc[] = {
     "Legacy rootfs compatibility state additionally records:",
     "  /var/lib/pkg/installed/<name>/files",
     "",
-    "Trust: installs require a sibling <PKGFILE>.sig verified by",
-    "bashsignify by default; -S spells that production policy explicitly,",
+    "Trust: installs require a sibling <PKGFILE>.sig, a signify-format",
+    "Ed25519 signature checked against a key in $BASHSIGNIFY_TRUSTED_KEYS_DIR",
+    "(default /etc/bashsignify/trusted); key ids listed in",
+    "$BASHSIGNIFY_REVOKED_KEYS are refused. That is the default policy;",
+    "-S spells it explicitly,",
     "and -A allows unsigned bootstrap/development installs.",
     "Legacy rootfs packages are additionally disabled by default and",
     "require --legacy-rootfs or BASHPKG_ALLOW_LEGACY_ROOTFS=1.",
@@ -7699,16 +7827,16 @@ char *pkg_doc[] = {
     "<arch>/INDEX plus noarch/INDEX or any/INDEX; update mirrors the",
     "selected arch (default: uname -m) plus universal dirs. Other schemes",
     "are rejected by default. With --remote, https:// sources (and http://",
-    "only under --remote-insecure) are materialized through curl before",
+    "only under --remote-insecure) are materialized through the curl builtin before",
     "the same INDEX.sig gate; sources.list may prefix a line with `remote`",
-    "or `remote-insecure` for persistent opt-in. A sibling <INDEX>.sig is verified via bashsignify when",
+    "or `remote-insecure` for persistent opt-in. A sibling <INDEX>.sig is verified by the signature check when",
     "present; verification failure refuses to copy the source INDEX",
     "content; the destination remains absent or keeps its previous snapshot.",
     "",
     "fetch also remote-materializes http:// and https:// sources into the same",
     "local mirror tree consumed by update/download/upgrade. It delegates",
     "network I/O to curl, fetches signed per-arch INDEX files, promotes",
-    "them through the same INDEX.sig bashsignify gate as update, and stages",
+    "them through the same INDEX.sig signature gate as update, and stages",
     "referenced artifacts only after SHA-256 package checks or delta",
     "from/to header checks. With a cached package whose hash matches",
     "delta_from, fetch requests the delta sidecar and signatures; otherwise",
