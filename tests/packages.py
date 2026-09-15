@@ -217,10 +217,11 @@ with tempfile.TemporaryDirectory(prefix='packages-') as directory:
         split = tmp / 'split'
         tool(SIGN, 'release', '--key', keys / 'publisher.sec', '--out', split,
              '--asset-url', f'http://127.0.0.1:{port}/packages-{{version}}-{{arch}}', first, foreign)
-        check(sorted(p.name for p in split.iterdir()) == sorted(['INDEX', 'INDEX.sig', 'SHA256SUMS', 'alien', arch]))
+        check(sorted(p.name for p in split.iterdir()) ==
+              sorted(['INDEX', 'INDEX.sig', 'SHA256SUMS', '1.0-alien', f'1.0-{arch}']))
         check(all(f' url=http://127.0.0.1:{port}/packages-1.0-' in line and ' package=' not in line
                   for line in (split / 'INDEX').read_text().splitlines()))
-        shutil.copytree(split / arch, hosted / f'packages-1.0-{arch}')
+        shutil.copytree(split / f'1.0-{arch}', hosted / f'packages-1.0-{arch}')
         (hosted / 'packages').mkdir()
         for name in ('INDEX', 'INDEX.sig'):
             shutil.copy(split / name, hosted / 'packages' / name)

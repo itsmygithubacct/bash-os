@@ -155,11 +155,14 @@ architecture's packages as a release of its own, and a rolling release named
 ```
 
 With `--asset-url`, each INDEX record names its package and signature by
-absolute URL, and they go in one directory per architecture. Upload
-`out/release/ARCH` as release `packages-VERSION-ARCH`, then replace `INDEX`,
-`INDEX.sig` and `SHA256SUMS` in release `packages`. pkg refuses an INDEX
-until its matching `INDEX.sig` is in place, so a half-finished upload is never
-trusted. Without `--asset-url`, nothing is nested, and the directory can be
+absolute URL, and they go in one directory per version and architecture.
+Upload `out/release/VERSION-ARCH` as release `packages-VERSION-ARCH`, then
+replace `INDEX`, `INDEX.sig` and `SHA256SUMS` in release `packages`. pkg
+refuses an INDEX until its matching `INDEX.sig` is in place, so a
+half-finished upload is never trusted. Package directories from an earlier
+snapshot can be signed again alongside new ones: their records keep pointing
+at the release already published, and only the new directories need
+uploading. Without `--asset-url`, nothing is nested, and the directory can be
 served as a repository as it is.
 
 ## Installing

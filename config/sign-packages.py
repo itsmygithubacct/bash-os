@@ -16,7 +16,9 @@ Without --asset-url, nothing is nested and INDEX names packages relative to
 itself. A GitHub release holds at most 1000 assets, too few for every package
 of several architectures, so --asset-url TEMPLATE (with {version} and {arch})
 gives each package and signature an absolute URL instead, and puts them in
-one directory per architecture, each uploaded as its own release.
+one directory per version and architecture, VERSION-ARCH, each uploaded as
+its own release. Directories from an earlier snapshot can be signed again with
+new ones: their records keep pointing at the release already published.
 """
 import argparse
 import base64
@@ -145,9 +147,10 @@ def release(key, out, sources, asset_url=None):
                 die(f'{source/package} does not match the sha256 in {origin}')
             directory = out
             if asset_url is not None:
-                if not re.fullmatch(r'[A-Za-z0-9_.+-]+', fields['arch']):
-                    die(f'{origin}: arch {fields["arch"]!r} cannot name a directory')
-                directory = out/fields['arch']
+                release_name = f"{fields['version']}-{fields['arch']}"
+                if not re.fullmatch(r'[A-Za-z0-9_.+-]+', release_name):
+                    die(f'{origin}: {release_name!r} cannot name a directory')
+                directory = out/release_name
                 directory.mkdir(exist_ok=True)
                 try:
                     base = asset_url.format(version=fields['version'], arch=fields['arch']).rstrip('/')
