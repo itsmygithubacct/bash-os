@@ -388,6 +388,11 @@
       "helpers": [
         "_perl"
       ]
+    },
+    "bashpython": {
+      "helpers": [
+        "_python"
+      ]
     }
   },
   "helpers": {
@@ -511,6 +516,10 @@
       "notice": "LICENSE.txt"
     },
     "_perl": {
+      "license": "MIT",
+      "notice": "LICENSE.txt"
+    },
+    "_python": {
       "license": "MIT",
       "notice": "LICENSE.txt"
     }

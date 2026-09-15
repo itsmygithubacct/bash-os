@@ -42,6 +42,8 @@ Three uses drive it:
 Choose `shell`, `pure`, `core`, `device`, `server`, `desktop`, or `full`.
 `--include bashperl` adds an optional real Perl interpreter with `libperl`
 linked into the executable; see [Perl inside Bash](docs/perl.md).
+`--include bashpython` does the same for CPython 3.13 with a static
+`libpython`; see [Python inside Bash](docs/python.md).
 Levels 0–5 range from no injected loadables to the full collection. Lists and
 repeatable `--include`, `--include-list`, and `--exclude` options let you choose
 exactly what goes into a binary. Required companion builtins are checked before
@@ -125,6 +127,7 @@ command lookup.
 ```
 build.sh                        the build
 build-deps.sh                   pinned host/target dependency libraries
+build-perl.sh  build-python.sh pinned static Perl and CPython for bashperl and bashpython
 build-packages.sh               loadables as pkg packages (config/build-packages.py)
 sign-packages.sh                publisher keys and signed releases (config/sign-packages.py)
 config/
@@ -164,6 +167,9 @@ tests/
   pkg-signify.py [BIN]          pkg's signature checks and remote fetch
   pkg-data.py [BIN]             package data trees: install, verify, upgrade, refusals
   uv-builtin.py [BIN]           the uv builtin with a stand-in program
+  bashpython.py [BIN]           bashpython against the CPython it embeds, compiled in or --module
+  bashpython-package.py [BIN]   bashpython and its standard library as a signed package
+  python-check.sh               the whole Python integration, as CI runs it
   licence-check.sh              source licences and third-party notices
   zstd-check.sh [BIN]           zstd against the host's zstd(1): round trips, interop, semantics
   util-linux-smoke.sh [BIN]     the util-linux family: help, safe operations, host parity

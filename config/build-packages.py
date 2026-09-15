@@ -28,6 +28,8 @@ BASH should be the smallest dynamic build for the target (out/bash-shell by
 default), so that a package loads into every dynamic profile. A static
 executable cannot load packages at all.
 
+--prebuilt NAME=SO packs an object built elsewhere, such as bashpython.so
+with its static libpython, instead of compiling NAME; it passes the same gates.
 --data NAME=DIR adds DIR/libexec/NAME/ and DIR/share/NAME/ to NAME's package,
 which pkg installs under /usr/lib/bash-os. MANIFEST declares each of those
 files with its mode and SHA-256, and such a package is xz-compressed. NAME
@@ -186,6 +188,8 @@ def parse_args():
     parser.add_argument('--out', type=Path, help='output directory (default out/packages/ARCH)')
     parser.add_argument('--version', help='package version (default: HEAD commit date)')
     parser.add_argument('--runner', default='', help='command that runs target executables')
+    parser.add_argument('--prebuilt', action='append', default=[], metavar='NAME=SO',
+                        help='pack SO as NAME instead of compiling it; the same gates apply')
     parser.add_argument('--data', action='append', default=[], metavar='NAME=DIR',
                         help="add DIR/libexec/NAME and DIR/share/NAME to NAME's package")
     parser.add_argument('--jobs', type=int, default=int(os.environ.get('JOBS') or os.cpu_count() or 2))
@@ -239,6 +243,12 @@ def main():
         if not separator or name not in names:
             die(f'--data {item!r}: expected NAME=DIR for a NAME being built')
         data[name] = data_members(name, Path(directory))
+    prebuilt = {}
+    for item in args.prebuilt:
+        name, separator, shared = item.partition('=')
+        if not separator or name not in names or not Path(shared).is_file():
+            die(f'--prebuilt {item!r}: expected NAME=SO for a NAME being built and an existing SO')
+        prebuilt[name] = Path(shared).resolve()
 
     # The symbols a loaded object may use, and those glibc itself defines.
     allowed_needed = {*GLIBC, Path(interpreter).name}
@@ -277,6 +287,8 @@ def main():
     # some through a macro in a shared header (reboot), which only nm confirms.
     definers, report = {}, {}
     for name in names:
+        if name in prebuilt:
+            continue
         definition = re.compile(rf'\bstruct\s+builtin\s+{name}_struct\b')
         if text(name) and definition.search(text(name)):
             definers[name] = name
@@ -377,7 +389,7 @@ def main():
                 found.append(path)
             return found
 
-        def build(name):
+        def link(name, shared):
             definer, closure = definers[name], closures[name]
             if compiled.get(definer):
                 raise Failure(f'{definer}.c: {compiled[definer]}')
@@ -397,7 +409,6 @@ def main():
             for helper in helpers:
                 if helper in broken_helpers:
                     raise Failure(f'helper {broken_helpers[helper]}')
-            shared = work/'out'/f'{name}.so'
             run([tools.cc, '-shared', '-nodefaultlibs', '-fPIC', '-s',
                  '-Wl,-Bsymbolic', '-Wl,--exclude-libs,ALL', f'-Wl,-soname,{name}.so',
                  '-Wl,--build-id=none', '-Wl,-z,relro', '-Wl,-z,now', '-Wl,-z,noexecstack',
@@ -406,6 +417,13 @@ def main():
                  *[archives[helper] for helper in helpers if helper in archives],
                  *static_libraries(flags), '-Wl,--end-group',
                  '-Wl,--as-needed', '-lm', '-Wl,--no-as-needed', '-lgcc', '-lc', '-lgcc'])
+
+        def build(name):
+            shared = work/'out'/f'{name}.so'
+            if name in prebuilt:
+                shutil.copyfile(prebuilt[name], shared)
+            else:
+                link(name, shared)
             needed = tools.needed(shared)
             if set(needed) - allowed_needed:
                 raise Failure('links shared libraries: ' + ', '.join(needed))
@@ -448,7 +466,7 @@ def main():
 
         records = []
         with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
-            for name, result in pool.map(attempt, sorted(definers)):
+            for name, result in pool.map(attempt, sorted([*definers, *prebuilt])):
                 if isinstance(result, Exception):
                     report[name] = ('failed', str(result))
                 else:

@@ -50,15 +50,17 @@ Build options:
   --static             link a static executable
   --deps-prefix DIR    use target headers and libraries prepared by build-deps.sh
   --perl-prefix DIR    use an existing static Perl installation for bashperl
+  --python-prefix DIR  use an existing static CPython installation for bashpython
   --no-strip           retain symbols
   --clean              force rebuilding
   --help               show this help
 Selecting bashperl builds pinned static libperl automatically on native builds.
+Selecting bashpython builds pinned static libpython automatically on native builds.
 Environment: CC, JOBS, CFLAGS, CPPFLAGS, LOCAL_LIBS, LDFLAGS_EXTRA,
 CONFIGURE_EXTRA, BASH_TARBALL, EXTRA_LOADABLES (space-separated source directories).
 HELP
 }
-STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; PERL_PREFIX=""; INFO=""; SELECT_ARGS=()
+STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; PERL_PREFIX=""; PYTHON_PREFIX=""; INFO=""; SELECT_ARGS=()
 while [[ $# -gt 0 ]]; do case "$1" in
   --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
   --profile|--level|--list|--include|--include-list|--exclude|--name)
@@ -70,6 +72,9 @@ while [[ $# -gt 0 ]]; do case "$1" in
   --perl-prefix)
     [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires a directory"
     PERL_PREFIX=$(cd "$2" && pwd); shift 2 ;;
+  --python-prefix)
+    [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "$1 requires a directory"
+    PYTHON_PREFIX=$(cd "$2" && pwd); shift 2 ;;
   --list-profiles|--list-loadables)
     [[ -z $INFO ]] || die "choose one reporting option"
     SELECT_ARGS+=("$1"); INFO="$1"; shift ;;
@@ -139,6 +144,18 @@ if [[ " ${NAMES[*]} " == *" bashperl "* ]]; then
   LOCAL_LIBS+=" $(python3 -c 'import json,sys; print(json.load(sys.stdin)["flags"]["libraries"])' <<< "$PERL_CONFIG")"
 fi
 export PERL_CONFIG
+PYTHON_CONFIG=""
+if [[ " ${NAMES[*]} " == *" bashpython "* ]]; then
+  if [[ -z $PYTHON_PREFIX ]]; then
+    [[ $CROSS == 0 ]] || die "cross bashpython builds need a prepared target --python-prefix"
+    CC="$CC" JOBS="$JOBS" ./build-python.sh ${DEPS_PREFIX:+--deps-prefix "$DEPS_PREFIX"}
+    PYTHON_PREFIX="$HERE/out/python/$TARGET"
+  fi
+  PYTHON_CONFIG=$(CC="$CC" python3 config/build-python.py --prefix "$PYTHON_PREFIX" --flags) || exit $?
+  LDFLAGS+=" $(python3 -c 'import json,sys; print(json.load(sys.stdin)["flags"]["ldflags"])' <<< "$PYTHON_CONFIG")"
+  LOCAL_LIBS+=" $(python3 -c 'import json,sys; print(json.load(sys.stdin)["flags"]["libraries"])' <<< "$PYTHON_CONFIG")"
+fi
+export PYTHON_CONFIG
 # A cross configure cannot run test programs; these are the Linux answers.
 CROSS_CACHE=(bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present
   bash_cv_sys_named_pipes=present bash_cv_func_sigsetjmp=present bash_cv_printf_a_format=yes
@@ -154,6 +171,7 @@ STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$ST
            printf '%s\n' "$SELECTION"; "$CC" --version;
            cat config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch patches/tee-io.patch;
            printf '%s\n' "$PERL_CONFIG";
+           printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
@@ -251,6 +269,11 @@ if os.environ.get('PERL_CONFIG'):
     flags = json.loads(os.environ['PERL_CONFIG'])['flags']['cppflags']
     with p.open('a') as output:
         output.write('\n_perl_engine.o: CPPFLAGS += '+flags+'\n')
+if os.environ.get('PYTHON_CONFIG'):
+    python = json.loads(os.environ['PYTHON_CONFIG'])['flags']
+    with p.open('a') as output:
+        output.write('\n_python_engine.o: CPPFLAGS += '+python['cppflags']+'\n')
+        output.write('bashpython.o: CPPFLAGS += -DBASHOS_PYTHON_HOME=\\"'+python['home']+'\\"\n')
 PY
 
 # --- 6. configure ----------------------------------------------------------
@@ -304,6 +327,8 @@ selection.update(target=sys.argv[2], static=sys.argv[3]=='1', stripped=sys.argv[
                  binary_sha256=hashlib.sha256(p.read_bytes()).hexdigest(), bytes=p.stat().st_size)
 if os.environ.get('PERL_CONFIG'):
     selection['perl'] = json.loads(os.environ['PERL_CONFIG'])
+if os.environ.get('PYTHON_CONFIG'):
+    selection['python'] = json.loads(os.environ['PYTHON_CONFIG'])
 p.with_name(p.name+'.loadables.list').write_text(selection['list'])
 p.with_name(p.name+'.manifest.json').write_text(json.dumps(selection, indent=2)+'\n')
 PYMANIFEST

@@ -108,6 +108,24 @@ point assumes a fresh process that has started no threads. It exits 127, and
 says to install it, when the program is missing. uv is licensed MIT or
 Apache-2.0.
 
+## bashpython
+
+The optional `bashpython` package holds `bashpython.so`, with CPython and its
+native modules linked in, and the standard library under
+`share/bashpython/`, where the module finds it relative to its own location.
+The module is linked by `config/build-python-loadable.py` rather than
+compiled here, so `--prebuilt` hands the finished object to the same gates:
+
+```sh
+./build-python.sh
+python3 config/build-python-loadable.py
+./build-packages.sh --prebuilt bashpython=out/bashpython.so \
+  --data bashpython=out/python/$(cc -dumpmachine)/data bashpython
+```
+
+See [Python inside Bash](python.md) for what the module does and does not
+provide.
+
 ## Signing a release
 
 ```sh
