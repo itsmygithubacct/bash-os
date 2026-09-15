@@ -103,25 +103,35 @@ with tempfile.TemporaryDirectory(prefix='pkg-signify-') as directory:
     env = {'HOME': tmp, 'BASHSIGNIFY_TRUSTED_KEYS_DIR': trusted,
            'BASHSIGNIFY_REVOKED_KEYS': tmp / 'no-revocations'}
 
-    # A libc-free loadable: pkg refuses any DT_NEEDED dependency.
+    # A libc-free loadable. pkg refuses a DT_NEEDED dependency other than libm.so.6.
     source = tmp / 'pkgprobe.c'
     source.write_text(LOADABLE)
-    stage = tmp / 'stage'
-    (stage / 'loadable').mkdir(parents=True)
-    shared = stage / 'loadable' / 'pkgprobe.so'
-    subprocess.run([os.environ.get('CC', 'cc'), '-O2', '-fPIC', '-shared', '-nostdlib',
-                    '-DHAVE_CONFIG_H', f'-I{build_tree}', f'-I{build_tree}/include',
-                    f'-I{build_tree}/builtins', f'-I{build_tree}/examples/loadables',
-                    str(source), '-o', str(shared)], check=True)
-    (stage / 'MANIFEST').write_text(
-        f'type: loadable\nname: pkgprobe\nversion: 1.0\nbuiltin: pkgprobe\n'
-        f'abi: bash-5.3\narch: {arch}\nsha256: {sha256(shared)}\n')
-    package = tmp / f'pkgprobe_1.0_{arch}.pkg'
-    run('pkg pack "$1" "$2"', stage, package, env=env)
-    publisher.sign(package)
+
+    def make_package(label, *link):
+        stage = tmp / f'stage-{label}'
+        (stage / 'loadable').mkdir(parents=True)
+        shared = stage / 'loadable' / 'pkgprobe.so'
+        subprocess.run([os.environ.get('CC', 'cc'), '-O2', '-fPIC', '-shared', '-nostdlib',
+                        '-DHAVE_CONFIG_H', f'-I{build_tree}', f'-I{build_tree}/include',
+                        f'-I{build_tree}/builtins', f'-I{build_tree}/examples/loadables',
+                        str(source), '-o', str(shared), *link], check=True)
+        (stage / 'MANIFEST').write_text(
+            f'type: loadable\nname: pkgprobe\nversion: 1.0\nbuiltin: pkgprobe\n'
+            f'abi: bash-5.3\narch: {arch}\nsha256: {sha256(shared)}\n')
+        built = tmp / label / f'pkgprobe_1.0_{arch}.pkg'
+        built.parent.mkdir()
+        run('pkg pack "$1" "$2"', stage, built, env=env)
+        publisher.sign(built)
+        return built
+
+    package = make_package('plain')
 
     # Verification with an empty PATH: good, untrusted, revoked, tampered.
     run('pkg verify "$1"', package, env=env, stdout='verify pkgprobe\tpackage=ok\n')
+    run('pkg verify "$1"', make_package('libm', '-Wl,--no-as-needed', '-lm'), env=env,
+        stdout='verify pkgprobe\tpackage=ok\n')
+    run('pkg verify "$1"', make_package('libz', '-Wl,--no-as-needed', '-lz'), env=env, status=1,
+        stderr='non-bundled shared library dependency: libz.so.1')
     foreign = tmp / 'foreign.pkg'
     shutil.copy(package, foreign)
     stranger.sign(foreign)

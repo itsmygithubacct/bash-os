@@ -2136,6 +2136,10 @@ bp_loadable_reject_nonbundled_needed (const unsigned char *data, size_t len)
             builtin_error ("unterminated ELF shared library dependency");
             return -1;
         }
+        /* glibc installs libm beside libc, and its libm.a cannot be linked
+           into a shared object, so a loadable may take math from libm.so.6. */
+        if (strcmp (needed, "libm.so.6") == 0)
+            continue;
         builtin_error ("loadable has non-bundled shared library dependency: "
                        "%s", needed);
         return -1;
