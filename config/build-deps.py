@@ -18,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix', type=Path)
     parser.add_argument('--jobs', type=int, default=int(os.environ.get('JOBS', '4')))
+    parser.add_argument('--python', action='store_true',
+                        help='also build static OpenSSL and libffi, which bashpython links')
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error('--jobs must be positive')
@@ -28,13 +30,20 @@ def main():
     prefix = (args.prefix or ROOT/'out/deps'/target).resolve()
     config = ROOT/'config/dependencies.json'
     packages = json.loads(config.read_text())
+    marker = prefix/'bash-os-dependencies.json'
+    previous = json.loads(marker.read_text()) if marker.is_file() else {}
+    # OpenSSL and libffi serve only bashpython; a prefix that has them keeps them.
+    python = args.python or bool(previous.get('python'))
+    names = ['zlib', 'pcre2', 'xz', 'zstd', 'bzip2'] + (['libffi', 'openssl'] if python else [])
+    packages = {name: packages[name] for name in names}
     cflags = os.environ.get('CFLAGS', '-O2 -fPIC')
-    identity = dict(packages=packages, target=target, cc=cc, cflags=cflags,
+    identity = dict(packages=packages, target=target, cc=cc, cflags=cflags, python=python,
                     compiler=subprocess.check_output([cc, '--version'], text=True),
                     recipe=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
-    marker = prefix/'bash-os-dependencies.json'
     libraries = ['libpcre2-8.a', 'libz.a', 'liblzma.a', 'libzstd.a', 'libbz2.a']
-    if marker.exists() and json.loads(marker.read_text()) == identity and all((prefix/'lib'/n).is_file() for n in libraries):
+    if python:
+        libraries += ['libffi.a', 'libssl.a', 'libcrypto.a']
+    if previous == identity and all((prefix/'lib'/n).is_file() for n in libraries):
         print(f'dependencies: up to date: {prefix}')
         return
     if prefix.exists() and any(prefix.iterdir()) and not marker.is_file():
@@ -55,7 +64,7 @@ def main():
         install = dest/str(prefix).lstrip('/')
         install.mkdir(parents=True)
         install_env = dict(env, DESTDIR=str(dest))
-        for name in ['zlib', 'pcre2', 'xz', 'zstd', 'bzip2']:
+        for name in names:
             spec = packages[name]
             archive = download/spec['url'].rsplit('/', 1)[1]
             if not archive.exists():
@@ -95,6 +104,22 @@ def main():
                 (install/'include').mkdir(exist_ok=True)
                 shutil.copy2(source/'libbz2.a', install/'lib/libbz2.a')
                 shutil.copy2(source/'bzlib.h', install/'include/bzlib.h')
+            elif name == 'libffi':
+                run(['./configure', '--host='+target, '--prefix='+str(prefix), '--disable-shared',
+                     '--enable-static', '--with-pic', '--disable-docs', '--disable-multi-os-directory'])
+                run(['make', '-j'+str(args.jobs)])
+                run(['make', 'install'], environment=install_env)
+            elif name == 'openssl':
+                machine = {'x86_64': 'linux-x86_64', 'aarch64': 'linux-aarch64',
+                           'riscv64': 'linux64-riscv64'}.get(target.split('-')[0])
+                if not machine:
+                    raise RuntimeError(f'openssl: no configuration for {target}')
+                # Certificates are looked up where Linux distributions keep them.
+                run(['./Configure', machine, 'no-shared', 'no-module', 'no-tests', 'no-docs',
+                     '--prefix='+str(prefix), '--libdir=lib', '--openssldir=/etc/ssl'])
+                run(['make', '-j'+str(args.jobs), 'build_libs'])
+                # OpenSSL's Makefile sets DESTDIR itself, so the environment cannot.
+                run(['make', 'install_dev', 'DESTDIR='+str(dest)])
             else:
                 cmake_source = source/'build/cmake' if name == 'zstd' else source
                 build = work/(name+'-build')

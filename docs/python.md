@@ -47,8 +47,21 @@ variants, and trimmed of test packages, IDLE, tkinter, turtledemo and
 ensurepip. `out/python/TARGET/data/share/bashpython` holds it in the layout
 pkg installs.
 
-Automatic builds are native builds. Cross compilation needs a prepared target
-installation supplied with `--python-prefix`.
+`./build.sh` builds the installation automatically only for a native compiler.
+For another architecture, build the native installation first, then OpenSSL
+and libffi for the target with `build-deps.sh --python`, and the target
+installation with the native interpreter as its build Python:
+
+```sh
+CC=aarch64-linux-gnu-gcc ./build-deps.sh --python
+CC=aarch64-linux-gnu-gcc ./build-python.sh \
+  --build-python out/python/x86_64-linux-gnu/bin/python3.13 \
+  --runner 'qemu-aarch64 -L /usr/aarch64-linux-gnu'
+```
+
+The runner lets the build run the target interpreter to check which modules
+it compiled in. `build-deps.sh --python` also serves native builds, which then
+use its OpenSSL and libffi instead of the build host's.
 
 ## Use
 

@@ -52,6 +52,10 @@ def main():
     parser.add_argument('--deps-prefix', type=Path)
     parser.add_argument('--jobs', type=int, default=int(os.environ.get('JOBS', '4')))
     parser.add_argument('--flags', action='store_true', help='read an existing installation, as JSON')
+    parser.add_argument('--build-python', type=Path,
+                        help='for a cross build: the same CPython version, built natively')
+    parser.add_argument('--runner', default='',
+                        help='for a cross build: a command that runs target executables')
     args = parser.parse_args()
     cc = shutil.which(os.environ.get('CC', 'cc'))
     if not cc or args.jobs < 1:
@@ -80,15 +84,27 @@ def main():
         return
 
     native = subprocess.check_output(['cc', '-dumpmachine'], text=True).strip()
-    if target != native:
-        parser.error('automatic Python builds require a native compiler; supply a prepared target --prefix')
+    cross = target != native
+    runner = shlex.split(args.runner)
+    if cross and not (args.build_python and args.build_python.is_file() and runner):
+        parser.error('a cross build needs --build-python, the same CPython built natively, '
+                     'and --runner, a command that runs target executables')
+
+    def tool(name):
+        prefixed = cc[:-3] + name if cc.endswith('-gcc') else None
+        return prefixed if prefixed and shutil.which(prefixed) else name
+
     deps = (args.deps_prefix or ROOT/'out/deps'/target).resolve()
     if not all((deps/'lib'/name).is_file() for name in ('libz.a', 'libbz2.a', 'liblzma.a', 'libzstd.a')):
         parser.error(f'{deps} lacks static zlib, bzip2, xz and zstd; run ./build-deps.sh')
     sqlite = ROOT/'loadables/_sqlite'
     spec = json.loads((ROOT/'config/python.json').read_text())
-    optional = {name: host_archive(cc, name) for name in ('libffi.a', 'libssl.a', 'libcrypto.a')}
+    # OpenSSL and libffi from build-deps.sh --python, or else the build host's own.
+    optional = {name: deps/'lib'/name if (deps/'lib'/name).is_file()
+                else None if cross else host_archive(cc, name)
+                for name in ('libffi.a', 'libssl.a', 'libcrypto.a')}
     identity = dict(package=spec, target=target, cc=cc,
+                    build_python=str(args.build_python) if cross else None,
                     compiler=subprocess.check_output([cc, '--version'], text=True),
                     recipe=digest(Path(__file__)), sqlite=digest(sqlite/'sqlite3.c'),
                     deps={name: digest(deps/'lib'/name) for name in ('libz.a', 'libbz2.a', 'liblzma.a', 'libzstd.a')},
@@ -142,17 +158,21 @@ def main():
             run([cc, '-c', '-O2', '-fPIC', '-DSQLITE_THREADSAFE=1', '-DSQLITE_OMIT_LOAD_EXTENSION',
                  '-DSQLITE_ENABLE_FTS5', '-DSQLITE_ENABLE_RTREE', '-DSQLITE_ENABLE_MATH_FUNCTIONS',
                  str(sqlite/'sqlite3.c'), '-o', str(sqlite_lib/'sqlite3.o')])
-            run(['ar', 'rcsD', str(sqlite_lib/'libsqlite3.a'), str(sqlite_lib/'sqlite3.o')])
+            run([tool('ar'), 'rcsD', str(sqlite_lib/'libsqlite3.a'), str(sqlite_lib/'sqlite3.o')])
 
             variables = dict(
                 MODULE_BUILDTYPE='static', CC=cc, CFLAGS='-O2 -fPIC',
                 ZLIB_CFLAGS=f'-I{deps}/include', ZLIB_LIBS=str(deps/'lib/libz.a'),
                 BZIP2_CFLAGS=f'-I{deps}/include', BZIP2_LIBS=str(deps/'lib/libbz2.a'),
                 LIBLZMA_CFLAGS=f'-I{deps}/include', LIBLZMA_LIBS=str(deps/'lib/liblzma.a'),
-                LIBSQLITE3_CFLAGS=f'-I{sqlite}', LIBSQLITE3_LIBS=str(sqlite_lib/'libsqlite3.a'))
+                LIBSQLITE3_CFLAGS=f'-I{sqlite}',
+                # configure's link checks add -lsqlite3 themselves; this directory holds
+                # only the vendored archive, so it is what they find, native or cross.
+                LIBSQLITE3_LIBS=f'-L{sqlite_lib} -lsqlite3 -lm')
             disabled = list(DISABLED)
             if optional['libffi.a']:
-                variables.update(LIBFFI_CFLAGS='', LIBFFI_LIBS=str(optional['libffi.a']))
+                variables.update(LIBFFI_CFLAGS=f'-I{deps}/include' if optional['libffi.a'].parent == deps/'lib'
+                                 else '', LIBFFI_LIBS=str(optional['libffi.a']))
             else:
                 disabled.append('_ctypes')
             if optional['libssl.a'] and optional['libcrypto.a']:
@@ -165,6 +185,13 @@ def main():
             configure = ['./configure', '--prefix='+str(prefix), '--disable-shared',
                          '--disable-test-modules', '--without-ensurepip', '--with-lto=no',
                          *[f'py_cv_module_{name}=n/a' for name in disabled]]
+            if 'PY_UNSUPPORTED_OPENSSL_BUILD' in variables and optional['libssl.a'].parent == deps/'lib':
+                configure.append('--with-openssl='+str(deps))
+            if cross:
+                configure += ['--host='+target, '--build='+native, '--with-build-python='+str(args.build_python),
+                              # Answers configure cannot find by running test programs.
+                              'ac_cv_file__dev_ptmx=yes', 'ac_cv_file__dev_ptc=no',
+                              'ac_cv_buggy_getaddrinfo=no']
             print(f'python: configuring {spec["version"]} for {target}; log: {log}', flush=True)
             run(configure, environment={**env, **variables})
             print('python: compiling interpreter and standard modules', flush=True)
@@ -180,7 +207,7 @@ def main():
                      'modlibs=sysconfig.get_config_var("MODLIBS"), '
                      'syslibs=sysconfig.get_config_var("SYSLIBS"))))')
             config = json.loads(subprocess.check_output(
-                [str(built), '-S', '-c', probe], cwd=source, text=True,
+                [*runner, str(built), '-S', '-c', probe], cwd=source, text=True,
                 env={**env, 'PYTHONHOME': str(install), 'PYTHONPATH': str(source/'Lib')}))
             version = '.'.join(spec['version'].split('.')[:2])
             required = ['_sqlite3', 'zlib', '_bz2', '_lzma', '_decimal', '_json', 'pyexpat']
@@ -194,7 +221,7 @@ def main():
 
             # Archives the embedding links: libpython and the static libraries its
             # modules use, rewritten to call the private environment functions.
-            objcopy = shutil.which(os.environ.get('OBJCOPY', 'objcopy'))
+            objcopy = shutil.which(os.environ.get('OBJCOPY', tool('objcopy')))
             if not objcopy:
                 raise RuntimeError('objcopy is required for the embedding archives')
             remap = [f'--redefine-sym={name}=bos_python_env_{name}' for name in ENVIRONMENT]
@@ -210,7 +237,7 @@ def main():
                 inputs.append(optional['libffi.a'])
             if 'PY_UNSUPPORTED_OPENSSL_BUILD' in variables:
                 inputs += [optional['libssl.a'], optional['libcrypto.a'], deps/'lib/libzstd.a']
-            readelf = shutil.which(os.environ.get('READELF', 'readelf'))
+            readelf = shutil.which(os.environ.get('READELF', tool('readelf')))
             archives = []
             for index, original in enumerate(inputs):
                 # Initial-exec and local-exec TLS cannot be linked into a shared object.
