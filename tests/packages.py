@@ -230,6 +230,7 @@ with tempfile.TemporaryDirectory(prefix='packages-') as directory:
         split_root = tmp / 'split-root'
         split_root.mkdir()
         pkg('pkg update --root "$1" --sources "$2" --remote-insecure', split_root, split_sources)
+        check(not list((split_root / 'var/lib/pkg/repos').rglob('*.pkg')), 'update downloaded packages')
         pkg('pkg install seq --root "$1" --sources "$2"', split_root, split_sources)
     finally:
         server.shutdown()

@@ -192,10 +192,29 @@ with tempfile.TemporaryDirectory(prefix='pkg-signify-') as directory:
         sources.write_text(f'http://127.0.0.1:{server.server_address[1]}/bash-os\n')
         root = tmp / 'root'
         root.mkdir()
-        run('pkg update --root "$1" --sources "$2" --remote-insecure', root, sources, env=env)
-        mirrored = list((root / 'var/lib/pkg/repos').rglob('INDEX'))
-        assert mirrored, 'update --remote-insecure mirrored no INDEX'
+        result = run('pkg update --root "$1" --sources "$2" --remote-insecure', root, sources, env=env)
+        # The repository has no noarch, any or top-level INDEX; those probes miss quietly.
+        assert 'HTTP 404' not in result.stderr, result.stderr
+        mirror = root / 'var/lib/pkg/repos'
+        assert list(mirror.rglob('INDEX')), 'update --remote-insecure mirrored no INDEX'
+        # update downloads no package; install fetches the one it needs.
+        assert not list(mirror.rglob('*.pkg*')), 'update downloaded packages'
+        served_package = repo / arch / package.name
+        good = served_package.read_bytes()
+        served_package.write_bytes(good[:-1] + bytes([good[-1] ^ 1]))
+        run('pkg install pkgprobe --root "$1" --sources "$2"', root, sources, env=env, status=1,
+            stderr='package sha256 mismatch for http://')
+        assert not list(mirror.rglob('*.pkg*')), 'kept a package that failed its SHA-256'
+        served_package.write_bytes(good)
         run('pkg install pkgprobe --root "$1" --sources "$2"', root, sources, env=env)
+        fetched = sorted(p.name for p in mirror.rglob('*.pkg*'))
+        assert fetched == [package.name, f'{package.name}.sig'], fetched
+        # fetch mirrors every package up front.
+        offline = tmp / 'offline-root'
+        offline.mkdir()
+        run('pkg fetch --root "$1" --sources "$2"', offline, sources, env=env)
+        assert (offline / 'var/lib/pkg/repos/bash-os' / arch / package.name).is_file(), \
+            list(offline.rglob('*'))
         run('pkg load pkgprobe --root "$1" && pkgprobe', root, env=env,
             stdout=f'loaded pkgprobe\tpkgprobe\t{root}/usr/lib/bash-os/loadables/pkgprobe.so\n'
                    'pkgprobe loaded\n')

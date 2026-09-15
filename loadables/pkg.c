@@ -4229,7 +4229,7 @@ bp_copy_tree_into (const char *src, const char *dst)
 
 static int
 bp_fetch_url (const char *url, const char *out_path, const char *cacert,
-              int insecure, int timeout, long *http_code_out)
+              int insecure, int timeout, int quiet, long *http_code_out)
 {
     if (!bp_remote_url (url) || !out_path || !*out_path)
         return -1;
@@ -4268,7 +4268,9 @@ bp_fetch_url (const char *url, const char *out_path, const char *cacert,
         char *argv[16];
         int argc = 0;
         argv[argc++] = "curl";
-        argv[argc++] = "-fsS";
+        /* Probes for files a repository may not have stay quiet; the
+           caller reports what it could not find. */
+        argv[argc++] = quiet ? "-fs" : "-fsS";
         /* Release hosting redirects downloads to a storage host. Following
            is safe: every INDEX and package is checked against its signature. */
         argv[argc++] = "-L";
@@ -4460,7 +4462,7 @@ bp_fetch_ref_to_stage (const char *base_url, const char *ref, int is_url,
             (int) outsz)
         return -1;
     long code = 0;
-    if (bp_fetch_url (url, out_path, cacert, insecure, timeout, &code) < 0) {
+    if (bp_fetch_url (url, out_path, cacert, insecure, timeout, 0, &code) < 0) {
         builtin_error ("fetch: failed %s", url);
         return -1;
     }
@@ -4571,11 +4573,87 @@ bp_fetch_index_artifacts (const char *idx, const char *root,
     return 0;
 }
 
+/* A mirror of a remote segment keeps how update reached it in REMOTE, next
+   to ORIGIN, so install and upgrade can fetch packages later with the same
+   TLS options. */
+static int
+bp_remote_options_write (const char *dest_dir, const char *cacert,
+                         int insecure, int timeout)
+{
+    char path[BPKG_PATH_MAX], abs[BPKG_PATH_MAX], body[BPKG_PATH_MAX + 64];
+    if (cacert && *cacert && realpath (cacert, abs))
+        cacert = abs;
+    if (snprintf (path, sizeof path, "%s/REMOTE", dest_dir) >=
+        (int) sizeof path)
+        return -1;
+    int n = snprintf (body, sizeof body, "insecure %d\ntimeout %d\ncacert %s\n",
+                      insecure ? 1 : 0, timeout, cacert ? cacert : "");
+    if (n < 0 || n >= (int) sizeof body)
+        return -1;
+    return bp_write_file_atomic (path, (const unsigned char *) body,
+                                 (size_t) n, 0644);
+}
+
+static int
+bp_remote_options_read (const char *mirror, char *base, size_t basesz,
+                        char *cacert, size_t cacertsz, int *insecure,
+                        int *timeout)
+{
+    char path[BPKG_PATH_MAX];
+    bp_buf body = {0};
+    base[0] = 0;
+    cacert[0] = 0;
+    *insecure = 0;
+    *timeout = 30;
+    if (snprintf (path, sizeof path, "%s/ORIGIN", mirror) >=
+            (int) sizeof path ||
+        bp_read_file (path, &body) < 0) {
+        bp_buf_free (&body);
+        return -1;
+    }
+    size_t n = body.len < basesz - 1 ? body.len : basesz - 1;
+    memcpy (base, body.data, n);
+    base[n] = 0;
+    char *nl = strchr (base, '\n');
+    if (nl) *nl = 0;
+    bp_buf_free (&body);
+    if (!bp_remote_url (base))
+        return -1;
+    if (snprintf (path, sizeof path, "%s/REMOTE", mirror) >=
+            (int) sizeof path ||
+        bp_read_file (path, &body) < 0) {
+        bp_buf_free (&body);
+        return 0;
+    }
+    size_t off = 0;
+    while (off < body.len) {
+        size_t end = off;
+        while (end < body.len && body.data[end] != '\n') end++;
+        char line[BPKG_PATH_MAX + 64];
+        if (end - off < sizeof line) {
+            memcpy (line, body.data + off, end - off);
+            line[end - off] = 0;
+            if (!strncmp (line, "insecure ", 9))
+                *insecure = atoi (line + 9) != 0;
+            else if (!strncmp (line, "timeout ", 8) && atoi (line + 8) > 0)
+                *timeout = atoi (line + 8);
+            else if (!strncmp (line, "cacert ", 7))
+                snprintf (cacert, cacertsz, "%s", line + 7);
+        }
+        off = end + 1;
+    }
+    bp_buf_free (&body);
+    return 0;
+}
+
+/* With with_artifacts, the segment's packages, signatures and deltas are
+   downloaded too (pkg fetch); otherwise only its signed INDEX (pkg update),
+   and download, install and upgrade fetch what they need. */
 static int
 bp_fetch_remote_segment (const char *source_url, const char *segment,
                          const char *repo_dir, const char *root,
                          const char *selected_arch, const char *cacert,
-                         int insecure, int timeout)
+                         int insecure, int timeout, int with_artifacts)
 {
     char seg_url[BPKG_PATH_MAX];
     char dest_dir[BPKG_PATH_MAX];
@@ -4613,11 +4691,13 @@ bp_fetch_remote_segment (const char *source_url, const char *segment,
         return -1;
     }
     long code = 0;
-    if (bp_fetch_url (idx_url, stage_idx, cacert, insecure, timeout, &code) < 0) {
+    if (bp_fetch_url (idx_url, stage_idx, cacert, insecure, timeout, 1,
+                      &code) < 0) {
         bp_remove_tree (stage_dir);
         return 0;
     }
-    if (bp_fetch_url (sig_url, stage_sig, cacert, insecure, timeout, &code) < 0) {
+    if (bp_fetch_url (sig_url, stage_sig, cacert, insecure, timeout, 0,
+                      &code) < 0) {
         builtin_error ("fetch: missing INDEX.sig for %s", idx_url);
         bp_remove_tree (stage_dir);
         return -1;
@@ -4631,8 +4711,10 @@ bp_fetch_remote_segment (const char *source_url, const char *segment,
     char stage_artifacts[BPKG_PATH_MAX];
     if (snprintf (stage_artifacts, sizeof stage_artifacts, "%s/artifacts",
                   stage_dir) >= (int) sizeof stage_artifacts ||
-        bp_fetch_index_artifacts (stage_idx, root, seg_url, stage_artifacts,
-                                  selected_arch, cacert, insecure, timeout) < 0) {
+        (with_artifacts &&
+         bp_fetch_index_artifacts (stage_idx, root, seg_url, stage_artifacts,
+                                   selected_arch, cacert, insecure,
+                                   timeout) < 0)) {
         bp_remove_tree (stage_dir);
         return -1;
     }
@@ -4640,6 +4722,7 @@ bp_fetch_remote_segment (const char *source_url, const char *segment,
     if (snprintf (dest_sig, sizeof dest_sig, "%s/INDEX.sig", dest_dir) >=
             (int) sizeof dest_sig ||
         bp_update_copy_index (stage_idx, seg_url, dest_dir) < 0 ||
+        bp_remote_options_write (dest_dir, cacert, insecure, timeout) < 0 ||
         bp_copy_file_atomic_mode (stage_sig, dest_sig, 0644) < 0 ||
         bp_copy_tree_into (stage_artifacts, dest_dir) < 0) {
         bp_remove_tree (stage_dir);
@@ -4661,7 +4744,7 @@ bp_fetch_remote_arches (const char *source_url, const char *repo_dir,
             (int) sizeof dest)
         return -1;
     long code = 0;
-    if (bp_fetch_url (url, tmp, cacert, insecure, timeout, &code) == 0) {
+    if (bp_fetch_url (url, tmp, cacert, insecure, timeout, 1, &code) == 0) {
         if (bp_copy_file_atomic_mode (tmp, dest, 0644) < 0) {
             unlink (tmp);
             return -1;
@@ -4674,7 +4757,8 @@ bp_fetch_remote_arches (const char *source_url, const char *repo_dir,
 static int
 bp_fetch_remote_source (const char *url, const char *repo_dir,
                         const char *root, const char *selected_arch,
-                        const char *cacert, int insecure, int timeout)
+                        const char *cacert, int insecure, int timeout,
+                        int with_artifacts)
 {
     if (bp_mkdir_p (repo_dir) < 0)
         return -1;
@@ -4688,7 +4772,7 @@ bp_fetch_remote_source (const char *url, const char *repo_dir,
             continue;
         int rc = bp_fetch_remote_segment (url, segments[i], repo_dir, root,
                                           selected_arch, cacert, insecure,
-                                          timeout);
+                                          timeout, with_artifacts);
         if (rc < 0)
             return -1;
         if (rc > 0)
@@ -4762,6 +4846,14 @@ typedef struct {
     char delta_sig[BPKG_PATH_MAX];
     char delta_from[65];
     char delta_to[65];
+    /* Set when the INDEX came from a remote source: its mirror directory,
+       and the records' own references for fetching on first use. */
+    char mirror[BPKG_PATH_MAX];
+    char pkg_ref[BPKG_PATH_MAX];
+    int pkg_is_url;
+    char sig_ref[BPKG_PATH_MAX];
+    char delta_ref[BPKG_PATH_MAX];
+    char delta_sig_ref[BPKG_PATH_MAX];
 } bp_index_hit;
 
 static void
@@ -4848,11 +4940,60 @@ bp_repo_origin_dir (const char *repo_dir, char *pkgdir, size_t pkgdirsz)
     return 0;
 }
 
+/* update mirrors only a remote repository's signed INDEX files. A package,
+   signature or delta a record names is fetched on first use to the path the
+   record resolved to, and a package is kept only if its SHA-256 matches the
+   record. Signatures and deltas carry no digest of their own, so they are
+   fetched again each time. Returns 1 after fetching, 0 when nothing had to
+   be fetched, -1 on failure. */
+static int
+bp_hit_fetch_lazy (const bp_index_hit *hit, const char *local,
+                   const char *ref, int is_url, const char *sha)
+{
+    if (!hit->mirror[0] || !local[0] || !ref[0] ||
+        !(bp_remote_url (ref) || (!is_url && ref[0] != '/')))
+        return 0;
+    struct stat st;
+    char got[65];
+    if (sha && sha[0] && stat (local, &st) == 0 && S_ISREG (st.st_mode) &&
+        bp_sha256_file_hex (local, got) == 0 && strcasecmp (got, sha) == 0)
+        return 0;
+    char base[BPKG_PATH_MAX], cacert[BPKG_PATH_MAX];
+    char url[BPKG_PATH_MAX], part[BPKG_PATH_MAX];
+    int insecure, timeout;
+    if (bp_remote_options_read (hit->mirror, base, sizeof base, cacert,
+                                sizeof cacert, &insecure, &timeout) < 0 ||
+        bp_url_join (base, ref, url, sizeof url) < 0 ||
+        snprintf (part, sizeof part, "%s.part.%d", local, (int) getpid ()) >=
+            (int) sizeof part) {
+        builtin_error ("fetch: no remote origin for %s in %s", ref,
+                       hit->mirror);
+        return -1;
+    }
+    long code = 0;
+    if (bp_fetch_url (url, part, cacert, insecure, timeout, 0, &code) < 0) {
+        builtin_error ("fetch: failed %s", url);
+        return -1;
+    }
+    if (sha && sha[0] &&
+        (bp_sha256_file_hex (part, got) < 0 || strcasecmp (got, sha) != 0)) {
+        builtin_error ("package sha256 mismatch for %s", url);
+        unlink (part);
+        return -1;
+    }
+    if (rename (part, local) < 0) {
+        builtin_error ("fetch: %s: %s", local, strerror (errno));
+        unlink (part);
+        return -1;
+    }
+    return 1;
+}
+
 static int
 bp_scan_index_for_hit (const char *idx, const char *pkgdir,
                        const char *repo, const char *repo_url,
                        const char *name, const char *selected_arch,
-                       bp_index_hit *best)
+                       const char *mirror, bp_index_hit *best)
 {
     bp_buf idx_body = {0};
     if (bp_read_file (idx, &idx_body) < 0) {
@@ -4959,6 +5100,18 @@ bp_scan_index_for_hit (const char *idx, const char *pkgdir,
                                   "%s", cand_delta_from);
                         snprintf (best->delta_to, sizeof best->delta_to,
                                   "%s", cand_delta_to);
+                        snprintf (best->mirror, sizeof best->mirror, "%s",
+                                  origin_remote ? mirror : "");
+                        snprintf (best->pkg_ref, sizeof best->pkg_ref, "%s",
+                                  cand);
+                        best->pkg_is_url = cand_is_url;
+                        snprintf (best->sig_ref, sizeof best->sig_ref, "%s",
+                                  cand_sig);
+                        snprintf (best->delta_ref, sizeof best->delta_ref,
+                                  "%s", cand_delta);
+                        snprintf (best->delta_sig_ref,
+                                  sizeof best->delta_sig_ref, "%s",
+                                  cand_delta_sig);
                     }
                 }
             }
@@ -5033,7 +5186,8 @@ bp_find_repo_hit (const char *root, const char *sources,
                     if (bp_repo_origin_dir (idir, pkgdir, sizeof pkgdir) < 0)
                         continue;
                     int rc = bp_scan_index_for_hit (idx, pkgdir, base, url,
-                                                    name, selected_arch, hit);
+                                                    name, selected_arch, idir,
+                                                    hit);
                     if (rc < 0) {
                         bp_buf_free (&sources_body);
                         return -1;
@@ -7081,8 +7235,9 @@ verb_update (WORD_LIST *args)
 	    /* Parse one URL per line; for each, ensure the per-repo dir
 	     * exists. H05 local sources (file:// and bare absolute paths) are
 	     * fetched in-process by copying their INDEX into
-	     * BPKG_REPOS_DIR/<repo>/INDEX. Remote sources remain rejected by
-	     * update; pkg fetch materializes them into this local mirror.
+	     * BPKG_REPOS_DIR/<repo>/INDEX. Remote sources need --remote (or a
+	     * remote marker); update mirrors only their signed INDEX files, and
+	     * pkg fetch also mirrors every package.
 	     * Trust mirrors install: a sibling <INDEX>.sig is verified via
      * the signature check when present; verification failure refuses
      * to write that source's INDEX. */
@@ -7159,7 +7314,7 @@ verb_update (WORD_LIST *args)
 
                     int rc = bp_fetch_remote_source (url, repo_dir, root,
                                                      selected_arch, cacert,
-                                                     use_insecure, timeout);
+                                                     use_insecure, timeout, 0);
                     if (rc < 0) {
                         failed++;
                         printf ("source\t%s\n", url);
@@ -7364,7 +7519,7 @@ verb_fetch (WORD_LIST *args)
 	                    rc = bp_fetch_remote_source (url, repo_dir, root,
 	                                                 selected_arch, NULL,
 	                                                 insecure || line_insecure,
-	                                                 timeout);
+	                                                 timeout, 1);
                 } else {
                     char local_buf[BPKG_PATH_MAX];
                     int lrc = bp_source_local_path (url, local_buf,
@@ -7419,6 +7574,11 @@ bp_download_name (const char *root, const char *sources,
                            "local sources (run pkg update)", name);
         return EXECUTION_FAILURE;
     }
+    if (bp_hit_fetch_lazy (&best, best.pkg, best.pkg_ref, best.pkg_is_url,
+                           best.sha) < 0 ||
+        (best.sig[0] &&
+         bp_hit_fetch_lazy (&best, best.sig, best.sig_ref, 0, NULL) < 0))
+        return EXECUTION_FAILURE;
     if (best.sha[0]) {
         char got[65];
         if (bp_sha256_file_hex (best.pkg, got) < 0 ||
@@ -7682,9 +7842,19 @@ verb_upgrade (WORD_LIST *args)
             hit.delta_to[0]) {
             char old_pkg[BPKG_PATH_MAX];
             char old_sha[65];
+            /* From a remote mirror, a delta that cannot be fetched falls
+               back to the full package. */
             if (bp_find_in_cache (root, only, old_pkg, sizeof old_pkg) == 0 &&
                 bp_sha256_file_hex (old_pkg, old_sha) == 0 &&
-                strcasecmp (old_sha, hit.delta_from) == 0) {
+                strcasecmp (old_sha, hit.delta_from) == 0 &&
+                bp_hit_fetch_lazy (&hit, hit.delta, hit.delta_ref, 0,
+                                   NULL) >= 0 &&
+                (!hit.delta_sig[0] ||
+                 bp_hit_fetch_lazy (&hit, hit.delta_sig, hit.delta_sig_ref, 0,
+                                    NULL) >= 0) &&
+                (!hit.sig[0] ||
+                 bp_hit_fetch_lazy (&hit, hit.sig, hit.sig_ref, 0,
+                                    NULL) >= 0)) {
                 if (hit.delta_sig[0]) {
                     int dsig = bp_verify_signature_with_sig (hit.delta,
                                                              hit.delta_sig);
@@ -8423,17 +8593,22 @@ char *pkg_doc[] = {
     "are fetched in-process. Directory repos may also expose",
     "<arch>/INDEX plus noarch/INDEX or any/INDEX; update mirrors the",
     "selected arch (default: uname -m) plus universal dirs. Other schemes",
-    "are rejected by default. With --remote, https:// sources (and http://",
-    "only under --remote-insecure) are materialized through the curl builtin before",
-    "the same INDEX.sig gate; sources.list may prefix a line with `remote`",
-    "or `remote-insecure` for persistent opt-in. Without sources.list, --remote",
-    "uses https://github.com/itsmygithubacct/bash-os/releases/download/packages.",
+    "are rejected by default. With --remote, update fetches the signed INDEX",
+    "files of https:// sources (and http:// only under --remote-insecure)",
+    "through the curl builtin, behind the same INDEX.sig gate; sources.list",
+    "may prefix a line with `remote` or `remote-insecure` for persistent",
+    "opt-in. Without sources.list, --remote uses",
+    "https://github.com/itsmygithubacct/bash-os/releases/download/packages.",
+    "download, install and upgrade then fetch only the packages, signatures",
+    "and deltas they use, keeping a package only if its SHA-256 matches the",
+    "INDEX, with the TLS options update was given.",
     "Redirects are followed. A sibling <INDEX>.sig is verified by the signature check when",
     "present; verification failure refuses to copy the source INDEX",
     "content; the destination remains absent or keeps its previous snapshot.",
     "",
     "fetch also remote-materializes http:// and https:// sources into the same",
-    "local mirror tree consumed by update/download/upgrade. It delegates",
+    "local mirror tree consumed by update/download/upgrade, for installing",
+    "without a network later. It delegates",
     "network I/O to curl, fetches signed per-arch INDEX files, promotes",
     "them through the same INDEX.sig signature gate as update, and stages",
     "referenced artifacts only after SHA-256 package checks or delta",

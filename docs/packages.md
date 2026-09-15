@@ -182,6 +182,11 @@ pkg install awk        # fetch the package and check its signature and object
 pkg load awk           # enable it in this shell
 ```
 
+`pkg update` downloads only the signed INDEX; `pkg install` then downloads
+the one package it needs and keeps it only if its SHA-256 matches the INDEX.
+`pkg fetch` downloads every package for the machine's architecture in
+advance, for installing without a network later.
+
 To use other repositories, list their URLs in `/etc/pkg/sources.list`, one per
 line. `https://` sources need `--remote`, and `http://` sources need
 `--remote-insecure`; a line may instead begin with `remote` or
