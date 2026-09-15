@@ -84,12 +84,6 @@ extern FILE _IO_2_1_stdin_ __attribute__ ((weak));
 #    if defined (__aarch64__)
 #      include <sys/auxv.h>
 #    endif
-#    if defined (__x86_64__) || defined (__aarch64__)
-#      define BX_OWNED_ASYNC 1
-#      include <sys/auxv.h>
-#      include <sys/prctl.h>
-#      include <link.h>
-#    endif
 #  endif
 #endif
 
@@ -385,48 +379,9 @@ typedef struct {
     /* Zero means unchecked; positive means complete; negative keeps the
        original environment. Only the active ordinary interval caches it. */
     int compact_env_status;
-#if defined (__x86_64__)
-    unsigned char shstk_zero_valid;
-#endif
-#if defined (BX_OWNED_ASYNC)
-    unsigned char seccomp_zero_valid;
-    const char *compact_env_owner;
-    void *async_map;
-    size_t async_map_size, async_stack_offset, async_guard, async_stack_size;
-    int async_main, async_live, async_reaped, async_status, async_wait_error;
-#endif
 #endif
 } bx_spawn_state;
 
-#if defined (BX_OWNED_ASYNC)
-/* An uncertain wait can leave a child using its old shared address space.
-   Keep one owned workspace forever and forbid another asynchronous launch.
-   This bounds the workspace, not the old mm that an unexeced child retains. */
-static struct {
-    void *mapping;
-    size_t size;
-    int disabled;
-} bx_async_retained;
-
-static void
-bx_async_quarantine (bx_spawn_state *state)
-{
-#if defined (__x86_64__)
-    state->shstk_zero_valid = 0;
-#endif
-    state->seccomp_zero_valid = 0;
-    /* Cached vector pointers must never outlive their selectable owner. */
-    state->compact_env_status = 0;
-    state->compact_env_bytes = 0;
-    state->compact_env_owner = NULL;
-    bx_async_retained.disabled = 1;
-    bx_async_retained.mapping = state->async_map;
-    bx_async_retained.size = state->async_map_size;
-    state->async_map = NULL;
-    state->async_map_size = 0;
-    state->async_live = 0;
-}
-#endif
 
 static inline int
 bx_plain_span_allowed (const bx_spawn_state *state)
@@ -448,10 +403,6 @@ bx_spawn_state_free (bx_spawn_state *state)
         state->stdin_ready = 0;
     }
 #if defined (BX_PRIVATE_SPAWN)
-#if defined (BX_OWNED_ASYNC)
-    if (state->async_live) bx_async_quarantine (state);
-    else if (state->async_map) munmap (state->async_map, state->async_map_size);
-#endif
     if (state->stack_map) munmap (state->stack_map, state->stack_map_size);
 #endif
 #if defined (_POSIX_SPAWN) && _POSIX_SPAWN >= 0
@@ -586,20 +537,6 @@ static int
 bx_end_mask_interval (bx_spawn_state *state)
 {
 #if defined (BX_PRIVATE_SPAWN)
-    /* Invalidate before quarantine, restoration, or any cleanup callback,
-       including a failed restoration that leaves mask ownership active. */
-#if defined (__x86_64__)
-    state->shstk_zero_valid = 0;
-#endif
-#if defined (BX_OWNED_ASYNC)
-    state->seccomp_zero_valid = 0;
-#endif
-#if defined (BX_OWNED_ASYNC)
-    /* An unwind must detach live child storage before restoring signals
-       or allowing the later buffer/allocator cleanup callbacks to run. */
-    if (state->async_live) bx_async_quarantine (state);
-    state->compact_env_owner = NULL;
-#endif
     /* Discard the snapshot before any restoration attempt or callback,
        including when mask restoration fails and cleanup must retry. */
     state->compact_env_status = 0;
@@ -723,93 +660,6 @@ failed:
     __builtin_trap ();
 }
 
-#if defined (BX_OWNED_ASYNC)
-struct bx_async_workspace {
-    struct bx_clone_child_args child;
-    char *argv[17], *env[17];
-    char text[1024];
-};
-
-struct bx_async_image_check {
-    const ElfW(Phdr) *phdr;
-    size_t phnum;
-    int matches;
-};
-
-/* Do not treat callback order or a DSO name as proof of main-image lifetime.
-   Require the exact program headers supplied by the kernel at exec. */
-static int
-bx_async_main_image (struct dl_phdr_info *info, size_t size, void *data)
-{
-    (void) size;
-    struct bx_async_image_check *check = data;
-    if (info->dlpi_phdr != check->phdr || info->dlpi_phnum != check->phnum)
-        return 0;
-    const uintptr_t addresses[] = {
-        (uintptr_t) bos_xargs_clone3_start,
-        (uintptr_t) bos_xargs_clone_child,
-        (uintptr_t) &bx_kernel_default_action,
-        (uintptr_t) &bx_kernel_ignore_action,
-        (uintptr_t) &bx_async_retained
-    };
-    const size_t lengths[] = { 1, 1, sizeof bx_kernel_default_action,
-                              sizeof bx_kernel_ignore_action,
-                              sizeof bx_async_retained };
-    unsigned found = 0;
-    for (size_t i = 0; i < info->dlpi_phnum; i++) {
-        const ElfW(Phdr) *ph = info->dlpi_phdr + i;
-        if (ph->p_type != PT_LOAD || !(ph->p_flags & PF_R) ||
-            ph->p_vaddr > UINTPTR_MAX - info->dlpi_addr)
-            continue;
-        uintptr_t begin = info->dlpi_addr + ph->p_vaddr;
-        for (size_t n = 0; n < sizeof addresses / sizeof addresses[0]; n++) {
-            if (n < 2 && !(ph->p_flags & PF_X)) continue;
-            if (addresses[n] >= begin && lengths[n] <= ph->p_memsz &&
-                addresses[n] - begin <= ph->p_memsz - lengths[n])
-                found |= 1U << n;
-        }
-    }
-    check->matches = found == 31;
-    return 1;
-}
-
-/* Symbol discovery/allocation precede the ordinary disposition snapshot.
-   The writable header and stack have a guard page between them. */
-static void
-bx_async_prepare (bx_spawn_state *state)
-{
-    if (state->async_main || bx_async_retained.disabled) return;
-    state->async_main = -1;
-    int saved_errno = errno;
-    struct bx_async_image_check check = {
-        (const ElfW(Phdr) *) getauxval (AT_PHDR), getauxval (AT_PHNUM), 0
-    };
-    if (!check.phdr || !check.phnum) goto done;
-    dl_iterate_phdr (bx_async_main_image, &check);
-    if (!check.matches) goto done;
-    long page_size = sysconf (_SC_PAGESIZE);
-    if (page_size <= 0 || page_size > 1024 * 1024) goto done;
-    size_t guard = (size_t) page_size;
-    size_t header = (sizeof (struct bx_async_workspace) + guard - 1) / guard * guard;
-    size_t stack = (65536 + guard - 1) / guard * guard;
-    size_t total = header + stack + 3 * guard;
-    void *mapping = mmap (NULL, total, PROT_NONE,
-                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-    if (mapping == MAP_FAILED) goto done;
-    state->async_map = mapping;
-    state->async_map_size = total;
-    if (mprotect ((char *) mapping + guard, header, PROT_READ | PROT_WRITE) < 0 ||
-        mprotect ((char *) mapping + 2 * guard + header, stack,
-                  PROT_READ | PROT_WRITE) < 0)
-        goto done;
-    state->async_stack_offset = 2 * guard + header;
-    state->async_guard = guard;
-    state->async_stack_size = stack;
-    state->async_main = 1;
-done:
-    errno = saved_errno;
-}
-#endif
 
 static int
 bx_try_private_spawn (pid_t *pid, char **argv, const sigset_t *mask,
@@ -842,9 +692,6 @@ bx_try_private_spawn (pid_t *pid, char **argv, const sigset_t *mask,
                      sizeof state->mask_base);
         if (result < 0) return 0;
         state->mask_active = 1;
-#if defined (BX_OWNED_ASYNC)
-        if (state->clone_default_scan == 0) bx_async_prepare (state);
-#endif
     }
     if (!state->stack_map) {
         long page_size = sysconf (_SC_PAGESIZE);
@@ -892,35 +739,13 @@ bx_try_private_spawn (pid_t *pid, char **argv, const sigset_t *mask,
         .stack_size = state->stack_size
     };
     /* Keep bounded argument/environment copies together in the invocation
-       workspace. An active ordinary interval excludes parent environment
-       mutations; its completed environment snapshot can be reused. Argv
-       is copied afresh on every launch. Export rebuilding and callbacks
-       end the interval before they run. Never replace Bash's owned data.
-       The ordinary state buffer serves VFORK. A native owned header may
-       serve either launcher; async additionally requires complete vectors
-       and a terminal wait before reuse. */
+       state. An active ordinary interval excludes parent environment
+       mutations, so its completed environment snapshot can be reused. Argv
+       is copied afresh on every launch, and export rebuilding and callbacks
+       end the interval before they run. Never replace Bash's owned data. */
     char **compact_env = state->compact_env;
     char **compact_argv = state->compact_argv;
     char *compact_text = state->compact_text;
-#if defined (BX_OWNED_ASYNC)
-    struct bx_async_workspace *destination = NULL;
-    if (!bx_async_retained.disabled && state->async_main > 0 &&
-        state->async_map && !state->async_live &&
-        state->mask_interval && state->clone_default_scan > 0) {
-        destination = (struct bx_async_workspace *)
-                          ((char *) state->async_map + state->async_guard);
-        compact_env = destination->env;
-        compact_argv = destination->argv;
-        compact_text = destination->text;
-    }
-    /* A prior negative result belongs to its destination too. Invalidate
-       before looking up a cached prefix when launch eligibility changes. */
-    if (state->compact_env_owner != compact_text) {
-        state->compact_env_status = 0;
-        state->compact_env_bytes = 0;
-        state->compact_env_owner = compact_text;
-    }
-#endif
     if (state->clone_default_scan > 0) {
         char **originals[2] = { export_env, argv };
         char **copies[2] = { compact_env, compact_argv };
@@ -968,80 +793,15 @@ next_vector:
             ; /* An oversized vector keeps its original pointers. */
         }
     }
-#if defined (BX_OWNED_ASYNC)
-    struct bx_async_workspace *owned = NULL;
-    /* Selecting the owned destination alone does not admit async: either
-       oversized vector still borrows its originals on the VFORK path. */
-    if (destination && child.argv == compact_argv &&
-        (!child.env || child.env == compact_env)) {
-        owned = destination;
-        owned->child = child;
-    }
-#endif
     /* No allocations, symbol resolution, or signal handlers may intervene
        between this final threading check and clone3. */
     if (!*(volatile char *) &__libc_single_threaded) goto unavailable;
-#if defined (__x86_64__) || defined (BX_OWNED_ASYNC)
-    /* Only the active ordinary interval excludes parent callbacks that
-       could change these per-thread kernel states. Keep the threading
-       check fresh, and never retain an error or a nonzero status. */
-    int cache_status = state->mask_interval && state->clone_default_scan > 0;
-#endif
 #if defined (__x86_64__)
-    if (!(cache_status && state->shstk_zero_valid)) {
-        unsigned long shadow_stack = 0;
-        result = bx_kernel_call4 (__NR_arch_prctl, 0x5005 /* ARCH_SHSTK_STATUS */,
-                                 (long) &shadow_stack, 0, 0);
-        if (result != 0 || shadow_stack != 0) goto unavailable;
-        state->shstk_zero_valid = cache_status;
-    }
-#endif
-#if defined (BX_OWNED_ASYNC)
-    /* No callbacks or allocations after the final thread/CET gates.
-       Query seccomp only for eligible owned launches. A successful zero
-       remains valid within the same ordinary interval; child tasks cannot
-       change the parent's mode. Wait errors still preserve ownership. */
-    int no_seccomp = 0;
-    if (owned) {
-        if (cache_status && state->seccomp_zero_valid)
-            no_seccomp = 1;
-        else {
-            no_seccomp = bx_kernel_call4 (__NR_prctl, PR_GET_SECCOMP, 0, 0, 0) == 0;
-            state->seccomp_zero_valid = cache_status && no_seccomp;
-        }
-    }
-    if (owned && no_seccomp) {
-        struct bx_clone_args async_args = args;
-        async_args.flags &= ~UINT64_C (0x4000);
-        async_args.stack = (uint64_t) (uintptr_t)
-                           ((char *) state->async_map + state->async_stack_offset);
-        async_args.stack_size = state->async_stack_size;
-        state->async_live = 1;
-        result = bos_xargs_clone3_start (&async_args, sizeof async_args, &owned->child);
-        if (result > 0) {
-            int status = 0;
-            long waited;
-            do {
-                waited = bx_kernel_call4 (__NR_wait4, result, (long) &status, 0, 0);
-            } while (waited == -EINTR);
-            *pid = (pid_t) result;
-            if (waited != result || (!WIFEXITED (status) && !WIFSIGNALED (status))) {
-                state->async_wait_error = waited < 0 ? (int) -waited : ECHILD;
-                bx_async_quarantine (state);
-                return 1;
-            }
-            state->async_live = 0;
-            /* Only a terminal wait permits reading the shared error slot.
-               A proved pre-exec failure keeps the existing execvp fallback. */
-            if (owned->child.error) goto unavailable;
-            state->async_reaped = 1;
-            state->async_status = status;
-            return 1;
-        }
-        state->async_live = 0;
-        /* No child was created. Retain the existing VFORK/fallback paths. */
-        state->async_main = -1;
-    }
+    /* The private child stack is not used while a shadow stack is active. */
+    unsigned long shadow_stack = 0;
+    result = bx_kernel_call4 (__NR_arch_prctl, 0x5005 /* ARCH_SHSTK_STATUS */,
+                             (long) &shadow_stack, 0, 0);
+    if (result != 0 || shadow_stack != 0) goto unavailable;
 #endif
     result = bos_xargs_clone3_start (&args, sizeof args, &child);
     if (result > 0 && child.error) {
@@ -1230,9 +990,6 @@ bx_stdin_attach (const bx_spawn_state *state, int detached)
 static pid_t
 bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
 {
-#if defined (BX_OWNED_ASYNC)
-    state->async_reaped = state->async_wait_error = 0;
-#endif
 #if defined (BX_PRIVATE_SPAWN)
     /* Exported dynamic variables may run application callbacks during a
        rebuild. The first rebuild precedes the disposition snapshot. */
@@ -1303,18 +1060,6 @@ bx_run (char **argv, int n, int tflag, bx_spawn_state *state,
     if (pid > 0) {
         int status = 0;
         int wr;
-#if defined (BX_OWNED_ASYNC)
-        if (state->async_wait_error) {
-            int error = state->async_wait_error;
-            if (bx_end_mask_interval (state) < 0) return BX_BAD;
-            builtin_error ("waitpid(%ld): %s", (long) pid, strerror (error));
-            return BX_BAD;
-        }
-        if (state->async_reaped) {
-            wr = pid;
-            status = state->async_status;
-        } else
-#endif
         while ((wr = waitpid (pid, &status, 0)) < 0 && errno == EINTR) { }
         if (state->mask_error) return BX_BAD;
         if (wr < 0) {
