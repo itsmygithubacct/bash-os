@@ -12,6 +12,7 @@ module must find its standard library beside itself: no PYTHONHOME is set.
 
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -40,7 +41,9 @@ def tool(script, *args):
     check(result.returncode == 0, script, args, result.stdout, result.stderr)
 
 
-reference = next(prefix.glob('bin/python3.[0-9]*'))
+# The interpreter itself: bin/ also holds python3.13-config, a shell script.
+reference = next(path for path in sorted(prefix.glob('bin/python3.*'))
+                 if re.fullmatch(r'python3\.[0-9]+', path.name))
 version = subprocess.run([str(reference), '-c', 'import sys; print(sys.version.split()[0])'],
                          capture_output=True, text=True, check=True).stdout
 files = sum(1 for path in (data / 'share/bashpython').rglob('*') if path.is_file())
