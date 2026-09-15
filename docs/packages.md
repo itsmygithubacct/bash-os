@@ -88,6 +88,24 @@ For another architecture, set `CC` as for `build.sh`, and pass `--runner` with
 a command that runs the target's executables, such as qemu-user with the
 target's library directory.
 
+## uv
+
+The optional `uv` package holds a small builtin and upstream's static uv
+executable, pinned by version and SHA-256 in `config/uv.json`:
+
+```sh
+python3 config/fetch-uv.py x86_64 --out out/uv/x86_64    # checks the pinned SHA-256
+./build-packages.sh --data uv=out/uv/x86_64 uv
+```
+
+After `pkg install uv` and `pkg load uv`, the builtin runs
+`/usr/lib/bash-os/libexec/uv/uv` as the shell runs an external command: with
+the exported variables, default SIGINT and SIGQUIT, and uv's exit status. It
+works with an empty `PATH`. uv runs as its own process because its entry
+point assumes a fresh process that has started no threads. It exits 127, and
+says to install it, when the program is missing. uv is licensed MIT or
+Apache-2.0.
+
 ## Signing a release
 
 ```sh
