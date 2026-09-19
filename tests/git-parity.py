@@ -20,10 +20,13 @@ then the repository itself, read by real git in both trees: every ref, HEAD and
 its tree, the index, `status --porcelain=v2`, the working tree's files with
 their modes and contents, and `fsck --strict`.
 
-bash-os has no `git` builtin yet — it arrives with Phase 0 of the porcelain
-port. Until then each scenario is reported as skipped, and the harness checks
-itself: every scenario must compare equal to itself run twice under real git,
-and a deliberately altered tree must be detected as different.
+A scenario names what it needs in `# requires:` (commands) and
+`# requires-feature:` (a whole feature, such as patch output) lines, and is
+skipped while bash-os lacks any of them, so a scenario for work still to come
+can sit in the tree. The harness also checks itself on every run: each
+scenario must compare equal to itself run twice under real git, a deliberately
+altered tree must be detected, and a scenario that fails under git is
+reported rather than passing because both sides failed alike.
 """
 
 import hashlib
@@ -69,9 +72,14 @@ def scenarios():
 
 
 def implemented():
-    """The commands bash-os's git has, from `git --list-cmds`."""
+    """What bash-os's git has: its commands, and the features it declares.
+
+    A scenario can need a whole feature — patch output, say — that having
+    the command does not imply, so `git --list-features` names those.
+    """
     result = subprocess.run([binary, '--noprofile', '--norc', '-c',
-                             'PATH=; [[ $(type -t git) == builtin ]] || exit 1; git --list-cmds'],
+                             'PATH=; [[ $(type -t git) == builtin ]] || exit 1; '
+                             'git --list-cmds; git --list-features'],
                             capture_output=True, text=True)
     if result.returncode != 0:
         return set()
@@ -83,8 +91,12 @@ def required(script):
     commands = set()
     for line in script.read_text().splitlines()[:20]:
         stripped = line.strip()
-        if stripped.startswith('#') and 'requires:' in stripped:
-            commands |= set(stripped.split('requires:', 1)[1].split())
+        if not stripped.startswith('#'):
+            continue
+        for marker in ('requires:', 'requires-feature:'):
+            if marker in stripped:
+                commands |= set(stripped.split(marker, 1)[1].split())
+                break
     return commands
 
 

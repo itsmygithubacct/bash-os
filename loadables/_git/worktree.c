@@ -169,6 +169,26 @@ struct bgit_status_build {
     size_t n, cap;
 };
 
+/* An untracked path is its own record: git lists a file that the index no
+   longer has and an untracked file of the same name on separate lines. */
+static bgit_status_entry *
+bgit_status_append (struct bgit_status_build *build, const char *path)
+{
+    if (build->n == build->cap) {
+        size_t next = build->cap ? build->cap * 2 : 32;
+        bgit_status_entry *grown = realloc (build->entries, next * sizeof *grown);
+        if (!grown) return NULL;
+        build->entries = grown;
+        build->cap = next;
+    }
+    bgit_status_entry *entry = &build->entries[build->n];
+    memset (entry, 0, sizeof *entry);
+    entry->path = strdup (path);
+    if (!entry->path) return NULL;
+    build->n++;
+    return entry;
+}
+
 static bgit_status_entry *
 bgit_status_at (struct bgit_status_build *build, const char *path)
 {
@@ -261,7 +281,7 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         if (ctx->want_ignored) {
             char name[4096];
             snprintf (name, sizeof name, "%s%s", path, is_dir ? "/" : "");
-            bgit_status_entry *entry = bgit_status_at (ctx->build, name);
+            bgit_status_entry *entry = bgit_status_append (ctx->build, name);
             if (!entry) return -1;
             entry->ignored = 1;
         }
@@ -275,25 +295,35 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         if (ctx->untracked_all) return 0;
         char name[4096];
         snprintf (name, sizeof name, "%s/", path);
-        bgit_status_entry *entry = bgit_status_at (ctx->build, name);
+        bgit_status_entry *entry = bgit_status_append (ctx->build, name);
         if (!entry) return -1;
         entry->untracked = 1;
         entry->worktree_mode = bgit_worktree_mode (st);
         return 1;      /* git names the directory, not its contents */
     }
     if (bgit_index_covers (ctx->index, ctx->n_index, path, 0)) return 0;
-    bgit_status_entry *entry = bgit_status_at (ctx->build, path);
+    bgit_status_entry *entry = bgit_status_append (ctx->build, path);
     if (!entry) return -1;
     entry->untracked = 1;
     entry->worktree_mode = bgit_worktree_mode (st);
     return 0;
 }
 
+/* git groups its report: everything tracked first, then untracked, then
+   ignored, each group in path order. */
+static int
+bgit_status_rank (const bgit_status_entry *entry)
+{
+    return entry->ignored ? 2 : entry->untracked ? 1 : 0;
+}
+
 static int
 bgit_status_cmp (const void *a, const void *b)
 {
-    return strcmp (((const bgit_status_entry *) a)->path,
-                   ((const bgit_status_entry *) b)->path);
+    const bgit_status_entry *left = a, *right = b;
+    int order = bgit_status_rank (left) - bgit_status_rank (right);
+    if (order) return order;
+    return strcmp (left->path, right->path);
 }
 
 int

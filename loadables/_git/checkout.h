@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: MIT */
+/* _git/checkout.h — putting a tree into the working tree and the index.
+ *
+ * Moving to another commit rewrites files, and git refuses when that would
+ * throw away work: a modified file, or an untracked file that the new tree
+ * would overwrite. The check happens before anything is written, so a
+ * refusal leaves the tree as it was.
+ *
+ * --- LICENSE ---
+ * MIT License — same boilerplate as binhex.c.
+ */
+
+#ifndef BASH_OS_GIT_CHECKOUT_H
+#define BASH_OS_GIT_CHECKOUT_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "index.h"
+#include "odb.h"
+#include "repo.h"
+
+/* Write one object into the working tree, with the mode a tree records. */
+int bgit_checkout_file (bgit_odb *odb, const char *full_path, const char *sha,
+                        uint32_t mode);
+
+/* Make the working tree and the index match TREE (NULL for an empty tree).
+   *index is replaced with the new entries. Without FORCE, a change that
+   would be lost stops everything and names the path in *lost (malloc'd). */
+int bgit_checkout_tree (const bgit_repo *repo, bgit_odb *odb, const char *tree,
+                        bgit_index_entry **index, size_t *n, int force,
+                        char **lost);
+
+/* Restore single paths from a tree or from the index, as `git restore` and
+   `git checkout -- <path>` do. PATHS are worktree-relative. */
+int bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb,
+                         const char *tree, bgit_index_entry **index, size_t *n,
+                         const char *const *paths, size_t n_paths,
+                         int to_index, int to_worktree);
+
+#endif /* BASH_OS_GIT_CHECKOUT_H */

@@ -4,6 +4,7 @@
 # restore, reset and tag. Run through tests/git-parity.py, never on its own.
 # requires: init add status commit log diff branch switch tag ls-files
 # requires: restore reset rev-parse reflog cat-file
+# requires-feature: diff-patch
 set -e
 
 git init -q -b main .

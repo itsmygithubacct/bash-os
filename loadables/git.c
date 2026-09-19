@@ -36,12 +36,15 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <fnmatch.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 
 #include "loadables.h"
 #include "command-run.h"
 
+#include "_git_checkout.h"
 #include "_git_config.h"
 #include "_git_diff.h"
 #include "_git_ignore.h"
@@ -395,16 +398,53 @@ git_print_tree (const unsigned char *data, size_t len)
     return 0;
 }
 
+/* Read object names from stdin, as `git cat-file --batch` and
+   `--batch-check` do, and report each one. */
+static int
+git_cat_file_batch (git_context *ctx, int with_content)
+{
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t got;
+    clearerr (stdin);
+    while ((got = getline (&line, &cap, stdin)) > 0) {
+        while (got > 0 && (line[got - 1] == '\n' || line[got - 1] == '\r'))
+            line[--got] = '\0';
+        if (!got) continue;
+        char id[41];
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (git_resolve (ctx, line, id, NULL) < 0 ||
+            bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0) {
+            printf ("%s missing\n", line);
+            continue;
+        }
+        printf ("%s %s %zu\n", id, bgit_type_name (type), len);
+        if (with_content) {
+            fwrite (data, 1, len, stdout);
+            putchar ('\n');
+        }
+        free (data);
+    }
+    free (line);
+    return 0;
+}
+
 static int
 git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git cat-file (-t | -s | -e | -p | <type>) <object>";
+    const char *usage = "git cat-file (-t | -s | -e | -p | <type>) <object> "
+                        "| (--batch | --batch-check)";
     int want_type = 0, want_size = 0, want_exists = 0, pretty = 0;
+    int batch = 0, batch_check = 0;
     const char *as_type = NULL, *name = NULL;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
-        if (!strcmp (w, "-t")) want_type = 1;
+        if (!strcmp (w, "--batch")) batch = 1;
+        else if (!strcmp (w, "--batch-check")) batch_check = 1;
+        else if (!strcmp (w, "-t")) want_type = 1;
         else if (!strcmp (w, "-s")) want_size = 1;
         else if (!strcmp (w, "-e")) want_exists = 1;
         else if (!strcmp (w, "-p")) pretty = 1;
@@ -414,6 +454,12 @@ git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
             as_type = w;
         else if (!name) name = w;
         else return git_usage (usage);
+    }
+    if (batch || batch_check) {
+        if (name || want_type || want_size || want_exists || pretty)
+            return git_usage (usage);
+        if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+        return git_cat_file_batch (ctx, batch);
     }
     if (!name) return git_usage (usage);
     if (want_type + want_size + want_exists + pretty + (as_type ? 1 : 0) != 1)
@@ -2466,6 +2512,663 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* ---- branches, switching, restoring, resetting and tags ----------------- */
+
+/* What HEAD names now, for a reflog message. */
+static void
+git_head_label (git_context *ctx, struct git_state *state, char *out, size_t outsz)
+{
+    if (state->branch && !strncmp (state->branch, "refs/heads/", 11))
+        snprintf (out, outsz, "%s", state->branch + 11);
+    else if (state->have_head) {
+        char abbreviated[41];
+        git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
+        snprintf (out, outsz, "%s", abbreviated);
+    } else {
+        snprintf (out, outsz, "(no branch)");
+    }
+}
+
+static int
+git_cmd_branch (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git branch [-v] [--show-current] [<name> [<start>]] "
+                        "| (-d | -D) <name> | (-m | -M) <old> <new>";
+    int verbose = 0, show_current = 0, delete_branch = 0, move_branch = 0, force = 0;
+    const char *names[2] = { NULL, NULL };
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "--show-current")) show_current = 1;
+        else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_branch = 1;
+        else if (!strcmp (w, "-D")) { delete_branch = 1; force = 1; }
+        else if (!strcmp (w, "-m") || !strcmp (w, "--move")) move_branch = 1;
+        else if (!strcmp (w, "-M")) { move_branch = 1; force = 1; }
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < 2) names[n_names++] = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+
+    if (show_current) {
+        if (state.branch && !strncmp (state.branch, "refs/heads/", 11))
+            printf ("%s\n", state.branch + 11);
+        goto done;
+    }
+    if (delete_branch) {
+        if (!n_names) { status = git_usage (usage); goto done; }
+        char ref[4096];
+        snprintf (ref, sizeof ref, "refs/heads/%s", names[0]);
+        char id[41];
+        if (bgit_ref_read (&ctx->repo, ref, id) != 0) {
+            status = git_fatal ("branch '%s' not found.", names[0]);
+            goto done;
+        }
+        if (state.branch && !strcmp (state.branch, ref)) {
+            status = git_fatal ("Cannot delete branch '%s' checked out at '%s'",
+                                names[0], ctx->repo.work_tree);
+            goto done;
+        }
+        if (bgit_ref_delete (&ctx->repo, ref, NULL, NULL) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        char abbreviated[41];
+        git_abbrev (ctx, id, 7, abbreviated, sizeof abbreviated);
+        printf ("Deleted branch %s (was %s).\n", names[0], abbreviated);
+        goto done;
+    }
+    if (move_branch) {
+        const char *from = n_names == 2 ? names[0]
+                         : (state.branch && !strncmp (state.branch, "refs/heads/", 11)
+                            ? state.branch + 11 : NULL);
+        const char *to = n_names == 2 ? names[1] : names[0];
+        if (!from || !to) { status = git_usage (usage); goto done; }
+        char old_ref[4096], new_ref[4096], id[41];
+        snprintf (old_ref, sizeof old_ref, "refs/heads/%s", from);
+        snprintf (new_ref, sizeof new_ref, "refs/heads/%s", to);
+        if (bgit_ref_read (&ctx->repo, old_ref, id) != 0) {
+            status = git_fatal ("branch '%s' not found.", from);
+            goto done;
+        }
+        char existing[41];
+        if (!force && bgit_ref_read (&ctx->repo, new_ref, existing) == 0) {
+            status = git_fatal ("A branch named '%s' already exists.", to);
+            goto done;
+        }
+        char message[1200];
+        snprintf (message, sizeof message, "Branch: renamed %s to %s",
+                  old_ref, new_ref);
+        if (bgit_ref_update (&ctx->repo, new_ref, id, NULL, message) < 0 ||
+            bgit_ref_delete (&ctx->repo, old_ref, NULL, NULL) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        if (state.branch && !strcmp (state.branch, old_ref) &&
+            bgit_symref_write (&ctx->repo, "HEAD", new_ref, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+        goto done;
+    }
+    if (n_names) {
+        /* Create a branch at a starting point, HEAD by default. */
+        char ref[4096], id[41];
+        snprintf (ref, sizeof ref, "refs/heads/%s", names[0]);
+        if (!bgit_ref_name_ok (ref)) {
+            status = git_fatal ("'%s' is not a valid branch name.", names[0]);
+            goto done;
+        }
+        char existing[41];
+        if (!force && bgit_ref_read (&ctx->repo, ref, existing) == 0) {
+            status = git_fatal ("a branch named '%s' already exists", names[0]);
+            goto done;
+        }
+        const char *start = names[1] ? names[1] : "HEAD";
+        char resolved[41];
+        if (git_resolve (ctx, start, resolved, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, resolved, BGIT_COMMIT, id) < 0) {
+            status = git_fatal ("not a valid object name: '%s'.", start);
+            goto done;
+        }
+        /* git records the name the start point resolved through. */
+        char label[256];
+        git_head_label (ctx, &state, label, sizeof label);
+        char message[1200];
+        snprintf (message, sizeof message, "branch: Created from %s",
+                  strcmp (start, "HEAD") ? start : label);
+        if (bgit_ref_update (&ctx->repo, ref, id, NULL, message) < 0)
+            status = GIT_EXIT_FATAL;
+        goto done;
+    }
+
+    /* No arguments: list the branches. */
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/heads/", &refs, &n_refs) < 0) {
+        status = git_fatal ("cannot read refs");
+        goto done;
+    }
+    for (size_t i = 0; i < n_refs; i++) {
+        const char *name = refs[i].name + 11;
+        int current = state.branch && !strcmp (state.branch, refs[i].name);
+        if (!verbose) {
+            printf ("%s %s\n", current ? "*" : " ", name);
+            continue;
+        }
+        struct git_commit commit;
+        char abbreviated[41], subject[4096] = "";
+        git_abbrev (ctx, refs[i].sha, 7, abbreviated, sizeof abbreviated);
+        if (git_commit_read (ctx, refs[i].sha, &commit) == 0) {
+            git_subject (&commit, subject, sizeof subject);
+            git_commit_release (&commit);
+        }
+        /* git pads the names so the ids line up. */
+        size_t width = 0;
+        for (size_t j = 0; j < n_refs; j++) {
+            size_t len = strlen (refs[j].name + 11);
+            if (len > width) width = len;
+        }
+        printf ("%s %-*s %s %s\n", current ? "*" : " ", (int) width, name,
+                abbreviated, subject);
+    }
+    bgit_refs_free (refs, n_refs);
+done:
+    git_state_release (&state);
+    return status;
+}
+
+/* Move HEAD to another branch or commit, updating the working tree. */
+static int
+git_switch_to (git_context *ctx, struct git_state *state, const char *target,
+               int detach, int force)
+{
+    char ref[4096] = "", id[41], commit[41];
+    int is_branch = 0;
+    snprintf (ref, sizeof ref, "refs/heads/%s", target);
+    if (bgit_ref_read (&ctx->repo, ref, id) == 0) is_branch = 1;
+    if (!is_branch) {
+        if (git_resolve (ctx, target, id, NULL) < 0)
+            return git_fatal ("invalid reference: %s", target);
+    }
+    if (bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0)
+        return git_fatal ("reference is not a tree: %s", target);
+    char tree[41];
+    if (bgit_commit_tree (&ctx->odb, commit, tree) < 0)
+        return git_fatal ("cannot read %s", commit);
+
+    char *losing = NULL;
+    int rc = bgit_checkout_tree (&ctx->repo, &ctx->odb, tree, &state->index,
+                                 &state->n_index, force, &losing);
+    if (rc > 0) {
+        fflush (stdout);
+        fprintf (stderr, "error: Your local changes to the following files "
+                         "would be overwritten by checkout:\n\t%s\n"
+                         "Please commit your changes or stash them before you "
+                         "switch branches.\nAborting\n", losing ? losing : "");
+        free (losing);
+        return 1;
+    }
+    if (rc < 0) { free (losing); return GIT_EXIT_FATAL; }
+    if (git_index_store (ctx, state->index, state->n_index) < 0)
+        return GIT_EXIT_FATAL;
+
+    char from[128], message[1200];
+    git_head_label (ctx, state, from, sizeof from);
+    snprintf (message, sizeof message, "checkout: moving from %s to %s", from,
+              is_branch && !detach ? target : commit);
+    if (is_branch && !detach) {
+        if (bgit_symref_write (&ctx->repo, "HEAD", ref, NULL) < 0)
+            return GIT_EXIT_FATAL;
+        bgit_reflog_append (&ctx->repo, "HEAD", state->have_head ? state->head : NULL,
+                            commit, message);
+    } else {
+        /* A detached HEAD holds the commit itself. */
+        char path[4096];
+        if (bgit_ref_path (&ctx->repo, "HEAD", path, sizeof path) < 0)
+            return GIT_EXIT_FATAL;
+        bgit_lock lock;
+        if (bgit_lock_acquire (&lock, path) < 0) return GIT_EXIT_FATAL;
+        char line[42];
+        int len = snprintf (line, sizeof line, "%s\n", commit);
+        if (bgit_lock_write (&lock, line, (size_t) len) < 0 ||
+            bgit_lock_commit (&lock) < 0) {
+            bgit_lock_rollback (&lock);
+            return GIT_EXIT_FATAL;
+        }
+        bgit_reflog_append (&ctx->repo, "HEAD", state->have_head ? state->head : NULL,
+                            commit, message);
+    }
+    return 0;
+}
+
+static int
+git_cmd_switch (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git switch [-q] [-c <new-branch>] [-C <new-branch>] "
+                        "[--detach] [-f] <branch>";
+    const char *create = NULL, *target = NULL;
+    int detach = 0, force = 0, force_create = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) continue;
+        if ((!strcmp (w, "-c") || !strcmp (w, "--create")) && p->next) {
+            create = p->next->word->word; p = p->next;
+        } else if (!strcmp (w, "-C") && p->next) {
+            create = p->next->word->word; force_create = 1; p = p->next;
+        } else if (!strcmp (w, "--detach") || !strcmp (w, "-d")) detach = 1;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!target) target = w;
+        else return git_usage (usage);
+    }
+    if (!create && !target) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    int status = 0;
+    if (create) {
+        char ref[4096], id[41], commit[41];
+        snprintf (ref, sizeof ref, "refs/heads/%s", create);
+        char existing[41];
+        if (!force_create && bgit_ref_read (&ctx->repo, ref, existing) == 0) {
+            status = git_fatal ("a branch named '%s' already exists", create);
+            goto done;
+        }
+        const char *start = target ? target : "HEAD";
+        if (git_resolve (ctx, start, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            status = git_fatal ("invalid reference: %s", start);
+            goto done;
+        }
+        char label[256];
+        git_head_label (ctx, &state, label, sizeof label);
+        char message[1200];
+        snprintf (message, sizeof message, "branch: Created from %s",
+                  strcmp (start, "HEAD") ? start : label);
+        if (bgit_ref_update (&ctx->repo, ref, commit, NULL, message) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        status = git_switch_to (ctx, &state, create, 0, force);
+        goto done;
+    }
+    status = git_switch_to (ctx, &state, target, detach, force);
+done:
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_checkout (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git checkout [-q] [-b <new-branch>] [--detach] "
+                        "[-f] (<branch> | [<tree-ish>] -- <path>...)";
+    const char *create = NULL, *target = NULL;
+    const char *paths[32];
+    int n_paths = 0, detach = 0, force = 0, no_more = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) continue;
+        if (!no_more && (!strcmp (w, "-b") || !strcmp (w, "-B")) && p->next) {
+            create = p->next->word->word; p = p->next;
+        } else if (!no_more && !strcmp (w, "--detach")) detach = 1;
+        else if (!no_more && (!strcmp (w, "-f") || !strcmp (w, "--force"))) force = 1;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!no_more && !target && !n_paths) target = w;
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+
+    if (n_paths) {
+        /* Restore files from a tree, or from the index. */
+        char tree[41] = "";
+        int have_tree = 0;
+        if (target) {
+            char id[41];
+            if (git_resolve (ctx, target, id, NULL) < 0 ||
+                bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0) {
+                status = git_fatal ("invalid reference: %s", target);
+                goto done;
+            }
+            have_tree = 1;
+        }
+        if (bgit_checkout_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
+                                 &state.index, &state.n_index, paths,
+                                 (size_t) n_paths, have_tree, 1) < 0 ||
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        goto done;
+    }
+    if (create) {
+        WORD_LIST *rest = NULL;
+        (void) rest;
+        char ref[4096], id[41], commit[41];
+        snprintf (ref, sizeof ref, "refs/heads/%s", create);
+        const char *start = target ? target : "HEAD";
+        if (git_resolve (ctx, start, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            status = git_fatal ("invalid reference: %s", start);
+            goto done;
+        }
+        char message[1200];
+        snprintf (message, sizeof message, "branch: Created from %s", start);
+        if (bgit_ref_update (&ctx->repo, ref, commit, NULL, message) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        status = git_switch_to (ctx, &state, create, 0, force);
+        goto done;
+    }
+    if (!target) { status = git_usage (usage); goto done; }
+    status = git_switch_to (ctx, &state, target, detach, force);
+done:
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_restore (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git restore [--staged] [--worktree] "
+                        "[--source=<tree>] <path>...";
+    int staged = 0, worktree = 0, no_more = 0;
+    const char *source = NULL;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "--staged")) staged = 1;
+        else if (!no_more && !strcmp (w, "--worktree")) worktree = 1;
+        else if (!no_more && !strncmp (w, "--source=", 9)) source = w + 9;
+        else if (!no_more && (!strcmp (w, "-s") || !strcmp (w, "--source")) && p->next) {
+            source = p->next->word->word; p = p->next;
+        }
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!n_paths) return git_usage (usage);
+    if (!staged && !worktree) worktree = 1;      /* git's default */
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    int status = 0;
+    char tree[41] = "";
+    int have_tree = 0;
+    const char *from = source ? source : (staged ? "HEAD" : NULL);
+    if (from) {
+        char id[41];
+        if (git_resolve (ctx, from, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0) {
+            status = git_fatal ("invalid reference: %s", from);
+            goto done;
+        }
+        have_tree = 1;
+    }
+    if (bgit_checkout_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
+                             &state.index, &state.n_index, paths,
+                             (size_t) n_paths, staged, worktree) < 0 ||
+        git_index_store (ctx, state.index, state.n_index) < 0)
+        status = GIT_EXIT_FATAL;
+done:
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_reset (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git reset [--soft | --mixed | --hard] [-q] "
+                        "[<commit>] [-- <path>...]";
+    int soft = 0, hard = 0, no_more = 0;
+    const char *commit_name = NULL;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "--soft")) soft = 1;
+        else if (!no_more && !strcmp (w, "--mixed")) { soft = hard = 0; }
+        else if (!no_more && !strcmp (w, "--hard")) hard = 1;
+        else if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) continue;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!no_more && !commit_name && !n_paths) commit_name = w;
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    int status = 0;
+    char id[41], commit[41], tree[41];
+    const char *target = commit_name ? commit_name : "HEAD";
+    if (git_resolve (ctx, target, id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0 ||
+        bgit_commit_tree (&ctx->odb, commit, tree) < 0) {
+        status = git_fatal ("ambiguous argument '%s': unknown revision or path "
+                            "not in the working tree.", target);
+        goto done;
+    }
+
+    if (n_paths) {
+        /* Only the index moves: the files are left alone. */
+        if (bgit_checkout_paths (&ctx->repo, &ctx->odb, tree, &state.index,
+                                 &state.n_index, paths, (size_t) n_paths, 1, 0) < 0 ||
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        goto done;
+    }
+
+    if (hard) {
+        char *losing = NULL;
+        int rc = bgit_checkout_tree (&ctx->repo, &ctx->odb, tree, &state.index,
+                                     &state.n_index, 1, &losing);
+        free (losing);
+        if (rc < 0) { status = GIT_EXIT_FATAL; goto done; }
+        if (git_index_store (ctx, state.index, state.n_index) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+    } else if (!soft) {
+        bgit_index_entry *entries = NULL;
+        size_t n = 0;
+        if (bgit_read_tree (&ctx->odb, tree, &entries, &n) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        /* A mixed reset keeps the files, so each entry takes their stat —
+           but the mode stays the one the tree records, not the permissions
+           the file happens to have. */
+        for (size_t i = 0; i < n; i++) {
+            char full[4096];
+            snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, entries[i].path);
+            struct stat st;
+            if (lstat (full, &st) != 0) continue;
+            uint32_t mode = entries[i].mode;
+            bgit_index_entry_set_stat (&entries[i], &st);
+            entries[i].mode = mode;
+        }
+        int rc = git_index_store (ctx, entries, n);
+        bgit_index_free_entries (entries, n);
+        if (rc < 0) { status = GIT_EXIT_FATAL; goto done; }
+    }
+
+    const char *ref = state.branch ? state.branch : "HEAD";
+    char message[1200];
+    snprintf (message, sizeof message, "reset: moving to %s", target);
+    /* A reset that does not move the branch leaves its log alone; HEAD's
+       log records the reset either way, as git does. */
+    int moved = !state.have_head || strcmp (state.head, commit) != 0;
+    if (moved && bgit_ref_update (&ctx->repo, ref, commit, NULL, message) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status && state.branch)
+        bgit_reflog_append (&ctx->repo, "HEAD", state.have_head ? state.head : NULL,
+                            commit, message);
+done:
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_tag (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git tag [-a] [-m <message>] [-f] <name> [<commit>] "
+                        "| -d <name> | -l [<pattern>]";
+    int annotate = 0, delete_tag = 0, list = 0, force = 0;
+    const char *message = NULL;
+    const char *names[2] = { NULL, NULL };
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-a") || !strcmp (w, "--annotate")) annotate = 1;
+        else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_tag = 1;
+        else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "-m") && p->next) {
+            message = p->next->word->word; annotate = 1; p = p->next;
+        } else if (!strcmp (w, "-am") && p->next) {
+            message = p->next->word->word; annotate = 1; p = p->next;
+        } else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < 2) names[n_names++] = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (delete_tag) {
+        if (!n_names) return git_usage (usage);
+        char ref[4096], id[41];
+        snprintf (ref, sizeof ref, "refs/tags/%s", names[0]);
+        if (bgit_ref_read (&ctx->repo, ref, id) != 0)
+            return git_fatal ("tag '%s' not found.", names[0]);
+        if (bgit_ref_delete (&ctx->repo, ref, NULL, NULL) < 0)
+            return GIT_EXIT_FATAL;
+        char abbreviated[41];
+        git_abbrev (ctx, id, 7, abbreviated, sizeof abbreviated);
+        printf ("Deleted tag '%s' (was %s)\n", names[0], abbreviated);
+        return 0;
+    }
+    if (list || !n_names) {
+        bgit_ref *refs = NULL;
+        size_t n = 0;
+        if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n) < 0)
+            return git_fatal ("cannot read refs");
+        for (size_t i = 0; i < n; i++) {
+            const char *name = refs[i].name + 10;
+            if (names[0] && fnmatch (names[0], name, 0) != 0) continue;
+            printf ("%s\n", name);
+        }
+        bgit_refs_free (refs, n);
+        return 0;
+    }
+
+    char ref[4096];
+    snprintf (ref, sizeof ref, "refs/tags/%s", names[0]);
+    char existing[41];
+    if (!force && bgit_ref_read (&ctx->repo, ref, existing) == 0)
+        return git_fatal ("tag '%s' already exists", names[0]);
+    char id[41], commit[41];
+    const char *target = names[1] ? names[1] : "HEAD";
+    if (git_resolve (ctx, target, id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0)
+        return git_fatal ("Failed to resolve '%s' as a valid ref.", target);
+
+    char pointed[41];
+    memcpy (pointed, commit, 41);
+    if (annotate) {
+        char tagger[1024];
+        if (bgit_ident (&ctx->cfg, 1, tagger, sizeof tagger) < 0)
+            return git_fatal ("cannot determine the identity to use");
+        char body[8192];
+        int len = snprintf (body, sizeof body,
+                            "object %s\ntype commit\ntag %s\ntagger %s\n\n%s%s",
+                            commit, names[0], tagger, message ? message : "",
+                            (message && *message &&
+                             message[strlen (message) - 1] == '\n') ? "" : "\n");
+        if (len < 0 || len >= (int) sizeof body)
+            return git_fatal ("tag message too long");
+        if (bgit_write_object (ctx->odb.object_dirs[0], "tag",
+                               (const unsigned char *) body, (size_t) len, 1,
+                               pointed) < 0)
+            return GIT_EXIT_FATAL;
+    }
+    if (bgit_ref_update (&ctx->repo, ref, pointed, NULL, NULL) < 0)
+        return GIT_EXIT_FATAL;
+    return 0;
+}
+
+static int
+git_cmd_rm (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git rm [--cached] [-r] [-f] [--] <path>...";
+    int cached = 0, no_more = 0;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "--cached")) cached = 1;
+        else if (!no_more && (!strcmp (w, "-r") || !strcmp (w, "-f") ||
+                              !strcmp (w, "--force") || !strcmp (w, "-q"))) continue;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!n_paths) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    int status = 0, removed = 0;
+    for (int i = 0; i < n_paths; i++) {
+        size_t len = strlen (paths[i]);
+        for (size_t j = 0; j < state.n_index;) {
+            const char *path = state.index[j].path;
+            if (strcmp (path, paths[i]) &&
+                !(!strncmp (path, paths[i], len) && path[len] == '/')) {
+                j++;
+                continue;
+            }
+            printf ("rm '%s'\n", path);
+            if (!cached) {
+                char full[4096];
+                snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path);
+                unlink (full);
+            }
+            char *gone = strdup (path);
+            if (!gone) { status = GIT_EXIT_FATAL; break; }
+            bgit_index_remove_path (&state.index, &state.n_index, gone);
+            free (gone);
+            removed = 1;
+        }
+    }
+    if (!removed && !status)
+        status = git_fatal ("pathspec '%s' did not match any files", paths[0]);
+    if (!status && git_index_store (ctx, state.index, state.n_index) < 0)
+        status = GIT_EXIT_FATAL;
+    git_state_release (&state);
+    return status;
+}
+
 /* ---- check-ignore ------------------------------------------------------ */
 
 /* Load the .gitignore of every directory above PATH, once each. */
@@ -2664,8 +3367,10 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "add",          git_cmd_add },
+    { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
+    { "checkout",     git_cmd_checkout },
     { "commit-tree",  git_cmd_commit_tree },
     { "commit",       git_cmd_commit },
     { "config",       git_cmd_config },
@@ -2678,10 +3383,15 @@ static const struct {
     { "ls-tree",      git_cmd_ls_tree },
     { "read-tree",    git_cmd_read_tree },
     { "reflog",       git_cmd_reflog },
+    { "reset",        git_cmd_reset },
+    { "restore",      git_cmd_restore },
     { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
+    { "rm",           git_cmd_rm },
     { "show-ref",     git_cmd_show_ref },
     { "status",       git_cmd_status },
+    { "switch",       git_cmd_switch },
+    { "tag",          git_cmd_tag },
     { "symbolic-ref", git_cmd_symbolic_ref },
     { "update-index", git_cmd_update_index },
     { "update-ref",   git_cmd_update_ref },
@@ -2711,6 +3421,13 @@ git_run (WORD_LIST *list)
         if (!strcmp (w, "--list-cmds") || !strncmp (w, "--list-cmds=", 12)) {
             for (int i = 0; git_commands[i].name; i++)
                 printf ("%s\n", git_commands[i].name);
+            return 0;
+        }
+        if (!strcmp (w, "--list-features")) {
+            /* What this build can do beyond having a command at all, for
+               tests that describe a whole feature. Empty until it lands. */
+            static const char *const features[] = { NULL };
+            for (int i = 0; features[i]; i++) printf ("%s\n", features[i]);
             return 0;
         }
         if (!strcmp (w, "-c") && list->next) {
@@ -2780,6 +3497,45 @@ git_run (WORD_LIST *list)
     return 1;
 }
 
+/* The shell reaps children of its own, so a raw fork has to keep SIGCHLD to
+   itself until it has waited, or waitpid loses the race and reports that
+   there is no such child. pkg.c guards its children the same way. */
+struct git_child_guard {
+    struct sigaction old_chld;
+    sigset_t oldmask;
+};
+
+static int
+git_child_guard_begin (struct git_child_guard *guard)
+{
+    struct sigaction dfl;
+    sigset_t block;
+    memset (&dfl, 0, sizeof dfl);
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset (&dfl.sa_mask);
+    if (sigaction (SIGCHLD, &dfl, &guard->old_chld) < 0) return -1;
+    sigemptyset (&block);
+    sigaddset (&block, SIGCHLD);
+    if (sigprocmask (SIG_BLOCK, &block, &guard->oldmask) < 0) {
+        sigaction (SIGCHLD, &guard->old_chld, NULL);
+        return -1;
+    }
+    return 0;
+}
+
+static void
+git_child_guard_parent_end (struct git_child_guard *guard)
+{
+    sigprocmask (SIG_SETMASK, &guard->oldmask, NULL);
+    sigaction (SIGCHLD, &guard->old_chld, NULL);
+}
+
+static void
+git_child_guard_child_end (struct git_child_guard *guard)
+{
+    sigprocmask (SIG_SETMASK, &guard->oldmask, NULL);
+}
+
 int
 git_builtin (WORD_LIST *list)
 {
@@ -2787,12 +3543,19 @@ git_builtin (WORD_LIST *list)
        caller, and held locks are released when the child dies. */
     fflush (stdout);
     fflush (stderr);
+    struct git_child_guard guard;
+    if (git_child_guard_begin (&guard) < 0) {
+        builtin_error ("cannot guard SIGCHLD: %s", strerror (errno));
+        return GIT_EXIT_FATAL;
+    }
     pid_t pid = fork ();
     if (pid < 0) {
+        git_child_guard_parent_end (&guard);
         builtin_error ("fork: %s", strerror (errno));
         return GIT_EXIT_FATAL;
     }
     if (pid == 0) {
+        git_child_guard_child_end (&guard);
         bos_prepare_child ();
         int status = git_run (list);
         bgit_lock_release_all ();
@@ -2804,10 +3567,12 @@ git_builtin (WORD_LIST *list)
     int status = 0;
     while (waitpid (pid, &status, 0) < 0) {
         if (errno != EINTR) {
+            git_child_guard_parent_end (&guard);
             builtin_error ("waitpid: %s", strerror (errno));
             return GIT_EXIT_FATAL;
         }
     }
+    git_child_guard_parent_end (&guard);
     if (WIFSIGNALED (status))
         return 128 + WTERMSIG (status);
     return WEXITSTATUS (status);
