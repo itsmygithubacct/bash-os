@@ -190,7 +190,7 @@
     },
     "index": {
       "helpers": [
-        "_sha1dc"
+        "_git"
       ]
     },
     "pack": {

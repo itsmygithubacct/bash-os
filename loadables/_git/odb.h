@@ -41,6 +41,10 @@ int bgit_all_hex (const char *s);
 /* Format a 20-byte object id as 40 hex digits plus NUL. */
 void bgit_sha_to_hex (const unsigned char *sha, char *out);
 
+/* Parse 40 hex digits into a 20-byte object id. Returns 0, or -1 if HEX is
+   not exactly 40 hexadecimal digits. */
+int bgit_hex_to_sha (const char *hex, unsigned char *sha);
+
 /* Resolve a full or abbreviated object id against the loose object store,
    mirroring git's unique-prefix rule (4 hex digits minimum). Writes 40 hex
    digits plus NUL into FULL. Returns 0, or -1 for unknown or ambiguous. */
