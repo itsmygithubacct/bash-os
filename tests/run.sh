@@ -40,6 +40,7 @@ done
 check 'git object store' python3 tests/git-odb.py out/bash
 check 'git refs across implementations' python3 tests/git-refs.py out/bash
 check 'git packs across implementations' python3 tests/git-packs.py out/bash
+check 'git protocol across implementations' python3 tests/git-proto.py out/bash
 check 'git parity against real git' python3 tests/git-parity.py out/bash
 check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
 check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list

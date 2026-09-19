@@ -316,6 +316,10 @@ git add pushed.txt
 git commit -q -m 'something to push'
 git push bare
 git remote remove bare
+# Asking the far end over the protocol, which is pkt-lines all the way.
+git ls-remote "$HOME/repo"
+git ls-remote --symref --tags "$HOME/repo"
+git ls-remote "$HOME/bare-copy"
 cd "$HOME/repo"
 
 git fsck 2>/dev/null || true

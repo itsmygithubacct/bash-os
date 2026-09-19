@@ -53,6 +53,8 @@ git clone        [-q] [--bare] <source> [<directory>]
 git fetch        [<remote>]
 git pull         [<remote>]
 git push         [<remote> [<branch>]]
+git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
+                 [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
@@ -84,6 +86,7 @@ git pack-objects [-q] <base-name> < <object-list>
 git index-pack   [-v] [-o <index-file>] <pack-file>
 git unpack-objects [-q] < <pack-file>
 git verify-pack  [-v] [-s] <idx-file>
+git upload-pack  [--stateless-rpc] [--advertise-refs] <directory>
 ```
 
 Revisions take git's suffixes: `^` and `^<n>` for a parent, `~<n>` for n
@@ -210,6 +213,20 @@ alike, and that is what the test asks for. `git verify-pack` reads the
 pack through its index and checks it end to end, and `git unpack-objects`
 writes a pack's objects back out loose.
 
+`git ls-remote` is the first command here to hold a conversation rather
+than read another repository's files. It starts the far end — this build's
+own `git upload-pack`, or whatever `--upload-pack` names — and speaks
+protocol v2 to it over a pipe, as git does: the server offers what it can
+do, the client asks `ls-refs` for the prefixes it cares about, and the
+answer carries what HEAD points at and what a tag points at. Everything
+is framed in pkt-lines, four hexadecimal digits of length and then that
+many bytes, with the three lengths that carry no payload meaning the end
+of a section, a divide inside one, and the end of a response.
+
+Both ends stand on their own: git's client gets the same listing from
+this build's upload-pack that it gets from git's, and this build's client
+gets the same from either server.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -289,6 +306,12 @@ must index it to git's index byte for byte, list it the way `verify-pack
 objects. The other direction is checked too: git must index, verify and
 unpack what `git pack-objects` writes here.
 
+`tests/git-proto.py` crosses the two implementations over the wire: git's
+client against this build's upload-pack, this build's client against
+git's, and the packets themselves read off the connection and compared
+with the ones git sends for the same request. A scenario cannot reach
+that, since both of its runs speak to their own far end.
+
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
 what bash-os writes — refs, a deleted packed ref, reflog entries, a
@@ -298,11 +321,16 @@ message and changes nothing.
 
 ## Still to come
 
-Phase 2 is done but for submodules, and Phase 3 has started: clone, fetch,
-pull and push speak to directories, not yet to URLs, and the pack
+Phase 2 is done but for submodules, and Phase 3 is under way: clone,
+fetch, pull and push speak to directories, not yet to URLs; the pack
 plumbing a protocol needs — making a pack, and reading one with deltas in
-it — is in place. Next is the protocol itself, pkt-line and protocol v2,
-and after that SSH. Left over from Phase 2: stashing untracked files,
+it — is in place; and protocol v2 now carries `ls-remote`, which is the
+framing the rest will be built on. Next is `fetch` over the protocol,
+then `receive-pack` for a push, then the same conversation over HTTPS,
+and after that SSH. Two things to put right on the way: `clone --bare`
+writes tracking refs where git writes branches, and `push` takes the name
+of a remote where git also takes a path. Left over from Phase 2: stashing
+untracked files,
 interactive rebase, renames between the index and the working tree, and a
 merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.
