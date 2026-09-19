@@ -180,16 +180,19 @@ fi
 : > "$LOG"
 
 # --- 1. bash source and its patch set, pinned by sha256 --------------------
+# Every file here is checked against its pin, so a download that fails on
+# the way — a host that will not answer today — is worth asking again for.
+CURL_FETCH=(-fL --connect-timeout 30 --retry 3 --retry-delay 2 --retry-connrefused)
 TARBALL="$DL/bash-$BASH_SRC_VERSION.tar.gz"
 if [[ ! -f "$TARBALL" ]]; then
   if [[ -n "${BASH_TARBALL:-}" ]]; then cp "$BASH_TARBALL" "$TARBALL"
-  else say "downloading $BASH_URL"; curl -fL -o "$TARBALL" "$BASH_URL"; fi
+  else say "downloading $BASH_URL"; curl "${CURL_FETCH[@]}" -o "$TARBALL" "$BASH_URL"; fi
 fi
 echo "$BASH_SRC_SHA256  $TARBALL" | sha256sum -c - >/dev/null || die "bash tarball sha256 mismatch"
 mkdir -p "$DL/patches"
 for entry in "${BASH_PATCHES[@]}"; do
   pname=${entry%% *}; psha=${entry##* }; pfile="$DL/patches/$pname"
-  [[ -f "$pfile" ]] || { say "downloading $pname"; curl -fL -o "$pfile" "$BASH_PATCH_URL/$pname"; }
+  [[ -f "$pfile" ]] || { say "downloading $pname"; curl "${CURL_FETCH[@]}" -o "$pfile" "$BASH_PATCH_URL/$pname"; }
   echo "$psha  $pfile" | sha256sum -c - >/dev/null || die "$pname sha256 mismatch"
 done
 
