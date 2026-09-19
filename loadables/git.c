@@ -53,6 +53,7 @@
 #include "_git_index.h"
 #include "_git_merge.h"
 #include "_git_odb.h"
+#include "_git_pack.h"
 #include "_git_patch.h"
 #include "_git_refs.h"
 #include "_git_transport.h"
@@ -615,6 +616,7 @@ git_cmd_hash_object (git_context *ctx, WORD_LIST *args)
         char *line = NULL;
         size_t cap = 0;
         ssize_t got;
+        clearerr (stdin);
         while ((got = getline (&line, &cap, stdin)) > 0) {
             while (got > 0 && (line[got - 1] == '\n' || line[got - 1] == '\r'))
                 line[--got] = '\0';
@@ -1123,6 +1125,7 @@ git_cmd_update_index (git_context *ctx, WORD_LIST *args)
     if (index_info) {
         char *line = NULL;
         size_t line_cap = 0;
+        clearerr (stdin);
         while (getline (&line, &line_cap, stdin) > 0) {
             bgit_index_entry entry;
             int is_remove = 0;
@@ -1516,12 +1519,59 @@ git_walk_push (git_context *ctx, struct git_walk *walk, const char *sha)
     return 0;
 }
 
+/* Ids already named by --objects, so nothing is named twice. A history
+   names an object once per tree that holds it, which is many times over,
+   so the set is kept sorted and asked by halves. */
+struct git_objects {
+    char (*ids)[41];
+    size_t n, cap;
+};
+
+struct git_objects_ctx { struct git_objects *seen; };
+
+static int
+git_objects_seen (struct git_objects *seen, const char *sha)
+{
+    size_t low = 0, high = seen->n;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        int cmp = memcmp (seen->ids[mid], sha, 40);
+        if (cmp < 0) low = mid + 1;
+        else if (cmp > 0) high = mid;
+        else return 1;
+    }
+    if (seen->n == seen->cap) {
+        size_t next = seen->cap ? seen->cap * 2 : 128;
+        char (*grown)[41] = realloc (seen->ids, next * sizeof *grown);
+        if (!grown) return 1;          /* out of room: say it was seen */
+        seen->ids = grown;
+        seen->cap = next;
+    }
+    memmove (seen->ids[low + 1], seen->ids[low],
+             (seen->n - low) * sizeof *seen->ids);
+    memcpy (seen->ids[low], sha, 40);
+    seen->ids[low][40] = '\0';
+    seen->n++;
+    return 0;
+}
+
+static int
+git_objects_visit (void *context, const char *mode, const char *type,
+                   const char *sha, const char *path)
+{
+    (void) mode;
+    (void) type;
+    struct git_objects_ctx *ctx = context;
+    if (!git_objects_seen (ctx->seen, sha)) printf ("%s %s\n", sha, path);
+    return 0;
+}
+
 static int
 git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git rev-list [--count] [-n <number> | "
+    const char *usage = "git rev-list [--count] [--objects] [-n <number> | "
                         "--max-count=<number>] <commit>... [^<commit>]";
-    int count_only = 0;
+    int count_only = 0, with_objects = 0;
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     int n_revs = 0, n_excludes = 0;
@@ -1529,6 +1579,8 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "--count")) count_only = 1;
+        else if (!strcmp (w, "--objects")) with_objects = 1;
+        else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
@@ -1565,8 +1617,24 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     if (!n_revs) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
+    /* --all stands for every ref there is. */
+    bgit_ref *all_refs = NULL;
+    size_t n_all = 0;
+    for (int i = 0; i < n_revs; i++) {
+        if (strcmp (revs[i], "--all")) continue;
+        if (bgit_refs_list (&ctx->repo, "refs/", &all_refs, &n_all) < 0)
+            return git_fatal ("cannot read refs");
+        revs[i] = NULL;
+        for (size_t j = 0; j < n_all && n_revs < (int) (sizeof revs / sizeof *revs); j++) {
+            rev_words[n_revs] = all_refs[j].name;
+            revs[n_revs++] = all_refs[j].name;
+        }
+        break;
+    }
+
     struct git_walk walk;
     memset (&walk, 0, sizeof walk);
+    struct git_objects seen = {0};
     int status = 0;
     /* Mark everything the excluded tips reach, so the walk steps over it. */
     for (int i = 0; i < n_excludes; i++) {
@@ -1593,6 +1661,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
             }
     }
     for (int i = 0; i < n_revs; i++) {
+        if (!revs[i]) continue;
         char id[41], commit[41];
         if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
             bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
@@ -1618,6 +1687,18 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (!count_only) printf ("%s\n", current);
         emitted++;
 
+        /* With --objects the tree each commit holds, and everything under
+           it, is named too — each with the path it has there. */
+        if (with_objects && !count_only) {
+            char tree[41];
+            if (bgit_commit_tree (&ctx->odb, current, tree) == 0) {
+                struct git_objects_ctx seen_ctx = { &seen };
+                if (!git_objects_seen (&seen, tree)) printf ("%s \n", tree);
+                bgit_tree_walk (&ctx->odb, tree, "", 1, 1, git_objects_visit,
+                                &seen_ctx);
+            }
+        }
+
         char parents[BGIT_MAX_PARENTS][41];
         int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
         for (int i = 0; i < n; i++)
@@ -1627,6 +1708,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
             }
     }
     if (count_only) printf ("%ld\n", emitted);
+    free (seen.ids);
 done:
     free (walk.seen);
     free (walk.pending);
@@ -4874,6 +4956,570 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- packs -------------------------------------------------------------- */
+
+/* One object of a pack being read through: where it starts, what it is,
+   and what it turns out to be once any delta is applied. */
+struct git_pack_entry {
+    uint64_t offset;
+    uint64_t data_offset;       /* where the deflated bytes begin */
+    uint64_t base_offset;       /* an offset delta's base */
+    unsigned char base_sha[20]; /* a reference delta's base */
+    int type;                   /* the pack's own numbering */
+    int real_type;              /* what a delta turns out to hold */
+    uint64_t size;              /* the size the header claims */
+    uint64_t end;               /* where this object's bytes stop */
+    unsigned char sha[20];
+    uint32_t crc;
+    int resolved;
+};
+
+/* The entry a pack offset names. The scan records them in the order the
+   pack holds them, so their offsets are already in order. */
+static struct git_pack_entry *
+git_pack_at (struct git_pack_entry *entries, size_t n, uint64_t offset)
+{
+    size_t low = 0, high = n;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        if (entries[mid].offset < offset) low = mid + 1;
+        else if (entries[mid].offset > offset) high = mid;
+        else return &entries[mid];
+    }
+    return NULL;
+}
+
+/* What a delta is a delta against, whichever way it names it; NULL for an
+   object that stands on its own. */
+static struct git_pack_entry *
+git_pack_base (struct git_pack_entry *entries, size_t n,
+               const struct git_pack_entry *entry)
+{
+    if (entry->type == BGIT_PACK_OFS_DELTA)
+        return git_pack_at (entries, n, entry->base_offset);
+    if (entry->type == BGIT_PACK_REF_DELTA)
+        for (size_t i = 0; i < n; i++)
+            if (entries[i].resolved &&
+                !memcmp (entries[i].sha, entry->base_sha, 20))
+                return &entries[i];
+    return NULL;
+}
+
+/* A varint the way a pack writes a delta's base offset: seven bits at a
+   time, most significant first, each continuation adding one. */
+static int
+git_pack_base_offset (const unsigned char *pack, size_t plen, uint64_t at,
+                      uint64_t *delta, uint64_t *next)
+{
+    uint64_t value = 0;
+    while (at < plen) {
+        unsigned char c = pack[at++];
+        value = (value << 7) | (c & 0x7f);
+        if (!(c & 0x80)) {
+            *delta = value;
+            *next = at;
+            return 0;
+        }
+        value += 1;
+    }
+    return -1;
+}
+
+/* Walk the pack once, noting where each object starts and ends. */
+static int
+git_pack_scan (const unsigned char *pack, size_t plen,
+               struct git_pack_entry **out, size_t *n_out)
+{
+    if (plen < 32 || memcmp (pack, "PACK", 4)) {
+        git_fatal ("not a packfile");
+        return -1;
+    }
+    if (bgit_pack_be32 (pack + 4) != 2) {
+        git_fatal ("unsupported pack version %u", bgit_pack_be32 (pack + 4));
+        return -1;
+    }
+    size_t n = bgit_pack_be32 (pack + 8);
+    struct git_pack_entry *entries = calloc (n ? n : 1, sizeof *entries);
+    if (!entries) return -1;
+
+    uint64_t at = 12;
+    for (size_t i = 0; i < n; i++) {
+        struct git_pack_entry *entry = &entries[i];
+        entry->offset = at;
+        int type;
+        uint64_t size, next;
+        if (bgit_pack_read_obj_header (pack, plen - 20, at, &type, &size,
+                                       &next) < 0) {
+            free (entries);
+            git_fatal ("malformed object header at %llu",
+                       (unsigned long long) at);
+            return -1;
+        }
+        entry->type = type;
+        entry->size = size;
+        if (type == BGIT_PACK_OFS_DELTA) {
+            uint64_t back = 0, after = 0;
+            if (git_pack_base_offset (pack, plen - 20, next, &back, &after) < 0 ||
+                back > at) {
+                free (entries);
+                git_fatal ("malformed delta offset at %llu",
+                           (unsigned long long) at);
+                return -1;
+            }
+            entry->base_offset = at - back;
+            next = after;
+        } else if (type == BGIT_PACK_REF_DELTA) {
+            if (next + 20 > plen - 20) {
+                free (entries);
+                git_fatal ("truncated delta base at %llu",
+                           (unsigned long long) at);
+                return -1;
+            }
+            memcpy (entry->base_sha, pack + next, 20);
+            next += 20;
+        }
+        entry->data_offset = next;
+        unsigned char *data = NULL;
+        size_t len = 0, used = 0;
+        if (bgit_pack_inflate (pack + next, (size_t) (plen - 20 - next),
+                               (size_t) size, &data, &len, &used) < 0) {
+            free (entries);
+            git_fatal ("cannot read the object at %llu",
+                       (unsigned long long) at);
+            return -1;
+        }
+        free (data);
+        entry->end = next + used;
+        entry->crc = bgit_pack_crc32 (pack + at, (size_t) (entry->end - at));
+        at = entry->end;
+    }
+    *out = entries;
+    *n_out = n;
+    return 0;
+}
+
+/* The content of one object in the pack, with any delta applied. */
+static int
+git_pack_content (const unsigned char *pack, size_t plen,
+                  struct git_pack_entry *entries, size_t n, uint64_t offset,
+                  int *type_out, unsigned char **out, size_t *len_out, int depth)
+{
+    if (depth > BGIT_PACK_MAX_DELTA_DEPTH) return -1;
+    struct git_pack_entry *entry = git_pack_at (entries, n, offset);
+    if (!entry) return -1;
+
+    unsigned char *data = NULL;
+    size_t len = 0, used = 0;
+    if (bgit_pack_inflate (pack + entry->data_offset,
+                           (size_t) (plen - 20 - entry->data_offset),
+                           (size_t) entry->size, &data, &len, &used) < 0)
+        return -1;
+    if (entry->type != BGIT_PACK_OFS_DELTA && entry->type != BGIT_PACK_REF_DELTA) {
+        *type_out = entry->type;
+        *out = data;
+        *len_out = len;
+        return 0;
+    }
+
+    /* A delta: find its base, then apply. */
+    struct git_pack_entry *base_entry = git_pack_base (entries, n, entry);
+    if (!base_entry) { free (data); return -1; }
+    unsigned char *base = NULL;
+    size_t base_len = 0;
+    int base_type = 0;
+    if (git_pack_content (pack, plen, entries, n, base_entry->offset, &base_type,
+                          &base, &base_len, depth + 1) < 0) {
+        free (data);
+        return -1;
+    }
+    unsigned char *applied = NULL;
+    size_t applied_len = 0;
+    int rc = bgit_pack_apply_delta (base, base_len, data, len, &applied,
+                                    &applied_len);
+    free (base);
+    free (data);
+    if (rc < 0) return -1;
+    *type_out = base_type;
+    *out = applied;
+    *len_out = applied_len;
+    return 0;
+}
+
+/* Name every object in the pack, deltas last, until nothing is left. */
+static int
+git_pack_resolve (const unsigned char *pack, size_t plen,
+                  struct git_pack_entry *entries, size_t n)
+{
+    size_t left = n;
+    while (left) {
+        size_t settled = 0;
+        for (size_t i = 0; i < n; i++) {
+            if (entries[i].resolved) continue;
+            int type = 0;
+            unsigned char *content = NULL;
+            size_t len = 0;
+            if (git_pack_content (pack, plen, entries, n, entries[i].offset,
+                                  &type, &content, &len, 0) < 0)
+                continue;             /* its base is not named yet */
+            char hex[41];
+            int rc = bgit_write_object (NULL, bgit_pack_type_name (type),
+                                        content, len, 0, hex);
+            free (content);
+            if (rc < 0) return -1;
+            bgit_hex_to_sha (hex, entries[i].sha);
+            entries[i].real_type = type;
+            entries[i].resolved = 1;
+            settled++;
+            left--;
+        }
+        if (!settled) {
+            git_fatal ("the pack has deltas whose bases it does not carry");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Write a pack holding exactly the objects named, each in full: no deltas,
+   which any reader accepts. The file is named for its own checksum, as
+   git names one. */
+static int
+git_cmd_pack_objects (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git pack-objects [-q] <base-name> < <object-list>";
+    const char *base = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) ;
+        else if (!strcmp (w, "--stdout"))
+            return git_fatal ("this build's git pack-objects writes files, "
+                              "not a stream");
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!base) base = w;
+        else return git_usage (usage);
+    }
+    if (!base) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* The ids to pack arrive on the input, one to a line; anything after
+       the id on a line is a path, which pack-objects ignores. A builtin
+       that read the input before this one leaves the end-of-file mark on
+       the stream, so clear it before reading a word of the new input. */
+    char (*ids)[41] = NULL;
+    size_t n = 0, cap = 0;
+    char line[4096];
+    clearerr (stdin);
+    while (fgets (line, sizeof line, stdin)) {
+        char *space = strpbrk (line, " \t\n\r");
+        if (space) *space = '\0';
+        if (strlen (line) != 40) continue;
+        if (n == cap) {
+            size_t next = cap ? cap * 2 : 64;
+            char (*grown)[41] = realloc (ids, next * sizeof *grown);
+            if (!grown) { free (ids); return GIT_EXIT_FATAL; }
+            ids = grown;
+            cap = next;
+        }
+        memcpy (ids[n], line, 41);
+        n++;
+    }
+
+    unsigned char *body = NULL;
+    size_t body_len = 0, body_cap = 0;
+    struct bgit_pack_idx_entry *entries = calloc (n ? n : 1, sizeof *entries);
+    if (!entries) { free (ids); return GIT_EXIT_FATAL; }
+    unsigned char header[12] = { 'P', 'A', 'C', 'K', 0, 0, 0, 2 };
+    header[8] = (unsigned char) ((n >> 24) & 0xff);
+    header[9] = (unsigned char) ((n >> 16) & 0xff);
+    header[10] = (unsigned char) ((n >> 8) & 0xff);
+    header[11] = (unsigned char) (n & 0xff);
+    int status = 0;
+    if (bgit_pack_buf_append (&body, &body_len, &body_cap, header, 12) < 0)
+        status = GIT_EXIT_FATAL;
+
+    for (size_t i = 0; i < n && !status; i++) {
+        enum bgit_type type;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (&ctx->odb, ids[i], &type, &content, &len) < 0) {
+            status = git_fatal ("cannot read %s", ids[i]);
+            break;
+        }
+        uint64_t offset = body_len;
+        unsigned char object_header[16];
+        size_t header_len = 0;
+        int packed_type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
+                        : type == BGIT_TREE ? BGIT_PACK_TREE
+                        : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
+        bgit_pack_encode_obj_header (packed_type, len, object_header, &header_len);
+        unsigned char *deflated = NULL;
+        size_t deflated_len = 0;
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, object_header,
+                                  header_len) < 0 ||
+            bgit_deflate (content, len, &deflated, &deflated_len) < 0) {
+            free (content);
+            status = GIT_EXIT_FATAL;
+            break;
+        }
+        free (content);
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, deflated,
+                                  deflated_len) < 0)
+            status = GIT_EXIT_FATAL;
+        free (deflated);
+        if (status) break;
+        bgit_hex_to_sha (ids[i], entries[i].sha);
+        entries[i].off = offset;
+        entries[i].crc = bgit_pack_crc32 (body + offset,
+                                          (size_t) (body_len - offset));
+    }
+
+    unsigned char checksum[20];
+    char checksum_hex[41] = "";
+    if (!status) {
+        bgit_sha1 (body, body_len, checksum);
+        bgit_sha_to_hex (checksum, checksum_hex);
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, checksum, 20) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    char pack_path[4096], idx_path[4096];
+    if (!status) {
+        snprintf (pack_path, sizeof pack_path, "%s-%s.pack", base, checksum_hex);
+        snprintf (idx_path, sizeof idx_path, "%s-%s.idx", base, checksum_hex);
+        FILE *out = fopen (pack_path, "w");
+        if (!out || fwrite (body, 1, body_len, out) != body_len ||
+            fclose (out) != 0)
+            status = git_fatal ("cannot write %s", pack_path);
+    }
+    if (!status && bgit_pack_write_idx_v2 (idx_path, entries, n, checksum) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status) printf ("%s\n", checksum_hex);
+    free (body);
+    free (entries);
+    free (ids);
+    return status;
+}
+
+static int
+git_cmd_index_pack (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git index-pack [-v] [-o <index-file>] <pack-file>";
+    const char *pack_path = NULL, *idx_path = NULL;
+    (void) ctx;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        /* -v asks for progress, which is for a person watching. */
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) ;
+        else if (!strcmp (w, "-o") && p->next) { idx_path = p->next->word->word; p = p->next; }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!pack_path) pack_path = w;
+        else return git_usage (usage);
+    }
+    if (!pack_path) return git_usage (usage);
+
+    size_t plen = 0;
+    unsigned char *pack = bgit_pack_slurp (pack_path, &plen);
+    if (!pack) return git_fatal ("cannot read %s: %s", pack_path,
+                                 strerror (errno));
+    struct git_pack_entry *entries = NULL;
+    size_t n = 0;
+    if (git_pack_scan (pack, plen, &entries, &n) < 0) {
+        free (pack);
+        return GIT_EXIT_FATAL;
+    }
+    if (git_pack_resolve (pack, plen, entries, n) < 0) {
+        free (entries);
+        free (pack);
+        return GIT_EXIT_FATAL;
+    }
+
+    struct bgit_pack_idx_entry *idx_entries = calloc (n ? n : 1,
+                                                      sizeof *idx_entries);
+    if (!idx_entries) {
+        free (entries);
+        free (pack);
+        return GIT_EXIT_FATAL;
+    }
+    for (size_t i = 0; i < n; i++) {
+        memcpy (idx_entries[i].sha, entries[i].sha, 20);
+        idx_entries[i].crc = entries[i].crc;
+        idx_entries[i].off = entries[i].offset;
+    }
+    char chosen[4096];
+    if (!idx_path) {
+        size_t len = strlen (pack_path);
+        if (len > 5 && !strcmp (pack_path + len - 5, ".pack"))
+            snprintf (chosen, sizeof chosen, "%.*s.idx", (int) (len - 5), pack_path);
+        else snprintf (chosen, sizeof chosen, "%s.idx", pack_path);
+        idx_path = chosen;
+    }
+    int status = bgit_pack_write_idx_v2 (idx_path, idx_entries, n,
+                                         pack + plen - 20) < 0
+                 ? GIT_EXIT_FATAL : 0;
+    if (!status) {
+        char hex[41];
+        bgit_sha_to_hex (pack + plen - 20, hex);
+        printf ("%s\n", hex);
+    }
+    free (idx_entries);
+    free (entries);
+    free (pack);
+    return status;
+}
+
+static int
+git_cmd_unpack_objects (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git unpack-objects [-q] < <pack-file>";
+    const char *pack_path = NULL;
+    int quiet = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!pack_path) pack_path = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    unsigned char *pack = NULL;
+    size_t plen = 0;
+    if (pack_path) {
+        pack = bgit_pack_slurp (pack_path, &plen);
+        if (!pack) return git_fatal ("cannot read %s: %s", pack_path,
+                                     strerror (errno));
+    } else if (bgit_slurp_fd (0, &pack, &plen) < 0)
+        return git_fatal ("cannot read the pack from the input");
+
+    struct git_pack_entry *entries = NULL;
+    size_t n = 0;
+    if (git_pack_scan (pack, plen, &entries, &n) < 0 ||
+        git_pack_resolve (pack, plen, entries, n) < 0) {
+        free (entries);
+        free (pack);
+        return GIT_EXIT_FATAL;
+    }
+    int status = 0;
+    for (size_t i = 0; i < n && !status; i++) {
+        int type = 0;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (git_pack_content (pack, plen, entries, n, entries[i].offset, &type,
+                              &content, &len, 0) < 0) {
+            status = GIT_EXIT_FATAL;
+            break;
+        }
+        char hex[41];
+        if (bgit_write_object (ctx->odb.object_dirs[0],
+                               bgit_pack_type_name (type), content, len, 1,
+                               hex) < 0)
+            status = GIT_EXIT_FATAL;
+        free (content);
+    }
+    /* Progress is for a person watching: git keeps it off a pipe. */
+    if (!status && !quiet && isatty (STDERR_FILENO))
+        fprintf (stderr, "Unpacking objects: 100%% (%zu/%zu), done.\n", n, n);
+    free (entries);
+    free (pack);
+    return status;
+}
+
+static int
+git_cmd_verify_pack (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git verify-pack [-v] [-s] <idx-file>";
+    const char *idx_path = NULL;
+    int verbose = 0, stat_only = 0;
+    (void) ctx;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "-s") || !strcmp (w, "--stat-only")) stat_only = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!idx_path) idx_path = w;
+        else return git_usage (usage);
+    }
+    if (!idx_path) return git_usage (usage);
+
+    /* The name can be the index, the pack, or neither suffix. */
+    char idx_buf[4096], pack_buf[4096];
+    size_t len = strlen (idx_path);
+    if (len > 4 && !strcmp (idx_path + len - 4, ".idx")) len -= 4;
+    else if (len > 5 && !strcmp (idx_path + len - 5, ".pack")) len -= 5;
+    snprintf (idx_buf, sizeof idx_buf, "%.*s.idx", (int) len, idx_path);
+    snprintf (pack_buf, sizeof pack_buf, "%.*s.pack", (int) len, idx_path);
+    idx_path = idx_buf;
+    const char *pack_path = pack_buf;
+
+    /* A pack that cannot be read is a failed verification, which git
+       reports with 1, not the 128 a broken invocation gets. */
+    size_t ilen = 0, plen = 0;
+    unsigned char *idx = bgit_pack_slurp (idx_path, &ilen);
+    unsigned char *pack = idx ? bgit_pack_slurp (pack_path, &plen) : NULL;
+    if (!idx || !pack) {
+        free (idx);
+        fprintf (stderr, "fatal: Cannot open existing pack file '%s'\n",
+                 idx_path);
+        return 1;
+    }
+    int status = 0;
+    if (bgit_pack_verify_idx (idx, ilen, NULL) < 0 ||
+        bgit_pack_verify_idx_crc32 (idx, ilen, pack, plen) < 0)
+        status = 1;
+
+    /* Without an option git says nothing: the status is the answer. */
+    if (!status && (verbose || stat_only)) {
+        struct git_pack_entry *entries = NULL;
+        size_t n = 0;
+        size_t *chains = NULL;
+        if (git_pack_scan (pack, plen, &entries, &n) < 0 ||
+            git_pack_resolve (pack, plen, entries, n) < 0)
+            status = 1;
+        if (!status && !(chains = calloc (n + 1, sizeof *chains)))
+            status = GIT_EXIT_FATAL;
+        for (size_t i = 0; !status && i < n; i++) {
+            /* How many deltas stand between this object and one held
+               whole: none for an object that is held whole itself. */
+            struct git_pack_entry *base = git_pack_base (entries, n, &entries[i]);
+            size_t depth = 0;
+            for (struct git_pack_entry *up = base; up;
+                 up = git_pack_base (entries, n, up))
+                depth++;
+            chains[depth]++;
+            if (!verbose) continue;
+            /* Objects are listed in the order the pack holds them, with
+               the size the pack holds — for a delta, that is the delta. */
+            char hex[41];
+            bgit_sha_to_hex (entries[i].sha, hex);
+            printf ("%s %-6s %llu %llu %llu", hex,
+                    bgit_pack_type_name (entries[i].real_type),
+                    (unsigned long long) entries[i].size,
+                    (unsigned long long) (entries[i].end - entries[i].offset),
+                    (unsigned long long) entries[i].offset);
+            if (depth) {
+                char base_hex[41];
+                bgit_sha_to_hex (base->sha, base_hex);
+                printf (" %zu %s", depth, base_hex);
+            }
+            printf ("\n");
+        }
+        if (!status) {
+            printf ("non delta: %zu object%s\n", chains[0],
+                    chains[0] == 1 ? "" : "s");
+            for (size_t d = 1; d <= n; d++)
+                if (chains[d])
+                    printf ("chain length = %zu: %zu object%s\n", d, chains[d],
+                            chains[d] == 1 ? "" : "s");
+        }
+        free (chains);
+        free (entries);
+    }
+    if (!status && verbose) printf ("%s: ok\n", pack_path);
+    free (pack);
+    free (idx);
+    return status;
+}
+
 /* ---- remotes ------------------------------------------------------------ */
 
 /* Write one setting into this repository's own configuration file. */
@@ -8029,17 +8675,18 @@ static const struct {
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
-    { "clone",        git_cmd_clone },
-    { "cherry-pick",  git_cmd_cherry_pick },
     { "checkout",     git_cmd_checkout },
+    { "cherry-pick",  git_cmd_cherry_pick },
     { "clean",        git_cmd_clean },
-    { "commit-tree",  git_cmd_commit_tree },
+    { "clone",        git_cmd_clone },
     { "commit",       git_cmd_commit },
+    { "commit-tree",  git_cmd_commit_tree },
     { "config",       git_cmd_config },
     { "diff",         git_cmd_diff },
     { "fetch",        git_cmd_fetch },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
+    { "index-pack",   git_cmd_index_pack },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
@@ -8048,6 +8695,7 @@ static const struct {
     { "merge-base",   git_cmd_merge_base },
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
+    { "pack-objects", git_cmd_pack_objects },
     { "pull",         git_cmd_pull },
     { "push",         git_cmd_push },
     { "read-tree",    git_cmd_read_tree },
@@ -8056,20 +8704,22 @@ static const struct {
     { "remote",       git_cmd_remote },
     { "reset",        git_cmd_reset },
     { "restore",      git_cmd_restore },
-    { "revert",       git_cmd_revert },
     { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
+    { "revert",       git_cmd_revert },
     { "rm",           git_cmd_rm },
     { "show",         git_cmd_show },
-    { "stash",        git_cmd_stash },
     { "show-ref",     git_cmd_show_ref },
+    { "stash",        git_cmd_stash },
     { "status",       git_cmd_status },
     { "switch",       git_cmd_switch },
-    { "tag",          git_cmd_tag },
     { "symbolic-ref", git_cmd_symbolic_ref },
+    { "tag",          git_cmd_tag },
+    { "unpack-objects", git_cmd_unpack_objects },
     { "update-index", git_cmd_update_index },
     { "update-ref",   git_cmd_update_ref },
     { "var",          git_cmd_var },
+    { "verify-pack",  git_cmd_verify_pack },
     { "worktree",     git_cmd_worktree },
     { "write-tree",   git_cmd_write_tree },
     { NULL, NULL }

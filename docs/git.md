@@ -77,9 +77,13 @@ git write-tree
 git read-tree    <tree-ish>
 git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
 git ls-tree      [-r] [-t] [-z] [--name-only] <tree-ish>
-git rev-list     [--count] [-n <number>] <commit>...
+git rev-list     [--count] [-n <number>] [--objects] [--all] <commit>...
 git var          (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)
 git check-ignore [-v] [--non-matching] [<pathname>...]
+git pack-objects [-q] <base-name> < <object-list>
+git index-pack   [-v] [-o <index-file>] <pack-file>
+git unpack-objects [-q] < <pack-file>
+git verify-pack  [-v] [-s] <idx-file>
 ```
 
 Revisions take git's suffixes: `^` and `^<n>` for a parent, `~<n>` for n
@@ -193,6 +197,19 @@ git's words for both. A URL is refused rather than half-attempted — the
 protocols are the next phase — and a clone from a packed repository writes
 the objects out loose, which is correct but larger than git's copy.
 
+Packfiles can be made, indexed, checked and taken apart again.
+`git pack-objects` reads the ids to pack from its input — `git rev-list
+--objects --all` names them — and writes `<base>-<sha>.pack` beside its
+`.idx`, each object whole: nothing is deltified, so the pack is larger
+than git's would be, but it is a pack git reads. `git index-pack` builds
+an index from a pack alone, which means resolving every delta in it, both
+the kind that names its base by offset and the kind that names it by id.
+An index is a function of its pack, so the two implementations must write
+the same index bytes for the same pack even though they would never pack
+alike, and that is what the test asks for. `git verify-pack` reads the
+pack through its index and checks it end to end, and `git unpack-objects`
+writes a pack's objects back out loose.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -264,6 +281,14 @@ memory built from file content: a four-hundred-line file changed in six
 places, a file with no trailing newline, a binary file, a path that has to
 be quoted, and every command that reads the working tree.
 
+`tests/git-packs.py` checks the pack commands against a pack real git
+made, which is the only way to reach the delta reader: this build's own
+packs carry no deltas. git repacks a history into one pack, and bash-os
+must index it to git's index byte for byte, list it the way `verify-pack
+-v` lists it — depth and base id and all — and unpack it into the same
+objects. The other direction is checked too: git must index, verify and
+unpack what `git pack-objects` writes here.
+
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
 what bash-os writes — refs, a deleted packed ref, reflog entries, a
@@ -274,9 +299,10 @@ message and changes nothing.
 ## Still to come
 
 Phase 2 is done but for submodules, and Phase 3 has started: clone, fetch,
-pull and push speak to directories, not yet to URLs. Next for them is the
-protocol — pkt-line, protocol v2, and reading a packfile with deltas — and
-after that SSH. Left over from Phase 2: stashing untracked files,
+pull and push speak to directories, not yet to URLs, and the pack
+plumbing a protocol needs — making a pack, and reading one with deltas in
+it — is in place. Next is the protocol itself, pkt-line and protocol v2,
+and after that SSH. Left over from Phase 2: stashing untracked files,
 interactive rebase, renames between the index and the working tree, and a
 merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.
