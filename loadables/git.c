@@ -124,6 +124,16 @@ typedef struct {
     int open;
 } git_context;
 
+/* A file inside the git directory, such as MERGE_HEAD, and the things done
+   with one. Written out beside git merge, which is what makes them. */
+static int git_state_file (git_context *ctx, const char *name, char *out,
+                           size_t outsz);
+/* The commit id a state file holds, if that file is there at all. */
+static int git_read_state_id (git_context *ctx, const char *name, char out[41]);
+static int git_write_state_file (git_context *ctx, const char *name,
+                                 const char *content);
+static void git_remove_state_file (git_context *ctx, const char *name);
+
 static int
 git_context_open (git_context *ctx)
 {
@@ -1941,14 +1951,12 @@ git_status_long (git_context *ctx, struct git_state *state,
     }
     if (untracked_mode < 0) untracked = 0;
 
-    /* A merge in progress is said out loud, before anything else. */
-    char merge_head[4096];
-    int merging = 0;
-    if (snprintf (merge_head, sizeof merge_head, "%s/MERGE_HEAD",
-                  ctx->repo.git_dir) < (int) sizeof merge_head) {
-        struct stat st;
-        merging = lstat (merge_head, &st) == 0;
-    }
+    /* Whatever is under way is said out loud, before anything else. */
+    char in_progress[41];
+    int merging = git_read_state_id (ctx, "MERGE_HEAD", in_progress);
+    int picking = !merging && git_read_state_id (ctx, "CHERRY_PICK_HEAD", in_progress);
+    int reverting = !merging && !picking &&
+                    git_read_state_id (ctx, "REVERT_HEAD", in_progress);
     if (merging && unmerged) {
         printf ("You have unmerged paths.\n");
         printf ("  (fix conflicts and run \"git commit\")\n");
@@ -1956,13 +1964,28 @@ git_status_long (git_context *ctx, struct git_state *state,
     } else if (merging) {
         printf ("All conflicts fixed but you are still merging.\n");
         printf ("  (use \"git commit\" to conclude merge)\n\n");
+    } else if (picking || reverting) {
+        const char *verb = picking ? "cherry-pick" : "revert";
+        char abbreviated[41];
+        git_abbrev (ctx, in_progress, 7, abbreviated, sizeof abbreviated);
+        printf ("You are currently %s commit %s.\n",
+                picking ? "cherry-picking" : "reverting", abbreviated);
+        if (unmerged)
+            printf ("  (fix conflicts and run \"git %s --continue\")\n", verb);
+        else
+            printf ("  (all conflicts fixed: run \"git %s --continue\")\n", verb);
+        printf ("  (use \"git %s --skip\" to skip this patch)\n", verb);
+        printf ("  (use \"git %s --abort\" to cancel the %s operation)\n\n",
+                verb, verb);
     }
+    /* git's hints change when a commit is being made from somewhere other
+       than the working tree: during a merge or a cherry-pick there is
+       nothing simple to unstage to. */
+    int from_commit = !merging && !picking;
 
     if (staged) {
         printf ("Changes to be committed:\n");
-        /* Mid-merge git leaves the unstage advice out: there is nothing
-           simple to unstage to. */
-        if (!merging)
+        if (from_commit)
             printf (state->have_head
                     ? "  (use \"git restore --staged <file>...\" to unstage)\n"
                     : "  (use \"git rm --cached <file>...\" to unstage)\n");
@@ -1977,6 +2000,10 @@ git_status_long (git_context *ctx, struct git_state *state,
     }
     if (unmerged) {
         printf ("Unmerged paths:\n");
+        if (from_commit)
+            printf (state->have_head
+                    ? "  (use \"git restore --staged <file>...\" to unstage)\n"
+                    : "  (use \"git rm --cached <file>...\" to unstage)\n");
         printf ("  (use \"git add <file>...\" to mark resolution)\n");
         for (size_t i = 0; i < n; i++) {
             if (!entries[i].unmerged) continue;
@@ -2139,14 +2166,6 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     git_state_release (&state);
     return 0;
 }
-
-/* A file inside the git directory, such as MERGE_HEAD, and the two things
-   done with one. Written out beside git merge, which is what makes them. */
-static int git_state_file (git_context *ctx, const char *name, char *out,
-                           size_t outsz);
-static int git_write_state_file (git_context *ctx, const char *name,
-                                 const char *content);
-static void git_remove_state_file (git_context *ctx, const char *name);
 
 /* How a set of changed paths is shown: as a patch, a stat, or just names.
    commit, log, show and diff all take these, so the shape is declared before
@@ -4147,6 +4166,26 @@ git_remove_state_file (git_context *ctx, const char *name)
     if (git_state_file (ctx, name, path, sizeof path) == 0) unlink (path);
 }
 
+static int
+git_read_state_id (git_context *ctx, const char *name, char out[41])
+{
+    char path[4096];
+    struct stat st;
+    if (git_state_file (ctx, name, path, sizeof path) < 0 ||
+        lstat (path, &st) < 0)
+        return 0;
+    unsigned char *content = NULL;
+    size_t len = 0;
+    if (bgit_slurp_file (path, &content, &len) < 0) return 0;
+    int ok = len >= 40;
+    if (ok) {
+        memcpy (out, content, 40);
+        out[40] = '\0';
+    }
+    free (content);
+    return ok;
+}
+
 /* The name a merge records for what was merged, as git words it. */
 static void
 git_merge_label (git_context *ctx, const char *name, const char *id,
@@ -4641,6 +4680,461 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     bgit_merge_paths_free (paths, n_paths);
     git_state_release (&state);
     return status;
+}
+
+/* ---- cherry-pick and revert -------------------------------------------- */
+
+/* The summary a picked or reverted commit prints: where it landed, who
+   wrote it and when, then what it changed. */
+static void
+git_pick_summary (git_context *ctx, const struct git_state *state,
+                  const char *commit, const char *subject, const char *author,
+                  const char *committer, const char *author_date,
+                  const char *old_tree, const char *new_tree)
+{
+    char abbreviated[41];
+    git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+    const char *branch = state->branch && !strncmp (state->branch, "refs/heads/", 11)
+                         ? state->branch + 11 : NULL;
+    printf ("[%s %s] %s\n", branch ? branch : "detached HEAD", abbreviated,
+            subject);
+    char author_who[1024], committer_who[1024];
+    git_ident_who (author, author_who, sizeof author_who);
+    git_ident_who (committer, committer_who, sizeof committer_who);
+    if (strcmp (author_who, committer_who))
+        printf (" Author: %s\n", author_who);
+    char shown[128];
+    git_format_date (author_date, 0, shown, sizeof shown);
+    printf (" Date: %s\n", shown);
+
+    struct git_diff_format format;
+    git_diff_format_init (&format);
+    format.shortstat = 1;
+    format.summary = 1;
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_diff_trees (&ctx->odb, old_tree, new_tree, &entries, &n) == 0) {
+        git_diff_emit (ctx, stdout, &format, entries, n, 0, "");
+        bgit_diff_free (entries, n);
+    }
+}
+
+/* Write the commit a pick or a revert makes, move the branch, and say so. */
+static int
+git_pick_commit (git_context *ctx, struct git_state *state, const char *tree,
+                 const char *message, const char *author, const char *subject,
+                 int reverting, int quiet)
+{
+    char committer[1024];
+    if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+        return git_fatal ("cannot determine the identity to use");
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) return GIT_EXIT_FATAL;
+    fprintf (builder, "tree %s\n", tree);
+    fprintf (builder, "parent %s\n", state->head);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    fprintf (builder, "\n%s", message);
+    if (!*message || message[strlen (message) - 1] != '\n')
+        fprintf (builder, "\n");
+    fclose (builder);
+
+    char commit[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1, commit);
+    free (body);
+    if (rc < 0) return GIT_EXIT_FATAL;
+
+    char reflog[1200];
+    snprintf (reflog, sizeof reflog, "%s: %s",
+              reverting ? "revert" : "cherry-pick", subject);
+    const char *ref = state->branch ? state->branch : "HEAD";
+    char old_tree[41];
+    memcpy (old_tree, state->head_tree, 41);
+    if (bgit_ref_update (&ctx->repo, ref, commit, state->head, reflog) < 0)
+        return GIT_EXIT_FATAL;
+    if (state->branch)
+        bgit_reflog_append (&ctx->repo, "HEAD", state->head, commit, reflog);
+    if (!quiet) {
+        /* The date the summary shows is the author's, which a pick keeps. */
+        const char *date = strrchr (author, '>');
+        git_pick_summary (ctx, state, commit, subject, author, committer,
+                          date ? date + 2 : "", old_tree, tree);
+    }
+    return 0;
+}
+
+/* cherry-pick and revert are the same operation with the sides swapped:
+   both take the change one commit made against its parent and merge it
+   into HEAD, one forwards and one backwards. */
+static int
+git_cmd_pick (git_context *ctx, WORD_LIST *args, int reverting)
+{
+    const char *usage = reverting
+        ? "git revert [--no-edit] [-n] <commit> | --continue | --abort"
+        : "git cherry-pick [-n] <commit> | --continue | --abort";
+    const char *name = NULL;
+    int abort_it = 0, continue_it = 0, no_commit = 0, quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--abort")) abort_it = 1;
+        else if (!strcmp (w, "--continue")) continue_it = 1;
+        else if (!strcmp (w, "-n") || !strcmp (w, "--no-commit")) no_commit = 1;
+        else if (!strcmp (w, "--no-edit")) ;      /* nothing here edits */
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else return git_fatal ("this build's git %s takes one commit",
+                               reverting ? "revert" : "cherry-pick");
+    }
+    if (!name && !abort_it && !continue_it) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    const char *head_file = reverting ? "REVERT_HEAD" : "CHERRY_PICK_HEAD";
+    const char *verb = reverting ? "revert" : "cherry-pick";
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    char pending[41];
+    int in_progress = git_read_state_id (ctx, head_file, pending);
+    int status = 0;
+
+    if (abort_it) {
+        if (!in_progress) {
+            git_state_release (&state);
+            return git_fatal ("no %s in progress", verb);
+        }
+        if (bgit_checkout_tree (&ctx->repo, &ctx->odb, state.head_tree,
+                                &state.index, &state.n_index, 1, NULL) < 0 ||
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status) {
+            char reflog[1200];
+            snprintf (reflog, sizeof reflog, "reset: moving to %s", state.head);
+            bgit_reflog_append (&ctx->repo, "HEAD", state.head, state.head, reflog);
+        }
+        git_remove_state_file (ctx, head_file);
+        git_remove_state_file (ctx, "MERGE_MSG");
+        git_state_release (&state);
+        return status;
+    }
+
+    if (continue_it) {
+        if (!in_progress) {
+            git_state_release (&state);
+            return git_fatal ("no %s in progress", verb);
+        }
+        for (size_t i = 0; i < state.n_index; i++)
+            if ((state.index[i].flags >> 12) & 3) {
+                git_state_release (&state);
+                fflush (stdout);
+                fprintf (stderr, "error: Committing is not possible because "
+                                 "you have unmerged files.\n");
+                fprintf (stderr, "fatal: Exiting because of an unresolved "
+                                 "conflict.\n");
+                return 1;
+            }
+        struct git_commit picked;
+        if (git_commit_read (ctx, pending, &picked) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        char tree[41];
+        if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                             state.n_index, tree) < 0) {
+            git_commit_release (&picked);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        /* The message was left in MERGE_MSG when the pick stopped. */
+        char message_path[4096];
+        unsigned char *message = NULL;
+        size_t message_len = 0;
+        if (git_state_file (ctx, "MERGE_MSG", message_path,
+                            sizeof message_path) < 0 ||
+            bgit_slurp_file (message_path, &message, &message_len) < 0) {
+            git_commit_release (&picked);
+            git_state_release (&state);
+            return git_fatal ("cannot read the message left by the %s", verb);
+        }
+        char author[1024];
+        if (reverting) {
+            if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0) {
+                free (message);
+                git_commit_release (&picked);
+                git_state_release (&state);
+                return git_fatal ("cannot determine the identity to use");
+            }
+        } else {
+            snprintf (author, sizeof author, "%s <%s> %s", picked.author_name,
+                      picked.author_email, picked.author_date);
+        }
+        char subject[1024];
+        const char *nl = memchr (message, '\n', message_len);
+        size_t take = nl ? (size_t) (nl - (const char *) message) : message_len;
+        if (take >= sizeof subject) take = sizeof subject - 1;
+        memcpy (subject, message, take);
+        subject[take] = '\0';
+
+        /* The reflog of a concluded pick says the commit concluded it. */
+        char reflog[1200];
+        snprintf (reflog, sizeof reflog, "commit (%s): %s", verb, subject);
+        char committer[1024];
+        char *body = NULL;
+        size_t body_len = 0;
+        FILE *builder = NULL;
+        if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) == 0 &&
+            (builder = open_memstream (&body, &body_len)) != NULL) {
+            fprintf (builder, "tree %s\n", tree);
+            fprintf (builder, "parent %s\n", state.head);
+            fprintf (builder, "author %s\n", author);
+            fprintf (builder, "committer %s\n", committer);
+            fprintf (builder, "\n%.*s", (int) message_len, (const char *) message);
+            fclose (builder);
+        }
+        free (message);
+        char commit[41];
+        if (!body || bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                        (const unsigned char *) body, body_len,
+                                        1, commit) < 0) {
+            free (body);
+            git_commit_release (&picked);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        free (body);
+        const char *ref = state.branch ? state.branch : "HEAD";
+        char old_tree[41];
+        memcpy (old_tree, state.head_tree, 41);
+        if (bgit_ref_update (&ctx->repo, ref, commit, state.head, reflog) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status && state.branch)
+            bgit_reflog_append (&ctx->repo, "HEAD", state.head, commit, reflog);
+        if (!status && !quiet) {
+            const char *date = strrchr (author, '>');
+            git_pick_summary (ctx, &state, commit, subject, author, committer,
+                              date ? date + 2 : "", old_tree, tree);
+        }
+        git_remove_state_file (ctx, head_file);
+        git_remove_state_file (ctx, "MERGE_MSG");
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return status;
+    }
+
+    if (in_progress) {
+        git_state_release (&state);
+        return git_fatal ("a %s is already in progress", verb);
+    }
+    if (!state.have_head) {
+        git_state_release (&state);
+        return git_fatal ("cannot %s onto an empty history", verb);
+    }
+    for (size_t i = 0; i < state.n_index; i++)
+        if ((state.index[i].flags >> 12) & 3) {
+            git_state_release (&state);
+            return git_fatal ("cannot %s: your index contains unmerged files",
+                              verb);
+        }
+
+    char id[41], target[41];
+    if (git_resolve (ctx, name, id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, target) < 0) {
+        git_state_release (&state);
+        return git_fatal_ambiguous (name);
+    }
+    struct git_commit picked;
+    if (git_commit_read (ctx, target, &picked) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (!picked.n_parents) {
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return git_fatal ("commit %s is a root commit", target);
+    }
+    if (picked.n_parents > 1) {
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return git_fatal ("commit %s is a merge but no -m option was given",
+                          target);
+    }
+    char parent_tree[41];
+    if (bgit_commit_tree (&ctx->odb, picked.parents[0], parent_tree) < 0) {
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    char subject[1024];
+    git_subject (&picked, subject, sizeof subject);
+    char abbreviated[41];
+    git_abbrev (ctx, target, 7, abbreviated, sizeof abbreviated);
+
+    /* Forwards, the commit's own tree is what is wanted; backwards, its
+       parent's is, and the commit itself becomes the base. */
+    const char *base_tree = reverting ? picked.tree : parent_tree;
+    const char *their_tree = reverting ? parent_tree : picked.tree;
+    char their_label[1200];
+    if (reverting)
+        snprintf (their_label, sizeof their_label, "parent of %s (%s)",
+                  abbreviated, subject);
+    else
+        snprintf (their_label, sizeof their_label, "%s (%s)", abbreviated,
+                  subject);
+
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    if (bgit_merge_trees (&ctx->odb, ctx->odb.object_dirs[0], base_tree,
+                          state.head_tree, their_tree, "HEAD", their_label,
+                          &paths, &n_paths) < 0) {
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (git_merge_safe (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    int conflicts = 0;
+    for (size_t i = 0; i < n_paths; i++) {
+        const bgit_merge_path *path = &paths[i];
+        if (path->kind == BGIT_MERGE_AUTO || path->kind == BGIT_MERGE_CONTENT ||
+            path->kind == BGIT_MERGE_ADD_ADD)
+            printf ("Auto-merging %s\n", path->path);
+        switch (path->kind) {
+        case BGIT_MERGE_CONTENT:
+            conflicts++;
+            printf ("CONFLICT (content): Merge conflict in %s\n", path->path);
+            break;
+        case BGIT_MERGE_ADD_ADD:
+            conflicts++;
+            printf ("CONFLICT (add/add): Merge conflict in %s\n", path->path);
+            break;
+        case BGIT_MERGE_MODIFY_DELETE:
+            conflicts++;
+            printf ("CONFLICT (modify/delete): %s deleted in %s and modified "
+                    "in %s.  Version %s of %s left in tree.\n", path->path,
+                    path->deleted_in_ours ? "HEAD" : their_label,
+                    path->deleted_in_ours ? their_label : "HEAD",
+                    path->deleted_in_ours ? their_label : "HEAD", path->path);
+            break;
+        default:
+            break;
+        }
+    }
+    if (git_merge_apply (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    /* The message the commit will carry, whichever way this went. */
+    char *message = NULL;
+    size_t message_len = 0;
+    FILE *builder = open_memstream (&message, &message_len);
+    if (!builder) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (reverting)
+        fprintf (builder, "Revert \"%s\"\n\nThis reverts commit %s.\n", subject,
+                 target);
+    else
+        fprintf (builder, "%s", picked.message);
+    fclose (builder);
+    char new_subject[1024];
+    if (reverting) snprintf (new_subject, sizeof new_subject, "Revert \"%s\"",
+                             subject);
+    else snprintf (new_subject, sizeof new_subject, "%s", subject);
+
+    if (conflicts) {
+        char content[128];
+        snprintf (content, sizeof content, "%s\n", target);
+        git_write_state_file (ctx, head_file, content);
+        git_write_state_file (ctx, "MERGE_MSG", message);
+        free (message);
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        fflush (stdout);
+        /* git says "apply" when picking and "revert" when reverting. */
+        fprintf (stderr, "error: could not %s %s... %s\n",
+                 reverting ? "revert" : "apply", abbreviated, subject);
+        fprintf (stderr, "hint: After resolving the conflicts, mark them with\n");
+        fprintf (stderr, "hint: \"git add/rm <pathspec>\", then run\n");
+        fprintf (stderr, "hint: \"git %s --continue\".\n", verb);
+        fprintf (stderr, "hint: You can instead skip this commit with "
+                         "\"git %s --skip\".\n", verb);
+        fprintf (stderr, "hint: To abort and get back to the state before "
+                         "\"git %s\",\n", verb);
+        fprintf (stderr, "hint: run \"git %s --abort\".\n", verb);
+        return 1;
+    }
+
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                         state.n_index, tree) < 0) {
+        free (message);
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (no_commit) {
+        char content[128];
+        snprintf (content, sizeof content, "%s\n", target);
+        git_write_state_file (ctx, head_file, content);
+        git_write_state_file (ctx, "MERGE_MSG", message);
+        free (message);
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        git_state_release (&state);
+        return 0;
+    }
+
+    char author[1024];
+    if (reverting) {
+        if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0) {
+            free (message);
+            bgit_merge_paths_free (paths, n_paths);
+            git_commit_release (&picked);
+            git_state_release (&state);
+            return git_fatal ("cannot determine the identity to use");
+        }
+    } else {
+        snprintf (author, sizeof author, "%s <%s> %s", picked.author_name,
+                  picked.author_email, picked.author_date);
+    }
+    status = git_pick_commit (ctx, &state, tree, message, author, new_subject,
+                              reverting, quiet);
+    free (message);
+    bgit_merge_paths_free (paths, n_paths);
+    git_commit_release (&picked);
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_cherry_pick (git_context *ctx, WORD_LIST *args)
+{
+    return git_cmd_pick (ctx, args, 0);
+}
+
+static int
+git_cmd_revert (git_context *ctx, WORD_LIST *args)
+{
+    return git_cmd_pick (ctx, args, 1);
 }
 
 /* ---- merge-file -------------------------------------------------------- */
@@ -5229,6 +5723,7 @@ static const struct {
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
+    { "cherry-pick",  git_cmd_cherry_pick },
     { "checkout",     git_cmd_checkout },
     { "clean",        git_cmd_clean },
     { "commit-tree",  git_cmd_commit_tree },
@@ -5249,6 +5744,7 @@ static const struct {
     { "reflog",       git_cmd_reflog },
     { "reset",        git_cmd_reset },
     { "restore",      git_cmd_restore },
+    { "revert",       git_cmd_revert },
     { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
     { "rm",           git_cmd_rm },

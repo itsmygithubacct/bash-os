@@ -41,6 +41,8 @@ git merge-base   [--all] <commit> <commit>... | --is-ancestor <a> <b>
 git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
                  <commit> | --abort
+git cherry-pick  [-n] <commit> | --continue | --abort
+git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
@@ -127,6 +129,14 @@ stages 1, 2 and 3, and `MERGE_HEAD` behind; `git status` then reports the
 unmerged paths, `git add` settles one, `git commit` concludes the merge
 with two parents, and `git merge --abort` puts everything back.
 
+`git cherry-pick` and `git revert` are the same operation with the sides
+swapped: both take what one commit changed against its parent and merge it
+into HEAD, one forwards and one backwards. A pick keeps the original
+author and message; a revert writes `Revert "<subject>"` and says which
+commit it undoes. Either can conflict, and then leaves `CHERRY_PICK_HEAD`
+or `REVERT_HEAD` behind for `--continue` or `--abort`, with `git status`
+saying which is under way.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -201,7 +211,7 @@ message and changes nothing.
 
 ## Still to come
 
-Merging is in. The rest of Phase 2 is cherry-pick, revert, rebase, stash,
-worktrees, submodules and rename detection, and then a merge with more
-than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Merging, cherry-pick and revert are in. The rest of Phase 2 is rebase,
+stash, worktrees, submodules and rename detection, and then a merge with
+more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

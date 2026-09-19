@@ -159,6 +159,35 @@ git merge conflict-left
 git log --oneline -3
 git merge --abort 2>/dev/null || true
 
+# Taking one commit onto another branch, and taking one back out.
+git switch -q -c picker merge-base-branch
+printf 'picked one\npicked two\n' > picked.txt
+git add picked.txt
+git commit -q -m 'a commit worth picking'
+git switch -q merge-base-branch
+git cherry-pick picker
+git log --oneline -2
+git revert --no-edit HEAD
+git log --oneline -2
+git switch -q -c picker-conflict merge-base-branch
+printf 'left\n' > contested.txt
+git add contested.txt
+git commit -q -m 'left writes contested.txt'
+git switch -q merge-base-branch
+printf 'right\n' > contested.txt
+git add contested.txt
+git commit -q -m 'right writes contested.txt'
+git cherry-pick picker-conflict 2>/dev/null || true
+git status
+git status --short
+printf 'settled\n' > contested.txt
+git add contested.txt
+git cherry-pick --continue
+git log --oneline -2
+git cherry-pick picker-conflict 2>/dev/null || true
+git cherry-pick --abort
+git status --short
+
 git fsck 2>/dev/null || true
 SCENARIO
 
