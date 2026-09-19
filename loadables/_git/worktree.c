@@ -326,6 +326,14 @@ bgit_status_cmp (const void *a, const void *b)
     return strcmp (left->path, right->path);
 }
 
+/* A symlink, a file and a submodule are different kinds of thing: a path
+   that changed from one to another is a typechange, not a modification. */
+static int
+bgit_status_kind (uint32_t mode)
+{
+    return mode == 0120000 ? 1 : mode == 0160000 ? 2 : 0;
+}
+
 int
 bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
              const bgit_index_entry *index, size_t n_index,
@@ -354,8 +362,10 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
         }
         entry->index_mode = staged->mode;
         bgit_sha_to_hex (staged->sha, entry->index_sha);
-        if (memcmp (head[i].sha, staged->sha, 20) != 0 ||
-            head[i].mode != staged->mode)
+        if (bgit_status_kind (head[i].mode) != bgit_status_kind (staged->mode))
+            entry->staged = 'T';        /* a file where a symlink was, or back */
+        else if (memcmp (head[i].sha, staged->sha, 20) != 0 ||
+                 head[i].mode != staged->mode)
             entry->staged = 'M';
     }
     for (size_t j = 0; j < n_index; j++) {
@@ -388,8 +398,10 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
         } else if (!bgit_worktree_matches (odb, full, &index[j], &st)) {
             entry = bgit_status_at (&build, index[j].path);
             if (!entry) goto oom;
-            entry->unstaged = 'M';
             entry->worktree_mode = bgit_worktree_mode (&st);
+            entry->unstaged = bgit_status_kind (index[j].mode) !=
+                              bgit_status_kind (entry->worktree_mode)
+                              ? 'T' : 'M';
         } else {
             continue;
         }

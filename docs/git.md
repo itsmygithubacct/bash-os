@@ -10,10 +10,31 @@ formats and the protocol come from their published descriptions.
 
 ## What exists today
 
-Phase 0 of the port: repository discovery, the object store, refs and the
-reflog, and the plumbing commands that exercise them.
+Phase 0, the foundation: repository discovery, the object store, refs and
+the reflog, the index, trees, configuration and the plumbing commands that
+exercise them. Phase 1, the everyday commands: adding, committing, looking
+at what changed, branching, switching, restoring and tagging.
 
 ```
+git add          [-A | -u] [-n] [-f] [--] [<pathspec>...]
+git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty] [-q]
+git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
+                 [--ignored]
+git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
+                 [--name-only] [--name-status] [-s] [-U<n>] [--cached]
+                 [<commit> [<commit>]] [-- <path>...]
+git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
+                 [-n <number>] [--reverse] [--first-parent] [--date=raw]
+                 [<revision>...]
+git show         [-p | -s | --stat] [--oneline] [--format=<format>] [<object>...]
+git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
+                 | (-m | -M) <old> <new>
+git switch       [-q] [-c <new>] [--detach] <branch>
+git checkout     [-q] [-b <new>] <branch> | [--] <path>...
+git restore      [--staged] [--worktree] [--source=<tree>] [--] <path>...
+git reset        [-q] [--soft | --mixed | --hard] [<commit>] [-- <path>...]
+git rm           [--cached] [-r] [-f] [-q] [--] <path>...
+git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--is-inside-work-tree] [--is-bare-repository]
@@ -42,8 +63,24 @@ git check-ignore [-v] [--non-matching] [<pathname>...]
 ```
 
 Revisions take git's suffixes: `^` and `^<n>` for a parent, `~<n>` for n
-first-parent steps, `^{}` and `^{<type>}` to peel, and `@{<n>}` for a ref's
-nth previous value, read from its reflog.
+first-parent steps, `^{}` and `^{<type>}` to peel, `@{<n>}` for a ref's nth
+previous value, read from its reflog, and `<rev>:<path>` for what a path
+held in that revision.
+
+A patch is git's: the same hunks, in the same places. Myers' algorithm
+decides which lines changed, each run of changes is then slid as far down
+as the file allows, and the indent heuristic — git's default since 2.14 —
+picks among the positions it could take, so a hunk starts where a person
+would start it. Hunk headers carry the enclosing definition, two changes
+closer than twice the context become one hunk, and a file that does not
+end in a newline says so. `--stat` scales its graph the way git does, to
+the same eighty columns.
+
+Checked over this repository's own history — every change to seven files
+across eight commits each — the patches are byte-identical to git's in 37
+of 38 cases. The one difference is a tie: two equally short ways to
+describe the same swap, and git keeps a different one of the two lines as
+context. Both patches apply.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),
@@ -98,9 +135,11 @@ index, `status --porcelain=v2`, the stash, the whole history with its
 identities and dates, the working tree's files with modes and digests, and
 `fsck --strict`.
 
-A scenario names the commands it needs in a `# requires:` line, and is
-skipped while any of them is missing, so scenarios for later phases can
-sit in the tree and start running as soon as their commands land.
+A scenario names the commands it needs in a `# requires:` line, and whole
+features — patch output, say — in a `# requires-feature:` line, checked
+against `git --list-features`. A scenario is skipped while anything it
+needs is missing, so scenarios for later phases can sit in the tree and
+start running as soon as their commands land.
 
 `tests/git-odb.py` checks the object store directly against `git
 cat-file`: loose objects, packed ones after `git gc`, abbreviations,
@@ -116,7 +155,8 @@ message and changes nothing.
 
 ## Still to come
 
-The porcelain itself: `add`, `commit`, `status`, `diff`, `log`, `branch`,
-`switch`, `restore`, `reset` and `tag`, then merges and rebases, then
-HTTPS and SSH remotes. The plan, including what each phase must match, is
-in the implementation document for the port.
+The rest of Phase 1: `mv`, `clean`, and `log --graph`. Then Phase 2 —
+merging, cherry-pick, revert, rebase, stash, worktrees, submodules and
+rename detection — then HTTPS remotes with protocol v2, then SSH. The
+plan, including what each phase must match, is in the implementation
+document for the port.

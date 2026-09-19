@@ -21,6 +21,27 @@
 #include "refs.h"
 #include "repo.h"
 #include "revision.h"
+#include "tree.h"
+
+/* One step of `<rev>:<path>`: the entry in a tree with exactly that path. */
+struct bgit_rev_path_ctx {
+    const char *want;
+    char *out;
+    int found;
+};
+
+static int
+bgit_rev_path_visit (void *context, const char *mode, const char *type,
+                     const char *sha, const char *path)
+{
+    (void) mode;
+    (void) type;
+    struct bgit_rev_path_ctx *ctx = context;
+    if (strcmp (path, ctx->want)) return 0;
+    memcpy (ctx->out, sha, 41);
+    ctx->found = 1;
+    return 1;
+}
 
 int
 bgit_commit_parents (bgit_odb *odb, const char *sha, char parents[][41], int max)
@@ -232,6 +253,26 @@ bgit_rev_parse (const bgit_repo *repo, bgit_odb *odb, const char *spec,
 {
     if (symref) *symref = NULL;
     if (!spec || !*spec) return -1;
+
+    /* `<rev>:<path>` names what a path held in that revision. A leading
+       colon would name the index instead, which is not read here. */
+    const char *colon = strchr (spec, ':');
+    if (colon == spec) return -1;
+    if (colon) {
+        char rev[4096];
+        size_t len = (size_t) (colon - spec);
+        if (len >= sizeof rev) return -1;
+        memcpy (rev, spec, len);
+        rev[len] = '\0';
+        char id[41], tree[41];
+        if (bgit_rev_parse (repo, odb, rev, id, NULL) < 0 ||
+            bgit_peel_to_type (odb, id, BGIT_TREE, tree) < 0)
+            return -1;
+        if (!colon[1]) { memcpy (out, tree, 41); return 0; }
+        struct bgit_rev_path_ctx ctx = { colon + 1, out, 0 };
+        bgit_tree_walk (odb, tree, "", 1, 1, bgit_rev_path_visit, &ctx);
+        return ctx.found ? 0 : -1;
+    }
 
     /* Split the base from its suffixes. Ref names cannot hold ^ or ~, and a
        @{ only starts a suffix, so the first of those ends the base. */

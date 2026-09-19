@@ -9,6 +9,7 @@
  *   <rev>^{}        a tag peeled to what it points at
  *   <rev>^{<type>}  peeled to that type: commit, tree, blob or tag
  *   <rev>@{<n>}     the nth previous value of that ref, from its reflog
+ *   <rev>:<path>    what that path held in that revision; <rev>: its tree
  *
  * Suffixes chain, left to right, as git applies them.
  *

@@ -50,6 +50,7 @@
 #include "_git_ignore.h"
 #include "_git_index.h"
 #include "_git_odb.h"
+#include "_git_patch.h"
 #include "_git_refs.h"
 #include "_git_repo.h"
 #include "_git_revision.h"
@@ -74,6 +75,16 @@ git_fatal (const char *format, ...)
     va_end (args);
     fputc ('\n', stderr);
     return GIT_EXIT_FATAL;
+}
+
+/* `-5` means the last five commits, so a count has to be told from a flag. */
+static int
+git_all_digits (const char *word)
+{
+    if (!*word) return 0;
+    for (const char *p = word; *p; p++)
+        if (*p < '0' || *p > '9') return 0;
+    return 1;
 }
 
 static int
@@ -1457,6 +1468,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (!strcmp (w, "--count")) count_only = 1;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
+        else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
         else return git_fatal ("too many revisions");
@@ -1778,6 +1790,113 @@ git_status_letters (const bgit_status_entry *entry, char *x, char *y, char blank
     *y = entry->unstaged ? (char) entry->unstaged : blank;
 }
 
+/* The words git puts in front of a path in the long format, in a column
+   as wide as the longest of them. */
+static const char *
+git_status_label (int code)
+{
+    switch (code) {
+    case 'A': return "new file:";
+    case 'C': return "copied:";
+    case 'D': return "deleted:";
+    case 'M': return "modified:";
+    case 'R': return "renamed:";
+    case 'T': return "typechange:";
+    default:  return "unknown:";
+    }
+}
+
+/* `git status` with no format option: the report written for a person.
+   Sections in git's order, each followed by a blank line, and the closing
+   sentence that says what, if anything, is there to commit. */
+static void
+git_status_long (git_context *ctx, struct git_state *state,
+                 const bgit_status_entry *entries, size_t n,
+                 const char *branch_name, int untracked_mode, int want_ignored)
+{
+    char quoted[8192];
+    if (branch_name) printf ("On branch %s\n", branch_name);
+    else if (state->have_head) {
+        char abbreviated[41];
+        git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
+        printf ("HEAD detached at %s\n", abbreviated);
+    } else printf ("Unborn HEAD\n");
+    if (!state->have_head) printf ("\nNo commits yet\n\n");
+
+    int staged = 0, unstaged = 0, deleted = 0, untracked = 0, ignored = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (entries[i].ignored) ignored = 1;
+        else if (entries[i].untracked) untracked = 1;
+        else {
+            if (entries[i].staged) staged = 1;
+            if (entries[i].unstaged) unstaged = 1;
+            if (entries[i].unstaged == 'D') deleted = 1;
+        }
+    }
+    if (untracked_mode < 0) untracked = 0;
+
+    if (staged) {
+        printf ("Changes to be committed:\n");
+        printf (state->have_head
+                ? "  (use \"git restore --staged <file>...\" to unstage)\n"
+                : "  (use \"git rm --cached <file>...\" to unstage)\n");
+        for (size_t i = 0; i < n; i++) {
+            if (entries[i].untracked || entries[i].ignored || !entries[i].staged)
+                continue;
+            printf ("\t%-12s%s\n", git_status_label (entries[i].staged),
+                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+        }
+        printf ("\n");
+    }
+    if (unstaged) {
+        printf ("Changes not staged for commit:\n");
+        printf (deleted
+                ? "  (use \"git add/rm <file>...\" to update what will be committed)\n"
+                : "  (use \"git add <file>...\" to update what will be committed)\n");
+        printf ("  (use \"git restore <file>...\" to discard changes in working directory)\n");
+        for (size_t i = 0; i < n; i++) {
+            if (entries[i].untracked || entries[i].ignored || !entries[i].unstaged)
+                continue;
+            printf ("\t%-12s%s\n", git_status_label (entries[i].unstaged),
+                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+        }
+        printf ("\n");
+    }
+    if (untracked) {
+        printf ("Untracked files:\n");
+        printf ("  (use \"git add <file>...\" to include in what will be committed)\n");
+        for (size_t i = 0; i < n; i++)
+            if (entries[i].untracked)
+                printf ("\t%s\n",
+                        bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+        printf ("\n");
+    }
+    if (want_ignored && ignored) {
+        printf ("Ignored files:\n");
+        printf ("  (use \"git add -f <file>...\" to include in what will be committed)\n");
+        for (size_t i = 0; i < n; i++)
+            if (entries[i].ignored)
+                printf ("\t%s\n",
+                        bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+        printf ("\n");
+    }
+
+    if (staged) return;
+    if (unstaged)
+        printf ("no changes added to commit "
+                "(use \"git add\" and/or \"git commit -a\")\n");
+    else if (untracked)
+        printf ("nothing added to commit but untracked files present "
+                "(use \"git add\" to track)\n");
+    else if (!state->have_head)
+        printf ("nothing to commit (create/copy files and use \"git add\" "
+                "to track)\n");
+    else if (untracked_mode < 0)
+        printf ("nothing to commit (use -u to show untracked files)\n");
+    else
+        printf ("nothing to commit, working tree clean\n");
+}
+
 static int
 git_cmd_status (git_context *ctx, WORD_LIST *args)
 {
@@ -1800,9 +1919,6 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-uno") || !strcmp (w, "--untracked-files=no")) untracked_all = -1;
         else return git_usage (usage);
     }
-    if (!short_format && !porcelain)
-        return git_fatal ("this build's git status needs --short or "
-                          "--porcelain; the long format is not written yet");
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
@@ -1821,6 +1937,13 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     const char *branch_name = state.branch;
     if (branch_name && !strncmp (branch_name, "refs/heads/", 11))
         branch_name += 11;
+    if (!short_format && !porcelain) {
+        git_status_long (ctx, &state, entries, n, branch_name,
+                         untracked_all, want_ignored);
+        bgit_status_free (entries, n);
+        git_state_release (&state);
+        return 0;
+    }
     if (branch && version == 2 && porcelain) {
         printf ("# branch.oid %s\n", state.have_head ? state.head : "(initial)");
         printf ("# branch.head %s\n", branch_name ? branch_name : "(detached)");
@@ -1865,7 +1988,32 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* How a set of changed paths is shown: as a patch, a stat, or just names.
+   commit, log, show and diff all take these, so the shape is declared before
+   the first of them; the code is written out below, beside git diff. */
+struct git_diff_format {
+    int patch, stat, numstat, shortstat, summary, name_only, name_status;
+    int no_patch;
+    int context;
+};
+
+static void git_diff_format_init (struct git_diff_format *format);
+static int git_diff_format_option (struct git_diff_format *format,
+                                   const char *word);
+static int git_diff_emit (git_context *ctx, const struct git_diff_format *format,
+                          const bgit_diff_entry *entries, size_t n,
+                          int new_from_worktree, const char *line_prefix);
+
 /* ---- commit ------------------------------------------------------------ */
+
+/* "Name <email> 1750000000 +0000" cut down to "Name <email>". */
+static void
+git_ident_who (const char *ident, char *out, size_t outsz)
+{
+    snprintf (out, outsz, "%s", ident);
+    char *close = strrchr (out, '>');
+    if (close) close[1] = '\0';
+}
 
 static int
 git_cmd_commit (git_context *ctx, WORD_LIST *args)
@@ -1899,10 +2047,6 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     if (!n_messages && !message_file)
         return git_fatal ("this build's git commit needs -m or -F; it has no "
                           "editor support yet");
-    if (!quiet)
-        return git_fatal ("this build's git commit needs -q; the summary it "
-                          "prints needs the diff machinery, which is not "
-                          "written yet");
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     struct git_state state;
@@ -2039,6 +2183,37 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     if (!status && state.branch)
         bgit_reflog_append (&ctx->repo, "HEAD", state.have_head ? state.head : NULL,
                             commit, reflog);
+
+    /* The summary git prints: where the commit landed, then what it did. */
+    if (!status && !quiet) {
+        char abbreviated[41];
+        git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+        const char *branch = state.branch &&
+                             !strncmp (state.branch, "refs/heads/", 11)
+                             ? state.branch + 11 : NULL;
+        printf ("[%s%s %s] %s\n", branch ? branch : "detached HEAD",
+                state.have_head ? "" : " (root-commit)", abbreviated, subject);
+        char author_who[1024], committer_who[1024];
+        git_ident_who (author, author_who, sizeof author_who);
+        git_ident_who (committer, committer_who, sizeof committer_who);
+        if (strcmp (author_who, committer_who))
+            printf (" Author: %s\n", author_who);
+
+        struct git_diff_format format;
+        git_diff_format_init (&format);
+        format.shortstat = 1;
+        format.summary = 1;
+        char parent_tree[41] = "";
+        int have_parent = n_parents > 0 &&
+                          bgit_commit_tree (&ctx->odb, parents[0], parent_tree) == 0;
+        bgit_diff_entry *entries = NULL;
+        size_t n_entries = 0;
+        if (bgit_diff_trees (&ctx->odb, have_parent ? parent_tree : NULL, tree,
+                             &entries, &n_entries) == 0) {
+            git_diff_emit (ctx, &format, entries, n_entries, 0, "");
+            bgit_diff_free (entries, n_entries);
+        }
+    }
     git_state_release (&state);
     return status;
 }
@@ -2309,21 +2484,105 @@ fail:
     return -1;
 }
 
+/* Was any form of diff asked for? */
+static int
+git_diff_wanted (const struct git_diff_format *format)
+{
+    return format->patch || format->stat || format->numstat ||
+           format->shortstat || format->summary || format->name_only ||
+           format->name_status;
+}
+
+/* What a commit changed, against its first parent — or against nothing, for
+   a root commit. git shows no diff for a merge unless asked, so nor does
+   this. */
+static int
+git_commit_diff (git_context *ctx, const struct git_commit *commit,
+                 const struct git_diff_format *format)
+{
+    if (commit->n_parents > 1) return 0;
+    char parent_tree[41] = "";
+    if (commit->n_parents &&
+        bgit_commit_tree (&ctx->odb, commit->parents[0], parent_tree) < 0)
+        return -1;
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_diff_trees (&ctx->odb, commit->n_parents ? parent_tree : NULL,
+                         commit->tree, &entries, &n) < 0)
+        return -1;
+    int rc = git_diff_emit (ctx, format, entries, n, 0, "");
+    bgit_diff_free (entries, n);
+    return rc;
+}
+
+/* One commit as `git log` and `git show` print it: the header, the message
+   indented by four spaces, then whatever diff was asked for. */
+static void
+git_print_commit (git_context *ctx, const struct git_commit *commit,
+                  int oneline, const char *format, int raw_date,
+                  const struct git_diff_format *diff)
+{
+    if (oneline) {
+        char abbreviated[41], subject[4096];
+        git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
+        git_subject (commit, subject, sizeof subject);
+        printf ("%s %s\n", abbreviated, subject);
+    } else if (format) {
+        git_format_commit (ctx, commit, format, raw_date);
+    } else {
+        char date[128];
+        git_format_date (commit->author_date, raw_date, date, sizeof date);
+        printf ("commit %s\n", commit->id);
+        if (commit->n_parents > 1) {
+            printf ("Merge:");
+            for (int j = 0; j < commit->n_parents; j++) {
+                char abbreviated[41];
+                git_abbrev (ctx, commit->parents[j], 7, abbreviated,
+                            sizeof abbreviated);
+                printf (" %s", abbreviated);
+            }
+            putchar ('\n');
+        }
+        printf ("Author: %s <%s>\n", commit->author_name, commit->author_email);
+        printf ("Date:   %s\n\n", date);
+        /* Every line is indented by four spaces, a blank one included. */
+        const char *line = commit->message;
+        while (*line) {
+            const char *nl = strchr (line, '\n');
+            size_t len = nl ? (size_t) (nl - line) : strlen (line);
+            if (!nl && !len) break;
+            printf ("    %.*s\n", (int) len, line);
+            if (!nl) break;
+            line = nl + 1;
+        }
+    }
+    if (diff && git_diff_wanted (diff)) {
+        /* The long format keeps a blank line between message and diff; the
+           one-line format runs straight into it. */
+        if (!oneline) putchar ('\n');
+        git_commit_diff (ctx, commit, diff);
+    }
+}
+
 static int
 git_cmd_log (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git log [--oneline] [--format=<format>] "
-                        "[-n <number>] [--reverse] [--first-parent] "
-                        "[--date=raw] [<revision>...]";
+                        "[-p] [--stat] [-n <number>] [--reverse] "
+                        "[--first-parent] [--date=raw] [<revision>...]";
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0;
     long limit = -1;
     const char *revs[16];
     int n_revs = 0;
+    struct git_diff_format diff;
+    git_diff_format_init (&diff);
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "--oneline")) oneline = 1;
+        else if (!strcmp (w, "--")) return git_usage (usage);
+        else if (git_diff_format_option (&diff, w)) ;
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
         else if (!strcmp (w, "--reverse")) reverse = 1;
@@ -2331,6 +2590,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--date=raw")) raw_date = 1;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
+        else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
         else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
@@ -2370,54 +2630,103 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         size_t i = reverse ? n - 1 - k : k;
         struct git_commit commit;
         if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
-        if (oneline) {
-            char abbreviated[41], subject[4096];
-            git_abbrev (ctx, commit.id, 7, abbreviated, sizeof abbreviated);
-            git_subject (&commit, subject, sizeof subject);
-            printf ("%s %s\n", abbreviated, subject);
-        } else if (format) {
-            git_format_commit (ctx, &commit, format, raw_date);
-        } else {
-            char date[128];
-            git_format_date (commit.author_date, raw_date, date, sizeof date);
-            printf ("commit %s\n", commit.id);
-            if (commit.n_parents > 1) {
-                printf ("Merge:");
-                for (int j = 0; j < commit.n_parents; j++) {
-                    char abbreviated[41];
-                    git_abbrev (ctx, commit.parents[j], 7, abbreviated,
-                                sizeof abbreviated);
-                    printf (" %s", abbreviated);
-                }
-                putchar ('\n');
-            }
-            printf ("Author: %s <%s>\n", commit.author_name, commit.author_email);
-            printf ("Date:   %s\n\n", date);
-            /* git indents the message by four spaces. */
-            /* Every line is indented by four spaces, a blank one included. */
-            const char *line = commit.message;
-            while (*line) {
-                const char *nl = strchr (line, '\n');
-                size_t len = nl ? (size_t) (nl - line) : strlen (line);
-                if (!nl && !len) break;
-                printf ("    %.*s\n", (int) len, line);
-                if (!nl) break;
-                line = nl + 1;
-            }
-            if (k + 1 < n) putchar ('\n');
-        }
+        git_print_commit (ctx, &commit, oneline, format, raw_date, &diff);
+        if (!oneline && !format && k + 1 < n) putchar ('\n');
         git_commit_release (&commit);
     }
     free (ordered);
     return 0;
 }
 
+static void
+git_diff_format_init (struct git_diff_format *format)
+{
+    memset (format, 0, sizeof *format);
+    format->context = 3;
+}
+
+/* Take W if it selects a format, and say whether it did. */
+static int
+git_diff_format_option (struct git_diff_format *format, const char *w)
+{
+    if (!strcmp (w, "-p") || !strcmp (w, "-u") || !strcmp (w, "--patch"))
+        format->patch = 1;
+    else if (!strcmp (w, "--stat")) format->stat = 1;
+    else if (!strcmp (w, "--numstat")) format->numstat = 1;
+    else if (!strcmp (w, "--shortstat")) format->shortstat = 1;
+    else if (!strcmp (w, "--summary")) format->summary = 1;
+    else if (!strcmp (w, "--name-only")) format->name_only = 1;
+    else if (!strcmp (w, "--name-status")) format->name_status = 1;
+    else if (!strcmp (w, "-s") || !strcmp (w, "--no-patch")) format->no_patch = 1;
+    else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9')
+        format->context = atoi (w + 2);
+    else if (!strncmp (w, "--unified=", 10)) format->context = atoi (w + 10);
+    else if (!strcmp (w, "--no-color") || !strcmp (w, "--no-ext-diff") ||
+             !strcmp (w, "--no-renames") || !strcmp (w, "--no-textconv")) {
+        /* Already how this build behaves. */
+    } else return 0;
+    return 1;
+}
+
+/* Show a list of changed paths in whichever forms were asked for. The new
+   side comes from the working tree when NEW_FROM_WORKTREE, so `git diff`
+   reads files rather than blobs that were never written. */
+static int
+git_diff_emit (git_context *ctx, const struct git_diff_format *format,
+               const bgit_diff_entry *entries, size_t n, int new_from_worktree,
+               const char *line_prefix)
+{
+    bgit_patch_options options;
+    bgit_patch_options_init (&options);
+    options.context = format->context;
+    options.new_from_worktree = new_from_worktree;
+    options.line_prefix = line_prefix ? line_prefix : "";
+
+    int named = format->name_only || format->name_status;
+    int stats = format->stat || format->numstat || format->shortstat;
+    int patch = format->patch || (!named && !stats && !format->summary &&
+                                  !format->no_patch);
+
+    if (named) {
+        for (size_t i = 0; i < n; i++) {
+            char quoted[8192];
+            const char *name = bgit_quote_path (entries[i].path, quoted,
+                                                sizeof quoted);
+            if (format->name_status)
+                printf ("%s%c\t%s\n", options.line_prefix, entries[i].status, name);
+            else printf ("%s%s\n", options.line_prefix, name);
+        }
+    }
+    if (stats || format->summary) {
+        bgit_diffstat_entry *counted = NULL;
+        if (stats) {
+            if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &options,
+                               &counted) < 0)
+                return -1;
+            if (format->numstat) bgit_numstat_write (stdout, counted, n);
+            if (format->stat) bgit_diffstat_write (stdout, counted, n,
+                                                   options.line_prefix);
+            if (format->shortstat) bgit_shortstat_write (stdout, counted, n,
+                                                         options.line_prefix);
+            free (counted);
+        }
+        if (format->summary)
+            bgit_diff_summary (stdout, entries, n, options.line_prefix);
+    }
+    if (patch &&
+        bgit_patch_write (stdout, &ctx->odb, &ctx->repo, entries, n, &options) < 0)
+        return -1;
+    return 0;
+}
+
 static int
 git_cmd_diff (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git diff (--name-only | --name-status) [--cached] "
-                        "[<commit> [<commit>]] [-- <path>...]";
-    int cached = 0, name_only = 0, name_status = 0, no_more = 0;
+    const char *usage = "git diff [-p] [--stat] [--name-only | --name-status] "
+                        "[--cached] [<commit> [<commit>]] [-- <path>...]";
+    struct git_diff_format format;
+    git_diff_format_init (&format);
+    int cached = 0, no_more = 0;
     const char *revs[2] = { NULL, NULL };
     int n_revs = 0;
     const char *paths[32];
@@ -2427,16 +2736,12 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         const char *w = p->word->word;
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
         if (!no_more && (!strcmp (w, "--cached") || !strcmp (w, "--staged"))) cached = 1;
-        else if (!no_more && !strcmp (w, "--name-only")) name_only = 1;
-        else if (!no_more && !strcmp (w, "--name-status")) name_status = 1;
+        else if (!no_more && git_diff_format_option (&format, w)) ;
         else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
         else if (!no_more && n_revs < 2) revs[n_revs++] = w;
         else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
         else return git_fatal ("too many paths");
     }
-    if (!name_only && !name_status)
-        return git_fatal ("this build's git diff needs --name-only or "
-                          "--name-status; the patch writer is not done yet");
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     struct git_state state;
@@ -2497,18 +2802,151 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         return git_fatal ("cannot compare");
     }
 
-    for (size_t i = 0; i < n; i++) {
-        if (n_paths) {
+    if (n_paths) {
+        size_t kept = 0;
+        for (size_t i = 0; i < n; i++) {
             int matched = 0;
             for (int j = 0; j < n_paths && !matched; j++)
                 if (git_path_in_spec (entries[i].path, paths[j])) matched = 1;
-            if (!matched) continue;
+            if (matched) entries[kept++] = entries[i];
+            else free (entries[i].path);
         }
-        if (name_status) printf ("%c\t%s\n", entries[i].status, entries[i].path);
-        else printf ("%s\n", entries[i].path);
+        n = kept;
     }
+    /* Only a comparison that ends at the working tree reads files. */
+    int from_worktree = !cached && n_revs < 2;
+    int status = git_diff_emit (ctx, &format, entries, n, from_worktree, "") < 0
+                 ? GIT_EXIT_FATAL : 0;
     bgit_diff_free (entries, n);
     git_state_release (&state);
+    return status;
+}
+
+/* ---- show -------------------------------------------------------------- */
+
+/* `git show <tree>` lists the names in it, a subtree marked with a slash. */
+static int
+git_show_tree_entry (void *context, const char *mode, const char *type,
+                     const char *sha, const char *path)
+{
+    (void) context;
+    (void) mode;
+    (void) sha;
+    printf ("%s%s\n", path, !strcmp (type, "tree") ? "/" : "");
+    return 0;
+}
+
+/* The header `git show` prints for an annotated tag, then its message.
+   TAGGED comes back holding the id of the object the tag points at. */
+static void
+git_show_tag (const unsigned char *data, size_t len, char *tagged, int raw_date)
+{
+    char name[256] = "", tagger[512] = "", date[128] = "";
+    const char *body = (const char *) data;
+    size_t left = len;
+    tagged[0] = '\0';
+    while (left) {
+        const char *nl = memchr (body, '\n', left);
+        size_t line_len = nl ? (size_t) (nl - body) : left;
+        if (!line_len) { body = nl ? nl + 1 : body + left; left -= line_len + 1; break; }
+        if (!strncmp (body, "object ", 7) && line_len >= 47)
+            snprintf (tagged, 41, "%.40s", body + 7);
+        else if (!strncmp (body, "tag ", 4))
+            snprintf (name, sizeof name, "%.*s", (int) line_len - 4, body + 4);
+        else if (!strncmp (body, "tagger ", 7)) {
+            char who[256] = "", email[256] = "";
+            git_split_ident (body + 7, line_len - 7, who, sizeof who,
+                             email, sizeof email, date, sizeof date);
+            snprintf (tagger, sizeof tagger, "%s <%s>", who, email);
+        }
+        if (!nl) { left = 0; break; }
+        left -= line_len + 1;
+        body = nl + 1;
+    }
+
+    printf ("tag %s\n", name);
+    if (*tagger) {
+        char shown[128];
+        git_format_date (date, raw_date, shown, sizeof shown);
+        printf ("Tagger: %s\n", tagger);
+        printf ("Date:   %s\n", shown);
+    }
+    printf ("\n");
+    fwrite (body, 1, left, stdout);
+    printf ("\n");
+}
+
+static int
+git_cmd_show (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git show [-p | -s | --stat] [--oneline] "
+                        "[--format=<format>] [<object>...]";
+    struct git_diff_format diff;
+    git_diff_format_init (&diff);
+    const char *format = NULL;
+    int oneline = 0, raw_date = 0;
+    const char *objects[16];
+    int n_objects = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--oneline")) oneline = 1;
+        else if (!strncmp (w, "--format=", 9)) format = w + 9;
+        else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
+        else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (git_diff_format_option (&diff, w)) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_objects < (int) (sizeof objects / sizeof *objects))
+            objects[n_objects++] = w;
+        else return git_fatal ("too many objects");
+    }
+    if (format && !strcmp (format, "oneline")) { oneline = 1; format = NULL; }
+    if (!n_objects) objects[n_objects++] = "HEAD";
+    /* A patch is what show is for, unless another form was named. */
+    if (!git_diff_wanted (&diff) && !diff.no_patch) diff.patch = 1;
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    for (int i = 0; i < n_objects; i++) {
+        char id[41];
+        if (git_resolve (ctx, objects[i], id, NULL) < 0)
+            return git_fatal ("ambiguous argument '%s': unknown revision or "
+                              "path not in the working tree.", objects[i]);
+        for (;;) {
+            enum bgit_type type;
+            unsigned char *data = NULL;
+            size_t len = 0;
+            if (bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0)
+                return git_fatal ("bad object %s", objects[i]);
+            if (type == BGIT_TAG) {
+                char tagged[41] = "";
+                git_show_tag (data, len, tagged, raw_date);
+                free (data);
+                if (!tagged[0]) break;
+                memcpy (id, tagged, 41);
+                continue;               /* on to what the tag points at */
+            }
+            if (type == BGIT_BLOB) {
+                fwrite (data, 1, len, stdout);
+                free (data);
+                break;
+            }
+            free (data);
+            if (type == BGIT_TREE) {
+                printf ("tree %s\n\n", objects[i]);
+                bgit_tree_walk (&ctx->odb, id, "", 0, 1, git_show_tree_entry,
+                                NULL);
+                break;
+            }
+            if (type != BGIT_COMMIT)
+                return git_fatal ("bad object %s", objects[i]);
+            struct git_commit commit;
+            if (git_commit_read (ctx, id, &commit) < 0)
+                return git_fatal ("unable to read %s", id);
+            git_print_commit (ctx, &commit, oneline, format, raw_date, &diff);
+            git_commit_release (&commit);
+            break;
+        }
+    }
     return 0;
 }
 
@@ -3118,8 +3556,8 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
 static int
 git_cmd_rm (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git rm [--cached] [-r] [-f] [--] <path>...";
-    int cached = 0, no_more = 0;
+    const char *usage = "git rm [--cached] [-r] [-f] [-q] [--] <path>...";
+    int cached = 0, no_more = 0, quiet = 0;
     const char *paths[32];
     int n_paths = 0;
 
@@ -3127,8 +3565,9 @@ git_cmd_rm (git_context *ctx, WORD_LIST *args)
         const char *w = p->word->word;
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
         if (!no_more && !strcmp (w, "--cached")) cached = 1;
+        else if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) quiet = 1;
         else if (!no_more && (!strcmp (w, "-r") || !strcmp (w, "-f") ||
-                              !strcmp (w, "--force") || !strcmp (w, "-q"))) continue;
+                              !strcmp (w, "--force"))) continue;
         else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
         else return git_fatal ("too many paths");
@@ -3148,7 +3587,7 @@ git_cmd_rm (git_context *ctx, WORD_LIST *args)
                 j++;
                 continue;
             }
-            printf ("rm '%s'\n", path);
+            if (!quiet) printf ("rm '%s'\n", path);
             if (!cached) {
                 char full[4096];
                 snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path);
@@ -3388,6 +3827,7 @@ static const struct {
     { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
     { "rm",           git_cmd_rm },
+    { "show",         git_cmd_show },
     { "show-ref",     git_cmd_show_ref },
     { "status",       git_cmd_status },
     { "switch",       git_cmd_switch },
@@ -3425,8 +3865,12 @@ git_run (WORD_LIST *list)
         }
         if (!strcmp (w, "--list-features")) {
             /* What this build can do beyond having a command at all, for
-               tests that describe a whole feature. Empty until it lands. */
-            static const char *const features[] = { NULL };
+               tests that describe a whole feature. */
+            static const char *const features[] = {
+                "diff-patch",       /* unified patches, with hunk context */
+                "diff-stat",        /* --stat, --numstat, --shortstat */
+                NULL
+            };
             for (int i = 0; features[i]; i++) printf ("%s\n", features[i]);
             return 0;
         }
