@@ -372,6 +372,39 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     check(b'! [rejected]' in rejected.stderr and b'(fetch first)' in rejected.stderr,
           'a tip this end has never seen', rejected.stderr[:300])
 
+    # The commands and the pack are one stream, and a reader that takes
+    # its input in chunks will have the front of the pack in hand before
+    # it looks for it. Sending both in a single write makes that certain,
+    # which is what this asks for: the far end must not sit waiting for
+    # bytes it has already read.
+    one_write = tmp/'one-write.git'
+    git(tmp, 'init', '-q', '-b', 'main', '--bare', str(one_write))
+    head = git(repo, 'rev-parse', 'HEAD').stdout.decode().strip()
+    ids = subprocess.run([GIT, '-C', str(repo), 'rev-list', '--objects', head],
+                         capture_output=True, timeout=120).stdout
+    names = b'\n'.join(line.split()[0] for line in ids.splitlines()) + b'\n'
+    pack = subprocess.run([GIT, '-C', str(repo), 'pack-objects', '--stdout'],
+                          input=names, capture_output=True, timeout=300).stdout
+    command = (f'{"0" * 40} {head} refs/heads/main').encode() + b'\0' \
+              + b'report-status side-band-64k agent=test'
+    server = subprocess.Popen(
+        [str(binary), '--noprofile', '--norc', '-c',
+         'builtin git receive-pack "$@"', 'git-receive-pack', str(one_write)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        env={**ENV, 'HOME': str(tmp), 'PATH': ''})
+    answer, _ = server.communicate(
+        b'%04x' % (len(command) + 4) + command + b'0000' + pack, timeout=120)
+    check(server.returncode == 0, 'commands and pack in one write',
+          server.returncode)
+    report = b''.join(line[1:] for line in raw_packets(answer)
+                      if not isinstance(line, str) and line[:1] == b'\x01')
+    check(b'unpack ok' in report, 'and it unpacked them', report[:120])
+    check(b'ok refs/heads/main' in report, 'and moved the branch', report[:120])
+    check(git(one_write, 'rev-parse', 'main').stdout.decode().strip() == head,
+          'which is where it was asked to be')
+    check(git(one_write, 'fsck', '--no-progress', '--strict').returncode == 0,
+          'with everything behind it')
+
     # Without being told which protocol to speak, the server says so rather
     # than answering in one the caller did not ask for.
     refused = subprocess.run([str(binary), '--noprofile', '--norc', '-c',

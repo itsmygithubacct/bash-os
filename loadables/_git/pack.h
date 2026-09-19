@@ -109,8 +109,12 @@ int bgit_pack_buf_append (unsigned char **out, size_t *out_len, size_t *out_cap,
    carrying a pack does not end where the pack does — the far end goes on
    waiting for an answer — so the pack is parsed as it arrives and the
    reading stops after its last object and the twenty bytes of checksum
-   that follow. Caller frees *out. Returns 0, or -1. */
-int bgit_pack_read_stream (int fd, unsigned char **out, size_t *out_len);
+   that follow. ALREADY is what has been read off FD already and belongs
+   to the pack, which is what whatever read the packets before it has in
+   hand. Caller frees *out. Returns 0, or -1. */
+int bgit_pack_read_stream (int fd, const unsigned char *already,
+                           size_t already_len, unsigned char **out,
+                           size_t *out_len);
 
 /* CRC-32 of a byte range, as the idx CRC table stores it. */
 uint32_t bgit_pack_crc32 (const unsigned char *p, size_t n);

@@ -337,13 +337,31 @@ bgit_config_release (bgit_config *cfg)
     memset (cfg, 0, sizeof *cfg);
 }
 
+/* git matches a section and a variable without regard to case, and a
+   subsection — whatever stands between the first dot and the last —
+   exactly. Keys are stored that way, so a key being looked for is folded
+   the same way before it is compared. */
+static void
+bgit_config_fold (const char *key, char *out, size_t outsz)
+{
+    snprintf (out, outsz, "%s", key);
+    char *first = strchr (out, '.');
+    char *last = strrchr (out, '.');
+    for (char *p = out; *p; p++) {
+        if (first && p >= first && p < last) continue;   /* the subsection */
+        *p = (char) tolower ((unsigned char) *p);
+    }
+}
+
 /* The last entry set for KEY, or NULL. */
 static const bgit_config_entry *
 bgit_config_find (const bgit_config *cfg, const char *key)
 {
+    char wanted[4096];
+    bgit_config_fold (key, wanted, sizeof wanted);
     const bgit_config_entry *found = NULL;
     for (size_t i = 0; i < cfg->n; i++)
-        if (strcmp (cfg->entries[i].key, key) == 0)
+        if (strcmp (cfg->entries[i].key, wanted) == 0)
             found = &cfg->entries[i];
     return found;
 }
@@ -361,15 +379,17 @@ size_t
 bgit_config_get_all (const bgit_config *cfg, const char *key,
                      const char ***values)
 {
+    char wanted[4096];
+    bgit_config_fold (key, wanted, sizeof wanted);
     size_t n = 0;
     for (size_t i = 0; i < cfg->n; i++)
-        if (strcmp (cfg->entries[i].key, key) == 0) n++;
+        if (strcmp (cfg->entries[i].key, wanted) == 0) n++;
     if (!n) { *values = NULL; return 0; }
     const char **out = calloc (n, sizeof *out);
     if (!out) { *values = NULL; return 0; }
     size_t w = 0;
     for (size_t i = 0; i < cfg->n; i++)
-        if (strcmp (cfg->entries[i].key, key) == 0)
+        if (strcmp (cfg->entries[i].key, wanted) == 0)
             out[w++] = cfg->entries[i].value ? cfg->entries[i].value : "";
     *values = out;
     return n;

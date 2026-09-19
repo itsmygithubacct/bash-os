@@ -6019,6 +6019,7 @@ git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
 typedef struct {
     bgit_proto_io io;
     bgit_pkt_reader reader;
+    git_context *ctx;            /* whose configuration to ask */
     int over_http;
     /* a child at the far end */
     pid_t child;
@@ -6026,11 +6027,82 @@ typedef struct {
     /* or a URL, and what is being built to send to it */
     char url[4096];
     const char *service;
+    char secret[1024];           /* a name and secret, once one is needed */
+    const char **headers;        /* what http.extraHeader adds */
+    size_t n_headers;
+    int follow;                  /* whether this request may be redirected */
     unsigned char *request;
     size_t request_len, request_cap;
     unsigned char *response;
     size_t response_len;
 } git_conn;
+
+/* The scheme and host part of a URL, which is what a stored credential
+   is matched on. */
+static void
+git_url_host (const char *url, char *out, size_t outsz)
+{
+    const char *after = strstr (url, "://");
+    after = after ? after + 3 : url;
+    const char *at = strchr (after, '@');
+    const char *host = at ? at + 1 : after;
+    size_t scheme = (size_t) (after - url);
+    size_t len = strcspn (host, "/");
+    if (scheme + len >= outsz) len = outsz - scheme - 1;
+    memcpy (out, url, scheme);
+    memcpy (out + scheme, host, len);
+    out[scheme + len] = '\0';
+}
+
+/* A name and secret for URL, out of the file `credential.helper store`
+   keeps them in: a URL to a line, name and secret inside it. Returns 1
+   when one was found, and leaves it in OUT. */
+static int
+git_http_credentials (git_context *ctx, const char *url, char *out, size_t outsz)
+{
+    const char *helper = bgit_config_get (&ctx->cfg, "credential.helper");
+    if (!helper || strncmp (helper, "store", 5)) return 0;
+    char path[4096] = "";
+    const char *named = strstr (helper, "--file=");
+    if (named) snprintf (path, sizeof path, "%s", named + 7);
+    else {
+        const char *home = getenv ("HOME");
+        if (!home) return 0;
+        snprintf (path, sizeof path, "%s/.git-credentials", home);
+    }
+    unsigned char *content = NULL;
+    size_t len = 0;
+    if (bgit_slurp_file (path, &content, &len) < 0) return 0;
+
+    char want[1024];
+    git_url_host (url, want, sizeof want);
+    int found = 0;
+    char *line = (char *) content;
+    char *end = (char *) content + len;
+    while (!found && line < end) {
+        char *stop = memchr (line, '\n', (size_t) (end - line));
+        size_t line_len = stop ? (size_t) (stop - line) : (size_t) (end - line);
+        char entry[2048];
+        if (line_len && line_len < sizeof entry) {
+            memcpy (entry, line, line_len);
+            entry[line_len] = '\0';
+            /* "<scheme>://<name>:<secret>@<host>" */
+            char *at = strrchr (entry, '@');
+            const char *after = strstr (entry, "://");
+            if (at && after) {
+                char host[1024];
+                git_url_host (entry, host, sizeof host);
+                *at = '\0';
+                if (!strcmp (host, want) &&
+                    snprintf (out, outsz, "%s", after + 3) < (int) outsz)
+                    found = 1;
+            }
+        }
+        line = stop ? stop + 1 : end;
+    }
+    free (content);
+    return found;
+}
 
 /* Ask the far end for something over HTTP, with curl doing the talking:
    the builtin when this build has it, and the command otherwise, which
@@ -6066,7 +6138,7 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
         if (dup2 (into[0], 0) < 0 || dup2 (back[1], 1) < 0) _exit (127);
         close (into[0]);
         close (back[1]);
-        char *argv[24];
+        char *argv[64];
         int argc = 0;
         argv[argc++] = "curl";
         argv[argc++] = "-sS";
@@ -6078,6 +6150,18 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
             argv[argc++] = "-H";
             argv[argc++] = type_header;
         }
+        for (size_t i = 0; i < conn->n_headers &&
+                           argc + 8 < (int) (sizeof argv / sizeof *argv); i++) {
+            argv[argc++] = "-H";
+            argv[argc++] = (char *) conn->headers[i];
+        }
+        /* git follows a redirect on the first request and no other, which
+           is what http.followRedirects means by "initial". */
+        if (conn->follow) argv[argc++] = "-L";
+        if (*conn->secret) {
+            argv[argc++] = "-u";
+            argv[argc++] = conn->secret;
+        }
         if (body) {
             argv[argc++] = "--data-binary";
             argv[argc++] = "@-";
@@ -6088,6 +6172,9 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
         argv[argc] = NULL;
         bos_prepare_child ();
         bos_run_builtin ("curl", argv, NULL);
+        /* A secret must not reach the command line of another program;
+           with the builtin it stays in this process's own memory. */
+        if (*conn->secret) _exit (127);
         execvp ("curl", argv);
         _exit (127);
     }
@@ -6133,6 +6220,10 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
     int status = (answer[len - 3] - '0') * 100 + (answer[len - 2] - '0') * 10 +
                  (answer[len - 1] - '0');
     len -= 3;
+    if (status == 401) {
+        free (answer);
+        return 401;
+    }
     if (status != 200) {
         free (answer);
         git_fatal ("unable to access '%s': the far end said %d", conn->url,
@@ -6145,6 +6236,29 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
     bgit_pkt_from_memory (&conn->reader, conn->response, conn->response_len);
     conn->io.reader = &conn->reader;
     return 0;
+}
+
+/* Ask, and if the far end wants a name and secret, find one and ask
+   again. The first ask carries none, which is what a far end that wants
+   none expects. */
+static int
+git_http_request (git_conn *conn, const char *method, const char *url,
+                  const char *content_type, const unsigned char *body,
+                  size_t body_len)
+{
+    int rc = git_http_ask (conn, method, url, content_type, body, body_len);
+    if (rc != 401) return rc;
+    if (!*conn->secret && conn->ctx &&
+        git_http_credentials (conn->ctx, conn->url, conn->secret,
+                              sizeof conn->secret))
+        rc = git_http_ask (conn, method, url, content_type, body, body_len);
+    if (rc != 401) return rc;
+    if (*conn->secret)
+        git_fatal ("Authentication failed for '%s'", conn->url);
+    else
+        git_fatal ("could not read Username for '%s': terminal prompts "
+                   "disabled", conn->url);
+    return -1;
 }
 
 static int
@@ -6162,10 +6276,10 @@ git_http_done (bgit_proto_io *io)
     char url[4200], type[128];
     snprintf (url, sizeof url, "%s/%s", conn->url, conn->service);
     snprintf (type, sizeof type, "application/x-%s-request", conn->service);
-    int rc = git_http_ask (conn, "POST", url, type, conn->request,
-                           conn->request_len);
+    int rc = git_http_request (conn, "POST", url, type, conn->request,
+                               conn->request_len);
     conn->request_len = 0;
-    return rc;
+    return rc < 0 ? -1 : 0;
 }
 
 /* What git says when the far end stops without answering. Whatever it
@@ -6261,12 +6375,13 @@ git_start_far_end (const char *program, const char *command, const char *path,
    over HTTP is part of the address and over a pipe is the command to
    run. Returns 0, or -1 with git's message said. */
 static int
-git_conn_open (git_conn *conn, const char *url, const char *program,
-               const char *service)
+git_conn_open (git_conn *conn, git_context *ctx, const char *url,
+               const char *program, const char *service)
 {
     memset (conn, 0, sizeof *conn);
     conn->to_far = conn->from_far = -1;
     conn->service = service;
+    conn->ctx = ctx;
     /* A far end that stops leaves a pipe with no reader; the write that
        finds out must not take the shell's child with it. */
     signal (SIGPIPE, SIG_IGN);
@@ -6280,10 +6395,15 @@ git_conn_open (git_conn *conn, const char *url, const char *program,
         conn->io.write = git_http_write;
         conn->io.done = git_http_done;
         conn->io.reader = &conn->reader;
+        /* Whatever the configuration wants said with every request. */
+        conn->n_headers = bgit_config_get_all (&ctx->cfg, "http.extraHeader",
+                                               &conn->headers);
         char ask[4300];
         snprintf (ask, sizeof ask, "%s/info/refs?service=%s", conn->url, service);
-        if (git_http_ask (conn, "GET", ask, NULL, NULL, 0) < 0) return -1;
-        return 0;
+        conn->follow = 1;
+        int rc = git_http_request (conn, "GET", ask, NULL, NULL, 0);
+        conn->follow = 0;
+        return rc < 0 ? -1 : 0;
     }
 
     char command[64];
@@ -6326,10 +6446,11 @@ git_conn_close (git_conn *conn)
 /* Open a conversation with the half of the far end that sends objects,
    and check it can do what is about to be asked of it. */
 static int
-git_far_end_open (git_conn *conn, const char *url, const char *program,
-                  int want_fetch)
+git_far_end_open (git_conn *conn, git_context *ctx, const char *url,
+                  const char *program, int want_fetch)
 {
-    if (git_conn_open (conn, url, program, "git-upload-pack") < 0) return -1;
+    if (git_conn_open (conn, ctx, url, program, "git-upload-pack") < 0)
+        return -1;
     bgit_proto_caps caps;
     if (bgit_proto_read_caps (conn->io.reader, &caps) < 0) {
         git_far_end_gone ();
@@ -6594,7 +6715,12 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
     if (!status && n_commands && sending_objects) {
         unsigned char *pack = NULL;
         size_t pack_len = 0;
-        if (bgit_pack_read_stream (0, &pack, &pack_len) < 0 ||
+        /* The packets were read in chunks, so the front of the pack is
+           already in hand rather than still on the descriptor. */
+        const unsigned char *pending = NULL;
+        size_t pending_len = 0;
+        bgit_pkt_pending (&reader, &pending, &pending_len);
+        if (bgit_pack_read_stream (0, pending, pending_len, &pack, &pack_len) < 0 ||
             git_store_pack_into (&repo, &odb, pack, pack_len) < 0)
             status = GIT_EXIT_FATAL;
         free (pack);
@@ -6704,7 +6830,10 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
         bgit_repo_release (&here);
         if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
         url = git_remote_url (ctx, where ? where : "origin");
-    }
+    } else
+        /* Outside a repository there is still a configuration: what the
+           far end wants said, and where a credential is kept. */
+        bgit_config_load (&ctx->cfg, NULL, git_overrides, git_n_overrides);
     /* Without a repository named on the command line, git says which one
        it went to. */
     int named = where != NULL;
@@ -6718,7 +6847,7 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
     if (!named && !quiet) fprintf (stderr, "From %s\n", where);
 
     git_conn conn;
-    if (git_far_end_open (&conn, where, program, 0) < 0) return GIT_EXIT_FATAL;
+    if (git_far_end_open (&conn, ctx, where, program, 0) < 0) return GIT_EXIT_FATAL;
     int status = 0;
 
     bgit_proto_ref *refs = NULL;
@@ -6825,7 +6954,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     /* The far end is asked over the protocol, the way git asks it, even
        when it is a directory on this machine. */
     git_conn conn;
-    if (git_far_end_open (&conn, url, program, 1) < 0) return GIT_EXIT_FATAL;
+    if (git_far_end_open (&conn, ctx, url, program, 1) < 0) return GIT_EXIT_FATAL;
 
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
@@ -6968,8 +7097,12 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         bgit_repo_release (&check);
     }
 
+    /* A clone has no repository of its own yet, but there is still a
+       configuration to read: what the far end wants said, and where a
+       credential for it is kept. */
+    bgit_config_load (&ctx->cfg, NULL, git_overrides, git_n_overrides);
     git_conn conn;
-    if (git_far_end_open (&conn, absolute, NULL, 1) < 0) return GIT_EXIT_FATAL;
+    if (git_far_end_open (&conn, ctx, absolute, NULL, 1) < 0) return GIT_EXIT_FATAL;
 
     /* What the far end has: its branches, its tags, and what its HEAD
        points at, which is the branch a clone checks out. */
@@ -6996,6 +7129,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     dispose_words (init);
     if (!status && chdir (target) < 0)
         status = git_fatal ("cannot enter '%s': %s", target, strerror (errno));
+    bgit_config_release (&ctx->cfg);      /* the new repository has its own */
     if (!status && git_context_open (ctx) != 0) status = GIT_EXIT_FATAL;
     if (status) {
         bgit_proto_refs_release (refs, n_refs);
@@ -7193,7 +7327,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     /* The far end is asked over the protocol, which for a push is the
        first one git spoke and the one it still uses. */
     git_conn conn;
-    if (git_conn_open (&conn, url, program, "git-receive-pack") < 0) {
+    if (git_conn_open (&conn, ctx, url, program, "git-receive-pack") < 0) {
         git_state_release (&state);
         return GIT_EXIT_FATAL;
     }

@@ -54,6 +54,13 @@ int bgit_pkt_read (bgit_pkt_reader *reader, const unsigned char **data);
    the caller must free. Returns the length, or a marker. */
 int bgit_pkt_read_line (bgit_pkt_reader *reader, char **line);
 
+/* What the reader has read but not yet used. A reader fills its buffer
+   from the descriptor in whole chunks, so bytes that follow the packets
+   — the pack a push sends after its commands — are already in hand, and
+   whoever reads that stream must start with these. */
+void bgit_pkt_pending (const bgit_pkt_reader *reader, const unsigned char **data,
+                       size_t *len);
+
 /* Write one packet, a formatted packet, or a marker. Return 0, or -1. */
 int bgit_pkt_write (int fd, const void *data, size_t len);
 

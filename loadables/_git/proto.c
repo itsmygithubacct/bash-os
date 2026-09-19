@@ -136,6 +136,14 @@ bgit_pkt_read_line (bgit_pkt_reader *reader, char **line)
     return length;
 }
 
+void
+bgit_pkt_pending (const bgit_pkt_reader *reader, const unsigned char **data,
+                  size_t *len)
+{
+    *data = reader->buf + reader->at;
+    *len = reader->len - reader->at;
+}
+
 /* ---- writing ------------------------------------------------------------ */
 
 static int

@@ -124,7 +124,9 @@ Configuration is read in git's order — the system file unless
 `GIT_CONFIG_NOSYSTEM`, then `GIT_CONFIG_GLOBAL` or `~/.gitconfig` and
 `~/.config/git/config`, then the repository's, then `-c` — with git's
 syntax: subsections, a valueless key meaning true, comments, continued
-lines, quoted values with escapes, and `include.path`. Writing keeps the
+lines, quoted values with escapes, and `include.path`. A section and a
+variable are matched without regard to case, and the subsection between
+them exactly, as git matches them. Writing keeps the
 rest of the file as it is, and the name's case as you typed it. The
 identity in a reflog entry comes from `GIT_COMMITTER_*` or `user.name` and
 `user.email`.
@@ -269,8 +271,13 @@ talking — the builtin when this build has it, and the command otherwise,
 which is how `pkg` fetches — so TLS, and everything else about reaching
 a host, is settled in one place. What comes back is read from memory
 rather than from a descriptor, which the pkt-line reader does either way.
-A redirect is not followed, and a far end that asks for credentials is
-not answered yet; both say what happened rather than half-trying.
+A far end that asks for a name and secret is answered from the file
+`credential.helper store` keeps them in, after the first request comes
+back without one — which is when git asks too. With nothing to answer
+with, it says so in git's words rather than waiting for a terminal it
+has not got. `http.extraHeader` is said with every request, and a
+redirect is followed on the first request and no other, which is what
+git means by `http.followRedirects = initial`.
 
 Both ends stand on their own. git's client clones and fetches through
 this build's `upload-pack` and gets the history it would get from git's;
@@ -371,8 +378,9 @@ speak to their own far end.
 `tests/git-http.py` runs git's `http-backend` behind a small server on
 the loopback address and does the lot over it: listing refs, cloning,
 fetching what the far end has gained, pushing back, a history too big to
-explode arriving as a pack, and an address with no repository behind it.
-Nothing outside the machine is contacted.
+explode arriving as a pack, an address with no repository behind it, and
+a far end that wants a name and secret — without one, with the right one
+and with the wrong one. Nothing outside the machine is contacted.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
@@ -385,10 +393,9 @@ message and changes nothing.
 
 Phase 2 is done but for submodules, and Phase 3 is nearly done: clone,
 fetch, pull and push speak protocol v2 to a far end at a path or at an
-`http://` or `https://` address. What is left of it: credentials, so a
-far end that asks for them can be answered; `http.extraHeader` and
-redirects; and completing a thin pack from what is already here, which
-is why `receive-pack` asks not to be sent one. After that comes SSH.
+`http://` or `https://` address. What is left of it: completing a thin pack
+from what is already here, which is why `receive-pack` asks not to be
+sent one. After that comes SSH.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 

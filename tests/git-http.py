@@ -61,8 +61,13 @@ def bgit(*args, cwd, status=0):
     return result
 
 
-def serve(root):
-    """git http-backend behind an HTTP server, as git's own tests run it."""
+def serve(root, wants=None):
+    """git http-backend behind an HTTP server, as git's own tests run it.
+
+    Anything under /private.git needs the name and secret in WANTS, so
+    that what this build does about being asked for one can be checked.
+    """
+    seen = []
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
@@ -70,7 +75,23 @@ def serve(root):
         def log_message(self, *args):
             pass
 
+        def refuse(self):
+            body = b'no\n'
+            self.send_response(401)
+            self.send_header('WWW-Authenticate', 'Basic realm="git"')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def backend(self, body=b''):
+            seen.append(dict(self.headers))
+            if wants and self.path.startswith('/private.git'):
+                offered = self.headers.get('Authorization', '')
+                import base64
+                expected = 'Basic ' + base64.b64encode(wants.encode()).decode()
+                if offered != expected:
+                    self.refuse()
+                    return
             path, _, query = self.path.partition('?')
             env = {
                 'GIT_PROJECT_ROOT': str(root),
@@ -115,6 +136,7 @@ def serve(root):
             self.backend(self.rfile.read(int(self.headers.get('Content-Length', 0))))
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    server.seen = seen
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -134,7 +156,8 @@ with tempfile.TemporaryDirectory(prefix='git-http-') as name:
     git(tmp, 'clone', '-q', '--bare', str(repo), str(served/'far.git'))
     git(served/'far.git', 'config', 'http.receivepack', 'true')
 
-    server = serve(served)
+    git(tmp, 'clone', '-q', '--bare', str(repo), str(served/'private.git'))
+    server = serve(served, wants='someone:a-secret')
     url = f'http://127.0.0.1:{server.server_address[1]}/far.git'
     try:
         # What the far end has, asked for over HTTP: git's answer and this
@@ -208,6 +231,51 @@ with tempfile.TemporaryDirectory(prefix='git-http-') as name:
               == git(big, 'log', '--format=%H').stdout, 'with the whole history')
         check(git(big_clone, 'fsck', '--no-progress', '--strict').returncode == 0,
               'which git reads out of the pack')
+
+        # A far end that wants a name and secret. Without one this build
+        # says so rather than hanging about for a terminal it has not got.
+        private = f'http://127.0.0.1:{server.server_address[1]}/private.git'
+        bare = tmp/'bare-handed'
+        bare.mkdir()
+        result = bgit('ls-remote', private, cwd=bare, status=128)
+        check(b'could not read Username' in result.stderr,
+              'a far end that wants a name', result.stderr[:200])
+
+        # With one, from the file `credential.helper store` keeps them in.
+        holder = tmp/'holder'
+        holder.mkdir()
+        host = f'127.0.0.1:{server.server_address[1]}'
+        (holder/'.git-credentials').write_text(f'http://someone:a-secret@{host}\n')
+        (holder/'.gitconfig').write_text('[credential]\n\thelper = store\n')
+        listed = bgit('ls-remote', private, cwd=holder)
+        check(listed.stdout == git(tmp, 'ls-remote', str(served/'private.git')).stdout,
+              'and with one, the refs come back', listed.stdout[:200])
+        cloned = tmp/'from-private'
+        bgit('clone', private, str(cloned), cwd=holder)
+        check(git(cloned, 'log', '--format=%H').stdout
+              == git(served/'private.git', 'log', '--format=%H').stdout,
+              'and a clone of it')
+
+        # A secret that is not the right one is told apart from having none.
+        wrong = tmp/'wrong'
+        wrong.mkdir()
+        (wrong/'.git-credentials').write_text(f'http://someone:not-it@{host}\n')
+        (wrong/'.gitconfig').write_text('[credential]\n\thelper = store\n')
+        result = bgit('ls-remote', private, cwd=wrong, status=128)
+        check(b'Authentication failed' in result.stderr, 'a secret that is wrong',
+              result.stderr[:200])
+
+        # What http.extraHeader says is said with every request.
+        marked = tmp/'marked'
+        marked.mkdir()
+        (marked/'.gitconfig').write_text(
+            '[http]\n\textraHeader = X-Bash-Os: hello\n')
+        before = len(server.seen)
+        bgit('ls-remote', url, cwd=marked)
+        check(any(headers.get('X-Bash-Os') == 'hello'
+                  for headers in server.seen[before:]),
+              'an extra header reaches the far end',
+              [h.get('X-Bash-Os') for h in server.seen[before:]])
 
         # An address with nothing behind it is refused, not half-cloned.
         missing = f'http://127.0.0.1:{server.server_address[1]}/nothing.git'

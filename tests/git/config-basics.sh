@@ -59,3 +59,13 @@ git config --list
 
 # The file is git's own format, so git reads back what was written.
 cat .git/config
+
+# A section and a variable are matched without regard to case; what
+# stands between them, the subsection, is matched exactly.
+git config --get Section.Continued
+git config --get SECTION.IMPLICIT
+git config --get 'section.Sub Section.key'
+git config --get 'section.sub section.key' || echo "a subsection is exact: $?"
+printf '[http]\n\textraHeader = X-One: 1\n\textraHeader = X-Two: 2\n' >> .git/config
+git config --get-all http.extraHeader
+git config --get-all HTTP.EXTRAHEADER

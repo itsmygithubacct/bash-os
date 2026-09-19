@@ -710,13 +710,19 @@ bgit_pack_stream_more (int fd, unsigned char **buf, size_t *len, size_t *cap)
 }
 
 int
-bgit_pack_read_stream (int fd, unsigned char **out, size_t *out_len)
+bgit_pack_read_stream (int fd, const unsigned char *already, size_t already_len,
+                       unsigned char **out, size_t *out_len)
 {
     unsigned char *buf = NULL;
     size_t len = 0, cap = 0;
     *out = NULL;
     *out_len = 0;
 
+    if (already_len &&
+        bgit_pack_buf_append (&buf, &len, &cap, already, already_len) < 0) {
+        free (buf);
+        return -1;
+    }
     while (len < 12) {
         ssize_t got = bgit_pack_stream_more (fd, &buf, &len, &cap);
         if (got <= 0) { free (buf); return -1; }
