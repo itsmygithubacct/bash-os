@@ -195,7 +195,7 @@
     },
     "pack": {
       "helpers": [
-        "_sha1dc"
+        "_git"
       ],
       "libs": [
         "-lz"
