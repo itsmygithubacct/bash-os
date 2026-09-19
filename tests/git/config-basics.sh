@@ -31,5 +31,31 @@ if git config --get user.email; then echo 'user.email is still set'; else echo "
 git -c user.name=Override config --get user.name
 git config --get user.name
 
+# Syntax written by hand: continuations, escapes, and a subsection.
+cat >> .git/config <<'HAND'
+[section]
+	continued = one \
+two
+	quoted = "has \"quotes\" and a \ttab"
+	implicit
+	spaced = value # with a comment
+[section "Sub Section"]
+	key = subsection value
+HAND
+git config --get section.continued
+git config --get section.quoted
+git config --get section.implicit
+git config --get section.spaced
+git config --get 'section.Sub Section.key'
+git config --list
+
+# include.path pulls in another file at that point.
+# A relative include is resolved against the file that names it, so this
+# one lives beside .git/config.
+printf '[included]\n\tkey = from the include\n' > .git/extra.cfg
+git config include.path extra.cfg
+git config --get included.key
+git config --list
+
 # The file is git's own format, so git reads back what was written.
 cat .git/config

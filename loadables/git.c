@@ -42,6 +42,7 @@
 #include "command-run.h"
 
 #include "_git_config.h"
+#include "_git_ignore.h"
 #include "_git_index.h"
 #include "_git_odb.h"
 #include "_git_refs.h"
@@ -1489,6 +1490,91 @@ git_cmd_var (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- check-ignore ------------------------------------------------------ */
+
+/* Load the .gitignore of every directory above PATH, once each. */
+static int
+git_ignore_dirs_for (bgit_ignore *ignore, git_context *ctx, const char *path,
+                     char (*loaded)[4096], size_t *n_loaded, size_t max)
+{
+    char prefix[4096] = "";
+    const char *at = path;
+    for (;;) {
+        const char *slash = strchr (at, '/');
+        if (!slash) break;
+        size_t len = (size_t) (slash - path);
+        if (len >= sizeof prefix) break;
+        memcpy (prefix, path, len);
+        prefix[len] = '\0';
+        int seen = 0;
+        for (size_t i = 0; i < *n_loaded && !seen; i++)
+            if (!strcmp (loaded[i], prefix)) seen = 1;
+        if (!seen && *n_loaded < max) {
+            snprintf (loaded[*n_loaded], sizeof loaded[0], "%s", prefix);
+            (*n_loaded)++;
+            if (bgit_ignore_add_dir (ignore, &ctx->repo, prefix) < 0) return -1;
+        }
+        at = slash + 1;
+    }
+    return 0;
+}
+
+static int
+git_cmd_check_ignore (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git check-ignore [-v] [--non-matching] [--no-index] "
+                        "<pathname>...";
+    int verbose = 0, non_matching = 0;
+    const char *paths[64];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "-n") || !strcmp (w, "--non-matching")) non_matching = 1;
+        else if (!strcmp (w, "--no-index")) { /* we never consult the index */ }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!n_paths) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    bgit_ignore ignore;
+    if (bgit_ignore_load (&ignore, &ctx->repo, &ctx->cfg) < 0)
+        return git_fatal ("cannot read the exclude files");
+    static char loaded[64][4096];
+    size_t n_loaded = 0;
+    int any = 0, status = 0;
+    for (int i = 0; i < n_paths; i++) {
+        if (git_ignore_dirs_for (&ignore, ctx, paths[i], loaded, &n_loaded,
+                                 sizeof loaded / sizeof loaded[0]) < 0) {
+            status = GIT_EXIT_FATAL;
+            break;
+        }
+        struct stat st;
+        int is_dir = stat (paths[i], &st) == 0 && S_ISDIR (st.st_mode);
+        const bgit_ignore_rule *rule = NULL;
+        bgit_ignore_match (&ignore, paths[i], is_dir, &rule);
+        /* git reports any rule that matched, a negation included, and its
+           status says whether a pattern matched at all. */
+        if (rule) any = 1;
+        if (!rule && !non_matching) continue;
+        if (verbose) {
+            if (rule)
+                printf ("%s:%ld:%s\t%s\n", rule->source, rule->line,
+                        rule->text, paths[i]);
+            else
+                printf ("::\t%s\n", paths[i]);
+        } else {
+            printf ("%s\n", paths[i]);
+        }
+    }
+    bgit_ignore_release (&ignore);
+    if (status) return status;
+    return any ? 0 : 1;
+}
+
 /* ---- config ------------------------------------------------------------ */
 
 static int
@@ -1564,9 +1650,12 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
 
     if (list) {
         for (size_t i = 0; i < cfg.n; i++) {
-            const char *value = cfg.entries[i].value ? cfg.entries[i].value : "";
-            if (zero) printf ("%s\n%s%c", cfg.entries[i].key, value, '\0');
-            else printf ("%s=%s\n", cfg.entries[i].key, value);
+            /* A key with no value is listed on its own, as git lists it. */
+            const char *key = cfg.entries[i].key, *value = cfg.entries[i].value;
+            if (zero)
+                printf (value ? "%s\n%s%c" : "%s%.0s%c", key, value ? value : "", '\0');
+            else
+                printf (value ? "%s=%s\n" : "%s%.0s\n", key, value ? value : "");
         }
         goto done;
     }
@@ -1599,6 +1688,7 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "cat-file",     git_cmd_cat_file },
+    { "check-ignore", git_cmd_check_ignore },
     { "commit-tree",  git_cmd_commit_tree },
     { "config",       git_cmd_config },
     { "for-each-ref", git_cmd_for_each_ref },

@@ -337,14 +337,24 @@ bgit_config_release (bgit_config *cfg)
     memset (cfg, 0, sizeof *cfg);
 }
 
+/* The last entry set for KEY, or NULL. */
+static const bgit_config_entry *
+bgit_config_find (const bgit_config *cfg, const char *key)
+{
+    const bgit_config_entry *found = NULL;
+    for (size_t i = 0; i < cfg->n; i++)
+        if (strcmp (cfg->entries[i].key, key) == 0)
+            found = &cfg->entries[i];
+    return found;
+}
+
 const char *
 bgit_config_get (const bgit_config *cfg, const char *key)
 {
-    const char *found = NULL;
-    for (size_t i = 0; i < cfg->n; i++)
-        if (strcmp (cfg->entries[i].key, key) == 0)
-            found = cfg->entries[i].value ? cfg->entries[i].value : "true";
-    return found;
+    /* A key with no value reads as empty, as `git config --get` prints it;
+       only the boolean reading calls it true. */
+    const bgit_config_entry *found = bgit_config_find (cfg, key);
+    return found ? (found->value ? found->value : "") : NULL;
 }
 
 size_t
@@ -360,7 +370,7 @@ bgit_config_get_all (const bgit_config *cfg, const char *key,
     size_t w = 0;
     for (size_t i = 0; i < cfg->n; i++)
         if (strcmp (cfg->entries[i].key, key) == 0)
-            out[w++] = cfg->entries[i].value ? cfg->entries[i].value : "true";
+            out[w++] = cfg->entries[i].value ? cfg->entries[i].value : "";
     *values = out;
     return n;
 }
@@ -368,8 +378,10 @@ bgit_config_get_all (const bgit_config *cfg, const char *key,
 int
 bgit_config_bool (const bgit_config *cfg, const char *key, int fallback)
 {
-    const char *value = bgit_config_get (cfg, key);
-    if (!value) return fallback;
+    const bgit_config_entry *entry = bgit_config_find (cfg, key);
+    if (!entry) return fallback;
+    if (!entry->value) return 1;          /* a key alone means true */
+    const char *value = entry->value;
     if (!*value) return 0;
     if (!strcasecmp (value, "true") || !strcasecmp (value, "yes") ||
         !strcasecmp (value, "on") || !strcmp (value, "1"))
