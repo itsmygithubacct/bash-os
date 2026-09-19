@@ -84,6 +84,22 @@ git tag -a v1 -m 'a tag'
 git show v1 > /dev/null
 git rm -q --cached ragged.txt
 git status --short
+
+# Moving tracked paths and sweeping untracked ones.
+git mv long.txt renamed-long.txt
+git mv -n renamed-long.txt nest/
+git mv renamed-long.txt nest/
+git mv nest/deeper other-deeper
+git status --short --no-renames
+printf 'sweep me\n' > sweep.txt
+mkdir -p sweepdir
+printf 'x\n' > sweepdir/x.txt
+git clean -nd
+git clean -fdx
+git log --oneline 'topic~1..topic'
+git log --oneline -- nest
+git rev-list --count '^topic~1' topic
+git log --oneline nosuchrev 2>/dev/null || true   # the error path, quietly
 git reflog > /dev/null
 git fsck 2>/dev/null || true
 SCENARIO
@@ -97,7 +113,8 @@ GIT_AUTHOR_NAME='Sanitize Author' GIT_AUTHOR_EMAIL=author@bash-os.test \
 GIT_AUTHOR_DATE='1750000000 +0000' \
 GIT_COMMITTER_NAME='Sanitize Committer' GIT_COMMITTER_EMAIL=committer@bash-os.test \
 GIT_COMMITTER_DATE='1750000100 +0000' \
-  "$target" --noprofile --norc -c "cd '$repo' && . '$d/scenario.sh'" > "$d/out" 2> "$d/err"
+  "$target" --noprofile --norc -c "cd '$repo' && . '$d/scenario.sh'" > "$d/out" 2> "$d/err" \
+  || { tail -5 "$d/out"; cat "$d/err" >&2; echo 'git-sanitize: the scenario stopped early'; exit 1; }
 
 if grep -qE 'runtime error|AddressSanitizer|LeakSanitizer' "$d/err"; then
   cat "$d/err"

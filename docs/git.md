@@ -34,6 +34,8 @@ git checkout     [-q] [-b <new>] <branch> | [--] <path>...
 git restore      [--staged] [--worktree] [--source=<tree>] [--] <path>...
 git reset        [-q] [--soft | --mixed | --hard] [<commit>] [-- <path>...]
 git rm           [--cached] [-r] [-f] [-q] [--] <path>...
+git mv           [-v] [-f] [-k] [-n] <source>... <destination>
+git clean        [-d] [-f] [-n] [-q] [-x | -X] [--] [<path>...]
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
@@ -65,7 +67,9 @@ git check-ignore [-v] [--non-matching] [<pathname>...]
 Revisions take git's suffixes: `^` and `^<n>` for a parent, `~<n>` for n
 first-parent steps, `^{}` and `^{<type>}` to peel, `@{<n>}` for a ref's nth
 previous value, read from its reflog, and `<rev>:<path>` for what a path
-held in that revision.
+held in that revision. `log` and `rev-list` take ranges — `A..B` for what
+B has and A does not, `^A` to exclude — and `log` takes a pathspec after
+`--`, showing only the commits that changed something it names.
 
 A patch is git's: the same hunks, in the same places. Myers' algorithm
 decides which lines changed, each run of changes is then slid as far down

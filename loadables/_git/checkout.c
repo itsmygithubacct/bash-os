@@ -217,10 +217,12 @@ bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
 
     for (size_t p = 0; p < n_paths; p++) {
         size_t len = strlen (paths[p]);
+        /* "." and "" name everything, as they do everywhere else in git. */
+        int everything = !*paths[p] || !strcmp (paths[p], ".");
         int matched = 0;
         for (size_t i = 0; i < n_from; i++) {
             const char *path = from[i].path;
-            if (strcmp (path, paths[p]) &&
+            if (!everything && strcmp (path, paths[p]) &&
                 !(!strncmp (path, paths[p], len) && path[len] == '/'))
                 continue;
             matched = 1;

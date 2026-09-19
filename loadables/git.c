@@ -36,6 +36,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <dirent.h>
 #include <fnmatch.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -93,6 +94,18 @@ git_usage (const char *usage)
     fflush (stdout);
     fprintf (stderr, "usage: %s\n", usage);
     return GIT_EXIT_USAGE;
+}
+
+/* What git says when a name is neither a revision nor a path. */
+static int
+git_fatal_ambiguous (const char *name)
+{
+    fflush (stdout);
+    fprintf (stderr, "fatal: ambiguous argument '%s': unknown revision or path "
+                     "not in the working tree.\n", name);
+    fprintf (stderr, "Use '--' to separate paths from revisions, like this:\n");
+    fprintf (stderr, "'git <command> [<revision>...] -- [<file>...]'\n");
+    return GIT_EXIT_FATAL;
 }
 
 /* Values from `git -c key=value`, applied over every configuration file. */
@@ -1457,11 +1470,11 @@ static int
 git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git rev-list [--count] [-n <number> | "
-                        "--max-count=<number>] <commit>...";
+                        "--max-count=<number>] <commit>... [^<commit>]";
     int count_only = 0;
     long limit = -1;
-    const char *revs[16];
-    int n_revs = 0;
+    const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
+    int n_revs = 0, n_excludes = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -1470,7 +1483,33 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
         else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
+        else if (w[0] == '^' && w[1]) {
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes))
+                return git_fatal ("too many revisions");
+            exclude_words[n_excludes] = w;
+            excludes[n_excludes++] = w + 1;
+        }
+        else if (strstr (w, "...")) return git_fatal ("this build's git rev-list "
+                                                      "has no A...B range yet");
+        else if (strstr (w, "..")) {
+            char *range = strdup (w);
+            if (!range) return GIT_EXIT_FATAL;
+            char *dots = strstr (range, "..");
+            *dots = '\0';
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes) ||
+                n_revs >= (int) (sizeof revs / sizeof *revs)) {
+                free (range);
+                return git_fatal ("too many revisions");
+            }
+            exclude_words[n_excludes] = w;
+            excludes[n_excludes++] = *range ? range : "HEAD";
+            rev_words[n_revs] = w;
+            revs[n_revs++] = dots[2] ? dots + 2 : "HEAD";
+        }
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) {
+            rev_words[n_revs] = w;
+            revs[n_revs++] = w;
+        }
         else return git_fatal ("too many revisions");
     }
     if (!n_revs) return git_usage (usage);
@@ -1479,12 +1518,35 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     struct git_walk walk;
     memset (&walk, 0, sizeof walk);
     int status = 0;
+    /* Mark everything the excluded tips reach, so the walk steps over it. */
+    for (int i = 0; i < n_excludes; i++) {
+        char id[41], commit[41];
+        if (git_resolve (ctx, excludes[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            status = exclude_words[i][0] == '^'
+                     ? git_fatal ("bad revision '%s'", exclude_words[i])
+                     : git_fatal_ambiguous (exclude_words[i]);
+            goto done;
+        }
+        if (git_walk_push (ctx, &walk, commit) < 0) { status = GIT_EXIT_FATAL; goto done; }
+    }
+    while (walk.n_pending) {
+        char current[41];
+        memcpy (current, walk.pending[--walk.n_pending].id, 41);
+        char parents[BGIT_MAX_PARENTS][41];
+        int count = bgit_commit_parents (&ctx->odb, current, parents,
+                                         BGIT_MAX_PARENTS);
+        for (int i = 0; i < count; i++)
+            if (git_walk_push (ctx, &walk, parents[i]) < 0) {
+                status = GIT_EXIT_FATAL;
+                goto done;
+            }
+    }
     for (int i = 0; i < n_revs; i++) {
         char id[41], commit[41];
         if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
             bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
-            status = git_fatal ("ambiguous argument '%s': unknown revision or "
-                                "path not in the working tree.", revs[i]);
+            status = git_fatal_ambiguous (rev_words[i]);
             goto done;
         }
         if (git_walk_push (ctx, &walk, commit) < 0) { status = GIT_EXIT_FATAL; goto done; }
@@ -1914,6 +1976,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--porcelain=v2")) { porcelain = 1; version = 2; }
         else if (!strcmp (w, "-b") || !strcmp (w, "--branch")) branch = 1;
         else if (!strcmp (w, "--ignored")) want_ignored = 1;
+        else if (!strcmp (w, "--no-renames")) ;   /* already how this build reports */
         else if (!strcmp (w, "-uall") || !strcmp (w, "--untracked-files=all")) untracked_all = 1;
         else if (!strcmp (w, "-unormal") || !strcmp (w, "--untracked-files=normal")) untracked_all = 0;
         else if (!strcmp (w, "-uno") || !strcmp (w, "--untracked-files=no")) untracked_all = -1;
@@ -2427,15 +2490,39 @@ git_format_commit (git_context *ctx, const struct git_commit *commit,
     putchar ('\n');
 }
 
-/* The commits reachable from REVS, newest first by commit date. */
+/* The commits reachable from REVS but not from EXCLUDES, newest first by
+   commit date — which is what `git log A..B` asks for. */
 static int
 git_collect_commits (git_context *ctx, const char *const *revs, int n_revs,
+                     const char *const *excludes, int n_excludes,
                      int first_parent, long limit, char (**out)[41], size_t *n_out)
 {
     struct git_walk walk;
     memset (&walk, 0, sizeof walk);
     char (*ordered)[41] = NULL;
     size_t n = 0, cap = 0;
+
+    /* Walk what is excluded first, marking it seen; the main walk then
+       steps over all of it, however the two histories meet. */
+    for (int i = 0; i < n_excludes; i++) {
+        char id[41], commit[41];
+        if (git_resolve (ctx, excludes[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            free (walk.seen); free (walk.pending);
+            return -1;
+        }
+        if (git_walk_push (ctx, &walk, commit) < 0) goto fail;
+    }
+    while (walk.n_pending) {
+        char current[41];
+        memcpy (current, walk.pending[--walk.n_pending].id, 41);
+        char parents[BGIT_MAX_PARENTS][41];
+        int count = bgit_commit_parents (&ctx->odb, current, parents,
+                                         BGIT_MAX_PARENTS);
+        for (int i = 0; i < count; i++)
+            if (git_walk_push (ctx, &walk, parents[i]) < 0) goto fail;
+    }
+
     for (int i = 0; i < n_revs; i++) {
         char id[41], commit[41];
         if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
@@ -2497,10 +2584,10 @@ git_diff_wanted (const struct git_diff_format *format)
    a root commit. git shows no diff for a merge unless asked, so nor does
    this. */
 static int
-git_commit_diff (git_context *ctx, const struct git_commit *commit,
-                 const struct git_diff_format *format)
+git_commit_changes (git_context *ctx, const struct git_commit *commit,
+                    const char *const *paths, int n_paths,
+                    bgit_diff_entry **out, size_t *n_out)
 {
-    if (commit->n_parents > 1) return 0;
     char parent_tree[41] = "";
     if (commit->n_parents &&
         bgit_commit_tree (&ctx->odb, commit->parents[0], parent_tree) < 0)
@@ -2510,9 +2597,50 @@ git_commit_diff (git_context *ctx, const struct git_commit *commit,
     if (bgit_diff_trees (&ctx->odb, commit->n_parents ? parent_tree : NULL,
                          commit->tree, &entries, &n) < 0)
         return -1;
+    if (n_paths) {
+        size_t kept = 0;
+        for (size_t i = 0; i < n; i++) {
+            int matched = 0;
+            for (int j = 0; j < n_paths && !matched; j++)
+                if (git_path_in_spec (entries[i].path, paths[j])) matched = 1;
+            if (matched) entries[kept++] = entries[i];
+            else free (entries[i].path);
+        }
+        n = kept;
+    }
+    *out = entries;
+    *n_out = n;
+    return 0;
+}
+
+static int
+git_commit_diff (git_context *ctx, const struct git_commit *commit,
+                 const struct git_diff_format *format,
+                 const char *const *paths, int n_paths)
+{
+    if (commit->n_parents > 1) return 0;
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (git_commit_changes (ctx, commit, paths, n_paths, &entries, &n) < 0)
+        return -1;
     int rc = git_diff_emit (ctx, format, entries, n, 0, "");
     bgit_diff_free (entries, n);
     return rc;
+}
+
+/* Did this commit change anything the pathspec names? That is what decides
+   whether `git log -- <path>` shows it. A merge follows its first parent
+   here, which is all this build can make. */
+static int
+git_commit_touches (git_context *ctx, const struct git_commit *commit,
+                    const char *const *paths, int n_paths)
+{
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (git_commit_changes (ctx, commit, paths, n_paths, &entries, &n) < 0)
+        return 1;
+    bgit_diff_free (entries, n);
+    return n > 0;
 }
 
 /* One commit as `git log` and `git show` print it: the header, the message
@@ -2520,7 +2648,8 @@ git_commit_diff (git_context *ctx, const struct git_commit *commit,
 static void
 git_print_commit (git_context *ctx, const struct git_commit *commit,
                   int oneline, const char *format, int raw_date,
-                  const struct git_diff_format *diff)
+                  const struct git_diff_format *diff,
+                  const char *const *paths, int n_paths)
 {
     if (oneline) {
         char abbreviated[41], subject[4096];
@@ -2560,7 +2689,7 @@ git_print_commit (git_context *ctx, const struct git_commit *commit,
         /* The long format keeps a blank line between message and diff; the
            one-line format runs straight into it. */
         if (!oneline) putchar ('\n');
-        git_commit_diff (ctx, commit, diff);
+        git_commit_diff (ctx, commit, diff, paths, n_paths);
     }
 }
 
@@ -2573,15 +2702,21 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0;
     long limit = -1;
-    const char *revs[16];
-    int n_revs = 0;
+    const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
+    const char *paths[32];
+    int n_revs = 0, n_excludes = 0, n_paths = 0, no_more = 0;
     struct git_diff_format diff;
     git_diff_format_init (&diff);
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (no_more) {
+            if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+            else return git_fatal ("too many paths");
+            continue;
+        }
         if (!strcmp (w, "--oneline")) oneline = 1;
-        else if (!strcmp (w, "--")) return git_usage (usage);
         else if (git_diff_format_option (&diff, w)) ;
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
@@ -2591,16 +2726,55 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
-        else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
+        else if (!strcmp (w, "--all")) {
+            rev_words[n_revs] = w;
+            revs[n_revs++] = "--all";
+        }
+        else if (!strcmp (w, "--graph"))
+            return git_fatal ("this build's git log has no --graph yet");
+        else if (w[0] == '^' && w[1]) {
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes))
+                return git_fatal ("too many revisions");
+            exclude_words[n_excludes] = w;
+            excludes[n_excludes++] = w + 1;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
+        else if (strstr (w, "...")) {
+            return git_fatal ("this build's git log has no A...B range yet");
+        }
+        else if (strstr (w, "..")) {
+            /* A..B: what B has and A does not. Either side may be left out,
+               and then means HEAD. */
+            char *range = strdup (w);
+            if (!range) return GIT_EXIT_FATAL;
+            char *dots = strstr (range, "..");
+            *dots = '\0';
+            const char *left = *range ? range : "HEAD";
+            const char *right = dots[2] ? dots + 2 : "HEAD";
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes) ||
+                n_revs >= (int) (sizeof revs / sizeof *revs)) {
+                free (range);
+                return git_fatal ("too many revisions");
+            }
+            /* Both halves point into `range`, which lives as long as the
+               command does: the child exits when it is done. A complaint
+               about either half names the range as it was written. */
+            exclude_words[n_excludes] = w;
+            excludes[n_excludes++] = left;
+            rev_words[n_revs] = w;
+            revs[n_revs++] = right;
+        }
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) {
+            rev_words[n_revs] = w;
+            revs[n_revs++] = w;
+        }
         else return git_fatal ("too many revisions");
     }
     if (format && !strcmp (format, "oneline")) { oneline = 1; format = NULL; }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     /* --all means every ref; otherwise HEAD, unless revisions were named. */
-    const char *starts[64];
+    const char *starts[64], *start_words[64];
     int n_starts = 0;
     int want_all = 0;
     for (int i = 0; i < n_revs; i++)
@@ -2610,28 +2784,68 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     if (want_all) {
         if (bgit_refs_list (&ctx->repo, "refs/", &refs, &n_refs) < 0)
             return git_fatal ("cannot read refs");
-        for (size_t i = 0; i < n_refs && n_starts < (int) (sizeof starts / sizeof *starts); i++)
+        for (size_t i = 0; i < n_refs && n_starts < (int) (sizeof starts / sizeof *starts); i++) {
+            start_words[n_starts] = refs[i].name;
             starts[n_starts++] = refs[i].name;
+        }
     }
     for (int i = 0; i < n_revs; i++)
-        if (strcmp (revs[i], "--all") && n_starts < (int) (sizeof starts / sizeof *starts))
+        if (strcmp (revs[i], "--all") && n_starts < (int) (sizeof starts / sizeof *starts)) {
+            start_words[n_starts] = rev_words[i];
             starts[n_starts++] = revs[i];
-    if (!n_starts) starts[n_starts++] = "HEAD";
+        }
+    if (!n_starts) {
+        start_words[n_starts] = "HEAD";
+        starts[n_starts++] = "HEAD";
+    }
 
     char (*ordered)[41] = NULL;
     size_t n = 0;
-    int rc = git_collect_commits (ctx, starts, n_starts, first_parent, limit,
+    /* With a pathspec the limit counts what is shown, not what is walked. */
+    int rc = git_collect_commits (ctx, starts, n_starts, excludes, n_excludes,
+                                  first_parent, n_paths ? -1 : limit,
                                   &ordered, &n);
     bgit_refs_free (refs, n_refs);
-    if (rc < 0)
-        return git_fatal ("your current branch does not have any commits yet");
+    if (rc < 0) {
+        /* Name what could not be resolved, in the words it was written in:
+           a range is reported whole, as git reports it. */
+        char id[41];
+        for (int i = 0; i < n_excludes; i++)
+            if (git_resolve (ctx, excludes[i], id, NULL) < 0)
+                return exclude_words[i][0] == '^'
+                       ? git_fatal ("bad revision '%s'", exclude_words[i])
+                       : git_fatal_ambiguous (exclude_words[i]);
+        for (int i = 0; i < n_starts; i++)
+            if (strcmp (starts[i], "HEAD") && git_resolve (ctx, starts[i], id, NULL) < 0)
+                return git_fatal_ambiguous (start_words[i]);
+        char *branch = NULL;
+        if (bgit_symref_read (&ctx->repo, "HEAD", &branch) == 0 && branch) {
+            const char *name = !strncmp (branch, "refs/heads/", 11) ? branch + 11
+                                                                    : branch;
+            int fatal = git_fatal ("your current branch '%s' does not have any "
+                                   "commits yet", name);
+            free (branch);
+            return fatal;
+        }
+        return git_fatal_ambiguous ("HEAD");
+    }
 
+    long shown = 0;
+    int first = 1;
     for (size_t k = 0; k < n; k++) {
         size_t i = reverse ? n - 1 - k : k;
         struct git_commit commit;
         if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
-        git_print_commit (ctx, &commit, oneline, format, raw_date, &diff);
-        if (!oneline && !format && k + 1 < n) putchar ('\n');
+        if (n_paths && !git_commit_touches (ctx, &commit, paths, n_paths)) {
+            git_commit_release (&commit);
+            continue;
+        }
+        if (limit >= 0 && shown >= limit) { git_commit_release (&commit); break; }
+        if (!oneline && !format && !first) putchar ('\n');
+        git_print_commit (ctx, &commit, oneline, format, raw_date, &diff,
+                          paths, n_paths);
+        first = 0;
+        shown++;
         git_commit_release (&commit);
     }
     free (ordered);
@@ -2909,8 +3123,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
     for (int i = 0; i < n_objects; i++) {
         char id[41];
         if (git_resolve (ctx, objects[i], id, NULL) < 0)
-            return git_fatal ("ambiguous argument '%s': unknown revision or "
-                              "path not in the working tree.", objects[i]);
+            return git_fatal_ambiguous (objects[i]);
         for (;;) {
             enum bgit_type type;
             unsigned char *data = NULL;
@@ -2942,7 +3155,8 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
             struct git_commit commit;
             if (git_commit_read (ctx, id, &commit) < 0)
                 return git_fatal ("unable to read %s", id);
-            git_print_commit (ctx, &commit, oneline, format, raw_date, &diff);
+            git_print_commit (ctx, &commit, oneline, format, raw_date, &diff,
+                              NULL, 0);
             git_commit_release (&commit);
             break;
         }
@@ -3225,11 +3439,10 @@ git_cmd_switch (git_context *ctx, WORD_LIST *args)
             status = git_fatal ("invalid reference: %s", start);
             goto done;
         }
-        char label[256];
-        git_head_label (ctx, &state, label, sizeof label);
+        /* switch -c writes the start point as it was typed, so an
+           implicit one stays "HEAD"; git branch names the branch instead. */
         char message[1200];
-        snprintf (message, sizeof message, "branch: Created from %s",
-                  strcmp (start, "HEAD") ? start : label);
+        snprintf (message, sizeof message, "branch: Created from %s", start);
         if (bgit_ref_update (&ctx->repo, ref, commit, NULL, message) < 0) {
             status = GIT_EXIT_FATAL;
             goto done;
@@ -3401,8 +3614,7 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
     if (git_resolve (ctx, target, id, NULL) < 0 ||
         bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0 ||
         bgit_commit_tree (&ctx->odb, commit, tree) < 0) {
-        status = git_fatal ("ambiguous argument '%s': unknown revision or path "
-                            "not in the working tree.", target);
+        status = git_fatal_ambiguous (target);
         goto done;
     }
 
@@ -3604,6 +3816,324 @@ git_cmd_rm (git_context *ctx, WORD_LIST *args)
         status = git_fatal ("pathspec '%s' did not match any files", paths[0]);
     if (!status && git_index_store (ctx, state.index, state.n_index) < 0)
         status = GIT_EXIT_FATAL;
+    git_state_release (&state);
+    return status;
+}
+
+/* ---- mv and clean ------------------------------------------------------ */
+
+/* Move one tracked path in the index, keeping everything else about it. */
+static int
+git_index_rename (struct git_state *state, const char *from, const char *to)
+{
+    for (size_t i = 0; i < state->n_index; i++) {
+        if (strcmp (state->index[i].path, from)) continue;
+        char *path = strdup (to);
+        if (!path) return -1;
+        free (state->index[i].path);
+        state->index[i].path = path;
+        size_t len = strlen (to);
+        state->index[i].flags = (uint16_t) ((state->index[i].flags & ~0xFFF) |
+                                            (len > 0xFFF ? 0xFFF : len));
+        return 0;
+    }
+    return -1;
+}
+
+/* Every directory above PATH, created as needed, as git creates them. */
+static int
+git_mkdirs_for (const char *path)
+{
+    char buf[4096];
+    if (snprintf (buf, sizeof buf, "%s", path) >= (int) sizeof buf) return -1;
+    char *slash = strrchr (buf, '/');
+    if (!slash) return 0;
+    *slash = '\0';
+    for (char *p = buf + 1; *p; p++) {
+        if (*p != '/') continue;
+        *p = '\0';
+        if (mkdir (buf, 0777) < 0 && errno != EEXIST) return -1;
+        *p = '/';
+    }
+    return mkdir (buf, 0777) == 0 || errno == EEXIST ? 0 : -1;
+}
+
+static int
+git_is_dir (const char *path)
+{
+    struct stat st;
+    return stat (path, &st) == 0 && S_ISDIR (st.st_mode);
+}
+
+static int
+git_cmd_mv (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git mv [-v] [-f] [-k] [-n] <source>... <destination>";
+    int verbose = 0, force = 0, skip = 0, dry_run = 0, no_more = 0;
+    const char *paths[64];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && (!strcmp (w, "-v") || !strcmp (w, "--verbose"))) verbose = 1;
+        else if (!no_more && (!strcmp (w, "-f") || !strcmp (w, "--force"))) force = 1;
+        else if (!no_more && !strcmp (w, "-k")) skip = 1;
+        else if (!no_more && (!strcmp (w, "-n") || !strcmp (w, "--dry-run"))) dry_run = 1;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (n_paths < 2) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    char destination_buffer[4096];
+    snprintf (destination_buffer, sizeof destination_buffer, "%s",
+              paths[n_paths - 1]);
+    size_t destination_len = strlen (destination_buffer);
+    while (destination_len > 1 && destination_buffer[destination_len - 1] == '/')
+        destination_buffer[--destination_len] = '\0';
+    const char *destination = destination_buffer;
+    char destination_full[4096];
+    snprintf (destination_full, sizeof destination_full, "%s/%s",
+              ctx->repo.work_tree, destination);
+    int into_directory = git_is_dir (destination_full);
+    if (n_paths > 2 && !into_directory) {
+        git_state_release (&state);
+        return git_fatal ("destination '%s' is not a directory", destination);
+    }
+
+    /* git checks every move before making any, so a bad second source
+       cannot leave the first one already moved. */
+    char (*targets)[4096] = calloc ((size_t) n_paths, sizeof *targets);
+    int *skipped = calloc ((size_t) n_paths, sizeof *skipped);
+    if (!targets || !skipped) {
+        free (targets);
+        free (skipped);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    int status = 0, moved = 0;
+    for (int i = 0; i < n_paths - 1 && !status; i++) {
+        const char *source = paths[i];
+        if (into_directory) {
+            const char *base = strrchr (source, '/');
+            snprintf (targets[i], sizeof targets[i], "%s/%s", destination,
+                      base ? base + 1 : source);
+        } else {
+            snprintf (targets[i], sizeof targets[i], "%s", destination);
+        }
+        if (dry_run)
+            printf ("Checking rename of '%s' to '%s'\n", source, targets[i]);
+
+        /* A source is either a tracked file or a directory holding some. */
+        size_t source_len = strlen (source);
+        int is_tracked = 0, is_prefix = 0;
+        for (size_t j = 0; j < state.n_index; j++) {
+            if (!strcmp (state.index[j].path, source)) is_tracked = 1;
+            else if (!strncmp (state.index[j].path, source, source_len) &&
+                     state.index[j].path[source_len] == '/')
+                is_prefix = 1;
+        }
+        if (!is_tracked && !is_prefix) {
+            if (skip) { skipped[i] = 1; continue; }
+            status = git_fatal ("bad source, source=%s, destination=%s",
+                                source, targets[i]);
+            break;
+        }
+        char target_full[4096];
+        snprintf (target_full, sizeof target_full, "%s/%s", ctx->repo.work_tree,
+                  targets[i]);
+        struct stat st;
+        if (lstat (target_full, &st) == 0 && !force) {
+            if (skip) { skipped[i] = 1; continue; }
+            status = git_fatal ("destination exists, source=%s, destination=%s",
+                                source, targets[i]);
+            break;
+        }
+    }
+
+    for (int i = 0; i < n_paths - 1 && !status; i++) {
+        if (skipped[i]) continue;
+        const char *source = paths[i], *target = targets[i];
+        if (verbose || dry_run) printf ("Renaming %s to %s\n", source, target);
+        if (dry_run) continue;
+
+        char source_full[4096], target_full[4096];
+        snprintf (source_full, sizeof source_full, "%s/%s", ctx->repo.work_tree, source);
+        snprintf (target_full, sizeof target_full, "%s/%s", ctx->repo.work_tree, target);
+        if (git_mkdirs_for (target_full) < 0 ||
+            rename (source_full, target_full) < 0) {
+            if (skip) continue;
+            status = git_fatal ("renaming '%s' failed: %s", source,
+                                strerror (errno));
+            break;
+        }
+        size_t source_len = strlen (source);
+        if (git_index_rename (&state, source, target) < 0) {
+            /* A directory: every tracked path under it moves with it. */
+            for (size_t j = 0; j < state.n_index; j++) {
+                const char *path = state.index[j].path;
+                if (strncmp (path, source, source_len) || path[source_len] != '/')
+                    continue;
+                char renamed[4096];
+                snprintf (renamed, sizeof renamed, "%s%s", target, path + source_len);
+                char *kept = strdup (renamed);
+                if (!kept) { status = GIT_EXIT_FATAL; break; }
+                free (state.index[j].path);
+                state.index[j].path = kept;
+                size_t len = strlen (kept);
+                state.index[j].flags = (uint16_t) ((state.index[j].flags & ~0xFFF) |
+                                                   (len > 0xFFF ? 0xFFF : len));
+            }
+        }
+        moved = 1;
+    }
+    if (!status && moved) {
+        if (state.n_index > 1)
+            qsort (state.index, state.n_index, sizeof *state.index,
+                   bgit_index_path_cmp);
+        if (git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    free (targets);
+    free (skipped);
+    git_state_release (&state);
+    return status;
+}
+
+/* Remove a file, or a directory and everything in it. */
+static int
+git_remove_path (const char *full)
+{
+    struct stat st;
+    if (lstat (full, &st) < 0) return -1;
+    if (!S_ISDIR (st.st_mode)) return unlink (full);
+    DIR *dir = opendir (full);
+    if (!dir) return -1;
+    struct dirent *entry;
+    int rc = 0;
+    while ((entry = readdir (dir))) {
+        if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, "..")) continue;
+        char child[4096];
+        if (snprintf (child, sizeof child, "%s/%s", full, entry->d_name) >=
+            (int) sizeof child) { rc = -1; continue; }
+        if (git_remove_path (child) < 0) rc = -1;
+    }
+    closedir (dir);
+    return rmdir (full) < 0 ? -1 : rc;
+}
+
+static int
+git_clean_cmp (const void *a, const void *b)
+{
+    const bgit_status_entry *left = *(const bgit_status_entry *const *) a;
+    const bgit_status_entry *right = *(const bgit_status_entry *const *) b;
+    return strcmp (left->path, right->path);
+}
+
+static int
+git_cmd_clean (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git clean [-d] [-f] [-n] [-q] [-x | -X] [--] <path>...";
+    int directories = 0, force = 0, dry_run = 0, quiet = 0;
+    int with_ignored = 0, only_ignored = 0, no_more = 0;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && w[0] == '-' && w[1] && w[1] != '-') {
+            for (const char *flag = w + 1; *flag; flag++) {
+                switch (*flag) {
+                case 'd': directories = 1; break;
+                case 'f': force = 1; break;
+                case 'n': dry_run = 1; break;
+                case 'q': quiet = 1; break;
+                case 'x': with_ignored = 1; break;
+                case 'X': only_ignored = 1; break;
+                default: return git_usage (usage);
+                }
+            }
+        }
+        else if (!no_more && !strcmp (w, "--dry-run")) dry_run = 1;
+        else if (!no_more && !strcmp (w, "--force")) force = 1;
+        else if (!no_more && !strcmp (w, "--quiet")) quiet = 1;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!force && !dry_run)
+        return git_fatal ("clean.requireForce is true and -f not given: "
+                          "refusing to clean");
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state.index, state.n_index,
+                     state.have_head ? state.head_tree : NULL, 0,
+                     with_ignored || only_ignored, &entries, &n) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot read the working tree");
+    }
+
+    /* git reports what it would remove in path order, whether a candidate
+       is untracked or ignored; the status walk groups them instead. */
+    const bgit_status_entry **candidates = calloc (n ? n : 1, sizeof *candidates);
+    if (!candidates) {
+        bgit_status_free (entries, n);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    size_t n_candidates = 0;
+    for (size_t i = 0; i < n; i++) {
+        const bgit_status_entry *entry = &entries[i];
+        if (!entry->untracked && !entry->ignored) continue;
+        if (entry->ignored && !with_ignored && !only_ignored) continue;
+        if (entry->untracked && only_ignored) continue;
+        candidates[n_candidates++] = entry;
+    }
+    if (n_candidates > 1)
+        qsort (candidates, n_candidates, sizeof *candidates, git_clean_cmp);
+
+    int status = 0;
+    for (size_t i = 0; i < n_candidates && !status; i++) {
+        const bgit_status_entry *entry = candidates[i];
+        size_t len = strlen (entry->path);
+        int is_directory = len && entry->path[len - 1] == '/';
+        int named = 0;
+        if (n_paths) {
+            for (int j = 0; j < n_paths && !named; j++) {
+                char trimmed[4096];
+                snprintf (trimmed, sizeof trimmed, "%.*s",
+                          (int) (is_directory ? len - 1 : len), entry->path);
+                if (git_path_in_spec (trimmed, paths[j])) named = 1;
+            }
+            if (!named) continue;
+        }
+        /* Without -d a directory is left alone, unless it was named. */
+        if (is_directory && !directories && !named) continue;
+        if (!quiet)
+            printf ("%s %s\n", dry_run ? "Would remove" : "Removing", entry->path);
+        if (dry_run) continue;
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%.*s", ctx->repo.work_tree,
+                  (int) (is_directory ? len - 1 : len), entry->path);
+        if (git_remove_path (full) < 0)
+            status = git_fatal ("failed to remove %s", entry->path);
+    }
+    free (candidates);
+    bgit_status_free (entries, n);
     git_state_release (&state);
     return status;
 }
@@ -3810,6 +4340,7 @@ static const struct {
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
     { "checkout",     git_cmd_checkout },
+    { "clean",        git_cmd_clean },
     { "commit-tree",  git_cmd_commit_tree },
     { "commit",       git_cmd_commit },
     { "config",       git_cmd_config },
@@ -3820,6 +4351,7 @@ static const struct {
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
     { "ls-tree",      git_cmd_ls_tree },
+    { "mv",           git_cmd_mv },
     { "read-tree",    git_cmd_read_tree },
     { "reflog",       git_cmd_reflog },
     { "reset",        git_cmd_reset },
