@@ -298,6 +298,29 @@ bgit_index_read_views (const char *path, bgit_index_view **out, size_t *n_out,
     return 0;
 }
 
+/* When the index itself was last written, for the racy-entry rule. */
+static uint32_t bgit_index_stamp_sec, bgit_index_stamp_nsec;
+static int bgit_index_stamped;
+
+int
+bgit_index_racy (const bgit_index_entry *entry)
+{
+    if (!bgit_index_stamped || !bgit_index_stamp_sec) return 0;
+    if (entry->mtime_sec > bgit_index_stamp_sec) return 1;
+    return entry->mtime_sec == bgit_index_stamp_sec &&
+           entry->mtime_nsec >= bgit_index_stamp_nsec;
+}
+
+static void
+bgit_index_stamp (const char *path)
+{
+    struct stat st;
+    if (stat (path, &st) < 0) return;
+    bgit_index_stamp_sec = (uint32_t) st.st_mtim.tv_sec;
+    bgit_index_stamp_nsec = (uint32_t) st.st_mtim.tv_nsec;
+    bgit_index_stamped = 1;
+}
+
 int
 bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
 {
@@ -305,6 +328,7 @@ bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
     size_t n;
     unsigned char *backing;
     if (bgit_index_read_views (path, &views, &n, &backing) < 0) return -1;
+    bgit_index_stamp (path);
     bgit_index_entry *entries = calloc (n ? n : 1, sizeof *entries);
     if (!entries) { free (views); free (backing); return -1; }
     for (size_t i = 0; i < n; i++) {
@@ -376,7 +400,11 @@ bgit_index_write (const char *path, bgit_index_entry *entries, size_t n)
         bgit_put_be32 (buf + len, e->mode);        len += 4;
         bgit_put_be32 (buf + len, e->uid);         len += 4;
         bgit_put_be32 (buf + len, e->gid);         len += 4;
-        bgit_put_be32 (buf + len, e->size);        len += 4;
+        /* An entry racy against the index we read is written with size
+           zero, as git writes it: the next process then sees the size
+           disagree and reads the file rather than trusting the stat. */
+        bgit_put_be32 (buf + len, bgit_index_racy (e) ? 0 : e->size);
+        len += 4;
         memcpy (buf + len, e->sha, 20);            len += 20;
         /* We always emit version 2, which has no flags2 field, so
            CE_EXTENDED (0x4000) must be cleared — keep only assume-valid

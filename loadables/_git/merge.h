@@ -22,6 +22,8 @@
 
 #include <stddef.h>
 
+#include <stdint.h>
+
 #include "odb.h"
 
 /* The best common ancestors of ONE and each of TWOS. Caller frees *out. */
@@ -58,5 +60,37 @@ int bgit_merge_content (const char *base, size_t base_len,
                         const char *theirs, size_t theirs_len,
                         const char *our_label, const char *their_label,
                         bgit_merge_result *result);
+
+/* What became of one path when two trees were merged. */
+enum bgit_merge_kind {
+    BGIT_MERGE_CLEAN,          /* settled, nothing to report */
+    BGIT_MERGE_AUTO,           /* settled by merging the two sides' lines */
+    BGIT_MERGE_CONTENT,        /* the lines could not be settled */
+    BGIT_MERGE_ADD_ADD,        /* both sides added it, differently */
+    BGIT_MERGE_MODIFY_DELETE,  /* one side deleted what the other changed */
+};
+
+typedef struct {
+    char *path;
+    enum bgit_merge_kind kind;
+    uint32_t mode;             /* the settled mode; 0 when the path is gone */
+    char sha[41];              /* the settled blob; empty when the path is gone */
+    char *text;                /* what to put in the working tree on conflict */
+    size_t len;
+    uint32_t base_mode, our_mode, their_mode;
+    char base_sha[41], our_sha[41], their_sha[41];
+    int deleted_in_ours;       /* for modify/delete, which side let it go */
+} bgit_merge_path;
+
+/* Merge two trees over their base. Blobs that merge cleanly are written to
+   OBJECTS_DIR; a path that does not settle comes back with its three sides
+   and the text to leave in the working tree. Caller frees with
+   bgit_merge_paths_free. */
+int bgit_merge_trees (bgit_odb *odb, const char *objects_dir,
+                      const char *base_tree, const char *our_tree,
+                      const char *their_tree, const char *our_label,
+                      const char *their_label,
+                      bgit_merge_path **out, size_t *n_out);
+void bgit_merge_paths_free (bgit_merge_path *paths, size_t n);
 
 #endif /* BASH_OS_GIT_MERGE_H */

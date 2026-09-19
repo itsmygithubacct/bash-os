@@ -61,6 +61,14 @@ void bgit_index_entry_set_stat (bgit_index_entry *e, const struct stat *st);
 /* Free N entries and their paths. */
 void bgit_index_free_entries (bgit_index_entry *e, size_t n);
 
+/* An entry written in the same clock tick as the index itself cannot be
+   trusted by its stat data alone: the file may have been changed again
+   within that tick, with the same size, and nothing would show. git calls
+   such an entry racily clean and reads the content instead. The index's own
+   timestamp is remembered when it is read, and an entry at or after it is
+   racy. */
+int bgit_index_racy (const bgit_index_entry *entry);
+
 /* Parse and validate the index at PATH, including its SHA-1 trailer.
    *out and *backing are two allocations a reading caller frees together. */
 int bgit_index_read_views (const char *path, bgit_index_view **out,

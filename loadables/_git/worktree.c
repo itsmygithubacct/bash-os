@@ -65,8 +65,10 @@ bgit_worktree_matches (bgit_odb *odb, const char *full_path,
     (void) odb;
     if (entry->mode != bgit_worktree_mode (st)) return 0;
     /* The index records stat data; when it still agrees, the file is
-       unchanged and need not be read. */
-    if (entry->size == (uint32_t) st->st_size &&
+       unchanged and need not be read — unless the entry is racy, written in
+       the same tick as the index, when only the content can say. */
+    if (!bgit_index_racy (entry) &&
+        entry->size == (uint32_t) st->st_size &&
         entry->mtime_sec == (uint32_t) st->st_mtim.tv_sec &&
         entry->mtime_nsec == (uint32_t) st->st_mtim.tv_nsec &&
         entry->ctime_sec == (uint32_t) st->st_ctim.tv_sec &&
@@ -343,6 +345,32 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     struct bgit_status_build build;
     memset (&build, 0, sizeof build);
 
+    /* A path the index holds in more than one stage is unmerged: it is
+       reported by which stages exist, not by comparing anything. */
+    for (size_t j = 0; j < n_index; j++) {
+        int stage = (index[j].flags >> 12) & 3;
+        if (!stage) continue;
+        bgit_status_entry *entry = bgit_status_at (&build, index[j].path);
+        if (!entry) goto oom;
+        entry->unmerged |= 1 << stage;
+        if (stage == 1) {
+            entry->head_mode = index[j].mode;
+            bgit_sha_to_hex (index[j].sha, entry->head_sha);
+        } else if (stage == 2) {
+            entry->index_mode = index[j].mode;
+            bgit_sha_to_hex (index[j].sha, entry->index_sha);
+        } else {
+            entry->their_mode = index[j].mode;
+            bgit_sha_to_hex (index[j].sha, entry->their_sha);
+        }
+        char full[4096];
+        struct stat st;
+        if (snprintf (full, sizeof full, "%s/%s", repo->work_tree,
+                      index[j].path) < (int) sizeof full &&
+            lstat (full, &st) == 0)
+            entry->worktree_mode = bgit_worktree_mode (&st);
+    }
+
     /* HEAD against the index: what is staged. */
     bgit_index_entry *head = NULL;
     size_t n_head = 0;
@@ -350,8 +378,14 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
         return -1;
     for (size_t i = 0; i < n_head; i++) {
         const bgit_index_entry *staged = NULL;
-        for (size_t j = 0; j < n_index; j++)
-            if (!strcmp (index[j].path, head[i].path)) { staged = &index[j]; break; }
+        int unmerged = 0;
+        for (size_t j = 0; j < n_index; j++) {
+            if (strcmp (index[j].path, head[i].path)) continue;
+            if ((index[j].flags >> 12) & 3) { unmerged = 1; break; }
+            staged = &index[j];
+            break;
+        }
+        if (unmerged) continue;
         bgit_status_entry *entry = bgit_status_at (&build, head[i].path);
         if (!entry) goto oom;
         entry->head_mode = head[i].mode;
@@ -369,6 +403,7 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
             entry->staged = 'M';
     }
     for (size_t j = 0; j < n_index; j++) {
+        if ((index[j].flags >> 12) & 3) continue;
         int in_head = 0;
         for (size_t i = 0; i < n_head && !in_head; i++)
             if (!strcmp (index[j].path, head[i].path)) in_head = 1;
@@ -383,8 +418,10 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     head = NULL;
     n_head = 0;
 
-    /* The index against the working tree: what is not staged. */
+    /* The index against the working tree: what is not staged. An unmerged
+       path is left alone; its stages already say what happened. */
     for (size_t j = 0; j < n_index; j++) {
+        if ((index[j].flags >> 12) & 3) continue;
         char full[4096];
         if (snprintf (full, sizeof full, "%s/%s", repo->work_tree,
                       index[j].path) >= (int) sizeof full)
@@ -428,7 +465,8 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     size_t kept = 0;
     for (size_t i = 0; i < build.n; i++) {
         bgit_status_entry *entry = &build.entries[i];
-        if (entry->staged || entry->unstaged || entry->untracked || entry->ignored) {
+        if (entry->staged || entry->unstaged || entry->untracked ||
+            entry->ignored || entry->unmerged) {
             if (kept != i) build.entries[kept] = *entry;
             kept++;
         } else {

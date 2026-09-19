@@ -155,8 +155,14 @@ def state(directory):
             ('log', ('log', '--all', '--format=%H %T %P %an %ae %ad %cn %ce %cd %s', '--date=raw')),
             ('reflog', ('log', '-g', '--all', '--format=%H %gd %gn %ge %gs', '--date=raw')),
             ('fsck', ('fsck', '--strict', '--no-progress')),
+            # `dangling` lines are not reported here: an object left
+            # unreferenced is each implementation's own business, while
+            # anything else fsck says is not.
     ):
         status, output = git_out(directory, *args)
+        if label == 'fsck':
+            output = b'\n'.join(line for line in output.splitlines()
+                                 if not line.startswith(b'dangling '))
         facts[label] = (status, output)
     return facts
 

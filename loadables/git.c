@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <time.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <fnmatch.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -981,6 +982,19 @@ static int
 git_index_put (bgit_index_entry **entries, size_t *n, size_t *cap,
                const bgit_index_entry *entry)
 {
+    /* Staging a path that was in dispute settles it: the conflict's stages
+       go, and one stage-zero entry takes their place. */
+    int unmerged = 0;
+    for (size_t i = 0; i < *n; i++)
+        if (!strcmp ((*entries)[i].path, entry->path) &&
+            (((*entries)[i].flags >> 12) & 3))
+            unmerged = 1;
+    if (unmerged) {
+        char *path = strdup (entry->path);
+        if (!path) return -1;
+        bgit_index_remove_path (entries, n, path);
+        free (path);
+    }
     for (size_t i = 0; i < *n; i++) {
         if (strcmp ((*entries)[i].path, entry->path) != 0) continue;
         char *keep = (*entries)[i].path;
@@ -1849,8 +1863,35 @@ git_cmd_add (git_context *ctx, WORD_LIST *args)
 static void
 git_status_letters (const bgit_status_entry *entry, char *x, char *y, char blank)
 {
+    if (entry->unmerged) {
+        /* Which stages survive says what the two sides did. */
+        switch (entry->unmerged) {
+        case 2 | 4 | 8: *x = 'U'; *y = 'U'; return;   /* both modified */
+        case 4 | 8:     *x = 'A'; *y = 'A'; return;   /* both added */
+        case 2 | 4:     *x = 'U'; *y = 'D'; return;   /* deleted by them */
+        case 2 | 8:     *x = 'D'; *y = 'U'; return;   /* deleted by us */
+        case 4:         *x = 'A'; *y = 'U'; return;   /* added by us */
+        case 8:         *x = 'U'; *y = 'A'; return;   /* added by them */
+        default:        *x = 'D'; *y = 'D'; return;   /* both deleted */
+        }
+    }
     *x = entry->staged ? (char) entry->staged : blank;
     *y = entry->unstaged ? (char) entry->unstaged : blank;
+}
+
+/* What the long format calls an unmerged path. */
+static const char *
+git_unmerged_label (int stages)
+{
+    switch (stages) {
+    case 2 | 4 | 8: return "both modified:";
+    case 4 | 8:     return "both added:";
+    case 2 | 4:     return "deleted by them:";
+    case 2 | 8:     return "deleted by us:";
+    case 4:         return "added by us:";
+    case 8:         return "added by them:";
+    default:        return "both deleted:";
+    }
 }
 
 /* The words git puts in front of a path in the long format, in a column
@@ -1887,9 +1928,11 @@ git_status_long (git_context *ctx, struct git_state *state,
     if (!state->have_head) printf ("\nNo commits yet\n\n");
 
     int staged = 0, unstaged = 0, deleted = 0, untracked = 0, ignored = 0;
+    int unmerged = 0;
     for (size_t i = 0; i < n; i++) {
         if (entries[i].ignored) ignored = 1;
         else if (entries[i].untracked) untracked = 1;
+        else if (entries[i].unmerged) unmerged = 1;
         else {
             if (entries[i].staged) staged = 1;
             if (entries[i].unstaged) unstaged = 1;
@@ -1898,15 +1941,46 @@ git_status_long (git_context *ctx, struct git_state *state,
     }
     if (untracked_mode < 0) untracked = 0;
 
+    /* A merge in progress is said out loud, before anything else. */
+    char merge_head[4096];
+    int merging = 0;
+    if (snprintf (merge_head, sizeof merge_head, "%s/MERGE_HEAD",
+                  ctx->repo.git_dir) < (int) sizeof merge_head) {
+        struct stat st;
+        merging = lstat (merge_head, &st) == 0;
+    }
+    if (merging && unmerged) {
+        printf ("You have unmerged paths.\n");
+        printf ("  (fix conflicts and run \"git commit\")\n");
+        printf ("  (use \"git merge --abort\" to abort the merge)\n\n");
+    } else if (merging) {
+        printf ("All conflicts fixed but you are still merging.\n");
+        printf ("  (use \"git commit\" to conclude merge)\n\n");
+    }
+
     if (staged) {
         printf ("Changes to be committed:\n");
-        printf (state->have_head
-                ? "  (use \"git restore --staged <file>...\" to unstage)\n"
-                : "  (use \"git rm --cached <file>...\" to unstage)\n");
+        /* Mid-merge git leaves the unstage advice out: there is nothing
+           simple to unstage to. */
+        if (!merging)
+            printf (state->have_head
+                    ? "  (use \"git restore --staged <file>...\" to unstage)\n"
+                    : "  (use \"git rm --cached <file>...\" to unstage)\n");
         for (size_t i = 0; i < n; i++) {
-            if (entries[i].untracked || entries[i].ignored || !entries[i].staged)
+            if (entries[i].untracked || entries[i].ignored ||
+                entries[i].unmerged || !entries[i].staged)
                 continue;
             printf ("\t%-12s%s\n", git_status_label (entries[i].staged),
+                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+        }
+        printf ("\n");
+    }
+    if (unmerged) {
+        printf ("Unmerged paths:\n");
+        printf ("  (use \"git add <file>...\" to mark resolution)\n");
+        for (size_t i = 0; i < n; i++) {
+            if (!entries[i].unmerged) continue;
+            printf ("\t%-17s%s\n", git_unmerged_label (entries[i].unmerged),
                     bgit_quote_path (entries[i].path, quoted, sizeof quoted));
         }
         printf ("\n");
@@ -1918,7 +1992,8 @@ git_status_long (git_context *ctx, struct git_state *state,
                 : "  (use \"git add <file>...\" to update what will be committed)\n");
         printf ("  (use \"git restore <file>...\" to discard changes in working directory)\n");
         for (size_t i = 0; i < n; i++) {
-            if (entries[i].untracked || entries[i].ignored || !entries[i].unstaged)
+            if (entries[i].untracked || entries[i].ignored ||
+                entries[i].unmerged || !entries[i].unstaged)
                 continue;
             printf ("\t%-12s%s\n", git_status_label (entries[i].unstaged),
                     bgit_quote_path (entries[i].path, quoted, sizeof quoted));
@@ -1945,7 +2020,7 @@ git_status_long (git_context *ctx, struct git_state *state,
     }
 
     if (staged) return;
-    if (unstaged)
+    if (unstaged || unmerged)
         printf ("no changes added to commit "
                 "(use \"git add\" and/or \"git commit -a\")\n");
     else if (untracked)
@@ -2031,6 +2106,19 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
             continue;
         }
         char x, y;
+        if (entry->unmerged && version == 2 && porcelain) {
+            /* An unmerged path has its own record, listing every stage. */
+            git_status_letters (entry, &x, &y, '.');
+            const char *zeros = "0000000000000000000000000000000000000000";
+            printf ("u %c%c N... %06o %06o %06o %06o %s %s %s %s\n", x, y,
+                    entry->head_mode, entry->index_mode, entry->their_mode,
+                    entry->worktree_mode,
+                    entry->head_sha[0] ? entry->head_sha : zeros,
+                    entry->index_sha[0] ? entry->index_sha : zeros,
+                    entry->their_sha[0] ? entry->their_sha : zeros,
+                    entry->path);
+            continue;
+        }
         if (version == 2 && porcelain) {
             git_status_letters (entry, &x, &y, '.');
             printf ("1 %c%c N... %06o %06o %06o %s %s %s\n", x, y,
@@ -2051,6 +2139,14 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     git_state_release (&state);
     return 0;
 }
+
+/* A file inside the git directory, such as MERGE_HEAD, and the two things
+   done with one. Written out beside git merge, which is what makes them. */
+static int git_state_file (git_context *ctx, const char *name, char *out,
+                           size_t outsz);
+static int git_write_state_file (git_context *ctx, const char *name,
+                                 const char *content);
+static void git_remove_state_file (git_context *ctx, const char *name);
 
 /* How a set of changed paths is shown: as a patch, a stat, or just names.
    commit, log, show and diff all take these, so the shape is declared before
@@ -2109,13 +2205,51 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         }
         else return git_usage (usage);
     }
-    if (!n_messages && !message_file)
-        return git_fatal ("this build's git commit needs -m or -F; it has no "
-                          "editor support yet");
+    if (!n_messages && !message_file) {
+        /* Concluding a merge has a message ready in MERGE_MSG. */
+        char merge_msg[4096];
+        struct stat st;
+        if (git_context_open (ctx) == 0 &&
+            snprintf (merge_msg, sizeof merge_msg, "%s/MERGE_MSG",
+                      ctx->repo.git_dir) < (int) sizeof merge_msg &&
+            lstat (merge_msg, &st) == 0)
+            message_file = strdup (merge_msg);
+        else
+            return git_fatal ("this build's git commit needs -m or -F; it has "
+                              "no editor support yet");
+    }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    /* A merge that has not settled cannot be committed. */
+    for (size_t i = 0; i < state.n_index; i++)
+        if ((state.index[i].flags >> 12) & 3) {
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "error: Committing is not possible because you "
+                             "have unmerged files.\n");
+            fprintf (stderr, "fatal: Exiting because of an unresolved "
+                             "conflict.\n");
+            return 1;
+        }
+
+    /* A merge left in the tree is concluded by this commit. */
+    char merging_with[41] = "";
+    char merge_head_file[4096];
+    if (snprintf (merge_head_file, sizeof merge_head_file, "%s/MERGE_HEAD",
+                  ctx->repo.git_dir) < (int) sizeof merge_head_file) {
+        struct stat st;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (lstat (merge_head_file, &st) == 0 &&
+            bgit_slurp_file (merge_head_file, &content, &len) == 0) {
+            if (len >= 40) memcpy (merging_with, content, 40);
+            merging_with[len >= 40 ? 40 : 0] = '\0';
+            free (content);
+        }
+    }
 
     int status = 0;
     if (all) {
@@ -2157,7 +2291,7 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     }
 
     /* Nothing staged is not a commit, unless it was asked for. */
-    if (!allow_empty && !amend && state.have_head &&
+    if (!allow_empty && !amend && !*merging_with && state.have_head &&
         strcmp (tree, state.head_tree) == 0) {
         git_state_release (&state);
         fflush (stdout);
@@ -2167,7 +2301,11 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
 
     char parents[BGIT_MAX_PARENTS][41];
     int n_parents = 0;
-    if (amend) {
+    if (*merging_with && state.have_head) {
+        memcpy (parents[0], state.head, 41);
+        memcpy (parents[1], merging_with, 41);
+        n_parents = 2;
+    } else if (amend) {
         if (!state.have_head) {
             git_state_release (&state);
             return git_fatal ("You have nothing to amend.");
@@ -2239,7 +2377,8 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     /* The reflog says how the commit was made, as git's does. */
     char reflog[1200];
     snprintf (reflog, sizeof reflog, "commit%s: %s",
-              amend ? " (amend)" : state.have_head ? "" : " (initial)", subject);
+              *merging_with ? " (merge)" : amend ? " (amend)"
+              : state.have_head ? "" : " (initial)", subject);
     const char *ref = state.branch ? state.branch : "HEAD";
     const char *old = state.have_head ? state.head : "";
     if (bgit_ref_update (&ctx->repo, ref, commit, amend ? NULL : old, reflog) < 0)
@@ -2248,6 +2387,10 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     if (!status && state.branch)
         bgit_reflog_append (&ctx->repo, "HEAD", state.have_head ? state.head : NULL,
                             commit, reflog);
+    if (!status && *merging_with) {
+        git_remove_state_file (ctx, "MERGE_HEAD");
+        git_remove_state_file (ctx, "MERGE_MSG");
+    }
 
     /* The summary git prints: where the commit landed, then what it did. */
     if (!status && !quiet) {
@@ -2264,19 +2407,24 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         if (strcmp (author_who, committer_who))
             printf (" Author: %s\n", author_who);
 
-        struct git_diff_format format;
-        git_diff_format_init (&format);
-        format.shortstat = 1;
-        format.summary = 1;
-        char parent_tree[41] = "";
-        int have_parent = n_parents > 0 &&
-                          bgit_commit_tree (&ctx->odb, parents[0], parent_tree) == 0;
-        bgit_diff_entry *entries = NULL;
-        size_t n_entries = 0;
-        if (bgit_diff_trees (&ctx->odb, have_parent ? parent_tree : NULL, tree,
-                             &entries, &n_entries) == 0) {
-            git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
-            bgit_diff_free (entries, n_entries);
+        /* A merge commit gets no stat, just as `git log` shows a merge no
+           diff. */
+        if (n_parents <= 1) {
+            struct git_diff_format format;
+            git_diff_format_init (&format);
+            format.shortstat = 1;
+            format.summary = 1;
+            char parent_tree[41] = "";
+            int have_parent = n_parents > 0 &&
+                              bgit_commit_tree (&ctx->odb, parents[0],
+                                                parent_tree) == 0;
+            bgit_diff_entry *entries = NULL;
+            size_t n_entries = 0;
+            if (bgit_diff_trees (&ctx->odb, have_parent ? parent_tree : NULL,
+                                 tree, &entries, &n_entries) == 0) {
+                git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
+                bgit_diff_free (entries, n_entries);
+            }
         }
     }
     git_state_release (&state);
@@ -3938,6 +4086,563 @@ git_cmd_merge_base (git_context *ctx, WORD_LIST *args)
     return found ? 0 : 1;
 }
 
+/* ---- merge ------------------------------------------------------------- */
+
+/* Write CONTENT into the working tree at FULL, as MODE says. */
+static int
+git_write_worktree_file (const char *full, const char *content, size_t len,
+                         uint32_t mode)
+{
+    unlink (full);
+    if (mode == 0120000) {
+        char *target = malloc (len + 1);
+        if (!target) return -1;
+        memcpy (target, content, len);
+        target[len] = '\0';
+        int rc = symlink (target, full);
+        free (target);
+        return rc;
+    }
+    /* The file is created with git's permissions, which the umask then
+       narrows, exactly as a checkout does. */
+    int fd = open (full, O_WRONLY | O_CREAT | O_TRUNC,
+                   mode == 0100755 ? 0777 : 0666);
+    if (fd < 0) return -1;
+    size_t at = 0;
+    while (at < len) {
+        ssize_t wrote = write (fd, content + at, len - at);
+        if (wrote < 0) {
+            if (errno == EINTR) continue;
+            close (fd);
+            return -1;
+        }
+        at += (size_t) wrote;
+    }
+    return close (fd) == 0 ? 0 : -1;
+}
+
+/* A file inside the git directory, such as MERGE_HEAD. */
+static int
+git_state_file (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    return snprintf (out, outsz, "%s/%s", ctx->repo.git_dir, name) >= (int) outsz
+           ? -1 : 0;
+}
+
+static int
+git_write_state_file (git_context *ctx, const char *name, const char *content)
+{
+    char path[4096];
+    if (git_state_file (ctx, name, path, sizeof path) < 0) return -1;
+    FILE *file = fopen (path, "w");
+    if (!file) return -1;
+    fputs (content, file);
+    return fclose (file) == 0 ? 0 : -1;
+}
+
+static void
+git_remove_state_file (git_context *ctx, const char *name)
+{
+    char path[4096];
+    if (git_state_file (ctx, name, path, sizeof path) == 0) unlink (path);
+}
+
+/* The name a merge records for what was merged, as git words it. */
+static void
+git_merge_label (git_context *ctx, const char *name, const char *id,
+                 char *label, size_t label_size, char *subject,
+                 size_t subject_size)
+{
+    char resolved[41];
+    char *symref = NULL;
+    (void) git_resolve (ctx, name, resolved, &symref);
+    if (symref && !strncmp (symref, "refs/heads/", 11)) {
+        snprintf (label, label_size, "%s", symref + 11);
+        snprintf (subject, subject_size, "Merge branch '%s'", symref + 11);
+    } else if (symref && !strncmp (symref, "refs/remotes/", 13)) {
+        snprintf (label, label_size, "%s", symref + 13);
+        snprintf (subject, subject_size, "Merge remote-tracking branch '%s'",
+                  symref + 13);
+    } else {
+        snprintf (label, label_size, "%s", name);
+        snprintf (subject, subject_size, "Merge commit '%s'", id);
+    }
+    free (symref);
+}
+
+/* Nothing is written until every change is known to be safe, which is what
+   lets a refused merge leave the working tree as it was. */
+static int
+git_merge_safe (git_context *ctx, struct git_state *state,
+                const bgit_merge_path *paths, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        const bgit_merge_path *path = &paths[i];
+        int unchanged = path->kind == BGIT_MERGE_CLEAN &&
+                        path->mode == path->our_mode &&
+                        !strcmp (path->sha, path->our_sha);
+        if (unchanged) continue;
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path->path);
+        struct stat st;
+        if (lstat (full, &st) < 0) continue;
+        const bgit_index_entry *staged = NULL;
+        for (size_t j = 0; j < state->n_index; j++)
+            if (!strcmp (state->index[j].path, path->path)) staged = &state->index[j];
+        if (!staged) {
+            fflush (stdout);
+            fprintf (stderr, "error: The following untracked working tree files "
+                             "would be overwritten by merge:\n\t%s\nPlease move "
+                             "or remove them before you merge.\nAborting\n",
+                     path->path);
+            return -1;
+        }
+        if (!bgit_worktree_matches (&ctx->odb, full, staged, &st)) {
+            fflush (stdout);
+            fprintf (stderr, "error: Your local changes to the following files "
+                             "would be overwritten by merge:\n\t%s\nPlease commit "
+                             "your changes or stash them before you merge.\n"
+                             "Aborting\n", path->path);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Put the merged tree into the working tree and the index. */
+static int
+git_merge_apply (git_context *ctx, struct git_state *state,
+                 const bgit_merge_path *paths, size_t n)
+{
+    bgit_index_entry *entries = NULL;
+    size_t n_entries = 0, capacity = 0;
+    for (size_t i = 0; i < n; i++) {
+        const bgit_merge_path *path = &paths[i];
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path->path);
+
+        if (!path->mode && path->kind == BGIT_MERGE_CLEAN) {
+            unlink (full);
+            continue;
+        }
+        if (path->text) {
+            /* A conflict: the working tree gets the marked-up text. */
+            if (git_write_worktree_file (full, path->text, path->len,
+                                         path->mode) < 0) {
+                bgit_index_free_entries (entries, n_entries);
+                return -1;
+            }
+        } else if (path->mode &&
+                   (path->mode != path->our_mode ||
+                    strcmp (path->sha, path->our_sha))) {
+            if (bgit_checkout_file (&ctx->odb, full, path->sha, path->mode) < 0) {
+                bgit_index_free_entries (entries, n_entries);
+                return -1;
+            }
+        }
+
+        /* The index gets one entry, or three when the path is in dispute. */
+        struct { uint32_t mode; const char *sha; int stage; } sides[3];
+        int n_sides = 0;
+        if (path->kind == BGIT_MERGE_CLEAN || path->kind == BGIT_MERGE_AUTO) {
+            if (!path->mode) continue;
+            sides[n_sides].mode = path->mode;
+            sides[n_sides].sha = path->sha;
+            sides[n_sides].stage = 0;
+            n_sides++;
+        } else {
+            if (path->base_mode) {
+                sides[n_sides].mode = path->base_mode;
+                sides[n_sides].sha = path->base_sha;
+                sides[n_sides].stage = 1;
+                n_sides++;
+            }
+            if (path->our_mode) {
+                sides[n_sides].mode = path->our_mode;
+                sides[n_sides].sha = path->our_sha;
+                sides[n_sides].stage = 2;
+                n_sides++;
+            }
+            if (path->their_mode) {
+                sides[n_sides].mode = path->their_mode;
+                sides[n_sides].sha = path->their_sha;
+                sides[n_sides].stage = 3;
+                n_sides++;
+            }
+        }
+        for (int s = 0; s < n_sides; s++) {
+            if (n_entries == capacity) {
+                size_t next = capacity ? capacity * 2 : 32;
+                bgit_index_entry *grown = realloc (entries, next * sizeof *grown);
+                if (!grown) {
+                    bgit_index_free_entries (entries, n_entries);
+                    return -1;
+                }
+                entries = grown;
+                capacity = next;
+            }
+            bgit_index_entry *entry = &entries[n_entries];
+            memset (entry, 0, sizeof *entry);
+            entry->path = strdup (path->path);
+            if (!entry->path) {
+                bgit_index_free_entries (entries, n_entries);
+                return -1;
+            }
+            entry->mode = sides[s].mode;
+            bgit_hex_to_sha (sides[s].sha, entry->sha);
+            size_t length = strlen (path->path);
+            entry->flags = (uint16_t) ((sides[s].stage << 12) |
+                                       (length > 0xFFF ? 0xFFF : length));
+            if (!sides[s].stage) {
+                struct stat st;
+                if (lstat (full, &st) == 0) {
+                    uint32_t mode = entry->mode;
+                    bgit_index_entry_set_stat (entry, &st);
+                    entry->mode = mode;
+                }
+            }
+            n_entries++;
+        }
+    }
+    int rc = git_index_store (ctx, entries, n_entries);
+    bgit_index_free_entries (state->index, state->n_index);
+    state->index = entries;
+    state->n_index = n_entries;
+    state->cap_index = capacity;
+    return rc;
+}
+
+/* The stat of a merge, as git prints it after one. */
+static int
+git_merge_summary (git_context *ctx, const char *old_tree, const char *new_tree)
+{
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_diff_trees (&ctx->odb, old_tree, new_tree, &entries, &n) < 0)
+        return -1;
+    struct git_diff_format format;
+    git_diff_format_init (&format);
+    format.stat = 1;
+    format.summary = 1;
+    int rc = git_diff_emit (ctx, stdout, &format, entries, n, 0, "");
+    bgit_diff_free (entries, n);
+    return rc;
+}
+
+static int
+git_cmd_merge (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git merge [-m <message>] [--no-ff] [--ff-only] "
+                        "[--no-commit] [-q] <commit> | --abort";
+    const char *message = NULL, *name = NULL;
+    int no_ff = 0, ff_only = 0, no_commit = 0, abort_merge = 0, quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-m") && p->next) { message = p->next->word->word; p = p->next; }
+        else if (!strcmp (w, "--no-ff")) no_ff = 1;
+        else if (!strcmp (w, "--ff")) no_ff = 0;
+        else if (!strcmp (w, "--ff-only")) ff_only = 1;
+        else if (!strcmp (w, "--no-commit")) no_commit = 1;
+        else if (!strcmp (w, "--abort")) abort_merge = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else return git_fatal ("this build's git merge takes one commit");
+    }
+    if (!abort_merge && !name) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    char merge_head_path[4096];
+    if (git_state_file (ctx, "MERGE_HEAD", merge_head_path,
+                        sizeof merge_head_path) < 0)
+        return GIT_EXIT_FATAL;
+    struct stat merging;
+    int in_merge = lstat (merge_head_path, &merging) == 0;
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+
+    if (abort_merge) {
+        if (!in_merge) {
+            git_state_release (&state);
+            return git_fatal ("There is no merge to abort (MERGE_HEAD missing).");
+        }
+        /* Put the working tree and index back to HEAD. */
+        if (bgit_checkout_tree (&ctx->repo, &ctx->odb, state.head_tree,
+                                &state.index, &state.n_index, 1, NULL) < 0 ||
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        /* git aborts a merge by resetting hard to HEAD, and the reflog
+           says so. */
+        if (!status)
+            bgit_reflog_append (&ctx->repo, "HEAD", state.head, state.head,
+                                "reset: moving to HEAD");
+        git_remove_state_file (ctx, "MERGE_HEAD");
+        git_remove_state_file (ctx, "MERGE_MSG");
+        git_state_release (&state);
+        return status;
+    }
+    if (in_merge) {
+        git_state_release (&state);
+        return git_fatal ("You have not concluded your merge (MERGE_HEAD exists).");
+    }
+    if (!state.have_head) {
+        git_state_release (&state);
+        return git_fatal ("Non-fast-forward commit does not make sense into an "
+                          "empty head");
+    }
+    for (size_t i = 0; i < state.n_index; i++)
+        if ((state.index[i].flags >> 12) & 3) {
+            git_state_release (&state);
+            return git_fatal ("You have not concluded your merge (MERGE_HEAD "
+                              "exists).");
+        }
+
+    char their_id[41], their_commit[41];
+    if (git_resolve (ctx, name, their_id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, their_id, BGIT_COMMIT, their_commit) < 0) {
+        git_state_release (&state);
+        return git_fatal ("%s - not something we can merge", name);
+    }
+    char label[256], subject[1024];
+    git_merge_label (ctx, name, their_commit, label, sizeof label,
+                     subject, sizeof subject);
+    if (message) snprintf (subject, sizeof subject, "%s", message);
+
+    char (*bases)[41] = NULL;
+    size_t n_bases = 0;
+    const char *twos[1] = { their_commit };
+    if (bgit_merge_bases_many (&ctx->odb, state.head, twos, 1, &bases,
+                               &n_bases) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (!n_bases) {
+        free (bases);
+        git_state_release (&state);
+        return git_fatal ("refusing to merge unrelated histories");
+    }
+    if (n_bases > 1) {
+        free (bases);
+        git_state_release (&state);
+        return git_fatal ("this build's git merge needs a single merge base; "
+                          "this merge has %zu", n_bases);
+    }
+    char base[41];
+    memcpy (base, bases[0], 41);
+    free (bases);
+
+    if (!strcmp (base, their_commit)) {
+        git_state_release (&state);
+        printf ("Already up to date.\n");
+        return 0;
+    }
+    int fast_forward = !strcmp (base, state.head);
+    if (ff_only && !fast_forward) {
+        git_state_release (&state);
+        return git_fatal ("Not possible to fast-forward, aborting.");
+    }
+
+    char their_tree[41];
+    if (bgit_commit_tree (&ctx->odb, their_commit, their_tree) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    if (fast_forward && !no_ff) {
+        char old_short[41], new_short[41];
+        git_abbrev (ctx, state.head, 7, old_short, sizeof old_short);
+        git_abbrev (ctx, their_commit, 7, new_short, sizeof new_short);
+        if (!quiet) printf ("Updating %s..%s\n", old_short, new_short);
+        char *lost = NULL;
+        int rc = bgit_checkout_tree (&ctx->repo, &ctx->odb, their_tree,
+                                     &state.index, &state.n_index, 0, &lost);
+        if (rc > 0) {
+            /* Which complaint depends on whether the file in the way is one
+               git knows about. */
+            int tracked = 0;
+            for (size_t i = 0; i < state.n_index && lost; i++)
+                if (!strcmp (state.index[i].path, lost)) tracked = 1;
+            fflush (stdout);
+            if (tracked)
+                fprintf (stderr, "error: Your local changes to the following "
+                                 "files would be overwritten by merge:\n\t%s\n"
+                                 "Please commit your changes or stash them "
+                                 "before you merge.\nAborting\n", lost);
+            else
+                fprintf (stderr, "error: The following untracked working tree "
+                                 "files would be overwritten by merge:\n\t%s\n"
+                                 "Please move or remove them before you merge.\n"
+                                 "Aborting\n", lost ? lost : "");
+            free (lost);
+            git_state_release (&state);
+            return 1;
+        }
+        if (rc < 0 || git_index_store (ctx, state.index, state.n_index) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        char reflog[1200];
+        snprintf (reflog, sizeof reflog, "merge %s: Fast-forward", label);
+        const char *ref = state.branch ? state.branch : "HEAD";
+        if (bgit_ref_update (&ctx->repo, ref, their_commit, state.head, reflog) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status && state.branch)
+            bgit_reflog_append (&ctx->repo, "HEAD", state.head, their_commit, reflog);
+        if (!status && !quiet) {
+            printf ("Fast-forward\n");
+            git_merge_summary (ctx, state.head_tree, their_tree);
+        }
+        git_state_release (&state);
+        return status;
+    }
+
+    char base_tree[41];
+    if (bgit_commit_tree (&ctx->odb, base, base_tree) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    if (bgit_merge_trees (&ctx->odb, ctx->odb.object_dirs[0], base_tree,
+                          state.head_tree, their_tree, "HEAD", label,
+                          &paths, &n_paths) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (git_merge_safe (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        fprintf (stderr, "Merge with strategy ort failed.\n");
+        return 2;
+    }
+
+    int conflicts = 0;
+    for (size_t i = 0; i < n_paths; i++) {
+        const bgit_merge_path *path = &paths[i];
+        if (path->kind == BGIT_MERGE_AUTO || path->kind == BGIT_MERGE_CONTENT ||
+            path->kind == BGIT_MERGE_ADD_ADD)
+            printf ("Auto-merging %s\n", path->path);
+        switch (path->kind) {
+        case BGIT_MERGE_CONTENT:
+            conflicts++;
+            printf ("CONFLICT (content): Merge conflict in %s\n", path->path);
+            break;
+        case BGIT_MERGE_ADD_ADD:
+            conflicts++;
+            printf ("CONFLICT (add/add): Merge conflict in %s\n", path->path);
+            break;
+        case BGIT_MERGE_MODIFY_DELETE:
+            conflicts++;
+            printf ("CONFLICT (modify/delete): %s deleted in %s and modified in "
+                    "%s.  Version %s of %s left in tree.\n", path->path,
+                    path->deleted_in_ours ? "HEAD" : label,
+                    path->deleted_in_ours ? label : "HEAD",
+                    path->deleted_in_ours ? label : "HEAD", path->path);
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (git_merge_apply (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    if (conflicts) {
+        char content[8192];
+        snprintf (content, sizeof content, "%s\n", their_commit);
+        git_write_state_file (ctx, "MERGE_HEAD", content);
+        size_t at = (size_t) snprintf (content, sizeof content,
+                                       "%s\n\n# Conflicts:\n", subject);
+        for (size_t i = 0; i < n_paths && at < sizeof content; i++)
+            if (paths[i].kind != BGIT_MERGE_CLEAN && paths[i].kind != BGIT_MERGE_AUTO)
+                at += (size_t) snprintf (content + at, sizeof content - at,
+                                         "#\t%s\n", paths[i].path);
+        git_write_state_file (ctx, "MERGE_MSG", content);
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        printf ("Automatic merge failed; fix conflicts and then commit the "
+                "result.\n");
+        return 1;
+    }
+
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                         state.n_index, tree) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (no_commit) {
+        char content[128];
+        snprintf (content, sizeof content, "%s\n", their_commit);
+        git_write_state_file (ctx, "MERGE_HEAD", content);
+        snprintf (content, sizeof content, "%s\n", subject);
+        git_write_state_file (ctx, "MERGE_MSG", content);
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        printf ("Automatic merge went well; stopped before committing as "
+                "requested\n");
+        return 0;
+    }
+
+    char author[1024], committer[1024];
+    if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+        bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        return git_fatal ("cannot determine the identity to use");
+    }
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    fprintf (builder, "tree %s\n", tree);
+    fprintf (builder, "parent %s\n", state.head);
+    fprintf (builder, "parent %s\n", their_commit);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    fprintf (builder, "\n%s\n", subject);
+    fclose (builder);
+
+    char commit[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1, commit);
+    free (body);
+    if (rc < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    char reflog[1200];
+    snprintf (reflog, sizeof reflog, "merge %s: Merge made by the 'ort' strategy.",
+              label);
+    const char *ref = state.branch ? state.branch : "HEAD";
+    if (bgit_ref_update (&ctx->repo, ref, commit, state.head, reflog) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status && state.branch)
+        bgit_reflog_append (&ctx->repo, "HEAD", state.head, commit, reflog);
+    if (!status && !quiet) {
+        printf ("Merge made by the 'ort' strategy.\n");
+        git_merge_summary (ctx, state.head_tree, tree);
+    }
+    bgit_merge_paths_free (paths, n_paths);
+    git_state_release (&state);
+    return status;
+}
+
 /* ---- merge-file -------------------------------------------------------- */
 
 static int
@@ -4536,6 +5241,7 @@ static const struct {
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
     { "ls-tree",      git_cmd_ls_tree },
+    { "merge",        git_cmd_merge },
     { "merge-base",   git_cmd_merge_base },
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },

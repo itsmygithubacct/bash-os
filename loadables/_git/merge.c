@@ -16,8 +16,10 @@
 
 #include "loadables.h"
 
+#include "index.h"
 #include "merge.h"
 #include "odb.h"
+#include "tree.h"
 #include "revision.h"
 #include "xdiff.h"
 
@@ -759,4 +761,192 @@ done:
     bgit_xdiff_release (&our_file);
     bgit_xdiff_release (&their_file);
     return rc;
+}
+
+/* ---- merging two trees -------------------------------------------------- */
+
+void
+bgit_merge_paths_free (bgit_merge_path *paths, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        free (paths[i].path);
+        free (paths[i].text);
+    }
+    free (paths);
+}
+
+/* The entry for PATH in a tree that was read into index entries. */
+static const bgit_index_entry *
+bgit_entry_for_path (const bgit_index_entry *entries, size_t n, const char *path)
+{
+    for (size_t i = 0; i < n; i++)
+        if (!strcmp (entries[i].path, path)) return &entries[i];
+    return NULL;
+}
+
+/* Is the path the same in two trees — the same content and the same mode? */
+static int
+bgit_same_entry (const bgit_index_entry *a, const bgit_index_entry *b)
+{
+    if (!a || !b) return a == b;
+    return a->mode == b->mode && !memcmp (a->sha, b->sha, 20);
+}
+
+static void
+bgit_fill_side (const bgit_index_entry *entry, uint32_t *mode, char sha[41])
+{
+    if (!entry) { *mode = 0; sha[0] = '\0'; return; }
+    *mode = entry->mode;
+    bgit_sha_to_hex (entry->sha, sha);
+}
+
+/* Read one blob, or nothing at all for a side that has no such path. */
+static int
+bgit_blob_text (bgit_odb *odb, const bgit_index_entry *entry, char **text,
+                size_t *len)
+{
+    *text = NULL;
+    *len = 0;
+    if (!entry) {
+        *text = calloc (1, 1);
+        return *text ? 0 : -1;
+    }
+    char sha[41];
+    bgit_sha_to_hex (entry->sha, sha);
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t size = 0;
+    if (bgit_odb_read (odb, sha, &type, &data, &size) < 0) return -1;
+    *text = (char *) data;
+    *len = size;
+    return 0;
+}
+
+int
+bgit_merge_trees (bgit_odb *odb, const char *objects_dir, const char *base_tree,
+                  const char *our_tree, const char *their_tree,
+                  const char *our_label, const char *their_label,
+                  bgit_merge_path **out, size_t *n_out)
+{
+    bgit_index_entry *base = NULL, *ours = NULL, *theirs = NULL;
+    size_t n_base = 0, n_ours = 0, n_theirs = 0;
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    int rc = -1;
+
+    if ((base_tree && bgit_read_tree (odb, base_tree, &base, &n_base) < 0) ||
+        (our_tree && bgit_read_tree (odb, our_tree, &ours, &n_ours) < 0) ||
+        (their_tree && bgit_read_tree (odb, their_tree, &theirs, &n_theirs) < 0))
+        goto done;
+
+    paths = calloc (n_base + n_ours + n_theirs + 1, sizeof *paths);
+    if (!paths) goto done;
+
+    /* Every path any of the three trees knows, in order, each seen once. */
+    size_t i = 0, j = 0, k = 0;
+    while (i < n_ours || j < n_theirs || k < n_base) {
+        const char *candidate = NULL;
+        if (i < n_ours) candidate = ours[i].path;
+        if (j < n_theirs && (!candidate || strcmp (theirs[j].path, candidate) < 0))
+            candidate = theirs[j].path;
+        if (k < n_base && (!candidate || strcmp (base[k].path, candidate) < 0))
+            candidate = base[k].path;
+
+        const bgit_index_entry *our_entry = bgit_entry_for_path (ours, n_ours, candidate);
+        const bgit_index_entry *their_entry = bgit_entry_for_path (theirs, n_theirs, candidate);
+        const bgit_index_entry *base_entry = bgit_entry_for_path (base, n_base, candidate);
+        if (i < n_ours && !strcmp (ours[i].path, candidate)) i++;
+        if (j < n_theirs && !strcmp (theirs[j].path, candidate)) j++;
+        if (k < n_base && !strcmp (base[k].path, candidate)) k++;
+
+        bgit_merge_path *result = &paths[n_paths];
+        result->path = strdup (candidate);
+        if (!result->path) goto done;
+        result->kind = BGIT_MERGE_CLEAN;
+        bgit_fill_side (base_entry, &result->base_mode, result->base_sha);
+        bgit_fill_side (our_entry, &result->our_mode, result->our_sha);
+        bgit_fill_side (their_entry, &result->their_mode, result->their_sha);
+        n_paths++;
+
+        if (bgit_same_entry (our_entry, their_entry)) {
+            /* Both sides agree, whether they changed it or not. */
+            bgit_fill_side (our_entry, &result->mode, result->sha);
+            continue;
+        }
+        if (bgit_same_entry (base_entry, our_entry)) {
+            /* Only they touched it. */
+            bgit_fill_side (their_entry, &result->mode, result->sha);
+            continue;
+        }
+        if (bgit_same_entry (base_entry, their_entry)) {
+            /* Only we touched it. */
+            bgit_fill_side (our_entry, &result->mode, result->sha);
+            continue;
+        }
+        if (!our_entry || !their_entry) {
+            /* One side deleted what the other changed. The side that still
+               has it keeps it in the working tree, as git leaves it. */
+            result->kind = BGIT_MERGE_MODIFY_DELETE;
+            result->deleted_in_ours = our_entry == NULL;
+            const bgit_index_entry *kept = our_entry ? our_entry : their_entry;
+            bgit_fill_side (kept, &result->mode, result->sha);
+            continue;
+        }
+
+        /* Both sides have it and they differ: merge the lines. */
+        char *base_text = NULL, *our_text = NULL, *their_text = NULL;
+        size_t base_len = 0, our_len = 0, their_len = 0;
+        if (bgit_blob_text (odb, base_entry, &base_text, &base_len) < 0 ||
+            bgit_blob_text (odb, our_entry, &our_text, &our_len) < 0 ||
+            bgit_blob_text (odb, their_entry, &their_text, &their_len) < 0) {
+            free (base_text); free (our_text); free (their_text);
+            goto done;
+        }
+        bgit_merge_result merged;
+        int merge_rc = bgit_merge_content (base_text, base_len, our_text, our_len,
+                                           their_text, their_len, our_label,
+                                           their_label, &merged);
+        free (base_text);
+        free (our_text);
+        free (their_text);
+        if (merge_rc < 0) goto done;
+
+        /* A mode both sides changed differently is a conflict of its own;
+           otherwise whichever side changed it wins. */
+        uint32_t mode = our_entry->mode;
+        if (base_entry && our_entry->mode == base_entry->mode)
+            mode = their_entry->mode;
+
+        if (merged.conflicts) {
+            result->kind = base_entry ? BGIT_MERGE_CONTENT : BGIT_MERGE_ADD_ADD;
+            result->text = merged.text;
+            result->len = merged.len;
+            result->mode = mode;
+            continue;
+        }
+        char sha[41];
+        if (bgit_write_object (objects_dir, "blob",
+                               (const unsigned char *) merged.text, merged.len,
+                               1, sha) < 0) {
+            free (merged.text);
+            goto done;
+        }
+        free (merged.text);
+        result->kind = BGIT_MERGE_AUTO;
+        result->mode = mode;
+        memcpy (result->sha, sha, 41);
+    }
+    rc = 0;
+
+done:
+    bgit_index_free_entries (base, n_base);
+    bgit_index_free_entries (ours, n_ours);
+    bgit_index_free_entries (theirs, n_theirs);
+    if (rc < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        return -1;
+    }
+    *out = paths;
+    *n_out = n_paths;
+    return 0;
 }

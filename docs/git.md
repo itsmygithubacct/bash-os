@@ -39,6 +39,8 @@ git clean        [-d] [-f] [-n] [-q] [-x | -X] [--] [<path>...]
 git merge-base   [--all] <commit> <commit>... | --is-ancestor <a> <b>
                  | (--independent | --octopus) <commit>...
 git merge-file   [-p] [-L <label>]... <current> <base> <other>
+git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
+                 <commit> | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
@@ -114,6 +116,21 @@ git reads what bash-os writes and the other way round.
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
 
+`git merge` fast-forwards when it can, merges three ways when it cannot,
+and says what it did in git's words — `Already up to date.`, `Updating
+a..b` and `Fast-forward`, or `Merge made by the 'ort' strategy.` followed
+by a stat. Nothing is written until every change is known to be safe, so a
+merge that would overwrite an untracked file or a local change is refused
+with the working tree as it was. A merge that does not settle leaves the
+conflict markers in the working tree, the three sides in the index as
+stages 1, 2 and 3, and `MERGE_HEAD` behind; `git status` then reports the
+unmerged paths, `git add` settles one, `git commit` concludes the merge
+with two parents, and `git merge --abort` puts everything back.
+
+A merge with more than one base — two branches that have already merged
+each other — is refused rather than merged against one of them, because
+that is not what git would do.
+
 The three-way merge behind `merge-file` is git's: what one side changed
 alone is taken, what both changed the same way is taken once, and the rest
 is written between conflict markers. Two conflicts with three or fewer
@@ -184,8 +201,7 @@ message and changes nothing.
 
 ## Still to come
 
-Phase 1 is done. Next is Phase 2 — merging, cherry-pick, revert, rebase,
-stash, worktrees, submodules and rename detection — of which the merge
-base, the question every three-way merge starts from, is in already. Then
-HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Merging is in. The rest of Phase 2 is cherry-pick, revert, rebase, stash,
+worktrees, submodules and rename detection, and then a merge with more
+than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

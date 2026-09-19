@@ -40,9 +40,11 @@ typedef struct {
     int unstaged;      /* index -> working tree: 'M', 'D', or 0 */
     int untracked;
     int ignored;
-    uint32_t head_mode, index_mode, worktree_mode;
+    int unmerged;      /* which stages the index holds: bit 1, 2 or 3 */
+    uint32_t head_mode, index_mode, worktree_mode, their_mode;
     char head_sha[41];
     char index_sha[41];
+    char their_sha[41];   /* stage 3, when the path is unmerged */
 } bgit_status_entry;
 
 /* Compare HEAD, the index and the working tree. HEAD_TREE may be NULL for

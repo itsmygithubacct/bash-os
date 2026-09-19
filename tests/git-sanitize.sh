@@ -119,6 +119,46 @@ git merge-file our-file base-file their-file || true
 : > empty-file
 git merge-file -p our-file empty-file their-file || true
 git reflog > /dev/null
+
+# Merging: a fast-forward, a clean three-way merge, and one that conflicts.
+git switch -q -c merge-base-branch main
+printf 'shared one\nshared two\nshared three\n' > merged.txt
+git add merged.txt
+git commit -q -m 'a file to merge'
+git switch -q -c merge-left
+printf 'LEFT one\nshared two\nshared three\n' > merged.txt
+printf 'left only\n' > left.txt
+git add .
+git commit -q -m 'the left side'
+git switch -q merge-base-branch
+printf 'shared one\nshared two\nRIGHT three\n' > merged.txt
+printf 'right only\n' > right.txt
+git add .
+git commit -q -m 'the right side'
+git merge merge-left -m 'a clean merge'
+cat merged.txt
+git switch -q -c conflict-left merge-base-branch
+printf 'one side\nshared two\nshared three\n' > merged.txt
+git add merged.txt
+git commit -q -m 'one side of a conflict'
+git switch -q merge-base-branch
+printf 'the other side\nshared two\nshared three\n' > merged.txt
+git add merged.txt
+git commit -q -m 'the other side of a conflict'
+git merge conflict-left || true
+cat merged.txt
+git status --short
+git status
+git status --porcelain=v2
+git ls-files -s
+git commit -m 'refused while unmerged' 2>/dev/null || true
+printf 'settled\nshared two\nshared three\n' > merged.txt
+git add merged.txt
+git commit -m 'the conflict, settled'
+git merge conflict-left
+git log --oneline -3
+git merge --abort 2>/dev/null || true
+
 git fsck 2>/dev/null || true
 SCENARIO
 
