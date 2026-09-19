@@ -182,7 +182,7 @@
     },
     "obj": {
       "helpers": [
-        "_sha1dc"
+        "_git"
       ],
       "libs": [
         "-lz"
@@ -454,6 +454,16 @@
       "license": "MIT",
       "notice": "LICENSE.txt",
       "requires": []
+    },
+    "_git": {
+      "license": "MIT",
+      "notice": "LICENSE.txt",
+      "requires": [
+        "_sha1dc"
+      ],
+      "libs": [
+        "-lz"
+      ]
     },
     "_md4": {
       "license": "Public domain",

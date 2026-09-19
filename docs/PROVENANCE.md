@@ -71,6 +71,7 @@ configuration. See [Perl inside Bash](perl.md).
 | command sources and `loadables/common/` | MIT (`LICENSE`) |
 | `_ptybroker` native client and service | MIT, original project code |
 | `_perl` embedding and environment helpers | MIT, original project code |
+| `_git` object, index and pack library | MIT, original project code; git's formats implemented from their published descriptions, with no code from git |
 | `_jsmn`, `_bl_key`, `_bl_screen`, `_bl_proc`, `_tomlc17` helpers | MIT, per-tree notices |
 | `_libgrapheme` | ISC, per-tree notice |
 | `_sqlite` | Public domain, upstream disclaimer retained |
