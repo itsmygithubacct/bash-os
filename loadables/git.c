@@ -42,9 +42,12 @@
 #include "command-run.h"
 
 #include "_git_config.h"
+#include "_git_index.h"
 #include "_git_odb.h"
 #include "_git_refs.h"
 #include "_git_repo.h"
+#include "_git_revision.h"
+#include "_git_tree.h"
 #include "_git_lock.h"
 
 /* The git version whose behaviour this matches, plus what we are. */
@@ -119,37 +122,12 @@ git_context_close (git_context *ctx)
     ctx->open = 0;
 }
 
-/* Resolve a name to an object id: a full id, an abbreviation, or a ref. */
+/* Resolve a revision: an id, an abbreviation, a ref, or any of those with
+   git's suffixes (^, ~, ^{type}, @{n}). */
 static int
 git_resolve (git_context *ctx, const char *name, char full[41], char **symref)
 {
-    if (symref) *symref = NULL;
-    int rc = bgit_ref_resolve (&ctx->repo, name, full, symref);
-    if (rc == 0) return 0;
-    if (symref && *symref) { free (*symref); *symref = NULL; }
-    /* Not a ref: try refs/heads, refs/tags and refs/remotes as git does,
-       then the object store for an id or abbreviation. */
-    static const char *const prefixes[] = {
-        "refs/", "refs/tags/", "refs/heads/", "refs/remotes/", NULL
-    };
-    for (int i = 0; prefixes[i]; i++) {
-        char candidate[4096];
-        if (snprintf (candidate, sizeof candidate, "%s%s", prefixes[i], name) >=
-            (int) sizeof candidate)
-            continue;
-        if (bgit_ref_read (&ctx->repo, candidate, full) == 0) {
-            if (symref) *symref = strdup (candidate);
-            return 0;
-        }
-    }
-    if (bgit_all_hex (name) && strlen (name) >= 4 && strlen (name) <= 40) {
-        char resolved[41];
-        if (bgit_odb_resolve (&ctx->odb, name, resolved) == 0) {
-            memcpy (full, resolved, 41);
-            return 0;
-        }
-    }
-    return -1;
+    return bgit_rev_parse (&ctx->repo, &ctx->odb, name, full, symref);
 }
 
 /* ---- init --------------------------------------------------------------- */
@@ -406,7 +384,7 @@ git_print_tree (const unsigned char *data, size_t len)
         char hex[41];
         bgit_sha_to_hex (data + pos, hex);
         pos += 20;
-        printf ("%06lu %s %s\t%.*s\n", strtoul (mode, NULL, 8),
+        printf ("%06lo %s %s\t%.*s\n", strtoul (mode, NULL, 8),
                 git_tree_entry_type (mode), hex, (int) name_len,
                 (const char *) (data + name_start));
     }
@@ -890,6 +868,627 @@ git_cmd_reflog (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* ---- the index, trees, and commits ------------------------------------- */
+
+/* The index file: GIT_INDEX_FILE, or the repository's own. */
+static int
+git_index_path (git_context *ctx, char *out, size_t outsz)
+{
+    const char *env = getenv ("GIT_INDEX_FILE");
+    if (env && *env)
+        return snprintf (out, outsz, "%s", env) < (int) outsz ? 0 : -1;
+    return snprintf (out, outsz, "%s/index", ctx->repo.git_dir) < (int) outsz
+           ? 0 : -1;
+}
+
+static int
+git_index_load (git_context *ctx, bgit_index_entry **entries, size_t *n)
+{
+    char path[4096];
+    *entries = NULL;
+    *n = 0;
+    if (git_index_path (ctx, path, sizeof path) < 0) return -1;
+    if (access (path, R_OK) != 0) return 0;      /* no index yet */
+    return bgit_index_read (path, entries, n);
+}
+
+static int
+git_index_store (git_context *ctx, bgit_index_entry *entries, size_t n)
+{
+    char path[4096];
+    if (git_index_path (ctx, path, sizeof path) < 0) return -1;
+    if (n > 1) qsort (entries, n, sizeof *entries, bgit_index_path_cmp);
+    return bgit_index_write (path, entries, n);
+}
+
+/* Replace or append one path in the index. */
+static int
+git_index_put (bgit_index_entry **entries, size_t *n, size_t *cap,
+               const bgit_index_entry *entry)
+{
+    for (size_t i = 0; i < *n; i++) {
+        if (strcmp ((*entries)[i].path, entry->path) != 0) continue;
+        char *keep = (*entries)[i].path;
+        (*entries)[i] = *entry;
+        (*entries)[i].path = keep;
+        free (entry->path);
+        return 0;
+    }
+    if (*n == *cap) {
+        size_t next = *cap ? *cap * 2 : 32;
+        bgit_index_entry *grown = realloc (*entries, next * sizeof *grown);
+        if (!grown) return -1;
+        *entries = grown;
+        *cap = next;
+    }
+    (*entries)[(*n)++] = *entry;
+    return 0;
+}
+
+static int
+git_cmd_update_index (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git update-index [--add] [--remove] "
+                        "[--cacheinfo <mode>,<object>,<path>] [--index-info] "
+                        "[--] [<file>...]";
+    int add = 0, remove = 0, index_info = 0;
+    const char *cacheinfo[3] = { NULL, NULL, NULL };
+    int n_cacheinfo = 0;
+    const char *files[64];
+    int n_files = 0;
+    int no_more_options = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more_options && !strcmp (w, "--")) { no_more_options = 1; continue; }
+        if (!no_more_options && !strcmp (w, "--add")) add = 1;
+        else if (!no_more_options && !strcmp (w, "--remove")) remove = 1;
+        else if (!no_more_options && !strcmp (w, "--replace")) { /* implied */ }
+        else if (!no_more_options && !strcmp (w, "--index-info")) index_info = 1;
+        else if (!no_more_options && !strcmp (w, "--cacheinfo")) {
+            /* Either one comma-separated argument or three separate ones. */
+            if (p->next && strchr (p->next->word->word, ',')) {
+                char copy[4096];
+                snprintf (copy, sizeof copy, "%s", p->next->word->word);
+                p = p->next;
+                char *save = NULL;
+                for (char *field = strtok_r (copy, ",", &save);
+                     field && n_cacheinfo < 3;
+                     field = strtok_r (NULL, ",", &save))
+                    cacheinfo[n_cacheinfo++] = strdup (field);
+            } else {
+                for (int i = 0; i < 3; i++) {
+                    if (!p->next) return git_usage (usage);
+                    p = p->next;
+                    cacheinfo[n_cacheinfo++] = p->word->word;
+                }
+            }
+        }
+        else if (!no_more_options && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_files < (int) (sizeof files / sizeof *files)) files[n_files++] = w;
+        else return git_fatal ("too many files");
+    }
+    if (n_cacheinfo && n_cacheinfo != 3) return git_usage (usage);
+    if (!n_cacheinfo && !index_info && !n_files) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    bgit_index_entry *entries = NULL;
+    size_t n = 0, cap = 0;
+    if (git_index_load (ctx, &entries, &n) < 0) return GIT_EXIT_FATAL;
+    cap = n;
+    int status = 0;
+
+    if (n_cacheinfo == 3) {
+        bgit_index_entry entry;
+        memset (&entry, 0, sizeof entry);
+        if (bgit_index_parse_mode (cacheinfo[0], &entry.mode) < 0 ||
+            bgit_hex_to_sha (cacheinfo[1], entry.sha) < 0) {
+            status = git_fatal ("git update-index: --cacheinfo cannot add %s",
+                                cacheinfo[2]);
+            goto done;
+        }
+        entry.path = strdup (cacheinfo[2]);
+        size_t len = strlen (cacheinfo[2]);
+        entry.flags = (uint16_t) (len > 0xFFF ? 0xFFF : len);
+        if (!entry.path || git_index_put (&entries, &n, &cap, &entry) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+    }
+
+    if (index_info) {
+        char *line = NULL;
+        size_t line_cap = 0;
+        while (getline (&line, &line_cap, stdin) > 0) {
+            bgit_index_entry entry;
+            int is_remove = 0;
+            if (bgit_index_info_line_to_entry (line, &entry, &is_remove) < 0) {
+                free (line);
+                status = git_fatal ("malformed --index-info line");
+                goto done;
+            }
+            if (is_remove) {
+                bgit_index_remove_path (&entries, &n, entry.path);
+                free (entry.path);
+                continue;
+            }
+            if (git_index_put (&entries, &n, &cap, &entry) < 0) {
+                free (line);
+                status = GIT_EXIT_FATAL;
+                goto done;
+            }
+        }
+        free (line);
+    }
+
+    for (int i = 0; i < n_files; i++) {
+        struct stat st;
+        if (stat (files[i], &st) < 0) {
+            if (remove) {
+                bgit_index_remove_path (&entries, &n, files[i]);
+                continue;
+            }
+            status = git_fatal ("unable to stat '%s': %s", files[i],
+                                strerror (errno));
+            goto done;
+        }
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (bgit_slurp_file (files[i], &content, &len) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        char id[41];
+        int rc = bgit_write_object (ctx->odb.object_dirs[0], "blob", content,
+                                   len, 1, id);
+        free (content);
+        if (rc < 0) { status = GIT_EXIT_FATAL; goto done; }
+        bgit_index_entry entry;
+        memset (&entry, 0, sizeof entry);
+        bgit_index_entry_set_stat (&entry, &st);
+        /* git stores 100644, or 100755 when the file is executable. */
+        entry.mode = (st.st_mode & 0111) ? 0100755 : 0100644;
+        if (bgit_hex_to_sha (id, entry.sha) < 0) { status = GIT_EXIT_FATAL; goto done; }
+        entry.path = strdup (files[i]);
+        size_t plen = strlen (files[i]);
+        entry.flags = (uint16_t) (plen > 0xFFF ? 0xFFF : plen);
+        if (!entry.path || git_index_put (&entries, &n, &cap, &entry) < 0) {
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        (void) add;
+    }
+
+    if (git_index_store (ctx, entries, n) < 0) status = GIT_EXIT_FATAL;
+done:
+    bgit_index_free_entries (entries, n);
+    return status;
+}
+
+static int
+git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git ls-files [-s | --stage] [-z] [--] [<file>...]";
+    int stage = 0, zero = 0, no_more_options = 0;
+    const char *patterns[32];
+    int n_patterns = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more_options && !strcmp (w, "--")) { no_more_options = 1; continue; }
+        if (!no_more_options && (!strcmp (w, "-s") || !strcmp (w, "--stage"))) stage = 1;
+        else if (!no_more_options && !strcmp (w, "-z")) zero = 1;
+        else if (!no_more_options && !strcmp (w, "--cached")) { /* the default */ }
+        else if (!no_more_options && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_patterns < (int) (sizeof patterns / sizeof *patterns))
+            patterns[n_patterns++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    bgit_index_entry *entries = NULL;
+    size_t n = 0;
+    if (git_index_load (ctx, &entries, &n) < 0) return GIT_EXIT_FATAL;
+    for (size_t i = 0; i < n; i++) {
+        if (n_patterns) {
+            int matched = 0;
+            for (int j = 0; j < n_patterns && !matched; j++) {
+                size_t plen = strlen (patterns[j]);
+                if (!strcmp (entries[i].path, patterns[j]) ||
+                    (!strncmp (entries[i].path, patterns[j], plen) &&
+                     (patterns[j][plen - 1] == '/' || entries[i].path[plen] == '/')))
+                    matched = 1;
+            }
+            if (!matched) continue;
+        }
+        char hex[41];
+        bgit_sha_to_hex (entries[i].sha, hex);
+        if (stage)
+            printf ("%o %s %d\t%s%c", entries[i].mode, hex,
+                    (entries[i].flags >> 12) & 0x3, entries[i].path,
+                    zero ? '\0' : '\n');
+        else
+            printf ("%s%c", entries[i].path, zero ? '\0' : '\n');
+    }
+    bgit_index_free_entries (entries, n);
+    return 0;
+}
+
+static int
+git_cmd_write_tree (git_context *ctx, WORD_LIST *args)
+{
+    if (args) return git_usage ("git write-tree");
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    bgit_index_entry *entries = NULL;
+    size_t n = 0;
+    if (git_index_load (ctx, &entries, &n) < 0) return GIT_EXIT_FATAL;
+    char tree[41];
+    int rc = bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], entries, n, tree);
+    bgit_index_free_entries (entries, n);
+    if (rc < 0) return GIT_EXIT_FATAL;
+    printf ("%s\n", tree);
+    return 0;
+}
+
+static int
+git_cmd_read_tree (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git read-tree <tree-ish>";
+    const char *name = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (w[0] == '-' && w[1]) return git_usage (usage);
+        if (name) return git_usage (usage);
+        name = w;
+    }
+    if (!name) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char id[41];
+    if (git_resolve (ctx, name, id, NULL) < 0)
+        return git_fatal ("Not a valid object name %s", name);
+    char tree[41];
+    if (bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0)
+        return git_fatal ("Not a valid tree object name %s", name);
+    bgit_index_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_read_tree (&ctx->odb, tree, &entries, &n) < 0)
+        return git_fatal ("cannot read tree %s", tree);
+    int rc = git_index_store (ctx, entries, n);
+    bgit_index_free_entries (entries, n);
+    return rc < 0 ? GIT_EXIT_FATAL : 0;
+}
+
+static int
+git_cmd_commit_tree (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git commit-tree <tree> [(-p <parent>)...] "
+                        "[(-m <message>)...] [-F <file>]";
+    const char *tree_name = NULL;
+    const char *parents[BGIT_MAX_PARENTS];
+    int n_parents = 0;
+    const char *messages[16];
+    int n_messages = 0;
+    const char *message_file = NULL;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-p") && p->next) {
+            if (n_parents >= BGIT_MAX_PARENTS) return git_fatal ("too many parents");
+            parents[n_parents++] = p->next->word->word;
+            p = p->next;
+        } else if (!strcmp (w, "-m") && p->next) {
+            if (n_messages >= (int) (sizeof messages / sizeof *messages))
+                return git_fatal ("too many messages");
+            messages[n_messages++] = p->next->word->word;
+            p = p->next;
+        } else if (!strcmp (w, "-F") && p->next) {
+            message_file = p->next->word->word;
+            p = p->next;
+        } else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!tree_name) tree_name = w;
+        else return git_usage (usage);
+    }
+    if (!tree_name) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char tree_id[41], tree[41];
+    if (git_resolve (ctx, tree_name, tree_id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, tree_id, BGIT_TREE, tree) < 0)
+        return git_fatal ("not a valid object name %s", tree_name);
+
+    char resolved_parents[BGIT_MAX_PARENTS][41];
+    for (int i = 0; i < n_parents; i++) {
+        char id[41];
+        if (git_resolve (ctx, parents[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, resolved_parents[i]) < 0)
+            return git_fatal ("not a valid object name %s", parents[i]);
+    }
+
+    char author[1024], committer[1024];
+    if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+        bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+        return git_fatal ("cannot determine the identity to use");
+
+    /* Body: headers, a blank line, then the message. */
+    size_t cap = 4096, len = 0;
+    char *body = malloc (cap);
+    if (!body) return GIT_EXIT_FATAL;
+#define GIT_APPEND(...) do { \
+    for (;;) { \
+        int wrote = snprintf (body + len, cap - len, __VA_ARGS__); \
+        if (wrote < 0) { free (body); return GIT_EXIT_FATAL; } \
+        if ((size_t) wrote < cap - len) { len += (size_t) wrote; break; } \
+        cap *= 2; \
+        char *grown = realloc (body, cap); \
+        if (!grown) { free (body); return GIT_EXIT_FATAL; } \
+        body = grown; \
+    } \
+} while (0)
+    GIT_APPEND ("tree %s\n", tree);
+    for (int i = 0; i < n_parents; i++) GIT_APPEND ("parent %s\n", resolved_parents[i]);
+    GIT_APPEND ("author %s\n", author);
+    GIT_APPEND ("committer %s\n", committer);
+    GIT_APPEND ("\n");
+    if (message_file) {
+        unsigned char *text = NULL;
+        size_t text_len = 0;
+        if (bgit_slurp_file (message_file, &text, &text_len) < 0) {
+            free (body);
+            return GIT_EXIT_FATAL;
+        }
+        GIT_APPEND ("%.*s", (int) text_len, (const char *) text);
+        free (text);
+    } else if (n_messages) {
+        for (int i = 0; i < n_messages; i++)
+            GIT_APPEND ("%s%s\n", i ? "\n" : "", messages[i]);
+    } else {
+        unsigned char *text = NULL;
+        size_t text_len = 0;
+        if (bgit_slurp_fd (STDIN_FILENO, &text, &text_len) < 0) {
+            free (body);
+            return git_fatal ("cannot read the message: %s", strerror (errno));
+        }
+        GIT_APPEND ("%.*s", (int) text_len, (const char *) text);
+        free (text);
+    }
+#undef GIT_APPEND
+    if (len == 0 || body[len - 1] != '\n') {
+        /* git ends a commit message with a newline. */
+        if (len + 2 > cap) {
+            char *grown = realloc (body, len + 2);
+            if (!grown) { free (body); return GIT_EXIT_FATAL; }
+            body = grown;
+        }
+        body[len++] = '\n';
+    }
+
+    char commit[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                               (const unsigned char *) body, len, 1, commit);
+    free (body);
+    if (rc < 0) return GIT_EXIT_FATAL;
+    printf ("%s\n", commit);
+    return 0;
+}
+
+struct git_ls_tree_options {
+    int name_only;
+    int zero;
+};
+
+static int
+git_ls_tree_entry (void *vctx, const char *mode, const char *type,
+                   const char *sha, const char *path)
+{
+    struct git_ls_tree_options *options = vctx;
+    if (options->name_only)
+        printf ("%s%c", path, options->zero ? '\0' : '\n');
+    else
+        printf ("%06lo %s %s\t%s%c", strtoul (mode, NULL, 8), type, sha, path,
+                options->zero ? '\0' : '\n');
+    return 0;
+}
+
+static int
+git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git ls-tree [-r] [-t] [-z] [--name-only] <tree-ish>";
+    struct git_ls_tree_options options = {0};
+    int recursive = 0, show_trees = 0;
+    const char *name = NULL;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-r")) recursive = 1;
+        else if (!strcmp (w, "-t")) show_trees = 1;
+        else if (!strcmp (w, "-z")) options.zero = 1;
+        else if (!strcmp (w, "--name-only") || !strcmp (w, "--name-status"))
+            options.name_only = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else return git_usage (usage);
+    }
+    if (!name) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char id[41], tree[41];
+    if (git_resolve (ctx, name, id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0)
+        return git_fatal ("not a tree object");
+    if (bgit_tree_walk (&ctx->odb, tree, "", recursive, show_trees,
+                        git_ls_tree_entry, &options) < 0)
+        return git_fatal ("cannot read tree %s", tree);
+    return 0;
+}
+
+/* ---- rev-list ---------------------------------------------------------- */
+
+struct git_walk {
+    char (*seen)[41];
+    size_t n_seen, cap_seen;
+    struct { char id[41]; long long date; } *pending;
+    size_t n_pending, cap_pending;
+};
+
+static long long
+git_commit_date (git_context *ctx, const char *sha)
+{
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, sha, &type, &data, &len) < 0) return 0;
+    long long when = 0;
+    const char *p = (const char *) data;
+    const char *end = p + len;
+    while (p < end) {
+        const char *nl = memchr (p, '\n', (size_t) (end - p));
+        size_t line = nl ? (size_t) (nl - p) : (size_t) (end - p);
+        if (!line) break;
+        if (line > 10 && !memcmp (p, "committer ", 10)) {
+            /* "committer Name <email> <seconds> <zone>" */
+            const char *gt = memchr (p, '>', line);
+            if (gt) when = strtoll (gt + 1, NULL, 10);
+            break;
+        }
+        if (!nl) break;
+        p = nl + 1;
+    }
+    free (data);
+    return when;
+}
+
+static int
+git_walk_seen (struct git_walk *walk, const char *sha)
+{
+    for (size_t i = 0; i < walk->n_seen; i++)
+        if (!strcmp (walk->seen[i], sha)) return 1;
+    if (walk->n_seen == walk->cap_seen) {
+        size_t next = walk->cap_seen ? walk->cap_seen * 2 : 64;
+        char (*grown)[41] = realloc (walk->seen, next * sizeof *grown);
+        if (!grown) return -1;
+        walk->seen = grown;
+        walk->cap_seen = next;
+    }
+    memcpy (walk->seen[walk->n_seen++], sha, 41);
+    return 0;
+}
+
+static int
+git_walk_push (git_context *ctx, struct git_walk *walk, const char *sha)
+{
+    int seen = git_walk_seen (walk, sha);
+    if (seen != 0) return seen < 0 ? -1 : 0;
+    if (walk->n_pending == walk->cap_pending) {
+        size_t next = walk->cap_pending ? walk->cap_pending * 2 : 32;
+        void *grown = realloc (walk->pending, next * sizeof *walk->pending);
+        if (!grown) return -1;
+        walk->pending = grown;
+        walk->cap_pending = next;
+    }
+    memcpy (walk->pending[walk->n_pending].id, sha, 41);
+    walk->pending[walk->n_pending].date = git_commit_date (ctx, sha);
+    walk->n_pending++;
+    return 0;
+}
+
+static int
+git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git rev-list [--count] [-n <number> | "
+                        "--max-count=<number>] <commit>...";
+    int count_only = 0;
+    long limit = -1;
+    const char *revs[16];
+    int n_revs = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--count")) count_only = 1;
+        else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
+        else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
+        else return git_fatal ("too many revisions");
+    }
+    if (!n_revs) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    struct git_walk walk;
+    memset (&walk, 0, sizeof walk);
+    int status = 0;
+    for (int i = 0; i < n_revs; i++) {
+        char id[41], commit[41];
+        if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            status = git_fatal ("ambiguous argument '%s': unknown revision or "
+                                "path not in the working tree.", revs[i]);
+            goto done;
+        }
+        if (git_walk_push (ctx, &walk, commit) < 0) { status = GIT_EXIT_FATAL; goto done; }
+    }
+
+    long emitted = 0;
+    while (walk.n_pending) {
+        /* Newest first, as git's default order does. */
+        size_t best = 0;
+        for (size_t i = 1; i < walk.n_pending; i++)
+            if (walk.pending[i].date > walk.pending[best].date) best = i;
+        char current[41];
+        memcpy (current, walk.pending[best].id, 41);
+        memmove (walk.pending + best, walk.pending + best + 1,
+                 (walk.n_pending - best - 1) * sizeof *walk.pending);
+        walk.n_pending--;
+
+        if (limit >= 0 && emitted >= limit) break;
+        if (!count_only) printf ("%s\n", current);
+        emitted++;
+
+        char parents[BGIT_MAX_PARENTS][41];
+        int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
+        for (int i = 0; i < n; i++)
+            if (git_walk_push (ctx, &walk, parents[i]) < 0) {
+                status = GIT_EXIT_FATAL;
+                goto done;
+            }
+    }
+    if (count_only) printf ("%ld\n", emitted);
+done:
+    free (walk.seen);
+    free (walk.pending);
+    return status;
+}
+
+static int
+git_cmd_var (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git var (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)";
+    if (!args || args->next) return git_usage (usage);
+    const char *name = args->word->word;
+    bgit_repo repo;
+    int have_repo = bgit_repo_discover (".", &repo) == 0;
+    bgit_config cfg;
+    bgit_config_load (&cfg, have_repo ? &repo : NULL, git_overrides,
+                      git_n_overrides);
+    char ident[1024];
+    int status = 0;
+    if (!strcmp (name, "GIT_AUTHOR_IDENT") || !strcmp (name, "GIT_COMMITTER_IDENT")) {
+        if (bgit_ident (&cfg, !strcmp (name, "GIT_COMMITTER_IDENT"), ident,
+                        sizeof ident) < 0)
+            status = git_fatal ("cannot determine the identity to use");
+        else
+            printf ("%s\n", ident);
+    } else {
+        fflush (stdout);
+        fprintf (stderr, "fatal: %s: unknown variable\n", name);
+        status = GIT_EXIT_FATAL;
+    }
+    bgit_config_release (&cfg);
+    if (have_repo) bgit_repo_release (&repo);
+    (void) ctx;
+    return status;
+}
+
 /* ---- config ------------------------------------------------------------ */
 
 static int
@@ -1000,15 +1599,23 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "cat-file",     git_cmd_cat_file },
+    { "commit-tree",  git_cmd_commit_tree },
     { "config",       git_cmd_config },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "init",         git_cmd_init },
+    { "ls-files",     git_cmd_ls_files },
+    { "ls-tree",      git_cmd_ls_tree },
+    { "read-tree",    git_cmd_read_tree },
     { "reflog",       git_cmd_reflog },
+    { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
     { "show-ref",     git_cmd_show_ref },
     { "symbolic-ref", git_cmd_symbolic_ref },
+    { "update-index", git_cmd_update_index },
     { "update-ref",   git_cmd_update_ref },
+    { "var",          git_cmd_var },
+    { "write-tree",   git_cmd_write_tree },
     { NULL, NULL }
 };
 
@@ -1156,6 +1763,18 @@ char *git_doc[] = {
     "    git config [--global|--local|--file F] [-z] (--list | --get KEY |",
     "               --get-all KEY | --unset KEY | --add KEY VALUE |",
     "               KEY [VALUE])",
+    "    git update-index [--add] [--remove] [--cacheinfo M,OBJ,PATH]",
+    "                     [--index-info] [--] [FILE...]",
+    "    git ls-files [-s] [-z] [--] [FILE...]",
+    "    git write-tree | git read-tree TREE-ISH",
+    "    git commit-tree TREE [-p PARENT]... [-m MSG]... [-F FILE]",
+    "    git ls-tree [-r] [-t] [-z] [--name-only] TREE-ISH",
+    "    git rev-list [--count] [-n N] COMMIT...",
+    "    git var GIT_AUTHOR_IDENT|GIT_COMMITTER_IDENT",
+    "",
+    "Revisions accept git's suffixes: ^ and ^<n> for a parent, ~<n> for n",
+    "first-parent steps, ^{} and ^{<type>} to peel, and @{<n>} for a ref's",
+    "nth previous value from its reflog.",
     "",
     "Object reads cover loose objects, every pack, and the alternates. Refs",
     "cover loose refs, packed-refs and symbolic refs; every change is made",
