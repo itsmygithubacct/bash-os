@@ -291,6 +291,33 @@ git commit -q -m 'move and edit'
 git show --stat
 git log --name-status -2
 
+# Two repositories: cloning, fetching, pulling and pushing between them.
+cd "$HOME"
+git clone repo clone-of-repo
+cd clone-of-repo
+git log --oneline -1
+git remote -v
+git branch -a
+cd "$HOME/repo"
+printf 'a change to fetch\n' > fetched.txt
+git add fetched.txt
+git commit -q -m 'something to fetch'
+cd "$HOME/clone-of-repo"
+git fetch
+git pull
+git log --oneline -1
+cd "$HOME"
+git init -q -b main --bare bare-copy
+cd clone-of-repo
+git remote add bare ../bare-copy
+git push bare
+printf 'and another\n' > pushed.txt
+git add pushed.txt
+git commit -q -m 'something to push'
+git push bare
+git remote remove bare
+cd "$HOME/repo"
+
 git fsck 2>/dev/null || true
 SCENARIO
 

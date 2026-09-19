@@ -47,6 +47,12 @@ git stash        [push] [-m <message>] | list | show [-p] [<stash>]
 git rebase       <upstream> [<branch>] | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
+git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
+                 <url> | get-url <name>
+git clone        [-q] [--bare] <source> [<directory>]
+git fetch        [<remote>]
+git pull         [<remote>]
+git push         [<remote> [<branch>]]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
@@ -179,6 +185,14 @@ the score matches git's every time. `git diff`, `git log`, `git show` and
 comparison that ends at the working tree does not look for them, having
 no recorded ids to compare.
 
+Clone, fetch, pull and push work between repositories on this machine: the
+objects a branch reaches are copied into the other store, stopping at
+anything already there, and the refs follow. A push may only move a branch
+forward, and is refused into a branch the far end has checked out, with
+git's words for both. A URL is refused rather than half-attempted — the
+protocols are the next phase — and a clone from a packed repository writes
+the objects out loose, which is correct but larger than git's copy.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -259,8 +273,10 @@ message and changes nothing.
 
 ## Still to come
 
-Phase 2 is done but for submodules. What is left over from it: stashing
-untracked files, interactive rebase, renames between the index and the
-working tree, and a merge with more than one base. Then Phase 3, HTTPS
-remotes with protocol v2, and Phase 4, SSH. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Phase 2 is done but for submodules, and Phase 3 has started: clone, fetch,
+pull and push speak to directories, not yet to URLs. Next for them is the
+protocol — pkt-line, protocol v2, and reading a packfile with deltas — and
+after that SSH. Left over from Phase 2: stashing untracked files,
+interactive rebase, renames between the index and the working tree, and a
+merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

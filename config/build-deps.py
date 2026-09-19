@@ -69,10 +69,18 @@ def main():
             archive = download/spec['url'].rsplit('/', 1)[1]
             if not archive.exists():
                 print(f'dependencies: downloading {name} {spec["version"]}', flush=True)
-                with urllib.request.urlopen(spec['url'], timeout=120) as response:
-                    data = response.read()
-                if hashlib.sha256(data).hexdigest() != spec['sha256']:
-                    raise RuntimeError(f'{name}: download checksum mismatch')
+                # A download that arrives truncated fails the checksum; that
+                # is a bad connection, not a bad pin, so ask once more before
+                # giving up on it.
+                for attempt in (1, 2):
+                    with urllib.request.urlopen(spec['url'], timeout=120) as response:
+                        data = response.read()
+                    if hashlib.sha256(data).hexdigest() == spec['sha256']:
+                        break
+                    if attempt == 2:
+                        raise RuntimeError(f'{name}: download checksum mismatch')
+                    print(f'dependencies: {name} arrived damaged, asking again',
+                          flush=True)
                 temporary = archive.with_suffix(archive.suffix+'.part')
                 temporary.write_bytes(data)
                 temporary.replace(archive)

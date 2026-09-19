@@ -55,6 +55,7 @@
 #include "_git_odb.h"
 #include "_git_patch.h"
 #include "_git_refs.h"
+#include "_git_transport.h"
 #include "_git_rename.h"
 #include "_git_repo.h"
 #include "_git_revision.h"
@@ -139,6 +140,8 @@ struct git_worktree {
    beside git worktree, which is what makes the rest. */
 static int git_worktrees (git_context *ctx, struct git_worktree **out,
                           size_t *n_out);
+/* An absolute path for one that may not exist yet, beside it. */
+static int git_absolute (const char *path, char *out, size_t outsz);
 
 /* A file inside the git directory, such as MERGE_HEAD, and the things done
    with one. Written out beside git merge, which is what makes them. */
@@ -3507,9 +3510,11 @@ git_head_label (git_context *ctx, struct git_state *state, char *out, size_t out
 static int
 git_cmd_branch (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git branch [-v] [--show-current] [<name> [<start>]] "
-                        "| (-d | -D) <name> | (-m | -M) <old> <new>";
+    const char *usage = "git branch [-v] [-a | -r] [--show-current] "
+                        "[<name> [<start>]] | (-d | -D) <name> "
+                        "| (-m | -M) <old> <new>";
     int verbose = 0, show_current = 0, delete_branch = 0, move_branch = 0, force = 0;
+    int show_remotes = 0, only_remotes = 0;
     const char *names[2] = { NULL, NULL };
     int n_names = 0;
 
@@ -3517,6 +3522,11 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         const char *w = p->word->word;
         if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
         else if (!strcmp (w, "--show-current")) show_current = 1;
+        else if (!strcmp (w, "-a") || !strcmp (w, "--all")) show_remotes = 1;
+        else if (!strcmp (w, "-r") || !strcmp (w, "--remotes")) {
+            show_remotes = 1;
+            only_remotes = 1;
+        }
         else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_branch = 1;
         else if (!strcmp (w, "-D")) { delete_branch = 1; force = 1; }
         else if (!strcmp (w, "-m") || !strcmp (w, "--move")) move_branch = 1;
@@ -3626,10 +3636,12 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     size_t n_trees = 0;
     git_worktrees (ctx, &trees, &n_trees);
 
-    /* No arguments: list the branches. */
+    /* No arguments: list the branches, and with -a or -r the tracking refs
+       that stand for branches at the far end. */
     bgit_ref *refs = NULL;
     size_t n_refs = 0;
-    if (bgit_refs_list (&ctx->repo, "refs/heads/", &refs, &n_refs) < 0) {
+    if (!only_remotes && bgit_refs_list (&ctx->repo, "refs/heads/", &refs,
+                                         &n_refs) < 0) {
         status = git_fatal ("cannot read refs");
         goto done;
     }
@@ -3662,6 +3674,51 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
                 abbreviated, subject);
     }
     bgit_refs_free (refs, n_refs);
+
+    if (show_remotes) {
+        bgit_ref *tracking = NULL;
+        size_t n_tracking = 0;
+        if (bgit_refs_list (&ctx->repo, "refs/remotes/", &tracking,
+                            &n_tracking) == 0) {
+            for (size_t i = 0; i < n_tracking; i++) {
+                const char *name = tracking[i].name + 13;
+                /* A symbolic tracking ref shows what it points at. */
+                char *target = NULL;
+                if (bgit_symref_read (&ctx->repo, tracking[i].name, &target) == 0 &&
+                    target) {
+                    printf ("  %s%s -> %s\n", only_remotes ? "" : "remotes/",
+                            name, target + 13);
+                    free (target);
+                    continue;
+                }
+                free (target);
+                if (!verbose) {
+                    printf ("  %s%s\n", only_remotes ? "" : "remotes/", name);
+                    continue;
+                }
+                struct git_commit commit;
+                char abbreviated[41], subject[4096] = "";
+                git_abbrev (ctx, tracking[i].sha, 7, abbreviated,
+                            sizeof abbreviated);
+                if (git_commit_read (ctx, tracking[i].sha, &commit) == 0) {
+                    git_subject (&commit, subject, sizeof subject);
+                    git_commit_release (&commit);
+                }
+                size_t width = 0;
+                for (size_t j = 0; j < n_tracking; j++) {
+                    size_t len = strlen (tracking[j].name + 13) +
+                                 (only_remotes ? 0 : 8);
+                    if (len > width) width = len;
+                }
+                char shown[4096];
+                snprintf (shown, sizeof shown, "%s%s",
+                          only_remotes ? "" : "remotes/", name);
+                printf ("  %-*s %s %s\n", (int) width, shown, abbreviated,
+                        subject);
+            }
+            bgit_refs_free (tracking, n_tracking);
+        }
+    }
 done:
     git_state_release (&state);
     return status;
@@ -4814,6 +4871,615 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     }
     bgit_merge_paths_free (paths, n_paths);
     git_state_release (&state);
+    return status;
+}
+
+/* ---- remotes ------------------------------------------------------------ */
+
+/* Write one setting into this repository's own configuration file. */
+static int
+git_config_write (git_context *ctx, const char *key, const char *value)
+{
+    char path[4096];
+    bgit_config_repo_file (&ctx->repo, path, sizeof path);
+    return bgit_config_set_file (path, key, value, 0);
+}
+
+/* Where a remote points, as its configuration says. */
+static const char *
+git_remote_url (git_context *ctx, const char *remote)
+{
+    char key[4096];
+    snprintf (key, sizeof key, "remote.%s.url", remote);
+    return bgit_config_get (&ctx->cfg, key);
+}
+
+/* This build moves objects between directories; a URL needs the protocol
+   work that comes after this. */
+static int
+git_local_only (const char *url)
+{
+    return !strstr (url, "://") && strncmp (url, "git@", 4);
+}
+
+static int
+git_cmd_remote (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git remote [-v] | add <name> <url> | remove <name> "
+                        "| set-url <name> <url> | get-url <name>";
+    const char *verb = NULL, *name = NULL, *url = NULL;
+    int verbose = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!verb) verb = w;
+        else if (!name) name = w;
+        else if (!url) url = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (!verb) {
+        /* Every remote the configuration names, once each, in order. */
+        char seen[64][256];
+        size_t n_seen = 0;
+        for (size_t i = 0; i < ctx->cfg.n; i++) {
+            const char *key = ctx->cfg.entries[i].key;
+            if (strncmp (key, "remote.", 7)) continue;
+            const char *dot = strrchr (key, '.');
+            if (!dot || dot <= key + 7) continue;
+            char remote[256];
+            size_t len = (size_t) (dot - key - 7);
+            if (len >= sizeof remote) continue;
+            memcpy (remote, key + 7, len);
+            remote[len] = '\0';
+            int known = 0;
+            for (size_t j = 0; j < n_seen; j++)
+                if (!strcmp (seen[j], remote)) known = 1;
+            if (known || n_seen >= 64) continue;
+            snprintf (seen[n_seen++], sizeof seen[0], "%s", remote);
+        }
+        /* git lists them by name, whatever order the file holds them in. */
+        if (n_seen > 1) qsort (seen, n_seen, sizeof seen[0],
+                               (int (*) (const void *, const void *)) strcmp);
+        for (size_t i = 0; i < n_seen; i++) {
+            if (!verbose) { printf ("%s\n", seen[i]); continue; }
+            const char *where = git_remote_url (ctx, seen[i]);
+            printf ("%s\t%s (fetch)\n", seen[i], where ? where : "");
+            printf ("%s\t%s (push)\n", seen[i], where ? where : "");
+        }
+        return 0;
+    }
+    if (!strcmp (verb, "add")) {
+        if (!name || !url) return git_usage (usage);
+        if (git_remote_url (ctx, name))
+            return git_fatal ("remote %s already exists.", name);
+        char key[4096], value[4096];
+        snprintf (key, sizeof key, "remote.%s.url", name);
+        if (git_config_write (ctx, key, url) < 0) return GIT_EXIT_FATAL;
+        snprintf (key, sizeof key, "remote.%s.fetch", name);
+        snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/%s/*", name);
+        return git_config_write (ctx, key, value) < 0 ? GIT_EXIT_FATAL : 0;
+    }
+    if (!strcmp (verb, "set-url")) {
+        if (!name || !url) return git_usage (usage);
+        if (!git_remote_url (ctx, name))
+            return git_fatal ("No such remote '%s'", name);
+        char key[4096];
+        snprintf (key, sizeof key, "remote.%s.url", name);
+        return git_config_write (ctx, key, url) < 0 ? GIT_EXIT_FATAL : 0;
+    }
+    if (!strcmp (verb, "get-url")) {
+        if (!name) return git_usage (usage);
+        const char *where = git_remote_url (ctx, name);
+        if (!where) return git_fatal ("No such remote '%s'", name);
+        printf ("%s\n", where);
+        return 0;
+    }
+    if (!strcmp (verb, "remove") || !strcmp (verb, "rm")) {
+        if (!name) return git_usage (usage);
+        if (!git_remote_url (ctx, name)) {
+            fflush (stdout);
+            fprintf (stderr, "error: No such remote: '%s'\n", name);
+            return 2;
+        }
+        char path[4096], key[4096];
+        bgit_config_repo_file (&ctx->repo, path, sizeof path);
+        snprintf (key, sizeof key, "remote.%s.url", name);
+        bgit_config_unset_file (path, key);
+        snprintf (key, sizeof key, "remote.%s.fetch", name);
+        bgit_config_unset_file (path, key);
+        /* The tracking refs the remote left behind go with it. */
+        char prefix[4096];
+        snprintf (prefix, sizeof prefix, "refs/remotes/%s/", name);
+        bgit_ref *refs = NULL;
+        size_t n = 0;
+        if (bgit_refs_list (&ctx->repo, prefix, &refs, &n) == 0) {
+            for (size_t i = 0; i < n; i++)
+                bgit_ref_delete (&ctx->repo, refs[i].name, NULL, NULL);
+            bgit_refs_free (refs, n);
+        }
+        return 0;
+    }
+    return git_usage (usage);
+}
+
+/* ---- clone, fetch and push --------------------------------------------- */
+
+/* Open the repository at the far end of a local remote. */
+static int
+git_open_remote (const char *url, bgit_repo *repo, bgit_odb *odb)
+{
+    if (bgit_repo_discover (url, repo) < 0) {
+        char inside[4096];
+        snprintf (inside, sizeof inside, "%s/.git", url);
+        if (bgit_repo_open (inside, repo) < 0 && bgit_repo_open (url, repo) < 0)
+            return -1;
+    }
+    if (bgit_odb_open (repo, odb) < 0) {
+        bgit_repo_release (repo);
+        return -1;
+    }
+    odb->quiet = 1;
+    return 0;
+}
+
+/* One branch the far end has. */
+struct git_remote_ref {
+    char name[4096];      /* refs/heads/... over there */
+    char local[4096];     /* refs/remotes/<remote>/... over here */
+    char id[41];
+    char old[41];
+    int updated;
+    int is_new;
+};
+
+static int
+git_remote_heads (bgit_repo *remote, const char *name,
+                  struct git_remote_ref **out, size_t *n_out)
+{
+    bgit_ref *refs = NULL;
+    size_t n = 0;
+    if (bgit_refs_list (remote, "refs/heads/", &refs, &n) < 0) return -1;
+    struct git_remote_ref *list = calloc (n ? n : 1, sizeof *list);
+    if (!list) { bgit_refs_free (refs, n); return -1; }
+    for (size_t i = 0; i < n; i++) {
+        snprintf (list[i].name, sizeof list[i].name, "%s", refs[i].name);
+        snprintf (list[i].local, sizeof list[i].local, "refs/remotes/%s/%s",
+                  name, refs[i].name + 11);
+        memcpy (list[i].id, refs[i].sha, 41);
+    }
+    bgit_refs_free (refs, n);
+    *out = list;
+    *n_out = n;
+    return 0;
+}
+
+/* The summary line a fetch or a push prints for one ref. */
+static void
+git_report_ref (git_context *ctx, const char *old, const char *id,
+                const char *from, const char *to, int width)
+{
+    char old_short[41], new_short[41];
+    git_abbrev (ctx, id, 7, new_short, sizeof new_short);
+    if (!old || !*old) {
+        fprintf (stderr, " * [new branch]      %-*s -> %s\n", width, from, to);
+        return;
+    }
+    git_abbrev (ctx, old, 7, old_short, sizeof old_short);
+    fprintf (stderr, "   %s..%s  %-*s -> %s\n", old_short, new_short, width,
+             from, to);
+}
+
+static int
+git_cmd_fetch (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git fetch [<remote>]";
+    const char *name = NULL;
+    int quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!name) name = "origin";
+    const char *url = git_remote_url (ctx, name);
+    if (!url) return git_fatal ("'%s' does not appear to be a git repository",
+                                name);
+    if (!git_local_only (url))
+        return git_fatal ("this build's git fetch takes a path; protocols are "
+                          "not done yet");
+
+    bgit_repo remote;
+    bgit_odb remote_odb;
+    if (git_open_remote (url, &remote, &remote_odb) < 0)
+        return git_fatal ("'%s' does not appear to be a git repository", url);
+
+    struct git_remote_ref *heads = NULL;
+    size_t n_heads = 0;
+    int status = 0;
+    if (git_remote_heads (&remote, name, &heads, &n_heads) < 0) status = GIT_EXIT_FATAL;
+
+    /* Everything those branches reach, that is not here already. */
+    const char **roots = calloc (n_heads ? n_heads : 1, sizeof *roots);
+    if (!status && !roots) status = GIT_EXIT_FATAL;
+    if (!status) {
+        for (size_t i = 0; i < n_heads; i++) roots[i] = heads[i].id;
+        if (bgit_copy_objects (&remote_odb, &ctx->odb, ctx->odb.object_dirs[0],
+                               roots, n_heads, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    free (roots);
+
+    int width = 10, any = 0;   /* git's own minimum for this column */
+    for (size_t i = 0; !status && i < n_heads; i++) {
+        char current[41] = "";
+        heads[i].is_new = bgit_ref_read (&ctx->repo, heads[i].local, current) != 0;
+        if (!heads[i].is_new) memcpy (heads[i].old, current, 41);
+        heads[i].updated = heads[i].is_new || strcmp (current, heads[i].id);
+        if (heads[i].updated) any = 1;
+        int len = (int) strlen (heads[i].name + 11);
+        if (len > width) width = len;
+    }
+    for (size_t i = 0; !status && i < n_heads; i++) {
+        if (!heads[i].updated) continue;
+        const char *message = heads[i].is_new ? "fetch: storing head"
+                                              : "fetch: fast-forward";
+        if (bgit_ref_update (&ctx->repo, heads[i].local, heads[i].id, NULL,
+                             message) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    if (!status && any && !quiet) {
+        fprintf (stderr, "From %s\n", url);
+        for (size_t i = 0; i < n_heads; i++) {
+            if (!heads[i].updated) continue;
+            char to[4096];
+            snprintf (to, sizeof to, "%s/%s", name, heads[i].name + 11);
+            git_report_ref (ctx, heads[i].is_new ? NULL : heads[i].old,
+                            heads[i].id, heads[i].name + 11, to, width);
+        }
+    }
+    free (heads);
+    bgit_odb_release (&remote_odb);
+    bgit_repo_release (&remote);
+    return status;
+}
+
+static int
+git_cmd_clone (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git clone [-q] [--bare] <source> [<directory>]";
+    const char *source = NULL, *where = NULL;
+    int quiet = 0, bare = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "--bare")) bare = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!source) source = w;
+        else if (!where) where = w;
+        else return git_usage (usage);
+    }
+    if (!source) return git_usage (usage);
+    if (!git_local_only (source))
+        return git_fatal ("this build's git clone takes a path; protocols are "
+                          "not done yet");
+
+    /* Where it lands: the last part of the source, without any .git. */
+    char target[4096];
+    if (where) snprintf (target, sizeof target, "%s", where);
+    else {
+        char copy[4096];
+        snprintf (copy, sizeof copy, "%s", source);
+        size_t len = strlen (copy);
+        while (len && copy[len - 1] == '/') copy[--len] = '\0';
+        if (len > 4 && !strcmp (copy + len - 4, ".git")) copy[len - 4] = '\0';
+        len = strlen (copy);
+        while (len && copy[len - 1] == '/') copy[--len] = '\0';
+        const char *base = strrchr (copy, '/');
+        snprintf (target, sizeof target, "%s", base ? base + 1 : copy);
+    }
+    if (!*target) return git_fatal ("cannot work out a directory name");
+
+    char absolute[4096];
+    if (git_absolute (source, absolute, sizeof absolute) < 0)
+        return git_fatal ("cannot work out where '%s' is", source);
+
+    bgit_repo remote;
+    bgit_odb remote_odb;
+    if (git_open_remote (absolute, &remote, &remote_odb) < 0)
+        return git_fatal ("repository '%s' does not exist", source);
+
+    if (!quiet) fprintf (stderr, "Cloning into '%s'...\n", target);
+
+    /* A fresh repository, then everything the far end has. */
+    WORD_LIST *init = make_word_list (make_word ((char *) target), NULL);
+    if (bare) init = make_word_list (make_word ("--bare"), init);
+    init = make_word_list (make_word ("-q"), init);
+    git_context fresh;
+    memset (&fresh, 0, sizeof fresh);
+    int status = git_cmd_init (&fresh, init);
+    dispose_words (init);
+    if (status) {
+        bgit_odb_release (&remote_odb);
+        bgit_repo_release (&remote);
+        return status;
+    }
+    if (chdir (target) < 0) {
+        bgit_odb_release (&remote_odb);
+        bgit_repo_release (&remote);
+        return git_fatal ("cannot enter '%s': %s", target, strerror (errno));
+    }
+    if (git_context_open (ctx) != 0) {
+        bgit_odb_release (&remote_odb);
+        bgit_repo_release (&remote);
+        return GIT_EXIT_FATAL;
+    }
+
+    struct git_remote_ref *heads = NULL;
+    size_t n_heads = 0;
+    if (git_remote_heads (&remote, "origin", &heads, &n_heads) < 0) {
+        bgit_odb_release (&remote_odb);
+        bgit_repo_release (&remote);
+        return GIT_EXIT_FATAL;
+    }
+    bgit_ref *tags = NULL;
+    size_t n_tags = 0;
+    bgit_refs_list (&remote, "refs/tags/", &tags, &n_tags);
+
+    const char **roots = calloc (n_heads + n_tags + 1, sizeof *roots);
+    if (!roots) status = GIT_EXIT_FATAL;
+    size_t n_roots = 0;
+    for (size_t i = 0; !status && i < n_heads; i++) roots[n_roots++] = heads[i].id;
+    for (size_t i = 0; !status && i < n_tags; i++) roots[n_roots++] = tags[i].sha;
+    if (!status && bgit_copy_objects (&remote_odb, &ctx->odb,
+                                      ctx->odb.object_dirs[0], roots, n_roots,
+                                      NULL) < 0)
+        status = GIT_EXIT_FATAL;
+    free (roots);
+
+    /* What the far end's HEAD names is what gets checked out. */
+    char *head_ref = NULL;
+    char head_id[41] = "";
+    bgit_symref_read (&remote, "HEAD", &head_ref);
+    if (head_ref) bgit_ref_read (&remote, head_ref, head_id);
+
+    char message[4096];
+    snprintf (message, sizeof message, "clone: from %s", absolute);
+    for (size_t i = 0; !status && i < n_heads; i++)
+        if (bgit_ref_set (&ctx->repo, heads[i].local, heads[i].id, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+    for (size_t i = 0; !status && i < n_tags; i++)
+        if (bgit_ref_set (&ctx->repo, tags[i].name, tags[i].sha, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+
+    char key[4096], value[4096];
+    if (!status) {
+        if (git_config_write (ctx, "remote.origin.url", absolute) < 0)
+            status = GIT_EXIT_FATAL;
+        snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/origin/*");
+        if (!status && git_config_write (ctx, "remote.origin.fetch", value) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    if (!status && head_ref && !strncmp (head_ref, "refs/heads/", 11)) {
+        const char *branch = head_ref + 11;
+        char tracking[4096];
+        snprintf (tracking, sizeof tracking, "refs/remotes/origin/%s", branch);
+        if (bgit_symref_write (&ctx->repo, "refs/remotes/origin/HEAD", tracking,
+                               message) < 0)
+            status = GIT_EXIT_FATAL;
+        snprintf (key, sizeof key, "branch.%s.remote", branch);
+        if (!status && git_config_write (ctx, key, "origin") < 0)
+            status = GIT_EXIT_FATAL;
+        snprintf (key, sizeof key, "branch.%s.merge", branch);
+        if (!status && git_config_write (ctx, key, head_ref) < 0)
+            status = GIT_EXIT_FATAL;
+
+        if (!status && *head_id) {
+            char local[4096];
+            snprintf (local, sizeof local, "refs/heads/%s", branch);
+            if (bgit_ref_update (&ctx->repo, local, head_id, NULL, message) < 0)
+                status = GIT_EXIT_FATAL;
+            if (!status && bgit_symref_write (&ctx->repo, "HEAD", local, NULL) < 0)
+                status = GIT_EXIT_FATAL;
+            if (!status && !bare) {
+                /* The working tree and index follow. */
+                struct git_state state;
+                if (git_state_load (ctx, &state) < 0) status = GIT_EXIT_FATAL;
+                else {
+                    char tree[41];
+                    if (bgit_commit_tree (&ctx->odb, head_id, tree) < 0 ||
+                        bgit_checkout_tree (&ctx->repo, &ctx->odb, tree,
+                                            &state.index, &state.n_index, 1,
+                                            NULL) < 0 ||
+                        git_index_store (ctx, state.index, state.n_index) < 0)
+                        status = GIT_EXIT_FATAL;
+                    bgit_reflog_append (&ctx->repo, "HEAD", NULL, head_id,
+                                        message);
+                    git_state_release (&state);
+                }
+            }
+        }
+    }
+    free (head_ref);
+    free (heads);
+    bgit_refs_free (tags, n_tags);
+    bgit_odb_release (&remote_odb);
+    bgit_repo_release (&remote);
+    if (!status && !quiet) fprintf (stderr, "done.\n");
+    return status;
+}
+
+static int
+git_cmd_push (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git push [<remote> [<branch>]]";
+    const char *name = NULL, *branch = NULL;
+    int quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else if (!branch) branch = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    if (!state.have_head || !state.branch) {
+        git_state_release (&state);
+        return git_fatal ("You are not currently on a branch.");
+    }
+    if (!name) {
+        char key[4096];
+        snprintf (key, sizeof key, "branch.%s.remote", state.branch + 11);
+        const char *configured = bgit_config_get (&ctx->cfg, key);
+        name = configured ? configured : "origin";
+    }
+    if (!branch) branch = state.branch + 11;
+
+    const char *url = git_remote_url (ctx, name);
+    if (!url) {
+        git_state_release (&state);
+        return git_fatal ("'%s' does not appear to be a git repository", name);
+    }
+    if (!git_local_only (url)) {
+        git_state_release (&state);
+        return git_fatal ("this build's git push takes a path; protocols are "
+                          "not done yet");
+    }
+
+    char local_ref[4096], remote_ref[4096], id[41];
+    snprintf (local_ref, sizeof local_ref, "refs/heads/%s", branch);
+    snprintf (remote_ref, sizeof remote_ref, "refs/heads/%s", branch);
+    if (bgit_ref_read (&ctx->repo, local_ref, id) != 0) {
+        git_state_release (&state);
+        return git_fatal ("src refspec %s does not match any", branch);
+    }
+
+    bgit_repo remote;
+    bgit_odb remote_odb;
+    if (git_open_remote (url, &remote, &remote_odb) < 0) {
+        git_state_release (&state);
+        return git_fatal ("'%s' does not appear to be a git repository", url);
+    }
+
+    int status = 0;
+    char current[41] = "";
+    int is_new = bgit_ref_read (&remote, remote_ref, current) != 0;
+
+    /* Pushing into a branch that the far end has checked out would leave
+       its working tree behind; git refuses, and so does this. */
+    char *their_head = NULL;
+    if (!remote.bare && bgit_symref_read (&remote, "HEAD", &their_head) == 0 &&
+        their_head && !strcmp (their_head, remote_ref)) {
+        free (their_head);
+        fflush (stdout);
+        fprintf (stderr, "remote: error: refusing to update checked out branch: "
+                         "%s\n", remote_ref);
+        fprintf (stderr, "To %s\n", url);
+        fprintf (stderr, " ! [remote rejected] %s -> %s (branch is currently "
+                         "checked out)\n", branch, branch);
+        fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        bgit_odb_release (&remote_odb);
+        bgit_repo_release (&remote);
+        git_state_release (&state);
+        return 1;
+    }
+    free (their_head);
+
+    /* A push may only move a branch forward, unless forced — and forcing
+       is not here yet. */
+    if (!is_new && strcmp (current, id)) {
+        int reaches = bgit_is_ancestor (&ctx->odb, current, id);
+        if (reaches <= 0) {
+            fflush (stdout);
+            fprintf (stderr, "To %s\n", url);
+            fprintf (stderr, " ! [rejected]        %s -> %s (non-fast-forward)\n",
+                     branch, branch);
+            fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+            bgit_odb_release (&remote_odb);
+            bgit_repo_release (&remote);
+            git_state_release (&state);
+            return 1;
+        }
+    }
+
+    const char *roots[1] = { id };
+    if (bgit_copy_objects (&ctx->odb, &remote_odb,
+                           remote_odb.object_dirs[0], roots, 1, NULL) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status) {
+        char message[1200];
+        snprintf (message, sizeof message, "push");
+        if (bgit_ref_update (&remote, remote_ref, id, NULL, message) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    if (!status && !is_new && !strcmp (current, id)) {
+        if (!quiet) fprintf (stderr, "Everything up-to-date\n");
+    } else if (!status && !quiet) {
+        fprintf (stderr, "To %s\n", url);
+        git_report_ref (ctx, is_new ? NULL : current, id, branch, branch,
+                        (int) strlen (branch));
+    }
+    /* What was pushed is now what the far end has. */
+    if (!status) {
+        char tracking[4096];
+        snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", name, branch);
+        bgit_ref_set (&ctx->repo, tracking, id, NULL);
+    }
+    bgit_odb_release (&remote_odb);
+    bgit_repo_release (&remote);
+    git_state_release (&state);
+    return status;
+}
+
+static int
+git_cmd_pull (git_context *ctx, WORD_LIST *args)
+{
+    /* Fetch, then merge what was fetched, which is what pull is. */
+    const char *usage = "git pull [<remote>]";
+    const char *name = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) continue;
+        if (w[0] == '-' && w[1]) return git_usage (usage);
+        if (!name) name = w;
+        else return git_usage (usage);
+    }
+    WORD_LIST *fetch_args = name
+        ? make_word_list (make_word ((char *) name), NULL) : NULL;
+    int status = git_cmd_fetch (ctx, fetch_args);
+    dispose_words (fetch_args);
+    if (status) return status;
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    if (!state.branch) {
+        git_state_release (&state);
+        return git_fatal ("You are not currently on a branch.");
+    }
+    char key[4096];
+    const char *branch = state.branch + 11;
+    snprintf (key, sizeof key, "branch.%s.remote", branch);
+    const char *remote = bgit_config_get (&ctx->cfg, key);
+    if (!remote) remote = name ? name : "origin";
+    char tracking[4096];
+    snprintf (tracking, sizeof tracking, "%s/%s", remote, branch);
+    git_state_release (&state);
+
+    WORD_LIST *merge_args = make_word_list (make_word (tracking), NULL);
+    status = git_cmd_merge (ctx, merge_args);
+    dispose_words (merge_args);
     return status;
 }
 
@@ -7363,6 +8029,7 @@ static const struct {
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
+    { "clone",        git_cmd_clone },
     { "cherry-pick",  git_cmd_cherry_pick },
     { "checkout",     git_cmd_checkout },
     { "clean",        git_cmd_clean },
@@ -7370,6 +8037,7 @@ static const struct {
     { "commit",       git_cmd_commit },
     { "config",       git_cmd_config },
     { "diff",         git_cmd_diff },
+    { "fetch",        git_cmd_fetch },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "init",         git_cmd_init },
@@ -7380,9 +8048,12 @@ static const struct {
     { "merge-base",   git_cmd_merge_base },
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
+    { "pull",         git_cmd_pull },
+    { "push",         git_cmd_push },
     { "read-tree",    git_cmd_read_tree },
     { "rebase",       git_cmd_rebase },
     { "reflog",       git_cmd_reflog },
+    { "remote",       git_cmd_remote },
     { "reset",        git_cmd_reset },
     { "restore",      git_cmd_restore },
     { "revert",       git_cmd_revert },

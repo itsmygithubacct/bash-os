@@ -468,6 +468,36 @@ bgit_ref_update (const bgit_repo *repo, const char *refname,
 }
 
 int
+bgit_ref_set (const bgit_repo *repo, const char *refname, const char *new_sha,
+              const char *old_sha)
+{
+    char current[41] = "";
+    int exists = 0;
+    if (!bgit_ref_name_ok (refname)) {
+        builtin_error ("invalid ref name: %s", refname);
+        return -1;
+    }
+    if (!new_sha || strlen (new_sha) != 40 || !bgit_all_hex (new_sha)) {
+        builtin_error ("invalid object name: %s", new_sha ? new_sha : "");
+        return -1;
+    }
+    if (bgit_ref_check_old (repo, refname, old_sha, current, &exists) < 0)
+        return -1;
+    char path[4096];
+    if (bgit_ref_path (repo, refname, path, sizeof path) < 0) return -1;
+    bgit_lock lock;
+    if (bgit_lock_acquire (&lock, path) < 0) return -1;
+    char line[42];
+    int len = snprintf (line, sizeof line, "%s\n", new_sha);
+    if (bgit_lock_write (&lock, line, (size_t) len) < 0 ||
+        bgit_lock_commit (&lock) < 0) {
+        bgit_lock_rollback (&lock);
+        return -1;
+    }
+    return 0;
+}
+
+int
 bgit_symref_write (const bgit_repo *repo, const char *name, const char *target,
                    const char *message)
 {
@@ -592,6 +622,7 @@ bgit_ref_delete (const bgit_repo *repo, const char *refname,
 struct bgit_ref_collect {
     bgit_ref *refs;
     size_t n, cap;
+    const bgit_repo *repo;     /* to follow a symbolic ref while listing */
 };
 
 static int
@@ -652,6 +683,13 @@ bgit_refs_walk (struct bgit_ref_collect *c, const char *base,
             memcpy (sha, line, 40);
             sha[40] = '\0';
             if (bgit_ref_collect_add (c, name, sha) < 0) rc = -1;
+        } else if (!strncmp (line, "ref: ", 5)) {
+            /* A symbolic ref is listed too, standing for what it points
+               at — refs/remotes/origin/HEAD is one, and git lists it. */
+            char sha[41];
+            if (bgit_ref_read (c->repo, line + 5, sha) == 0 &&
+                bgit_ref_collect_add (c, name, sha) < 0)
+                rc = -1;
         }
         free (line);
         if (rc < 0) break;
@@ -671,6 +709,7 @@ bgit_refs_list (const bgit_repo *repo, const char *prefix, bgit_ref **out,
                 size_t *n)
 {
     struct bgit_ref_collect c = {0};
+    c.repo = repo;
     const char *want = prefix ? prefix : "";
     if (bgit_refs_walk (&c, repo->common_dir, "refs", want) < 0) goto fail;
     if (strcmp (repo->git_dir, repo->common_dir) != 0 &&

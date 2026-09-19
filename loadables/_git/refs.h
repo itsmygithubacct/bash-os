@@ -53,6 +53,11 @@ int bgit_ref_resolve (const bgit_repo *repo, const char *name, char full[41],
 int bgit_symref_write (const bgit_repo *repo, const char *name,
                        const char *target, const char *message);
 
+/* Set REFNAME under a lock and write no log entry, which is what a clone
+   does for the tracking refs it lays down. Same OLD_SHA rule as below. */
+int bgit_ref_set (const bgit_repo *repo, const char *refname,
+                  const char *new_sha, const char *old_sha);
+
 /* Create or change REFNAME under a lock, then append to its reflog.
    OLD_SHA, when given, must match what the ref holds: 40 digits for "must
    be this", or "" for "must not exist". NULL skips the check. */
