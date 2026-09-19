@@ -105,6 +105,13 @@ void bgit_pack_encode_obj_header (int type, size_t size, unsigned char *out,
 int bgit_pack_buf_append (unsigned char **out, size_t *out_len, size_t *out_cap,
                           const void *p, size_t n);
 
+/* Read one whole packfile from FD, and no more than that. A stream
+   carrying a pack does not end where the pack does — the far end goes on
+   waiting for an answer — so the pack is parsed as it arrives and the
+   reading stops after its last object and the twenty bytes of checksum
+   that follow. Caller frees *out. Returns 0, or -1. */
+int bgit_pack_read_stream (int fd, unsigned char **out, size_t *out_len);
+
 /* CRC-32 of a byte range, as the idx CRC table stores it. */
 uint32_t bgit_pack_crc32 (const unsigned char *p, size_t n);
 

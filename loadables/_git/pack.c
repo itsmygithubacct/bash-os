@@ -685,6 +685,92 @@ bgit_pack_idx_entry_cmp (const void *a, const void *b)
     return memcmp (aa->sha, bb->sha, 20);
 }
 
+/* Read more of the stream into a growing buffer. Returns how many bytes
+   arrived, 0 at the end of it, or -1. */
+static ssize_t
+bgit_pack_stream_more (int fd, unsigned char **buf, size_t *len, size_t *cap)
+{
+    if (*len + 65536 > *cap) {
+        size_t next = *cap ? *cap * 2 : 131072;
+        while (next < *len + 65536) next *= 2;
+        unsigned char *grown = realloc (*buf, next);
+        if (!grown) return -1;
+        *buf = grown;
+        *cap = next;
+    }
+    for (;;) {
+        ssize_t got = read (fd, *buf + *len, *cap - *len);
+        if (got < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        *len += (size_t) got;
+        return got;
+    }
+}
+
+int
+bgit_pack_read_stream (int fd, unsigned char **out, size_t *out_len)
+{
+    unsigned char *buf = NULL;
+    size_t len = 0, cap = 0;
+    *out = NULL;
+    *out_len = 0;
+
+    while (len < 12) {
+        ssize_t got = bgit_pack_stream_more (fd, &buf, &len, &cap);
+        if (got <= 0) { free (buf); return -1; }
+    }
+    if (memcmp (buf, "PACK", 4) || bgit_pack_be32 (buf + 4) != 2) {
+        free (buf);
+        return -1;
+    }
+    uint32_t objects = bgit_pack_be32 (buf + 8);
+
+    /* Walk the objects as they arrive. A header or a deflated stream that
+       runs off the end means the rest has not come yet, not that the pack
+       is wrong, so read more and try that object again. */
+    uint64_t at = 12;
+    for (uint32_t done = 0; done < objects; ) {
+        int type = 0;
+        uint64_t size = 0, next = at;
+        int short_of_data = 0;
+        if (bgit_pack_read_obj_header (buf, len, at, &type, &size, &next) < 0)
+            short_of_data = 1;
+        if (!short_of_data && type == BGIT_PACK_OFS_DELTA) {
+            /* A base offset is bytes with the top bit set, then one
+               without; its value does not matter here. */
+            while (next < len && (buf[next] & 0x80)) next++;
+            if (next < len) next++;
+            else short_of_data = 1;
+        } else if (!short_of_data && type == BGIT_PACK_REF_DELTA) {
+            if (next + 20 <= len) next += 20;
+            else short_of_data = 1;
+        }
+        unsigned char *data = NULL;
+        size_t data_len = 0, used = 0;
+        if (!short_of_data &&
+            bgit_pack_inflate (buf + next, len - (size_t) next, (size_t) size,
+                               &data, &data_len, &used) < 0)
+            short_of_data = 1;
+        free (data);
+        if (short_of_data) {
+            ssize_t got = bgit_pack_stream_more (fd, &buf, &len, &cap);
+            if (got <= 0) { free (buf); return -1; }
+            continue;
+        }
+        at = next + used;
+        done++;
+    }
+    while (len < at + 20) {
+        ssize_t got = bgit_pack_stream_more (fd, &buf, &len, &cap);
+        if (got <= 0) { free (buf); return -1; }
+    }
+    *out = buf;
+    *out_len = (size_t) at + 20;
+    return 0;
+}
+
 uint32_t
 bgit_pack_crc32 (const unsigned char *p, size_t n)
 {

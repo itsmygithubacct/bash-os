@@ -37,6 +37,8 @@ ENV = {'LC_ALL': 'C', 'TZ': 'UTC', 'GIT_CONFIG_NOSYSTEM': '1',
 # reach git's. Either side takes a command line, the path being added to it.
 OURS = f'{binary} --noprofile --norc -c \'builtin git upload-pack "$@"\' git-upload-pack'
 THEIRS = f'{GIT} upload-pack'
+OURS_RECEIVE = (f'{binary} --noprofile --norc -c '
+                f'\'builtin git receive-pack "$@"\' git-receive-pack')
 
 
 def check(condition, *context):
@@ -217,6 +219,89 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     whole, part = objects_in_pack(everything), objects_in_pack(incremental)
     check(whole > part > 0, 'a have shrinks the pack', whole, part)
     check(part == 3, 'one commit is a commit, a tree and a blob', part)
+
+    # The other direction: git pushes into this build's receive-pack. The
+    # far end is the one that decides, so what it allows and refuses is
+    # what is checked here.
+    bare = tmp/'pushed.git'
+    git(tmp, 'init', '-q', '-b', 'main', '--bare', str(bare))
+    reference_log = git(repo, 'log', '--format=%H %s').stdout
+
+    def push(*args, cwd, status=0):
+        result = subprocess.run([GIT, '-C', str(cwd), 'push',
+                                 f'--receive-pack={OURS_RECEIVE}', str(bare),
+                                 *args], capture_output=True, timeout=300,
+                                env={**os.environ, **ENV, 'HOME': str(cwd)})
+        assert result.returncode == status, (args, result.returncode,
+                                             result.stderr[:400])
+        return result
+
+    push('main', cwd=repo)
+    check(git(bare, 'log', '--format=%H %s', 'main').stdout == reference_log,
+          'git pushed into this build', git(bare, 'log', '--oneline').stdout[:200])
+    check(git(bare, 'fsck', '--no-progress', '--strict').returncode == 0,
+          'what it pushed is sound')
+
+    (repo/'a.txt').write_text('one\ntwo\nthree\n')
+    git(repo, 'commit', '-q', '-am', 'the third commit')
+    push('main', cwd=repo)
+    check(git(bare, 'rev-parse', 'main').stdout ==
+          git(repo, 'rev-parse', 'main').stdout, 'and moved the branch on')
+    check(b'Everything up-to-date' in push('main', cwd=repo).stderr,
+          'a push with nothing to say')
+
+    git(repo, 'branch', 'side')
+    push('side', cwd=repo)
+    check(git(bare, 'rev-parse', '--verify', 'side').returncode == 0, 'a new branch')
+    push('--delete', 'side', cwd=repo)
+    check(git(bare, 'rev-parse', '--verify', 'side', check_status=False).returncode != 0,
+          'and unmaking it')
+
+    # A second push of a file worth deltifying: git would send a pack
+    # whose deltas lean on objects it does not carry, which this build
+    # cannot complete, so the far end says no-thin and gets a whole one.
+    long_file = ''.join(f'line {i} of a file that is worth deltifying\n'
+                        for i in range(300))
+    (repo/'long.txt').write_text(long_file)
+    git(repo, 'add', 'long.txt')
+    git(repo, 'commit', '-q', '-m', 'a long file')
+    push('main', cwd=repo)
+    (repo/'long.txt').write_text(long_file.replace('line 150 of', 'changed 150 of'))
+    git(repo, 'commit', '-q', '-am', 'one line of it changed')
+    push('main', cwd=repo)
+    check(git(bare, 'rev-parse', 'main').stdout == git(repo, 'rev-parse', 'main').stdout,
+          'a push that would otherwise be thin')
+    check(git(bare, 'cat-file', 'blob', 'main:long.txt').stdout
+          == git(repo, 'cat-file', 'blob', 'main:long.txt').stdout,
+          'and the file arrived whole')
+    check(git(bare, 'fsck', '--no-progress', '--strict').returncode == 0,
+          'with nothing missing behind it')
+
+    # A push that would lose commits is refused, and so is one into a
+    # branch the far end has checked out.
+    behind = tmp/'behind'
+    git(tmp, 'clone', '-q', str(bare), str(behind))
+    git(behind, 'reset', '-q', '--hard', 'HEAD~1')
+    (behind/'a.txt').write_text('a different line\n')
+    git(behind, 'commit', '-q', '-am', 'a different commit')
+    refused = push('main', cwd=behind, status=1)
+    check(b'[rejected]' in refused.stderr and b'non-fast-forward' in refused.stderr,
+          'a push that would lose commits', refused.stderr[:200])
+
+    working = tmp/'working'
+    git(tmp, 'clone', '-q', str(repo), str(working))
+    (working/'a.txt').write_text('one\ntwo\nthree\nfour\n')
+    git(working, 'commit', '-q', '-am', 'the fourth commit')
+    result = subprocess.run([GIT, '-C', str(working), 'push',
+                             f'--receive-pack={OURS_RECEIVE}', str(repo), 'main'],
+                            capture_output=True, timeout=300,
+                            env={**os.environ, **ENV, 'HOME': str(working)})
+    check(result.returncode == 1, 'pushing into a checked-out branch',
+          result.returncode)
+    check(b'branch is currently checked out' in result.stderr,
+          'and saying why', result.stderr[:300])
+    check(b'refusing to update checked out branch' in result.stderr,
+          'in git\'s own words', result.stderr[:300])
 
     # Without being told which protocol to speak, the server says so rather
     # than answering in one the caller did not ask for.

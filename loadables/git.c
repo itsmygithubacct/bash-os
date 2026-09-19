@@ -6145,7 +6145,8 @@ git_far_end_close (pid_t child, int to_far, int from_far,
    objects and keeps a large one as a pack beside a generated index; the
    line between the two is fetch.unpackLimit, a hundred objects. */
 static int
-git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
+git_store_pack_into (bgit_repo *repo, bgit_odb *odb, unsigned char *pack,
+                     size_t len)
 {
     if (len < 32) return 0;                    /* nothing came back */
     struct git_pack_entry *entries = NULL;
@@ -6167,7 +6168,7 @@ git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
                 break;
             }
             char hex[41];
-            if (bgit_write_object (ctx->odb.object_dirs[0],
+            if (bgit_write_object (odb->object_dirs[0],
                                    bgit_pack_type_name (type), content,
                                    content_len, 1, hex) < 0)
                 status = -1;
@@ -6192,7 +6193,7 @@ git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
     char hex[41];
     bgit_sha_to_hex (pack + len - 20, hex);
     char dir[4096], pack_path[4096], idx_path[4096];
-    snprintf (dir, sizeof dir, "%s/pack", ctx->odb.object_dirs[0]);
+    snprintf (dir, sizeof dir, "%s/pack", odb->object_dirs[0]);
     mkdir (dir, 0777);
     snprintf (pack_path, sizeof pack_path, "%s/pack-%s.pack", dir, hex);
     snprintf (idx_path, sizeof idx_path, "%s/pack-%s.idx", dir, hex);
@@ -6206,11 +6207,17 @@ git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
     free (entries);
     /* The store listed the packs when it opened; this is a new one. */
     if (!status) {
-        bgit_odb_release (&ctx->odb);
-        if (bgit_odb_open (&ctx->repo, &ctx->odb) < 0) return -1;
-        ctx->odb.quiet = 1;
+        bgit_odb_release (odb);
+        if (bgit_odb_open (repo, odb) < 0) return -1;
+        odb->quiet = 1;
     }
     return status;
+}
+
+static int
+git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
+{
+    return git_store_pack_into (&ctx->repo, &ctx->odb, pack, len);
 }
 
 /* The ids of every ref here, which is what the far end is told this end
@@ -6236,6 +6243,225 @@ git_local_haves (git_context *ctx, char (**out)[41], size_t *n_out)
     *out = ids;
     *n_out = kept;
     return 0;
+}
+
+/* One change a push asks for. */
+struct git_push_command {
+    char old_id[41], new_id[41];
+    char name[4096];
+    const char *refused;         /* git's reason, when it is */
+};
+
+/* An id of nothing at all: what a push puts where a ref is being made or
+   unmade. */
+#define GIT_NULL_ID "0000000000000000000000000000000000000000"
+
+/* The first line of a push carries the client's capabilities after a NUL;
+   the rest are plain. */
+static int
+git_push_wants (const unsigned char *line, size_t len, const char *name)
+{
+    const unsigned char *nul = memchr (line, '\0', len);
+    if (!nul) return 0;
+    const char *caps = (const char *) nul + 1;
+    size_t caps_len = len - (size_t) ((const unsigned char *) caps - line);
+    size_t want = strlen (name);
+    for (size_t i = 0; i + want <= caps_len; i++)
+        if (!memcmp (caps + i, name, want) &&
+            (i == 0 || caps[i - 1] == ' ') &&
+            (i + want == caps_len || caps[i + want] == ' ' ||
+             caps[i + want] == '=' || caps[i + want] == '\n'))
+            return 1;
+    return 0;
+}
+
+/* Put one pkt-line into a buffer, which is how a report is built: the
+   report itself is packets, inside the side-band packet that carries it. */
+static size_t
+git_pkt_into (unsigned char *buf, size_t at, size_t room, const char *text)
+{
+    size_t len = strlen (text);
+    if (at + len + 4 >= room) return at;
+    char header[5];
+    snprintf (header, sizeof header, "%04x", (unsigned) (len + 4));
+    memcpy (buf + at, header, 4);
+    memcpy (buf + at + 4, text, len);
+    return at + len + 4;
+}
+
+/* git receive-pack: the far end of a push. This is git's first protocol,
+   and the one it still uses for a push: the refs this repository has,
+   then the changes the other end wants, then a pack, then what became of
+   each change. */
+static int
+git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git receive-pack <directory>";
+    const char *dir = NULL;
+    (void) ctx;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--stateless-rpc")) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!dir) dir = w;
+        else return git_usage (usage);
+    }
+    if (!dir) return git_usage (usage);
+
+    bgit_repo repo;
+    bgit_odb odb;
+    if (git_open_remote (dir, &repo, &odb) < 0)
+        return git_fatal ("'%s' does not appear to be a git repository", dir);
+
+    /* What this repository has, and what it can do. The capabilities ride
+       on the first ref after a NUL; a repository with no refs at all says
+       so under a name no ref could have. */
+    /* no-thin: a pack whose deltas lean on objects it does not carry is
+       one this build cannot complete yet, so the other end is asked not
+       to send one. */
+    static const char capabilities[] =
+        "report-status delete-refs side-band-64k no-thin ofs-delta "
+        "object-format=sha1 agent=" GIT_AGENT_STRING;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    int status = 0;
+    if (bgit_refs_list (&repo, "refs/", &refs, &n_refs) < 0)
+        status = GIT_EXIT_FATAL;
+    for (size_t i = 0; !status && i < n_refs + (n_refs ? 0 : 1); i++) {
+        char line[8192];
+        size_t len = (size_t) snprintf (line, sizeof line, "%s %s",
+                                        n_refs ? refs[i].sha : GIT_NULL_ID,
+                                        n_refs ? refs[i].name : "capabilities^{}");
+        if (!i) {
+            line[len++] = '\0';
+            memcpy (line + len, capabilities, sizeof capabilities - 1);
+            len += sizeof capabilities - 1;
+        }
+        line[len++] = '\n';
+        if (bgit_pkt_write (1, line, len) < 0) status = GIT_EXIT_FATAL;
+    }
+    if (!status && bgit_pkt_flush (1) < 0) status = GIT_EXIT_FATAL;
+    bgit_refs_free (refs, n_refs);
+
+    /* What the other end wants changed: "<old> <new> <ref>" each. */
+    bgit_pkt_reader reader;
+    bgit_pkt_from_fd (&reader, 0);
+    struct git_push_command *commands = NULL;
+    size_t n_commands = 0, cap = 0;
+    int side_band = 0, wants_report = 0, sending_objects = 0;
+    while (!status) {
+        const unsigned char *data = NULL;
+        int got = bgit_pkt_read (&reader, &data);
+        if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+        if (got < 0) { status = GIT_EXIT_FATAL; break; }
+        if (!n_commands) {
+            side_band = git_push_wants (data, (size_t) got, "side-band-64k");
+            wants_report = git_push_wants (data, (size_t) got, "report-status") ||
+                           git_push_wants (data, (size_t) got, "report-status-v2");
+        }
+        if (got < 82 || data[40] != ' ' || data[81] != ' ') continue;
+        if (n_commands == cap) {
+            size_t next = cap ? cap * 2 : 8;
+            struct git_push_command *grown = realloc (commands,
+                                                      next * sizeof *grown);
+            if (!grown) { status = GIT_EXIT_FATAL; break; }
+            commands = grown;
+            cap = next;
+        }
+        struct git_push_command *command = &commands[n_commands];
+        memset (command, 0, sizeof *command);
+        memcpy (command->old_id, data, 40);
+        memcpy (command->new_id, data + 41, 40);
+        const unsigned char *end = memchr (data, '\0', (size_t) got);
+        size_t name_len = (end ? (size_t) (end - data) : (size_t) got) - 82;
+        while (name_len && (data[82 + name_len - 1] == '\n' ||
+                            data[82 + name_len - 1] == '\r'))
+            name_len--;
+        if (name_len >= sizeof command->name) name_len = sizeof command->name - 1;
+        memcpy (command->name, data + 82, name_len);
+        if (strcmp (command->new_id, GIT_NULL_ID)) sending_objects = 1;
+        n_commands++;
+    }
+
+    /* Then the pack, which comes only when something is being added. */
+    if (!status && n_commands && sending_objects) {
+        unsigned char *pack = NULL;
+        size_t pack_len = 0;
+        if (bgit_pack_read_stream (0, &pack, &pack_len) < 0 ||
+            git_store_pack_into (&repo, &odb, pack, pack_len) < 0)
+            status = GIT_EXIT_FATAL;
+        free (pack);
+    }
+
+    /* What each change may do. A branch this repository has checked out
+       is refused, and so is one that would lose commits. What the far end
+       should be told beyond the refusal itself goes down the second
+       side-band channel, which is where git puts its "remote:" lines. */
+    char aside[8192];
+    size_t aside_len = 0;
+    char *head = NULL;
+    if (!repo.bare) bgit_symref_read (&repo, "HEAD", &head);
+    for (size_t i = 0; !status && i < n_commands; i++) {
+        struct git_push_command *command = &commands[i];
+        int unmaking = !strcmp (command->new_id, GIT_NULL_ID);
+        char current[41] = "";
+        int have = bgit_ref_read (&repo, command->name, current) == 0;
+        if (head && !strcmp (head, command->name)) {
+            command->refused = "branch is currently checked out";
+            aside_len += (size_t) snprintf (aside + aside_len,
+                                            sizeof aside - aside_len,
+                                            "error: refusing to update checked "
+                                            "out branch: %s\n", command->name);
+        }
+        else if (have && strcmp (current, command->old_id))
+            command->refused = "fetch first";
+        else if (!have && strcmp (command->old_id, GIT_NULL_ID))
+            command->refused = "fetch first";
+        else if (!unmaking && !bgit_odb_has (&odb, command->new_id))
+            command->refused = "missing necessary objects";
+        else if (!unmaking && have && strcmp (current, command->new_id) &&
+                 bgit_is_ancestor (&odb, current, command->new_id) <= 0)
+            command->refused = "non-fast-forward";
+        if (command->refused) continue;
+        int wrote = unmaking
+            ? bgit_ref_delete (&repo, command->name, have ? current : NULL, NULL)
+            : bgit_ref_update (&repo, command->name, command->new_id,
+                               have ? current : "", "push");
+        if (wrote < 0) command->refused = "failed to update ref";
+    }
+    free (head);
+
+    /* And what became of each: the report is packets of its own, sent
+       down the first side-band channel when one was asked for. */
+    if (!status && aside_len && side_band &&
+        bgit_pkt_write_band (1, 2, aside, aside_len) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status && wants_report) {
+        unsigned char report[65000];
+        size_t len = git_pkt_into (report, 0, sizeof report, "unpack ok\n");
+        for (size_t i = 0; i < n_commands; i++) {
+            char line[4300];
+            if (commands[i].refused)
+                snprintf (line, sizeof line, "ng %s %s\n", commands[i].name,
+                          commands[i].refused);
+            else snprintf (line, sizeof line, "ok %s\n", commands[i].name);
+            len = git_pkt_into (report, len, sizeof report, line);
+        }
+        if (len + 4 < sizeof report) {
+            memcpy (report + len, "0000", 4);
+            len += 4;
+        }
+        if (side_band) {
+            if (bgit_pkt_write_band (1, 1, report, len) < 0 ||
+                bgit_pkt_flush (1) < 0)
+                status = GIT_EXIT_FATAL;
+        } else if (write (1, report, len) != (ssize_t) len)
+            status = GIT_EXIT_FATAL;
+    }
+    free (commands);
+    bgit_odb_release (&odb);
+    bgit_repo_release (&repo);
+    return status;
 }
 
 /* git ls-remote: what refs the far end has, without fetching anything. */
@@ -9466,6 +9692,7 @@ static const struct {
     { "push",         git_cmd_push },
     { "read-tree",    git_cmd_read_tree },
     { "rebase",       git_cmd_rebase },
+    { "receive-pack", git_cmd_receive_pack },
     { "reflog",       git_cmd_reflog },
     { "remote",       git_cmd_remote },
     { "reset",        git_cmd_reset },
