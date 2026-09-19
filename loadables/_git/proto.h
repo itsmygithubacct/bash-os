@@ -69,6 +69,32 @@ int bgit_pkt_writef (int fd, const char *format, ...)
 int bgit_pkt_flush (int fd);
 int bgit_pkt_delim (int fd);
 
+/* Where a request goes, and where its answer comes from. Over a pipe the
+   two ends are one connection and a write goes straight out; over HTTP
+   each request is a POST of its own, so what is written is held until
+   the request is complete and DONE sends it. */
+typedef struct bgit_proto_io {
+    bgit_pkt_reader *reader;
+    int fd;                      /* where a pipe's writes go */
+    void *context;               /* what anything else needs */
+    int (*write) (struct bgit_proto_io *io, const void *data, size_t len);
+    int (*done) (struct bgit_proto_io *io);
+} bgit_proto_io;
+
+/* Point IO at a descriptor, where a write is a write and nothing has to
+   be held back. */
+void bgit_proto_io_fd (bgit_proto_io *io, bgit_pkt_reader *reader, int fd);
+
+/* Write a packet, a formatted packet, or a marker, to wherever IO goes;
+   then say the request is complete. Each returns 0, or -1. */
+int bgit_proto_write (bgit_proto_io *io, const void *data, size_t len);
+int bgit_proto_writef (bgit_proto_io *io, const char *format, ...)
+    __attribute__ ((format (printf, 2, 3)));
+int bgit_proto_flush (bgit_proto_io *io);
+int bgit_proto_delim (bgit_proto_io *io);
+int bgit_proto_raw (bgit_proto_io *io, const void *data, size_t len);
+int bgit_proto_done (bgit_proto_io *io);
+
 /* What a server said it can do: the lines of a v2 advertisement, each
    "name" or "name=value". */
 typedef struct {
@@ -98,7 +124,7 @@ void bgit_proto_refs_release (bgit_proto_ref *refs, size_t n);
 /* Ask for refs over a v2 connection: write the request to OUT, read the
    answer from READER. PREFIXES names what to list, empty for everything.
    Returns 0, or -1. */
-int bgit_proto_ls_refs (bgit_pkt_reader *reader, int out,
+int bgit_proto_ls_refs (bgit_proto_io *io,
                         const char *const *prefixes, size_t n_prefixes,
                         int want_symrefs, int want_peeled,
                         bgit_proto_ref **refs, size_t *n_refs);
@@ -129,7 +155,7 @@ int bgit_proto_read_refs_v0 (bgit_pkt_reader *reader, bgit_proto_ref **refs,
    READER. The pack is returned whole, for the caller to free; progress
    from the far end goes to stderr, and an error from it is reported the
    way git reports one. Returns 0, or -1. */
-int bgit_proto_fetch (bgit_pkt_reader *reader, int out,
+int bgit_proto_fetch (bgit_proto_io *io,
                       const char *const *wants, size_t n_wants,
                       const char *const *haves, size_t n_haves,
                       unsigned char **pack, size_t *pack_len);

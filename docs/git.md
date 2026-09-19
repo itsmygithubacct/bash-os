@@ -49,7 +49,7 @@ git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
                  <url> | get-url <name>
-git clone        [-q] [--bare] <source> [<directory>]
+git clone        [-q] [--bare] <path> | <http url> [<directory>]
 git fetch        [-q] [--upload-pack=<command>] [<remote>]
 git pull         [<remote>]
 git push         [-q] [--receive-pack=<command>] [<remote> | <path>
@@ -245,9 +245,11 @@ pack through its index and checks it end to end, and `git unpack-objects`
 writes a pack's objects back out loose.
 
 Every transport here holds a conversation rather than reading another
-repository's files. The far end is started — this build's own `git
-upload-pack`, or whatever `--upload-pack` names — and protocol v2 goes
-over the pipe between them, as git does it: the server offers what it can
+repository's files. For a path the far end is started — this build's own
+`git upload-pack`, or whatever `--upload-pack` names — and protocol v2
+goes over the pipe between them; for an `http://` or `https://` address
+the same packets go in the body of a request, which is what git calls
+smart HTTP. Either way the shape is git's: the server offers what it can
 do, the client asks for one command at a time, and everything is framed
 in pkt-lines, four hexadecimal digits of length and then that many bytes,
 with the three lengths that carry no payload meaning the end of a
@@ -260,10 +262,21 @@ not; a client that says `done` gets the pack straight away, and one still
 negotiating is told which of its haves are here and that this end is
 ready.
 
+Over HTTP a conversation is a request at a time: the refs come from a
+`GET` of `info/refs`, and each command after that is a `POST` whose body
+is the packets that would have gone down the pipe. `curl` does the
+talking — the builtin when this build has it, and the command otherwise,
+which is how `pkg` fetches — so TLS, and everything else about reaching
+a host, is settled in one place. What comes back is read from memory
+rather than from a descriptor, which the pkt-line reader does either way.
+A redirect is not followed, and a far end that asks for credentials is
+not answered yet; both say what happened rather than half-trying.
+
 Both ends stand on their own. git's client clones and fetches through
 this build's `upload-pack` and gets the history it would get from git's;
-this build's client fetches from either server and gets the same; and the
-packets themselves match git's, request for request.
+this build's client fetches from either server and gets the same; it
+clones, fetches and pushes over HTTP against git's own `http-backend`;
+and the packets themselves match git's, request for request.
 
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
@@ -355,6 +368,12 @@ compared with the ones git sends for the same request, and the pack a
 missing. A scenario cannot reach any of that, since both of its runs
 speak to their own far end.
 
+`tests/git-http.py` runs git's `http-backend` behind a small server on
+the loopback address and does the lot over it: listing refs, cloning,
+fetching what the far end has gained, pushing back, a history too big to
+explode arriving as a pack, and an address with no repository behind it.
+Nothing outside the machine is contacted.
+
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
 what bash-os writes — refs, a deleted packed ref, reflog entries, a
@@ -364,13 +383,14 @@ message and changes nothing.
 
 ## Still to come
 
-Phase 2 is done but for submodules, and Phase 3 is under way: clone,
-fetch and pull speak protocol v2 to a far end started at a path, not yet
-to a URL. Next is the same conversation over HTTPS, and after that SSH. Completing
-a thin pack from what is already here waits for the same phase, which is
-why `receive-pack` asks not to be sent one. `git fetch` still
-wants the name of a remote where git also takes a path, which needs
-`FETCH_HEAD` to mean anything.
+Phase 2 is done but for submodules, and Phase 3 is nearly done: clone,
+fetch, pull and push speak protocol v2 to a far end at a path or at an
+`http://` or `https://` address. What is left of it: credentials, so a
+far end that asks for them can be answered; `http.extraHeader` and
+redirects; and completing a thin pack from what is already here, which
+is why `receive-pack` asks not to be sent one. After that comes SSH.
+`git fetch` still wants the name of a remote where git also takes a
+path, which needs `FETCH_HEAD` to mean anything.
 
 Left over from Phase 2: stashing untracked files, interactive rebase,
 renames between the index and the working tree, and a merge with more

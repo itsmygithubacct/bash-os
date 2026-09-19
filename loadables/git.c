@@ -5567,12 +5567,26 @@ git_remote_url (git_context *ctx, const char *remote)
     return bgit_config_get (&ctx->cfg, key);
 }
 
-/* This build moves objects between directories; a URL needs the protocol
-   work that comes after this. */
+/* http:// and https:// are the URLs this build can reach. */
+static int
+git_url_is_http (const char *url)
+{
+    return !strncmp (url, "http://", 7) || !strncmp (url, "https://", 8);
+}
+
+/* A path with no protocol in front of it. */
 static int
 git_local_only (const char *url)
 {
     return !strstr (url, "://") && strncmp (url, "git@", 4);
+}
+
+/* Somewhere this build can reach: a path, or an address over HTTP. The
+   rest — ssh, and git's own port — wait for the phase after this. */
+static int
+git_can_reach (const char *url)
+{
+    return git_local_only (url) || git_url_is_http (url);
 }
 
 static int
@@ -5999,6 +6013,161 @@ git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* A conversation with a far end. Over a path it is a child with a pipe
+   each way, the way git starts its own; over HTTP it is a URL, where
+   each request is a POST of its own and the answer comes back whole. */
+typedef struct {
+    bgit_proto_io io;
+    bgit_pkt_reader reader;
+    int over_http;
+    /* a child at the far end */
+    pid_t child;
+    int to_far, from_far;
+    /* or a URL, and what is being built to send to it */
+    char url[4096];
+    const char *service;
+    unsigned char *request;
+    size_t request_len, request_cap;
+    unsigned char *response;
+    size_t response_len;
+} git_conn;
+
+/* Ask the far end for something over HTTP, with curl doing the talking:
+   the builtin when this build has it, and the command otherwise, which
+   is how pkg fetches. The answer, and the three digits of status curl
+   is asked to add after it, come back through a pipe. */
+static int
+git_http_ask (git_conn *conn, const char *method, const char *url,
+              const char *content_type, const unsigned char *body,
+              size_t body_len)
+{
+    int into[2], back[2];
+    if (pipe (into) < 0) return -1;
+    if (pipe (back) < 0) {
+        close (into[0]);
+        close (into[1]);
+        return -1;
+    }
+    char type_header[256] = "", protocol_header[64];
+    snprintf (protocol_header, sizeof protocol_header, "Git-Protocol: version=2");
+    if (content_type)
+        snprintf (type_header, sizeof type_header, "Content-Type: %s",
+                  content_type);
+
+    pid_t child = fork ();
+    if (child < 0) {
+        close (into[0]); close (into[1]);
+        close (back[0]); close (back[1]);
+        return -1;
+    }
+    if (!child) {
+        close (into[1]);
+        close (back[0]);
+        if (dup2 (into[0], 0) < 0 || dup2 (back[1], 1) < 0) _exit (127);
+        close (into[0]);
+        close (back[1]);
+        char *argv[24];
+        int argc = 0;
+        argv[argc++] = "curl";
+        argv[argc++] = "-sS";
+        argv[argc++] = "-w";
+        argv[argc++] = "%{http_code}";
+        argv[argc++] = "-H";
+        argv[argc++] = protocol_header;
+        if (*type_header) {
+            argv[argc++] = "-H";
+            argv[argc++] = type_header;
+        }
+        if (body) {
+            argv[argc++] = "--data-binary";
+            argv[argc++] = "@-";
+        }
+        argv[argc++] = "-X";
+        argv[argc++] = (char *) method;
+        argv[argc++] = (char *) url;
+        argv[argc] = NULL;
+        bos_prepare_child ();
+        bos_run_builtin ("curl", argv, NULL);
+        execvp ("curl", argv);
+        _exit (127);
+    }
+    close (into[0]);
+    close (back[1]);
+    if (body && body_len) {
+        /* curl reads the whole body before it answers, so writing it all
+           and then reading cannot deadlock. */
+        size_t at = 0;
+        while (at < body_len) {
+            ssize_t put = write (into[1], body + at, body_len - at);
+            if (put < 0) {
+                if (errno == EINTR) continue;
+                break;
+            }
+            at += (size_t) put;
+        }
+    }
+    close (into[1]);
+
+    unsigned char *answer = NULL;
+    size_t len = 0, cap = 0;
+    if (bgit_slurp_fd (back[0], &answer, &len) < 0) {
+        close (back[0]);
+        waitpid (child, NULL, 0);
+        return -1;
+    }
+    (void) cap;
+    close (back[0]);
+    int wait_status = 0;
+    waitpid (child, &wait_status, 0);
+    if (!WIFEXITED (wait_status) || WEXITSTATUS (wait_status)) {
+        free (answer);
+        git_fatal ("unable to access '%s'", conn->url);
+        return -1;
+    }
+    /* The last three bytes are the status curl was asked to add. */
+    if (len < 3) {
+        free (answer);
+        git_fatal ("unable to access '%s': nothing came back", conn->url);
+        return -1;
+    }
+    int status = (answer[len - 3] - '0') * 100 + (answer[len - 2] - '0') * 10 +
+                 (answer[len - 1] - '0');
+    len -= 3;
+    if (status != 200) {
+        free (answer);
+        git_fatal ("unable to access '%s': the far end said %d", conn->url,
+                   status);
+        return -1;
+    }
+    free (conn->response);
+    conn->response = answer;
+    conn->response_len = len;
+    bgit_pkt_from_memory (&conn->reader, conn->response, conn->response_len);
+    conn->io.reader = &conn->reader;
+    return 0;
+}
+
+static int
+git_http_write (bgit_proto_io *io, const void *data, size_t len)
+{
+    git_conn *conn = io->context;
+    return bgit_pack_buf_append (&conn->request, &conn->request_len,
+                                 &conn->request_cap, data, len);
+}
+
+static int
+git_http_done (bgit_proto_io *io)
+{
+    git_conn *conn = io->context;
+    char url[4200], type[128];
+    snprintf (url, sizeof url, "%s/%s", conn->url, conn->service);
+    snprintf (type, sizeof type, "application/x-%s-request", conn->service);
+    int rc = git_http_ask (conn, "POST", url, type, conn->request,
+                           conn->request_len);
+    conn->request_len = 0;
+    return rc;
+}
+
 /* What git says when the far end stops without answering. Whatever it
    said for itself has already gone to the same place. */
 static int
@@ -6087,29 +6256,84 @@ git_start_far_end (const char *program, const char *command, const char *path,
     return child;
 }
 
-/* Start the far end and read its advertisement. Returns the child with
-   the two ends of the conversation, or -1 with git's message said. */
-static pid_t
-git_far_end_open (const char *url, const char *program, int *to_far,
-                  int *from_far, bgit_pkt_reader *reader, int want_fetch)
+/* Open a conversation with the far end named by URL, and leave it where
+   its advertisement starts. SERVICE is the half being asked for, which
+   over HTTP is part of the address and over a pipe is the command to
+   run. Returns 0, or -1 with git's message said. */
+static int
+git_conn_open (git_conn *conn, const char *url, const char *program,
+               const char *service)
 {
+    memset (conn, 0, sizeof *conn);
+    conn->to_far = conn->from_far = -1;
+    conn->service = service;
     /* A far end that stops leaves a pipe with no reader; the write that
        finds out must not take the shell's child with it. */
     signal (SIGPIPE, SIG_IGN);
-    pid_t child = git_start_far_end (program, "builtin git upload-pack", url,
-                                     to_far, from_far);
-    if (child < 0) {
+
+    if (git_url_is_http (url)) {
+        conn->over_http = 1;
+        snprintf (conn->url, sizeof conn->url, "%s", url);
+        size_t len = strlen (conn->url);
+        while (len && conn->url[len - 1] == '/') conn->url[--len] = '\0';
+        conn->io.context = conn;
+        conn->io.write = git_http_write;
+        conn->io.done = git_http_done;
+        conn->io.reader = &conn->reader;
+        char ask[4300];
+        snprintf (ask, sizeof ask, "%s/info/refs?service=%s", conn->url, service);
+        if (git_http_ask (conn, "GET", ask, NULL, NULL, 0) < 0) return -1;
+        return 0;
+    }
+
+    char command[64];
+    snprintf (command, sizeof command, "builtin git %s", service + 4);
+    conn->child = git_start_far_end (program, command, url, &conn->to_far,
+                                     &conn->from_far);
+    if (conn->child < 0) {
         git_fatal ("cannot start the far end: %s", strerror (errno));
         return -1;
     }
-    bgit_pkt_from_fd (reader, *from_far);
+    bgit_pkt_from_fd (&conn->reader, conn->from_far);
+    bgit_proto_io_fd (&conn->io, &conn->reader, conn->to_far);
+    return 0;
+}
+
+/* End the conversation, and say whether the far end was content.
+   Returns 0, or -1. */
+static int
+git_conn_close (git_conn *conn)
+{
+    int rc = 0;
+    if (conn->over_http) {
+        free (conn->request);
+        free (conn->response);
+        conn->request = conn->response = NULL;
+        return 0;
+    }
+    bgit_pkt_flush (conn->to_far);
+    bgit_pkt_release (&conn->reader);
+    if (conn->to_far >= 0) close (conn->to_far);
+    if (conn->from_far >= 0) close (conn->from_far);
+    int wait_status = 0;
+    if (conn->child > 0) {
+        waitpid (conn->child, &wait_status, 0);
+        rc = WIFEXITED (wait_status) && !WEXITSTATUS (wait_status) ? 0 : -1;
+    }
+    return rc;
+}
+
+/* Open a conversation with the half of the far end that sends objects,
+   and check it can do what is about to be asked of it. */
+static int
+git_far_end_open (git_conn *conn, const char *url, const char *program,
+                  int want_fetch)
+{
+    if (git_conn_open (conn, url, program, "git-upload-pack") < 0) return -1;
     bgit_proto_caps caps;
-    if (bgit_proto_read_caps (reader, &caps) < 0) {
+    if (bgit_proto_read_caps (conn->io.reader, &caps) < 0) {
         git_far_end_gone ();
-        bgit_pkt_release (reader);
-        close (*to_far);
-        close (*from_far);
-        waitpid (child, NULL, 0);
+        git_conn_close (conn);
         return -1;
     }
     int can = bgit_proto_cap (&caps, "ls-refs") != NULL &&
@@ -6118,28 +6342,10 @@ git_far_end_open (const char *url, const char *program, int *to_far,
     if (!can) {
         git_fatal ("the far end cannot %s", want_fetch ? "send objects"
                                                        : "list refs");
-        bgit_pkt_release (reader);
-        close (*to_far);
-        close (*from_far);
-        waitpid (child, NULL, 0);
+        git_conn_close (conn);
         return -1;
     }
-    return child;
-}
-
-/* End the conversation and wait for the far end. Returns 0, or -1 if it
-   stopped badly. */
-static int
-git_far_end_close (pid_t child, int to_far, int from_far,
-                   bgit_pkt_reader *reader)
-{
-    bgit_pkt_flush (to_far);
-    bgit_pkt_release (reader);
-    close (to_far);
-    close (from_far);
-    int wait_status = 0;
-    waitpid (child, &wait_status, 0);
-    return WIFEXITED (wait_status) && !WEXITSTATUS (wait_status) ? 0 : -1;
+    return 0;
 }
 
 /* Keep what a fetch brought back. git explodes a small pack into loose
@@ -6506,31 +6712,14 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
     else if (!where)
         return git_fatal ("No remote configured to list refs from.");
 
-    if (!git_local_only (where))
-        return git_fatal ("this build's git ls-remote takes a path; protocols "
-                          "are not done yet");
+    if (!git_can_reach (where))
+        return git_fatal ("this build's git ls-remote takes a path or an http "
+                          "URL; ssh is not done yet");
     if (!named && !quiet) fprintf (stderr, "From %s\n", where);
 
-    /* A far end that stops leaves a pipe with no reader; the write that
-       finds out must not take the shell's child with it. */
-    signal (SIGPIPE, SIG_IGN);
-    int to_far = -1, from_far = -1;
-    pid_t child = git_start_far_end (program, "builtin git upload-pack", where,
-                                     &to_far, &from_far);
-    if (child < 0) return git_fatal ("cannot start the far end: %s",
-                                     strerror (errno));
-
-    bgit_pkt_reader reader;
-    bgit_pkt_from_fd (&reader, from_far);
-    bgit_proto_caps caps;
+    git_conn conn;
+    if (git_far_end_open (&conn, where, program, 0) < 0) return GIT_EXIT_FATAL;
     int status = 0;
-    if (bgit_proto_read_caps (&reader, &caps) < 0)
-        status = git_far_end_gone ();
-    else {
-        if (!bgit_proto_cap (&caps, "ls-refs"))
-            status = git_fatal ("the far end cannot list refs");
-        bgit_proto_caps_release (&caps);
-    }
 
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
@@ -6539,7 +6728,7 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
         size_t n_prefixes = 0;
         if (heads) prefixes[n_prefixes++] = "refs/heads/";
         if (tags) prefixes[n_prefixes++] = "refs/tags/";
-        if (bgit_proto_ls_refs (&reader, to_far, prefixes, n_prefixes, 1, 1,
+        if (bgit_proto_ls_refs (&conn.io, prefixes, n_prefixes, 1, 1,
                                 &refs, &n_refs) < 0)
             status = git_far_end_gone ();
     }
@@ -6552,15 +6741,7 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
                 printf ("%s\t%s^{}\n", refs[i].peeled, refs[i].name);
         }
     bgit_proto_refs_release (refs, n_refs);
-
-    bgit_pkt_flush (to_far);            /* the conversation is over */
-    bgit_pkt_release (&reader);
-    close (to_far);
-    close (from_far);
-    int wait_status = 0;
-    waitpid (child, &wait_status, 0);
-    if (!status && (!WIFEXITED (wait_status) || WEXITSTATUS (wait_status)))
-        status = git_far_end_gone ();
+    if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     return status;
 }
 
@@ -6637,22 +6818,20 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     const char *url = git_remote_url (ctx, name);
     if (!url) return git_fatal ("'%s' does not appear to be a git repository",
                                 name);
-    if (!git_local_only (url))
-        return git_fatal ("this build's git fetch takes a path; protocols are "
-                          "not done yet");
+    if (!git_can_reach (url))
+        return git_fatal ("this build's git fetch takes a path or an http "
+                          "URL; ssh is not done yet");
 
     /* The far end is asked over the protocol, the way git asks it, even
        when it is a directory on this machine. */
-    int to_far = -1, from_far = -1;
-    bgit_pkt_reader reader;
-    pid_t child = git_far_end_open (url, program, &to_far, &from_far, &reader, 1);
-    if (child < 0) return GIT_EXIT_FATAL;
+    git_conn conn;
+    if (git_far_end_open (&conn, url, program, 1) < 0) return GIT_EXIT_FATAL;
 
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
     const char *prefix = "refs/heads/";
     int status = 0;
-    if (bgit_proto_ls_refs (&reader, to_far, &prefix, 1, 0, 0, &refs, &n_refs) < 0)
+    if (bgit_proto_ls_refs (&conn.io, &prefix, 1, 0, 0, &refs, &n_refs) < 0)
         status = git_far_end_gone ();
 
     struct git_remote_ref *heads = NULL;
@@ -6688,7 +6867,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
             for (size_t i = 0; !status && i < n_haves; i++) haves[i] = have_ids[i];
             unsigned char *pack = NULL;
             size_t pack_len = 0;
-            if (!status && bgit_proto_fetch (&reader, to_far, wants, n_wants,
+            if (!status && bgit_proto_fetch (&conn.io, wants, n_wants,
                                              haves, n_haves, &pack, &pack_len) < 0)
                 status = git_far_end_gone ();
             if (!status && git_store_pack (ctx, pack, pack_len) < 0)
@@ -6730,8 +6909,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         }
     }
     free (heads);
-    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
-        status = git_far_end_gone ();
+    if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     return status;
 }
 
@@ -6752,9 +6930,9 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         else return git_usage (usage);
     }
     if (!source) return git_usage (usage);
-    if (!git_local_only (source))
-        return git_fatal ("this build's git clone takes a path; protocols are "
-                          "not done yet");
+    if (!git_can_reach (source))
+        return git_fatal ("this build's git clone takes a path or an http "
+                          "URL; ssh is not done yet");
 
     /* Where it lands: the last part of the source, without any .git. */
     char target[4096];
@@ -6773,31 +6951,34 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (!*target) return git_fatal ("cannot work out a directory name");
 
     char absolute[4096];
-    if (git_absolute (source, absolute, sizeof absolute) < 0)
-        return git_fatal ("cannot work out where '%s' is", source);
+    if (git_url_is_http (source))
+        snprintf (absolute, sizeof absolute, "%s", source);
+    else {
+        if (git_absolute (source, absolute, sizeof absolute) < 0)
+            return git_fatal ("cannot work out where '%s' is", source);
 
-    /* git looks at a local path itself before starting anything, so that
-       a missing one is its own message rather than the far end's. */
-    bgit_repo check;
-    bgit_odb check_odb;
-    if (git_open_remote (absolute, &check, &check_odb) < 0)
-        return git_fatal ("repository '%s' does not exist", source);
-    bgit_odb_release (&check_odb);
-    bgit_repo_release (&check);
+        /* git looks at a local path itself before starting anything, so
+           that a missing one is its own message rather than the far
+           end's. A URL has no such shortcut: the far end answers. */
+        bgit_repo check;
+        bgit_odb check_odb;
+        if (git_open_remote (absolute, &check, &check_odb) < 0)
+            return git_fatal ("repository '%s' does not exist", source);
+        bgit_odb_release (&check_odb);
+        bgit_repo_release (&check);
+    }
 
-    int to_far = -1, from_far = -1;
-    bgit_pkt_reader reader;
-    pid_t child = git_far_end_open (absolute, NULL, &to_far, &from_far, &reader, 1);
-    if (child < 0) return GIT_EXIT_FATAL;
+    git_conn conn;
+    if (git_far_end_open (&conn, absolute, NULL, 1) < 0) return GIT_EXIT_FATAL;
 
     /* What the far end has: its branches, its tags, and what its HEAD
        points at, which is the branch a clone checks out. */
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
     const char *prefixes[3] = { "refs/heads/", "refs/tags/", "HEAD" };
-    if (bgit_proto_ls_refs (&reader, to_far, prefixes, 3, 1, 0, &refs, &n_refs) < 0) {
+    if (bgit_proto_ls_refs (&conn.io, prefixes, 3, 1, 0, &refs, &n_refs) < 0) {
         git_far_end_gone ();
-        git_far_end_close (child, to_far, from_far, &reader);
+        git_conn_close (&conn);
         return GIT_EXIT_FATAL;
     }
 
@@ -6818,7 +6999,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (!status && git_context_open (ctx) != 0) status = GIT_EXIT_FATAL;
     if (status) {
         bgit_proto_refs_release (refs, n_refs);
-        git_far_end_close (child, to_far, from_far, &reader);
+        git_conn_close (&conn);
         return status;
     }
 
@@ -6862,7 +7043,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (!status && n_roots) {
         unsigned char *pack = NULL;
         size_t pack_len = 0;
-        if (bgit_proto_fetch (&reader, to_far, roots, n_roots, NULL, 0, &pack,
+        if (bgit_proto_fetch (&conn.io, roots, n_roots, NULL, 0, &pack,
                               &pack_len) < 0)
             status = git_far_end_gone ();
         if (!status && git_store_pack (ctx, pack, pack_len) < 0)
@@ -6949,8 +7130,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     free (heads);
     bgit_refs_free (tags, n_tags);
     bgit_proto_refs_release (refs, n_refs);
-    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
-        status = git_far_end_gone ();
+    if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     if (!status && !quiet) fprintf (stderr, "done.\n");
     return status;
 }
@@ -6996,10 +7176,10 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     const char *url = git_remote_url (ctx, name);
     int by_name = url != NULL;
     if (!url) url = name;
-    if (!git_local_only (url)) {
+    if (!git_can_reach (url)) {
         git_state_release (&state);
-        return git_fatal ("this build's git push takes a path; protocols are "
-                          "not done yet");
+        return git_fatal ("this build's git push takes a path or an http URL; "
+                          "ssh is not done yet");
     }
 
     char local_ref[4096], remote_ref[4096], id[41];
@@ -7012,21 +7192,17 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
 
     /* The far end is asked over the protocol, which for a push is the
        first one git spoke and the one it still uses. */
-    signal (SIGPIPE, SIG_IGN);
-    int to_far = -1, from_far = -1;
-    pid_t child = git_start_far_end (program, "builtin git receive-pack", url,
-                                     &to_far, &from_far);
-    if (child < 0) {
+    git_conn conn;
+    if (git_conn_open (&conn, url, program, "git-receive-pack") < 0) {
         git_state_release (&state);
-        return git_fatal ("cannot start the far end: %s", strerror (errno));
+        return GIT_EXIT_FATAL;
     }
-    bgit_pkt_reader reader;
-    bgit_pkt_from_fd (&reader, from_far);
     bgit_proto_ref *theirs = NULL;
     size_t n_theirs = 0;
     char *capabilities = NULL;
     int status = 0;
-    if (bgit_proto_read_refs_v0 (&reader, &theirs, &n_theirs, &capabilities) < 0)
+    if (bgit_proto_read_refs_v0 (conn.io.reader, &theirs, &n_theirs,
+                                 &capabilities) < 0)
         status = git_far_end_gone ();
 
     /* What the far end holds for this branch now, which is what the push
@@ -7059,7 +7235,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
         bgit_proto_refs_release (theirs, n_theirs);
         free (capabilities);
-        git_far_end_close (child, to_far, from_far, &reader);
+        git_conn_close (&conn);
         git_state_release (&state);
         return 1;
     }
@@ -7070,8 +7246,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         if (!quiet) fprintf (stderr, "Everything up-to-date\n");
         bgit_proto_refs_release (theirs, n_theirs);
         free (capabilities);
-        if (git_far_end_close (child, to_far, from_far, &reader) < 0)
-            status = git_far_end_gone ();
+        if (git_conn_close (&conn) < 0) status = git_far_end_gone ();
         git_state_release (&state);
         return status;
     }
@@ -7087,8 +7262,8 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         len += (size_t) snprintf (line + len, sizeof line - len,
                                   "report-status side-band-64k agent=%s",
                                   GIT_AGENT_STRING);
-        if (bgit_pkt_write (to_far, line, len) < 0 ||
-            bgit_pkt_flush (to_far) < 0)
+        if (bgit_proto_write (&conn.io, line, len) < 0 ||
+            bgit_proto_flush (&conn.io) < 0)
             status = git_far_end_gone ();
     }
     if (!status) {
@@ -7112,7 +7287,10 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
         free (send);
         free (entries);
-        if (!status && bgit_pkt_write_raw (to_far, pack, pack_len) < 0)
+        /* The pack goes over as it is, after the commands; over HTTP the
+           two together are the one request, which is sent now. */
+        if (!status && (bgit_proto_raw (&conn.io, pack, pack_len) < 0 ||
+                        bgit_proto_done (&conn.io) < 0))
             status = git_far_end_gone ();
         free (pack);
     }
@@ -7129,7 +7307,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         size_t report_len = 0, report_cap = 0;
         for (;;) {
             const unsigned char *data = NULL;
-            int got = bgit_pkt_read (&reader, &data);
+            int got = bgit_pkt_read (conn.io.reader, &data);
             if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
             if (got < 0) { status = git_far_end_gone (); break; }
             if (got < 1) continue;
@@ -7191,8 +7369,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     }
     bgit_proto_refs_release (theirs, n_theirs);
     free (capabilities);
-    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
-        status = git_far_end_gone ();
+    if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     git_state_release (&state);
     return status;
 }

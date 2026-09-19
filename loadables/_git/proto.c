@@ -213,6 +213,77 @@ bgit_pkt_delim (int fd)
     return bgit_write_all (fd, "0001", 4);
 }
 
+/* ---- where a request goes ----------------------------------------------- */
+
+static int
+bgit_proto_io_fd_write (bgit_proto_io *io, const void *data, size_t len)
+{
+    return bgit_write_all (io->fd, data, len);
+}
+
+static int
+bgit_proto_io_fd_done (bgit_proto_io *io)
+{
+    (void) io;
+    return 0;                      /* a pipe has already carried it */
+}
+
+void
+bgit_proto_io_fd (bgit_proto_io *io, bgit_pkt_reader *reader, int fd)
+{
+    memset (io, 0, sizeof *io);
+    io->reader = reader;
+    io->fd = fd;
+    io->write = bgit_proto_io_fd_write;
+    io->done = bgit_proto_io_fd_done;
+}
+
+int
+bgit_proto_write (bgit_proto_io *io, const void *data, size_t len)
+{
+    if (len + 4 > 65520) return -1;
+    char header[5];
+    snprintf (header, sizeof header, "%04x", (unsigned) (len + 4));
+    if (io->write (io, header, 4) < 0) return -1;
+    return io->write (io, data, len);
+}
+
+int
+bgit_proto_writef (bgit_proto_io *io, const char *format, ...)
+{
+    char buf[4096];
+    va_list args;
+    va_start (args, format);
+    int len = vsnprintf (buf, sizeof buf, format, args);
+    va_end (args);
+    if (len < 0 || (size_t) len >= sizeof buf) return -1;
+    return bgit_proto_write (io, buf, (size_t) len);
+}
+
+int
+bgit_proto_flush (bgit_proto_io *io)
+{
+    return io->write (io, "0000", 4);
+}
+
+int
+bgit_proto_delim (bgit_proto_io *io)
+{
+    return io->write (io, "0001", 4);
+}
+
+int
+bgit_proto_raw (bgit_proto_io *io, const void *data, size_t len)
+{
+    return io->write (io, data, len);
+}
+
+int
+bgit_proto_done (bgit_proto_io *io)
+{
+    return io->done (io);
+}
+
 /* ---- protocol v2 -------------------------------------------------------- */
 
 static int
@@ -327,14 +398,25 @@ bgit_proto_read_refs_v0 (bgit_pkt_reader *reader, bgit_proto_ref **out,
 {
     bgit_proto_ref *refs = NULL;
     size_t n = 0, cap = 0;
+    int named_service = 0;
     if (caps) *caps = NULL;
     for (;;) {
         const unsigned char *data = NULL;
         int got = bgit_pkt_read (reader, &data);
+        /* Over HTTP the advertisement opens by naming the service, and
+           the flush after that line is not the end of anything. */
+        if (got == BGIT_PKT_FLUSH && named_service) {
+            named_service = 0;
+            continue;
+        }
         if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
         if (got < 0) {
             bgit_proto_refs_release (refs, n);
             return -1;
+        }
+        if (got > 10 && !memcmp (data, "# service=", 10)) {
+            named_service = 1;
+            continue;
         }
         /* The first line carries the capabilities after a NUL. */
         size_t len = (size_t) got;
@@ -386,30 +468,32 @@ bgit_proto_read_refs_v0 (bgit_pkt_reader *reader, bgit_proto_ref **out,
 }
 
 int
-bgit_proto_fetch (bgit_pkt_reader *reader, int out,
+bgit_proto_fetch (bgit_proto_io *io,
                   const char *const *wants, size_t n_wants,
                   const char *const *haves, size_t n_haves,
                   unsigned char **pack, size_t *pack_len)
 {
     *pack = NULL;
     *pack_len = 0;
-    if (bgit_pkt_writef (out, "command=fetch\n") < 0 ||
-        bgit_pkt_writef (out, "object-format=sha1\n") < 0 ||
-        bgit_pkt_delim (out) < 0)
+    if (bgit_proto_writef (io, "command=fetch\n") < 0 ||
+        bgit_proto_writef (io, "object-format=sha1\n") < 0 ||
+        bgit_proto_delim (io) < 0)
         return -1;
     /* No thin pack is asked for: this end completes nothing from its own
        objects yet. Offset deltas it can read. */
-    if (bgit_pkt_writef (out, "ofs-delta\n") < 0 ||
-        bgit_pkt_writef (out, "no-progress\n") < 0)
+    if (bgit_proto_writef (io, "ofs-delta\n") < 0 ||
+        bgit_proto_writef (io, "no-progress\n") < 0)
         return -1;
     for (size_t i = 0; i < n_wants; i++)
-        if (bgit_pkt_writef (out, "want %s\n", wants[i]) < 0) return -1;
+        if (bgit_proto_writef (io, "want %s\n", wants[i]) < 0) return -1;
     for (size_t i = 0; i < n_haves; i++)
-        if (bgit_pkt_writef (out, "have %s\n", haves[i]) < 0) return -1;
+        if (bgit_proto_writef (io, "have %s\n", haves[i]) < 0) return -1;
     /* Saying "done" ends the negotiation in one round: the far end works
        out what to send from the haves it has been given. */
-    if (bgit_pkt_writef (out, "done\n") < 0 || bgit_pkt_flush (out) < 0)
+    if (bgit_proto_writef (io, "done\n") < 0 || bgit_proto_flush (io) < 0 ||
+        bgit_proto_done (io) < 0)
         return -1;
+    bgit_pkt_reader *reader = io->reader;
 
     unsigned char *body = NULL;
     size_t len = 0, cap = 0;
@@ -453,21 +537,23 @@ bgit_proto_fetch (bgit_pkt_reader *reader, int out,
 }
 
 int
-bgit_proto_ls_refs (bgit_pkt_reader *reader, int out,
+bgit_proto_ls_refs (bgit_proto_io *io,
                     const char *const *prefixes, size_t n_prefixes,
                     int want_symrefs, int want_peeled,
                     bgit_proto_ref **refs_out, size_t *n_out)
 {
-    if (bgit_pkt_writef (out, "command=ls-refs\n") < 0 ||
-        bgit_pkt_writef (out, "object-format=sha1\n") < 0 ||
-        bgit_pkt_delim (out) < 0)
+    bgit_pkt_reader *reader = io->reader;
+    if (bgit_proto_writef (io, "command=ls-refs\n") < 0 ||
+        bgit_proto_writef (io, "object-format=sha1\n") < 0 ||
+        bgit_proto_delim (io) < 0)
         return -1;
-    if (want_peeled && bgit_pkt_writef (out, "peel\n") < 0) return -1;
-    if (want_symrefs && bgit_pkt_writef (out, "symrefs\n") < 0) return -1;
+    if (want_peeled && bgit_proto_writef (io, "peel\n") < 0) return -1;
+    if (want_symrefs && bgit_proto_writef (io, "symrefs\n") < 0) return -1;
     for (size_t i = 0; i < n_prefixes; i++)
-        if (bgit_pkt_writef (out, "ref-prefix %s\n", prefixes[i]) < 0)
+        if (bgit_proto_writef (io, "ref-prefix %s\n", prefixes[i]) < 0)
             return -1;
-    if (bgit_pkt_flush (out) < 0) return -1;
+    if (bgit_proto_flush (io) < 0 || bgit_proto_done (io) < 0) return -1;
+    reader = io->reader;           /* a POST answers into a new one */
 
     bgit_proto_ref *refs = NULL;
     size_t n = 0, cap = 0;
