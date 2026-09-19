@@ -19,6 +19,7 @@
 #include "merge.h"
 #include "odb.h"
 #include "revision.h"
+#include "xdiff.h"
 
 #define BGIT_PARENT1 1u
 #define BGIT_PARENT2 2u
@@ -392,4 +393,370 @@ bgit_independent (bgit_odb *odb, const char *const *commits, int n,
     *out = list.ids;
     *n_out = list.n;
     return 0;
+}
+
+
+/* ---- merging one file's three versions --------------------------------- */
+
+/* Text being built a line at a time. */
+struct bgit_text {
+    char *data;
+    size_t len, cap;
+};
+
+static int
+bgit_text_add (struct bgit_text *text, const char *bytes, size_t len)
+{
+    if (text->len + len + 1 > text->cap) {
+        size_t next = text->cap ? text->cap : 256;
+        while (next < text->len + len + 1) next *= 2;
+        char *grown = realloc (text->data, next);
+        if (!grown) return -1;
+        text->data = grown;
+        text->cap = next;
+    }
+    memcpy (text->data + text->len, bytes, len);
+    text->len += len;
+    text->data[text->len] = '\0';
+    return 0;
+}
+
+/* Copy lines [FROM, TO) of FILE, each with the newline it had. */
+static int
+bgit_text_lines (struct bgit_text *text, const bgit_xdiff_file *file,
+                 size_t from, size_t to)
+{
+    for (size_t i = from; i < to && i < file->n; i++) {
+        if (bgit_text_add (text, file->lines[i], file->lengths[i]) < 0) return -1;
+        /* A file that ended without a newline keeps its last line ragged. */
+        if (i + 1 == file->n && file->missing_newline) continue;
+        if (bgit_text_add (text, "\n", 1) < 0) return -1;
+    }
+    return 0;
+}
+
+/* Where a base line sits in one side, counting only the changes that end
+   before it — a change that starts exactly there belongs to what follows,
+   which matters when both sides add lines at the same place. */
+static size_t
+bgit_map_before (const bgit_xdiff_change *changes, size_t n, size_t base_line)
+{
+    long offset = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (changes[i].old_start >= base_line) break;
+        if (changes[i].old_start + changes[i].old_count <= base_line)
+            offset += (long) changes[i].new_count - (long) changes[i].old_count;
+    }
+    return (size_t) ((long) base_line + offset);
+}
+
+/* How many lines longer a stretch of the base is on one side, over the
+   changes that fall inside it. */
+static long
+bgit_delta_over (const bgit_xdiff_change *changes, size_t from, size_t to)
+{
+    long delta = 0;
+    for (size_t i = from; i <= to; i++)
+        delta += (long) changes[i].new_count - (long) changes[i].old_count;
+    return delta;
+}
+
+/* Do two runs of lines say the same thing? */
+static int
+bgit_lines_equal (const bgit_xdiff_file *a, size_t a0, size_t a1,
+                  const bgit_xdiff_file *b, size_t b0, size_t b1)
+{
+    if (a1 - a0 != b1 - b0) return 0;
+    for (size_t i = 0; i < a1 - a0; i++) {
+        if (a->lengths[a0 + i] != b->lengths[b0 + i] ||
+            memcmp (a->lines[a0 + i], b->lines[b0 + i], a->lengths[a0 + i]))
+            return 0;
+    }
+    return 1;
+}
+
+/* One stretch of the result: lines taken from one side, from both when
+   they agree, or written out between conflict markers. */
+struct bgit_region {
+    size_t base_start, base_end;
+    size_t our_start, our_end;
+    size_t their_start, their_end;
+    enum { BGIT_TAKE_OURS, BGIT_TAKE_THEIRS, BGIT_TAKE_EITHER, BGIT_CONFLICT } kind;
+};
+
+/* A view of part of one side, so two stretches can be compared without
+   copying their lines. */
+static bgit_xdiff_file
+bgit_view (const bgit_xdiff_file *file, size_t from, size_t to)
+{
+    bgit_xdiff_file view;
+    memset (&view, 0, sizeof view);
+    view.lines = file->lines + from;
+    view.lengths = file->lengths + from;
+    view.hashes = file->hashes + from;
+    view.n = to - from;
+    view.missing_newline = to == file->n ? file->missing_newline : 0;
+    return view;
+}
+
+/* Two conflicts with three or fewer settled lines between them read better
+   as one: moving those lines inside costs no more lines than the markers
+   that separating them would need. git does the same. */
+static void
+bgit_simplify_conflicts (struct bgit_region *regions, size_t *n)
+{
+    size_t kept = 0;
+    for (size_t i = 0; i < *n; i++) {
+        if (kept && regions[kept - 1].kind == BGIT_CONFLICT &&
+            regions[i].kind == BGIT_CONFLICT &&
+            regions[i].base_start - regions[kept - 1].base_end <= 3) {
+            regions[kept - 1].base_end = regions[i].base_end;
+            regions[kept - 1].our_end = regions[i].our_end;
+            regions[kept - 1].their_end = regions[i].their_end;
+            continue;
+        }
+        regions[kept++] = regions[i];
+    }
+    *n = kept;
+}
+
+/* Write one conflict, refined the way git refines it: the two sides are
+   compared with each other, so whatever they turned out to agree on is
+   settled outside the markers, and only what is left is in dispute. Two
+   disputes with three or fewer agreed lines between them stay as one. */
+static int
+bgit_write_conflict (struct bgit_text *text, const bgit_xdiff_file *our_file,
+                     const bgit_xdiff_file *their_file,
+                     const struct bgit_region *region,
+                     const char *our_label, const char *their_label,
+                     int *conflicts)
+{
+    size_t our_start = region->our_start, our_end = region->our_end;
+    size_t their_start = region->their_start, their_end = region->their_end;
+    bgit_xdiff_file ours = bgit_view (our_file, our_start, our_end);
+    bgit_xdiff_file theirs = bgit_view (their_file, their_start, their_end);
+    bgit_xdiff_change *changes = NULL;
+    size_t n_changes = 0;
+
+    /* With one side empty there is nothing to compare, and git leaves such
+       a conflict whole. */
+    if (ours.n && theirs.n) {
+        bgit_xdiff_result refined;
+        memset (&refined, 0, sizeof refined);
+        if (bgit_xdiff (&ours, &theirs, 0, &refined) == 0) {
+            if (bgit_xdiff_changes (&refined, ours.n, theirs.n, &changes,
+                                    &n_changes) < 0)
+                n_changes = 0;
+            bgit_xdiff_result_release (&refined);
+        }
+    }
+
+    if (!n_changes) {
+        free (changes);
+        *conflicts += 1;
+        if (bgit_text_add (text, "<<<<<<< ", 8) < 0 ||
+            bgit_text_add (text, our_label, strlen (our_label)) < 0 ||
+            bgit_text_add (text, "\n", 1) < 0 ||
+            bgit_text_lines (text, our_file, our_start, our_end) < 0 ||
+            bgit_text_add (text, "=======\n", 8) < 0 ||
+            bgit_text_lines (text, their_file, their_start, their_end) < 0 ||
+            bgit_text_add (text, ">>>>>>> ", 8) < 0 ||
+            bgit_text_add (text, their_label, strlen (their_label)) < 0 ||
+            bgit_text_add (text, "\n", 1) < 0)
+            return -1;
+        return 0;
+    }
+
+    /* Three or fewer agreed lines between two disputes: keep them as one. */
+    size_t kept = 0;
+    for (size_t i = 0; i < n_changes; i++) {
+        if (kept && changes[i].old_start -
+            (changes[kept - 1].old_start + changes[kept - 1].old_count) <= 3) {
+            changes[kept - 1].old_count = changes[i].old_start +
+                changes[i].old_count - changes[kept - 1].old_start;
+            changes[kept - 1].new_count = changes[i].new_start +
+                changes[i].new_count - changes[kept - 1].new_start;
+            continue;
+        }
+        changes[kept++] = changes[i];
+    }
+    n_changes = kept;
+
+    size_t at = 0;
+    for (size_t i = 0; i < n_changes; i++) {
+        if (bgit_text_lines (text, &ours, at, changes[i].old_start) < 0) goto fail;
+        *conflicts += 1;
+        if (bgit_text_add (text, "<<<<<<< ", 8) < 0 ||
+            bgit_text_add (text, our_label, strlen (our_label)) < 0 ||
+            bgit_text_add (text, "\n", 1) < 0 ||
+            bgit_text_lines (text, &ours, changes[i].old_start,
+                             changes[i].old_start + changes[i].old_count) < 0 ||
+            bgit_text_add (text, "=======\n", 8) < 0 ||
+            bgit_text_lines (text, &theirs, changes[i].new_start,
+                             changes[i].new_start + changes[i].new_count) < 0 ||
+            bgit_text_add (text, ">>>>>>> ", 8) < 0 ||
+            bgit_text_add (text, their_label, strlen (their_label)) < 0 ||
+            bgit_text_add (text, "\n", 1) < 0)
+            goto fail;
+        at = changes[i].old_start + changes[i].old_count;
+    }
+    if (bgit_text_lines (text, &ours, at, ours.n) < 0) goto fail;
+    free (changes);
+    return 0;
+fail:
+    free (changes);
+    return -1;
+}
+
+int
+bgit_merge_content (const char *base, size_t base_len,
+                    const char *ours, size_t ours_len,
+                    const char *theirs, size_t theirs_len,
+                    const char *our_label, const char *their_label,
+                    bgit_merge_result *result)
+{
+    memset (result, 0, sizeof *result);
+    bgit_xdiff_file base_file, our_file, their_file;
+    bgit_xdiff_result ours_diff, theirs_diff;
+    bgit_xdiff_change *ours_changes = NULL, *theirs_changes = NULL;
+    struct bgit_region *regions = NULL;
+    size_t n_ours = 0, n_theirs = 0, n_regions = 0;
+    struct bgit_text text;
+    memset (&text, 0, sizeof text);
+    int rc = -1;
+
+    if (bgit_xdiff_load (&base_file, base, base_len) < 0) return -1;
+    if (bgit_xdiff_load (&our_file, ours, ours_len) < 0) {
+        bgit_xdiff_release (&base_file);
+        return -1;
+    }
+    if (bgit_xdiff_load (&their_file, theirs, theirs_len) < 0) {
+        bgit_xdiff_release (&base_file);
+        bgit_xdiff_release (&our_file);
+        return -1;
+    }
+    memset (&ours_diff, 0, sizeof ours_diff);
+    memset (&theirs_diff, 0, sizeof theirs_diff);
+    if (bgit_xdiff (&base_file, &our_file, 0, &ours_diff) < 0 ||
+        bgit_xdiff (&base_file, &their_file, 0, &theirs_diff) < 0 ||
+        bgit_xdiff_changes (&ours_diff, base_file.n, our_file.n,
+                            &ours_changes, &n_ours) < 0 ||
+        bgit_xdiff_changes (&theirs_diff, base_file.n, their_file.n,
+                            &theirs_changes, &n_theirs) < 0)
+        goto done;
+
+    regions = calloc (n_ours + n_theirs + 1, sizeof *regions);
+    if (!regions) goto done;
+
+    size_t a = 0, b = 0;    /* the next change from each side */
+    while (a < n_ours || b < n_theirs) {
+        struct bgit_region *region = &regions[n_regions];
+        /* A change only one side made, clear of the other, is simply taken. */
+        if (b == n_theirs ||
+            (a < n_ours &&
+             ours_changes[a].old_start + ours_changes[a].old_count <
+             theirs_changes[b].old_start)) {
+            region->kind = BGIT_TAKE_OURS;
+            region->base_start = ours_changes[a].old_start;
+            region->base_end = ours_changes[a].old_start + ours_changes[a].old_count;
+            region->our_start = ours_changes[a].new_start;
+            region->our_end = ours_changes[a].new_start + ours_changes[a].new_count;
+            n_regions++;
+            a++;
+            continue;
+        }
+        if (a == n_ours ||
+            theirs_changes[b].old_start + theirs_changes[b].old_count <
+            ours_changes[a].old_start) {
+            region->kind = BGIT_TAKE_THEIRS;
+            region->base_start = theirs_changes[b].old_start;
+            region->base_end = theirs_changes[b].old_start + theirs_changes[b].old_count;
+            region->their_start = theirs_changes[b].new_start;
+            region->their_end = theirs_changes[b].new_start + theirs_changes[b].new_count;
+            n_regions++;
+            b++;
+            continue;
+        }
+
+        /* Both sides touched this stretch of the base. Take in every change
+           that reaches into it from either side. */
+        size_t first_a = a, first_b = b;
+        for (;;) {
+            size_t end_a = ours_changes[a].old_start + ours_changes[a].old_count;
+            size_t end_b = theirs_changes[b].old_start + theirs_changes[b].old_count;
+            if (a + 1 < n_ours && ours_changes[a + 1].old_start <= end_b) { a++; continue; }
+            if (b + 1 < n_theirs && theirs_changes[b + 1].old_start <= end_a) { b++; continue; }
+            break;
+        }
+        size_t start = ours_changes[first_a].old_start < theirs_changes[first_b].old_start
+                       ? ours_changes[first_a].old_start
+                       : theirs_changes[first_b].old_start;
+        size_t end_a = ours_changes[a].old_start + ours_changes[a].old_count;
+        size_t end_b = theirs_changes[b].old_start + theirs_changes[b].old_count;
+        size_t end = end_a > end_b ? end_a : end_b;
+
+        region->base_start = start;
+        region->base_end = end;
+        region->our_start = bgit_map_before (ours_changes, n_ours, start);
+        region->their_start = bgit_map_before (theirs_changes, n_theirs, start);
+        region->our_end = (size_t) ((long) (region->our_start + (end - start)) +
+                                    bgit_delta_over (ours_changes, first_a, a));
+        region->their_end = (size_t) ((long) (region->their_start + (end - start)) +
+                                      bgit_delta_over (theirs_changes, first_b, b));
+        region->kind = bgit_lines_equal (&our_file, region->our_start, region->our_end,
+                                         &their_file, region->their_start,
+                                         region->their_end)
+                       ? BGIT_TAKE_EITHER : BGIT_CONFLICT;
+        n_regions++;
+        a++;
+        b++;
+    }
+
+    bgit_simplify_conflicts (regions, &n_regions);
+
+    size_t at = 0;          /* how far through the base has been written */
+    for (size_t i = 0; i < n_regions; i++) {
+        const struct bgit_region *region = &regions[i];
+        if (bgit_text_lines (&text, &base_file, at, region->base_start) < 0)
+            goto done;
+        switch (region->kind) {
+        case BGIT_TAKE_OURS:
+            if (bgit_text_lines (&text, &our_file, region->our_start,
+                                 region->our_end) < 0) goto done;
+            break;
+        case BGIT_TAKE_THEIRS:
+            if (bgit_text_lines (&text, &their_file, region->their_start,
+                                 region->their_end) < 0) goto done;
+            break;
+        case BGIT_TAKE_EITHER:
+            if (bgit_text_lines (&text, &our_file, region->our_start,
+                                 region->our_end) < 0) goto done;
+            break;
+        case BGIT_CONFLICT:
+            if (bgit_write_conflict (&text, &our_file, &their_file, region,
+                                     our_label, their_label,
+                                     &result->conflicts) < 0)
+                goto done;
+            break;
+        }
+        at = region->base_end;
+    }
+    if (bgit_text_lines (&text, &base_file, at, base_file.n) < 0) goto done;
+    rc = 0;
+
+done:
+    if (rc == 0) {
+        result->text = text.data ? text.data : calloc (1, 1);
+        result->len = text.len;
+        if (!result->text) rc = -1;
+    } else free (text.data);
+    free (regions);
+    free (ours_changes);
+    free (theirs_changes);
+    bgit_xdiff_result_release (&ours_diff);
+    bgit_xdiff_result_release (&theirs_diff);
+    bgit_xdiff_release (&base_file);
+    bgit_xdiff_release (&our_file);
+    bgit_xdiff_release (&their_file);
+    return rc;
 }

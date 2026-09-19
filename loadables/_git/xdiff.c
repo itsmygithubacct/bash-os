@@ -568,6 +568,38 @@ bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
     return 0;
 }
 
+int
+bgit_xdiff_changes (const bgit_xdiff_result *result, size_t n_old, size_t n_new,
+                    bgit_xdiff_change **out, size_t *n_out)
+{
+    size_t capacity = 8, n = 0;
+    bgit_xdiff_change *changes = calloc (capacity, sizeof *changes);
+    if (!changes) return -1;
+    size_t i = 0, j = 0;
+    while (i < n_old || j < n_new) {
+        int changed = (i < n_old && result->old_changed[i]) ||
+                      (j < n_new && result->new_changed[j]);
+        if (!changed) { i++; j++; continue; }
+        size_t i0 = i, j0 = j;
+        while (i < n_old && result->old_changed[i]) i++;
+        while (j < n_new && result->new_changed[j]) j++;
+        if (n == capacity) {
+            capacity *= 2;
+            bgit_xdiff_change *grown = realloc (changes, capacity * sizeof *grown);
+            if (!grown) { free (changes); return -1; }
+            changes = grown;
+        }
+        changes[n].old_start = i0;
+        changes[n].old_count = i - i0;
+        changes[n].new_start = j0;
+        changes[n].new_count = j - j0;
+        n++;
+    }
+    *out = changes;
+    *n_out = n;
+    return 0;
+}
+
 long
 bgit_xdiff_function (const bgit_xdiff_file *file, long start, long limit,
                      const char **text, size_t *len)

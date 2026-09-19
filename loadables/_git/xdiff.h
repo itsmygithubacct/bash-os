@@ -49,6 +49,17 @@ typedef struct {
 int bgit_xdiff_load (bgit_xdiff_file *file, const char *text, size_t len);
 void bgit_xdiff_release (bgit_xdiff_file *file);
 
+/* One run of changed lines, as a replacement: COUNT lines of the old file
+   from START become COUNT lines of the new file from its own START. */
+typedef struct {
+    size_t old_start, old_count;
+    size_t new_start, new_count;
+} bgit_xdiff_change;
+
+/* The runs a result describes, in order. Caller frees *out. */
+int bgit_xdiff_changes (const bgit_xdiff_result *result, size_t n_old,
+                        size_t n_new, bgit_xdiff_change **out, size_t *n_out);
+
 /* Compare two files with CONTEXT lines of context. Caller frees the result
    with bgit_xdiff_result_release. */
 int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,

@@ -3938,6 +3938,73 @@ git_cmd_merge_base (git_context *ctx, WORD_LIST *args)
     return found ? 0 : 1;
 }
 
+/* ---- merge-file -------------------------------------------------------- */
+
+static int
+git_cmd_merge_file (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git merge-file [-p] [-q] [-L <label>]... "
+                        "<current> <base> <other>";
+    int to_stdout = 0, quiet = 0;
+    const char *labels[3] = { NULL, NULL, NULL };
+    int n_labels = 0;
+    const char *files[3];
+    int n_files = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-p") || !strcmp (w, "--stdout")) to_stdout = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-L") && p->next) {
+            if (n_labels < 3) labels[n_labels++] = p->next->word->word;
+            p = p->next;
+        }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_files < 3) files[n_files++] = w;
+        else return git_usage (usage);
+    }
+    if (n_files != 3) return git_usage (usage);
+    (void) ctx;
+
+    unsigned char *content[3] = { NULL, NULL, NULL };
+    size_t sizes[3] = { 0, 0, 0 };
+    for (int i = 0; i < 3; i++)
+        if (bgit_slurp_file (files[i], &content[i], &sizes[i]) < 0) {
+            for (int j = 0; j < i; j++) free (content[j]);
+            return git_fatal ("Could not open '%s' for reading", files[i]);
+        }
+
+    bgit_merge_result merged;
+    int rc = bgit_merge_content ((const char *) content[1], sizes[1],
+                                 (const char *) content[0], sizes[0],
+                                 (const char *) content[2], sizes[2],
+                                 labels[0] ? labels[0] : files[0],
+                                 labels[2] ? labels[2] : files[2],
+                                 &merged);
+    for (int i = 0; i < 3; i++) free (content[i]);
+    if (rc < 0) return GIT_EXIT_FATAL;
+
+    if (to_stdout) {
+        fwrite (merged.text, 1, merged.len, stdout);
+    } else {
+        FILE *out = fopen (files[0], "w");
+        if (!out) {
+            free (merged.text);
+            return git_fatal ("Could not open '%s' for writing", files[0]);
+        }
+        fwrite (merged.text, 1, merged.len, out);
+        if (fclose (out) != 0) {
+            free (merged.text);
+            return git_fatal ("Could not write '%s'", files[0]);
+        }
+    }
+    int conflicts = merged.conflicts;
+    free (merged.text);
+    (void) quiet;
+    /* git exits with the number of conflicts, up to 127. */
+    return conflicts > 127 ? 127 : conflicts;
+}
+
 /* ---- mv and clean ------------------------------------------------------ */
 
 /* Move one tracked path in the index, keeping everything else about it. */
@@ -4470,6 +4537,7 @@ static const struct {
     { "ls-files",     git_cmd_ls_files },
     { "ls-tree",      git_cmd_ls_tree },
     { "merge-base",   git_cmd_merge_base },
+    { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
     { "read-tree",    git_cmd_read_tree },
     { "reflog",       git_cmd_reflog },

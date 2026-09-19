@@ -106,6 +106,18 @@ git merge-base topic main
 git merge-base --is-ancestor main topic || true
 git merge-base --independent topic main
 git merge-base --octopus topic main
+
+# The three-way merge of one file's three versions.
+printf 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n' > base-file
+printf 'ONE\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n' > our-file
+printf 'one\ntwo\nthree\nfour\nfive\nsix\nseven\nEIGHT\n' > their-file
+git merge-file -p our-file base-file their-file
+printf 'one\ntwo\nTHREE\nfour\nfive\nsix\nseven\neight\n' > our-file
+printf 'one\ntwo\ndrei\nfour\nFIVE\nsix\nseven\neight\n' > their-file
+git merge-file -p -L ours -L base -L theirs our-file base-file their-file || true
+git merge-file our-file base-file their-file || true
+: > empty-file
+git merge-file -p our-file empty-file their-file || true
 git reflog > /dev/null
 git fsck 2>/dev/null || true
 SCENARIO
