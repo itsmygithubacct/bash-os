@@ -373,15 +373,18 @@ def exercise(h):
     h.track_pid(int((h.root / "shell/windows/0/panes/0/pid").read_text()))
     h.send('printf "%s\\n" "$BASH" > "$SCREEN_TEST_DIR/default-shell"', name="shell")
     proof = h.directory / "default-shell"
-    eventually(proof.exists, "default shell identity")
-    assert Path(proof.read_text().strip()).resolve() == h.args.bash.resolve()
+    # The file appears before the line is in it, so wait for the content.
+    written = eventually(lambda: proof.exists() and proof.read_text().strip(),
+                         "default shell identity")
+    assert Path(written).resolve() == h.args.bash.resolve(), (written, str(h.args.bash))
     h.sessions.add("code")
     h.run("screen", "run", "-n", "code", "-c",
           'printf "%s\\n" "$BASH" > "$SCREEN_TEST_DIR/code-shell"; read -r')
     h.track_pid(int((h.root / "code/windows/0/panes/0/pid").read_text()))
     proof = h.directory / "code-shell"
-    eventually(proof.exists, "explicit code shell identity")
-    assert Path(proof.read_text().strip()).resolve() == h.args.bash.resolve()
+    written = eventually(lambda: proof.exists() and proof.read_text().strip(),
+                         "explicit code shell identity")
+    assert Path(written).resolve() == h.args.bash.resolve(), (written, str(h.args.bash))
     h.checks.append("default and explicit code execution use the current bash-os executable despite SHELL")
 
     h.start("tree", "tree")
