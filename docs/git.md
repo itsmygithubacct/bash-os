@@ -29,7 +29,21 @@ git reflog       [show] [<ref>]
 git config       [--global | --local | --file <file>] [-z]
                  (--list | --get <key> | --get-all <key> | --unset <key>
                   | --add <key> <value> | <key> [<value>])
+git update-index [--add] [--remove] [--cacheinfo <mode>,<object>,<path>]
+                 [--index-info] [--] [<file>...]
+git ls-files     [-s] [-z] [--] [<file>...]
+git write-tree
+git read-tree    <tree-ish>
+git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
+git ls-tree      [-r] [-t] [-z] [--name-only] <tree-ish>
+git rev-list     [--count] [-n <number>] <commit>...
+git var          (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)
+git check-ignore [-v] [--non-matching] [<pathname>...]
 ```
+
+Revisions take git's suffixes: `^` and `^<n>` for a parent, `~<n>` for n
+first-parent steps, `^{}` and `^{<type>}` to peel, and `@{<n>}` for a ref's
+nth previous value, read from its reflog.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),
@@ -92,6 +106,13 @@ sit in the tree and start running as soon as their commands land.
 cat-file`: loose objects, packed ones after `git gc`, abbreviations,
 `--batch-check`, a linked worktree, a bare clone, alternates, `GIT_DIR`,
 and that what `obj` writes git can read.
+
+`tests/git-refs.py` checks refs from both sides: git packs its refs away
+with `pack-refs`, and bash-os still resolves, lists and deletes them;
+what bash-os writes — refs, a deleted packed ref, reflog entries, a
+symbolic ref — git reads back, and `fsck --strict` stays clean. It also
+holds a `.lock` file and checks that the update is refused with git's
+message and changes nothing.
 
 ## Still to come
 

@@ -44,6 +44,17 @@ bgit_lock_mkdir_parents (const char *path)
     return 0;
 }
 
+/* Give up a lock we never took: free the fields, and leave whatever is on
+   disk alone. Rolling back here would delete the lock another writer holds. */
+static void
+bgit_lock_abandon (bgit_lock *lock)
+{
+    free (lock->path);
+    free (lock->lock_path);
+    memset (lock, 0, sizeof *lock);
+    lock->fd = -1;
+}
+
 int
 bgit_lock_acquire (bgit_lock *lock, const char *path)
 {
@@ -62,7 +73,7 @@ bgit_lock_acquire (bgit_lock *lock, const char *path)
     if (bgit_lock_mkdir_parents (lock->lock_path) < 0) {
         builtin_error ("cannot create directory for '%s': %s",
                        lock->lock_path, strerror (errno));
-        bgit_lock_rollback (lock);
+        bgit_lock_abandon (lock);
         return -1;
     }
     lock->fd = open (lock->lock_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
@@ -71,7 +82,7 @@ bgit_lock_acquire (bgit_lock *lock, const char *path)
             builtin_error ("Unable to create '%s': File exists.", lock->lock_path);
         else
             builtin_error ("cannot create '%s': %s", lock->lock_path, strerror (errno));
-        bgit_lock_rollback (lock);
+        bgit_lock_abandon (lock);
         return -1;
     }
     lock->next = bgit_locks_held;

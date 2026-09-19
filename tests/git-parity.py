@@ -141,6 +141,7 @@ def state(directory):
             ('status', ('status', '--porcelain=v2', '--branch')),
             ('stash', ('stash', 'list')),
             ('log', ('log', '--all', '--format=%H %T %P %an %ae %ad %cn %ce %cd %s', '--date=raw')),
+            ('reflog', ('log', '-g', '--all', '--format=%H %gd %gn %ge %gs', '--date=raw')),
             ('fsck', ('fsck', '--strict', '--no-progress')),
     ):
         status, output = git_out(directory, *args)
