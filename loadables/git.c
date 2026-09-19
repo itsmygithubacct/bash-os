@@ -5847,7 +5847,9 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (git_open_remote (absolute, &remote, &remote_odb) < 0)
         return git_fatal ("repository '%s' does not exist", source);
 
-    if (!quiet) fprintf (stderr, "Cloning into '%s'...\n", target);
+    if (!quiet)
+        fprintf (stderr, bare ? "Cloning into bare repository '%s'...\n"
+                              : "Cloning into '%s'...\n", target);
 
     /* A fresh repository, then everything the far end has. */
     WORD_LIST *init = make_word_list (make_word ((char *) target), NULL);
@@ -5880,6 +5882,12 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         bgit_repo_release (&remote);
         return GIT_EXIT_FATAL;
     }
+    /* A bare clone is where the branches live, not a copy of somewhere
+       else's: git writes them as branches and keeps no tracking refs. */
+    if (bare)
+        for (size_t i = 0; i < n_heads; i++)
+            snprintf (heads[i].local, sizeof heads[i].local, "%s", heads[i].name);
+
     bgit_ref *tags = NULL;
     size_t n_tags = 0;
     bgit_refs_list (&remote, "refs/tags/", &tags, &n_tags);
@@ -5915,27 +5923,31 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         if (git_config_write (ctx, "remote.origin.url", absolute) < 0)
             status = GIT_EXIT_FATAL;
         snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/origin/*");
-        if (!status && git_config_write (ctx, "remote.origin.fetch", value) < 0)
+        if (!status && !bare &&
+            git_config_write (ctx, "remote.origin.fetch", value) < 0)
             status = GIT_EXIT_FATAL;
     }
     if (!status && head_ref && !strncmp (head_ref, "refs/heads/", 11)) {
         const char *branch = head_ref + 11;
         char tracking[4096];
         snprintf (tracking, sizeof tracking, "refs/remotes/origin/%s", branch);
-        if (bgit_symref_write (&ctx->repo, "refs/remotes/origin/HEAD", tracking,
-                               message) < 0)
+        if (!bare && bgit_symref_write (&ctx->repo, "refs/remotes/origin/HEAD",
+                                        tracking, message) < 0)
             status = GIT_EXIT_FATAL;
         snprintf (key, sizeof key, "branch.%s.remote", branch);
-        if (!status && git_config_write (ctx, key, "origin") < 0)
+        if (!status && !bare && git_config_write (ctx, key, "origin") < 0)
             status = GIT_EXIT_FATAL;
         snprintf (key, sizeof key, "branch.%s.merge", branch);
-        if (!status && git_config_write (ctx, key, head_ref) < 0)
+        if (!status && !bare && git_config_write (ctx, key, head_ref) < 0)
             status = GIT_EXIT_FATAL;
 
         if (!status && *head_id) {
             char local[4096];
             snprintf (local, sizeof local, "refs/heads/%s", branch);
-            if (bgit_ref_update (&ctx->repo, local, head_id, NULL, message) < 0)
+            /* The branch is already written where a bare clone keeps it,
+               and a bare repository logs no ref updates. */
+            if (!bare &&
+                bgit_ref_update (&ctx->repo, local, head_id, NULL, message) < 0)
                 status = GIT_EXIT_FATAL;
             if (!status && bgit_symref_write (&ctx->repo, "HEAD", local, NULL) < 0)
                 status = GIT_EXIT_FATAL;
@@ -5997,11 +6009,11 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     }
     if (!branch) branch = state.branch + 11;
 
+    /* A name from the configuration stands for its URL; anything else is
+       the path itself, which is what git accepts too. */
     const char *url = git_remote_url (ctx, name);
-    if (!url) {
-        git_state_release (&state);
-        return git_fatal ("'%s' does not appear to be a git repository", name);
-    }
+    int by_name = url != NULL;
+    if (!url) url = name;
     if (!git_local_only (url)) {
         git_state_release (&state);
         return git_fatal ("this build's git push takes a path; protocols are "
@@ -6081,8 +6093,9 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         git_report_ref (ctx, is_new ? NULL : current, id, branch, branch,
                         (int) strlen (branch));
     }
-    /* What was pushed is now what the far end has. */
-    if (!status) {
+    /* What was pushed is now what the far end has — which is only worth
+       recording for a remote that has a name to record it under. */
+    if (!status && by_name) {
         char tracking[4096];
         snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", name, branch);
         bgit_ref_set (&ctx->repo, tracking, id, NULL);

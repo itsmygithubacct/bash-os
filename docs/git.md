@@ -52,7 +52,7 @@ git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
 git clone        [-q] [--bare] <source> [<directory>]
 git fetch        [<remote>]
 git pull         [<remote>]
-git push         [<remote> [<branch>]]
+git push         [<remote> | <path> [<branch>]]
 git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
                  [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
@@ -196,9 +196,17 @@ Clone, fetch, pull and push work between repositories on this machine: the
 objects a branch reaches are copied into the other store, stopping at
 anything already there, and the refs follow. A push may only move a branch
 forward, and is refused into a branch the far end has checked out, with
-git's words for both. A URL is refused rather than half-attempted — the
-protocols are the next phase — and a clone from a packed repository writes
-the objects out loose, which is correct but larger than git's copy.
+git's words for both. It takes a path as readily as the name of a remote,
+and records a tracking ref only for the one that has a name to record it
+under. A URL is refused rather than half-attempted — the protocols are the
+next phase — and a clone from a packed repository writes the objects out
+loose, which is correct but larger than git's copy.
+
+A bare clone is a different thing from a checkout without a working tree:
+it is where the branches live, so git writes them as branches rather than
+as tracking refs, keeps no fetch refspec, and points HEAD at the branch
+the far end's HEAD named. This build does the same, and says so the way
+git says it — `Cloning into bare repository '<name>'...`.
 
 Packfiles can be made, indexed, checked and taken apart again.
 `git pack-objects` reads the ids to pack from its input — `git rev-list
@@ -327,10 +335,9 @@ plumbing a protocol needs — making a pack, and reading one with deltas in
 it — is in place; and protocol v2 now carries `ls-remote`, which is the
 framing the rest will be built on. Next is `fetch` over the protocol,
 then `receive-pack` for a push, then the same conversation over HTTPS,
-and after that SSH. Two things to put right on the way: `clone --bare`
-writes tracking refs where git writes branches, and `push` takes the name
-of a remote where git also takes a path. Left over from Phase 2: stashing
-untracked files,
+and after that SSH. `git fetch` still wants the name of a remote where
+git also takes a path, which needs `FETCH_HEAD` to mean anything. Left
+over from Phase 2: stashing untracked files,
 interactive rebase, renames between the index and the working tree, and a
 merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.
