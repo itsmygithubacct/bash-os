@@ -258,9 +258,10 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     check(git(bare, 'rev-parse', '--verify', 'side', check_status=False).returncode != 0,
           'and unmaking it')
 
-    # A second push of a file worth deltifying: git would send a pack
-    # whose deltas lean on objects it does not carry, which this build
-    # cannot complete, so the far end says no-thin and gets a whole one.
+    # A second push of a file worth deltifying: git sends a pack whose
+    # deltas lean on objects it does not carry, the far end being
+    # expected to have them already. Completing it from what is here is
+    # what makes the push arrive.
     long_file = ''.join(f'line {i} of a file that is worth deltifying\n'
                         for i in range(300))
     (repo/'long.txt').write_text(long_file)
@@ -271,10 +272,10 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     git(repo, 'commit', '-q', '-am', 'one line of it changed')
     push('main', cwd=repo)
     check(git(bare, 'rev-parse', 'main').stdout == git(repo, 'rev-parse', 'main').stdout,
-          'a push that would otherwise be thin')
+          'a thin pack, completed')
     check(git(bare, 'cat-file', 'blob', 'main:long.txt').stdout
           == git(repo, 'cat-file', 'blob', 'main:long.txt').stdout,
-          'and the file arrived whole')
+          'and the delta applied to what was already there')
     check(git(bare, 'fsck', '--no-progress', '--strict').returncode == 0,
           'with nothing missing behind it')
 

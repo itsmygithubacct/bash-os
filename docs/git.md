@@ -214,9 +214,10 @@ refuses a branch it has checked out, one whose old id is not what the
 pusher thought, one that would lose commits, and one whose objects did
 not arrive, each in git's words; what it says for itself goes down the
 second side-band channel, which is what puts `remote:` in front of every
-line of it. It says `no-thin`, because a pack whose deltas lean on
-objects it does not carry is one this build cannot complete yet, so the
-other end sends a whole one instead.
+line of it. A pack whose deltas lean on objects it does not
+carry — which is what git sends when the far end already has them — is
+completed from what is here, so a second push of a large file that
+changed in one place carries the change and not the file.
 
 The pushing end refuses two things before it sends anything, the way git
 does, and tells them apart the way git does: a tip it has never seen
@@ -393,9 +394,8 @@ message and changes nothing.
 
 Phase 2 is done but for submodules, and Phase 3 is nearly done: clone,
 fetch, pull and push speak protocol v2 to a far end at a path or at an
-`http://` or `https://` address. What is left of it: completing a thin pack
-from what is already here, which is why `receive-pack` asks not to be
-sent one. After that comes SSH.
+`http://` or `https://` address. What is left of it is SSH, which is the
+phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 

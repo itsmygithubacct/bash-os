@@ -5102,11 +5102,16 @@ git_pack_scan (const unsigned char *pack, size_t plen,
     return 0;
 }
 
-/* The content of one object in the pack, with any delta applied. */
+/* The content of one object in the pack, with any delta applied. A pack
+   sent over the wire may be thin: a delta in it can lean on an object the
+   pack does not carry, which this end is expected to have already. ODB,
+   when given, is where those are looked for; THIN, when given, is set if
+   one was. */
 static int
 git_pack_content (const unsigned char *pack, size_t plen,
                   struct git_pack_entry *entries, size_t n, uint64_t offset,
-                  int *type_out, unsigned char **out, size_t *len_out, int depth)
+                  int *type_out, unsigned char **out, size_t *len_out, int depth,
+                  bgit_odb *odb, int *thin)
 {
     if (depth > BGIT_PACK_MAX_DELTA_DEPTH) return -1;
     struct git_pack_entry *entry = git_pack_at (entries, n, offset);
@@ -5127,12 +5132,28 @@ git_pack_content (const unsigned char *pack, size_t plen,
 
     /* A delta: find its base, then apply. */
     struct git_pack_entry *base_entry = git_pack_base (entries, n, entry);
-    if (!base_entry) { free (data); return -1; }
     unsigned char *base = NULL;
     size_t base_len = 0;
     int base_type = 0;
-    if (git_pack_content (pack, plen, entries, n, base_entry->offset, &base_type,
-                          &base, &base_len, depth + 1) < 0) {
+    if (!base_entry) {
+        /* Not in the pack: the far end left it out because this end has
+           it. Only a delta that names its base by id can be completed
+           that way; one that names an offset has nothing to look up. */
+        char hex[41];
+        enum bgit_type type;
+        if (!odb || entry->type != BGIT_PACK_REF_DELTA) { free (data); return -1; }
+        bgit_sha_to_hex (entry->base_sha, hex);
+        if (bgit_odb_read (odb, hex, &type, &base, &base_len) < 0) {
+            free (data);
+            return -1;
+        }
+        base_type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
+                  : type == BGIT_TREE ? BGIT_PACK_TREE
+                  : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
+        if (thin) *thin = 1;
+    } else if (git_pack_content (pack, plen, entries, n, base_entry->offset,
+                                 &base_type, &base, &base_len, depth + 1, odb,
+                                 thin) < 0) {
         free (data);
         return -1;
     }
@@ -5152,7 +5173,8 @@ git_pack_content (const unsigned char *pack, size_t plen,
 /* Name every object in the pack, deltas last, until nothing is left. */
 static int
 git_pack_resolve (const unsigned char *pack, size_t plen,
-                  struct git_pack_entry *entries, size_t n)
+                  struct git_pack_entry *entries, size_t n, bgit_odb *odb,
+                  int *thin)
 {
     size_t left = n;
     while (left) {
@@ -5163,7 +5185,7 @@ git_pack_resolve (const unsigned char *pack, size_t plen,
             unsigned char *content = NULL;
             size_t len = 0;
             if (git_pack_content (pack, plen, entries, n, entries[i].offset,
-                                  &type, &content, &len, 0) < 0)
+                                  &type, &content, &len, 0, odb, thin) < 0)
                 continue;             /* its base is not named yet */
             char hex[41];
             int rc = bgit_write_object (NULL, bgit_pack_type_name (type),
@@ -5354,7 +5376,9 @@ git_cmd_index_pack (git_context *ctx, WORD_LIST *args)
         free (pack);
         return GIT_EXIT_FATAL;
     }
-    if (git_pack_resolve (pack, plen, entries, n) < 0) {
+    /* A pack on disk must carry everything it needs; git's index-pack
+       completes one only when it is told to. */
+    if (git_pack_resolve (pack, plen, entries, n, NULL, NULL) < 0) {
         free (entries);
         free (pack);
         return GIT_EXIT_FATAL;
@@ -5421,7 +5445,7 @@ git_cmd_unpack_objects (git_context *ctx, WORD_LIST *args)
     struct git_pack_entry *entries = NULL;
     size_t n = 0;
     if (git_pack_scan (pack, plen, &entries, &n) < 0 ||
-        git_pack_resolve (pack, plen, entries, n) < 0) {
+        git_pack_resolve (pack, plen, entries, n, &ctx->odb, NULL) < 0) {
         free (entries);
         free (pack);
         return GIT_EXIT_FATAL;
@@ -5432,7 +5456,7 @@ git_cmd_unpack_objects (git_context *ctx, WORD_LIST *args)
         unsigned char *content = NULL;
         size_t len = 0;
         if (git_pack_content (pack, plen, entries, n, entries[i].offset, &type,
-                              &content, &len, 0) < 0) {
+                              &content, &len, 0, &ctx->odb, NULL) < 0) {
             status = GIT_EXIT_FATAL;
             break;
         }
@@ -5500,7 +5524,7 @@ git_cmd_verify_pack (git_context *ctx, WORD_LIST *args)
         size_t n = 0;
         size_t *chains = NULL;
         if (git_pack_scan (pack, plen, &entries, &n) < 0 ||
-            git_pack_resolve (pack, plen, entries, n) < 0)
+            git_pack_resolve (pack, plen, entries, n, NULL, NULL) < 0)
             status = 1;
         if (!status && !(chains = calloc (n + 1, sizeof *chains)))
             status = GIT_EXIT_FATAL;
@@ -6479,19 +6503,24 @@ git_store_pack_into (bgit_repo *repo, bgit_odb *odb, unsigned char *pack,
     if (len < 32) return 0;                    /* nothing came back */
     struct git_pack_entry *entries = NULL;
     size_t n = 0;
+    int thin = 0;
     if (git_pack_scan (pack, len, &entries, &n) < 0 ||
-        git_pack_resolve (pack, len, entries, n) < 0) {
+        git_pack_resolve (pack, len, entries, n, odb, &thin) < 0) {
         free (entries);
         return -1;
     }
+    /* A thin pack is not a pack this repository could keep: what its
+       deltas lean on is outside it. Written out object by object, every
+       one of them is whole. */
     int status = 0;
-    if (n < 100) {
+    if (n < 100 || thin) {
         for (size_t i = 0; !status && i < n; i++) {
             int type = 0;
             unsigned char *content = NULL;
             size_t content_len = 0;
             if (git_pack_content (pack, len, entries, n, entries[i].offset,
-                                  &type, &content, &content_len, 0) < 0) {
+                                  &type, &content, &content_len, 0, odb,
+                                  NULL) < 0) {
                 status = -1;
                 break;
             }
@@ -6644,11 +6673,8 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
     /* What this repository has, and what it can do. The capabilities ride
        on the first ref after a NUL; a repository with no refs at all says
        so under a name no ref could have. */
-    /* no-thin: a pack whose deltas lean on objects it does not carry is
-       one this build cannot complete yet, so the other end is asked not
-       to send one. */
     static const char capabilities[] =
-        "report-status delete-refs side-band-64k no-thin ofs-delta "
+        "report-status delete-refs side-band-64k ofs-delta "
         "object-format=sha1 agent=" GIT_AGENT_STRING;
     bgit_ref *refs = NULL;
     size_t n_refs = 0;
