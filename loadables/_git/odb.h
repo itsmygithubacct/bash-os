@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: MIT */
-/* _git/odb.h — git object database: loose objects, hashing, deflate.
+/* _git/odb.h — git objects: hashing, loose storage, and the object store.
  *
- * The object store code shared by the git builtins. obj exposes it as
- * verbs; pack reads the same loose objects when resolving REF_DELTA bases;
- * the porcelain commands build on it. Every function here works on a repo
- * root, the directory holding .git/.
+ * The lower half is the loose object format and the hashing that names an
+ * object. The upper half is the store: one lookup across a repository's own
+ * objects directory, its alternates, and every pack in them.
  *
- * These helpers report their own failures with builtin_error, in git's
- * wording, so a caller only has to choose an exit status.
+ * Unless a function is marked silent, it reports its own failures with
+ * builtin_error, in git's wording, so a caller only has to choose an exit
+ * status.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -17,6 +17,8 @@
 #define BASH_OS_GIT_ODB_H
 
 #include <stddef.h>
+
+#include "repo.h"
 
 /* Object types, in the order git's object header names them. */
 enum bgit_type { BGIT_BLOB, BGIT_TREE, BGIT_COMMIT, BGIT_TAG, BGIT_UNKNOWN };
@@ -31,10 +33,6 @@ int bgit_type_valid_name (const char *name);
    control characters, spaces or DEL, which the object header cannot hold. */
 int bgit_type_printable (const char *name);
 
-/* Walk parent directories from START looking for a .git/ directory. Returns
-   the malloc'd repo root (the parent of .git/), or NULL. */
-char *bgit_find_repo (const char *start);
-
 /* 1 if S is non-empty and entirely hexadecimal. */
 int bgit_all_hex (const char *s);
 
@@ -45,48 +43,77 @@ void bgit_sha_to_hex (const unsigned char *sha, char *out);
    not exactly 40 hexadecimal digits. */
 int bgit_hex_to_sha (const char *hex, unsigned char *sha);
 
-/* Resolve a full or abbreviated object id against the loose object store,
-   mirroring git's unique-prefix rule (4 hex digits minimum). Writes 40 hex
-   digits plus NUL into FULL. Returns 0, or -1 for unknown or ambiguous. */
-int bgit_resolve_prefix (const char *repo, const char *sha, char full[41]);
-
-/* Read <repo>/.git/objects/<aa>/<bbbb...> and return the inflated object,
-   header included. SHA may be abbreviated. Caller frees *out. */
-int bgit_read_loose (const char *repo, const char *sha,
-                     unsigned char **out, size_t *out_len);
-
-/* 1 if the loose object file for the full id SHA is readable. */
-int bgit_loose_exists (const char *repo, const char sha[41]);
-
 /* Parse the "<type> <size>\0" object header. Returns the offset of the
-   payload, or -1 if the header is not one git would have written. */
+   payload, or -1 if the header is not one git would have written. Silent. */
 long bgit_parse_header (const unsigned char *data, size_t len,
                         enum bgit_type *type, size_t *payload_size);
 
 /* Hash through sha1dc. DIGEST always receives the canonical SHA-1; the
    return value is -1 when a collision attack was detected, so a caller can
-   refuse to write the object. */
+   refuse to write the object. Silent. */
 int bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20]);
 
-/* Deflate DATA into a malloc'd buffer. Caller frees *out. */
+/* Deflate DATA into a malloc'd buffer. Caller frees *out. Silent. */
 int bgit_deflate (const unsigned char *data, size_t n,
                   unsigned char **out, size_t *out_len);
 
-/* Write deflated bytes to <repo>/.git/objects/<aa>/<bbbb...>, atomically and
+/* Read the loose object SHA (40 hex digits) from one objects directory.
+   *out holds the object as stored, header included. Caller frees. Silent,
+   since a caller usually tries several directories. */
+int bgit_read_loose_at (const char *objects_dir, const char *sha,
+                        unsigned char **out, size_t *out_len);
+
+/* Write deflated bytes as a loose object under OBJECTS_DIR, atomically and
    mode 0444 as git does. An object already present is left alone. */
-int bgit_write_loose (const char *repo, const char *sha,
-                      const unsigned char *deflated, size_t dlen);
+int bgit_write_loose_at (const char *objects_dir, const char *sha,
+                         const unsigned char *deflated, size_t dlen);
 
-/* Build "<type> <len>\0<content>", hash it, and with DO_WRITE store it.
-   SHA_HEX receives the object id even when nothing is written. */
-int bgit_hash_and_write (const char *type, const unsigned char *content,
-                         size_t clen, int do_write, const char *repo,
-                         char sha_hex[41]);
+/* Build "<type> <len>\0<content>", hash it, and with DO_WRITE store it under
+   OBJECTS_DIR. SHA_HEX receives the object id even when nothing is written. */
+int bgit_write_object (const char *objects_dir, const char *type,
+                       const unsigned char *content, size_t clen, int do_write,
+                       char sha_hex[41]);
 
-/* Read all of FD into a malloc'd buffer. Caller frees *out. */
+/* Read all of FD into a malloc'd buffer. Caller frees *out. Silent. */
 int bgit_slurp_fd (int fd, unsigned char **out, size_t *out_len);
 
 /* Read all of PATH into a malloc'd buffer. Caller frees *out. */
 int bgit_slurp_file (const char *path, unsigned char **out, size_t *out_len);
+
+/* ---- the object store: loose objects, every pack, and alternates ----
+ *
+ * One lookup over everything a repository can read: its own objects
+ * directory, the alternates it names, and every pack in each of them. Packs
+ * are memory-mapped, so a large repository costs address space, not copies.
+ */
+
+typedef struct bgit_pack_file bgit_pack_file;
+
+typedef struct {
+    char **object_dirs;
+    size_t n_object_dirs;
+    bgit_pack_file *packs;
+    size_t n_packs;
+    int packs_scanned;
+} bgit_odb;
+
+/* Open the store for REPO. Packs are indexed on first use. */
+int bgit_odb_open (const bgit_repo *repo, bgit_odb *odb);
+
+/* Close it, unmapping every pack. */
+void bgit_odb_release (bgit_odb *odb);
+
+/* Resolve a full object id or a unique abbreviation of at least 4 digits,
+   over loose objects and packs. Writes 40 hex digits plus NUL into FULL.
+   Returns 0; -1 with git's message for unknown, ambiguous or malformed. */
+int bgit_odb_resolve (bgit_odb *odb, const char *name, char full[41]);
+
+/* 1 if the full object id is present, loose or packed. Silent. */
+int bgit_odb_has (bgit_odb *odb, const char *sha);
+
+/* Read an object by id or unique abbreviation. Returns its type and payload
+   without the object header; caller frees *data. */
+int bgit_odb_read (bgit_odb *odb, const char *name, enum bgit_type *type,
+                   unsigned char **data, size_t *len);
 
 #endif /* BASH_OS_GIT_ODB_H */

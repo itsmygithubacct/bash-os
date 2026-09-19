@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: MIT */
-/* _git/odb.c — git object database: loose objects, hashing, deflate.
+/* _git/odb.c — git objects: hashing and loose storage.
  *
- * Moved out of obj.c so the git builtins share one object store. See odb.h
- * for the contract; the behaviour, including every message, is the same as
- * when obj held this code.
+ * The lookup across loose objects, packs and alternates is in store.c; this
+ * file is the loose object format and the hashing that names an object.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -20,7 +19,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <ctype.h>
 #include <zlib.h>
 
@@ -62,23 +60,6 @@ bgit_type_printable (const char *name)
         if (*p <= ' ' || *p == 0x7f)
             return 0;
     return 1;
-}
-
-char *
-bgit_find_repo (const char *start)
-{
-    char *cur = realpath (start, NULL);
-    if (!cur) return NULL;
-    while (1) {
-        char probe[4096];
-        snprintf (probe, sizeof probe, "%s/.git", cur);
-        struct stat st;
-        if (stat (probe, &st) == 0 && S_ISDIR (st.st_mode)) return cur;
-        /* Walk up. */
-        char *slash = strrchr (cur, '/');
-        if (!slash || slash == cur) { free (cur); return NULL; }
-        *slash = '\0';
-    }
 }
 
 int
@@ -126,145 +107,6 @@ bgit_hex_to_sha (const char *hex, unsigned char *sha)
         sha[i] = (unsigned char) ((hi << 4) | lo);
     }
     return 0;
-}
-
-int
-bgit_resolve_prefix (const char *repo, const char *sha, char full[41])
-{
-    size_t slen = strlen (sha);
-    if (slen == 40) {
-        memcpy (full, sha, 40);
-        full[40] = '\0';
-        return 0;
-    }
-    /* git's minimum abbreviation is 4 hex; shorter is rejected. */
-    if (slen < 4) {
-        builtin_error ("Not a valid object name %s", sha);
-        return -1;
-    }
-    char dir[4096];
-    snprintf (dir, sizeof dir, "%s/.git/objects/%c%c", repo, sha[0], sha[1]);
-    DIR *d = opendir (dir);
-    if (!d) {
-        builtin_error ("Not a valid object name %s", sha);
-        return -1;
-    }
-    const char *rest = sha + 2;          /* prefix to match against filenames */
-    size_t restlen = slen - 2;
-    int matches = 0;
-    char hit[39] = "";                   /* the matched filename (38 hex + NUL) */
-    struct dirent *de;
-    while ((de = readdir (d)) != NULL) {
-        if (de->d_name[0] == '.')
-            continue;
-        if (strlen (de->d_name) != 38)   /* loose-object basename length */
-            continue;
-        if (strncmp (de->d_name, rest, restlen) == 0) {
-            if (matches == 0) {
-                memcpy (hit, de->d_name, 38);
-                hit[38] = '\0';
-            }
-            matches++;
-            if (matches > 1)
-                break;
-        }
-    }
-    closedir (d);
-    if (matches == 0) {
-        builtin_error ("Not a valid object name %s", sha);
-        return -1;
-    }
-    if (matches > 1) {
-        builtin_error ("ambiguous argument '%s': unknown revision or object name", sha);
-        return -1;
-    }
-    full[0] = sha[0];
-    full[1] = sha[1];
-    memcpy (full + 2, hit, 38);
-    full[40] = '\0';
-    return 0;
-}
-
-int
-bgit_read_loose (const char *repo, const char *sha_in,
-                 unsigned char **out, size_t *out_len)
-{
-    if (!bgit_all_hex (sha_in) || strlen (sha_in) > 40) {
-        builtin_error ("invalid sha: %s", sha_in);
-        return -1;
-    }
-    char sha[41];
-    if (bgit_resolve_prefix (repo, sha_in, sha) < 0)
-        return -1;
-    char path[4096];
-    snprintf (path, sizeof path, "%s/.git/objects/%c%c/%s",
-              repo, sha[0], sha[1], sha + 2);
-    int fd = open (path, O_RDONLY);
-    if (fd < 0) {
-        builtin_error ("loose object %s: %s", sha, strerror (errno));
-        return -1;
-    }
-    /* Stat for size; mmap would be nice but read+inflate is simpler. */
-    struct stat st;
-    if (fstat (fd, &st) < 0) { close (fd); return -1; }
-    unsigned char *raw = malloc ((size_t) st.st_size);
-    if (!raw) { close (fd); return -1; }
-    ssize_t got = 0;
-    while (got < st.st_size) {
-        ssize_t r = read (fd, raw + got, (size_t) (st.st_size - got));
-        if (r < 0) {
-            if (errno == EINTR) continue;
-            builtin_error ("read loose: %s", strerror (errno));
-            free (raw); close (fd); return -1;
-        }
-        if (r == 0) break;
-        got += r;
-    }
-    close (fd);
-
-    /* Inflate. Loose objects use zlib format (window bits 15). */
-    z_stream s = {0};
-    if (inflateInit (&s) != Z_OK) {
-        builtin_error ("zlib init failed");
-        free (raw);
-        return -1;
-    }
-    s.next_in = raw;
-    s.avail_in = (uInt) got;
-    size_t cap = (size_t) got * 4 + 256;
-    unsigned char *buf = malloc (cap);
-    size_t total = 0;
-    int z_rc;
-    do {
-        if (total + 4096 > cap) {
-            cap = cap * 2 + 4096;
-            unsigned char *nb = realloc (buf, cap);
-            if (!nb) { free (buf); free (raw); inflateEnd (&s); return -1; }
-            buf = nb;
-        }
-        s.next_out = buf + total;
-        s.avail_out = (uInt) (cap - total);
-        z_rc = inflate (&s, Z_NO_FLUSH);
-        if (z_rc != Z_OK && z_rc != Z_STREAM_END) {
-            builtin_error ("zlib inflate failed: %s", s.msg ? s.msg : "?");
-            free (buf); free (raw); inflateEnd (&s); return -1;
-        }
-        total = cap - s.avail_out;
-    } while (z_rc != Z_STREAM_END);
-    inflateEnd (&s);
-    free (raw);
-    *out = buf;
-    *out_len = total;
-    return 0;
-}
-
-int
-bgit_loose_exists (const char *repo, const char sha[41])
-{
-    char path[4096];
-    snprintf (path, sizeof path, "%s/.git/objects/%c%c/%s",
-              repo, sha[0], sha[1], sha + 2);
-    return access (path, R_OK) == 0;
 }
 
 long
@@ -329,11 +171,74 @@ bgit_deflate (const unsigned char *data, size_t n,
 }
 
 int
-bgit_write_loose (const char *repo, const char *sha,
-                  const unsigned char *deflated, size_t dlen)
+bgit_read_loose_at (const char *objects_dir, const char *sha,
+                    unsigned char **out, size_t *out_len)
+{
+    if (!sha || strlen (sha) != 40) return -1;
+    char path[4096];
+    if (snprintf (path, sizeof path, "%s/%c%c/%s", objects_dir,
+                  sha[0], sha[1], sha + 2) >= (int) sizeof path)
+        return -1;
+    int fd = open (path, O_RDONLY);
+    if (fd < 0) return -1;
+    struct stat st;
+    if (fstat (fd, &st) < 0 || st.st_size < 0) { close (fd); return -1; }
+    unsigned char *raw = malloc ((size_t) st.st_size ? (size_t) st.st_size : 1);
+    if (!raw) { close (fd); return -1; }
+    ssize_t got = 0;
+    while (got < st.st_size) {
+        ssize_t r = read (fd, raw + got, (size_t) (st.st_size - got));
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            free (raw); close (fd); return -1;
+        }
+        if (r == 0) break;
+        got += r;
+    }
+    close (fd);
+
+    /* Inflate. Loose objects use zlib format (window bits 15). */
+    z_stream s = {0};
+    if (inflateInit (&s) != Z_OK) {
+        free (raw);
+        return -1;
+    }
+    s.next_in = raw;
+    s.avail_in = (uInt) got;
+    size_t cap = (size_t) got * 4 + 256;
+    unsigned char *buf = malloc (cap);
+    if (!buf) { free (raw); inflateEnd (&s); return -1; }
+    size_t total = 0;
+    int z_rc;
+    do {
+        if (total + 4096 > cap) {
+            cap = cap * 2 + 4096;
+            unsigned char *nb = realloc (buf, cap);
+            if (!nb) { free (buf); free (raw); inflateEnd (&s); return -1; }
+            buf = nb;
+        }
+        s.next_out = buf + total;
+        s.avail_out = (uInt) (cap - total);
+        z_rc = inflate (&s, Z_NO_FLUSH);
+        if (z_rc != Z_OK && z_rc != Z_STREAM_END) {
+            free (buf); free (raw); inflateEnd (&s); return -1;
+        }
+        total = cap - s.avail_out;
+    } while (z_rc != Z_STREAM_END);
+    inflateEnd (&s);
+    free (raw);
+    *out = buf;
+    *out_len = total;
+    return 0;
+}
+
+int
+bgit_write_loose_at (const char *objects_dir, const char *sha,
+                     const unsigned char *deflated, size_t dlen)
 {
     char dir[4096], path[4096], tmp[4096];
-    snprintf (dir, sizeof dir, "%s/.git/objects/%c%c", repo, sha[0], sha[1]);
+    mkdir (objects_dir, 0755);
+    snprintf (dir, sizeof dir, "%s/%c%c", objects_dir, sha[0], sha[1]);
     snprintf (path, sizeof path, "%s/%s", dir, sha + 2);
     /* If already present, success. */
     struct stat st;
@@ -371,9 +276,9 @@ bgit_write_loose (const char *repo, const char *sha,
 }
 
 int
-bgit_hash_and_write (const char *type, const unsigned char *content,
-                     size_t clen, int do_write, const char *repo,
-                     char sha_hex[41])
+bgit_write_object (const char *objects_dir, const char *type,
+                   const unsigned char *content, size_t clen, int do_write,
+                   char sha_hex[41])
 {
     /* Header: "TYPE LEN\0" */
     char hdr[64];
@@ -404,7 +309,7 @@ bgit_hash_and_write (const char *type, const unsigned char *content,
             return -1;
         }
         free (pre);
-        int rc = bgit_write_loose (repo, sha_hex, deflated, dlen);
+        int rc = bgit_write_loose_at (objects_dir, sha_hex, deflated, dlen);
         free (deflated);
         return rc;
     }
