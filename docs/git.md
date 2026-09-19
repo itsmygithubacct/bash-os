@@ -44,6 +44,7 @@ git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
 git cherry-pick  [-n] <commit> | --continue | --abort
 git stash        [push] [-m <message>] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
+git rebase       <upstream> [<branch>] | --continue | --abort | --skip
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
@@ -147,6 +148,14 @@ the same ids git's do. Applying one is a three-way merge against where it
 was taken, so it can conflict like any other. Keeping untracked files
 (`-u`) is refused for now rather than half-done.
 
+`git rebase` replays what a branch has that its upstream does not, one
+commit at a time, each replay being the same three-way merge a cherry-pick
+makes. HEAD is detached for the replay and the branch only moves at the
+end, which is why aborting leaves the branch exactly where it was. A
+replay that stops writes the state into `.git/rebase-merge` under git's own
+names, so `git status` reports the commands done and remaining the way git
+reports them, and `--continue`, `--skip` and `--abort` pick it up.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -221,7 +230,7 @@ message and changes nothing.
 
 ## Still to come
 
-Merging, cherry-pick, revert and stash are in. The rest of Phase 2 is
-rebase, worktrees, submodules, rename detection, stashing untracked files,
-and a merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Merging, cherry-pick, revert, stash and rebase are in. The rest of Phase 2
+is worktrees, submodules, rename detection, stashing untracked files,
+interactive rebase, and a merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

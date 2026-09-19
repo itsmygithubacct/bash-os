@@ -211,6 +211,46 @@ git stash push -m 'to be cleared' 2>/dev/null || true
 git stash clear
 git stash list
 
+# Replaying a branch onto another.
+git switch -q -c rebase-base merge-base-branch
+printf 'rebase one\n' > r1.txt
+git add r1.txt
+git commit -q -m 'a commit to replay'
+printf 'rebase two\n' > r2.txt
+git add r2.txt
+git commit -q -m 'another commit to replay'
+git switch -q merge-base-branch
+printf 'moved on\n' > moved.txt
+git add moved.txt
+git commit -q -m 'the branch moved on'
+git switch -q rebase-base
+git rebase merge-base-branch
+git log --oneline -4
+git status --short
+git switch -q -c rebase-clash merge-base-branch
+printf 'clashing\n' > clash.txt
+git add clash.txt
+git commit -q -m 'the clashing commit'
+git switch -q merge-base-branch
+printf 'also clashing\n' > clash.txt
+git add clash.txt
+git commit -q -m 'the other clashing commit'
+git switch -q rebase-clash
+git rebase merge-base-branch 2>/dev/null || true
+git status
+git status --short
+printf 'resolved\n' > clash.txt
+git add clash.txt
+git rebase --continue
+git log --oneline -3
+git switch -q -c rebase-abort merge-base-branch
+printf 'to abandon\n' > clash.txt
+git add clash.txt
+git commit -q -m 'a commit to abandon'
+git rebase rebase-clash 2>/dev/null || true
+git rebase --abort
+git status --short
+
 git fsck 2>/dev/null || true
 SCENARIO
 

@@ -51,6 +51,8 @@ ENV = {
     'TZ': 'UTC',
     'GIT_CONFIG_NOSYSTEM': '1',
     'GIT_TERMINAL_PROMPT': '0',
+    # Anything that would open an editor takes the message it was given.
+    'GIT_EDITOR': 'true',
     'GIT_AUTHOR_NAME': 'Parity Author',
     'GIT_AUTHOR_EMAIL': 'author@bash-os.test',
     'GIT_AUTHOR_DATE': '1750000000 +0000',

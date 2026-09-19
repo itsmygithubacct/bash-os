@@ -130,6 +130,12 @@ static int git_state_file (git_context *ctx, const char *name, char *out,
                            size_t outsz);
 /* The commit id a state file holds, if that file is there at all. */
 static int git_read_state_id (git_context *ctx, const char *name, char out[41]);
+/* A stopped rebase keeps its state in .git/rebase-merge; status reads it. */
+static int git_rebase_in_progress (git_context *ctx);
+static int git_rebase_read (git_context *ctx, const char *name, char *out,
+                            size_t outsz);
+static int git_rebase_list (git_context *ctx, const char *name,
+                            char lines[][1200], int max);
 static int git_write_state_file (git_context *ctx, const char *name,
                                  const char *content);
 static void git_remove_state_file (git_context *ctx, const char *name);
@@ -1929,7 +1935,10 @@ git_status_long (git_context *ctx, struct git_state *state,
                  const char *branch_name, int untracked_mode, int want_ignored)
 {
     char quoted[8192];
-    if (branch_name) printf ("On branch %s\n", branch_name);
+    /* A rebase in progress speaks for itself, in place of the branch. */
+    int rebasing = git_rebase_in_progress (ctx);
+    if (rebasing) ;
+    else if (branch_name) printf ("On branch %s\n", branch_name);
     else if (state->have_head) {
         char abbreviated[41];
         git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
@@ -1964,6 +1973,43 @@ git_status_long (git_context *ctx, struct git_state *state,
     } else if (merging) {
         printf ("All conflicts fixed but you are still merging.\n");
         printf ("  (use \"git commit\" to conclude merge)\n\n");
+    } else if (rebasing) {
+        char onto[41] = "", head_name[4096] = "", abbreviated[41] = "";
+        git_rebase_read (ctx, "onto", onto, sizeof onto);
+        git_rebase_read (ctx, "head-name", head_name, sizeof head_name);
+        if (*onto) git_abbrev (ctx, onto, 7, abbreviated, sizeof abbreviated);
+        printf ("interactive rebase in progress; onto %s\n", abbreviated);
+
+        /* The last two commands done and the next two to do, as git lists
+           them, from the same two files. */
+        char lines[64][1200];
+        int n = git_rebase_list (ctx, "done", lines, 64);
+        if (!n) printf ("No commands done.\n");
+        else {
+            printf ("Last command%s done (%d command%s done):\n",
+                    n == 1 ? "" : "s", n, n == 1 ? "" : "s");
+            for (int i = n > 2 ? n - 2 : 0; i < n; i++)
+                printf ("   %s\n", lines[i]);
+            if (n > 2)
+                printf ("  (see more in file %s/rebase-merge/done)\n",
+                        ctx->repo.git_dir);
+        }
+        n = git_rebase_list (ctx, "git-rebase-todo", lines, 64);
+        if (!n) printf ("No commands remaining.\n");
+        else {
+            printf ("Next command%s to do (%d remaining command%s):\n",
+                    n == 1 ? "" : "s", n, n == 1 ? "" : "s");
+            for (int i = 0; i < 2 && i < n; i++) printf ("   %s\n", lines[i]);
+            printf ("  (use \"git rebase --edit-todo\" to view and edit)\n");
+        }
+        const char *shown = head_name;
+        if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
+        printf ("You are currently rebasing branch '%s' on '%s'.\n", shown,
+                abbreviated);
+        printf ("  (fix conflicts and then run \"git rebase --continue\")\n");
+        printf ("  (use \"git rebase --skip\" to skip this patch)\n");
+        printf ("  (use \"git rebase --abort\" to check out the original "
+                "branch)\n\n");
     } else if (picking || reverting) {
         const char *verb = picking ? "cherry-pick" : "revert";
         char abbreviated[41];
@@ -3540,6 +3586,29 @@ done:
     return status;
 }
 
+/* Point HEAD straight at a commit, which is what being detached means. */
+static int
+git_head_detach (git_context *ctx, struct git_state *state, const char *commit,
+                 const char *message)
+{
+    char path[4096];
+    if (bgit_ref_path (&ctx->repo, "HEAD", path, sizeof path) < 0) return -1;
+    bgit_lock lock;
+    if (bgit_lock_acquire (&lock, path) < 0) return -1;
+    char line[42];
+    int len = snprintf (line, sizeof line, "%s\n", commit);
+    if (bgit_lock_write (&lock, line, (size_t) len) < 0 ||
+        bgit_lock_commit (&lock) < 0) {
+        bgit_lock_rollback (&lock);
+        return -1;
+    }
+    if (message)
+        bgit_reflog_append (&ctx->repo, "HEAD",
+                            state->have_head ? state->head : NULL, commit,
+                            message);
+    return 0;
+}
+
 /* Move HEAD to another branch or commit, updating the working tree. */
 static int
 git_switch_to (git_context *ctx, struct git_state *state, const char *target,
@@ -3584,23 +3653,8 @@ git_switch_to (git_context *ctx, struct git_state *state, const char *target,
             return GIT_EXIT_FATAL;
         bgit_reflog_append (&ctx->repo, "HEAD", state->have_head ? state->head : NULL,
                             commit, message);
-    } else {
-        /* A detached HEAD holds the commit itself. */
-        char path[4096];
-        if (bgit_ref_path (&ctx->repo, "HEAD", path, sizeof path) < 0)
-            return GIT_EXIT_FATAL;
-        bgit_lock lock;
-        if (bgit_lock_acquire (&lock, path) < 0) return GIT_EXIT_FATAL;
-        char line[42];
-        int len = snprintf (line, sizeof line, "%s\n", commit);
-        if (bgit_lock_write (&lock, line, (size_t) len) < 0 ||
-            bgit_lock_commit (&lock) < 0) {
-            bgit_lock_rollback (&lock);
-            return GIT_EXIT_FATAL;
-        }
-        bgit_reflog_append (&ctx->repo, "HEAD", state->have_head ? state->head : NULL,
-                            commit, message);
-    }
+    } else if (git_head_detach (ctx, state, commit, message) < 0)
+        return GIT_EXIT_FATAL;
     return 0;
 }
 
@@ -4678,6 +4732,650 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
         git_merge_summary (ctx, state.head_tree, tree);
     }
     bgit_merge_paths_free (paths, n_paths);
+    git_state_release (&state);
+    return status;
+}
+
+/* ---- rebase ------------------------------------------------------------ */
+
+/* A rebase that stops keeps its state in .git/rebase-merge, in the files
+   git keeps it in and under the same names, so `git status` reads it back
+   the same way whichever implementation wrote it. */
+static int
+git_rebase_path (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    return snprintf (out, outsz, "%s/rebase-merge%s%s", ctx->repo.git_dir,
+                     *name ? "/" : "", name) >= (int) outsz ? -1 : 0;
+}
+
+static int
+git_rebase_write (git_context *ctx, const char *name, const char *content)
+{
+    char path[4096];
+    if (git_rebase_path (ctx, name, path, sizeof path) < 0) return -1;
+    FILE *file = fopen (path, "w");
+    if (!file) return -1;
+    fputs (content, file);
+    return fclose (file) == 0 ? 0 : -1;
+}
+
+/* One line of a state file, without its newline. */
+static int
+git_rebase_read (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    char path[4096];
+    if (git_rebase_path (ctx, name, path, sizeof path) < 0) return -1;
+    FILE *file = fopen (path, "r");
+    if (!file) return -1;
+    out[0] = '\0';
+    if (!fgets (out, (int) outsz, file)) { fclose (file); return -1; }
+    fclose (file);
+    size_t len = strlen (out);
+    while (len && (out[len - 1] == '\n' || out[len - 1] == '\r')) out[--len] = '\0';
+    return 0;
+}
+
+/* Every line of one of the todo files, comments and blanks left out. */
+static int
+git_rebase_list (git_context *ctx, const char *name, char lines[][1200], int max)
+{
+    char path[4096];
+    if (git_rebase_path (ctx, name, path, sizeof path) < 0) return 0;
+    FILE *file = fopen (path, "r");
+    if (!file) return 0;
+    int n = 0;
+    char line[1200];
+    while (n < max && fgets (line, sizeof line, file)) {
+        size_t len = strlen (line);
+        while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+            line[--len] = '\0';
+        if (!*line || *line == '#') continue;
+        snprintf (lines[n++], 1200, "%s", line);
+    }
+    fclose (file);
+    return n;
+}
+
+static int
+git_rebase_in_progress (git_context *ctx)
+{
+    char path[4096];
+    struct stat st;
+    return git_rebase_path (ctx, "", path, sizeof path) == 0 &&
+           lstat (path, &st) == 0 && S_ISDIR (st.st_mode);
+}
+
+static void
+git_rebase_clear (git_context *ctx)
+{
+    static const char *const names[] = {
+        "head-name", "onto", "orig-head", "msgnum", "end", "done",
+        "git-rebase-todo", "interactive", "message", "stopped-sha", NULL
+    };
+    char path[4096];
+    for (int i = 0; names[i]; i++)
+        if (git_rebase_path (ctx, names[i], path, sizeof path) == 0)
+            unlink (path);
+    if (git_rebase_path (ctx, "", path, sizeof path) == 0) rmdir (path);
+    git_remove_state_file (ctx, "REBASE_HEAD");
+}
+
+/* The line a rebase's todo list holds for one commit. */
+static void
+git_rebase_line (git_context *ctx, const char *commit, char *out, size_t outsz)
+{
+    char abbreviated[41], subject[1024] = "";
+    git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+    struct git_commit parsed;
+    if (git_commit_read (ctx, commit, &parsed) == 0) {
+        git_subject (&parsed, subject, sizeof subject);
+        git_commit_release (&parsed);
+    }
+    snprintf (out, outsz, "pick %s %s", abbreviated, subject);
+}
+
+/* Apply one commit onto HEAD, the way cherry-pick does. Returns 0 when it
+   settled, 1 when it did not, -1 on failure. */
+static int
+git_rebase_apply (git_context *ctx, struct git_state *state, const char *commit,
+                  int *empty)
+{
+    *empty = 0;
+    struct git_commit picked;
+    if (git_commit_read (ctx, commit, &picked) < 0) return -1;
+    if (!picked.n_parents) {
+        git_commit_release (&picked);
+        return -1;
+    }
+    char parent_tree[41];
+    if (bgit_commit_tree (&ctx->odb, picked.parents[0], parent_tree) < 0) {
+        git_commit_release (&picked);
+        return -1;
+    }
+    char abbreviated[41], subject[1024];
+    git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+    git_subject (&picked, subject, sizeof subject);
+    char label[1200];
+    snprintf (label, sizeof label, "%s (%s)", abbreviated, subject);
+
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    if (bgit_merge_trees (&ctx->odb, ctx->odb.object_dirs[0], parent_tree,
+                          state->head_tree, picked.tree, "HEAD", label,
+                          &paths, &n_paths) < 0) {
+        git_commit_release (&picked);
+        return -1;
+    }
+    if (git_merge_safe (ctx, state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        return -1;
+    }
+    int conflicts = 0;
+    for (size_t i = 0; i < n_paths; i++) {
+        const bgit_merge_path *path = &paths[i];
+        if (path->kind == BGIT_MERGE_AUTO || path->kind == BGIT_MERGE_CONTENT ||
+            path->kind == BGIT_MERGE_ADD_ADD)
+            printf ("Auto-merging %s\n", path->path);
+        if (path->kind == BGIT_MERGE_CONTENT) {
+            conflicts++;
+            printf ("CONFLICT (content): Merge conflict in %s\n", path->path);
+        } else if (path->kind == BGIT_MERGE_ADD_ADD) {
+            conflicts++;
+            printf ("CONFLICT (add/add): Merge conflict in %s\n", path->path);
+        } else if (path->kind == BGIT_MERGE_MODIFY_DELETE) {
+            conflicts++;
+            printf ("CONFLICT (modify/delete): %s deleted in %s and modified "
+                    "in %s.  Version %s of %s left in tree.\n", path->path,
+                    path->deleted_in_ours ? "HEAD" : label,
+                    path->deleted_in_ours ? label : "HEAD",
+                    path->deleted_in_ours ? label : "HEAD", path->path);
+        }
+    }
+    if (git_merge_apply (ctx, state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&picked);
+        return -1;
+    }
+    bgit_merge_paths_free (paths, n_paths);
+    if (conflicts) {
+        git_commit_release (&picked);
+        return 1;
+    }
+
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state->index,
+                         state->n_index, tree) < 0) {
+        git_commit_release (&picked);
+        return -1;
+    }
+    if (!strcmp (tree, state->head_tree)) {
+        /* Everything this commit did is already here: git drops it. */
+        *empty = 1;
+        git_commit_release (&picked);
+        return 0;
+    }
+    char author[1024];
+    snprintf (author, sizeof author, "%s <%s> %s", picked.author_name,
+              picked.author_email, picked.author_date);
+    char reflog[1200];
+    snprintf (reflog, sizeof reflog, "rebase (pick): %s", subject);
+
+    char committer[1024];
+    if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
+        git_commit_release (&picked);
+        return -1;
+    }
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) { git_commit_release (&picked); return -1; }
+    fprintf (builder, "tree %s\n", tree);
+    fprintf (builder, "parent %s\n", state->head);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    fprintf (builder, "\n%s", picked.message);
+    fclose (builder);
+    char written[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1,
+                                written);
+    free (body);
+    git_commit_release (&picked);
+    if (rc < 0) return -1;
+    if (git_head_detach (ctx, state, written, reflog) < 0) return -1;
+    /* HEAD has moved, so the state follows it. */
+    memcpy (state->head, written, 41);
+    memcpy (state->head_tree, tree, 41);
+    state->have_head = 1;
+    return 0;
+}
+
+/* Put the branch back where HEAD now is, and attach HEAD to it again. */
+static int
+git_rebase_finish (git_context *ctx, struct git_state *state,
+                   const char *head_name, const char *onto, int quiet)
+{
+    char message[1200], branch_message[1200];
+    snprintf (message, sizeof message, "rebase (finish): returning to %s",
+              head_name);
+    snprintf (branch_message, sizeof branch_message, "rebase (finish): %s onto %s",
+              head_name, onto);
+    if (bgit_ref_update (&ctx->repo, head_name, state->head, NULL,
+                         branch_message) < 0 ||
+        bgit_symref_write (&ctx->repo, "HEAD", head_name, NULL) < 0)
+        return GIT_EXIT_FATAL;
+    bgit_reflog_append (&ctx->repo, "HEAD", state->head, state->head, message);
+    git_rebase_clear (ctx);
+    if (!quiet) {
+        fflush (stdout);
+        fprintf (stderr, "Successfully rebased and updated %s.\n", head_name);
+    }
+    return 0;
+}
+
+static int
+git_cmd_rebase (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git rebase <upstream> [<branch>] | --continue "
+                        "| --abort | --skip";
+    const char *upstream = NULL, *branch = NULL;
+    int continue_it = 0, abort_it = 0, skip_it = 0, quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--continue")) continue_it = 1;
+        else if (!strcmp (w, "--abort")) abort_it = 1;
+        else if (!strcmp (w, "--skip")) skip_it = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!upstream) upstream = w;
+        else if (!branch) branch = w;
+        else return git_usage (usage);
+    }
+    if (!upstream && !continue_it && !abort_it && !skip_it)
+        return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int running = git_rebase_in_progress (ctx);
+    int status = 0;
+
+    if (abort_it) {
+        if (!running) {
+            git_state_release (&state);
+            return git_fatal ("No rebase in progress?");
+        }
+        char head_name[4096], orig[41];
+        if (git_rebase_read (ctx, "head-name", head_name, sizeof head_name) < 0 ||
+            git_rebase_read (ctx, "orig-head", orig, sizeof orig) < 0) {
+            git_state_release (&state);
+            return git_fatal ("cannot read the rebase state");
+        }
+        char tree[41];
+        if (bgit_commit_tree (&ctx->odb, orig, tree) < 0 ||
+            bgit_checkout_tree (&ctx->repo, &ctx->odb, tree, &state.index,
+                                &state.n_index, 1, NULL) < 0 ||
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status) {
+            /* The branch never moved — HEAD was detached for the replay —
+               so only HEAD goes back. */
+            char message[1200];
+            snprintf (message, sizeof message,
+                      "rebase (abort): returning to %s", head_name);
+            if (bgit_symref_write (&ctx->repo, "HEAD", head_name, NULL) < 0)
+                status = GIT_EXIT_FATAL;
+            else
+                bgit_reflog_append (&ctx->repo, "HEAD", state.head, orig, message);
+        }
+        git_rebase_clear (ctx);
+        git_state_release (&state);
+        return status;
+    }
+
+    char todo[64][1200];
+    int n_todo = 0, done_count = 0;
+    char head_name[4096] = "", onto[41] = "", orig[41] = "";
+    char done_lines[64][1200];
+
+    if (continue_it || skip_it) {
+        if (!running) {
+            git_state_release (&state);
+            return git_fatal ("No rebase in progress?");
+        }
+        if (git_rebase_read (ctx, "head-name", head_name, sizeof head_name) < 0 ||
+            git_rebase_read (ctx, "onto", onto, sizeof onto) < 0 ||
+            git_rebase_read (ctx, "orig-head", orig, sizeof orig) < 0) {
+            git_state_release (&state);
+            return git_fatal ("cannot read the rebase state");
+        }
+        for (size_t i = 0; i < state.n_index; i++)
+            if ((state.index[i].flags >> 12) & 3) {
+                git_state_release (&state);
+                fflush (stdout);
+                fprintf (stderr, "error: Committing is not possible because "
+                                 "you have unmerged files.\n");
+                fprintf (stderr, "fatal: Exiting because of an unresolved "
+                                 "conflict.\n");
+                return 1;
+            }
+        /* Finish the commit that stopped, unless it is being skipped. */
+        char stopped[41];
+        if (!skip_it && git_rebase_read (ctx, "stopped-sha", stopped,
+                                         sizeof stopped) == 0) {
+            struct git_commit picked;
+            if (git_commit_read (ctx, stopped, &picked) < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            char tree[41];
+            if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                                 state.n_index, tree) < 0) {
+                git_commit_release (&picked);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            char author[1024], committer[1024], subject[1024];
+            git_subject (&picked, subject, sizeof subject);
+            snprintf (author, sizeof author, "%s <%s> %s", picked.author_name,
+                      picked.author_email, picked.author_date);
+            if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
+                git_commit_release (&picked);
+                git_state_release (&state);
+                return git_fatal ("cannot determine the identity to use");
+            }
+            char *body = NULL;
+            size_t body_len = 0;
+            FILE *builder = open_memstream (&body, &body_len);
+            if (!builder) {
+                git_commit_release (&picked);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            fprintf (builder, "tree %s\n", tree);
+            fprintf (builder, "parent %s\n", state.head);
+            fprintf (builder, "author %s\n", author);
+            fprintf (builder, "committer %s\n", committer);
+            fprintf (builder, "\n%s", picked.message);
+            fclose (builder);
+            char written[41];
+            int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                        (const unsigned char *) body, body_len,
+                                        1, written);
+            free (body);
+            git_commit_release (&picked);
+            if (rc < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            char reflog[1200];
+            snprintf (reflog, sizeof reflog, "rebase (continue): %s", subject);
+            char old_tree[41];
+            memcpy (old_tree, state.head_tree, 41);
+            if (git_head_detach (ctx, &state, written, reflog) < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            memcpy (state.head, written, 41);
+            memcpy (state.head_tree, tree, 41);
+            if (!quiet) {
+                char abbreviated[41];
+                git_abbrev (ctx, written, 7, abbreviated, sizeof abbreviated);
+                printf ("[detached HEAD %s] %s\n", abbreviated, subject);
+                char author_who[1024], committer_who[1024];
+                git_ident_who (author, author_who, sizeof author_who);
+                git_ident_who (committer, committer_who, sizeof committer_who);
+                if (strcmp (author_who, committer_who))
+                    printf (" Author: %s\n", author_who);
+                struct git_diff_format format;
+                git_diff_format_init (&format);
+                format.shortstat = 1;
+                format.summary = 1;
+                bgit_diff_entry *entries = NULL;
+                size_t n_entries = 0;
+                if (bgit_diff_trees (&ctx->odb, old_tree, tree, &entries,
+                                     &n_entries) == 0) {
+                    git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
+                    bgit_diff_free (entries, n_entries);
+                }
+            }
+        }
+        /* What is left to do. */
+        char path[4096];
+        if (git_rebase_path (ctx, "git-rebase-todo", path, sizeof path) == 0) {
+            FILE *file = fopen (path, "r");
+            if (file) {
+                char line[1200];
+                while (n_todo < 64 && fgets (line, sizeof line, file)) {
+                    size_t len = strlen (line);
+                    while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+                        line[--len] = '\0';
+                    if (*line) snprintf (todo[n_todo++], sizeof todo[0], "%s", line);
+                }
+                fclose (file);
+            }
+        }
+        if (git_rebase_path (ctx, "done", path, sizeof path) == 0) {
+            FILE *file = fopen (path, "r");
+            if (file) {
+                char line[1200];
+                while (done_count < 64 && fgets (line, sizeof line, file)) {
+                    size_t len = strlen (line);
+                    while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+                        line[--len] = '\0';
+                    if (*line)
+                        snprintf (done_lines[done_count++], sizeof done_lines[0],
+                                  "%s", line);
+                }
+                fclose (file);
+            }
+        }
+    } else {
+        if (running) {
+            git_state_release (&state);
+            return git_fatal ("It seems that there is already a rebase-merge "
+                              "directory");
+        }
+        if (branch) {
+            if (git_switch_to (ctx, &state, branch, 0, 0) != 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            git_state_release (&state);
+            if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+        }
+        if (!state.have_head || !state.branch) {
+            git_state_release (&state);
+            return git_fatal ("You are not currently on a branch");
+        }
+        snprintf (head_name, sizeof head_name, "%s", state.branch);
+        memcpy (orig, state.head, 41);
+
+        char id[41];
+        if (git_resolve (ctx, upstream, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, onto) < 0) {
+            git_state_release (&state);
+            return git_fatal ("invalid upstream '%s'", upstream);
+        }
+
+        /* What this branch has that the upstream does not, oldest first. */
+        const char *starts[1] = { state.head };
+        const char *excludes[1] = { onto };
+        char (*ordered)[41] = NULL;
+        size_t n = 0;
+        if (git_collect_commits (ctx, starts, 1, excludes, 1, 0, -1, &ordered,
+                                 &n) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        for (size_t i = 0; i < n && n_todo < 64; i++)
+            git_rebase_line (ctx, ordered[n - 1 - i], todo[n_todo++],
+                             sizeof todo[0]);
+        free (ordered);
+
+        /* A branch already sitting on its upstream has nothing to replay. */
+        if (bgit_is_ancestor (&ctx->odb, onto, state.head) > 0) {
+            const char *shown = head_name;
+            if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
+            printf ("Current branch %s is up to date.\n", shown);
+            git_state_release (&state);
+            return 0;
+        }
+        if (!n_todo) {
+            /* Only behind: the branch moves up, reported like any rebase. */
+            char tree[41];
+            if (bgit_commit_tree (&ctx->odb, onto, tree) < 0 ||
+                bgit_checkout_tree (&ctx->repo, &ctx->odb, tree, &state.index,
+                                    &state.n_index, 0, NULL) < 0 ||
+                git_index_store (ctx, state.index, state.n_index) < 0)
+                status = GIT_EXIT_FATAL;
+            if (!status) {
+                char start_message[1200];
+                snprintf (start_message, sizeof start_message,
+                          "rebase (start): checkout %s", upstream);
+                bgit_reflog_append (&ctx->repo, "HEAD", state.head, onto,
+                                    start_message);
+                memcpy (state.head, onto, 41);
+                memcpy (state.head_tree, tree, 41);
+                status = git_rebase_finish (ctx, &state, head_name, onto, quiet);
+            }
+            git_state_release (&state);
+            return status;
+        }
+
+        /* Start from the upstream, with HEAD detached, as git does. */
+        char tree[41];
+        if (bgit_commit_tree (&ctx->odb, onto, tree) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        char *losing = NULL;
+        int rc = bgit_checkout_tree (&ctx->repo, &ctx->odb, tree, &state.index,
+                                     &state.n_index, 0, &losing);
+        if (rc != 0) {
+            fflush (stdout);
+            fprintf (stderr, "error: cannot rebase: You have unstaged "
+                             "changes.\n");
+            free (losing);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        char start_message[1200];
+        snprintf (start_message, sizeof start_message, "rebase (start): checkout %s",
+                  upstream);
+        if (git_index_store (ctx, state.index, state.n_index) < 0 ||
+            git_head_detach (ctx, &state, onto, start_message) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        memcpy (state.head, onto, 41);
+        memcpy (state.head_tree, tree, 41);
+
+        char path[4096];
+        if (git_rebase_path (ctx, "", path, sizeof path) < 0 ||
+            (mkdir (path, 0777) < 0 && errno != EEXIST)) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        git_rebase_write (ctx, "head-name", "");
+        git_rebase_write (ctx, "interactive", "");
+    }
+
+    /* Replay what is left, stopping at the first thing that does not settle. */
+    char content[8192];
+    int started_with = done_count;
+    int total = done_count + n_todo;
+    for (int i = 0; i < n_todo; i++) {
+        char id[41];
+        const char *space = strchr (todo[i], ' ');
+        const char *second = space ? strchr (space + 1, ' ') : NULL;
+        char name[64] = "";
+        if (space && second && second - space - 1 < (int) sizeof name) {
+            memcpy (name, space + 1, (size_t) (second - space - 1));
+            name[second - space - 1] = '\0';
+        }
+        if (!*name || git_resolve (ctx, name, id, NULL) < 0) {
+            git_state_release (&state);
+            return git_fatal ("cannot read the rebase todo list");
+        }
+
+        fflush (stdout);
+        fprintf (stderr, "Rebasing (%d/%d)\r", started_with + i + 1, total);
+        int empty = 0;
+        int rc = git_rebase_apply (ctx, &state, id, &empty);
+        if (rc < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+
+        /* Whatever happened, this command is done. */
+        size_t at = 0;
+        content[0] = '\0';
+        for (int j = 0; j < done_count && at < sizeof content; j++)
+            at += (size_t) snprintf (content + at, sizeof content - at, "%s\n",
+                                     done_lines[j]);
+        at += (size_t) snprintf (content + at, sizeof content - at, "%s\n", todo[i]);
+        git_rebase_write (ctx, "done", content);
+        if (done_count < 64)
+            snprintf (done_lines[done_count++], sizeof done_lines[0], "%s", todo[i]);
+        at = 0;
+        content[0] = '\0';
+        for (int j = i + 1; j < n_todo && at < sizeof content; j++)
+            at += (size_t) snprintf (content + at, sizeof content - at, "%s\n",
+                                     todo[j]);
+        git_rebase_write (ctx, "git-rebase-todo", content);
+
+        if (rc == 1) {
+            char short_id[41], subject[1024] = "";
+            git_abbrev (ctx, id, 7, short_id, sizeof short_id);
+            struct git_commit picked;
+            if (git_commit_read (ctx, id, &picked) == 0) {
+                git_subject (&picked, subject, sizeof subject);
+                snprintf (content, sizeof content, "%s", picked.message);
+                git_rebase_write (ctx, "message", content);
+                git_commit_release (&picked);
+            }
+            snprintf (content, sizeof content, "%s\n", id);
+            git_rebase_write (ctx, "stopped-sha", content);
+            git_write_state_file (ctx, "REBASE_HEAD", content);
+            snprintf (content, sizeof content, "%s\n", head_name);
+            git_rebase_write (ctx, "head-name", content);
+            snprintf (content, sizeof content, "%s\n", onto);
+            git_rebase_write (ctx, "onto", content);
+            snprintf (content, sizeof content, "%s\n", orig);
+            git_rebase_write (ctx, "orig-head", content);
+            snprintf (content, sizeof content, "%d\n", done_count);
+            git_rebase_write (ctx, "msgnum", content);
+            snprintf (content, sizeof content, "%d\n", total);
+            git_rebase_write (ctx, "end", content);
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "error: could not apply %s... %s\n", short_id,
+                     subject);
+            fprintf (stderr, "hint: Resolve all conflicts manually, mark them "
+                             "as resolved with\n");
+            fprintf (stderr, "hint: \"git add/rm <conflicted_files>\", then run "
+                             "\"git rebase --continue\".\n");
+            fprintf (stderr, "hint: You can instead skip this commit: run "
+                             "\"git rebase --skip\".\n");
+            fprintf (stderr, "hint: To abort and get back to the state before "
+                             "\"git rebase\", run \"git rebase --abort\".\n");
+            fprintf (stderr, "Could not apply %s... %s\n", short_id, subject);
+            return 1;
+        }
+    }
+
+    /* Everything replayed: the branch follows HEAD and HEAD follows it. */
+    if (!*head_name &&
+        git_rebase_read (ctx, "head-name", head_name, sizeof head_name) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot read the rebase state");
+    }
+    status = git_rebase_finish (ctx, &state, head_name, onto, quiet);
     git_state_release (&state);
     return status;
 }
@@ -6176,6 +6874,7 @@ static const struct {
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
     { "read-tree",    git_cmd_read_tree },
+    { "rebase",       git_cmd_rebase },
     { "reflog",       git_cmd_reflog },
     { "reset",        git_cmd_reset },
     { "restore",      git_cmd_restore },

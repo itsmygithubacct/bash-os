@@ -59,8 +59,20 @@ BASHOS_PROC_ROOT=$d/empty "$BX" -c 'PATH=; uptime' >/dev/null 2>"$d/miss"; rc=$?
 if [[ -x /usr/bin/uptime ]]; then
   g=$(/usr/bin/uptime -s)
   b=$(B uptime -s)
-  [[ $b == "$g" ]] && ok "live uptime -s matches uptime(1): $g" \
-    || no "live builtin '$b' gnu '$g'"
+  # Both work the boot time out as now minus the uptime, and each reads the
+  # clock a moment after the other, so a second between the two answers is
+  # this test's own race and not a difference in the builtin.
+  gs=$(date -d "$g" +%s 2>/dev/null || true)
+  bs=$(date -d "$b" +%s 2>/dev/null || true)
+  if [[ -n $gs && -n $bs ]]; then
+    delta=$(( gs > bs ? gs - bs : bs - gs ))
+    (( delta <= 1 )) \
+      && ok "live uptime -s is within a second of uptime(1): $g" \
+      || no "live builtin '$b' gnu '$g'"
+  else
+    [[ $b == "$g" ]] && ok "live uptime -s matches uptime(1): $g" \
+      || no "live builtin '$b' gnu '$g'"
+  fi
 else
   echo "  SKIP  GNU uptime -s comparison (no /usr/bin/uptime)"
 fi
