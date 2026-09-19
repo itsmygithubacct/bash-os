@@ -224,7 +224,7 @@ int
 bgit_odb_resolve (bgit_odb *odb, const char *name, char full[41])
 {
     if (!bgit_all_hex (name) || strlen (name) > 40) {
-        builtin_error ("Not a valid object name %s", name ? name : "");
+        if (!odb->quiet) builtin_error ("Not a valid object name %s", name ? name : "");
         return -1;
     }
     size_t len = strlen (name);
@@ -232,14 +232,14 @@ bgit_odb_resolve (bgit_odb *odb, const char *name, char full[41])
         memcpy (full, name, 40);
         full[40] = '\0';
         if (!bgit_odb_has (odb, full)) {
-            builtin_error ("Not a valid object name %s", name);
+            if (!odb->quiet) builtin_error ("Not a valid object name %s", name);
             return -1;
         }
         return 0;
     }
     /* git's minimum abbreviation is 4 hex; shorter is rejected. */
     if (len < 4) {
-        builtin_error ("Not a valid object name %s", name);
+        if (!odb->quiet) builtin_error ("Not a valid object name %s", name);
         return -1;
     }
     int matches = 0;
@@ -250,12 +250,13 @@ bgit_odb_resolve (bgit_odb *odb, const char *name, char full[41])
     for (size_t i = 0; i < odb->n_packs && matches < 2; i++)
         bgit_pack_match_prefix (&odb->packs[i], name, candidate, &matches);
     if (matches == 0) {
-        builtin_error ("Not a valid object name %s", name);
+        if (!odb->quiet) builtin_error ("Not a valid object name %s", name);
         return -1;
     }
     if (matches > 1) {
-        builtin_error ("ambiguous argument '%s': unknown revision or object name",
-                       name);
+        if (!odb->quiet)
+            builtin_error ("ambiguous argument '%s': unknown revision or object name",
+                           name);
         return -1;
     }
     memcpy (full, candidate, 41);
@@ -309,7 +310,7 @@ bgit_odb_read_loose (bgit_odb *odb, const char *sha, enum bgit_type *type,
         long off = bgit_parse_header (raw, raw_len, type, &payload);
         if (off < 0 || (size_t) off > raw_len || payload > raw_len - (size_t) off) {
             free (raw);
-            builtin_error ("malformed object header for %s", sha);
+            if (!odb->quiet) builtin_error ("malformed object header for %s", sha);
             return -1;
         }
         unsigned char *content = malloc (payload ? payload : 1);
@@ -343,7 +344,8 @@ bgit_odb_read_packed (bgit_odb *odb, const char *sha, enum bgit_type *type,
         size_t clen = 0;
         if (bgit_pack_read_object_at (pack, plen, p->idx, p->idx_len, NULL, off,
                                       &pack_type, &content, &clen, 0) < 0) {
-            builtin_error ("cannot read %s from %s", sha, p->pack_path);
+            if (!odb->quiet)
+                builtin_error ("cannot read %s from %s", sha, p->pack_path);
             return -1;
         }
         *type = bgit_type_from_pack (pack_type);
@@ -365,6 +367,6 @@ bgit_odb_read (bgit_odb *odb, const char *name, enum bgit_type *type,
     if (rc <= 0) return rc;
     rc = bgit_odb_read_packed (odb, sha, type, data, len);
     if (rc <= 0) return rc;
-    builtin_error ("Not a valid object name %s", name);
+    if (!odb->quiet) builtin_error ("Not a valid object name %s", name);
     return -1;
 }

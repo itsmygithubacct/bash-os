@@ -193,6 +193,14 @@
         "_git"
       ]
     },
+    "git": {
+      "helpers": [
+        "_git"
+      ],
+      "libs": [
+        "-lz"
+      ]
+    },
     "pack": {
       "helpers": [
         "_git"

@@ -95,6 +95,9 @@ typedef struct {
     bgit_pack_file *packs;
     size_t n_packs;
     int packs_scanned;
+    /* Set by a caller that words its own messages, such as the git builtin,
+       which says "fatal: ..." the way git does. */
+    int quiet;
 } bgit_odb;
 
 /* Open the store for REPO. Packs are indexed on first use. */

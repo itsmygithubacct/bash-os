@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Phase 1 everyday commands: add, commit, status, diff, log, branch, switch,
 # restore, reset and tag. Run through tests/git-parity.py, never on its own.
+# requires: init add status commit log diff branch switch tag ls-files
+# requires: restore reset rev-parse reflog cat-file
 set -e
 
 git init -q -b main .

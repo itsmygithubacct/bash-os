@@ -3,6 +3,9 @@
 # Phase 0 plumbing: objects, the index, trees, refs and ignore rules.
 # Every command here must give bash-os's git and real git the same output and
 # the same repository. Run through tests/git-parity.py, never on its own.
+# requires: init hash-object cat-file update-index ls-files write-tree ls-tree
+# requires: commit-tree update-ref symbolic-ref rev-parse rev-list show-ref
+# requires: for-each-ref tag check-ignore status config var
 set -e
 
 git init -q -b main .

@@ -217,6 +217,7 @@
       "obj",
       "index",
       "pack",
+      "git",
       "procstat",
       "vmstat",
       "uptime",

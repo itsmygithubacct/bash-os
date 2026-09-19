@@ -293,6 +293,7 @@ cksum|cksum
 obj|obj
 index|index
 pack|pack
+git|git
 ssh|ssh
 pkg|pkg
 ntp|ntp

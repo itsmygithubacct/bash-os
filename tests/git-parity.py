@@ -68,11 +68,24 @@ def scenarios():
     return chosen
 
 
-def has_git_builtin():
+def implemented():
+    """The commands bash-os's git has, from `git --list-cmds`."""
     result = subprocess.run([binary, '--noprofile', '--norc', '-c',
-                             'PATH=; [[ $(type -t git) == builtin ]]'],
-                            capture_output=True)
-    return result.returncode == 0
+                             'PATH=; [[ $(type -t git) == builtin ]] || exit 1; git --list-cmds'],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        return set()
+    return set(result.stdout.split())
+
+
+def required(script):
+    """A scenario's "# requires: ..." lines name the commands it uses."""
+    commands = set()
+    for line in script.read_text().splitlines()[:20]:
+        stripped = line.strip()
+        if stripped.startswith('#') and 'requires:' in stripped:
+            commands |= set(stripped.split('requires:', 1)[1].split())
+    return commands
 
 
 def run_scenario(script, workdir, home, side):
@@ -172,12 +185,17 @@ found = scenarios()
 if not found:
     raise SystemExit('git-parity: no scenarios in tests/git/')
 
-builtin = has_git_builtin()
+have = implemented()
+ran = 0
 for script in found:
-    if builtin:
-        parity(script, 'bash-os', 'git')
+    missing = required(script) - have
+    if not have:
+        print(f'skip {script.stem}: {binary.name} has no git builtin', flush=True)
+    elif missing:
+        print(f'skip {script.stem}: git has no {" ".join(sorted(missing))}', flush=True)
     else:
-        print(f'skip {script.stem}: {binary.name} has no git builtin yet', flush=True)
+        parity(script, 'bash-os', 'git')
+        ran += 1
 
 # The harness checks itself: the same scenario run twice under real git must
 # compare equal, and an altered tree must be caught.
@@ -194,5 +212,6 @@ for script in found:
 for problem in problems:
     print(problem, file=sys.stderr)
 print(f'git-parity: {checks} comparisons against {version}, '
-      f'{len(found)} scenario(s), {len(problems)} problem(s)')
+      f'{ran} of {len(found)} scenario(s) run against bash-os, '
+      f'{len(problems)} problem(s)')
 raise SystemExit(1 if problems else 0)
