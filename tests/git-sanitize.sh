@@ -100,6 +100,12 @@ git log --oneline 'topic~1..topic'
 git log --oneline -- nest
 git rev-list --count '^topic~1' topic
 git log --oneline nosuchrev 2>/dev/null || true   # the error path, quietly
+git log --graph --oneline
+git log --graph -p -1
+git merge-base topic main
+git merge-base --is-ancestor main topic || true
+git merge-base --independent topic main
+git merge-base --octopus topic main
 git reflog > /dev/null
 git fsck 2>/dev/null || true
 SCENARIO

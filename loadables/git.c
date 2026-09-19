@@ -50,6 +50,7 @@
 #include "_git_diff.h"
 #include "_git_ignore.h"
 #include "_git_index.h"
+#include "_git_merge.h"
 #include "_git_odb.h"
 #include "_git_patch.h"
 #include "_git_refs.h"
@@ -2063,7 +2064,8 @@ struct git_diff_format {
 static void git_diff_format_init (struct git_diff_format *format);
 static int git_diff_format_option (struct git_diff_format *format,
                                    const char *word);
-static int git_diff_emit (git_context *ctx, const struct git_diff_format *format,
+static int git_diff_emit (git_context *ctx, FILE *out,
+                          const struct git_diff_format *format,
                           const bgit_diff_entry *entries, size_t n,
                           int new_from_worktree, const char *line_prefix);
 
@@ -2273,7 +2275,7 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         size_t n_entries = 0;
         if (bgit_diff_trees (&ctx->odb, have_parent ? parent_tree : NULL, tree,
                              &entries, &n_entries) == 0) {
-            git_diff_emit (ctx, &format, entries, n_entries, 0, "");
+            git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
             bgit_diff_free (entries, n_entries);
         }
     }
@@ -2416,61 +2418,61 @@ git_subject (const struct git_commit *commit, char *out, size_t outsz)
 }
 
 static void
-git_format_commit (git_context *ctx, const struct git_commit *commit,
+git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
                    const char *format, int raw_date)
 {
     char buffer[4096];
     for (const char *p = format; *p; p++) {
-        if (*p != '%') { putchar (*p); continue; }
+        if (*p != '%') { fputc (*p, out); continue; }
         p++;
         switch (*p) {
-        case 'H': fputs (commit->id, stdout); break;
+        case 'H': fputs (commit->id, out); break;
         case 'h': {
             char abbreviated[41];
             git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
-            fputs (abbreviated, stdout);
+            fputs (abbreviated, out);
             break;
         }
-        case 'T': fputs (commit->tree, stdout); break;
+        case 'T': fputs (commit->tree, out); break;
         case 'P':
             for (int i = 0; i < commit->n_parents; i++)
-                printf ("%s%s", i ? " " : "", commit->parents[i]);
+                fprintf (out, "%s%s", i ? " " : "", commit->parents[i]);
             break;
         case 'p':
             for (int i = 0; i < commit->n_parents; i++) {
                 char abbreviated[41];
                 git_abbrev (ctx, commit->parents[i], 7, abbreviated,
                             sizeof abbreviated);
-                printf ("%s%s", i ? " " : "", abbreviated);
+                fprintf (out, "%s%s", i ? " " : "", abbreviated);
             }
             break;
         case 'a':
             p++;
-            if (*p == 'n') fputs (commit->author_name, stdout);
-            else if (*p == 'e') fputs (commit->author_email, stdout);
+            if (*p == 'n') fputs (commit->author_name, out);
+            else if (*p == 'e') fputs (commit->author_email, out);
             else if (*p == 'd') {
                 git_format_date (commit->author_date, raw_date, buffer, sizeof buffer);
-                fputs (buffer, stdout);
+                fputs (buffer, out);
             } else if (*p == 't') {
                 git_format_date (commit->author_date, 1, buffer, sizeof buffer);
-                fputs (strtok (buffer, " "), stdout);
+                fputs (strtok (buffer, " "), out);
             }
             break;
         case 'c':
             p++;
-            if (*p == 'n') fputs (commit->committer_name, stdout);
-            else if (*p == 'e') fputs (commit->committer_email, stdout);
+            if (*p == 'n') fputs (commit->committer_name, out);
+            else if (*p == 'e') fputs (commit->committer_email, out);
             else if (*p == 'd') {
                 git_format_date (commit->committer_date, raw_date, buffer, sizeof buffer);
-                fputs (buffer, stdout);
+                fputs (buffer, out);
             } else if (*p == 't') {
                 git_format_date (commit->committer_date, 1, buffer, sizeof buffer);
-                fputs (strtok (buffer, " "), stdout);
+                fputs (strtok (buffer, " "), out);
             }
             break;
         case 's': {
             git_subject (commit, buffer, sizeof buffer);
-            fputs (buffer, stdout);
+            fputs (buffer, out);
             break;
         }
         case 'b': {
@@ -2478,16 +2480,16 @@ git_format_commit (git_context *ctx, const struct git_commit *commit,
             const char *nl = strchr (commit->message, '\n');
             const char *body = nl ? nl + 1 : "";
             if (*body == '\n') body++;
-            fputs (body, stdout);
+            fputs (body, out);
             break;
         }
-        case 'n': putchar ('\n'); break;
-        case '%': putchar ('%'); break;
+        case 'n': fputc ('\n', out); break;
+        case '%': fputc ('%', out); break;
         case '\0': return;
-        default: putchar ('%'); putchar (*p); break;
+        default: fputc ('%', out); fputc (*p, out); break;
         }
     }
-    putchar ('\n');
+    fputc ('\n', out);
 }
 
 /* The commits reachable from REVS but not from EXCLUDES, newest first by
@@ -2614,7 +2616,7 @@ git_commit_changes (git_context *ctx, const struct git_commit *commit,
 }
 
 static int
-git_commit_diff (git_context *ctx, const struct git_commit *commit,
+git_commit_diff (git_context *ctx, FILE *out, const struct git_commit *commit,
                  const struct git_diff_format *format,
                  const char *const *paths, int n_paths)
 {
@@ -2623,7 +2625,7 @@ git_commit_diff (git_context *ctx, const struct git_commit *commit,
     size_t n = 0;
     if (git_commit_changes (ctx, commit, paths, n_paths, &entries, &n) < 0)
         return -1;
-    int rc = git_diff_emit (ctx, format, entries, n, 0, "");
+    int rc = git_diff_emit (ctx, out, format, entries, n, 0, "");
     bgit_diff_free (entries, n);
     return rc;
 }
@@ -2646,7 +2648,7 @@ git_commit_touches (git_context *ctx, const struct git_commit *commit,
 /* One commit as `git log` and `git show` print it: the header, the message
    indented by four spaces, then whatever diff was asked for. */
 static void
-git_print_commit (git_context *ctx, const struct git_commit *commit,
+git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
                   int oneline, const char *format, int raw_date,
                   const struct git_diff_format *diff,
                   const char *const *paths, int n_paths)
@@ -2655,32 +2657,33 @@ git_print_commit (git_context *ctx, const struct git_commit *commit,
         char abbreviated[41], subject[4096];
         git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
         git_subject (commit, subject, sizeof subject);
-        printf ("%s %s\n", abbreviated, subject);
+        fprintf (out, "%s %s\n", abbreviated, subject);
     } else if (format) {
-        git_format_commit (ctx, commit, format, raw_date);
+        git_format_commit (ctx, out, commit, format, raw_date);
     } else {
         char date[128];
         git_format_date (commit->author_date, raw_date, date, sizeof date);
-        printf ("commit %s\n", commit->id);
+        fprintf (out, "commit %s\n", commit->id);
         if (commit->n_parents > 1) {
-            printf ("Merge:");
+            fprintf (out, "Merge:");
             for (int j = 0; j < commit->n_parents; j++) {
                 char abbreviated[41];
                 git_abbrev (ctx, commit->parents[j], 7, abbreviated,
                             sizeof abbreviated);
-                printf (" %s", abbreviated);
+                fprintf (out, " %s", abbreviated);
             }
-            putchar ('\n');
+            fputc ('\n', out);
         }
-        printf ("Author: %s <%s>\n", commit->author_name, commit->author_email);
-        printf ("Date:   %s\n\n", date);
+        fprintf (out, "Author: %s <%s>\n", commit->author_name,
+                 commit->author_email);
+        fprintf (out, "Date:   %s\n\n", date);
         /* Every line is indented by four spaces, a blank one included. */
         const char *line = commit->message;
         while (*line) {
             const char *nl = strchr (line, '\n');
             size_t len = nl ? (size_t) (nl - line) : strlen (line);
             if (!nl && !len) break;
-            printf ("    %.*s\n", (int) len, line);
+            fprintf (out, "    %.*s\n", (int) len, line);
             if (!nl) break;
             line = nl + 1;
         }
@@ -2688,8 +2691,25 @@ git_print_commit (git_context *ctx, const struct git_commit *commit,
     if (diff && git_diff_wanted (diff)) {
         /* The long format keeps a blank line between message and diff; the
            one-line format runs straight into it. */
-        if (!oneline) putchar ('\n');
-        git_commit_diff (ctx, commit, diff, paths, n_paths);
+        if (!oneline) fputc ('\n', out);
+        git_commit_diff (ctx, out, commit, diff, paths, n_paths);
+    }
+}
+
+/* One commit's block, with git's graph column down its left: the first line
+   carries the commit itself, every other line the strand it sits on. This
+   build draws a straight history, which is all it can make. */
+static void
+git_print_graph (const char *block)
+{
+    int first = 1;
+    for (const char *line = block; *line;) {
+        const char *nl = strchr (line, '\n');
+        size_t len = nl ? (size_t) (nl - line) : strlen (line);
+        printf ("%s%.*s\n", first ? "* " : "| ", (int) len, line);
+        first = 0;
+        if (!nl) break;
+        line = nl + 1;
     }
 }
 
@@ -2697,10 +2717,10 @@ static int
 git_cmd_log (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git log [--oneline] [--format=<format>] "
-                        "[-p] [--stat] [-n <number>] [--reverse] "
+                        "[-p] [--stat] [--graph] [-n <number>] [--reverse] "
                         "[--first-parent] [--date=raw] [<revision>...]";
     const char *format = NULL;
-    int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0;
+    int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0, graph = 0;
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
@@ -2730,8 +2750,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             rev_words[n_revs] = w;
             revs[n_revs++] = "--all";
         }
-        else if (!strcmp (w, "--graph"))
-            return git_fatal ("this build's git log has no --graph yet");
+        else if (!strcmp (w, "--graph")) graph = 1;
         else if (w[0] == '^' && w[1]) {
             if (n_excludes >= (int) (sizeof excludes / sizeof *excludes))
                 return git_fatal ("too many revisions");
@@ -2841,9 +2860,27 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             continue;
         }
         if (limit >= 0 && shown >= limit) { git_commit_release (&commit); break; }
-        if (!oneline && !format && !first) putchar ('\n');
-        git_print_commit (ctx, &commit, oneline, format, raw_date, &diff,
-                          paths, n_paths);
+        if (graph && commit.n_parents > 1) {
+            git_commit_release (&commit);
+            free (ordered);
+            return git_fatal ("this build's git log --graph draws a straight "
+                              "history only; this one has a merge");
+        }
+        if (!oneline && !format && !first) printf (graph ? "| \n" : "\n");
+        if (graph) {
+            /* Capture the block, then set it beside the graph column. */
+            char *block = NULL;
+            size_t size = 0;
+            FILE *capture = open_memstream (&block, &size);
+            if (!capture) { git_commit_release (&commit); free (ordered); return GIT_EXIT_FATAL; }
+            git_print_commit (ctx, capture, &commit, oneline, format, raw_date,
+                              &diff, paths, n_paths);
+            fclose (capture);
+            git_print_graph (block);
+            free (block);
+        } else
+            git_print_commit (ctx, stdout, &commit, oneline, format, raw_date,
+                              &diff, paths, n_paths);
         first = 0;
         shown++;
         git_commit_release (&commit);
@@ -2886,7 +2923,8 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
    side comes from the working tree when NEW_FROM_WORKTREE, so `git diff`
    reads files rather than blobs that were never written. */
 static int
-git_diff_emit (git_context *ctx, const struct git_diff_format *format,
+git_diff_emit (git_context *ctx, FILE *out,
+               const struct git_diff_format *format,
                const bgit_diff_entry *entries, size_t n, int new_from_worktree,
                const char *line_prefix)
 {
@@ -2907,8 +2945,9 @@ git_diff_emit (git_context *ctx, const struct git_diff_format *format,
             const char *name = bgit_quote_path (entries[i].path, quoted,
                                                 sizeof quoted);
             if (format->name_status)
-                printf ("%s%c\t%s\n", options.line_prefix, entries[i].status, name);
-            else printf ("%s%s\n", options.line_prefix, name);
+                fprintf (out, "%s%c\t%s\n", options.line_prefix,
+                         entries[i].status, name);
+            else fprintf (out, "%s%s\n", options.line_prefix, name);
         }
     }
     if (stats || format->summary) {
@@ -2917,18 +2956,18 @@ git_diff_emit (git_context *ctx, const struct git_diff_format *format,
             if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &options,
                                &counted) < 0)
                 return -1;
-            if (format->numstat) bgit_numstat_write (stdout, counted, n);
-            if (format->stat) bgit_diffstat_write (stdout, counted, n,
+            if (format->numstat) bgit_numstat_write (out, counted, n);
+            if (format->stat) bgit_diffstat_write (out, counted, n,
                                                    options.line_prefix);
-            if (format->shortstat) bgit_shortstat_write (stdout, counted, n,
+            if (format->shortstat) bgit_shortstat_write (out, counted, n,
                                                          options.line_prefix);
             free (counted);
         }
         if (format->summary)
-            bgit_diff_summary (stdout, entries, n, options.line_prefix);
+            bgit_diff_summary (out, entries, n, options.line_prefix);
     }
     if (patch &&
-        bgit_patch_write (stdout, &ctx->odb, &ctx->repo, entries, n, &options) < 0)
+        bgit_patch_write (out, &ctx->odb, &ctx->repo, entries, n, &options) < 0)
         return -1;
     return 0;
 }
@@ -3029,8 +3068,8 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
     }
     /* Only a comparison that ends at the working tree reads files. */
     int from_worktree = !cached && n_revs < 2;
-    int status = git_diff_emit (ctx, &format, entries, n, from_worktree, "") < 0
-                 ? GIT_EXIT_FATAL : 0;
+    int status = git_diff_emit (ctx, stdout, &format, entries, n,
+                                from_worktree, "") < 0 ? GIT_EXIT_FATAL : 0;
     bgit_diff_free (entries, n);
     git_state_release (&state);
     return status;
@@ -3155,8 +3194,8 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
             struct git_commit commit;
             if (git_commit_read (ctx, id, &commit) < 0)
                 return git_fatal ("unable to read %s", id);
-            git_print_commit (ctx, &commit, oneline, format, raw_date, &diff,
-                              NULL, 0);
+            git_print_commit (ctx, stdout, &commit, oneline, format,
+                              raw_date, &diff, NULL, 0);
             git_commit_release (&commit);
             break;
         }
@@ -3820,6 +3859,85 @@ git_cmd_rm (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- merge-base -------------------------------------------------------- */
+
+static int
+git_cmd_merge_base (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git merge-base [--all] <commit> <commit>... | "
+                        "--is-ancestor <commit> <commit> | "
+                        "(--independent | --octopus) [--all] <commit>...";
+    int all = 0, is_ancestor = 0, independent = 0, octopus = 0;
+    const char *names[32];
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-a") || !strcmp (w, "--all")) all = 1;
+        else if (!strcmp (w, "--is-ancestor")) is_ancestor = 1;
+        else if (!strcmp (w, "--independent")) independent = 1;
+        else if (!strcmp (w, "--octopus")) octopus = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < (int) (sizeof names / sizeof *names)) names[n_names++] = w;
+        else return git_fatal ("too many commits");
+    }
+    if (!n_names || (!independent && n_names < 2)) return git_usage (usage);
+    if (is_ancestor && n_names != 2) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char (*ids)[41] = calloc ((size_t) n_names, sizeof *ids);
+    const char **commits = calloc ((size_t) n_names, sizeof *commits);
+    if (!ids || !commits) {
+        free (ids);
+        free (commits);
+        return GIT_EXIT_FATAL;
+    }
+    for (int i = 0; i < n_names; i++) {
+        char id[41];
+        if (git_resolve (ctx, names[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, ids[i]) < 0) {
+            free (ids);
+            free (commits);
+            return git_fatal ("Not a valid object name %s", names[i]);
+        }
+        commits[i] = ids[i];
+    }
+
+    if (is_ancestor) {
+        int reaches = bgit_is_ancestor (&ctx->odb, ids[0], ids[1]);
+        free (ids);
+        free (commits);
+        return reaches < 0 ? GIT_EXIT_FATAL : (reaches ? 0 : 1);
+    }
+
+    char (*bases)[41] = NULL;
+    size_t n_bases = 0;
+    int rc;
+    if (independent)
+        rc = bgit_independent (&ctx->odb, commits, n_names, &bases, &n_bases);
+    else if (octopus)
+        rc = bgit_merge_bases_octopus (&ctx->odb, commits, n_names, &bases,
+                                       &n_bases);
+    else
+        rc = bgit_merge_bases_many (&ctx->odb, commits[0], commits + 1,
+                                    n_names - 1, &bases, &n_bases);
+    free (ids);
+    free (commits);
+    if (rc < 0) {
+        free (bases);
+        return GIT_EXIT_FATAL;
+    }
+    /* Only --all asks for more than the first, and --independent is a list
+       by its nature. */
+    for (size_t i = 0; i < n_bases; i++) {
+        printf ("%s\n", bases[i]);
+        if (!all && !independent) break;
+    }
+    int found = n_bases > 0;
+    free (bases);
+    return found ? 0 : 1;
+}
+
 /* ---- mv and clean ------------------------------------------------------ */
 
 /* Move one tracked path in the index, keeping everything else about it. */
@@ -4351,6 +4469,7 @@ static const struct {
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
     { "ls-tree",      git_cmd_ls_tree },
+    { "merge-base",   git_cmd_merge_base },
     { "mv",           git_cmd_mv },
     { "read-tree",    git_cmd_read_tree },
     { "reflog",       git_cmd_reflog },

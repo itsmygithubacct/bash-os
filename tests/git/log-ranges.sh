@@ -55,6 +55,12 @@ git log -p -1 -- b.txt
 git log --oneline 'main..topic' -- t.txt
 git log --name-status -2 -- b.txt
 
+echo '=== the graph column ==='
+git log --graph --oneline
+git log --graph -2
+git log --graph --stat -1
+git log --graph -p -1 -- b.txt
+
 echo '=== names that do not resolve ==='
 git log --oneline 'HEAD~9..HEAD' || echo "bad range: $?"
 git log --oneline nosuchrev || echo "bad revision: $?"

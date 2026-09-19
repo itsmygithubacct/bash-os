@@ -36,6 +36,8 @@ git reset        [-q] [--soft | --mixed | --hard] [<commit>] [-- <path>...]
 git rm           [--cached] [-r] [-f] [-q] [--] <path>...
 git mv           [-v] [-f] [-k] [-n] <source>... <destination>
 git clean        [-d] [-f] [-n] [-q] [-x | -X] [--] [<path>...]
+git merge-base   [--all] <commit> <commit>... | --is-ancestor <a> <b>
+                 | (--independent | --octopus) <commit>...
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
@@ -69,7 +71,9 @@ first-parent steps, `^{}` and `^{<type>}` to peel, `@{<n>}` for a ref's nth
 previous value, read from its reflog, and `<rev>:<path>` for what a path
 held in that revision. `log` and `rev-list` take ranges — `A..B` for what
 B has and A does not, `^A` to exclude — and `log` takes a pathspec after
-`--`, showing only the commits that changed something it names.
+`--`, showing only the commits that changed something it names. `log
+--graph` draws the column git draws, for a history without merges; a merge
+in the walk is refused rather than drawn wrongly.
 
 A patch is git's: the same hunks, in the same places. Myers' algorithm
 decides which lines changed, each run of changes is then slid as far down
@@ -165,8 +169,8 @@ message and changes nothing.
 
 ## Still to come
 
-The rest of Phase 1: `mv`, `clean`, and `log --graph`. Then Phase 2 —
-merging, cherry-pick, revert, rebase, stash, worktrees, submodules and
-rename detection — then HTTPS remotes with protocol v2, then SSH. The
-plan, including what each phase must match, is in the implementation
-document for the port.
+Phase 1 is done. Next is Phase 2 — merging, cherry-pick, revert, rebase,
+stash, worktrees, submodules and rename detection — of which the merge
+base, the question every three-way merge starts from, is in already. Then
+HTTPS remotes with protocol v2, then SSH. The plan, including what each
+phase must match, is in the implementation document for the port.
