@@ -167,6 +167,23 @@ bgit_pkt_write (int fd, const void *data, size_t len)
 }
 
 int
+bgit_pkt_write_band (int fd, int channel, const void *data, size_t len)
+{
+    /* A packet holds 65516 bytes at most, one of which is the channel. */
+    const unsigned char *at = data;
+    unsigned char framed[65516];
+    framed[0] = (unsigned char) channel;
+    do {
+        size_t take = len > sizeof framed - 1 ? sizeof framed - 1 : len;
+        memcpy (framed + 1, at, take);
+        if (bgit_pkt_write (fd, framed, take + 1) < 0) return -1;
+        at += take;
+        len -= take;
+    } while (len);
+    return 0;
+}
+
+int
 bgit_pkt_writef (int fd, const char *format, ...)
 {
     char buf[4096];
@@ -257,6 +274,84 @@ bgit_proto_refs_release (bgit_proto_ref *refs, size_t n)
         free (refs[i].symref);
     }
     free (refs);
+}
+
+/* Room for LEN more bytes in a growing buffer. */
+static int
+bgit_proto_room (unsigned char **buf, size_t len, size_t *cap, size_t more)
+{
+    if (len + more <= *cap) return 0;
+    size_t next = *cap ? *cap : 65536;
+    while (next < len + more) next *= 2;
+    unsigned char *grown = realloc (*buf, next);
+    if (!grown) return -1;
+    *buf = grown;
+    *cap = next;
+    return 0;
+}
+
+int
+bgit_proto_fetch (bgit_pkt_reader *reader, int out,
+                  const char *const *wants, size_t n_wants,
+                  const char *const *haves, size_t n_haves,
+                  unsigned char **pack, size_t *pack_len)
+{
+    *pack = NULL;
+    *pack_len = 0;
+    if (bgit_pkt_writef (out, "command=fetch\n") < 0 ||
+        bgit_pkt_writef (out, "object-format=sha1\n") < 0 ||
+        bgit_pkt_delim (out) < 0)
+        return -1;
+    /* No thin pack is asked for: this end completes nothing from its own
+       objects yet. Offset deltas it can read. */
+    if (bgit_pkt_writef (out, "ofs-delta\n") < 0 ||
+        bgit_pkt_writef (out, "no-progress\n") < 0)
+        return -1;
+    for (size_t i = 0; i < n_wants; i++)
+        if (bgit_pkt_writef (out, "want %s\n", wants[i]) < 0) return -1;
+    for (size_t i = 0; i < n_haves; i++)
+        if (bgit_pkt_writef (out, "have %s\n", haves[i]) < 0) return -1;
+    /* Saying "done" ends the negotiation in one round: the far end works
+       out what to send from the haves it has been given. */
+    if (bgit_pkt_writef (out, "done\n") < 0 || bgit_pkt_flush (out) < 0)
+        return -1;
+
+    unsigned char *body = NULL;
+    size_t len = 0, cap = 0;
+    int in_pack = 0;
+    for (;;) {
+        const unsigned char *data = NULL;
+        int got = bgit_pkt_read (reader, &data);
+        if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+        if (got == BGIT_PKT_DELIM) continue;
+        if (got < 0) { free (body); return -1; }
+        if (!in_pack) {
+            /* Section headers, and the acknowledgments of a far end that
+               answers one even though this one said it was done. */
+            if (got >= 8 && !memcmp (data, "packfile", 8)) in_pack = 1;
+            continue;
+        }
+        if (!got) continue;
+        int channel = data[0];
+        if (channel == 1) {
+            if (bgit_proto_room (&body, len, &cap, (size_t) got - 1) < 0) {
+                free (body);
+                return -1;
+            }
+            memcpy (body + len, data + 1, (size_t) got - 1);
+            len += (size_t) got - 1;
+        } else if (channel == 2) {
+            fwrite (data + 1, 1, (size_t) got - 1, stderr);
+        } else {
+            fflush (stdout);
+            fprintf (stderr, "remote: %.*s", got - 1, (const char *) data + 1);
+            free (body);
+            return -1;
+        }
+    }
+    *pack = body;
+    *pack_len = len;
+    return 0;
 }
 
 int

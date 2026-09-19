@@ -65,7 +65,7 @@ def bgit(*args, cwd, status=0, env=None):
     return result
 
 
-def packets(data):
+def raw_packets(data):
     """Split a pkt-line stream into payloads, with markers named."""
     out = []
     at = 0
@@ -78,9 +78,15 @@ def packets(data):
             out.append('DELIM' if length == 1 else 'END')
             at += 4
         else:
-            out.append(data[at+4:at+length].decode())
+            out.append(data[at+4:at+length])
             at += length
     return out
+
+
+def packets(data):
+    """The same, as text: the packets of a conversation are lines."""
+    return [line if isinstance(line, str) else line.decode()
+            for line in raw_packets(data)]
 
 
 def pkt(text):
@@ -158,6 +164,59 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     check(len(answered) == 4, 'two answers of two tags each', answered)
     check(all('refs/tags/' in line for line in answered[-4:]), 'the prefix narrowed it',
           answered[-4:])
+
+    # A fetch over the connection, both ways round. git's client must be
+    # able to clone through this build's upload-pack, and this build's
+    # fetch must work against git's — with the same history either way.
+    reference_log = git(repo, 'log', '--format=%H %s').stdout
+    for label, upload_pack in (('ours', OURS), ('theirs', THEIRS)):
+        into = tmp/f'clone-{label}'
+        git(tmp, 'clone', '-q', f'--upload-pack={upload_pack}', str(repo), str(into))
+        check(git(into, 'log', '--format=%H %s').stdout == reference_log,
+              'git clone through upload-pack', label)
+        check(git(into, 'fsck', '--no-progress', '--strict').returncode == 0,
+              'what it cloned is sound', label)
+
+    for label, upload_pack in (('ours', OURS), ('theirs', THEIRS)):
+        into = tmp/f'fetch-{label}'
+        into.mkdir()
+        git(into, 'init', '-q', '-b', 'main')
+        bgit('remote', 'add', 'origin', repo, cwd=into, env={'PATH': os.environ['PATH']})
+        bgit('fetch', f'--upload-pack={upload_pack}', 'origin', cwd=into,
+             env={'PATH': os.environ['PATH']})
+        check(git(into, 'log', '--format=%H %s', 'refs/remotes/origin/main').stdout
+              == reference_log, 'fetch through upload-pack', label)
+        check(git(into, 'fsck', '--no-progress', '--strict').returncode == 0,
+              'what it fetched is sound', label)
+
+    # What the far end sends is only what the asking end lacks.
+    head = git(repo, 'rev-parse', 'HEAD').stdout.decode().strip()
+    (repo/'a.txt').write_text('one\ntwo\n')
+    git(repo, 'commit', '-q', '-am', 'the second commit')
+    now = git(repo, 'rev-parse', 'HEAD').stdout.decode().strip()
+
+    def objects_in_pack(request):
+        """How many objects the far end put in the pack it sent back."""
+        pack = b''
+        started = False
+        for line in raw_packets(converse(OURS, repo, request)):
+            if isinstance(line, str):
+                continue
+            if line.startswith(b'packfile'):
+                started = True
+            elif started and line[:1] == b'\x01':
+                pack += line[1:]
+        return int.from_bytes(pack[8:12], 'big') if len(pack) >= 12 else -1
+
+    everything = (pkt('command=fetch\n') + pkt('object-format=sha1\n') + b'0001'
+                  + pkt('ofs-delta\n') + pkt(f'want {now}\n') + pkt('done\n')
+                  + b'0000' + b'0000')
+    incremental = (pkt('command=fetch\n') + pkt('object-format=sha1\n') + b'0001'
+                   + pkt('ofs-delta\n') + pkt(f'want {now}\n') + pkt(f'have {head}\n')
+                   + pkt('done\n') + b'0000' + b'0000')
+    whole, part = objects_in_pack(everything), objects_in_pack(incremental)
+    check(whole > part > 0, 'a have shrinks the pack', whole, part)
+    check(part == 3, 'one commit is a commit, a tree and a blob', part)
 
     # Without being told which protocol to speak, the server says so rather
     # than answering in one the caller did not ask for.

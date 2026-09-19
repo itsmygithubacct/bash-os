@@ -26,4 +26,12 @@ int bgit_copy_objects (bgit_odb *from, bgit_odb *into, const char *objects_dir,
                        const char *const *roots, size_t n_roots,
                        size_t *copied);
 
+/* Name every object ROOTS reaches that STOP does not: what one end must
+   send the other, given what the other says it already has. The ids are
+   returned in the order the walk found them, for the caller to free.
+   Returns 0, or -1. */
+int bgit_reachable_objects (bgit_odb *odb, const char *const *roots,
+                            size_t n_roots, const char *const *stop,
+                            size_t n_stop, char (**ids)[41], size_t *n_ids);
+
 #endif /* BASH_OS_GIT_TRANSPORT_H */

@@ -50,7 +50,7 @@ git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
                  <url> | get-url <name>
 git clone        [-q] [--bare] <source> [<directory>]
-git fetch        [<remote>]
+git fetch        [-q] [--upload-pack=<command>] [<remote>]
 git pull         [<remote>]
 git push         [<remote> | <path> [<branch>]]
 git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
@@ -192,15 +192,22 @@ the score matches git's every time. `git diff`, `git log`, `git show` and
 comparison that ends at the working tree does not look for them, having
 no recorded ids to compare.
 
-Clone, fetch, pull and push work between repositories on this machine: the
-objects a branch reaches are copied into the other store, stopping at
-anything already there, and the refs follow. A push may only move a branch
-forward, and is refused into a branch the far end has checked out, with
-git's words for both. It takes a path as readily as the name of a remote,
-and records a tracking ref only for the one that has a name to record it
-under. A URL is refused rather than half-attempted — the protocols are the
-next phase — and a clone from a packed repository writes the objects out
-loose, which is correct but larger than git's copy.
+Clone, fetch and pull go over the protocol, the way git goes over it even
+when both repositories are directories on this machine: `upload-pack` is
+started at the far end, `ls-refs` says what it has, and `fetch` asks for
+what is missing here — naming what is already here, so a second fetch
+carries only what the first one did not. What comes back is a packfile,
+kept the way git keeps one: exploded into loose objects when it holds
+fewer than a hundred, written into `objects/pack` beside a generated
+index when it holds more.
+
+A push still copies objects straight into the other store, since the
+protocol for that is `receive-pack` and comes next. It may only move a
+branch forward, and is refused into a branch the far end has checked out,
+with git's words for both. It takes a path as readily as the name of a
+remote, and records a tracking ref only for the one that has a name to
+record it under. A URL is refused rather than half-attempted: the
+protocols over a network are the phase after this one.
 
 A bare clone is a different thing from a checkout without a working tree:
 it is where the branches live, so git writes them as branches rather than
@@ -221,19 +228,26 @@ alike, and that is what the test asks for. `git verify-pack` reads the
 pack through its index and checks it end to end, and `git unpack-objects`
 writes a pack's objects back out loose.
 
-`git ls-remote` is the first command here to hold a conversation rather
-than read another repository's files. It starts the far end — this build's
-own `git upload-pack`, or whatever `--upload-pack` names — and speaks
-protocol v2 to it over a pipe, as git does: the server offers what it can
-do, the client asks `ls-refs` for the prefixes it cares about, and the
-answer carries what HEAD points at and what a tag points at. Everything
-is framed in pkt-lines, four hexadecimal digits of length and then that
-many bytes, with the three lengths that carry no payload meaning the end
-of a section, a divide inside one, and the end of a response.
+Every transport here holds a conversation rather than reading another
+repository's files. The far end is started — this build's own `git
+upload-pack`, or whatever `--upload-pack` names — and protocol v2 goes
+over the pipe between them, as git does it: the server offers what it can
+do, the client asks for one command at a time, and everything is framed
+in pkt-lines, four hexadecimal digits of length and then that many bytes,
+with the three lengths that carry no payload meaning the end of a
+section, a divide inside one, and the end of a response.
 
-Both ends stand on their own: git's client gets the same listing from
-this build's upload-pack that it gets from git's, and this build's client
-gets the same from either server.
+`ls-refs` answers with the refs asked for, carrying what HEAD points at
+and what a tag points at. `fetch` answers with a packfile down the first
+side-band channel, holding everything the wants reach that the haves do
+not; a client that says `done` gets the pack straight away, and one still
+negotiating is told which of its haves are here and that this end is
+ready.
+
+Both ends stand on their own. git's client clones and fetches through
+this build's `upload-pack` and gets the history it would get from git's;
+this build's client fetches from either server and gets the same; and the
+packets themselves match git's, request for request.
 
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
@@ -314,11 +328,13 @@ must index it to git's index byte for byte, list it the way `verify-pack
 objects. The other direction is checked too: git must index, verify and
 unpack what `git pack-objects` writes here.
 
-`tests/git-proto.py` crosses the two implementations over the wire: git's
-client against this build's upload-pack, this build's client against
-git's, and the packets themselves read off the connection and compared
-with the ones git sends for the same request. A scenario cannot reach
-that, since both of its runs speak to their own far end.
+`tests/git-proto.py` crosses the two implementations over the wire: git
+clones and fetches through this build's upload-pack, this build fetches
+through git's, the packets themselves are read off the connection and
+compared with the ones git sends for the same request, and the pack a
+`have` produces is counted to show the far end sends only what is
+missing. A scenario cannot reach that, since both of its runs speak to
+their own far end.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
@@ -330,14 +346,13 @@ message and changes nothing.
 ## Still to come
 
 Phase 2 is done but for submodules, and Phase 3 is under way: clone,
-fetch, pull and push speak to directories, not yet to URLs; the pack
-plumbing a protocol needs — making a pack, and reading one with deltas in
-it — is in place; and protocol v2 now carries `ls-remote`, which is the
-framing the rest will be built on. Next is `fetch` over the protocol,
-then `receive-pack` for a push, then the same conversation over HTTPS,
-and after that SSH. `git fetch` still wants the name of a remote where
-git also takes a path, which needs `FETCH_HEAD` to mean anything. Left
-over from Phase 2: stashing untracked files,
-interactive rebase, renames between the index and the working tree, and a
-merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
-phase must match, is in the implementation document for the port.
+fetch and pull speak protocol v2 to a far end started at a path, not yet
+to a URL. Next is `receive-pack`, so that a push goes the same way, and
+then the same conversation over HTTPS; after that SSH. `git fetch` still
+wants the name of a remote where git also takes a path, which needs
+`FETCH_HEAD` to mean anything.
+
+Left over from Phase 2: stashing untracked files, interactive rebase,
+renames between the index and the working tree, and a merge with more
+than one base. The plan, including what each phase must match, is in the
+implementation document for the port.

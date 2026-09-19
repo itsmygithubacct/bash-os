@@ -116,6 +116,90 @@ bgit_queue_children (bgit_odb *from, const char *sha, enum bgit_type type,
     return 0;
 }
 
+/* Walk everything ROOTS reaches, into the set SEEN. Objects already in
+   it stop the walk there, which is how a fetch leaves out what the
+   asking end already has. Returns 0, or -1. */
+static int
+bgit_walk_into (bgit_odb *odb, const char *const *roots, size_t n_roots,
+                struct bgit_seen *seen, char (**ids)[41], size_t *n_ids,
+                size_t *cap_ids)
+{
+    struct bgit_copy_queue queue;
+    memset (&queue, 0, sizeof queue);
+    int rc = -1;
+
+    for (size_t i = 0; i < n_roots; i++)
+        if (roots[i] && *roots[i] && bgit_queue_push (&queue, roots[i]) < 0)
+            goto done;
+
+    while (queue.n) {
+        char sha[41];
+        memcpy (sha, queue.ids[--queue.n], 41);
+        int already = bgit_seen_add (seen, sha);
+        if (already < 0) goto done;
+        if (already) continue;
+
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        /* An object that is not here stops the walk: a shallow history,
+           or something already pruned. */
+        if (bgit_odb_read (odb, sha, &type, &data, &len) < 0) continue;
+        if (ids) {
+            if (*n_ids == *cap_ids) {
+                size_t next = *cap_ids ? *cap_ids * 2 : 256;
+                void *grown = realloc (*ids, next * sizeof **ids);
+                if (!grown) { free (data); goto done; }
+                *ids = grown;
+                *cap_ids = next;
+            }
+            memcpy ((*ids)[*n_ids], sha, 41);
+            (*n_ids)++;
+        }
+        if (bgit_queue_children (odb, sha, type, data, len, &queue) < 0) {
+            free (data);
+            goto done;
+        }
+        free (data);
+    }
+    rc = 0;
+
+done:
+    free (queue.ids);
+    return rc;
+}
+
+int
+bgit_reachable_objects (bgit_odb *odb, const char *const *roots, size_t n_roots,
+                        const char *const *stop, size_t n_stop,
+                        char (**ids)[41], size_t *n_ids)
+{
+    struct bgit_seen seen;
+    memset (&seen, 0, sizeof seen);
+    char (*found)[41] = NULL;
+    size_t n = 0, cap = 0;
+    int rc = -1;
+
+    /* What the far end already has goes into the set first, so the walk
+       for what it wants stops wherever the two histories meet. */
+    if (bgit_walk_into (odb, stop, n_stop, &seen, NULL, NULL, NULL) < 0)
+        goto done;
+    if (bgit_walk_into (odb, roots, n_roots, &seen, &found, &n, &cap) < 0)
+        goto done;
+    rc = 0;
+
+done:
+    free (seen.ids);
+    if (rc < 0) {
+        free (found);
+        found = NULL;
+        n = 0;
+    }
+    *ids = found;
+    *n_ids = n;
+    return rc;
+}
+
 int
 bgit_copy_objects (bgit_odb *from, bgit_odb *into, const char *objects_dir,
                    const char *const *roots, size_t n_roots, size_t *copied)

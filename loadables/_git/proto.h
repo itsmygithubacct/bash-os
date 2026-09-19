@@ -56,6 +56,10 @@ int bgit_pkt_read_line (bgit_pkt_reader *reader, char **line);
 
 /* Write one packet, a formatted packet, or a marker. Return 0, or -1. */
 int bgit_pkt_write (int fd, const void *data, size_t len);
+
+/* Write LEN bytes down one side-band channel — 1 for the pack itself, 2
+   for progress, 3 for an error — in as many packets as it takes. */
+int bgit_pkt_write_band (int fd, int channel, const void *data, size_t len);
 int bgit_pkt_writef (int fd, const char *format, ...)
     __attribute__ ((format (printf, 2, 3)));
 int bgit_pkt_flush (int fd);
@@ -94,5 +98,15 @@ int bgit_proto_ls_refs (bgit_pkt_reader *reader, int out,
                         const char *const *prefixes, size_t n_prefixes,
                         int want_symrefs, int want_peeled,
                         bgit_proto_ref **refs, size_t *n_refs);
+
+/* Ask for everything WANTS reaches that HAVES does not, and read the
+   pack that comes back: the request goes to OUT, the answer comes from
+   READER. The pack is returned whole, for the caller to free; progress
+   from the far end goes to stderr, and an error from it is reported the
+   way git reports one. Returns 0, or -1. */
+int bgit_proto_fetch (bgit_pkt_reader *reader, int out,
+                      const char *const *wants, size_t n_wants,
+                      const char *const *haves, size_t n_haves,
+                      unsigned char **pack, size_t *pack_len);
 
 #endif /* BASH_OS_GIT_PROTO_H */

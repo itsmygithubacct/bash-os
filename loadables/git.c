@@ -5184,9 +5184,82 @@ git_pack_resolve (const unsigned char *pack, size_t plen,
     return 0;
 }
 
-/* Write a pack holding exactly the objects named, each in full: no deltas,
-   which any reader accepts. The file is named for its own checksum, as
-   git names one. */
+/* Build a pack holding exactly the objects named, each in full: no
+   deltas, which any reader accepts. Gives back the bytes, the entries an
+   index is made from, and the pack's own checksum. Returns 0, or -1 with
+   git's message already said. */
+static int
+git_pack_build (bgit_odb *odb, char (*ids)[41], size_t n, unsigned char **out,
+                size_t *out_len, struct bgit_pack_idx_entry **entries_out,
+                unsigned char checksum[20], char hex[41])
+{
+    unsigned char *body = NULL;
+    size_t body_len = 0, body_cap = 0;
+    struct bgit_pack_idx_entry *entries = calloc (n ? n : 1, sizeof *entries);
+    if (!entries) return -1;
+    unsigned char header[12] = { 'P', 'A', 'C', 'K', 0, 0, 0, 2 };
+    header[8] = (unsigned char) ((n >> 24) & 0xff);
+    header[9] = (unsigned char) ((n >> 16) & 0xff);
+    header[10] = (unsigned char) ((n >> 8) & 0xff);
+    header[11] = (unsigned char) (n & 0xff);
+    int failed = bgit_pack_buf_append (&body, &body_len, &body_cap, header, 12) < 0;
+
+    for (size_t i = 0; i < n && !failed; i++) {
+        enum bgit_type type;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (odb, ids[i], &type, &content, &len) < 0) {
+            git_fatal ("cannot read %s", ids[i]);
+            failed = 1;
+            break;
+        }
+        uint64_t offset = body_len;
+        unsigned char object_header[16];
+        size_t header_len = 0;
+        int packed_type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
+                        : type == BGIT_TREE ? BGIT_PACK_TREE
+                        : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
+        bgit_pack_encode_obj_header (packed_type, len, object_header, &header_len);
+        unsigned char *deflated = NULL;
+        size_t deflated_len = 0;
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, object_header,
+                                  header_len) < 0 ||
+            bgit_deflate (content, len, &deflated, &deflated_len) < 0) {
+            free (content);
+            failed = 1;
+            break;
+        }
+        free (content);
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, deflated,
+                                  deflated_len) < 0)
+            failed = 1;
+        free (deflated);
+        if (failed) break;
+        bgit_hex_to_sha (ids[i], entries[i].sha);
+        entries[i].off = offset;
+        entries[i].crc = bgit_pack_crc32 (body + offset,
+                                          (size_t) (body_len - offset));
+    }
+
+    if (!failed) {
+        bgit_sha1 (body, body_len, checksum);
+        bgit_sha_to_hex (checksum, hex);
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, checksum, 20) < 0)
+            failed = 1;
+    }
+    if (failed) {
+        free (body);
+        free (entries);
+        return -1;
+    }
+    *out = body;
+    *out_len = body_len;
+    *entries_out = entries;
+    return 0;
+}
+
+/* git pack-objects: the ids arrive on the input, and the pack is written
+   beside its index, named for its own checksum as git names one. */
 static int
 git_cmd_pack_objects (git_context *ctx, WORD_LIST *args)
 {
@@ -5229,62 +5302,12 @@ git_cmd_pack_objects (git_context *ctx, WORD_LIST *args)
     }
 
     unsigned char *body = NULL;
-    size_t body_len = 0, body_cap = 0;
-    struct bgit_pack_idx_entry *entries = calloc (n ? n : 1, sizeof *entries);
-    if (!entries) { free (ids); return GIT_EXIT_FATAL; }
-    unsigned char header[12] = { 'P', 'A', 'C', 'K', 0, 0, 0, 2 };
-    header[8] = (unsigned char) ((n >> 24) & 0xff);
-    header[9] = (unsigned char) ((n >> 16) & 0xff);
-    header[10] = (unsigned char) ((n >> 8) & 0xff);
-    header[11] = (unsigned char) (n & 0xff);
-    int status = 0;
-    if (bgit_pack_buf_append (&body, &body_len, &body_cap, header, 12) < 0)
-        status = GIT_EXIT_FATAL;
-
-    for (size_t i = 0; i < n && !status; i++) {
-        enum bgit_type type;
-        unsigned char *content = NULL;
-        size_t len = 0;
-        if (bgit_odb_read (&ctx->odb, ids[i], &type, &content, &len) < 0) {
-            status = git_fatal ("cannot read %s", ids[i]);
-            break;
-        }
-        uint64_t offset = body_len;
-        unsigned char object_header[16];
-        size_t header_len = 0;
-        int packed_type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
-                        : type == BGIT_TREE ? BGIT_PACK_TREE
-                        : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
-        bgit_pack_encode_obj_header (packed_type, len, object_header, &header_len);
-        unsigned char *deflated = NULL;
-        size_t deflated_len = 0;
-        if (bgit_pack_buf_append (&body, &body_len, &body_cap, object_header,
-                                  header_len) < 0 ||
-            bgit_deflate (content, len, &deflated, &deflated_len) < 0) {
-            free (content);
-            status = GIT_EXIT_FATAL;
-            break;
-        }
-        free (content);
-        if (bgit_pack_buf_append (&body, &body_len, &body_cap, deflated,
-                                  deflated_len) < 0)
-            status = GIT_EXIT_FATAL;
-        free (deflated);
-        if (status) break;
-        bgit_hex_to_sha (ids[i], entries[i].sha);
-        entries[i].off = offset;
-        entries[i].crc = bgit_pack_crc32 (body + offset,
-                                          (size_t) (body_len - offset));
-    }
-
+    size_t body_len = 0;
+    struct bgit_pack_idx_entry *entries = NULL;
     unsigned char checksum[20];
     char checksum_hex[41] = "";
-    if (!status) {
-        bgit_sha1 (body, body_len, checksum);
-        bgit_sha_to_hex (checksum, checksum_hex);
-        if (bgit_pack_buf_append (&body, &body_len, &body_cap, checksum, 20) < 0)
-            status = GIT_EXIT_FATAL;
-    }
+    int status = git_pack_build (&ctx->odb, ids, n, &body, &body_len, &entries,
+                                 checksum, checksum_hex) < 0 ? GIT_EXIT_FATAL : 0;
     char pack_path[4096], idx_path[4096];
     if (!status) {
         snprintf (pack_path, sizeof pack_path, "%s-%s.pack", base, checksum_hex);
@@ -5656,8 +5679,6 @@ git_cmd_remote (git_context *ctx, WORD_LIST *args)
     return git_usage (usage);
 }
 
-/* ---- clone, fetch and push --------------------------------------------- */
-
 /* Open the repository at the far end of a local remote. */
 static int
 git_open_remote (const char *url, bgit_repo *repo, bgit_odb *odb)
@@ -5675,6 +5696,647 @@ git_open_remote (const char *url, bgit_repo *repo, bgit_odb *odb)
     odb->quiet = 1;
     return 0;
 }
+
+/* ---- speaking the protocol ---------------------------------------------- */
+
+/* What the server side of this build can do. A client reads this first
+   and asks only for what it names. */
+static int
+git_v2_advertise (void)
+{
+    if (bgit_pkt_writef (1, "version 2\n") < 0 ||
+        bgit_pkt_writef (1, "agent=%s\n", GIT_AGENT_STRING) < 0 ||
+        bgit_pkt_writef (1, "ls-refs\n") < 0 ||
+        bgit_pkt_writef (1, "fetch\n") < 0 ||
+        bgit_pkt_writef (1, "object-format=sha1\n") < 0 ||
+        bgit_pkt_flush (1) < 0)
+        return -1;
+    return 0;
+}
+
+/* 1 when the client asked about this ref; asking for no prefix at all
+   asks for every ref there is. */
+static int
+git_v2_wanted (const char *name, char **prefixes, size_t n_prefixes)
+{
+    if (!n_prefixes) return 1;
+    for (size_t i = 0; i < n_prefixes; i++)
+        if (!strncmp (name, prefixes[i], strlen (prefixes[i]))) return 1;
+    return 0;
+}
+
+/* What a tag points at, following tags until it reaches something that is
+   not one. Returns 0 with OUT set, 1 when SHA is not a tag, or -1. */
+static int
+git_peel_fully (bgit_odb *odb, const char *sha, char out[41])
+{
+    char at[41];
+    memcpy (at, sha, 41);
+    for (int depth = 0; depth < 16; depth++) {
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (odb, at, &type, &data, &len) < 0) return -1;
+        free (data);
+        if (type != BGIT_TAG) {
+            if (!depth) return 1;
+            memcpy (out, at, 41);
+            return 0;
+        }
+        char next[41];
+        if (bgit_peel_to_type (odb, at, BGIT_UNKNOWN, next) < 0) return -1;
+        memcpy (at, next, 41);
+    }
+    return -1;
+}
+
+/* Answer one ls-refs: every ref asked for, in git's order, HEAD first,
+   with what HEAD points at and what a tag points at when those were
+   asked for. */
+static int
+git_v2_ls_refs (bgit_repo *repo, bgit_odb *odb, char **prefixes,
+                size_t n_prefixes, int want_symrefs, int want_peeled)
+{
+    char id[41];
+    char *symref = NULL;
+    if (bgit_ref_resolve (repo, "HEAD", id, &symref) == 0 &&
+        git_v2_wanted ("HEAD", prefixes, n_prefixes)) {
+        if (want_symrefs && symref) {
+            if (bgit_pkt_writef (1, "%s HEAD symref-target:%s\n", id, symref) < 0)
+                { free (symref); return -1; }
+        } else if (bgit_pkt_writef (1, "%s HEAD\n", id) < 0) {
+            free (symref);
+            return -1;
+        }
+    }
+    free (symref);
+
+    bgit_ref *refs = NULL;
+    size_t n = 0;
+    if (bgit_refs_list (repo, "refs/", &refs, &n) < 0) return -1;
+    int status = 0;
+    for (size_t i = 0; i < n && !status; i++) {
+        if (!git_v2_wanted (refs[i].name, prefixes, n_prefixes)) continue;
+        char peeled[41];
+        if (want_peeled && git_peel_fully (odb, refs[i].sha, peeled) == 0)
+            status = bgit_pkt_writef (1, "%s %s peeled:%s\n", refs[i].sha,
+                                      refs[i].name, peeled);
+        else
+            status = bgit_pkt_writef (1, "%s %s\n", refs[i].sha, refs[i].name);
+    }
+    bgit_refs_free (refs, n);
+    if (status < 0) return -1;
+    return bgit_pkt_flush (1);
+}
+
+/* What one request asked for. A v2 request names a command, then its
+   arguments, and every command reads the ones it knows. */
+struct git_v2_request {
+    char **prefixes;             /* ls-refs: which refs to list */
+    size_t n_prefixes;
+    int symrefs, peel;
+    char (*ids)[41];             /* fetch: wants first, then haves */
+    size_t n_wants, n_haves;
+    int done;
+};
+
+static void
+git_v2_request_release (struct git_v2_request *request)
+{
+    for (size_t i = 0; i < request->n_prefixes; i++) free (request->prefixes[i]);
+    free (request->prefixes);
+    free (request->ids);
+    memset (request, 0, sizeof *request);
+}
+
+/* Keep one more id. Wants are kept before haves, and a want cannot
+   arrive after a have, so both lists grow from the same array. */
+static int
+git_v2_keep_id (struct git_v2_request *request, const char *id)
+{
+    size_t n = request->n_wants + request->n_haves;
+    char (*grown)[41] = realloc (request->ids, (n + 1) * sizeof *grown);
+    if (!grown) return -1;
+    request->ids = grown;
+    memcpy (request->ids[n], id, 40);
+    request->ids[n][40] = '\0';
+    return 0;
+}
+
+/* Answer one fetch: the objects the client asked for, less everything it
+   says it already has, in a pack sent down the first side-band channel. */
+static int
+git_v2_fetch (bgit_odb *odb, struct git_v2_request *request)
+{
+    char (*ids)[41] = request->ids;
+    const char **wants = calloc (request->n_wants ? request->n_wants : 1,
+                                 sizeof *wants);
+    const char **haves = calloc (request->n_haves ? request->n_haves : 1,
+                                 sizeof *haves);
+    if (!wants || !haves) {
+        free (wants);
+        free (haves);
+        return -1;
+    }
+    for (size_t i = 0; i < request->n_wants; i++) wants[i] = ids[i];
+    for (size_t i = 0; i < request->n_haves; i++)
+        haves[i] = ids[request->n_wants + i];
+
+    /* Still negotiating: say which of its haves are here, and that this
+       end is ready to send. With nothing in common there is nothing to
+       be ready about, and the client asks again with more. */
+    int status = 0;
+    if (!request->done) {
+        size_t common = 0;
+        if (bgit_pkt_writef (1, "acknowledgments\n") < 0) status = -1;
+        for (size_t i = 0; !status && i < request->n_haves; i++)
+            if (bgit_odb_has (odb, haves[i])) {
+                common++;
+                if (bgit_pkt_writef (1, "ACK %s\n", haves[i]) < 0) status = -1;
+            }
+        if (!status && !common) {
+            if (bgit_pkt_writef (1, "NAK\n") < 0 || bgit_pkt_flush (1) < 0)
+                status = -1;
+            free (wants);
+            free (haves);
+            return status;
+        }
+        if (!status && (bgit_pkt_writef (1, "ready\n") < 0 ||
+                        bgit_pkt_delim (1) < 0))
+            status = -1;
+    }
+
+    char (*send)[41] = NULL;
+    size_t n_send = 0;
+    if (!status && bgit_reachable_objects (odb, wants, request->n_wants, haves,
+                                           request->n_haves, &send, &n_send) < 0)
+        status = -1;
+    free (wants);
+    free (haves);
+
+    unsigned char *body = NULL;
+    size_t body_len = 0;
+    struct bgit_pack_idx_entry *entries = NULL;
+    unsigned char checksum[20];
+    char checksum_hex[41] = "";
+    if (!status && git_pack_build (odb, send, n_send, &body, &body_len, &entries,
+                                   checksum, checksum_hex) < 0)
+        status = -1;
+    free (send);
+    free (entries);
+
+    if (!status && (bgit_pkt_writef (1, "packfile\n") < 0 ||
+                    bgit_pkt_write_band (1, 1, body, body_len) < 0 ||
+                    bgit_pkt_flush (1) < 0))
+        status = -1;
+    free (body);
+    return status;
+}
+
+/* git upload-pack: the far end of a fetch, over protocol v2. git has
+   asked for v2 by default since 2.26, and it is all this build speaks, so
+   a caller that does not ask for it is told rather than answered wrongly. */
+static int
+git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git upload-pack [--stateless-rpc] [--advertise-refs] "
+                        "<directory>";
+    const char *dir = NULL;
+    int stateless = 0, advertise_only = 0;
+    (void) ctx;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--stateless-rpc")) stateless = 1;
+        else if (!strcmp (w, "--advertise-refs")) advertise_only = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!dir) dir = w;
+        else return git_usage (usage);
+    }
+    if (!dir) return git_usage (usage);
+
+    const char *protocol = getenv ("GIT_PROTOCOL");
+    if (!protocol || !strstr (protocol, "version=2"))
+        return git_fatal ("this build's git upload-pack speaks protocol "
+                          "version 2 only");
+
+    bgit_repo repo;
+    bgit_odb odb;
+    if (git_open_remote (dir, &repo, &odb) < 0)
+        return git_fatal ("'%s' does not appear to be a git repository", dir);
+
+    int status = 0;
+    if ((!stateless || advertise_only) && git_v2_advertise () < 0)
+        status = GIT_EXIT_FATAL;
+    if (!advertise_only && !status) {
+        bgit_pkt_reader reader;
+        bgit_pkt_from_fd (&reader, 0);
+        /* A request is the command, then the client's own capabilities, a
+           divider, the arguments, and a flush. A flush where the command
+           would be ends the conversation. */
+        for (;;) {
+            char *line = NULL;
+            int got = bgit_pkt_read_line (&reader, &line);
+            if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+            if (got < 0) {
+                status = git_fatal ("the request is not a pkt-line stream");
+                break;
+            }
+            char command[64] = "";
+            if (!strncmp (line, "command=", 8))
+                snprintf (command, sizeof command, "%s", line + 8);
+            free (line);
+
+            struct git_v2_request request;
+            memset (&request, 0, sizeof request);
+            int bad = 0;
+            for (;;) {
+                got = bgit_pkt_read_line (&reader, &line);
+                if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+                if (got == BGIT_PKT_DELIM) continue;
+                if (got < 0) { bad = 1; break; }
+                if (!strcmp (line, "symrefs")) request.symrefs = 1;
+                else if (!strcmp (line, "peel")) request.peel = 1;
+                else if (!strcmp (line, "done")) request.done = 1;
+                else if (!strncmp (line, "ref-prefix ", 11)) {
+                    char **grown = realloc (request.prefixes,
+                                            (request.n_prefixes + 1) * sizeof *grown);
+                    if (grown) {
+                        request.prefixes = grown;
+                        grown[request.n_prefixes] = strdup (line + 11);
+                        if (grown[request.n_prefixes]) request.n_prefixes++;
+                    }
+                }
+                else if (!strncmp (line, "want ", 5) && strlen (line + 5) >= 40) {
+                    if (git_v2_keep_id (&request, line + 5) < 0) bad = 1;
+                    else request.n_wants++;
+                }
+                else if (!strncmp (line, "have ", 5) && strlen (line + 5) >= 40) {
+                    if (git_v2_keep_id (&request, line + 5) < 0) bad = 1;
+                    else request.n_haves++;
+                }
+                free (line);
+                line = NULL;
+                if (bad) break;
+            }
+            free (line);
+            if (!bad && !strcmp (command, "ls-refs"))
+                bad = git_v2_ls_refs (&repo, &odb, request.prefixes,
+                                      request.n_prefixes, request.symrefs,
+                                      request.peel) < 0;
+            else if (!bad && !strcmp (command, "fetch"))
+                bad = git_v2_fetch (&odb, &request) < 0;
+            else if (!bad)
+                status = git_fatal ("this build's git upload-pack does not "
+                                    "have the '%s' command", command);
+            git_v2_request_release (&request);
+            if (bad && !status) status = GIT_EXIT_FATAL;
+            if (status) break;
+            if (got == BGIT_PKT_EOF) break;
+        }
+    }
+    bgit_odb_release (&odb);
+    bgit_repo_release (&repo);
+    return status;
+}
+
+/* What git says when the far end stops without answering. Whatever it
+   said for itself has already gone to the same place. */
+static int
+git_far_end_gone (void)
+{
+    fflush (stdout);
+    fputs ("fatal: Could not read from remote repository.\n\n"
+           "Please make sure you have the correct access rights\n"
+           "and the repository exists.\n", stderr);
+    return GIT_EXIT_FATAL;
+}
+
+/* The environment the far end gets: this one, without the variables that
+   name this repository's files, plus the protocol to speak. Returns the
+   array, or this process's own environment if there is no room for it. */
+static char **
+git_far_environ (void)
+{
+    extern char **environ;
+    static const char *const leave_behind[] = {
+        "GIT_PROTOCOL=", "GIT_DIR=", "GIT_WORK_TREE=", "GIT_INDEX_FILE=",
+        "GIT_OBJECT_DIRECTORY=", "GIT_ALTERNATE_OBJECT_DIRECTORIES=", NULL
+    };
+    size_t n = 0;
+    while (environ[n]) n++;
+    char **env = malloc ((n + 2) * sizeof *env);
+    if (!env) return environ;
+    size_t at = 0;
+    for (size_t i = 0; i < n; i++) {
+        int drop = 0;
+        for (int k = 0; leave_behind[k] && !drop; k++)
+            if (!strncmp (environ[i], leave_behind[k], strlen (leave_behind[k])))
+                drop = 1;
+        if (!drop) env[at++] = environ[i];
+    }
+    env[at++] = (char *) "GIT_PROTOCOL=version=2";
+    env[at] = NULL;
+    return env;
+}
+
+/* Start the far end and hold both ends of the conversation: what is
+   written to *TO_FAR arrives on its input, and what it answers is read
+   from *FROM_FAR. PROGRAM is what to run, or NULL for this build's own
+   upload-pack, which is how git runs its own for a path. */
+static pid_t
+git_start_upload_pack (const char *program, const char *path, int *to_far,
+                       int *from_far)
+{
+    int down[2], up[2];
+    if (pipe (down) < 0) return -1;
+    if (pipe (up) < 0) {
+        close (down[0]);
+        close (down[1]);
+        return -1;
+    }
+    pid_t child = fork ();
+    if (child < 0) {
+        close (down[0]); close (down[1]);
+        close (up[0]); close (up[1]);
+        return -1;
+    }
+    if (!child) {
+        close (down[1]);
+        close (up[0]);
+        if (dup2 (down[0], 0) < 0 || dup2 (up[1], 1) < 0) _exit (127);
+        close (down[0]);
+        close (up[1]);
+        /* The far end must be told which protocol to speak, and must not
+           inherit what points this end at its own files. The shell keeps
+           its own table of variables, so the environment is handed over
+           whole rather than changed here. */
+        char **env = git_far_environ ();
+        /* The shell running it is the one we are inside: a bash-os machine
+           need not have another. */
+        char script[4096];
+        snprintf (script, sizeof script, "%s \"$@\"",
+                  program ? program : "builtin git upload-pack");
+        execle ("/proc/self/exe", "bash", "--noprofile", "--norc", "-c", script,
+                "git-upload-pack", path, (char *) NULL, env);
+        _exit (127);
+    }
+    close (down[0]);
+    close (up[1]);
+    *to_far = down[1];
+    *from_far = up[0];
+    return child;
+}
+
+/* Start the far end and read its advertisement. Returns the child with
+   the two ends of the conversation, or -1 with git's message said. */
+static pid_t
+git_far_end_open (const char *url, const char *program, int *to_far,
+                  int *from_far, bgit_pkt_reader *reader, int want_fetch)
+{
+    /* A far end that stops leaves a pipe with no reader; the write that
+       finds out must not take the shell's child with it. */
+    signal (SIGPIPE, SIG_IGN);
+    pid_t child = git_start_upload_pack (program, url, to_far, from_far);
+    if (child < 0) {
+        git_fatal ("cannot start the far end: %s", strerror (errno));
+        return -1;
+    }
+    bgit_pkt_from_fd (reader, *from_far);
+    bgit_proto_caps caps;
+    if (bgit_proto_read_caps (reader, &caps) < 0) {
+        git_far_end_gone ();
+        bgit_pkt_release (reader);
+        close (*to_far);
+        close (*from_far);
+        waitpid (child, NULL, 0);
+        return -1;
+    }
+    int can = bgit_proto_cap (&caps, "ls-refs") != NULL &&
+              (!want_fetch || bgit_proto_cap (&caps, "fetch") != NULL);
+    bgit_proto_caps_release (&caps);
+    if (!can) {
+        git_fatal ("the far end cannot %s", want_fetch ? "send objects"
+                                                       : "list refs");
+        bgit_pkt_release (reader);
+        close (*to_far);
+        close (*from_far);
+        waitpid (child, NULL, 0);
+        return -1;
+    }
+    return child;
+}
+
+/* End the conversation and wait for the far end. Returns 0, or -1 if it
+   stopped badly. */
+static int
+git_far_end_close (pid_t child, int to_far, int from_far,
+                   bgit_pkt_reader *reader)
+{
+    bgit_pkt_flush (to_far);
+    bgit_pkt_release (reader);
+    close (to_far);
+    close (from_far);
+    int wait_status = 0;
+    waitpid (child, &wait_status, 0);
+    return WIFEXITED (wait_status) && !WEXITSTATUS (wait_status) ? 0 : -1;
+}
+
+/* Keep what a fetch brought back. git explodes a small pack into loose
+   objects and keeps a large one as a pack beside a generated index; the
+   line between the two is fetch.unpackLimit, a hundred objects. */
+static int
+git_store_pack (git_context *ctx, unsigned char *pack, size_t len)
+{
+    if (len < 32) return 0;                    /* nothing came back */
+    struct git_pack_entry *entries = NULL;
+    size_t n = 0;
+    if (git_pack_scan (pack, len, &entries, &n) < 0 ||
+        git_pack_resolve (pack, len, entries, n) < 0) {
+        free (entries);
+        return -1;
+    }
+    int status = 0;
+    if (n < 100) {
+        for (size_t i = 0; !status && i < n; i++) {
+            int type = 0;
+            unsigned char *content = NULL;
+            size_t content_len = 0;
+            if (git_pack_content (pack, len, entries, n, entries[i].offset,
+                                  &type, &content, &content_len, 0) < 0) {
+                status = -1;
+                break;
+            }
+            char hex[41];
+            if (bgit_write_object (ctx->odb.object_dirs[0],
+                                   bgit_pack_type_name (type), content,
+                                   content_len, 1, hex) < 0)
+                status = -1;
+            free (content);
+        }
+        free (entries);
+        return status;
+    }
+
+    /* Big enough to keep whole: write it where git keeps packs, with the
+       index that makes it readable, and let the store see it. */
+    struct bgit_pack_idx_entry *idx_entries = calloc (n, sizeof *idx_entries);
+    if (!idx_entries) {
+        free (entries);
+        return -1;
+    }
+    for (size_t i = 0; i < n; i++) {
+        memcpy (idx_entries[i].sha, entries[i].sha, 20);
+        idx_entries[i].crc = entries[i].crc;
+        idx_entries[i].off = entries[i].offset;
+    }
+    char hex[41];
+    bgit_sha_to_hex (pack + len - 20, hex);
+    char dir[4096], pack_path[4096], idx_path[4096];
+    snprintf (dir, sizeof dir, "%s/pack", ctx->odb.object_dirs[0]);
+    mkdir (dir, 0777);
+    snprintf (pack_path, sizeof pack_path, "%s/pack-%s.pack", dir, hex);
+    snprintf (idx_path, sizeof idx_path, "%s/pack-%s.idx", dir, hex);
+    FILE *out = fopen (pack_path, "w");
+    if (!out || fwrite (pack, 1, len, out) != len || fclose (out) != 0)
+        status = -1;
+    if (!status &&
+        bgit_pack_write_idx_v2 (idx_path, idx_entries, n, pack + len - 20) < 0)
+        status = -1;
+    free (idx_entries);
+    free (entries);
+    /* The store listed the packs when it opened; this is a new one. */
+    if (!status) {
+        bgit_odb_release (&ctx->odb);
+        if (bgit_odb_open (&ctx->repo, &ctx->odb) < 0) return -1;
+        ctx->odb.quiet = 1;
+    }
+    return status;
+}
+
+/* The ids of every ref here, which is what the far end is told this end
+   already has. */
+static int
+git_local_haves (git_context *ctx, char (**out)[41], size_t *n_out)
+{
+    bgit_ref *refs = NULL;
+    size_t n = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/", &refs, &n) < 0) return -1;
+    char (*ids)[41] = calloc (n ? n : 1, sizeof *ids);
+    if (!ids) {
+        bgit_refs_free (refs, n);
+        return -1;
+    }
+    size_t kept = 0;
+    for (size_t i = 0; i < n; i++)
+        if (bgit_odb_has (&ctx->odb, refs[i].sha)) {
+            memcpy (ids[kept], refs[i].sha, 41);
+            kept++;
+        }
+    bgit_refs_free (refs, n);
+    *out = ids;
+    *n_out = kept;
+    return 0;
+}
+
+/* git ls-remote: what refs the far end has, without fetching anything. */
+static int
+git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git ls-remote [--heads] [--tags] [--symref] "
+                        "[--upload-pack=<command>] [<repository>]";
+    int heads = 0, tags = 0, symrefs = 0, quiet = 0;
+    const char *program = NULL, *where = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--heads") || !strcmp (w, "-h")) heads = 1;
+        else if (!strcmp (w, "--tags") || !strcmp (w, "-t")) tags = 1;
+        else if (!strcmp (w, "--symref")) symrefs = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strncmp (w, "--upload-pack=", 14)) program = w + 14;
+        else if ((!strcmp (w, "-u") || !strcmp (w, "--upload-pack")) && p->next) {
+            program = p->next->word->word;
+            p = p->next;
+        }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!where) where = w;
+        else return git_fatal ("this build's git ls-remote does not take "
+                               "patterns yet");
+    }
+
+    /* Inside a repository a name stands for the URL configured for it,
+       as it does for fetch; outside one, only a path can be listed. */
+    bgit_repo here;
+    const char *url = NULL;
+    if (bgit_repo_discover (".", &here) == 0) {
+        bgit_repo_release (&here);
+        if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+        url = git_remote_url (ctx, where ? where : "origin");
+    }
+    /* Without a repository named on the command line, git says which one
+       it went to. */
+    int named = where != NULL;
+    if (url) where = url;
+    else if (!where)
+        return git_fatal ("No remote configured to list refs from.");
+
+    if (!git_local_only (where))
+        return git_fatal ("this build's git ls-remote takes a path; protocols "
+                          "are not done yet");
+    if (!named && !quiet) fprintf (stderr, "From %s\n", where);
+
+    /* A far end that stops leaves a pipe with no reader; the write that
+       finds out must not take the shell's child with it. */
+    signal (SIGPIPE, SIG_IGN);
+    int to_far = -1, from_far = -1;
+    pid_t child = git_start_upload_pack (program, where, &to_far, &from_far);
+    if (child < 0) return git_fatal ("cannot start the far end: %s",
+                                     strerror (errno));
+
+    bgit_pkt_reader reader;
+    bgit_pkt_from_fd (&reader, from_far);
+    bgit_proto_caps caps;
+    int status = 0;
+    if (bgit_proto_read_caps (&reader, &caps) < 0)
+        status = git_far_end_gone ();
+    else {
+        if (!bgit_proto_cap (&caps, "ls-refs"))
+            status = git_fatal ("the far end cannot list refs");
+        bgit_proto_caps_release (&caps);
+    }
+
+    bgit_proto_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (!status) {
+        const char *prefixes[2];
+        size_t n_prefixes = 0;
+        if (heads) prefixes[n_prefixes++] = "refs/heads/";
+        if (tags) prefixes[n_prefixes++] = "refs/tags/";
+        if (bgit_proto_ls_refs (&reader, to_far, prefixes, n_prefixes, 1, 1,
+                                &refs, &n_refs) < 0)
+            status = git_far_end_gone ();
+    }
+    if (!status)
+        for (size_t i = 0; i < n_refs; i++) {
+            if (symrefs && refs[i].symref)
+                printf ("ref: %s\t%s\n", refs[i].symref, refs[i].name);
+            printf ("%s\t%s\n", refs[i].id, refs[i].name);
+            if (refs[i].peeled[0])
+                printf ("%s\t%s^{}\n", refs[i].peeled, refs[i].name);
+        }
+    bgit_proto_refs_release (refs, n_refs);
+
+    bgit_pkt_flush (to_far);            /* the conversation is over */
+    bgit_pkt_release (&reader);
+    close (to_far);
+    close (from_far);
+    int wait_status = 0;
+    waitpid (child, &wait_status, 0);
+    if (!status && (!WIFEXITED (wait_status) || WEXITSTATUS (wait_status)))
+        status = git_far_end_gone ();
+    return status;
+}
+
+/* ---- clone, fetch and push --------------------------------------------- */
 
 /* One branch the far end has. */
 struct git_remote_ref {
@@ -5726,13 +6388,18 @@ git_report_ref (git_context *ctx, const char *old, const char *id,
 static int
 git_cmd_fetch (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git fetch [<remote>]";
-    const char *name = NULL;
+    const char *usage = "git fetch [-q] [--upload-pack=<command>] [<remote>]";
+    const char *name = NULL, *program = NULL;
     int quiet = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strncmp (w, "--upload-pack=", 14)) program = w + 14;
+        else if ((!strcmp (w, "-u") || !strcmp (w, "--upload-pack")) && p->next) {
+            program = p->next->word->word;
+            p = p->next;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
         else return git_usage (usage);
@@ -5746,26 +6413,65 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         return git_fatal ("this build's git fetch takes a path; protocols are "
                           "not done yet");
 
-    bgit_repo remote;
-    bgit_odb remote_odb;
-    if (git_open_remote (url, &remote, &remote_odb) < 0)
-        return git_fatal ("'%s' does not appear to be a git repository", url);
+    /* The far end is asked over the protocol, the way git asks it, even
+       when it is a directory on this machine. */
+    int to_far = -1, from_far = -1;
+    bgit_pkt_reader reader;
+    pid_t child = git_far_end_open (url, program, &to_far, &from_far, &reader, 1);
+    if (child < 0) return GIT_EXIT_FATAL;
+
+    bgit_proto_ref *refs = NULL;
+    size_t n_refs = 0;
+    const char *prefix = "refs/heads/";
+    int status = 0;
+    if (bgit_proto_ls_refs (&reader, to_far, &prefix, 1, 0, 0, &refs, &n_refs) < 0)
+        status = git_far_end_gone ();
 
     struct git_remote_ref *heads = NULL;
     size_t n_heads = 0;
-    int status = 0;
-    if (git_remote_heads (&remote, name, &heads, &n_heads) < 0) status = GIT_EXIT_FATAL;
-
-    /* Everything those branches reach, that is not here already. */
-    const char **roots = calloc (n_heads ? n_heads : 1, sizeof *roots);
-    if (!status && !roots) status = GIT_EXIT_FATAL;
     if (!status) {
-        for (size_t i = 0; i < n_heads; i++) roots[i] = heads[i].id;
-        if (bgit_copy_objects (&remote_odb, &ctx->odb, ctx->odb.object_dirs[0],
-                               roots, n_heads, NULL) < 0)
-            status = GIT_EXIT_FATAL;
+        heads = calloc (n_refs ? n_refs : 1, sizeof *heads);
+        if (!heads) status = GIT_EXIT_FATAL;
     }
-    free (roots);
+    if (!status) {
+        for (size_t i = 0; i < n_refs; i++) {
+            snprintf (heads[i].name, sizeof heads[i].name, "%s", refs[i].name);
+            snprintf (heads[i].local, sizeof heads[i].local, "refs/remotes/%s/%s",
+                      name, refs[i].name + 11);
+            memcpy (heads[i].id, refs[i].id, 41);
+        }
+        n_heads = n_refs;
+    }
+
+    /* Ask for what is missing here, saying what is already here so the
+       far end sends no more than it must. */
+    if (!status && n_heads) {
+        const char **wants = calloc (n_heads, sizeof *wants);
+        char (*have_ids)[41] = NULL;
+        size_t n_wants = 0, n_haves = 0;
+        if (!wants || git_local_haves (ctx, &have_ids, &n_haves) < 0)
+            status = GIT_EXIT_FATAL;
+        for (size_t i = 0; !status && i < n_heads; i++)
+            if (!bgit_odb_has (&ctx->odb, heads[i].id))
+                wants[n_wants++] = heads[i].id;
+        if (!status && n_wants) {
+            const char **haves = calloc (n_haves ? n_haves : 1, sizeof *haves);
+            if (!haves) status = GIT_EXIT_FATAL;
+            for (size_t i = 0; !status && i < n_haves; i++) haves[i] = have_ids[i];
+            unsigned char *pack = NULL;
+            size_t pack_len = 0;
+            if (!status && bgit_proto_fetch (&reader, to_far, wants, n_wants,
+                                             haves, n_haves, &pack, &pack_len) < 0)
+                status = git_far_end_gone ();
+            if (!status && git_store_pack (ctx, pack, pack_len) < 0)
+                status = git_fatal ("cannot store what the far end sent");
+            free (pack);
+            free (haves);
+        }
+        free (have_ids);
+        free (wants);
+    }
+    bgit_proto_refs_release (refs, n_refs);
 
     int width = 10, any = 0;   /* git's own minimum for this column */
     for (size_t i = 0; !status && i < n_heads; i++) {
@@ -5796,8 +6502,8 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         }
     }
     free (heads);
-    bgit_odb_release (&remote_odb);
-    bgit_repo_release (&remote);
+    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
+        status = git_far_end_gone ();
     return status;
 }
 
@@ -5842,10 +6548,30 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (git_absolute (source, absolute, sizeof absolute) < 0)
         return git_fatal ("cannot work out where '%s' is", source);
 
-    bgit_repo remote;
-    bgit_odb remote_odb;
-    if (git_open_remote (absolute, &remote, &remote_odb) < 0)
+    /* git looks at a local path itself before starting anything, so that
+       a missing one is its own message rather than the far end's. */
+    bgit_repo check;
+    bgit_odb check_odb;
+    if (git_open_remote (absolute, &check, &check_odb) < 0)
         return git_fatal ("repository '%s' does not exist", source);
+    bgit_odb_release (&check_odb);
+    bgit_repo_release (&check);
+
+    int to_far = -1, from_far = -1;
+    bgit_pkt_reader reader;
+    pid_t child = git_far_end_open (absolute, NULL, &to_far, &from_far, &reader, 1);
+    if (child < 0) return GIT_EXIT_FATAL;
+
+    /* What the far end has: its branches, its tags, and what its HEAD
+       points at, which is the branch a clone checks out. */
+    bgit_proto_ref *refs = NULL;
+    size_t n_refs = 0;
+    const char *prefixes[3] = { "refs/heads/", "refs/tags/", "HEAD" };
+    if (bgit_proto_ls_refs (&reader, to_far, prefixes, 3, 1, 0, &refs, &n_refs) < 0) {
+        git_far_end_gone ();
+        git_far_end_close (child, to_far, from_far, &reader);
+        return GIT_EXIT_FATAL;
+    }
 
     if (!quiet)
         fprintf (stderr, bare ? "Cloning into bare repository '%s'...\n"
@@ -5859,28 +6585,27 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     memset (&fresh, 0, sizeof fresh);
     int status = git_cmd_init (&fresh, init);
     dispose_words (init);
+    if (!status && chdir (target) < 0)
+        status = git_fatal ("cannot enter '%s': %s", target, strerror (errno));
+    if (!status && git_context_open (ctx) != 0) status = GIT_EXIT_FATAL;
     if (status) {
-        bgit_odb_release (&remote_odb);
-        bgit_repo_release (&remote);
+        bgit_proto_refs_release (refs, n_refs);
+        git_far_end_close (child, to_far, from_far, &reader);
         return status;
     }
-    if (chdir (target) < 0) {
-        bgit_odb_release (&remote_odb);
-        bgit_repo_release (&remote);
-        return git_fatal ("cannot enter '%s': %s", target, strerror (errno));
-    }
-    if (git_context_open (ctx) != 0) {
-        bgit_odb_release (&remote_odb);
-        bgit_repo_release (&remote);
-        return GIT_EXIT_FATAL;
-    }
 
-    struct git_remote_ref *heads = NULL;
+    /* The branches the far end has, and where each lands here. */
+    struct git_remote_ref *heads = calloc (n_refs ? n_refs : 1, sizeof *heads);
     size_t n_heads = 0;
-    if (git_remote_heads (&remote, "origin", &heads, &n_heads) < 0) {
-        bgit_odb_release (&remote_odb);
-        bgit_repo_release (&remote);
-        return GIT_EXIT_FATAL;
+    if (!heads) status = GIT_EXIT_FATAL;
+    for (size_t i = 0; !status && i < n_refs; i++) {
+        if (strncmp (refs[i].name, "refs/heads/", 11)) continue;
+        snprintf (heads[n_heads].name, sizeof heads[n_heads].name, "%s",
+                  refs[i].name);
+        snprintf (heads[n_heads].local, sizeof heads[n_heads].local,
+                  "refs/remotes/origin/%s", refs[i].name + 11);
+        memcpy (heads[n_heads].id, refs[i].id, 41);
+        n_heads++;
     }
     /* A bare clone is where the branches live, not a copy of somewhere
        else's: git writes them as branches and keeps no tracking refs. */
@@ -5888,26 +6613,48 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < n_heads; i++)
             snprintf (heads[i].local, sizeof heads[i].local, "%s", heads[i].name);
 
-    bgit_ref *tags = NULL;
+    bgit_ref *tags = calloc (n_refs ? n_refs : 1, sizeof *tags);
     size_t n_tags = 0;
-    bgit_refs_list (&remote, "refs/tags/", &tags, &n_tags);
+    if (!tags) status = GIT_EXIT_FATAL;
+    for (size_t i = 0; !status && i < n_refs; i++) {
+        if (strncmp (refs[i].name, "refs/tags/", 10)) continue;
+        tags[n_tags].name = strdup (refs[i].name);
+        if (!tags[n_tags].name) { status = GIT_EXIT_FATAL; break; }
+        memcpy (tags[n_tags].sha, refs[i].id, 41);
+        n_tags++;
+    }
 
+    /* Everything those refs reach, asked for over the connection. A
+       clone has nothing yet, so it tells the far end of no haves. */
     const char **roots = calloc (n_heads + n_tags + 1, sizeof *roots);
-    if (!roots) status = GIT_EXIT_FATAL;
+    if (!status && !roots) status = GIT_EXIT_FATAL;
     size_t n_roots = 0;
     for (size_t i = 0; !status && i < n_heads; i++) roots[n_roots++] = heads[i].id;
     for (size_t i = 0; !status && i < n_tags; i++) roots[n_roots++] = tags[i].sha;
-    if (!status && bgit_copy_objects (&remote_odb, &ctx->odb,
-                                      ctx->odb.object_dirs[0], roots, n_roots,
-                                      NULL) < 0)
-        status = GIT_EXIT_FATAL;
+    if (!status && n_roots) {
+        unsigned char *pack = NULL;
+        size_t pack_len = 0;
+        if (bgit_proto_fetch (&reader, to_far, roots, n_roots, NULL, 0, &pack,
+                              &pack_len) < 0)
+            status = git_far_end_gone ();
+        if (!status && git_store_pack (ctx, pack, pack_len) < 0)
+            status = git_fatal ("cannot store what the far end sent");
+        free (pack);
+    }
     free (roots);
 
     /* What the far end's HEAD names is what gets checked out. */
     char *head_ref = NULL;
     char head_id[41] = "";
-    bgit_symref_read (&remote, "HEAD", &head_ref);
-    if (head_ref) bgit_ref_read (&remote, head_ref, head_id);
+    for (size_t i = 0; i < n_refs; i++) {
+        if (strcmp (refs[i].name, "HEAD")) continue;
+        if (refs[i].symref) head_ref = strdup (refs[i].symref);
+        memcpy (head_id, refs[i].id, 41);
+        break;
+    }
+    bgit_proto_refs_release (refs, n_refs);
+    refs = NULL;
+    n_refs = 0;
 
     char message[4096];
     snprintf (message, sizeof message, "clone: from %s", absolute);
@@ -5973,8 +6720,9 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     free (head_ref);
     free (heads);
     bgit_refs_free (tags, n_tags);
-    bgit_odb_release (&remote_odb);
-    bgit_repo_release (&remote);
+    bgit_proto_refs_release (refs, n_refs);
+    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
+        status = git_far_end_gone ();
     if (!status && !quiet) fprintf (stderr, "done.\n");
     return status;
 }
@@ -6143,377 +6891,6 @@ git_cmd_pull (git_context *ctx, WORD_LIST *args)
     WORD_LIST *merge_args = make_word_list (make_word (tracking), NULL);
     status = git_cmd_merge (ctx, merge_args);
     dispose_words (merge_args);
-    return status;
-}
-
-/* ---- speaking the protocol ---------------------------------------------- */
-
-/* What the server side of this build can do. A client reads this first
-   and asks only for what it names. */
-static int
-git_v2_advertise (void)
-{
-    if (bgit_pkt_writef (1, "version 2\n") < 0 ||
-        bgit_pkt_writef (1, "agent=%s\n", GIT_AGENT_STRING) < 0 ||
-        bgit_pkt_writef (1, "ls-refs\n") < 0 ||
-        bgit_pkt_writef (1, "object-format=sha1\n") < 0 ||
-        bgit_pkt_flush (1) < 0)
-        return -1;
-    return 0;
-}
-
-/* 1 when the client asked about this ref; asking for no prefix at all
-   asks for every ref there is. */
-static int
-git_v2_wanted (const char *name, char **prefixes, size_t n_prefixes)
-{
-    if (!n_prefixes) return 1;
-    for (size_t i = 0; i < n_prefixes; i++)
-        if (!strncmp (name, prefixes[i], strlen (prefixes[i]))) return 1;
-    return 0;
-}
-
-/* What a tag points at, following tags until it reaches something that is
-   not one. Returns 0 with OUT set, 1 when SHA is not a tag, or -1. */
-static int
-git_peel_fully (bgit_odb *odb, const char *sha, char out[41])
-{
-    char at[41];
-    memcpy (at, sha, 41);
-    for (int depth = 0; depth < 16; depth++) {
-        enum bgit_type type;
-        unsigned char *data = NULL;
-        size_t len = 0;
-        if (bgit_odb_read (odb, at, &type, &data, &len) < 0) return -1;
-        free (data);
-        if (type != BGIT_TAG) {
-            if (!depth) return 1;
-            memcpy (out, at, 41);
-            return 0;
-        }
-        char next[41];
-        if (bgit_peel_to_type (odb, at, BGIT_UNKNOWN, next) < 0) return -1;
-        memcpy (at, next, 41);
-    }
-    return -1;
-}
-
-/* Answer one ls-refs: every ref asked for, in git's order, HEAD first,
-   with what HEAD points at and what a tag points at when those were
-   asked for. */
-static int
-git_v2_ls_refs (bgit_repo *repo, bgit_odb *odb, char **prefixes,
-                size_t n_prefixes, int want_symrefs, int want_peeled)
-{
-    char id[41];
-    char *symref = NULL;
-    if (bgit_ref_resolve (repo, "HEAD", id, &symref) == 0 &&
-        git_v2_wanted ("HEAD", prefixes, n_prefixes)) {
-        if (want_symrefs && symref) {
-            if (bgit_pkt_writef (1, "%s HEAD symref-target:%s\n", id, symref) < 0)
-                { free (symref); return -1; }
-        } else if (bgit_pkt_writef (1, "%s HEAD\n", id) < 0) {
-            free (symref);
-            return -1;
-        }
-    }
-    free (symref);
-
-    bgit_ref *refs = NULL;
-    size_t n = 0;
-    if (bgit_refs_list (repo, "refs/", &refs, &n) < 0) return -1;
-    int status = 0;
-    for (size_t i = 0; i < n && !status; i++) {
-        if (!git_v2_wanted (refs[i].name, prefixes, n_prefixes)) continue;
-        char peeled[41];
-        if (want_peeled && git_peel_fully (odb, refs[i].sha, peeled) == 0)
-            status = bgit_pkt_writef (1, "%s %s peeled:%s\n", refs[i].sha,
-                                      refs[i].name, peeled);
-        else
-            status = bgit_pkt_writef (1, "%s %s\n", refs[i].sha, refs[i].name);
-    }
-    bgit_refs_free (refs, n);
-    if (status < 0) return -1;
-    return bgit_pkt_flush (1);
-}
-
-/* git upload-pack: the far end of a fetch, over protocol v2. git has
-   asked for v2 by default since 2.26, and it is all this build speaks, so
-   a caller that does not ask for it is told rather than answered wrongly. */
-static int
-git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
-{
-    const char *usage = "git upload-pack [--stateless-rpc] [--advertise-refs] "
-                        "<directory>";
-    const char *dir = NULL;
-    int stateless = 0, advertise_only = 0;
-    (void) ctx;
-    for (WORD_LIST *p = args; p; p = p->next) {
-        const char *w = p->word->word;
-        if (!strcmp (w, "--stateless-rpc")) stateless = 1;
-        else if (!strcmp (w, "--advertise-refs")) advertise_only = 1;
-        else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (!dir) dir = w;
-        else return git_usage (usage);
-    }
-    if (!dir) return git_usage (usage);
-
-    const char *protocol = getenv ("GIT_PROTOCOL");
-    if (!protocol || !strstr (protocol, "version=2"))
-        return git_fatal ("this build's git upload-pack speaks protocol "
-                          "version 2 only");
-
-    bgit_repo repo;
-    bgit_odb odb;
-    if (git_open_remote (dir, &repo, &odb) < 0)
-        return git_fatal ("'%s' does not appear to be a git repository", dir);
-
-    int status = 0;
-    if ((!stateless || advertise_only) && git_v2_advertise () < 0)
-        status = GIT_EXIT_FATAL;
-    if (!advertise_only && !status) {
-        bgit_pkt_reader reader;
-        bgit_pkt_from_fd (&reader, 0);
-        /* A request is the command, then the client's own capabilities, a
-           divider, the arguments, and a flush. A flush where the command
-           would be ends the conversation. */
-        for (;;) {
-            char *line = NULL;
-            int got = bgit_pkt_read_line (&reader, &line);
-            if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
-            if (got < 0) {
-                status = git_fatal ("the request is not a pkt-line stream");
-                break;
-            }
-            char command[64] = "";
-            if (!strncmp (line, "command=", 8))
-                snprintf (command, sizeof command, "%s", line + 8);
-            free (line);
-
-            char **prefixes = NULL;
-            size_t n_prefixes = 0;
-            int want_symrefs = 0, want_peeled = 0, bad = 0;
-            for (;;) {
-                got = bgit_pkt_read_line (&reader, &line);
-                if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
-                if (got == BGIT_PKT_DELIM) continue;
-                if (got < 0) { bad = 1; break; }
-                if (!strcmp (line, "symrefs")) want_symrefs = 1;
-                else if (!strcmp (line, "peel")) want_peeled = 1;
-                else if (!strncmp (line, "ref-prefix ", 11)) {
-                    char **grown = realloc (prefixes,
-                                            (n_prefixes + 1) * sizeof *grown);
-                    if (grown) {
-                        prefixes = grown;
-                        prefixes[n_prefixes] = strdup (line + 11);
-                        if (prefixes[n_prefixes]) n_prefixes++;
-                    }
-                }
-                free (line);
-                line = NULL;
-            }
-            free (line);
-            if (!bad && !strcmp (command, "ls-refs"))
-                bad = git_v2_ls_refs (&repo, &odb, prefixes, n_prefixes,
-                                      want_symrefs, want_peeled) < 0;
-            else if (!bad)
-                status = git_fatal ("this build's git upload-pack does not "
-                                    "have the '%s' command", command);
-            for (size_t i = 0; i < n_prefixes; i++) free (prefixes[i]);
-            free (prefixes);
-            if (bad && !status) status = GIT_EXIT_FATAL;
-            if (status) break;
-            if (got == BGIT_PKT_EOF) break;
-        }
-    }
-    bgit_odb_release (&odb);
-    bgit_repo_release (&repo);
-    return status;
-}
-
-/* What git says when the far end stops without answering. Whatever it
-   said for itself has already gone to the same place. */
-static int
-git_far_end_gone (void)
-{
-    fflush (stdout);
-    fputs ("fatal: Could not read from remote repository.\n\n"
-           "Please make sure you have the correct access rights\n"
-           "and the repository exists.\n", stderr);
-    return GIT_EXIT_FATAL;
-}
-
-/* The environment the far end gets: this one, without the variables that
-   name this repository's files, plus the protocol to speak. Returns the
-   array, or this process's own environment if there is no room for it. */
-static char **
-git_far_environ (void)
-{
-    extern char **environ;
-    static const char *const leave_behind[] = {
-        "GIT_PROTOCOL=", "GIT_DIR=", "GIT_WORK_TREE=", "GIT_INDEX_FILE=",
-        "GIT_OBJECT_DIRECTORY=", "GIT_ALTERNATE_OBJECT_DIRECTORIES=", NULL
-    };
-    size_t n = 0;
-    while (environ[n]) n++;
-    char **env = malloc ((n + 2) * sizeof *env);
-    if (!env) return environ;
-    size_t at = 0;
-    for (size_t i = 0; i < n; i++) {
-        int drop = 0;
-        for (int k = 0; leave_behind[k] && !drop; k++)
-            if (!strncmp (environ[i], leave_behind[k], strlen (leave_behind[k])))
-                drop = 1;
-        if (!drop) env[at++] = environ[i];
-    }
-    env[at++] = (char *) "GIT_PROTOCOL=version=2";
-    env[at] = NULL;
-    return env;
-}
-
-/* Start the far end and hold both ends of the conversation: what is
-   written to *TO_FAR arrives on its input, and what it answers is read
-   from *FROM_FAR. PROGRAM is what to run, or NULL for this build's own
-   upload-pack, which is how git runs its own for a path. */
-static pid_t
-git_start_upload_pack (const char *program, const char *path, int *to_far,
-                       int *from_far)
-{
-    int down[2], up[2];
-    if (pipe (down) < 0) return -1;
-    if (pipe (up) < 0) {
-        close (down[0]);
-        close (down[1]);
-        return -1;
-    }
-    pid_t child = fork ();
-    if (child < 0) {
-        close (down[0]); close (down[1]);
-        close (up[0]); close (up[1]);
-        return -1;
-    }
-    if (!child) {
-        close (down[1]);
-        close (up[0]);
-        if (dup2 (down[0], 0) < 0 || dup2 (up[1], 1) < 0) _exit (127);
-        close (down[0]);
-        close (up[1]);
-        /* The far end must be told which protocol to speak, and must not
-           inherit what points this end at its own files. The shell keeps
-           its own table of variables, so the environment is handed over
-           whole rather than changed here. */
-        char **env = git_far_environ ();
-        /* The shell running it is the one we are inside: a bash-os machine
-           need not have another. */
-        char script[4096];
-        snprintf (script, sizeof script, "%s \"$@\"",
-                  program ? program : "builtin git upload-pack");
-        execle ("/proc/self/exe", "bash", "--noprofile", "--norc", "-c", script,
-                "git-upload-pack", path, (char *) NULL, env);
-        _exit (127);
-    }
-    close (down[0]);
-    close (up[1]);
-    *to_far = down[1];
-    *from_far = up[0];
-    return child;
-}
-
-/* git ls-remote: what refs the far end has, without fetching anything. */
-static int
-git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
-{
-    const char *usage = "git ls-remote [--heads] [--tags] [--symref] "
-                        "[--upload-pack=<command>] [<repository>]";
-    int heads = 0, tags = 0, symrefs = 0, quiet = 0;
-    const char *program = NULL, *where = NULL;
-    for (WORD_LIST *p = args; p; p = p->next) {
-        const char *w = p->word->word;
-        if (!strcmp (w, "--heads") || !strcmp (w, "-h")) heads = 1;
-        else if (!strcmp (w, "--tags") || !strcmp (w, "-t")) tags = 1;
-        else if (!strcmp (w, "--symref")) symrefs = 1;
-        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
-        else if (!strncmp (w, "--upload-pack=", 14)) program = w + 14;
-        else if ((!strcmp (w, "-u") || !strcmp (w, "--upload-pack")) && p->next) {
-            program = p->next->word->word;
-            p = p->next;
-        }
-        else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (!where) where = w;
-        else return git_fatal ("this build's git ls-remote does not take "
-                               "patterns yet");
-    }
-
-    /* Inside a repository a name stands for the URL configured for it,
-       as it does for fetch; outside one, only a path can be listed. */
-    bgit_repo here;
-    const char *url = NULL;
-    if (bgit_repo_discover (".", &here) == 0) {
-        bgit_repo_release (&here);
-        if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
-        url = git_remote_url (ctx, where ? where : "origin");
-    }
-    /* Without a repository named on the command line, git says which one
-       it went to. */
-    int named = where != NULL;
-    if (url) where = url;
-    else if (!where)
-        return git_fatal ("No remote configured to list refs from.");
-
-    if (!git_local_only (where))
-        return git_fatal ("this build's git ls-remote takes a path; protocols "
-                          "are not done yet");
-    if (!named && !quiet) fprintf (stderr, "From %s\n", where);
-
-    /* A far end that stops leaves a pipe with no reader; the write that
-       finds out must not take the shell's child with it. */
-    signal (SIGPIPE, SIG_IGN);
-    int to_far = -1, from_far = -1;
-    pid_t child = git_start_upload_pack (program, where, &to_far, &from_far);
-    if (child < 0) return git_fatal ("cannot start the far end: %s",
-                                     strerror (errno));
-
-    bgit_pkt_reader reader;
-    bgit_pkt_from_fd (&reader, from_far);
-    bgit_proto_caps caps;
-    int status = 0;
-    if (bgit_proto_read_caps (&reader, &caps) < 0)
-        status = git_far_end_gone ();
-    else {
-        if (!bgit_proto_cap (&caps, "ls-refs"))
-            status = git_fatal ("the far end cannot list refs");
-        bgit_proto_caps_release (&caps);
-    }
-
-    bgit_proto_ref *refs = NULL;
-    size_t n_refs = 0;
-    if (!status) {
-        const char *prefixes[2];
-        size_t n_prefixes = 0;
-        if (heads) prefixes[n_prefixes++] = "refs/heads/";
-        if (tags) prefixes[n_prefixes++] = "refs/tags/";
-        if (bgit_proto_ls_refs (&reader, to_far, prefixes, n_prefixes, 1, 1,
-                                &refs, &n_refs) < 0)
-            status = git_far_end_gone ();
-    }
-    if (!status)
-        for (size_t i = 0; i < n_refs; i++) {
-            if (symrefs && refs[i].symref)
-                printf ("ref: %s\t%s\n", refs[i].symref, refs[i].name);
-            printf ("%s\t%s\n", refs[i].id, refs[i].name);
-            if (refs[i].peeled[0])
-                printf ("%s\t%s^{}\n", refs[i].peeled, refs[i].name);
-        }
-    bgit_proto_refs_release (refs, n_refs);
-
-    bgit_pkt_flush (to_far);            /* the conversation is over */
-    bgit_pkt_release (&reader);
-    close (to_far);
-    close (from_far);
-    int wait_status = 0;
-    waitpid (child, &wait_status, 0);
-    if (!status && (!WIFEXITED (wait_status) || WEXITSTATUS (wait_status)))
-        status = git_far_end_gone ();
     return status;
 }
 
