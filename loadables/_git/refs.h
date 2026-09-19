@@ -81,8 +81,11 @@ int bgit_reflog_lines (const bgit_repo *repo, const char *refname,
                        char ***lines, size_t *n);
 
 /* "Name <email> 1750000100 +0000" from GIT_COMMITTER_NAME, _EMAIL and
-   _DATE, falling back to a plain identity and the current time. Config
-   comes later, with the config reader. */
+   _DATE, falling back to a plain identity and the current time. */
 int bgit_committer_ident (char *out, size_t outsz);
+
+/* The identity reflog entries record. The git builtin sets it once per
+   command, from the configuration; without it the environment is used. */
+void bgit_refs_set_ident (const char *ident);
 
 #endif /* BASH_OS_GIT_REFS_H */

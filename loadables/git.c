@@ -41,6 +41,7 @@
 #include "loadables.h"
 #include "command-run.h"
 
+#include "_git_config.h"
 #include "_git_odb.h"
 #include "_git_refs.h"
 #include "_git_repo.h"
@@ -73,10 +74,17 @@ git_usage (const char *usage)
     return GIT_EXIT_USAGE;
 }
 
-/* One repository plus its object store, opened when a command needs one. */
+/* Values from `git -c key=value`, applied over every configuration file. */
+#define GIT_MAX_OVERRIDES 32
+static const char *git_overrides[GIT_MAX_OVERRIDES];
+static size_t git_n_overrides;
+
+/* One repository plus its object store and configuration, opened when a
+   command needs them. */
 typedef struct {
     bgit_repo repo;
     bgit_odb odb;
+    bgit_config cfg;
     int open;
 } git_context;
 
@@ -93,12 +101,18 @@ git_context_open (git_context *ctx)
     /* Every message here is git's, so the store stays quiet. */
     ctx->odb.quiet = 1;
     ctx->open = 1;
+    bgit_config_load (&ctx->cfg, &ctx->repo, git_overrides, git_n_overrides);
+    /* Reflog entries record the configured identity. */
+    char ident[1024];
+    if (bgit_ident (&ctx->cfg, 1, ident, sizeof ident) == 0)
+        bgit_refs_set_ident (ident);
     return 0;
 }
 
 static void
 git_context_close (git_context *ctx)
 {
+    bgit_config_release (&ctx->cfg);
     if (!ctx->open) return;
     bgit_odb_release (&ctx->odb);
     bgit_repo_release (&ctx->repo);
@@ -876,6 +890,107 @@ git_cmd_reflog (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* ---- config ------------------------------------------------------------ */
+
+static int
+git_cmd_config (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git config [--global | --local | --file <file>] [-z] "
+                        "(--list | --get <key> | --get-all <key> | "
+                        "--unset <key> | --add <key> <value> | <key> [<value>])";
+    int list = 0, get = 0, get_all = 0, unset = 0, add = 0, zero = 0;
+    int global = 0, local = 0;
+    const char *file = NULL;
+    const char *positional[2] = { NULL, NULL };
+    int n = 0;
+
+    (void) ctx;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--list") || !strcmp (w, "-l")) list = 1;
+        else if (!strcmp (w, "--get")) get = 1;
+        else if (!strcmp (w, "--get-all")) get_all = 1;
+        else if (!strcmp (w, "--unset")) unset = 1;
+        else if (!strcmp (w, "--add")) add = 1;
+        else if (!strcmp (w, "-z") || !strcmp (w, "--null")) zero = 1;
+        else if (!strcmp (w, "--global")) global = 1;
+        else if (!strcmp (w, "--local")) local = 1;
+        else if (!strcmp (w, "--file") && p->next) { file = p->next->word->word; p = p->next; }
+        else if (!strncmp (w, "--file=", 7)) file = w + 7;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n < 2) positional[n++] = w;
+        else return git_usage (usage);
+    }
+    if (list + get + get_all + unset + add > 1) return git_usage (usage);
+    if (!list && !positional[0]) return git_usage (usage);
+
+    bgit_repo repo;
+    int have_repo = bgit_repo_discover (".", &repo) == 0;
+    bgit_config cfg;
+    if (bgit_config_load (&cfg, have_repo ? &repo : NULL, git_overrides,
+                          git_n_overrides) < 0) {
+        if (have_repo) bgit_repo_release (&repo);
+        return git_fatal ("cannot read configuration");
+    }
+
+    int status = 0;
+    int writing = add || unset || (!list && !get && !get_all && positional[1]);
+    if (writing) {
+        char path[4096];
+        if (file) {
+            snprintf (path, sizeof path, "%s", file);
+        } else if (global) {
+            if (bgit_config_global_file (path, sizeof path) < 0) {
+                status = git_fatal ("$HOME not set");
+                goto done;
+            }
+        } else {
+            if (!have_repo) {
+                status = git_fatal ("--local can only be used inside a git repository");
+                goto done;
+            }
+            bgit_config_repo_file (&repo, path, sizeof path);
+        }
+        if (unset)
+            status = bgit_config_get (&cfg, positional[0]) == NULL ? 5
+                   : (bgit_config_unset_file (path, positional[0]) < 0
+                      ? GIT_EXIT_FATAL : 0);
+        else if (!positional[1])
+            status = git_usage (usage);
+        else
+            status = bgit_config_set_file (path, positional[0], positional[1],
+                                           add) < 0 ? GIT_EXIT_FATAL : 0;
+        goto done;
+    }
+
+    if (list) {
+        for (size_t i = 0; i < cfg.n; i++) {
+            const char *value = cfg.entries[i].value ? cfg.entries[i].value : "";
+            if (zero) printf ("%s\n%s%c", cfg.entries[i].key, value, '\0');
+            else printf ("%s=%s\n", cfg.entries[i].key, value);
+        }
+        goto done;
+    }
+    if (get_all) {
+        const char **values = NULL;
+        size_t count = bgit_config_get_all (&cfg, positional[0], &values);
+        for (size_t i = 0; i < count; i++)
+            printf (zero ? "%s%c" : "%s\n", values[i], '\0');
+        free (values);
+        status = count ? 0 : 1;
+        goto done;
+    }
+    /* --get, or a bare key, both read the last value. */
+    const char *value = bgit_config_get (&cfg, positional[0]);
+    if (!value) { status = 1; goto done; }
+    printf (zero ? "%s%c" : "%s\n", value, '\0');
+
+done:
+    bgit_config_release (&cfg);
+    if (have_repo) bgit_repo_release (&repo);
+    return status;
+}
+
 /* ---- dispatch ---------------------------------------------------------- */
 
 typedef int (*git_command_fn) (git_context *, WORD_LIST *);
@@ -885,6 +1000,7 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "cat-file",     git_cmd_cat_file },
+    { "config",       git_cmd_config },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "init",         git_cmd_init },
@@ -918,6 +1034,14 @@ git_run (WORD_LIST *list)
             for (int i = 0; git_commands[i].name; i++)
                 printf ("%s\n", git_commands[i].name);
             return 0;
+        }
+        if (!strcmp (w, "-c") && list->next) {
+            if (git_n_overrides < GIT_MAX_OVERRIDES)
+                git_overrides[git_n_overrides++] = list->next->word->word;
+            else
+                return git_fatal ("too many -c options");
+            list = list->next->next;
+            continue;
         }
         if (!strcmp (w, "-C") && list->next) {
             list = list->next;
@@ -1029,6 +1153,9 @@ char *git_doc[] = {
     "    git show-ref [--head] [--heads] [--tags] [-q] [--verify] [<pattern>...]",
     "    git for-each-ref [--count=<n>] [--format=<format>] [<pattern>...]",
     "    git reflog [show] [<ref>]",
+    "    git config [--global|--local|--file F] [-z] (--list | --get KEY |",
+    "               --get-all KEY | --unset KEY | --add KEY VALUE |",
+    "               KEY [VALUE])",
     "",
     "Object reads cover loose objects, every pack, and the alternates. Refs",
     "cover loose refs, packed-refs and symbolic refs; every change is made",

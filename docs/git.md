@@ -26,11 +26,24 @@ git symbolic-ref [-m <reason>] [-q] [--short] <name> [<ref>]
 git show-ref     [--head] [--heads] [--tags] [-q] [--verify] [<pattern>...]
 git for-each-ref [--count=<n>] [--format=<format>] [<pattern>...]
 git reflog       [show] [<ref>]
+git config       [--global | --local | --file <file>] [-z]
+                 (--list | --get <key> | --get-all <key> | --unset <key>
+                  | --add <key> <value> | <key> [<value>])
 ```
 
-Global options: `-C <path>`, `--git-dir=<path>`, `--work-tree=<path>`,
-`--no-pager` (accepted, nothing paginates), `--version`, `--help` and
-`--list-cmds`, which prints the commands this build has.
+Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
+`--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),
+`--version`, `--help` and `--list-cmds`, which prints the commands this
+build has.
+
+Configuration is read in git's order — the system file unless
+`GIT_CONFIG_NOSYSTEM`, then `GIT_CONFIG_GLOBAL` or `~/.gitconfig` and
+`~/.config/git/config`, then the repository's, then `-c` — with git's
+syntax: subsections, a valueless key meaning true, comments, continued
+lines, quoted values with escapes, and `include.path`. Writing keeps the
+rest of the file as it is, and the name's case as you typed it. The
+identity in a reflog entry comes from `GIT_COMMITTER_*` or `user.name` and
+`user.email`.
 
 Reads cover loose objects, every pack, and the alternates named by
 `objects/info/alternates` or `GIT_ALTERNATE_OBJECT_DIRECTORIES`. A

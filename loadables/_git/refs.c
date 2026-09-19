@@ -176,9 +176,22 @@ bgit_ref_resolve (const bgit_repo *repo, const char *name, char full[41],
     return -1;
 }
 
+/* Set by the git builtin from the configuration, for this command only. */
+static char *bgit_ident_override;
+
+void
+bgit_refs_set_ident (const char *ident)
+{
+    free (bgit_ident_override);
+    bgit_ident_override = ident ? strdup (ident) : NULL;
+}
+
 int
 bgit_committer_ident (char *out, size_t outsz)
 {
+    if (bgit_ident_override)
+        return snprintf (out, outsz, "%s", bgit_ident_override) < (int) outsz
+               ? 0 : -1;
     const char *name = getenv ("GIT_COMMITTER_NAME");
     const char *email = getenv ("GIT_COMMITTER_EMAIL");
     const char *date = getenv ("GIT_COMMITTER_DATE");
