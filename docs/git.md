@@ -42,6 +42,8 @@ git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
                  <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
+git stash        [push] [-m <message>] | list | show [-p] [<stash>]
+                 | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
@@ -137,6 +139,14 @@ commit it undoes. Either can conflict, and then leaves `CHERRY_PICK_HEAD`
 or `REVERT_HEAD` behind for `--continue` or `--abort`, with `git status`
 saying which is under way.
 
+`git stash` keeps its stack where git keeps it: in `refs/stash`'s own
+reflog, which is why `stash@{2}` is just a revision. A stash is two
+commits — one for the index as it stood, one for the working tree, whose
+parents are where HEAD was and that index commit — and they come out with
+the same ids git's do. Applying one is a three-way merge against where it
+was taken, so it can conflict like any other. Keeping untracked files
+(`-u`) is refused for now rather than half-done.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -211,7 +221,7 @@ message and changes nothing.
 
 ## Still to come
 
-Merging, cherry-pick and revert are in. The rest of Phase 2 is rebase,
-stash, worktrees, submodules and rename detection, and then a merge with
-more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Merging, cherry-pick, revert and stash are in. The rest of Phase 2 is
+rebase, worktrees, submodules, rename detection, stashing untracked files,
+and a merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

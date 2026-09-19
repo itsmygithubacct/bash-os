@@ -3204,7 +3204,7 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         bgit_index_entry *files = NULL, *working = NULL;
         size_t n_files = 0, n_working = 0;
         if (bgit_read_tree (&ctx->odb, tree, &files, &n_files) < 0 ||
-            bgit_worktree_entries (&ctx->repo, &ctx->odb, state.index,
+            bgit_worktree_entries (&ctx->repo, &ctx->odb, NULL, state.index,
                                    state.n_index, &working, &n_working) < 0) {
             bgit_index_free_entries (files, n_files);
             git_state_release (&state);
@@ -4682,6 +4682,441 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- stash ------------------------------------------------------------- */
+
+/* A stash is two commits: one for the index as it stood, and one for the
+   working tree, whose parents are where HEAD was and that index commit.
+   The stack of them is refs/stash's own reflog, which is why stash@{2} is
+   just a revision. */
+static int
+git_stash_commit (git_context *ctx, const char *tree, const char *const *parents,
+                  int n_parents, const char *message, int newline,
+                  char out[41])
+{
+    char author[1024], committer[1024];
+    if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+        bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+        return git_fatal ("cannot determine the identity to use");
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) return -1;
+    fprintf (builder, "tree %s\n", tree);
+    for (int i = 0; i < n_parents; i++) fprintf (builder, "parent %s\n", parents[i]);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    /* git ends the index commit's message with a newline and the working
+       tree commit's without one; the ids only match if this matches. */
+    fprintf (builder, "\n%s%s", message, newline ? "\n" : "");
+    fclose (builder);
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1, out);
+    free (body);
+    return rc;
+}
+
+/* "On main" or, with no branch, "on (no branch)" — the words git puts in
+   front of every stash message. */
+static void
+git_stash_where (git_context *ctx, const struct git_state *state, char *out,
+                 size_t outsz)
+{
+    (void) ctx;
+    if (state->branch && !strncmp (state->branch, "refs/heads/", 11))
+        snprintf (out, outsz, "%s", state->branch + 11);
+    else
+        snprintf (out, outsz, "(no branch)");
+}
+
+/* The stash stack, newest first, read from refs/stash's reflog. */
+static int
+git_stash_entries (git_context *ctx, char ***out, size_t *n_out)
+{
+    char **lines = NULL;
+    size_t n = 0;
+    if (bgit_reflog_lines (&ctx->repo, "refs/stash", &lines, &n) < 0) {
+        *out = NULL;
+        *n_out = 0;
+        return 0;
+    }
+    *out = lines;
+    *n_out = n;
+    return 0;
+}
+
+/* What one reflog line says: the id it recorded and the message. */
+static void
+git_stash_split (const char *line, char id[41], const char **message)
+{
+    id[0] = '\0';
+    *message = "";
+    const char *space = strchr (line, ' ');
+    if (!space || space - line < 40) return;
+    memcpy (id, space + 1, 40);
+    id[40] = '\0';
+    const char *tab = strchr (line, '\t');
+    if (tab) *message = tab + 1;
+}
+
+static int
+git_cmd_stash (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git stash [push] [-m <message>] [-q] | list | show "
+                        "[-p] [<stash>] | apply [<stash>] | pop [<stash>] | "
+                        "drop [<stash>] | clear";
+    const char *verb = "push", *message = NULL, *which = NULL;
+    int quiet = 0, patch = 0, stat_only = 0;
+    int first = 1;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (first && (!strcmp (w, "push") || !strcmp (w, "save") ||
+                      !strcmp (w, "list") || !strcmp (w, "show") ||
+                      !strcmp (w, "apply") || !strcmp (w, "pop") ||
+                      !strcmp (w, "drop") || !strcmp (w, "clear"))) {
+            verb = !strcmp (w, "save") ? "push" : w;
+            first = 0;
+            continue;
+        }
+        first = 0;
+        if (!strcmp (w, "-m") && p->next) { message = p->next->word->word; p = p->next; }
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-p") || !strcmp (w, "--patch")) patch = 1;
+        else if (!strcmp (w, "--stat")) stat_only = 1;
+        else if (!strcmp (w, "-u") || !strcmp (w, "--include-untracked"))
+            return git_fatal ("this build's git stash cannot keep untracked "
+                              "files yet");
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!which) which = w;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+
+    if (!strcmp (verb, "list")) {
+        char **lines = NULL;
+        size_t n = 0;
+        git_stash_entries (ctx, &lines, &n);
+        for (size_t i = 0; i < n; i++) {
+            char id[41];
+            const char *text = "";
+            git_stash_split (lines[n - 1 - i], id, &text);
+            printf ("stash@{%zu}: %s\n", i, text);
+        }
+        for (size_t i = 0; i < n; i++) free (lines[i]);
+        free (lines);
+        git_state_release (&state);
+        return 0;
+    }
+
+    if (!strcmp (verb, "clear")) {
+        char log_path[4096];
+        bgit_ref_delete (&ctx->repo, "refs/stash", NULL, NULL);
+        if (snprintf (log_path, sizeof log_path, "%s/logs/refs/stash",
+                      ctx->repo.common_dir) < (int) sizeof log_path)
+            unlink (log_path);
+        git_state_release (&state);
+        return 0;
+    }
+
+    if (!strcmp (verb, "push")) {
+        if (!state.have_head) {
+            git_state_release (&state);
+            return git_fatal ("You do not have the initial commit yet");
+        }
+        /* Nothing changed means nothing to save. */
+        bgit_diff_entry *changes = NULL;
+        size_t n_changes = 0;
+        bgit_index_entry *head_entries = NULL;
+        size_t n_head = 0;
+        if (bgit_read_tree (&ctx->odb, state.head_tree, &head_entries, &n_head) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        bgit_index_entry *working = NULL;
+        size_t n_working = 0;
+        if (bgit_worktree_entries (&ctx->repo, &ctx->odb, ctx->odb.object_dirs[0],
+                                   state.index, state.n_index, &working,
+                                   &n_working) < 0 ||
+            bgit_diff_entries (head_entries, n_head, working, n_working,
+                               &changes, &n_changes) < 0) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        int dirty = n_changes > 0;
+        bgit_diff_free (changes, n_changes);
+        if (!dirty) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            printf ("No local changes to save\n");
+            return 0;
+        }
+
+        char branch[256];
+        git_stash_where (ctx, &state, branch, sizeof branch);
+        struct git_commit head_commit;
+        char head_subject[1024] = "", head_short[41];
+        if (git_commit_read (ctx, state.head, &head_commit) == 0) {
+            git_subject (&head_commit, head_subject, sizeof head_subject);
+            git_commit_release (&head_commit);
+        }
+        git_abbrev (ctx, state.head, 7, head_short, sizeof head_short);
+
+        /* The index as it stands, then the working tree over it. */
+        char index_tree[41], work_tree[41];
+        if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                             state.n_index, index_tree) < 0 ||
+            bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], working,
+                             n_working, work_tree) < 0) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        char index_message[1200], work_message[1200];
+        snprintf (index_message, sizeof index_message, "index on %s: %s %s",
+                  branch, head_short, head_subject);
+        if (message)
+            snprintf (work_message, sizeof work_message, "On %s: %s", branch,
+                      message);
+        else
+            snprintf (work_message, sizeof work_message, "WIP on %s: %s %s",
+                      branch, head_short, head_subject);
+
+        char index_commit[41], work_commit[41];
+        const char *index_parents[1] = { state.head };
+        if (git_stash_commit (ctx, index_tree, index_parents, 1, index_message,
+                              1, index_commit) < 0) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        const char *work_parents[2] = { state.head, index_commit };
+        if (git_stash_commit (ctx, work_tree, work_parents, 2, work_message,
+                              0, work_commit) < 0) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        if (bgit_ref_update (&ctx->repo, "refs/stash", work_commit, NULL,
+                             work_message) < 0)
+            status = GIT_EXIT_FATAL;
+
+        /* The working tree and index go back to HEAD; untracked files stay. */
+        if (!status &&
+            (bgit_checkout_tree (&ctx->repo, &ctx->odb, state.head_tree,
+                                 &state.index, &state.n_index, 1, NULL) < 0 ||
+             git_index_store (ctx, state.index, state.n_index) < 0))
+            status = GIT_EXIT_FATAL;
+        /* Putting the tree back is a hard reset, and HEAD's log says so. */
+        if (!status)
+            bgit_reflog_append (&ctx->repo, "HEAD", state.head, state.head,
+                                "reset: moving to HEAD");
+        bgit_index_free_entries (head_entries, n_head);
+        bgit_index_free_entries (working, n_working);
+        if (!status && !quiet)
+            printf ("Saved working directory and index state %s\n", work_message);
+        git_state_release (&state);
+        return status;
+    }
+
+    /* The rest work on one entry of the stack. */
+    char **lines = NULL;
+    size_t n_lines = 0;
+    git_stash_entries (ctx, &lines, &n_lines);
+    if (!n_lines) {
+        free (lines);
+        git_state_release (&state);
+        return git_fatal ("No stash entries found.");
+    }
+    size_t wanted = 0;
+    if (which) {
+        const char *brace = strstr (which, "@{");
+        if (brace) wanted = (size_t) strtoul (brace + 2, NULL, 10);
+        else if (git_all_digits (which)) wanted = (size_t) strtoul (which, NULL, 10);
+    }
+    if (wanted >= n_lines) {
+        for (size_t i = 0; i < n_lines; i++) free (lines[i]);
+        free (lines);
+        git_state_release (&state);
+        return git_fatal ("%s is not a valid reference",
+                          which ? which : "stash@{0}");
+    }
+    char stash_id[41];
+    const char *stash_message = "";
+    git_stash_split (lines[n_lines - 1 - wanted], stash_id, &stash_message);
+    char kept_message[1200];
+    snprintf (kept_message, sizeof kept_message, "%s", stash_message);
+    for (size_t i = 0; i < n_lines; i++) free (lines[i]);
+    free (lines);
+
+    struct git_commit stash;
+    if (git_commit_read (ctx, stash_id, &stash) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    if (!strcmp (verb, "show")) {
+        char base_tree[41] = "";
+        if (stash.n_parents &&
+            bgit_commit_tree (&ctx->odb, stash.parents[0], base_tree) < 0) {
+            git_commit_release (&stash);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        bgit_diff_entry *entries = NULL;
+        size_t n = 0;
+        if (bgit_diff_trees (&ctx->odb, stash.n_parents ? base_tree : NULL,
+                             stash.tree, &entries, &n) < 0) {
+            git_commit_release (&stash);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        struct git_diff_format format;
+        git_diff_format_init (&format);
+        if (patch) format.patch = 1;
+        else format.stat = 1;
+        (void) stat_only;
+        git_diff_emit (ctx, stdout, &format, entries, n, 0, "");
+        bgit_diff_free (entries, n);
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return 0;
+    }
+
+    if (!strcmp (verb, "drop")) {
+        if (bgit_reflog_drop (&ctx->repo, "refs/stash", wanted) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status && !quiet)
+            printf ("Dropped refs/stash@{%zu} (%s)\n", wanted, stash_id);
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return status;
+    }
+
+    if (strcmp (verb, "apply") && strcmp (verb, "pop")) {
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return git_usage (usage);
+    }
+
+    /* Applying is a three-way merge: what the stash changed against where
+       it was taken, brought onto what is here now. */
+    char base_tree[41] = "", our_tree[41];
+    if ((stash.n_parents &&
+         bgit_commit_tree (&ctx->odb, stash.parents[0], base_tree) < 0) ||
+        bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                         state.n_index, our_tree) < 0) {
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    if (bgit_merge_trees (&ctx->odb, ctx->odb.object_dirs[0],
+                          stash.n_parents ? base_tree : NULL, our_tree,
+                          stash.tree, "Updated upstream", "Stashed changes",
+                          &paths, &n_paths) < 0) {
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    if (git_merge_safe (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return 1;
+    }
+    int conflicts = 0;
+    for (size_t i = 0; i < n_paths; i++) {
+        const bgit_merge_path *path = &paths[i];
+        if (path->kind == BGIT_MERGE_AUTO || path->kind == BGIT_MERGE_CONTENT ||
+            path->kind == BGIT_MERGE_ADD_ADD)
+            printf ("Auto-merging %s\n", path->path);
+        if (path->kind == BGIT_MERGE_CONTENT) {
+            conflicts++;
+            printf ("CONFLICT (content): Merge conflict in %s\n", path->path);
+        } else if (path->kind == BGIT_MERGE_ADD_ADD) {
+            conflicts++;
+            printf ("CONFLICT (add/add): Merge conflict in %s\n", path->path);
+        } else if (path->kind == BGIT_MERGE_MODIFY_DELETE) {
+            conflicts++;
+            printf ("CONFLICT (modify/delete): %s deleted in %s and modified "
+                    "in %s.  Version %s of %s left in tree.\n", path->path,
+                    path->deleted_in_ours ? "Updated upstream" : "Stashed changes",
+                    path->deleted_in_ours ? "Stashed changes" : "Updated upstream",
+                    path->deleted_in_ours ? "Stashed changes" : "Updated upstream",
+                    path->path);
+        }
+    }
+    if (git_merge_apply (ctx, &state, paths, n_paths) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        git_commit_release (&stash);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    /* Without --index the changes come back unstaged: a path HEAD knows is
+       put back as HEAD has it, and only what HEAD never had stays staged. */
+    if (!conflicts) {
+        bgit_index_entry *head_entries = NULL;
+        size_t n_head = 0;
+        if (bgit_read_tree (&ctx->odb, state.head_tree, &head_entries,
+                            &n_head) == 0) {
+            for (size_t i = 0; i < state.n_index; i++) {
+                for (size_t j = 0; j < n_head; j++) {
+                    if (strcmp (state.index[i].path, head_entries[j].path)) continue;
+                    memcpy (state.index[i].sha, head_entries[j].sha, 20);
+                    state.index[i].mode = head_entries[j].mode;
+                    break;
+                }
+            }
+            bgit_index_free_entries (head_entries, n_head);
+            if (git_index_store (ctx, state.index, state.n_index) < 0)
+                status = GIT_EXIT_FATAL;
+        }
+    }
+
+    if (!status && !quiet) {
+        bgit_status_entry *entries = NULL;
+        size_t n = 0;
+        struct git_state fresh;
+        if (git_state_load (ctx, &fresh) == 0) {
+            if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, fresh.index,
+                             fresh.n_index, fresh.have_head ? fresh.head_tree : NULL,
+                             0, 0, &entries, &n) == 0) {
+                const char *branch_name = fresh.branch;
+                if (branch_name && !strncmp (branch_name, "refs/heads/", 11))
+                    branch_name += 11;
+                git_status_long (ctx, &fresh, entries, n, branch_name, 0, 0);
+                bgit_status_free (entries, n);
+            }
+            git_state_release (&fresh);
+        }
+    }
+
+    if (!conflicts && !strcmp (verb, "pop")) {
+        if (bgit_reflog_drop (&ctx->repo, "refs/stash", wanted) < 0)
+            status = GIT_EXIT_FATAL;
+        else if (!quiet)
+            printf ("Dropped refs/stash@{%zu} (%s)\n", wanted, stash_id);
+    }
+    bgit_merge_paths_free (paths, n_paths);
+    git_commit_release (&stash);
+    git_state_release (&state);
+    return status ? status : (conflicts ? 1 : 0);
+}
+
 /* ---- cherry-pick and revert -------------------------------------------- */
 
 /* The summary a picked or reverted commit prints: where it landed, who
@@ -5749,6 +6184,7 @@ static const struct {
     { "rev-parse",    git_cmd_rev_parse },
     { "rm",           git_cmd_rm },
     { "show",         git_cmd_show },
+    { "stash",        git_cmd_stash },
     { "show-ref",     git_cmd_show_ref },
     { "status",       git_cmd_status },
     { "switch",       git_cmd_switch },

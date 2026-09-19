@@ -257,11 +257,13 @@ bgit_reflog_append (const bgit_repo *repo, const char *refname,
                     const char *old_sha, const char *new_sha,
                     const char *message)
 {
-    /* git keeps logs for HEAD and for refs under refs/heads, refs/remotes
-       and refs/notes without being asked; other refs only if a log exists. */
+    /* git keeps logs for HEAD, for refs under refs/heads, refs/remotes and
+       refs/notes, and for refs/stash — whose log is the stash stack —
+       without being asked; other refs only if a log exists already. */
     char path[4096];
     if (bgit_reflog_path (repo, refname, path, sizeof path) < 0) return -1;
     int always = strcmp (refname, "HEAD") == 0 ||
+                 strcmp (refname, "refs/stash") == 0 ||
                  strncmp (refname, "refs/heads/", 11) == 0 ||
                  strncmp (refname, "refs/remotes/", 13) == 0 ||
                  strncmp (refname, "refs/notes/", 11) == 0;
@@ -285,6 +287,82 @@ bgit_reflog_append (const bgit_repo *repo, const char *refname,
     int rc = ferror (f) ? -1 : 0;
     if (fclose (f) != 0) rc = -1;
     if (rc < 0) builtin_error ("cannot write %s: %s", path, strerror (errno));
+    return rc;
+}
+
+/* The id an entry ends at, which the next entry starts from. */
+static void
+bgit_reflog_ids (const char *line, char old_id[41], char new_id[41])
+{
+    old_id[0] = new_id[0] = '\0';
+    if (strlen (line) < 81) return;
+    memcpy (old_id, line, 40);
+    old_id[40] = '\0';
+    memcpy (new_id, line + 41, 40);
+    new_id[40] = '\0';
+}
+
+int
+bgit_reflog_drop (const bgit_repo *repo, const char *refname, size_t index)
+{
+    char **lines = NULL;
+    size_t n = 0;
+    if (bgit_reflog_lines (repo, refname, &lines, &n) != 0 || !n) {
+        free (lines);
+        return -1;
+    }
+    if (index >= n) {
+        for (size_t i = 0; i < n; i++) free (lines[i]);
+        free (lines);
+        return -1;
+    }
+    size_t at = n - 1 - index;      /* the reflog is oldest first */
+
+    /* The entry after the one leaving now starts where it started. */
+    if (at + 1 < n) {
+        char gone_old[41], gone_new[41], next_old[41], next_new[41];
+        bgit_reflog_ids (lines[at], gone_old, gone_new);
+        bgit_reflog_ids (lines[at + 1], next_old, next_new);
+        if (*gone_old && *next_old && strlen (lines[at + 1]) >= 81)
+            memcpy (lines[at + 1], gone_old, 40);
+    }
+
+    char path[4096];
+    int rc = -1;
+    if (bgit_reflog_path (repo, refname, path, sizeof path) == 0) {
+        if (at + 1 == n && n == 1) {
+            /* The last entry: the ref goes with it. */
+            unlink (path);
+            bgit_ref_delete (repo, refname, NULL, NULL);
+            rc = 0;
+        } else {
+            FILE *f = fopen (path, "w");
+            if (f) {
+                for (size_t i = 0; i < n; i++)
+                    if (i != at) fprintf (f, "%s\n", lines[i]);
+                rc = fclose (f) == 0 ? 0 : -1;
+            }
+            /* The ref follows the newest entry left. */
+            if (rc == 0) {
+                size_t newest = n - 1 == at ? n - 2 : n - 1;
+                char old_id[41], new_id[41];
+                bgit_reflog_ids (lines[newest], old_id, new_id);
+                if (*new_id) {
+                    char ref_path[4096];
+                    if (bgit_ref_path (repo, refname, ref_path,
+                                       sizeof ref_path) == 0) {
+                        FILE *out = fopen (ref_path, "w");
+                        if (out) {
+                            fprintf (out, "%s\n", new_id);
+                            if (fclose (out) != 0) rc = -1;
+                        } else rc = -1;
+                    }
+                }
+            }
+        }
+    }
+    for (size_t i = 0; i < n; i++) free (lines[i]);
+    free (lines);
     return rc;
 }
 

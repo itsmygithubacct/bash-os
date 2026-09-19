@@ -188,6 +188,29 @@ git cherry-pick picker-conflict 2>/dev/null || true
 git cherry-pick --abort
 git status --short
 
+# Putting work aside and taking it back.
+git switch -q -c stasher merge-base-branch
+printf 'stash one\nstash two\n' > stashed.txt
+git add stashed.txt
+git commit -q -m 'a file to stash over'
+printf 'stash ONE\nstash two\n' > stashed.txt
+printf 'newly staged\n' > staged-too.txt
+git add staged-too.txt
+git stash push -m 'the sanitizer stash'
+git status --short
+git stash list
+git stash show
+git stash show -p
+git stash pop
+git status --short
+git stash list
+git stash push -m 'to be dropped'
+git stash drop
+git stash list
+git stash push -m 'to be cleared' 2>/dev/null || true
+git stash clear
+git stash list
+
 git fsck 2>/dev/null || true
 SCENARIO
 

@@ -205,6 +205,7 @@ bgit_diff_free (bgit_diff_entry *entries, size_t n)
 
 int
 bgit_worktree_entries (const bgit_repo *repo, bgit_odb *odb,
+                       const char *objects_dir,
                        const bgit_index_entry *index, size_t n_index,
                        bgit_index_entry **out, size_t *n_out)
 {
@@ -239,7 +240,8 @@ bgit_worktree_entries (const bgit_repo *repo, bgit_odb *odb,
                 bgit_slurp_file (full, &content, &len);
             }
             if (content) {
-                if (bgit_write_object (NULL, "blob", content, len, 0, hex) == 0)
+                if (bgit_write_object (objects_dir, "blob", content, len,
+                                       objects_dir != NULL, hex) == 0)
                     bgit_hex_to_sha (hex, entry->sha);
                 free (content);
             }

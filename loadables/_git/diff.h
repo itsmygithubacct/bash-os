@@ -51,8 +51,11 @@ int bgit_diff_entries (const bgit_index_entry *old, size_t n_old,
                        bgit_diff_entry **out, size_t *n_out);
 
 /* The working tree as entries: the index's paths, with the ids and modes
-   the files have now, and anything deleted left out. */
+   the files have now, and anything deleted left out. With OBJECTS_DIR the
+   blobs are written there, which a caller building a tree from them needs;
+   NULL only hashes, which is all a comparison needs. */
 int bgit_worktree_entries (const bgit_repo *repo, bgit_odb *odb,
+                           const char *objects_dir,
                            const bgit_index_entry *index, size_t n_index,
                            bgit_index_entry **out, size_t *n_out);
 

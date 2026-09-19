@@ -80,6 +80,12 @@ int bgit_reflog_append (const bgit_repo *repo, const char *refname,
 int bgit_reflog_lines (const bgit_repo *repo, const char *refname,
                        char ***lines, size_t *n);
 
+/* Remove entry INDEX, counting back from the newest, and join the entries
+   either side so the chain of ids still reads straight — which is what
+   `git stash drop` does to the stash's reflog. With the last entry gone the
+   ref itself goes too. Returns 0, or -1. */
+int bgit_reflog_drop (const bgit_repo *repo, const char *refname, size_t index);
+
 /* "Name <email> 1750000100 +0000" from GIT_COMMITTER_NAME, _EMAIL and
    _DATE, falling back to a plain identity and the current time. */
 int bgit_committer_ident (char *out, size_t outsz);
