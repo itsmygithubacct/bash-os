@@ -167,6 +167,12 @@ bgit_pkt_write (int fd, const void *data, size_t len)
 }
 
 int
+bgit_pkt_write_raw (int fd, const void *data, size_t len)
+{
+    return bgit_write_all (fd, data, len);
+}
+
+int
 bgit_pkt_write_band (int fd, int channel, const void *data, size_t len)
 {
     /* A packet holds 65516 bytes at most, one of which is the channel. */
@@ -290,6 +296,95 @@ bgit_proto_room (unsigned char **buf, size_t len, size_t *cap, size_t more)
     return 0;
 }
 
+void
+bgit_proto_aside_say (bgit_proto_aside *aside, const unsigned char *data,
+                      size_t len)
+{
+    fflush (stdout);
+    for (size_t i = 0; i < len; i++) {
+        char c = (char) data[i];
+        if (c == '\n' || aside->len + 1 >= sizeof aside->held) {
+            fprintf (stderr, "remote: %.*s\n", (int) aside->len, aside->held);
+            aside->len = 0;
+            if (c == '\n') continue;
+        }
+        aside->held[aside->len++] = c;
+    }
+}
+
+void
+bgit_proto_aside_flush (bgit_proto_aside *aside)
+{
+    if (!aside->len) return;
+    fflush (stdout);
+    fprintf (stderr, "remote: %.*s\n", (int) aside->len, aside->held);
+    aside->len = 0;
+}
+
+int
+bgit_proto_read_refs_v0 (bgit_pkt_reader *reader, bgit_proto_ref **out,
+                         size_t *n_out, char **caps)
+{
+    bgit_proto_ref *refs = NULL;
+    size_t n = 0, cap = 0;
+    if (caps) *caps = NULL;
+    for (;;) {
+        const unsigned char *data = NULL;
+        int got = bgit_pkt_read (reader, &data);
+        if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+        if (got < 0) {
+            bgit_proto_refs_release (refs, n);
+            return -1;
+        }
+        /* The first line carries the capabilities after a NUL. */
+        size_t len = (size_t) got;
+        const unsigned char *nul = memchr (data, '\0', len);
+        if (nul) {
+            if (caps && !*caps) {
+                size_t caps_len = len - (size_t) (nul + 1 - data);
+                while (caps_len && (nul[caps_len] == '\n' || nul[caps_len] == '\r'))
+                    caps_len--;
+                *caps = malloc (caps_len + 1);
+                if (*caps) {
+                    memcpy (*caps, nul + 1, caps_len);
+                    (*caps)[caps_len] = '\0';
+                }
+            }
+            len = (size_t) (nul - data);
+        }
+        while (len && (data[len - 1] == '\n' || data[len - 1] == '\r')) len--;
+        if (len < 42 || data[40] != ' ') continue;
+        const char *name = (const char *) data + 41;
+        size_t name_len = len - 41;
+        /* An empty repository names no ref, only what it can do. */
+        if (name_len == 15 && !memcmp (name, "capabilities^{}", 15)) continue;
+        if (n == cap) {
+            size_t next = cap ? cap * 2 : 32;
+            bgit_proto_ref *grown = realloc (refs, next * sizeof *grown);
+            if (!grown) {
+                bgit_proto_refs_release (refs, n);
+                return -1;
+            }
+            refs = grown;
+            cap = next;
+        }
+        memset (&refs[n], 0, sizeof refs[n]);
+        memcpy (refs[n].id, data, 40);
+        refs[n].id[40] = '\0';
+        refs[n].name = malloc (name_len + 1);
+        if (!refs[n].name) {
+            bgit_proto_refs_release (refs, n);
+            return -1;
+        }
+        memcpy (refs[n].name, name, name_len);
+        refs[n].name[name_len] = '\0';
+        n++;
+    }
+    *out = refs;
+    *n_out = n;
+    return 0;
+}
+
 int
 bgit_proto_fetch (bgit_pkt_reader *reader, int out,
                   const char *const *wants, size_t n_wants,
@@ -319,6 +414,8 @@ bgit_proto_fetch (bgit_pkt_reader *reader, int out,
     unsigned char *body = NULL;
     size_t len = 0, cap = 0;
     int in_pack = 0;
+    bgit_proto_aside aside;
+    memset (&aside, 0, sizeof aside);
     for (;;) {
         const unsigned char *data = NULL;
         int got = bgit_pkt_read (reader, &data);
@@ -341,7 +438,7 @@ bgit_proto_fetch (bgit_pkt_reader *reader, int out,
             memcpy (body + len, data + 1, (size_t) got - 1);
             len += (size_t) got - 1;
         } else if (channel == 2) {
-            fwrite (data + 1, 1, (size_t) got - 1, stderr);
+            bgit_proto_aside_say (&aside, data + 1, (size_t) got - 1);
         } else {
             fflush (stdout);
             fprintf (stderr, "remote: %.*s", got - 1, (const char *) data + 1);
@@ -349,6 +446,7 @@ bgit_proto_fetch (bgit_pkt_reader *reader, int out,
             return -1;
         }
     }
+    bgit_proto_aside_flush (&aside);
     *pack = body;
     *pack_len = len;
     return 0;

@@ -57,6 +57,10 @@ int bgit_pkt_read_line (bgit_pkt_reader *reader, char **line);
 /* Write one packet, a formatted packet, or a marker. Return 0, or -1. */
 int bgit_pkt_write (int fd, const void *data, size_t len);
 
+/* Write bytes that are not a packet: the pack a push sends goes over the
+   connection as it is, after the commands and before the report. */
+int bgit_pkt_write_raw (int fd, const void *data, size_t len);
+
 /* Write LEN bytes down one side-band channel — 1 for the pack itself, 2
    for progress, 3 for an error — in as many packets as it takes. */
 int bgit_pkt_write_band (int fd, int channel, const void *data, size_t len);
@@ -98,6 +102,27 @@ int bgit_proto_ls_refs (bgit_pkt_reader *reader, int out,
                         const char *const *prefixes, size_t n_prefixes,
                         int want_symrefs, int want_peeled,
                         bgit_proto_ref **refs, size_t *n_refs);
+
+/* What the far end says for itself, which git prints with "remote: " in
+   front of every line. A packet may hold several lines, or half of one,
+   so the tail is held until the rest of it comes. */
+typedef struct {
+    char held[8192];
+    size_t len;
+} bgit_proto_aside;
+
+void bgit_proto_aside_say (bgit_proto_aside *aside, const unsigned char *data,
+                           size_t len);
+void bgit_proto_aside_flush (bgit_proto_aside *aside);
+
+/* Read the refs a server opens with in git's first protocol, which is
+   what a push still speaks: "<id> <name>" a line, the first carrying what
+   the server can do after a NUL, then a flush. A repository with no refs
+   says so under a name no ref could have, and that line is left out here.
+   CAPS, when asked for, is what the server said it can do. Returns 0, or
+   -1. */
+int bgit_proto_read_refs_v0 (bgit_pkt_reader *reader, bgit_proto_ref **refs,
+                             size_t *n_refs, char **caps);
 
 /* Ask for everything WANTS reaches that HAVES does not, and read the
    pack that comes back: the request goes to OUT, the answer comes from

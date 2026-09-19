@@ -39,6 +39,7 @@ OURS = f'{binary} --noprofile --norc -c \'builtin git upload-pack "$@"\' git-upl
 THEIRS = f'{GIT} upload-pack'
 OURS_RECEIVE = (f'{binary} --noprofile --norc -c '
                 f'\'builtin git receive-pack "$@"\' git-receive-pack')
+THEIRS_RECEIVE = f'{GIT} receive-pack'
 
 
 def check(condition, *context):
@@ -302,6 +303,74 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
           'and saying why', result.stderr[:300])
     check(b'refusing to update checked out branch' in result.stderr,
           'in git\'s own words', result.stderr[:300])
+
+    # And this build pushing into git's receive-pack, which is the other
+    # half of the same conversation.
+    theirs_bare = tmp/'theirs.git'
+    git(tmp, 'init', '-q', '-b', 'main', '--bare', str(theirs_bare))
+    sender = tmp/'sender'
+    git(tmp, 'clone', '-q', str(repo), str(sender))
+    with_path = {'PATH': os.environ['PATH']}
+    bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+         cwd=sender, env=with_path)
+    check(git(theirs_bare, 'rev-parse', 'main').stdout
+          == git(sender, 'rev-parse', 'main').stdout, 'pushed into git')
+    check(git(theirs_bare, 'fsck', '--no-progress', '--strict').returncode == 0,
+          'and git is happy with what arrived')
+
+    (sender/'a.txt').write_text('one\ntwo\nthree\nfour\nfive\n')
+    git(sender, 'commit', '-q', '-am', 'a commit to push on')
+    moved = bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+                 cwd=sender, env=with_path)
+    check(git(theirs_bare, 'rev-parse', 'main').stdout
+          == git(sender, 'rev-parse', 'main').stdout, 'and moved it on')
+    check(b'->' in moved.stderr, 'saying what it did', moved.stderr[:200])
+    again = bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+                 cwd=sender, env=with_path)
+    check(b'Everything up-to-date' in again.stderr, 'and nothing the next time',
+          again.stderr[:200])
+
+    # What git's receive-pack refuses, this build reports as git's client
+    # reports it — including what the far end said for itself, which goes
+    # line by line behind "remote:".
+    checked_out = tmp/'checked-out'
+    git(tmp, 'clone', '-q', str(sender), str(checked_out))
+    (sender/'a.txt').write_text('one\ntwo\nthree\nfour\nfive\nsix\n')
+    git(sender, 'commit', '-q', '-am', 'one more')
+    refused = bgit('push', f'--receive-pack={THEIRS_RECEIVE}', checked_out, 'main',
+                   cwd=sender, status=1, env=with_path)
+    check(b'! [remote rejected] main -> main (branch is currently checked out)'
+          in refused.stderr, 'a branch the far end is sitting on', refused.stderr[:300])
+    lines = [line for line in refused.stderr.decode().splitlines()
+             if 'By default' in line or 'refusing to update' in line]
+    check(lines and all(line.startswith('remote: ') for line in lines),
+          'every line the far end said is behind "remote:"', lines[:3])
+
+    # git tells two rejections apart, and so does this: a branch that has
+    # gone its own way from a tip this end holds cannot be fast-forwarded,
+    # and one whose tip this end has never seen wants fetching first.
+    diverged = tmp/'diverged'
+    git(tmp, 'clone', '-q', str(theirs_bare), str(diverged))
+    git(diverged, 'reset', '-q', '--hard', 'HEAD~1')
+    (diverged/'a.txt').write_text('a line of its own\n')
+    git(diverged, 'commit', '-q', '-am', 'its own commit')
+    rejected = bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+                    cwd=diverged, status=1, env=with_path)
+    check(b'! [rejected]' in rejected.stderr and b'(non-fast-forward)' in rejected.stderr,
+          'a push that would lose commits', rejected.stderr[:300])
+
+    stale = tmp/'stale'
+    git(tmp, 'clone', '-q', str(theirs_bare), str(stale))
+    (sender/'a.txt').write_text('one\ntwo\nthree\nfour\nfive\nsix\nseven\n')
+    git(sender, 'commit', '-q', '-am', 'a commit the stale clone never saw')
+    bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+         cwd=sender, env=with_path)
+    (stale/'a.txt').write_text('something else entirely\n')
+    git(stale, 'commit', '-q', '-am', 'meanwhile')
+    rejected = bgit('push', f'--receive-pack={THEIRS_RECEIVE}', theirs_bare, 'main',
+                    cwd=stale, status=1, env=with_path)
+    check(b'! [rejected]' in rejected.stderr and b'(fetch first)' in rejected.stderr,
+          'a tip this end has never seen', rejected.stderr[:300])
 
     # Without being told which protocol to speak, the server says so rather
     # than answering in one the caller did not ask for.

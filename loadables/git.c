@@ -6042,10 +6042,10 @@ git_far_environ (void)
 /* Start the far end and hold both ends of the conversation: what is
    written to *TO_FAR arrives on its input, and what it answers is read
    from *FROM_FAR. PROGRAM is what to run, or NULL for this build's own
-   upload-pack, which is how git runs its own for a path. */
+   COMMAND, which is how git runs its own for a path. */
 static pid_t
-git_start_upload_pack (const char *program, const char *path, int *to_far,
-                       int *from_far)
+git_start_far_end (const char *program, const char *command, const char *path,
+                   int *to_far, int *from_far)
 {
     int down[2], up[2];
     if (pipe (down) < 0) return -1;
@@ -6075,9 +6075,9 @@ git_start_upload_pack (const char *program, const char *path, int *to_far,
            need not have another. */
         char script[4096];
         snprintf (script, sizeof script, "%s \"$@\"",
-                  program ? program : "builtin git upload-pack");
+                  program ? program : command);
         execle ("/proc/self/exe", "bash", "--noprofile", "--norc", "-c", script,
-                "git-upload-pack", path, (char *) NULL, env);
+                "git-far-end", path, (char *) NULL, env);
         _exit (127);
     }
     close (down[0]);
@@ -6096,7 +6096,8 @@ git_far_end_open (const char *url, const char *program, int *to_far,
     /* A far end that stops leaves a pipe with no reader; the write that
        finds out must not take the shell's child with it. */
     signal (SIGPIPE, SIG_IGN);
-    pid_t child = git_start_upload_pack (program, url, to_far, from_far);
+    pid_t child = git_start_far_end (program, "builtin git upload-pack", url,
+                                     to_far, from_far);
     if (child < 0) {
         git_fatal ("cannot start the far end: %s", strerror (errno));
         return -1;
@@ -6514,7 +6515,8 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
        finds out must not take the shell's child with it. */
     signal (SIGPIPE, SIG_IGN);
     int to_far = -1, from_far = -1;
-    pid_t child = git_start_upload_pack (program, where, &to_far, &from_far);
+    pid_t child = git_start_far_end (program, "builtin git upload-pack", where,
+                                     &to_far, &from_far);
     if (child < 0) return git_fatal ("cannot start the far end: %s",
                                      strerror (errno));
 
@@ -6956,13 +6958,19 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
 static int
 git_cmd_push (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git push [<remote> [<branch>]]";
-    const char *name = NULL, *branch = NULL;
+    const char *usage = "git push [-q] [--receive-pack=<command>] "
+                        "[<remote> | <path> [<branch>]]";
+    const char *name = NULL, *branch = NULL, *program = NULL;
     int quiet = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strncmp (w, "--receive-pack=", 15)) program = w + 15;
+        else if (!strcmp (w, "--receive-pack") && p->next) {
+            program = p->next->word->word;
+            p = p->next;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
         else if (!branch) branch = w;
@@ -7002,71 +7010,178 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         return git_fatal ("src refspec %s does not match any", branch);
     }
 
-    bgit_repo remote;
-    bgit_odb remote_odb;
-    if (git_open_remote (url, &remote, &remote_odb) < 0) {
+    /* The far end is asked over the protocol, which for a push is the
+       first one git spoke and the one it still uses. */
+    signal (SIGPIPE, SIG_IGN);
+    int to_far = -1, from_far = -1;
+    pid_t child = git_start_far_end (program, "builtin git receive-pack", url,
+                                     &to_far, &from_far);
+    if (child < 0) {
         git_state_release (&state);
-        return git_fatal ("'%s' does not appear to be a git repository", url);
+        return git_fatal ("cannot start the far end: %s", strerror (errno));
     }
-
+    bgit_pkt_reader reader;
+    bgit_pkt_from_fd (&reader, from_far);
+    bgit_proto_ref *theirs = NULL;
+    size_t n_theirs = 0;
+    char *capabilities = NULL;
     int status = 0;
-    char current[41] = "";
-    int is_new = bgit_ref_read (&remote, remote_ref, current) != 0;
+    if (bgit_proto_read_refs_v0 (&reader, &theirs, &n_theirs, &capabilities) < 0)
+        status = git_far_end_gone ();
 
-    /* Pushing into a branch that the far end has checked out would leave
-       its working tree behind; git refuses, and so does this. */
-    char *their_head = NULL;
-    if (!remote.bare && bgit_symref_read (&remote, "HEAD", &their_head) == 0 &&
-        their_head && !strcmp (their_head, remote_ref)) {
-        free (their_head);
+    /* What the far end holds for this branch now, which is what the push
+       says it is replacing. */
+    char current[41] = "";
+    int is_new = 1;
+    for (size_t i = 0; !status && i < n_theirs; i++)
+        if (!strcmp (theirs[i].name, remote_ref)) {
+            memcpy (current, theirs[i].id, 41);
+            is_new = 0;
+            break;
+        }
+
+    /* A push may only move a branch forward, unless forced — and forcing
+       is not here yet. The far end would refuse it too; git's client says
+       so itself, before sending anything, and tells the two cases apart:
+       what this end has never seen wants fetching first, and what it has
+       seen but has not built on is a push that would lose commits. */
+    const char *rejection = NULL;
+    if (!status && !is_new && strcmp (current, id)) {
+        if (!bgit_odb_has (&ctx->odb, current)) rejection = "fetch first";
+        else if (bgit_is_ancestor (&ctx->odb, current, id) <= 0)
+            rejection = "non-fast-forward";
+    }
+    if (rejection) {
         fflush (stdout);
-        fprintf (stderr, "remote: error: refusing to update checked out branch: "
-                         "%s\n", remote_ref);
         fprintf (stderr, "To %s\n", url);
-        fprintf (stderr, " ! [remote rejected] %s -> %s (branch is currently "
-                         "checked out)\n", branch, branch);
+        fprintf (stderr, " ! [rejected]        %s -> %s (%s)\n",
+                 branch, branch, rejection);
         fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
-        bgit_odb_release (&remote_odb);
-        bgit_repo_release (&remote);
+        bgit_proto_refs_release (theirs, n_theirs);
+        free (capabilities);
+        git_far_end_close (child, to_far, from_far, &reader);
         git_state_release (&state);
         return 1;
     }
-    free (their_head);
 
-    /* A push may only move a branch forward, unless forced — and forcing
-       is not here yet. */
-    if (!is_new && strcmp (current, id)) {
-        int reaches = bgit_is_ancestor (&ctx->odb, current, id);
-        if (reaches <= 0) {
-            fflush (stdout);
-            fprintf (stderr, "To %s\n", url);
-            fprintf (stderr, " ! [rejected]        %s -> %s (non-fast-forward)\n",
-                     branch, branch);
-            fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
-            bgit_odb_release (&remote_odb);
-            bgit_repo_release (&remote);
-            git_state_release (&state);
-            return 1;
-        }
-    }
-
-    const char *roots[1] = { id };
-    if (bgit_copy_objects (&ctx->odb, &remote_odb,
-                           remote_odb.object_dirs[0], roots, 1, NULL) < 0)
-        status = GIT_EXIT_FATAL;
-    if (!status) {
-        char message[1200];
-        snprintf (message, sizeof message, "push");
-        if (bgit_ref_update (&remote, remote_ref, id, NULL, message) < 0)
-            status = GIT_EXIT_FATAL;
-    }
     if (!status && !is_new && !strcmp (current, id)) {
+        /* Nothing to say, and git says exactly that, having sent no
+           commands at all. */
         if (!quiet) fprintf (stderr, "Everything up-to-date\n");
+        bgit_proto_refs_release (theirs, n_theirs);
+        free (capabilities);
+        if (git_far_end_close (child, to_far, from_far, &reader) < 0)
+            status = git_far_end_gone ();
+        git_state_release (&state);
+        return status;
+    }
+
+    /* The change, with what this end can do, and then a pack holding
+       everything the far end does not have yet. */
+    if (!status) {
+        char line[8192];
+        size_t len = (size_t) snprintf (line, sizeof line, "%s %s %s",
+                                        is_new ? GIT_NULL_ID : current, id,
+                                        remote_ref);
+        line[len++] = '\0';
+        len += (size_t) snprintf (line + len, sizeof line - len,
+                                  "report-status side-band-64k agent=%s",
+                                  GIT_AGENT_STRING);
+        if (bgit_pkt_write (to_far, line, len) < 0 ||
+            bgit_pkt_flush (to_far) < 0)
+            status = git_far_end_gone ();
+    }
+    if (!status) {
+        const char **stop = calloc (n_theirs ? n_theirs : 1, sizeof *stop);
+        if (!stop) status = GIT_EXIT_FATAL;
+        for (size_t i = 0; !status && i < n_theirs; i++) stop[i] = theirs[i].id;
+        const char *roots[1] = { id };
+        char (*send)[41] = NULL;
+        size_t n_send = 0;
+        if (!status && bgit_reachable_objects (&ctx->odb, roots, 1, stop,
+                                               n_theirs, &send, &n_send) < 0)
+            status = GIT_EXIT_FATAL;
+        free (stop);
+        unsigned char *pack = NULL;
+        size_t pack_len = 0;
+        struct bgit_pack_idx_entry *entries = NULL;
+        unsigned char checksum[20];
+        char checksum_hex[41] = "";
+        if (!status && git_pack_build (&ctx->odb, send, n_send, &pack, &pack_len,
+                                       &entries, checksum, checksum_hex) < 0)
+            status = GIT_EXIT_FATAL;
+        free (send);
+        free (entries);
+        if (!status && bgit_pkt_write_raw (to_far, pack, pack_len) < 0)
+            status = git_far_end_gone ();
+        free (pack);
+    }
+
+    /* What the far end made of it: the report arrives as packets inside
+       the first side-band channel, and anything it wants said goes to
+       the second. */
+    char *refused = NULL;
+    int unpacked = 0;
+    bgit_proto_aside aside;
+    memset (&aside, 0, sizeof aside);
+    if (!status) {
+        unsigned char *report = NULL;
+        size_t report_len = 0, report_cap = 0;
+        for (;;) {
+            const unsigned char *data = NULL;
+            int got = bgit_pkt_read (&reader, &data);
+            if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
+            if (got < 0) { status = git_far_end_gone (); break; }
+            if (got < 1) continue;
+            if (data[0] == 2 || data[0] == 3) {
+                bgit_proto_aside_say (&aside, data + 1, (size_t) got - 1);
+                continue;
+            }
+            if (bgit_pack_buf_append (&report, &report_len, &report_cap,
+                                      data + 1, (size_t) got - 1) < 0) {
+                status = GIT_EXIT_FATAL;
+                break;
+            }
+        }
+        bgit_pkt_reader inside;
+        bgit_pkt_from_memory (&inside, report, report_len);
+        for (; !status;) {
+            char *report_line = NULL;
+            int got = bgit_pkt_read_line (&inside, &report_line);
+            if (got < 0) break;
+            if (!strncmp (report_line, "unpack ok", 9)) unpacked = 1;
+            else if (!strncmp (report_line, "unpack ", 7)) {
+                fflush (stdout);
+                fprintf (stderr, "error: remote unpack failed: %s\n",
+                         report_line + 7);
+            }
+            else if (!strncmp (report_line, "ng ", 3)) {
+                const char *why = strchr (report_line + 3, ' ');
+                if (why) refused = strdup (why + 1);
+            }
+            free (report_line);
+        }
+        bgit_pkt_release (&inside);
+        free (report);
+        bgit_proto_aside_flush (&aside);
+    }
+
+    if (!status && refused) {
+        fflush (stdout);
+        fprintf (stderr, "To %s\n", url);
+        fprintf (stderr, " ! [remote rejected] %s -> %s (%s)\n", branch, branch,
+                 refused);
+        fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        status = 1;
+    } else if (!status && !unpacked) {
+        status = git_fatal ("the far end did not say what it did");
     } else if (!status && !quiet) {
         fprintf (stderr, "To %s\n", url);
         git_report_ref (ctx, is_new ? NULL : current, id, branch, branch,
                         (int) strlen (branch));
     }
+    free (refused);
+
     /* What was pushed is now what the far end has — which is only worth
        recording for a remote that has a name to record it under. */
     if (!status && by_name) {
@@ -7074,8 +7189,10 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", name, branch);
         bgit_ref_set (&ctx->repo, tracking, id, NULL);
     }
-    bgit_odb_release (&remote_odb);
-    bgit_repo_release (&remote);
+    bgit_proto_refs_release (theirs, n_theirs);
+    free (capabilities);
+    if (git_far_end_close (child, to_far, from_far, &reader) < 0 && !status)
+        status = git_far_end_gone ();
     git_state_release (&state);
     return status;
 }

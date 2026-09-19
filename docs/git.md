@@ -52,7 +52,8 @@ git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
 git clone        [-q] [--bare] <source> [<directory>]
 git fetch        [-q] [--upload-pack=<command>] [<remote>]
 git pull         [<remote>]
-git push         [<remote> | <path> [<branch>]]
+git push         [-q] [--receive-pack=<command>] [<remote> | <path>
+                 [<branch>]]
 git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
                  [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
@@ -202,18 +203,23 @@ kept the way git keeps one: exploded into loose objects when it holds
 fewer than a hundred, written into `objects/pack` beside a generated
 index when it holds more.
 
-`git receive-pack` is the far end of a push, and git pushes into it: the
-refs this repository has go out first with what it can do, the changes
-the other end wants come back, then the pack, then a report saying what
-became of each change. It refuses a branch this repository has checked
-out, one that would lose commits, and one whose objects did not arrive,
-each in git's words. It says `no-thin`, because a pack whose deltas lean
-on objects it does not carry is one this build cannot complete yet, so
-the other end sends a whole one instead.
+A push is the same conversation the other way round, in the protocol git
+still uses for it: `git receive-pack` sends out the refs this repository
+has and what it can do, the pushing end sends the change it wants and a
+pack, and the report says what became of it. Both halves are here, so
+this build pushes into git and git pushes into this build. The far end
+refuses a branch it has checked out, one whose old id is not what the
+pusher thought, one that would lose commits, and one whose objects did
+not arrive, each in git's words; what it says for itself goes down the
+second side-band channel, which is what puts `remote:` in front of every
+line of it. It says `no-thin`, because a pack whose deltas lean on
+objects it does not carry is one this build cannot complete yet, so the
+other end sends a whole one instead.
 
-This build's own push still copies objects straight into the other
-store, since the client half of that conversation comes next. It may
-only move a branch forward, and is refused into a branch the far end has checked out,
+The pushing end refuses two things before it sends anything, the way git
+does, and tells them apart the way git does: a tip it has never seen
+wants fetching first, and one it has seen but not built on would lose
+commits. A push may only move a branch forward, and is refused into a branch the far end has checked out,
 with git's words for both. It takes a path as readily as the name of a
 remote, and records a tracking ref only for the one that has a name to
 record it under. A URL is refused rather than half-attempted: the
@@ -340,13 +346,14 @@ unpack what `git pack-objects` writes here.
 
 `tests/git-proto.py` crosses the two implementations over the wire: git
 clones and fetches through this build's upload-pack, this build fetches
-through git's, git pushes into this build's receive-pack — a new branch,
-a fast-forward, a delete, a push with nothing to say, and the two it must
-refuse — the packets themselves are read off the connection and compared
-with the ones git sends for the same request, and the pack a `have`
-produces is counted to show the far end sends only what is missing. A
-scenario cannot reach any of that, since both of its runs speak to their
-own far end.
+through git's, git pushes into this build's receive-pack and this build
+pushes into git's — a new branch, a fast-forward, a delete, a push with
+nothing to say, a push that would otherwise be thin, and the three that
+must be refused — the packets themselves are read off the connection and
+compared with the ones git sends for the same request, and the pack a
+`have` produces is counted to show the far end sends only what is
+missing. A scenario cannot reach any of that, since both of its runs
+speak to their own far end.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
@@ -359,11 +366,9 @@ message and changes nothing.
 
 Phase 2 is done but for submodules, and Phase 3 is under way: clone,
 fetch and pull speak protocol v2 to a far end started at a path, not yet
-to a URL. Next is the client half of a push, so that `git push` speaks to
-`receive-pack` rather than writing into the other repository, and then
-the same conversations over HTTPS; after that SSH. Completing a thin pack
-from what is already here waits for the same phase, which is why
-`receive-pack` asks not to be sent one. `git fetch` still
+to a URL. Next is the same conversation over HTTPS, and after that SSH. Completing
+a thin pack from what is already here waits for the same phase, which is
+why `receive-pack` asks not to be sent one. `git fetch` still
 wants the name of a remote where git also takes a path, which needs
 `FETCH_HEAD` to mean anything.
 
