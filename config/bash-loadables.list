@@ -293,7 +293,7 @@ cksum|cksum
 obj|obj
 index|index
 pack|pack
-git|git
+git|git plumbing: objects, refs, config
 ssh|ssh
 pkg|pkg
 ntp|ntp

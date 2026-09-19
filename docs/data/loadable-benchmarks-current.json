@@ -404,7 +404,7 @@
       "sha256": "2f1c77e8ec6d21b8d066d16cf21ff9680487717649e8ca4e8f1dad36f47ac0a7"
     }
   },
-  "catalog_sha256": "f5a6bc6a2480bfcc4385596e83d1d66e5e4f4365568e9c7fff0d5ac8e329ded2",
+  "catalog_sha256": "97903e9c62aedaad362b52317849065b915b491f3ca8ab21f770d17b2880d244",
   "tool_inventory": {
     "busybox_applets": [
       "[",

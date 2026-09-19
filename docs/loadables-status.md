@@ -54,9 +54,9 @@ command becomes right. Raw run logs stay outside the repository.
 
 
 <!-- BEGIN SUMMARY -->
-Catalog: **279 loadables** (248 local sources, 31 stock Bash sources). Command benchmark: **297 cases covering 248 loadables**; 248 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 31 have no individual command timings here; GPU transport measurements are reported separately.
+Catalog: **280 loadables** (249 local sources, 31 stock Bash sources). Command benchmark: **297 cases covering 248 loadables**; 248 loadables passed the selected output checks, 0 have confirmed correctness findings. The other 32 have no individual command timings here; GPU transport measurements are reported separately.
 
-Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **31 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
+Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **32 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
 
 | Profile | Included loadables |
 | --- | --- |
@@ -64,9 +64,9 @@ Metric kinds: **155 compared** against an external program or a BusyBox applet, 
 | pure | 28 |
 | core | 89 |
 | device | 160 |
-| server | 214 |
+| server | 215 |
 | desktop | 155 |
-| full | 279 |
+| full | 280 |
 
 Command measurement source: `63cb23df1c3012dde4b07657cc27e4f1e5015b2f`. This refresh measured the full build at `63cb23d` on one binary: **297 cases covering 248 of 279 loadables**, seven samples each, pinned to one CPU under the shared benchmark lock. 0 loadables are self-timed, having no external program or BusyBox applet that implements them; for those the repeated batch is a determinism check and no ratio is shown. The 31 loadables still without a metric each carry a written blocker rather than an empty row. The measured binary also carries the repeated-input fix: more, less, uuencode, xargs, obj and bsdgames read the persistent stdin stream and left its EOF flag set, so a second in-process invocation read nothing and still exited 0; tests/repeat-input-check.sh is the gate. coreutils nproc now counts the affinity mask as GNU's does, and col terminates its output like util-linux, which is what let col's large text fixture be measured. tests/run.sh was not re-run in full for this refresh.
 
@@ -236,6 +236,7 @@ three times as long. A speed ratio is never published for incorrect output.
 | [`genl`](../loadables/genl.c) | D S F | [Bench checked](#case-genl-ctrl-list) | —; API fixture | 34.018 / — / —; [genl-ctrl-list](#case-genl-ctrl-list), 80 passes; self-timed | P4 | Self-timed baseline: no external program or applet implements this, so compare a change against this figure rather than a ratio. |
 | `getconf`* | D S F | [Bench checked](#case-getconf) | —; getconf | 4.359 / — / 78.629; [getconf](#case-getconf), 132 passes; 2 cases total | P4 | Extend sizes/options; no selected-case performance priority. |
 | [`getfacl`](../loadables/getfacl.c) | D S F | [Smoke](../tests/util-linux-smoke.sh) | —; getfacl (missing) | 54.144 / — / —; [getfacl](#case-getfacl), 54 passes; self-timed | P4 | Self-timed baseline: no external program or applet implements this, so compare a change against this figure rather than a ratio. |
+| [`git`](../loadables/git.c) | S F | Build/help | —; git | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`gpu`](../loadables/gpu.c) | T F | [Contract](../tests/gpu-smoke.py); [S](../tests/gpu-sanitize.sh) | —; API fixture | 58.201 / — / —; [gpu](#case-gpu), 30 passes; self-timed | P3 | Measure application frame latency and driver behavior on the intended device. |
 | [`grep`](../loadables/grep.c) | C D S T F | [Parity](../tests/grep-parity.sh); [limited](#scope-notes); [S](../tests/grep-host.c) | grep; grep | 55.156 / 400.840 / 48.656; [grep-lines](#case-grep-lines), 57 passes; 2 cases total | P3 | Decide required option scope; see limitations. |
 | [`halt`](../loadables/halt.c) | D S F | Build/help | halt; halt | N/M | P3 | Add behavioral fixtures, then timing. |
