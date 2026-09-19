@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 
@@ -42,6 +43,7 @@
 #include "command-run.h"
 
 #include "_git_config.h"
+#include "_git_diff.h"
 #include "_git_ignore.h"
 #include "_git_index.h"
 #include "_git_odb.h"
@@ -1995,6 +1997,475 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- log and diff ------------------------------------------------------ */
+
+/* One commit, as its object records it. */
+struct git_commit {
+    char id[41];
+    char tree[41];
+    char parents[BGIT_MAX_PARENTS][41];
+    int n_parents;
+    char author_name[256], author_email[256], author_date[64];
+    char committer_name[256], committer_email[256], committer_date[64];
+    char *message;
+};
+
+static void
+git_commit_release (struct git_commit *commit)
+{
+    free (commit->message);
+    memset (commit, 0, sizeof *commit);
+}
+
+/* "Name <email> 1750000000 +0000" split into its parts. */
+static void
+git_split_ident (const char *line, size_t len, char *name, size_t name_sz,
+                 char *email, size_t email_sz, char *date, size_t date_sz)
+{
+    const char *open = memchr (line, '<', len);
+    const char *close = open ? memchr (open, '>', len - (size_t) (open - line)) : NULL;
+    if (!open || !close) return;
+    size_t name_len = (size_t) (open - line);
+    while (name_len && line[name_len - 1] == ' ') name_len--;
+    if (name_len >= name_sz) name_len = name_sz - 1;
+    memcpy (name, line, name_len);
+    name[name_len] = '\0';
+    size_t email_len = (size_t) (close - open - 1);
+    if (email_len >= email_sz) email_len = email_sz - 1;
+    memcpy (email, open + 1, email_len);
+    email[email_len] = '\0';
+    const char *rest = close + 1;
+    while (rest < line + len && *rest == ' ') rest++;
+    size_t date_len = (size_t) (line + len - rest);
+    if (date_len >= date_sz) date_len = date_sz - 1;
+    memcpy (date, rest, date_len);
+    date[date_len] = '\0';
+}
+
+static int
+git_commit_read (git_context *ctx, const char *id, struct git_commit *commit)
+{
+    memset (commit, 0, sizeof *commit);
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0 ||
+        type != BGIT_COMMIT) {
+        free (data);
+        return -1;
+    }
+    memcpy (commit->id, id, 41);
+    const char *p = (const char *) data;
+    const char *end = p + len;
+    while (p < end) {
+        const char *nl = memchr (p, '\n', (size_t) (end - p));
+        size_t line = nl ? (size_t) (nl - p) : (size_t) (end - p);
+        if (!line) { p = nl ? nl + 1 : end; break; }
+        if (line > 5 && !memcmp (p, "tree ", 5)) {
+            memcpy (commit->tree, p + 5, 40);
+            commit->tree[40] = '\0';
+        } else if (line > 7 && !memcmp (p, "parent ", 7) &&
+                   commit->n_parents < BGIT_MAX_PARENTS) {
+            memcpy (commit->parents[commit->n_parents], p + 7, 40);
+            commit->parents[commit->n_parents][40] = '\0';
+            commit->n_parents++;
+        } else if (line > 7 && !memcmp (p, "author ", 7)) {
+            git_split_ident (p + 7, line - 7, commit->author_name,
+                             sizeof commit->author_name, commit->author_email,
+                             sizeof commit->author_email, commit->author_date,
+                             sizeof commit->author_date);
+        } else if (line > 10 && !memcmp (p, "committer ", 10)) {
+            git_split_ident (p + 10, line - 10, commit->committer_name,
+                             sizeof commit->committer_name,
+                             commit->committer_email,
+                             sizeof commit->committer_email,
+                             commit->committer_date,
+                             sizeof commit->committer_date);
+        }
+        if (!nl) { p = end; break; }
+        p = nl + 1;
+    }
+    size_t message_len = (size_t) (end - p);
+    commit->message = malloc (message_len + 1);
+    if (!commit->message) { free (data); return -1; }
+    memcpy (commit->message, p, message_len);
+    commit->message[message_len] = '\0';
+    free (data);
+    return 0;
+}
+
+/* git's default date: "Sun Jun 15 12:26:40 2025 +0000", in the commit's own
+   zone, which is what the raw "<seconds> <zone>" pair records. */
+static void
+git_format_date (const char *raw, int keep_raw, char *out, size_t outsz)
+{
+    long long seconds = 0;
+    char zone[8] = "+0000";
+    sscanf (raw, "%lld %7s", &seconds, zone);
+    if (keep_raw) {
+        snprintf (out, outsz, "%lld %s", seconds, zone);
+        return;
+    }
+    int sign = zone[0] == '-' ? -1 : 1;
+    int hours = (zone[1] - '0') * 10 + (zone[2] - '0');
+    int minutes = (zone[3] - '0') * 10 + (zone[4] - '0');
+    time_t shifted = (time_t) (seconds + sign * (hours * 3600 + minutes * 60));
+    struct tm tm;
+    if (!gmtime_r (&shifted, &tm)) { snprintf (out, outsz, "%s", raw); return; }
+    static const char *const days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    static const char *const months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    snprintf (out, outsz, "%s %s %2d %02d:%02d:%02d %d %s",
+              days[tm.tm_wday], months[tm.tm_mon], tm.tm_mday, tm.tm_hour,
+              tm.tm_min, tm.tm_sec, tm.tm_year + 1900, zone);
+}
+
+/* The subject is the message's first line. */
+static void
+git_subject (const struct git_commit *commit, char *out, size_t outsz)
+{
+    const char *nl = strchr (commit->message, '\n');
+    size_t len = nl ? (size_t) (nl - commit->message) : strlen (commit->message);
+    if (len >= outsz) len = outsz - 1;
+    memcpy (out, commit->message, len);
+    out[len] = '\0';
+}
+
+static void
+git_format_commit (git_context *ctx, const struct git_commit *commit,
+                   const char *format, int raw_date)
+{
+    char buffer[4096];
+    for (const char *p = format; *p; p++) {
+        if (*p != '%') { putchar (*p); continue; }
+        p++;
+        switch (*p) {
+        case 'H': fputs (commit->id, stdout); break;
+        case 'h': {
+            char abbreviated[41];
+            git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
+            fputs (abbreviated, stdout);
+            break;
+        }
+        case 'T': fputs (commit->tree, stdout); break;
+        case 'P':
+            for (int i = 0; i < commit->n_parents; i++)
+                printf ("%s%s", i ? " " : "", commit->parents[i]);
+            break;
+        case 'p':
+            for (int i = 0; i < commit->n_parents; i++) {
+                char abbreviated[41];
+                git_abbrev (ctx, commit->parents[i], 7, abbreviated,
+                            sizeof abbreviated);
+                printf ("%s%s", i ? " " : "", abbreviated);
+            }
+            break;
+        case 'a':
+            p++;
+            if (*p == 'n') fputs (commit->author_name, stdout);
+            else if (*p == 'e') fputs (commit->author_email, stdout);
+            else if (*p == 'd') {
+                git_format_date (commit->author_date, raw_date, buffer, sizeof buffer);
+                fputs (buffer, stdout);
+            } else if (*p == 't') {
+                git_format_date (commit->author_date, 1, buffer, sizeof buffer);
+                fputs (strtok (buffer, " "), stdout);
+            }
+            break;
+        case 'c':
+            p++;
+            if (*p == 'n') fputs (commit->committer_name, stdout);
+            else if (*p == 'e') fputs (commit->committer_email, stdout);
+            else if (*p == 'd') {
+                git_format_date (commit->committer_date, raw_date, buffer, sizeof buffer);
+                fputs (buffer, stdout);
+            } else if (*p == 't') {
+                git_format_date (commit->committer_date, 1, buffer, sizeof buffer);
+                fputs (strtok (buffer, " "), stdout);
+            }
+            break;
+        case 's': {
+            git_subject (commit, buffer, sizeof buffer);
+            fputs (buffer, stdout);
+            break;
+        }
+        case 'b': {
+            /* The body is what follows the blank line after the subject. */
+            const char *nl = strchr (commit->message, '\n');
+            const char *body = nl ? nl + 1 : "";
+            if (*body == '\n') body++;
+            fputs (body, stdout);
+            break;
+        }
+        case 'n': putchar ('\n'); break;
+        case '%': putchar ('%'); break;
+        case '\0': return;
+        default: putchar ('%'); putchar (*p); break;
+        }
+    }
+    putchar ('\n');
+}
+
+/* The commits reachable from REVS, newest first by commit date. */
+static int
+git_collect_commits (git_context *ctx, const char *const *revs, int n_revs,
+                     int first_parent, long limit, char (**out)[41], size_t *n_out)
+{
+    struct git_walk walk;
+    memset (&walk, 0, sizeof walk);
+    char (*ordered)[41] = NULL;
+    size_t n = 0, cap = 0;
+    for (int i = 0; i < n_revs; i++) {
+        char id[41], commit[41];
+        if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+            free (walk.seen); free (walk.pending); free (ordered);
+            return -1;
+        }
+        if (git_walk_push (ctx, &walk, commit) < 0) goto fail;
+    }
+    while (walk.n_pending) {
+        size_t best = 0;
+        for (size_t i = 1; i < walk.n_pending; i++)
+            if (walk.pending[i].date > walk.pending[best].date) best = i;
+        char current[41];
+        memcpy (current, walk.pending[best].id, 41);
+        memmove (walk.pending + best, walk.pending + best + 1,
+                 (walk.n_pending - best - 1) * sizeof *walk.pending);
+        walk.n_pending--;
+
+        if (limit >= 0 && (long) n >= limit) break;
+        if (n == cap) {
+            size_t next = cap ? cap * 2 : 32;
+            char (*grown)[41] = realloc (ordered, next * sizeof *grown);
+            if (!grown) goto fail;
+            ordered = grown;
+            cap = next;
+        }
+        memcpy (ordered[n++], current, 41);
+
+        char parents[BGIT_MAX_PARENTS][41];
+        int count = bgit_commit_parents (&ctx->odb, current, parents,
+                                         BGIT_MAX_PARENTS);
+        if (first_parent && count > 1) count = 1;
+        for (int i = 0; i < count; i++)
+            if (git_walk_push (ctx, &walk, parents[i]) < 0) goto fail;
+    }
+    free (walk.seen);
+    free (walk.pending);
+    *out = ordered;
+    *n_out = n;
+    return 0;
+fail:
+    free (walk.seen);
+    free (walk.pending);
+    free (ordered);
+    return -1;
+}
+
+static int
+git_cmd_log (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git log [--oneline] [--format=<format>] "
+                        "[-n <number>] [--reverse] [--first-parent] "
+                        "[--date=raw] [<revision>...]";
+    const char *format = NULL;
+    int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0;
+    long limit = -1;
+    const char *revs[16];
+    int n_revs = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--oneline")) oneline = 1;
+        else if (!strncmp (w, "--format=", 9)) format = w + 9;
+        else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
+        else if (!strcmp (w, "--reverse")) reverse = 1;
+        else if (!strcmp (w, "--first-parent")) first_parent = 1;
+        else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
+        else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
+        else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
+        else return git_fatal ("too many revisions");
+    }
+    if (format && !strcmp (format, "oneline")) { oneline = 1; format = NULL; }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* --all means every ref; otherwise HEAD, unless revisions were named. */
+    const char *starts[64];
+    int n_starts = 0;
+    int want_all = 0;
+    for (int i = 0; i < n_revs; i++)
+        if (!strcmp (revs[i], "--all")) want_all = 1;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (want_all) {
+        if (bgit_refs_list (&ctx->repo, "refs/", &refs, &n_refs) < 0)
+            return git_fatal ("cannot read refs");
+        for (size_t i = 0; i < n_refs && n_starts < (int) (sizeof starts / sizeof *starts); i++)
+            starts[n_starts++] = refs[i].name;
+    }
+    for (int i = 0; i < n_revs; i++)
+        if (strcmp (revs[i], "--all") && n_starts < (int) (sizeof starts / sizeof *starts))
+            starts[n_starts++] = revs[i];
+    if (!n_starts) starts[n_starts++] = "HEAD";
+
+    char (*ordered)[41] = NULL;
+    size_t n = 0;
+    int rc = git_collect_commits (ctx, starts, n_starts, first_parent, limit,
+                                  &ordered, &n);
+    bgit_refs_free (refs, n_refs);
+    if (rc < 0)
+        return git_fatal ("your current branch does not have any commits yet");
+
+    for (size_t k = 0; k < n; k++) {
+        size_t i = reverse ? n - 1 - k : k;
+        struct git_commit commit;
+        if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
+        if (oneline) {
+            char abbreviated[41], subject[4096];
+            git_abbrev (ctx, commit.id, 7, abbreviated, sizeof abbreviated);
+            git_subject (&commit, subject, sizeof subject);
+            printf ("%s %s\n", abbreviated, subject);
+        } else if (format) {
+            git_format_commit (ctx, &commit, format, raw_date);
+        } else {
+            char date[128];
+            git_format_date (commit.author_date, raw_date, date, sizeof date);
+            printf ("commit %s\n", commit.id);
+            if (commit.n_parents > 1) {
+                printf ("Merge:");
+                for (int j = 0; j < commit.n_parents; j++) {
+                    char abbreviated[41];
+                    git_abbrev (ctx, commit.parents[j], 7, abbreviated,
+                                sizeof abbreviated);
+                    printf (" %s", abbreviated);
+                }
+                putchar ('\n');
+            }
+            printf ("Author: %s <%s>\n", commit.author_name, commit.author_email);
+            printf ("Date:   %s\n\n", date);
+            /* git indents the message by four spaces. */
+            /* Every line is indented by four spaces, a blank one included. */
+            const char *line = commit.message;
+            while (*line) {
+                const char *nl = strchr (line, '\n');
+                size_t len = nl ? (size_t) (nl - line) : strlen (line);
+                if (!nl && !len) break;
+                printf ("    %.*s\n", (int) len, line);
+                if (!nl) break;
+                line = nl + 1;
+            }
+            if (k + 1 < n) putchar ('\n');
+        }
+        git_commit_release (&commit);
+    }
+    free (ordered);
+    return 0;
+}
+
+static int
+git_cmd_diff (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git diff (--name-only | --name-status) [--cached] "
+                        "[<commit> [<commit>]] [-- <path>...]";
+    int cached = 0, name_only = 0, name_status = 0, no_more = 0;
+    const char *revs[2] = { NULL, NULL };
+    int n_revs = 0;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && (!strcmp (w, "--cached") || !strcmp (w, "--staged"))) cached = 1;
+        else if (!no_more && !strcmp (w, "--name-only")) name_only = 1;
+        else if (!no_more && !strcmp (w, "--name-status")) name_status = 1;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!no_more && n_revs < 2) revs[n_revs++] = w;
+        else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!name_only && !name_status)
+        return git_fatal ("this build's git diff needs --name-only or "
+                          "--name-status; the patch writer is not done yet");
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    int rc = 0;
+    if (n_revs == 2) {
+        char a[41], b[41], tree_a[41], tree_b[41];
+        if (git_resolve (ctx, revs[0], a, NULL) < 0 ||
+            git_resolve (ctx, revs[1], b, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, a, BGIT_TREE, tree_a) < 0 ||
+            bgit_peel_to_type (&ctx->odb, b, BGIT_TREE, tree_b) < 0) {
+            git_state_release (&state);
+            return git_fatal ("bad revision");
+        }
+        rc = bgit_diff_trees (&ctx->odb, tree_a, tree_b, &entries, &n);
+    } else if (cached) {
+        const char *base = n_revs ? revs[0] : (state.have_head ? "HEAD" : NULL);
+        char tree[41] = "";
+        if (base) {
+            char id[41];
+            if (git_resolve (ctx, base, id, NULL) < 0 ||
+                bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0) {
+                git_state_release (&state);
+                return git_fatal ("bad revision");
+            }
+        }
+        rc = bgit_diff_tree_index (&ctx->odb, base ? tree : NULL, state.index,
+                                   state.n_index, &entries, &n);
+    } else if (n_revs == 1) {
+        /* A commit against the working tree: through the index, then on. */
+        char id[41], tree[41];
+        if (git_resolve (ctx, revs[0], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0) {
+            git_state_release (&state);
+            return git_fatal ("bad revision");
+        }
+        bgit_index_entry *files = NULL, *working = NULL;
+        size_t n_files = 0, n_working = 0;
+        if (bgit_read_tree (&ctx->odb, tree, &files, &n_files) < 0 ||
+            bgit_worktree_entries (&ctx->repo, &ctx->odb, state.index,
+                                   state.n_index, &working, &n_working) < 0) {
+            bgit_index_free_entries (files, n_files);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        rc = bgit_diff_entries (files, n_files, working, n_working, &entries, &n);
+        bgit_index_free_entries (files, n_files);
+        bgit_index_free_entries (working, n_working);
+    } else {
+        rc = bgit_diff_index_worktree (&ctx->repo, &ctx->odb, state.index,
+                                       state.n_index, &entries, &n);
+    }
+    if (rc < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot compare");
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        if (n_paths) {
+            int matched = 0;
+            for (int j = 0; j < n_paths && !matched; j++)
+                if (git_path_in_spec (entries[i].path, paths[j])) matched = 1;
+            if (!matched) continue;
+        }
+        if (name_status) printf ("%c\t%s\n", entries[i].status, entries[i].path);
+        else printf ("%s\n", entries[i].path);
+    }
+    bgit_diff_free (entries, n);
+    git_state_release (&state);
+    return 0;
+}
+
 /* ---- check-ignore ------------------------------------------------------ */
 
 /* Load the .gitignore of every directory above PATH, once each. */
@@ -2198,9 +2669,11 @@ static const struct {
     { "commit-tree",  git_cmd_commit_tree },
     { "commit",       git_cmd_commit },
     { "config",       git_cmd_config },
+    { "diff",         git_cmd_diff },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "init",         git_cmd_init },
+    { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
     { "ls-tree",      git_cmd_ls_tree },
     { "read-tree",    git_cmd_read_tree },
