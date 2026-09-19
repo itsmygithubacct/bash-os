@@ -49,6 +49,7 @@
 #include "_git_repo.h"
 #include "_git_revision.h"
 #include "_git_tree.h"
+#include "_git_worktree.h"
 #include "_git_lock.h"
 
 /* The git version whose behaviour this matches, plus what we are. */
@@ -1490,6 +1491,510 @@ git_cmd_var (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* ---- add, status and commit -------------------------------------------- */
+
+/* The index, the HEAD tree and the status of everything, in one place. */
+struct git_state {
+    bgit_index_entry *index;
+    size_t n_index, cap_index;
+    char head[41];
+    char head_tree[41];
+    int have_head;
+    char *branch;           /* the ref HEAD names, or NULL when detached */
+};
+
+static void
+git_state_release (struct git_state *state)
+{
+    bgit_index_free_entries (state->index, state->n_index);
+    free (state->branch);
+    memset (state, 0, sizeof *state);
+}
+
+static int
+git_state_load (git_context *ctx, struct git_state *state)
+{
+    memset (state, 0, sizeof *state);
+    if (git_index_load (ctx, &state->index, &state->n_index) < 0) return -1;
+    state->cap_index = state->n_index;
+    char *symref = NULL;
+    if (bgit_ref_resolve (&ctx->repo, "HEAD", state->head, &symref) == 0) {
+        state->have_head = 1;
+        if (bgit_peel_to_type (&ctx->odb, state->head, BGIT_TREE,
+                               state->head_tree) < 0) {
+            free (symref);
+            return -1;
+        }
+    }
+    if (!symref) {
+        /* An unborn branch still names where a commit will go. */
+        char *target = NULL;
+        if (bgit_symref_read (&ctx->repo, "HEAD", &target) == 0) symref = target;
+    }
+    state->branch = symref;
+    return 0;
+}
+
+/* Stage one working-tree file, replacing whatever the index held. */
+static int
+git_stage_file (git_context *ctx, struct git_state *state, const char *path,
+                const struct stat *st)
+{
+    char full[4096];
+    if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path) >=
+        (int) sizeof full)
+        return -1;
+    unsigned char *content = NULL;
+    size_t len = 0;
+    if (S_ISLNK (st->st_mode)) {
+        char target[4096];
+        ssize_t got = readlink (full, target, sizeof target);
+        if (got < 0) return -1;
+        content = malloc ((size_t) got);
+        if (!content) return -1;
+        memcpy (content, target, (size_t) got);
+        len = (size_t) got;
+    } else {
+        if (bgit_slurp_file (full, &content, &len) < 0) return -1;
+    }
+    char id[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "blob", content, len,
+                               1, id);
+    free (content);
+    if (rc < 0) return -1;
+
+    bgit_index_entry entry;
+    memset (&entry, 0, sizeof entry);
+    bgit_index_entry_set_stat (&entry, st);
+    entry.mode = bgit_worktree_mode (st);
+    if (bgit_hex_to_sha (id, entry.sha) < 0) return -1;
+    size_t plen = strlen (path);
+    entry.flags = (uint16_t) (plen > 0xFFF ? 0xFFF : plen);
+    entry.path = strdup (path);
+    if (!entry.path) return -1;
+    return git_index_put (&state->index, &state->n_index, &state->cap_index,
+                          &entry);
+}
+
+struct git_add_ctx {
+    git_context *ctx;
+    struct git_state *state;
+    const bgit_ignore *ignore;
+    const char *pathspec;      /* "" for everything */
+    int update_only;           /* -u: only what the index already has */
+    int dry_run;
+    int *changed;
+};
+
+/* Is PATH inside the pathspec (a file, a directory, or everything)? */
+static int
+git_path_in_spec (const char *path, const char *spec)
+{
+    if (!*spec || !strcmp (spec, ".")) return 1;
+    size_t len = strlen (spec);
+    if (!strcmp (path, spec)) return 1;
+    return !strncmp (path, spec, len) && path[len] == '/';
+}
+
+static int
+git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
+{
+    struct git_add_ctx *add = vctx;
+    if (is_dir) {
+        /* Skip a directory outside the pathspec, or one that is ignored. */
+        size_t len = strlen (path);
+        if (*add->pathspec && strcmp (add->pathspec, ".") &&
+            strncmp (add->pathspec, path, len) != 0 &&
+            !git_path_in_spec (path, add->pathspec))
+            return 1;
+        const bgit_ignore_rule *rule = NULL;
+        if (bgit_ignore_match (add->ignore, path, 1, &rule)) return 1;
+        return 0;
+    }
+    if (!git_path_in_spec (path, add->pathspec)) return 0;
+    const bgit_ignore_rule *rule = NULL;
+    if (bgit_ignore_match (add->ignore, path, 0, &rule)) return 0;
+
+    /* Already staged and unchanged? Then there is nothing to do. */
+    for (size_t i = 0; i < add->state->n_index; i++) {
+        if (strcmp (add->state->index[i].path, path) != 0) continue;
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s", add->ctx->repo.work_tree, path);
+        if (bgit_worktree_matches (&add->ctx->odb, full,
+                                   &add->state->index[i], st))
+            return 0;
+        *add->changed = 1;
+        if (add->dry_run) return 0;
+        return git_stage_file (add->ctx, add->state, path, st) < 0 ? -1 : 0;
+    }
+    if (add->update_only) return 0;      /* -u leaves new files alone */
+    *add->changed = 1;
+    if (add->dry_run) return 0;
+    return git_stage_file (add->ctx, add->state, path, st) < 0 ? -1 : 0;
+}
+
+static int
+git_cmd_add (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git add [-A | --all] [-u | --update] [-n | --dry-run] "
+                        "[-f | --force] [--] <pathspec>...";
+    int all = 0, update_only = 0, dry_run = 0, force = 0, no_more = 0;
+    const char *specs[32];
+    int n_specs = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && (!strcmp (w, "-A") || !strcmp (w, "--all"))) all = 1;
+        else if (!no_more && (!strcmp (w, "-u") || !strcmp (w, "--update"))) update_only = 1;
+        else if (!no_more && (!strcmp (w, "-n") || !strcmp (w, "--dry-run"))) dry_run = 1;
+        else if (!no_more && (!strcmp (w, "-f") || !strcmp (w, "--force"))) force = 1;
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_specs < (int) (sizeof specs / sizeof *specs)) specs[n_specs++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!n_specs && !all && !update_only) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    bgit_ignore ignore;
+    if (bgit_ignore_load (&ignore, &ctx->repo, &ctx->cfg) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot read the exclude files");
+    }
+
+    /* A named file that an ignore rule covers is refused without -f. */
+    int status = 0, changed = 0;
+    for (int i = 0; i < n_specs && !force; i++) {
+        struct stat st;
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, specs[i]);
+        if (lstat (full, &st) < 0 || S_ISDIR (st.st_mode)) continue;
+        const bgit_ignore_rule *rule = NULL;
+        if (!bgit_ignore_match (&ignore, specs[i], 0, &rule)) continue;
+        fflush (stdout);
+        fprintf (stderr, "The following paths are ignored by one of your "
+                         ".gitignore files:\n%s\n", specs[i]);
+        status = 1;
+        break;
+    }
+
+    const char *everything[1] = { "" };
+    const char *const *spec_list = n_specs ? specs : everything;
+    int spec_count = n_specs ? n_specs : 1;
+    for (int i = 0; i < spec_count && !status; i++) {
+        struct git_add_ctx add = {
+            .ctx = ctx, .state = &state, .ignore = &ignore,
+            .pathspec = spec_list[i], .update_only = update_only,
+            .dry_run = dry_run, .changed = &changed
+        };
+        if (bgit_worktree_walk (&ctx->repo, git_add_visit, &add) < 0) {
+            status = GIT_EXIT_FATAL;
+            break;
+        }
+        /* A file that has gone is staged as a removal, which is what
+           `git add <dir>`, `-A` and `-u` all do. */
+        for (size_t j = 0; j < state.n_index;) {
+            if (!git_path_in_spec (state.index[j].path, spec_list[i])) { j++; continue; }
+            char full[4096];
+            snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                      state.index[j].path);
+            struct stat st;
+            if (lstat (full, &st) == 0) { j++; continue; }
+            changed = 1;
+            if (dry_run) { j++; continue; }
+            char *gone = strdup (state.index[j].path);
+            if (!gone) { status = GIT_EXIT_FATAL; break; }
+            bgit_index_remove_path (&state.index, &state.n_index, gone);
+            free (gone);
+        }
+    }
+
+    if (!status && changed && !dry_run &&
+        git_index_store (ctx, state.index, state.n_index) < 0)
+        status = GIT_EXIT_FATAL;
+    bgit_ignore_release (&ignore);
+    git_state_release (&state);
+    return status;
+}
+
+/* ---- status ------------------------------------------------------------ */
+
+static void
+git_status_letters (const bgit_status_entry *entry, char *x, char *y, char blank)
+{
+    *x = entry->staged ? (char) entry->staged : blank;
+    *y = entry->unstaged ? (char) entry->unstaged : blank;
+}
+
+static int
+git_cmd_status (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git status [-s | --short | --porcelain[=<version>]] "
+                        "[-b | --branch] [-u<mode> | --untracked-files=<mode>] "
+                        "[--ignored]";
+    int short_format = 0, porcelain = 0, version = 1, branch = 0;
+    int untracked_all = 0, want_ignored = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-s") || !strcmp (w, "--short")) short_format = 1;
+        else if (!strcmp (w, "--porcelain")) { porcelain = 1; version = 1; }
+        else if (!strcmp (w, "--porcelain=v1")) { porcelain = 1; version = 1; }
+        else if (!strcmp (w, "--porcelain=v2")) { porcelain = 1; version = 2; }
+        else if (!strcmp (w, "-b") || !strcmp (w, "--branch")) branch = 1;
+        else if (!strcmp (w, "--ignored")) want_ignored = 1;
+        else if (!strcmp (w, "-uall") || !strcmp (w, "--untracked-files=all")) untracked_all = 1;
+        else if (!strcmp (w, "-unormal") || !strcmp (w, "--untracked-files=normal")) untracked_all = 0;
+        else if (!strcmp (w, "-uno") || !strcmp (w, "--untracked-files=no")) untracked_all = -1;
+        else return git_usage (usage);
+    }
+    if (!short_format && !porcelain)
+        return git_fatal ("this build's git status needs --short or "
+                          "--porcelain; the long format is not written yet");
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state.index,
+                     state.n_index, state.have_head ? state.head_tree : NULL,
+                     untracked_all > 0, want_ignored, &entries, &n) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot read the working tree");
+    }
+
+    const char *branch_name = state.branch;
+    if (branch_name && !strncmp (branch_name, "refs/heads/", 11))
+        branch_name += 11;
+    if (branch && version == 2 && porcelain) {
+        printf ("# branch.oid %s\n", state.have_head ? state.head : "(initial)");
+        printf ("# branch.head %s\n", branch_name ? branch_name : "(detached)");
+    } else if (branch) {
+        /* The short format's header, with git's "No commits yet" wording. */
+        printf ("## %s%s\n", state.have_head ? "" : "No commits yet on ",
+                branch_name ? branch_name : "HEAD (no branch)");
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        const bgit_status_entry *entry = &entries[i];
+        if (entry->ignored) {
+            if (version == 2 && porcelain) printf ("! %s\n", entry->path);
+            else printf ("!! %s\n", entry->path);
+            continue;
+        }
+        if (entry->untracked) {
+            if (untracked_all < 0) continue;
+            if (version == 2 && porcelain) printf ("? %s\n", entry->path);
+            else printf ("?? %s\n", entry->path);
+            continue;
+        }
+        char x, y;
+        if (version == 2 && porcelain) {
+            git_status_letters (entry, &x, &y, '.');
+            printf ("1 %c%c N... %06o %06o %06o %s %s %s\n", x, y,
+                    entry->head_mode, entry->index_mode,
+                    entry->unstaged == 'D' ? 0 : (entry->worktree_mode
+                        ? entry->worktree_mode : entry->index_mode),
+                    entry->head_sha[0] ? entry->head_sha
+                        : "0000000000000000000000000000000000000000",
+                    entry->index_sha[0] ? entry->index_sha
+                        : "0000000000000000000000000000000000000000",
+                    entry->path);
+        } else {
+            git_status_letters (entry, &x, &y, ' ');
+            printf ("%c%c %s\n", x, y, entry->path);
+        }
+    }
+    bgit_status_free (entries, n);
+    git_state_release (&state);
+    return 0;
+}
+
+/* ---- commit ------------------------------------------------------------ */
+
+static int
+git_cmd_commit (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git commit -q (-m <message> | -F <file>) [-a] "
+                        "[--amend] [--allow-empty]";
+    const char *messages[16];
+    int n_messages = 0;
+    const char *message_file = NULL;
+    int all = 0, amend = 0, allow_empty = 0, quiet = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-m") && p->next) {
+            if (n_messages >= (int) (sizeof messages / sizeof *messages))
+                return git_fatal ("too many messages");
+            messages[n_messages++] = p->next->word->word;
+            p = p->next;
+        } else if (!strcmp (w, "-F") && p->next) { message_file = p->next->word->word; p = p->next; }
+        else if (!strcmp (w, "-a") || !strcmp (w, "--all")) all = 1;
+        else if (!strcmp (w, "--amend")) amend = 1;
+        else if (!strcmp (w, "--allow-empty")) allow_empty = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-am") && p->next) {
+            all = 1;
+            messages[n_messages++] = p->next->word->word;
+            p = p->next;
+        }
+        else return git_usage (usage);
+    }
+    if (!n_messages && !message_file)
+        return git_fatal ("this build's git commit needs -m or -F; it has no "
+                          "editor support yet");
+    if (!quiet)
+        return git_fatal ("this build's git commit needs -q; the summary it "
+                          "prints needs the diff machinery, which is not "
+                          "written yet");
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    int status = 0;
+    if (all) {
+        /* -a stages every tracked file that changed or went away. */
+        bgit_ignore ignore;
+        if (bgit_ignore_load (&ignore, &ctx->repo, &ctx->cfg) < 0) {
+            git_state_release (&state);
+            return git_fatal ("cannot read the exclude files");
+        }
+        int changed = 0;
+        struct git_add_ctx add = {
+            .ctx = ctx, .state = &state, .ignore = &ignore, .pathspec = "",
+            .update_only = 1, .dry_run = 0, .changed = &changed
+        };
+        if (bgit_worktree_walk (&ctx->repo, git_add_visit, &add) < 0)
+            status = GIT_EXIT_FATAL;
+        for (size_t j = 0; j < state.n_index && !status;) {
+            char full[4096];
+            snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                      state.index[j].path);
+            struct stat st;
+            if (lstat (full, &st) == 0) { j++; continue; }
+            char *gone = strdup (state.index[j].path);
+            if (!gone) { status = GIT_EXIT_FATAL; break; }
+            bgit_index_remove_path (&state.index, &state.n_index, gone);
+            free (gone);
+        }
+        bgit_ignore_release (&ignore);
+        if (!status && git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    if (status) { git_state_release (&state); return status; }
+
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                         state.n_index, tree) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+
+    /* Nothing staged is not a commit, unless it was asked for. */
+    if (!allow_empty && !amend && state.have_head &&
+        strcmp (tree, state.head_tree) == 0) {
+        git_state_release (&state);
+        fflush (stdout);
+        fprintf (stderr, "nothing to commit, working tree clean\n");
+        return 1;
+    }
+
+    char parents[BGIT_MAX_PARENTS][41];
+    int n_parents = 0;
+    if (amend) {
+        if (!state.have_head) {
+            git_state_release (&state);
+            return git_fatal ("You have nothing to amend.");
+        }
+        int n = bgit_commit_parents (&ctx->odb, state.head, parents,
+                                     BGIT_MAX_PARENTS);
+        if (n < 0) { git_state_release (&state); return GIT_EXIT_FATAL; }
+        n_parents = n;
+    } else if (state.have_head) {
+        memcpy (parents[0], state.head, 41);
+        n_parents = 1;
+    }
+
+    char author[1024], committer[1024];
+    if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+        bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot determine the identity to use");
+    }
+
+    size_t cap = 4096, len = 0;
+    char *body = malloc (cap);
+    if (!body) { git_state_release (&state); return GIT_EXIT_FATAL; }
+#define GIT_APPEND(...) do { \
+    for (;;) { \
+        int wrote = snprintf (body + len, cap - len, __VA_ARGS__); \
+        if (wrote < 0) { free (body); git_state_release (&state); return GIT_EXIT_FATAL; } \
+        if ((size_t) wrote < cap - len) { len += (size_t) wrote; break; } \
+        cap *= 2; \
+        char *grown = realloc (body, cap); \
+        if (!grown) { free (body); git_state_release (&state); return GIT_EXIT_FATAL; } \
+        body = grown; \
+    } \
+} while (0)
+    GIT_APPEND ("tree %s\n", tree);
+    for (int i = 0; i < n_parents; i++) GIT_APPEND ("parent %s\n", parents[i]);
+    GIT_APPEND ("author %s\n", author);
+    GIT_APPEND ("committer %s\n", committer);
+    GIT_APPEND ("\n");
+    char subject[1024] = "";
+    if (message_file) {
+        unsigned char *text = NULL;
+        size_t text_len = 0;
+        if (bgit_slurp_file (message_file, &text, &text_len) < 0) {
+            free (body); git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        GIT_APPEND ("%.*s", (int) text_len, (const char *) text);
+        const char *nl = memchr (text, '\n', text_len);
+        size_t take = nl ? (size_t) (nl - (const char *) text) : text_len;
+        if (take >= sizeof subject) take = sizeof subject - 1;
+        memcpy (subject, text, take);
+        subject[take] = '\0';
+        free (text);
+    } else {
+        for (int i = 0; i < n_messages; i++)
+            GIT_APPEND ("%s%s\n", i ? "\n" : "", messages[i]);
+        snprintf (subject, sizeof subject, "%s", messages[0]);
+    }
+    if (len == 0 || body[len - 1] != '\n') GIT_APPEND ("\n");
+#undef GIT_APPEND
+
+    char commit[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                               (const unsigned char *) body, len, 1, commit);
+    free (body);
+    if (rc < 0) { git_state_release (&state); return GIT_EXIT_FATAL; }
+
+    /* The reflog says how the commit was made, as git's does. */
+    char reflog[1200];
+    snprintf (reflog, sizeof reflog, "commit%s: %s",
+              amend ? " (amend)" : state.have_head ? "" : " (initial)", subject);
+    const char *ref = state.branch ? state.branch : "HEAD";
+    const char *old = state.have_head ? state.head : "";
+    if (bgit_ref_update (&ctx->repo, ref, commit, amend ? NULL : old, reflog) < 0)
+        status = GIT_EXIT_FATAL;
+    /* HEAD's own reflog follows the branch it names. */
+    if (!status && state.branch)
+        bgit_reflog_append (&ctx->repo, "HEAD", state.have_head ? state.head : NULL,
+                            commit, reflog);
+    git_state_release (&state);
+    return status;
+}
+
 /* ---- check-ignore ------------------------------------------------------ */
 
 /* Load the .gitignore of every directory above PATH, once each. */
@@ -1687,9 +2192,11 @@ static const struct {
     const char *name;
     git_command_fn run;
 } git_commands[] = {
+    { "add",          git_cmd_add },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
     { "commit-tree",  git_cmd_commit_tree },
+    { "commit",       git_cmd_commit },
     { "config",       git_cmd_config },
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
@@ -1701,6 +2208,7 @@ static const struct {
     { "rev-list",     git_cmd_rev_list },
     { "rev-parse",    git_cmd_rev_parse },
     { "show-ref",     git_cmd_show_ref },
+    { "status",       git_cmd_status },
     { "symbolic-ref", git_cmd_symbolic_ref },
     { "update-index", git_cmd_update_index },
     { "update-ref",   git_cmd_update_ref },
