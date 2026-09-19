@@ -55,6 +55,7 @@
 #include "_git_odb.h"
 #include "_git_patch.h"
 #include "_git_refs.h"
+#include "_git_rename.h"
 #include "_git_repo.h"
 #include "_git_revision.h"
 #include "_git_tree.h"
@@ -2054,6 +2055,16 @@ git_status_long (git_context *ctx, struct git_state *state,
             if (entries[i].untracked || entries[i].ignored ||
                 entries[i].unmerged || !entries[i].staged)
                 continue;
+            if (entries[i].renamed_from && *entries[i].renamed_from) {
+                char from[8192];
+                printf ("\t%-12s%s -> %s\n",
+                        git_status_label (entries[i].staged),
+                        bgit_quote_path (entries[i].renamed_from, from,
+                                         sizeof from),
+                        bgit_quote_path (entries[i].path, quoted,
+                                         sizeof quoted));
+                continue;
+            }
             printf ("\t%-12s%s\n", git_status_label (entries[i].staged),
                     bgit_quote_path (entries[i].path, quoted, sizeof quoted));
         }
@@ -2130,7 +2141,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                         "[-b | --branch] [-u<mode> | --untracked-files=<mode>] "
                         "[--ignored]";
     int short_format = 0, porcelain = 0, version = 1, branch = 0;
-    int untracked_all = 0, want_ignored = 0;
+    int untracked_all = 0, want_ignored = 0, find_renames = 1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -2140,7 +2151,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--porcelain=v2")) { porcelain = 1; version = 2; }
         else if (!strcmp (w, "-b") || !strcmp (w, "--branch")) branch = 1;
         else if (!strcmp (w, "--ignored")) want_ignored = 1;
-        else if (!strcmp (w, "--no-renames")) ;   /* already how this build reports */
+        else if (!strcmp (w, "--no-renames")) find_renames = 0;
         else if (!strcmp (w, "-uall") || !strcmp (w, "--untracked-files=all")) untracked_all = 1;
         else if (!strcmp (w, "-unormal") || !strcmp (w, "--untracked-files=normal")) untracked_all = 0;
         else if (!strcmp (w, "-uno") || !strcmp (w, "--untracked-files=no")) untracked_all = -1;
@@ -2156,7 +2167,8 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     size_t n = 0;
     if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state.index,
                      state.n_index, state.have_head ? state.head_tree : NULL,
-                     untracked_all > 0, want_ignored, &entries, &n) < 0) {
+                     untracked_all > 0, want_ignored, find_renames,
+                     &entries, &n) < 0) {
         git_state_release (&state);
         return git_fatal ("cannot read the working tree");
     }
@@ -2207,6 +2219,18 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                     entry->path);
             continue;
         }
+        if (version == 2 && porcelain && entry->renamed_from &&
+            *entry->renamed_from) {
+            git_status_letters (entry, &x, &y, '.');
+            printf ("2 %c%c N... %06o %06o %06o %s %s R%d %s\t%s\n", x, y,
+                    entry->head_mode, entry->index_mode,
+                    entry->worktree_mode ? entry->worktree_mode
+                                         : entry->index_mode,
+                    entry->head_sha, entry->index_sha,
+                    entry->score * 100 / 60000, entry->path,
+                    entry->renamed_from);
+            continue;
+        }
         if (version == 2 && porcelain) {
             git_status_letters (entry, &x, &y, '.');
             printf ("1 %c%c N... %06o %06o %06o %s %s %s\n", x, y,
@@ -2220,7 +2244,10 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                     entry->path);
         } else {
             git_status_letters (entry, &x, &y, ' ');
-            printf ("%c%c %s\n", x, y, entry->path);
+            if (entry->renamed_from && *entry->renamed_from)
+                printf ("%c%c %s -> %s\n", x, y, entry->renamed_from,
+                        entry->path);
+            else printf ("%c%c %s\n", x, y, entry->path);
         }
     }
     bgit_status_free (entries, n);
@@ -2234,6 +2261,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
 struct git_diff_format {
     int patch, stat, numstat, shortstat, summary, name_only, name_status;
     int no_patch;
+    int no_renames;
     int context;
 };
 
@@ -2244,6 +2272,10 @@ static int git_diff_emit (git_context *ctx, FILE *out,
                           const struct git_diff_format *format,
                           const bgit_diff_entry *entries, size_t n,
                           int new_from_worktree, const char *line_prefix);
+static void git_find_renames (git_context *ctx,
+                              const struct git_diff_format *format,
+                              bgit_diff_entry **entries, size_t *n,
+                              int from_worktree);
 
 /* ---- commit ------------------------------------------------------------ */
 
@@ -2502,6 +2534,7 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
             size_t n_entries = 0;
             if (bgit_diff_trees (&ctx->odb, have_parent ? parent_tree : NULL,
                                  tree, &entries, &n_entries) == 0) {
+                git_find_renames (ctx, &format, &entries, &n_entries, 0);
                 git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
                 bgit_diff_free (entries, n_entries);
             }
@@ -2801,6 +2834,18 @@ fail:
     return -1;
 }
 
+/* A deletion and an addition of the same content are one rename. The list
+   is the caller's, so the pairing happens where the list was built and not
+   where it is printed. Renames are looked for in what has been recorded:
+   comparing against the working tree has nothing to compare ids with. */
+static void
+git_find_renames (git_context *ctx, const struct git_diff_format *format,
+                  bgit_diff_entry **entries, size_t *n, int from_worktree)
+{
+    if (format->no_renames || from_worktree) return;
+    bgit_detect_renames (&ctx->odb, entries, n);
+}
+
 /* Was any form of diff asked for? */
 static int
 git_diff_wanted (const struct git_diff_format *format)
@@ -2834,7 +2879,7 @@ git_commit_changes (git_context *ctx, const struct git_commit *commit,
             for (int j = 0; j < n_paths && !matched; j++)
                 if (git_path_in_spec (entries[i].path, paths[j])) matched = 1;
             if (matched) entries[kept++] = entries[i];
-            else free (entries[i].path);
+            else { free (entries[i].path); free (entries[i].from); }
         }
         n = kept;
     }
@@ -2853,6 +2898,7 @@ git_commit_diff (git_context *ctx, FILE *out, const struct git_commit *commit,
     size_t n = 0;
     if (git_commit_changes (ctx, commit, paths, n_paths, &entries, &n) < 0)
         return -1;
+    git_find_renames (ctx, format, &entries, &n, 0);
     int rc = git_diff_emit (ctx, out, format, entries, n, 0, "");
     bgit_diff_free (entries, n);
     return rc;
@@ -3140,8 +3186,11 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9')
         format->context = atoi (w + 2);
     else if (!strncmp (w, "--unified=", 10)) format->context = atoi (w + 10);
+    else if (!strcmp (w, "--no-renames")) format->no_renames = 1;
+    else if (!strcmp (w, "-M") || !strcmp (w, "--find-renames"))
+        format->no_renames = 0;
     else if (!strcmp (w, "--no-color") || !strcmp (w, "--no-ext-diff") ||
-             !strcmp (w, "--no-renames") || !strcmp (w, "--no-textconv")) {
+             !strcmp (w, "--no-textconv")) {
         /* Already how this build behaves. */
     } else return 0;
     return 1;
@@ -3172,7 +3221,13 @@ git_diff_emit (git_context *ctx, FILE *out,
             char quoted[8192];
             const char *name = bgit_quote_path (entries[i].path, quoted,
                                                 sizeof quoted);
-            if (format->name_status)
+            if (format->name_status && entries[i].status == 'R') {
+                char from_quoted[8192];
+                fprintf (out, "%sR%d\t%s\t%s\n", options.line_prefix,
+                         entries[i].score * 100 / 60000,
+                         bgit_quote_path (entries[i].from, from_quoted,
+                                          sizeof from_quoted), name);
+            } else if (format->name_status)
                 fprintf (out, "%s%c\t%s\n", options.line_prefix,
                          entries[i].status, name);
             else fprintf (out, "%s%s\n", options.line_prefix, name);
@@ -3290,12 +3345,13 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
             for (int j = 0; j < n_paths && !matched; j++)
                 if (git_path_in_spec (entries[i].path, paths[j])) matched = 1;
             if (matched) entries[kept++] = entries[i];
-            else free (entries[i].path);
+            else { free (entries[i].path); free (entries[i].from); }
         }
         n = kept;
     }
     /* Only a comparison that ends at the working tree reads files. */
     int from_worktree = !cached && n_revs < 2;
+    git_find_renames (ctx, &format, &entries, &n, from_worktree);
     int status = git_diff_emit (ctx, stdout, &format, entries, n,
                                 from_worktree, "") < 0 ? GIT_EXIT_FATAL : 0;
     bgit_diff_free (entries, n);
@@ -5962,8 +6018,10 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
     }
 
     if (!strcmp (verb, "clear")) {
-        char log_path[4096];
-        bgit_ref_delete (&ctx->repo, "refs/stash", NULL, NULL);
+        char log_path[4096], existing[41];
+        /* Clearing nothing is not an error, and says nothing. */
+        if (bgit_ref_read (&ctx->repo, "refs/stash", existing) == 0)
+            bgit_ref_delete (&ctx->repo, "refs/stash", NULL, NULL);
         if (snprintf (log_path, sizeof log_path, "%s/logs/refs/stash",
                       ctx->repo.common_dir) < (int) sizeof log_path)
             unlink (log_path);
@@ -6241,7 +6299,7 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         if (git_state_load (ctx, &fresh) == 0) {
             if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, fresh.index,
                              fresh.n_index, fresh.have_head ? fresh.head_tree : NULL,
-                             0, 0, &entries, &n) == 0) {
+                             0, 0, 1, &entries, &n) == 0) {
                 const char *branch_name = fresh.branch;
                 if (branch_name && !strncmp (branch_name, "refs/heads/", 11))
                     branch_name += 11;
@@ -7048,7 +7106,7 @@ git_cmd_clean (git_context *ctx, WORD_LIST *args)
     size_t n = 0;
     if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state.index, state.n_index,
                      state.have_head ? state.head_tree : NULL, 0,
-                     with_ignored || only_ignored, &entries, &n) < 0) {
+                     with_ignored || only_ignored, 0, &entries, &n) < 0) {
         git_state_release (&state);
         return git_fatal ("cannot read the working tree");
     }

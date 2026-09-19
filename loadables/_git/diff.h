@@ -22,10 +22,12 @@
 
 typedef struct {
     char *path;
-    char status;         /* 'A', 'D' or 'M' */
+    char status;         /* 'A', 'D', 'M' or 'R' */
     uint32_t old_mode, new_mode;
     char old_sha[41];
     char new_sha[41];
+    char *from;          /* where a rename came from; NULL otherwise */
+    int score;           /* how alike the two were, on git's 60000 scale */
 } bgit_diff_entry;
 
 /* Compare two trees. Either id may be NULL, meaning an empty tree, so the

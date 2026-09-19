@@ -24,6 +24,7 @@
 #include "ignore.h"
 #include "index.h"
 #include "odb.h"
+#include "rename.h"
 #include "repo.h"
 #include "tree.h"
 #include "worktree.h"
@@ -340,7 +341,7 @@ int
 bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
              const bgit_index_entry *index, size_t n_index,
              const char *head_tree, int untracked_all, int want_ignored,
-             bgit_status_entry **out, size_t *n_out)
+             int find_renames, bgit_status_entry **out, size_t *n_out)
 {
     struct bgit_status_build build;
     memset (&build, 0, sizeof build);
@@ -418,6 +419,46 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     head = NULL;
     n_head = 0;
 
+    /* A staged deletion and a staged addition of the same content are one
+       rename: the same pairing git does, and reported the same way. */
+    for (size_t i = 0; find_renames && i < build.n; i++) {
+        bgit_status_entry *added = &build.entries[i];
+        if (added->staged != 'A') continue;
+        bgit_status_entry *best = NULL;
+        int best_score = 0;
+        for (size_t j = 0; j < build.n; j++) {
+            bgit_status_entry *gone = &build.entries[j];
+            if (gone->staged != 'D' || gone->renamed_from) continue;
+            int score = bgit_similarity (odb, gone->head_sha, added->index_sha);
+            if (score < BGIT_RENAME_THRESHOLD || score <= best_score) continue;
+            best = gone;
+            best_score = score;
+            if (score == BGIT_RENAME_MAX_SCORE) break;
+        }
+        if (!best) continue;
+        added->staged = 'R';
+        added->score = best_score;
+        added->renamed_from = strdup (best->path);
+        added->head_mode = best->head_mode;
+        memcpy (added->head_sha, best->head_sha, 41);
+        if (!added->renamed_from) goto oom;
+        /* The deletion has been accounted for. */
+        best->staged = 0;
+        best->renamed_from = strdup ("");
+        if (!best->renamed_from) goto oom;
+    }
+    for (size_t i = 0; i < build.n; i++)
+        if (build.entries[i].renamed_from && !*build.entries[i].renamed_from &&
+            !build.entries[i].staged && !build.entries[i].unstaged &&
+            !build.entries[i].untracked && !build.entries[i].ignored) {
+            free (build.entries[i].path);
+            free (build.entries[i].renamed_from);
+            memmove (&build.entries[i], &build.entries[i + 1],
+                     (build.n - i - 1) * sizeof *build.entries);
+            build.n--;
+            i--;
+        }
+
     /* The index against the working tree: what is not staged. An unmerged
        path is left alone; its stages already say what happened. */
     for (size_t j = 0; j < n_index; j++) {
@@ -489,6 +530,9 @@ oom:
 void
 bgit_status_free (bgit_status_entry *entries, size_t n)
 {
-    for (size_t i = 0; i < n; i++) free (entries[i].path);
+    for (size_t i = 0; i < n; i++) {
+        free (entries[i].path);
+        free (entries[i].renamed_from);
+    }
     free (entries);
 }

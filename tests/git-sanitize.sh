@@ -267,6 +267,30 @@ git worktree remove ../linked-tree
 git worktree list
 git worktree prune
 
+# Renames: moved, moved and edited, and moved beyond recognition.
+git switch -q -c renamer merge-base-branch
+printf 'alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\neta\ntheta\n' > renamable.txt
+git add renamable.txt
+git commit -q -m 'a file to move'
+git mv renamable.txt renamed-once.txt
+git status --short
+git status
+git status --porcelain=v2
+git diff --cached
+git diff --cached --stat
+git diff --cached --summary
+git diff --cached --name-status
+git diff --cached --no-renames --stat
+git commit -q -m 'move it'
+git mv renamed-once.txt renamed-twice.txt
+printf 'alpha\nBETA\ngamma\ndelta\nepsilon\nzeta\neta\nTHETA\n' > renamed-twice.txt
+git add renamed-twice.txt
+git diff --cached
+git diff --cached --summary
+git commit -q -m 'move and edit'
+git show --stat
+git log --name-status -2
+
 git fsck 2>/dev/null || true
 SCENARIO
 

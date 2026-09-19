@@ -132,7 +132,8 @@ bgit_patch_content (bgit_odb *odb, const bgit_repo *repo,
     *data = NULL;
     *len = 0;
     const char *sha = side ? entry->new_sha : entry->old_sha;
-    if (side ? entry->status == 'D' : entry->status == 'A') {
+    if (side ? entry->status == 'D'
+             : (entry->status == 'A' || !*entry->old_sha)) {
         *data = malloc (1);
         if (!*data) return -1;
         (*data)[0] = '\0';
@@ -158,9 +159,19 @@ bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
     char quoted[8192];
     const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
     const char *lp = options->line_prefix;
-    fprintf (out, "%sdiff --git %s%s %s%s\n", lp, options->prefix_old, name,
+    char from_quoted[8192];
+    const char *from = entry->from
+        ? bgit_quote_path (entry->from, from_quoted, sizeof from_quoted) : name;
+    fprintf (out, "%sdiff --git %s%s %s%s\n", lp, options->prefix_old, from,
              options->prefix_new, name);
 
+    if (entry->status == 'R') {
+        /* The percentage is the score out of git's sixty thousand. */
+        fprintf (out, "%ssimilarity index %d%%\n", lp,
+                 entry->score * 100 / 60000);
+        fprintf (out, "%srename from %s\n", lp, from);
+        fprintf (out, "%srename to %s\n", lp, name);
+    }
     if (entry->status == 'A')
         fprintf (out, "%snew file mode %06o\n", lp, entry->new_mode);
     else if (entry->status == 'D')
@@ -169,7 +180,7 @@ bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
         fprintf (out, "%sold mode %06o\n", lp, entry->old_mode);
         fprintf (out, "%snew mode %06o\n", lp, entry->new_mode);
     }
-    if (identical) return;   /* only the mode moved: there is no index line */
+    if (identical) return;   /* nothing moved but the name or the mode */
 
     int abbrev = options->abbrev;
     char zeros[41];
@@ -178,7 +189,8 @@ bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
     const char *old_id = entry->status == 'A' ? zeros : entry->old_sha;
     const char *new_id = entry->status == 'D' ? zeros : entry->new_sha;
     fprintf (out, "%sindex %.*s..%.*s", lp, abbrev, old_id, abbrev, new_id);
-    if (entry->status == 'M' && entry->old_mode == entry->new_mode)
+    if ((entry->status == 'M' || entry->status == 'R') &&
+        entry->old_mode == entry->new_mode)
         fprintf (out, " %06o", entry->new_mode);
     fputc ('\n', out);
 }
@@ -223,7 +235,7 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
         return -1;
     }
 
-    int identical = entry->status == 'M' &&
+    int identical = (entry->status == 'M' || entry->status == 'R') &&
                     !strcmp (entry->old_sha, entry->new_sha);
     bgit_patch_header (out, entry, options, identical);
     if (identical) {
@@ -266,12 +278,16 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     }
 
     if (result.n_hunks) {
-        char quoted[8192];
+        char quoted[8192], from_quoted[8192];
         const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
+        /* A rename's old side is named where it used to live. */
+        const char *from = entry->from
+            ? bgit_quote_path (entry->from, from_quoted, sizeof from_quoted)
+            : name;
         if (entry->status == 'A')
             fprintf (out, "%s--- /dev/null\n", lp);
         else
-            fprintf (out, "%s--- %s%s\n", lp, options->prefix_old, name);
+            fprintf (out, "%s--- %s%s\n", lp, options->prefix_old, from);
         if (entry->status == 'D')
             fprintf (out, "%s+++ /dev/null\n", lp);
         else
@@ -435,6 +451,20 @@ bgit_stat_summary (FILE *out, size_t files, size_t added, size_t removed)
     fputc ('\n', out);
 }
 
+/* What the stat calls a path: a rename shows where it came from too. */
+static const char *
+bgit_stat_name (const bgit_diff_entry *entry, char *quoted, size_t quoted_size,
+                char *both, size_t both_size)
+{
+    const char *name = bgit_quote_path (entry->path, quoted, quoted_size);
+    if (!entry->from) return name;
+    char from_quoted[8192];
+    const char *from = bgit_quote_path (entry->from, from_quoted,
+                                        sizeof from_quoted);
+    snprintf (both, both_size, "%s => %s", from, name);
+    return both;
+}
+
 void
 bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
                      const char *line_prefix)
@@ -443,8 +473,9 @@ bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
     char quoted[8192];
     size_t max_change = 0, max_len = 0, added = 0, removed = 0;
     for (size_t i = 0; i < n; i++) {
-        const char *name = bgit_quote_path (stats[i].entry->path, quoted,
-                                            sizeof quoted);
+        char both[8192];
+        const char *name = bgit_stat_name (stats[i].entry, quoted, sizeof quoted,
+                                           both, sizeof both);
         size_t len = strlen (name);
         if (len > max_len) max_len = len;
         if (stats[i].binary) continue;
@@ -471,8 +502,9 @@ bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
     }
 
     for (size_t i = 0; i < n; i++) {
-        const char *name = bgit_quote_path (stats[i].entry->path, quoted,
-                                            sizeof quoted);
+        char both[8192];
+        const char *name = bgit_stat_name (stats[i].entry, quoted, sizeof quoted,
+                                           both, sizeof both);
         size_t len = strlen (name);
         char shortened[8192];
         if ((int) len > name_width && name_width > 3) {
@@ -545,7 +577,10 @@ bgit_diff_summary (FILE *out, const bgit_diff_entry *entries, size_t n,
     for (size_t i = 0; i < n; i++) {
         const char *name = bgit_quote_path (entries[i].path, quoted,
                                             sizeof quoted);
-        if (entries[i].status == 'A')
+        if (entries[i].status == 'R')
+            fprintf (out, "%s rename %s => %s (%d%%)\n", line_prefix,
+                     entries[i].from, name, entries[i].score * 100 / 60000);
+        else if (entries[i].status == 'A')
             fprintf (out, "%s create mode %06o %s\n", line_prefix,
                      entries[i].new_mode, name);
         else if (entries[i].status == 'D')

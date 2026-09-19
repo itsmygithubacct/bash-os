@@ -41,6 +41,8 @@ typedef struct {
     int untracked;
     int ignored;
     int unmerged;      /* which stages the index holds: bit 1, 2 or 3 */
+    char *renamed_from; /* where a staged rename came from, or NULL */
+    int score;          /* how alike the two were, on git's 60000 scale */
     uint32_t head_mode, index_mode, worktree_mode, their_mode;
     char head_sha[41];
     char index_sha[41];
@@ -55,7 +57,7 @@ typedef struct {
 int bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
                  const bgit_index_entry *index, size_t n_index,
                  const char *head_tree, int untracked_all, int want_ignored,
-                 bgit_status_entry **out, size_t *n_out);
+                 int find_renames, bgit_status_entry **out, size_t *n_out);
 
 void bgit_status_free (bgit_status_entry *entries, size_t n);
 

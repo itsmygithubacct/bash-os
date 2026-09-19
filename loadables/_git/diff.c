@@ -199,7 +199,10 @@ oom:
 void
 bgit_diff_free (bgit_diff_entry *entries, size_t n)
 {
-    for (size_t i = 0; i < n; i++) free (entries[i].path);
+    for (size_t i = 0; i < n; i++) {
+        free (entries[i].path);
+        free (entries[i].from);
+    }
     free (entries);
 }
 

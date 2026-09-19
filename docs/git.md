@@ -167,6 +167,18 @@ including the two reflog entries git leaves in a new worktree's HEAD. A
 branch checked out in another worktree is marked with a `+` by
 `git branch`, and using it twice is refused.
 
+Renames are found the way git finds them: a deletion and an addition are
+one rename when the content is the same, or close enough. "Close enough"
+is git's own measure — both files are cut into chunks, each ending at a
+newline or after 64 bytes, and the score is the source's bytes that
+survive in chunks the destination also has, against the larger file. Half
+is the threshold, and the same number out of a hundred is the `similarity
+index` a patch shows. Over a hundred and twenty randomly edited renames
+the score matches git's every time. `git diff`, `git log`, `git show` and
+`git status` all report renames, `--no-renames` turns it off, and a
+comparison that ends at the working tree does not look for them, having
+no recorded ids to compare.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -247,7 +259,8 @@ message and changes nothing.
 
 ## Still to come
 
-Merging, cherry-pick, revert, stash, rebase and worktrees are in. The rest
-of Phase 2 is submodules, rename detection, stashing untracked files,
-interactive rebase, and a merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
+Phase 2 is done but for submodules. What is left over from it: stashing
+untracked files, interactive rebase, renames between the index and the
+working tree, and a merge with more than one base. Then Phase 3, HTTPS
+remotes with protocol v2, and Phase 4, SSH. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.
