@@ -96,6 +96,7 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'large modules under ASan+UBSan' bash tests/large-sanitize.sh out/bash
   check 'terminal modules under ASan+UBSan' bash tests/terminal-sanitize.sh out/bash
   check 'graphics under ASan+UBSan' bash tests/gpu-sanitize.sh out/bash
+  check 'git under ASan+UBSan' bash tests/git-sanitize.sh out/bash
   if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then
     check 'account parser contract' "$scratch/privdrop"
   else

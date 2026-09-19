@@ -146,6 +146,12 @@ cat-file`: loose objects, packed ones after `git gc`, abbreviations,
 `--batch-check`, a linked worktree, a bare clone, alternates, `GIT_DIR`,
 and that what `obj` writes git can read.
 
+`tests/git-sanitize.sh` builds the builtin and its helpers with ASan and
+UBSan and runs a scenario shaped to reach the edges of the code that walks
+memory built from file content: a four-hundred-line file changed in six
+places, a file with no trailing newline, a binary file, a path that has to
+be quoted, and every command that reads the working tree.
+
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
 what bash-os writes — refs, a deleted packed ref, reflog entries, a
