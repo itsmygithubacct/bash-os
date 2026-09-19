@@ -52,8 +52,9 @@ git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
 git clone        [-q] [--bare] <path> | <http url> [<directory>]
 git fetch        [-q] [--upload-pack=<command>] [<remote>]
 git pull         [<remote>]
-git push         [-q] [--receive-pack=<command>] [<remote> | <path>
-                 [<branch>]]
+git push         [-q] [-f|--force] [--delete] [--tags] [-n|--dry-run]
+                 [-u|--set-upstream] [--receive-pack=<command>]
+                 [<remote> | <path> [<refspec>...]]
 git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
                  [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
@@ -211,13 +212,22 @@ has and what it can do, the pushing end sends the change it wants and a
 pack, and the report says what became of it. Both halves are here, so
 this build pushes into git and git pushes into this build. The far end
 refuses a branch it has checked out, one whose old id is not what the
-pusher thought, one that would lose commits, and one whose objects did
-not arrive, each in git's words; what it says for itself goes down the
+pusher thought, and one whose objects did not arrive, each in git's
+words; a push that would lose commits is the pushing end's to refuse,
+and the far end allows one unless `receive.denyNonFastForwards` says
+otherwise, which is git's rule; what it says for itself goes down the
 second side-band channel, which is what puts `remote:` in front of every
 line of it. A pack whose deltas lean on objects it does not
 carry — which is what git sends when the far end already has them — is
 completed from what is here, so a second push of a large file that
 changed in one place carries the change and not the file.
+
+A push says what it wants as refspecs: `<branch>` for the obvious thing,
+`<src>:<dst>` to land it under another name, `+<src>:<dst>` or `--force`
+to move a ref that would otherwise lose commits, and `:<dst>` — or
+`--delete <dst>` — to unmake one. `--tags` adds every tag this
+repository has, `-u` makes the branch follow where it was pushed, and
+`--dry-run` says what all of that would do without doing any of it.
 
 The pushing end refuses two things before it sends anything, the way git
 does, and tells them apart the way git does: a tip it has never seen

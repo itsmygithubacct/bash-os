@@ -6646,6 +6646,104 @@ git_pkt_into (unsigned char *buf, size_t at, size_t room, const char *text)
     return at + len + 4;
 }
 
+/* One thing a push asks the far end to do. */
+struct git_push_want {
+    char src[4096];          /* the ref here, once it was worked out */
+    char dst[4096];          /* the ref over there */
+    char id[41];             /* what it is to become; zeros to unmake it */
+    char old[41];            /* what the far end says it is now */
+    int forced;              /* the refspec said +, or --force did */
+    int is_new;
+    int forced_update;       /* it was not a fast-forward */
+    int remote_refused;      /* the far end said no, rather than this end */
+    int sent;
+    const char *refused;
+};
+
+/* A ref by the name a person would use for it. */
+static const char *
+git_ref_short (const char *ref)
+{
+    if (!strncmp (ref, "refs/heads/", 11)) return ref + 11;
+    if (!strncmp (ref, "refs/tags/", 10)) return ref + 10;
+    if (!strncmp (ref, "refs/remotes/", 13)) return ref + 13;
+    return ref;
+}
+
+/* The full name of a ref this repository has, for a name as it was
+   given: a branch, a tag, or a name that is already full. Returns 1 when
+   one was found. */
+static int
+git_push_source (git_context *ctx, const char *name, char *out, size_t outsz,
+                 char id[41])
+{
+    const char *shapes[] = { "%s", "refs/heads/%s", "refs/tags/%s", NULL };
+    for (int i = 0; shapes[i]; i++) {
+        char full[4096];
+        snprintf (full, sizeof full, shapes[i], name);
+        if (strncmp (full, "refs/", 5)) continue;
+        if (bgit_ref_read (&ctx->repo, full, id) == 0) {
+            snprintf (out, outsz, "%s", full);
+            return 1;
+        }
+    }
+    /* Not a ref: a revision may still name something to push. */
+    if (git_resolve (ctx, name, id, NULL) == 0) {
+        snprintf (out, outsz, "%s", name);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+git_push_want (git_context *ctx, struct git_push_want **wants, size_t *n,
+               size_t *cap, const char *spec, int force, int deleting)
+{
+    if (*n == *cap) {
+        size_t next = *cap ? *cap * 2 : 8;
+        struct git_push_want *grown = realloc (*wants, next * sizeof *grown);
+        if (!grown) return -1;
+        *wants = grown;
+        *cap = next;
+    }
+    struct git_push_want *want = &(*wants)[*n];
+    memset (want, 0, sizeof *want);
+    want->forced = force;
+    if (*spec == '+') {
+        want->forced = 1;
+        spec++;
+    }
+    const char *colon = strchr (spec, ':');
+    char source[4096] = "", target[4096] = "";
+    if (deleting) snprintf (target, sizeof target, "%s", spec);
+    else if (!colon) snprintf (source, sizeof source, "%s", spec);
+    else {
+        snprintf (source, sizeof source, "%.*s", (int) (colon - spec), spec);
+        snprintf (target, sizeof target, "%s", colon + 1);
+    }
+
+    if (!*source) {
+        /* Nothing on the near side: the ref over there is to be unmade. */
+        memcpy (want->id, GIT_NULL_ID, 41);
+        if (!*target) return git_fatal ("this build's git push needs a ref to "
+                                        "delete") < 0 ? -1 : -1;
+        snprintf (want->src, sizeof want->src, "%s", target);
+    } else if (!git_push_source (ctx, source, want->src, sizeof want->src,
+                                 want->id)) {
+        git_fatal ("src refspec %s does not match any", source);
+        return -1;
+    }
+    if (!*target) snprintf (target, sizeof target, "%s", want->src);
+    if (!strncmp (target, "refs/", 5))
+        snprintf (want->dst, sizeof want->dst, "%s", target);
+    else
+        snprintf (want->dst, sizeof want->dst, "refs/%s/%s",
+                  !strncmp (want->src, "refs/tags/", 10) ? "tags" : "heads",
+                  target);
+    (*n)++;
+    return 0;
+}
+
 /* git receive-pack: the far end of a push. This is git's first protocol,
    and the one it still uses for a push: the refs this repository has,
    then the changes the other end wants, then a pack, then what became of
@@ -6760,6 +6858,13 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
     size_t aside_len = 0;
     char *head = NULL;
     if (!repo.bare) bgit_symref_read (&repo, "HEAD", &head);
+    /* A push that would lose commits is the pushing end's to refuse: git
+       lets one through here unless it has been told not to. */
+    bgit_config far_config;
+    bgit_config_load (&far_config, &repo, NULL, 0);
+    int deny_non_fast_forwards = bgit_config_bool (&far_config,
+                                                   "receive.denyNonFastForwards", 0);
+    bgit_config_release (&far_config);
     for (size_t i = 0; !status && i < n_commands; i++) {
         struct git_push_command *command = &commands[i];
         int unmaking = !strcmp (command->new_id, GIT_NULL_ID);
@@ -6778,7 +6883,8 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
             command->refused = "fetch first";
         else if (!unmaking && !bgit_odb_has (&odb, command->new_id))
             command->refused = "missing necessary objects";
-        else if (!unmaking && have && strcmp (current, command->new_id) &&
+        else if (!unmaking && have && deny_non_fast_forwards &&
+                 strcmp (current, command->new_id) &&
                  bgit_is_ancestor (&odb, current, command->new_id) <= 0)
             command->refused = "non-fast-forward";
         if (command->refused) continue;
@@ -6947,6 +7053,44 @@ git_report_ref (git_context *ctx, const char *old, const char *id,
     git_abbrev (ctx, old, 7, old_short, sizeof old_short);
     fprintf (stderr, "   %s..%s  %-*s -> %s\n", old_short, new_short, width,
              from, to);
+}
+
+/* The same for a push, which has more to say: a tag is not a branch, a
+   ref can be unmade, and an update that is not a fast-forward says that
+   it was forced. */
+static void
+git_report_push (git_context *ctx, const struct git_push_want *want)
+{
+    const char *from = git_ref_short (want->src);
+    const char *to = git_ref_short (want->dst);
+    /* git pads what stands in brackets to the same eighteen columns,
+       whichever of them it is. */
+    char what[32];
+    if (want->refused) {
+        snprintf (what, sizeof what, "[%s]",
+                  want->remote_refused ? "remote rejected" : "rejected");
+        fprintf (stderr, " ! %-18s%s -> %s (%s)\n", what, from, to,
+                 want->refused);
+        return;
+    }
+    if (!strcmp (want->id, GIT_NULL_ID)) {
+        fprintf (stderr, " - %-18s%s\n", "[deleted]", to);
+        return;
+    }
+    if (want->is_new) {
+        snprintf (what, sizeof what, "[new %s]",
+                  strncmp (want->dst, "refs/tags/", 10) ? "branch" : "tag");
+        fprintf (stderr, " * %-18s%s -> %s\n", what, from, to);
+        return;
+    }
+    char old_short[41], new_short[41];
+    git_abbrev (ctx, want->old, 7, old_short, sizeof old_short);
+    git_abbrev (ctx, want->id, 7, new_short, sizeof new_short);
+    if (want->forced_update)
+        fprintf (stderr, " + %s...%s %s -> %s (forced update)\n", old_short,
+                 new_short, from, to);
+    else
+        fprintf (stderr, "   %s..%s  %s -> %s\n", old_short, new_short, from, to);
 }
 
 static int
@@ -7298,14 +7442,24 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
 static int
 git_cmd_push (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git push [-q] [--receive-pack=<command>] "
-                        "[<remote> | <path> [<branch>]]";
-    const char *name = NULL, *branch = NULL, *program = NULL;
-    int quiet = 0;
+    const char *usage = "git push [-q] [-f|--force] [--delete] [--tags] "
+                        "[-n|--dry-run] [-u|--set-upstream] "
+                        "[--receive-pack=<command>] [<remote> | <path> "
+                        "[<refspec>...]]";
+    const char *name = NULL, *program = NULL;
+    const char *specs[64];
+    size_t n_specs = 0;
+    int quiet = 0, force = 0, deleting = 0, with_tags = 0, dry_run = 0;
+    int set_upstream = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "--delete") || !strcmp (w, "-d")) deleting = 1;
+        else if (!strcmp (w, "--tags")) with_tags = 1;
+        else if (!strcmp (w, "-n") || !strcmp (w, "--dry-run")) dry_run = 1;
+        else if (!strcmp (w, "-u") || !strcmp (w, "--set-upstream")) set_upstream = 1;
         else if (!strncmp (w, "--receive-pack=", 15)) program = w + 15;
         else if (!strcmp (w, "--receive-pack") && p->next) {
             program = p->next->word->word;
@@ -7313,23 +7467,23 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
-        else if (!branch) branch = w;
-        else return git_usage (usage);
+        else if (n_specs < sizeof specs / sizeof *specs) specs[n_specs++] = w;
+        else return git_fatal ("this build's git push takes fewer refspecs "
+                               "than that");
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
-    if (!state.have_head || !state.branch) {
-        git_state_release (&state);
-        return git_fatal ("You are not currently on a branch.");
-    }
     if (!name) {
+        if (!state.have_head || !state.branch) {
+            git_state_release (&state);
+            return git_fatal ("You are not currently on a branch.");
+        }
         char key[4096];
         snprintf (key, sizeof key, "branch.%s.remote", state.branch + 11);
         const char *configured = bgit_config_get (&ctx->cfg, key);
         name = configured ? configured : "origin";
     }
-    if (!branch) branch = state.branch + 11;
 
     /* A name from the configuration stands for its URL; anything else is
        the path itself, which is what git accepts too. */
@@ -7342,101 +7496,166 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
                           "ssh is not done yet");
     }
 
-    char local_ref[4096], remote_ref[4096], id[41];
-    snprintf (local_ref, sizeof local_ref, "refs/heads/%s", branch);
-    snprintf (remote_ref, sizeof remote_ref, "refs/heads/%s", branch);
-    if (bgit_ref_read (&ctx->repo, local_ref, id) != 0) {
+    /* What to ask for: a refspec each, the tags if they were asked for,
+       and the branch this end is on when nothing was named. */
+    struct git_push_want *wants = NULL;
+    size_t n_wants = 0, cap = 0;
+    int status = 0;
+    for (size_t i = 0; !status && i < n_specs; i++)
+        if (git_push_want (ctx, &wants, &n_wants, &cap, specs[i], force,
+                           deleting) < 0)
+            status = GIT_EXIT_FATAL;
+    if (!status && with_tags) {
+        bgit_ref *tags = NULL;
+        size_t n_tags = 0;
+        if (bgit_refs_list (&ctx->repo, "refs/tags/", &tags, &n_tags) == 0) {
+            for (size_t i = 0; !status && i < n_tags; i++)
+                if (git_push_want (ctx, &wants, &n_wants, &cap, tags[i].name,
+                                   force, 0) < 0)
+                    status = GIT_EXIT_FATAL;
+            bgit_refs_free (tags, n_tags);
+        }
+    }
+    if (!status && !n_wants && !n_specs) {
+        if (!state.have_head || !state.branch) {
+            free (wants);
+            git_state_release (&state);
+            return git_fatal ("You are not currently on a branch.");
+        }
+        if (git_push_want (ctx, &wants, &n_wants, &cap, state.branch, force, 0) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    if (status || !n_wants) {
+        free (wants);
         git_state_release (&state);
-        return git_fatal ("src refspec %s does not match any", branch);
+        return status;
     }
 
     /* The far end is asked over the protocol, which for a push is the
        first one git spoke and the one it still uses. */
     git_conn conn;
     if (git_conn_open (&conn, ctx, url, program, "git-receive-pack") < 0) {
+        free (wants);
         git_state_release (&state);
         return GIT_EXIT_FATAL;
     }
     bgit_proto_ref *theirs = NULL;
     size_t n_theirs = 0;
     char *capabilities = NULL;
-    int status = 0;
     if (bgit_proto_read_refs_v0 (conn.io.reader, &theirs, &n_theirs,
                                  &capabilities) < 0)
         status = git_far_end_gone ();
 
-    /* What the far end holds for this branch now, which is what the push
+    /* What the far end holds for each of them now, which is what the push
        says it is replacing. */
-    char current[41] = "";
-    int is_new = 1;
-    for (size_t i = 0; !status && i < n_theirs; i++)
-        if (!strcmp (theirs[i].name, remote_ref)) {
-            memcpy (current, theirs[i].id, 41);
-            is_new = 0;
-            break;
+    int refused_any = 0, anything = 0;
+    for (size_t i = 0; !status && i < n_wants; i++) {
+        struct git_push_want *want = &wants[i];
+        for (size_t k = 0; k < n_theirs; k++)
+            if (!strcmp (theirs[k].name, want->dst)) {
+                memcpy (want->old, theirs[k].id, 41);
+                break;
+            }
+        want->is_new = !*want->old;
+        int unmaking = !strcmp (want->id, GIT_NULL_ID);
+        if (unmaking && want->is_new) want->refused = "remote ref does not exist";
+        else if (!unmaking && !want->is_new && !strcmp (want->old, want->id))
+            continue;                              /* already where it goes */
+        else if (!unmaking && !want->is_new && !want->forced) {
+            /* A push may only move a ref forward unless it is forced, and
+               git tells apart a tip this end has never seen from one it
+               has seen but not built on. */
+            if (!bgit_odb_has (&ctx->odb, want->old))
+                want->refused = "fetch first";
+            else if (bgit_is_ancestor (&ctx->odb, want->old, want->id) <= 0)
+                want->refused = "non-fast-forward";
         }
-
-    /* A push may only move a branch forward, unless forced — and forcing
-       is not here yet. The far end would refuse it too; git's client says
-       so itself, before sending anything, and tells the two cases apart:
-       what this end has never seen wants fetching first, and what it has
-       seen but has not built on is a push that would lose commits. */
-    const char *rejection = NULL;
-    if (!status && !is_new && strcmp (current, id)) {
-        if (!bgit_odb_has (&ctx->odb, current)) rejection = "fetch first";
-        else if (bgit_is_ancestor (&ctx->odb, current, id) <= 0)
-            rejection = "non-fast-forward";
+        if (!unmaking && !want->is_new && !want->refused &&
+            bgit_is_ancestor (&ctx->odb, want->old, want->id) <= 0)
+            want->forced_update = 1;
+        if (want->refused) refused_any = 1;
+        anything = 1;
     }
-    if (rejection) {
-        fflush (stdout);
-        fprintf (stderr, "To %s\n", url);
-        fprintf (stderr, " ! [rejected]        %s -> %s (%s)\n",
-                 branch, branch, rejection);
-        fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
-        bgit_proto_refs_release (theirs, n_theirs);
-        free (capabilities);
-        git_conn_close (&conn);
-        git_state_release (&state);
-        return 1;
-    }
-
-    if (!status && !is_new && !strcmp (current, id)) {
-        /* Nothing to say, and git says exactly that, having sent no
-           commands at all. */
+    if (!status && !anything) {
         if (!quiet) fprintf (stderr, "Everything up-to-date\n");
         bgit_proto_refs_release (theirs, n_theirs);
         free (capabilities);
+        free (wants);
         if (git_conn_close (&conn) < 0) status = git_far_end_gone ();
         git_state_release (&state);
         return status;
     }
 
-    /* The change, with what this end can do, and then a pack holding
+    /* Saying what it would do and doing it are the same up to here. */
+    if (!status && dry_run) {
+        fflush (stdout);
+        fprintf (stderr, "To %s\n", url);
+        for (size_t i = 0; i < n_wants; i++)
+            if (wants[i].refused || !wants[i].is_new || *wants[i].id)
+                git_report_push (ctx, &wants[i]);
+        if (refused_any)
+            fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        bgit_proto_refs_release (theirs, n_theirs);
+        free (capabilities);
+        free (wants);
+        if (git_conn_close (&conn) < 0) status = git_far_end_gone ();
+        git_state_release (&state);
+        return refused_any ? 1 : status;
+    }
+
+    /* The changes, with what this end can do, and then a pack holding
        everything the far end does not have yet. */
-    if (!status) {
+    int first = 1;
+    for (size_t i = 0; !status && i < n_wants; i++) {
+        struct git_push_want *want = &wants[i];
+        if (want->refused) continue;
         char line[8192];
         size_t len = (size_t) snprintf (line, sizeof line, "%s %s %s",
-                                        is_new ? GIT_NULL_ID : current, id,
-                                        remote_ref);
-        line[len++] = '\0';
-        len += (size_t) snprintf (line + len, sizeof line - len,
-                                  "report-status side-band-64k agent=%s",
-                                  GIT_AGENT_STRING);
-        if (bgit_proto_write (&conn.io, line, len) < 0 ||
-            bgit_proto_flush (&conn.io) < 0)
+                                        want->is_new ? GIT_NULL_ID : want->old,
+                                        want->id, want->dst);
+        if (first) {
+            line[len++] = '\0';
+            len += (size_t) snprintf (line + len, sizeof line - len,
+                                      "report-status side-band-64k agent=%s",
+                                      GIT_AGENT_STRING);
+            first = 0;
+        }
+        if (bgit_proto_write (&conn.io, line, len) < 0)
             status = git_far_end_gone ();
+        want->sent = 1;
     }
+    if (!status && first) {
+        /* Everything was refused before it was sent. */
+        fflush (stdout);
+        fprintf (stderr, "To %s\n", url);
+        for (size_t i = 0; i < n_wants; i++)
+            if (wants[i].refused) git_report_push (ctx, &wants[i]);
+        fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        bgit_proto_refs_release (theirs, n_theirs);
+        free (capabilities);
+        free (wants);
+        git_conn_close (&conn);
+        git_state_release (&state);
+        return 1;
+    }
+    if (!status && bgit_proto_flush (&conn.io) < 0) status = git_far_end_gone ();
+
     if (!status) {
         const char **stop = calloc (n_theirs ? n_theirs : 1, sizeof *stop);
-        if (!stop) status = GIT_EXIT_FATAL;
+        const char **roots = calloc (n_wants, sizeof *roots);
+        size_t n_roots = 0;
+        if (!stop || !roots) status = GIT_EXIT_FATAL;
         for (size_t i = 0; !status && i < n_theirs; i++) stop[i] = theirs[i].id;
-        const char *roots[1] = { id };
+        for (size_t i = 0; !status && i < n_wants; i++)
+            if (wants[i].sent && strcmp (wants[i].id, GIT_NULL_ID))
+                roots[n_roots++] = wants[i].id;
         char (*send)[41] = NULL;
         size_t n_send = 0;
-        if (!status && bgit_reachable_objects (&ctx->odb, roots, 1, stop,
+        if (!status && bgit_reachable_objects (&ctx->odb, roots, n_roots, stop,
                                                n_theirs, &send, &n_send) < 0)
             status = GIT_EXIT_FATAL;
         free (stop);
+        free (roots);
         unsigned char *pack = NULL;
         size_t pack_len = 0;
         struct bgit_pack_idx_entry *entries = NULL;
@@ -7458,7 +7677,6 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     /* What the far end made of it: the report arrives as packets inside
        the first side-band channel, and anything it wants said goes to
        the second. */
-    char *refused = NULL;
     int unpacked = 0;
     bgit_proto_aside aside;
     memset (&aside, 0, sizeof aside);
@@ -7484,51 +7702,75 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         bgit_pkt_reader inside;
         bgit_pkt_from_memory (&inside, report, report_len);
         for (; !status;) {
-            char *report_line = NULL;
-            int got = bgit_pkt_read_line (&inside, &report_line);
+            char *line = NULL;
+            int got = bgit_pkt_read_line (&inside, &line);
             if (got < 0) break;
-            if (!strncmp (report_line, "unpack ok", 9)) unpacked = 1;
-            else if (!strncmp (report_line, "unpack ", 7)) {
+            if (!strncmp (line, "unpack ok", 9)) unpacked = 1;
+            else if (!strncmp (line, "unpack ", 7)) {
                 fflush (stdout);
-                fprintf (stderr, "error: remote unpack failed: %s\n",
-                         report_line + 7);
+                fprintf (stderr, "error: remote unpack failed: %s\n", line + 7);
             }
-            else if (!strncmp (report_line, "ng ", 3)) {
-                const char *why = strchr (report_line + 3, ' ');
-                if (why) refused = strdup (why + 1);
+            else if (!strncmp (line, "ng ", 3)) {
+                char *why = strchr (line + 3, ' ');
+                if (why) {
+                    *why = '\0';
+                    for (size_t i = 0; i < n_wants; i++)
+                        if (!strcmp (wants[i].dst, line + 3)) {
+                            wants[i].refused = strdup (why + 1);
+                            wants[i].remote_refused = 1;
+                            refused_any = 1;
+                        }
+                }
             }
-            free (report_line);
+            free (line);
         }
         bgit_pkt_release (&inside);
         free (report);
         bgit_proto_aside_flush (&aside);
     }
+    if (!status && !unpacked)
+        status = git_fatal ("the far end did not say what it did");
 
-    if (!status && refused) {
+    if (!status && !quiet) {
         fflush (stdout);
         fprintf (stderr, "To %s\n", url);
-        fprintf (stderr, " ! [remote rejected] %s -> %s (%s)\n", branch, branch,
-                 refused);
+        for (size_t i = 0; i < n_wants; i++)
+            git_report_push (ctx, &wants[i]);
+    }
+    if (!status && refused_any) {
         fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
         status = 1;
-    } else if (!status && !unpacked) {
-        status = git_fatal ("the far end did not say what it did");
-    } else if (!status && !quiet) {
-        fprintf (stderr, "To %s\n", url);
-        git_report_ref (ctx, is_new ? NULL : current, id, branch, branch,
-                        (int) strlen (branch));
     }
-    free (refused);
 
-    /* What was pushed is now what the far end has — which is only worth
+    /* What went over is now what the far end has, which is worth
        recording for a remote that has a name to record it under. */
-    if (!status && by_name) {
-        char tracking[4096];
-        snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", name, branch);
-        bgit_ref_set (&ctx->repo, tracking, id, NULL);
+    for (size_t i = 0; status <= 1 && i < n_wants; i++) {
+        struct git_push_want *want = &wants[i];
+        if (want->refused || !want->sent) continue;
+        if (by_name && !strncmp (want->dst, "refs/heads/", 11)) {
+            char tracking[4096];
+            snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", name,
+                      want->dst + 11);
+            if (strcmp (want->id, GIT_NULL_ID))
+                bgit_ref_set (&ctx->repo, tracking, want->id, NULL);
+            else bgit_ref_delete (&ctx->repo, tracking, NULL, NULL);
+        }
+        /* -u makes the branch follow where it was just pushed. */
+        if (set_upstream && by_name && !strncmp (want->src, "refs/heads/", 11) &&
+            strcmp (want->id, GIT_NULL_ID)) {
+            char key[4096];
+            snprintf (key, sizeof key, "branch.%s.remote", want->src + 11);
+            git_config_write (ctx, key, name);
+            snprintf (key, sizeof key, "branch.%s.merge", want->src + 11);
+            git_config_write (ctx, key, want->dst);
+            if (!quiet)
+                fprintf (stderr, "branch '%s' set up to track '%s/%s'.\n",
+                         want->src + 11, name, git_ref_short (want->dst));
+        }
     }
     bgit_proto_refs_release (theirs, n_theirs);
     free (capabilities);
+    free (wants);
     if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     git_state_release (&state);
     return status;
