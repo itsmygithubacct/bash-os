@@ -45,6 +45,8 @@ git cherry-pick  [-n] <commit> | --continue | --abort
 git stash        [push] [-m <message>] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       <upstream> [<branch>] | --continue | --abort | --skip
+git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
+                 [--porcelain] | remove [-f] <path> | prune
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
@@ -156,6 +158,15 @@ replay that stops writes the state into `.git/rebase-merge` under git's own
 names, so `git status` reports the commands done and remaining the way git
 reports them, and `--continue`, `--skip` and `--abort` pick it up.
 
+`git worktree` adds a second checkout of the same repository: a `.git`
+file pointing at an administrative directory under `worktrees/`, with its
+own HEAD, index and logs, and refs and objects shared through `commondir`.
+The repository layer already read that arrangement — it is how a linked
+worktree is found — so the command mostly writes what the reader expects,
+including the two reflog entries git leaves in a new worktree's HEAD. A
+branch checked out in another worktree is marked with a `+` by
+`git branch`, and using it twice is refused.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -204,6 +215,12 @@ index, `status --porcelain=v2`, the stash, the whole history with its
 identities and dates, the working tree's files with modes and digests, and
 `fsck --strict`.
 
+The reference git is whatever the machine has, and CI's is newer than this
+laptop's. Where git has changed its own wording between those versions —
+the line a stopped rebase ends with, the shape of a todo entry — the
+comparison leaves that line out and says why, rather than pinning bash-os
+to one machine's git.
+
 A scenario names the commands it needs in a `# requires:` line, and whole
 features — patch output, say — in a `# requires-feature:` line, checked
 against `git --list-features`. A scenario is skipped while anything it
@@ -230,7 +247,7 @@ message and changes nothing.
 
 ## Still to come
 
-Merging, cherry-pick, revert, stash and rebase are in. The rest of Phase 2
-is worktrees, submodules, rename detection, stashing untracked files,
+Merging, cherry-pick, revert, stash, rebase and worktrees are in. The rest
+of Phase 2 is submodules, rename detection, stashing untracked files,
 interactive rebase, and a merge with more than one base. After that come HTTPS remotes with protocol v2, then SSH. The plan, including what each
 phase must match, is in the implementation document for the port.

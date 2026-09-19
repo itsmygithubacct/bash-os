@@ -124,6 +124,21 @@ typedef struct {
     int open;
 } git_context;
 
+/* One checkout of this repository: where it is, what it has checked out,
+   and the administrative directory that ties the two together. */
+struct git_worktree {
+    char path[4096];       /* the working tree */
+    char admin[4096];      /* the git directory for it; "" for the main one */
+    char name[256];        /* what the admin directory is called */
+    char head[41];
+    char branch[4096];     /* the ref HEAD names, or "" when detached */
+};
+
+/* Every worktree of this repository, the main one first; written out
+   beside git worktree, which is what makes the rest. */
+static int git_worktrees (git_context *ctx, struct git_worktree **out,
+                          size_t *n_out);
+
 /* A file inside the git directory, such as MERGE_HEAD, and the things done
    with one. Written out beside git merge, which is what makes them. */
 static int git_state_file (git_context *ctx, const char *name, char *out,
@@ -3550,6 +3565,11 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         goto done;
     }
 
+    /* A branch checked out in another worktree is marked, as git marks it. */
+    struct git_worktree *trees = NULL;
+    size_t n_trees = 0;
+    git_worktrees (ctx, &trees, &n_trees);
+
     /* No arguments: list the branches. */
     bgit_ref *refs = NULL;
     size_t n_refs = 0;
@@ -3560,8 +3580,13 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     for (size_t i = 0; i < n_refs; i++) {
         const char *name = refs[i].name + 11;
         int current = state.branch && !strcmp (state.branch, refs[i].name);
+        int elsewhere = 0;
+        for (size_t w = 0; w < n_trees && !elsewhere; w++)
+            if (!current && !strcmp (trees[w].branch, refs[i].name))
+                elsewhere = 1;
+        const char *mark = current ? "*" : elsewhere ? "+" : " ";
         if (!verbose) {
-            printf ("%s %s\n", current ? "*" : " ", name);
+            printf ("%s %s\n", mark, name);
             continue;
         }
         struct git_commit commit;
@@ -3577,7 +3602,7 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             size_t len = strlen (refs[j].name + 11);
             if (len > width) width = len;
         }
-        printf ("%s %-*s %s %s\n", current ? "*" : " ", (int) width, name,
+        printf ("%s %-*s %s %s\n", mark, (int) width, name,
                 abbreviated, subject);
     }
     bgit_refs_free (refs, n_refs);
@@ -4734,6 +4759,430 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     bgit_merge_paths_free (paths, n_paths);
     git_state_release (&state);
     return status;
+}
+
+/* ---- worktree ----------------------------------------------------------- */
+
+/* What a worktree's HEAD file says. */
+static void
+git_worktree_head (git_context *ctx, const char *git_dir, struct git_worktree *out)
+{
+    char path[4096], line[4096];
+    out->head[0] = out->branch[0] = '\0';
+    if (snprintf (path, sizeof path, "%s/HEAD", git_dir) >= (int) sizeof path)
+        return;
+    FILE *file = fopen (path, "r");
+    if (!file) return;
+    if (fgets (line, sizeof line, file)) {
+        size_t len = strlen (line);
+        while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+            line[--len] = '\0';
+        if (!strncmp (line, "ref: ", 5)) {
+            snprintf (out->branch, sizeof out->branch, "%s", line + 5);
+            char id[41];
+            if (bgit_ref_read (&ctx->repo, out->branch, id) == 0)
+                memcpy (out->head, id, 41);
+        } else if (strlen (line) >= 40) {
+            memcpy (out->head, line, 40);
+            out->head[40] = '\0';
+        }
+    }
+    fclose (file);
+}
+
+/* Every worktree of this repository: the main one first, then the linked
+   ones in name order, as git lists them. */
+static int
+git_worktrees (git_context *ctx, struct git_worktree **out, size_t *n_out)
+{
+    struct git_worktree *list = calloc (64, sizeof *list);
+    if (!list) return -1;
+    size_t n = 0;
+
+    /* The main worktree is the one whose git directory is the common one. */
+    struct git_worktree *main_tree = &list[n++];
+    main_tree->admin[0] = '\0';
+    snprintf (main_tree->name, sizeof main_tree->name, "%s", "");
+    char main_work[4096] = "";
+    if (ctx->repo.work_tree && !strcmp (ctx->repo.git_dir, ctx->repo.common_dir))
+        snprintf (main_work, sizeof main_work, "%s", ctx->repo.work_tree);
+    else {
+        /* Started from a linked worktree: the main one is beside the common
+           directory. */
+        snprintf (main_work, sizeof main_work, "%s", ctx->repo.common_dir);
+        char *slash = strrchr (main_work, '/');
+        if (slash) *slash = '\0';
+    }
+    snprintf (main_tree->path, sizeof main_tree->path, "%s", main_work);
+    git_worktree_head (ctx, ctx->repo.common_dir, main_tree);
+
+    char dir[4096];
+    if (snprintf (dir, sizeof dir, "%s/worktrees", ctx->repo.common_dir) <
+        (int) sizeof dir) {
+        DIR *handle = opendir (dir);
+        if (handle) {
+            char names[64][256];
+            size_t n_names = 0;
+            struct dirent *entry;
+            while ((entry = readdir (handle)) && n_names < 64) {
+                if (entry->d_name[0] == '.') continue;
+                snprintf (names[n_names++], sizeof names[0], "%s", entry->d_name);
+            }
+            closedir (handle);
+            qsort (names, n_names, sizeof names[0], (int (*) (const void *,
+                   const void *)) strcmp);
+            for (size_t i = 0; i < n_names && n < 64; i++) {
+                struct git_worktree *tree = &list[n];
+                snprintf (tree->name, sizeof tree->name, "%s", names[i]);
+                snprintf (tree->admin, sizeof tree->admin, "%s/%s", dir, names[i]);
+                char gitdir[4096], line[4096];
+                snprintf (gitdir, sizeof gitdir, "%s/gitdir", tree->admin);
+                FILE *file = fopen (gitdir, "r");
+                if (!file) continue;
+                if (!fgets (line, sizeof line, file)) { fclose (file); continue; }
+                fclose (file);
+                size_t len = strlen (line);
+                while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+                    line[--len] = '\0';
+                /* The file names the worktree's .git; the tree is above it. */
+                char *slash = strrchr (line, '/');
+                if (slash) *slash = '\0';
+                snprintf (tree->path, sizeof tree->path, "%s", line);
+                git_worktree_head (ctx, tree->admin, tree);
+                n++;
+            }
+        }
+    }
+    *out = list;
+    *n_out = n;
+    return 0;
+}
+
+/* Which worktree, if any, has this branch checked out. */
+static const struct git_worktree *
+git_worktree_holding (const struct git_worktree *list, size_t n, const char *ref)
+{
+    for (size_t i = 0; i < n; i++)
+        if (!strcmp (list[i].branch, ref)) return &list[i];
+    return NULL;
+}
+
+/* An absolute path for one that may not exist yet. */
+static int
+git_absolute (const char *path, char *out, size_t outsz)
+{
+    if (*path == '/') {
+        snprintf (out, outsz, "%s", path);
+        return 0;
+    }
+    char here[4096];
+    if (!getcwd (here, sizeof here)) return -1;
+    if (snprintf (out, outsz, "%s/%s", here, path) >= (int) outsz) return -1;
+    /* Fold away "." and ".." so the path reads as git writes it. */
+    char parts[64][256];
+    size_t n = 0;
+    char copy[4096];
+    snprintf (copy, sizeof copy, "%s", out);
+    for (char *token = strtok (copy, "/"); token; token = strtok (NULL, "/")) {
+        if (!strcmp (token, ".")) continue;
+        if (!strcmp (token, "..")) { if (n) n--; continue; }
+        if (n < 64) snprintf (parts[n++], sizeof parts[0], "%s", token);
+    }
+    size_t at = 0;
+    out[0] = '\0';
+    for (size_t i = 0; i < n; i++)
+        at += (size_t) snprintf (out + at, outsz - at, "/%s", parts[i]);
+    if (!at) snprintf (out, outsz, "/");
+    return 0;
+}
+
+static int
+git_worktree_add (git_context *ctx, const char *where, const char *start,
+                  const char *new_branch, int detach, int force)
+{
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+
+    char path[4096];
+    if (git_absolute (where, path, sizeof path) < 0) {
+        git_state_release (&state);
+        return git_fatal ("cannot work out where '%s' is", where);
+    }
+    const char *base = strrchr (path, '/');
+    base = base ? base + 1 : path;
+    char name[256];
+    snprintf (name, sizeof name, "%s", base);
+
+    /* What will be checked out, and under what name. */
+    char branch_ref[4096] = "", id[41], commit[41];
+    int creating = 0;
+    if (new_branch) {
+        snprintf (branch_ref, sizeof branch_ref, "refs/heads/%s", new_branch);
+        creating = 1;
+    } else if (start) {
+        char candidate[4096];
+        snprintf (candidate, sizeof candidate, "refs/heads/%s", start);
+        if (!detach && bgit_ref_read (&ctx->repo, candidate, id) == 0)
+            snprintf (branch_ref, sizeof branch_ref, "%s", candidate);
+    } else if (!detach) {
+        snprintf (branch_ref, sizeof branch_ref, "refs/heads/%s", name);
+        creating = 1;
+    }
+    const char *from = start ? start : "HEAD";
+    if (git_resolve (ctx, from, id, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
+        git_state_release (&state);
+        return git_fatal ("invalid reference: %s", from);
+    }
+
+    /* git says what it is preparing on stderr, and where HEAD landed on
+       stdout. */
+    fflush (stdout);
+    if (*branch_ref) {
+        const char *shown = branch_ref + 11;
+        fprintf (stderr, "Preparing worktree (%s '%s')\n",
+                 creating ? "new branch" : "checking out", shown);
+    } else {
+        char abbreviated[41];
+        git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+        fprintf (stderr, "Preparing worktree (detached HEAD %s)\n", abbreviated);
+    }
+
+    struct git_worktree *trees = NULL;
+    size_t n_trees = 0;
+    if (git_worktrees (ctx, &trees, &n_trees) < 0) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    const struct git_worktree *holder = *branch_ref
+        ? git_worktree_holding (trees, n_trees, branch_ref) : NULL;
+    if (holder && !force) {
+        char held[4096];
+        snprintf (held, sizeof held, "%s", holder->path);
+        free (trees);
+        git_state_release (&state);
+        return git_fatal ("'%s' is already used by worktree at '%s'",
+                          branch_ref + 11, held);
+    }
+    for (size_t i = 0; i < n_trees; i++)
+        if (!strcmp (trees[i].path, path)) {
+            free (trees);
+            git_state_release (&state);
+            return git_fatal ("'%s' already exists", where);
+        }
+    free (trees);
+
+    /* The administrative directory, then the worktree itself. */
+    char admin[4096];
+    if (snprintf (admin, sizeof admin, "%s/worktrees/%s", ctx->repo.common_dir,
+                  name) >= (int) sizeof admin) {
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    char worktrees_dir[4096];
+    snprintf (worktrees_dir, sizeof worktrees_dir, "%s/worktrees",
+              ctx->repo.common_dir);
+    if ((mkdir (worktrees_dir, 0777) < 0 && errno != EEXIST) ||
+        (mkdir (admin, 0777) < 0 && errno != EEXIST) ||
+        (mkdir (path, 0777) < 0 && errno != EEXIST)) {
+        git_state_release (&state);
+        return git_fatal ("cannot create '%s': %s", where, strerror (errno));
+    }
+
+    char file[4096], content[8192];
+    FILE *out;
+    snprintf (file, sizeof file, "%s/.git", path);
+    out = fopen (file, "w");
+    if (!out) { git_state_release (&state); return GIT_EXIT_FATAL; }
+    fprintf (out, "gitdir: %s\n", admin);
+    fclose (out);
+
+    snprintf (file, sizeof file, "%s/gitdir", admin);
+    out = fopen (file, "w");
+    if (!out) { git_state_release (&state); return GIT_EXIT_FATAL; }
+    fprintf (out, "%s/.git\n", path);
+    fclose (out);
+
+    snprintf (file, sizeof file, "%s/commondir", admin);
+    out = fopen (file, "w");
+    if (!out) { git_state_release (&state); return GIT_EXIT_FATAL; }
+    fprintf (out, "../..\n");
+    fclose (out);
+
+    if (creating) {
+        char message[1200];
+        snprintf (message, sizeof message, "branch: Created from %s", from);
+        if (bgit_ref_update (&ctx->repo, branch_ref, commit, "", message) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+    }
+    snprintf (file, sizeof file, "%s/HEAD", admin);
+    out = fopen (file, "w");
+    if (!out) { git_state_release (&state); return GIT_EXIT_FATAL; }
+    if (*branch_ref) fprintf (out, "ref: %s\n", branch_ref);
+    else fprintf (out, "%s\n", commit);
+    fclose (out);
+
+    snprintf (file, sizeof file, "%s/ORIG_HEAD", admin);
+    out = fopen (file, "w");
+    if (out) { fprintf (out, "%s\n", commit); fclose (out); }
+
+    /* Check the tree out into the new worktree, and write its index. */
+    bgit_repo linked;
+    memset (&linked, 0, sizeof linked);
+    linked.git_dir = strdup (admin);
+    linked.common_dir = strdup (ctx->repo.common_dir);
+    linked.work_tree = strdup (path);
+    if (!linked.git_dir || !linked.common_dir || !linked.work_tree) {
+        bgit_repo_release (&linked);
+        git_state_release (&state);
+        return GIT_EXIT_FATAL;
+    }
+    /* The new worktree's own HEAD log starts the way git starts it: the
+       entry that created HEAD, then the checkout that filled the tree. */
+    bgit_reflog_append (&linked, "HEAD", NULL, commit, "");
+    bgit_reflog_append (&linked, "HEAD", commit, commit, "reset: moving to HEAD");
+
+    char tree[41];
+    bgit_index_entry *entries = NULL;
+    size_t n_entries = 0;
+    int status = 0;
+    if (bgit_commit_tree (&ctx->odb, commit, tree) < 0 ||
+        bgit_checkout_tree (&linked, &ctx->odb, tree, &entries, &n_entries, 1,
+                            NULL) < 0)
+        status = GIT_EXIT_FATAL;
+    if (!status) {
+        char index_path[4096];
+        snprintf (index_path, sizeof index_path, "%s/index", admin);
+        if (n_entries > 1)
+            qsort (entries, n_entries, sizeof *entries, bgit_index_path_cmp);
+        if (bgit_index_write (index_path, entries, n_entries) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    bgit_index_free_entries (entries, n_entries);
+    bgit_repo_release (&linked);
+
+    if (!status) {
+        char abbreviated[41], subject[1024] = "";
+        git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+        struct git_commit parsed;
+        if (git_commit_read (ctx, commit, &parsed) == 0) {
+            git_subject (&parsed, subject, sizeof subject);
+            git_commit_release (&parsed);
+        }
+        printf ("HEAD is now at %s %s\n", abbreviated, subject);
+    }
+    (void) content;
+    git_state_release (&state);
+    return status;
+}
+
+/* Remove a directory and everything under it. */
+static int git_remove_path (const char *full);
+
+static int
+git_worktree_remove (git_context *ctx, const char *where, int force)
+{
+    char path[4096];
+    if (git_absolute (where, path, sizeof path) < 0)
+        return git_fatal ("cannot work out where '%s' is", where);
+    struct git_worktree *trees = NULL;
+    size_t n_trees = 0;
+    if (git_worktrees (ctx, &trees, &n_trees) < 0) return GIT_EXIT_FATAL;
+    const struct git_worktree *found = NULL;
+    for (size_t i = 1; i < n_trees; i++)
+        if (!strcmp (trees[i].path, path)) found = &trees[i];
+    if (!found) {
+        free (trees);
+        return git_fatal ("'%s' is not a working tree", where);
+    }
+    char admin[4096];
+    snprintf (admin, sizeof admin, "%s", found->admin);
+    free (trees);
+    (void) force;
+    if (git_remove_path (path) < 0 || git_remove_path (admin) < 0)
+        return git_fatal ("cannot remove '%s'", where);
+    return 0;
+}
+
+static int
+git_cmd_worktree (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git worktree add [-b <branch>] [--detach] [-f] "
+                        "<path> [<commit>] | list [--porcelain] | "
+                        "remove [-f] <path> | prune";
+    const char *verb = NULL, *where = NULL, *start = NULL, *new_branch = NULL;
+    int porcelain = 0, detach = 0, force = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!verb) { verb = w; continue; }
+        if (!strcmp (w, "--porcelain")) porcelain = 1;
+        else if (!strcmp (w, "--detach")) detach = 1;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "-b") && p->next) { new_branch = p->next->word->word; p = p->next; }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!where) where = w;
+        else if (!start) start = w;
+        else return git_usage (usage);
+    }
+    if (!verb) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (!strcmp (verb, "list")) {
+        struct git_worktree *trees = NULL;
+        size_t n = 0;
+        if (git_worktrees (ctx, &trees, &n) < 0) return GIT_EXIT_FATAL;
+        size_t width = 0;
+        for (size_t i = 0; i < n; i++) {
+            size_t len = strlen (trees[i].path);
+            if (len > width) width = len;
+        }
+        for (size_t i = 0; i < n; i++) {
+            char abbreviated[41];
+            git_abbrev (ctx, trees[i].head, 7, abbreviated, sizeof abbreviated);
+            if (porcelain) {
+                printf ("worktree %s\n", trees[i].path);
+                printf ("HEAD %s\n", trees[i].head);
+                if (*trees[i].branch) printf ("branch %s\n", trees[i].branch);
+                else printf ("detached\n");
+                printf ("\n");
+            } else if (*trees[i].branch) {
+                const char *shown = trees[i].branch;
+                if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
+                printf ("%-*s  %s [%s]\n", (int) width, trees[i].path,
+                        abbreviated, shown);
+            } else {
+                printf ("%-*s  %s (detached HEAD)\n", (int) width,
+                        trees[i].path, abbreviated);
+            }
+        }
+        free (trees);
+        return 0;
+    }
+    if (!strcmp (verb, "add")) {
+        if (!where) return git_usage (usage);
+        return git_worktree_add (ctx, where, start, new_branch, detach, force);
+    }
+    if (!strcmp (verb, "remove")) {
+        if (!where) return git_usage (usage);
+        return git_worktree_remove (ctx, where, force);
+    }
+    if (!strcmp (verb, "prune")) {
+        /* An administrative directory whose worktree is gone goes too. */
+        struct git_worktree *trees = NULL;
+        size_t n = 0;
+        if (git_worktrees (ctx, &trees, &n) < 0) return GIT_EXIT_FATAL;
+        for (size_t i = 1; i < n; i++) {
+            struct stat st;
+            if (lstat (trees[i].path, &st) == 0) continue;
+            git_remove_path (trees[i].admin);
+        }
+        free (trees);
+        return 0;
+    }
+    return git_usage (usage);
 }
 
 /* ---- rebase ------------------------------------------------------------ */
@@ -6892,6 +7341,7 @@ static const struct {
     { "update-index", git_cmd_update_index },
     { "update-ref",   git_cmd_update_ref },
     { "var",          git_cmd_var },
+    { "worktree",     git_cmd_worktree },
     { "write-tree",   git_cmd_write_tree },
     { NULL, NULL }
 };

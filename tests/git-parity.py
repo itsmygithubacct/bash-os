@@ -114,8 +114,12 @@ def run_scenario(script, workdir, home, side):
         argv = ['/bin/bash', '--noprofile', '--norc', str(script)]
         env['PATH'] = '/usr/bin:/bin'
     result = subprocess.run(argv, cwd=workdir, env=env, capture_output=True, timeout=300)
+    # `hint:` lines are advice git rewords freely, and so is the line a
+    # stopped rebase ends with — 2.47 writes "Could not apply <id>... <subject>"
+    # where 2.55 puts a "# " before the subject. Neither is compared.
     stderr = b'\n'.join(line for line in result.stderr.splitlines()
-                        if not line.startswith(b'hint:'))
+                        if not line.startswith(b'hint:')
+                        and not line.startswith(b'Could not apply '))
     return {'status': result.returncode, 'stdout': result.stdout, 'stderr': stderr}
 
 
@@ -186,9 +190,12 @@ def parity(script, left_side, right_side, corrupt=False):
     """Run one scenario on both sides and compare the run and the repository."""
     with tempfile.TemporaryDirectory(prefix='git-parity-') as directory:
         base = Path(directory)
-        left_dir, right_dir = base/'left/repo', base/'right/repo'
-        left = run_scenario(script, left_dir, base/'left/home', left_side)
-        right = run_scenario(script, right_dir, base/'right/home', right_side)
+        # The two sides get directory names of the same length: output that
+        # lines up columns, such as `git worktree list`, would otherwise
+        # differ by the width of the path alone.
+        left_dir, right_dir = base/'one/repo', base/'two/repo'
+        left = run_scenario(script, left_dir, base/'one/home', left_side)
+        right = run_scenario(script, right_dir, base/'two/home', right_side)
         if corrupt:
             (left_dir/'corrupted-by-the-self-check').write_text('difference\n')
         if right_side == 'git' and right['status'] != 0 and not corrupt:

@@ -59,7 +59,10 @@ git add c.txt
 git commit -q -m 'main writes c'
 git switch -q clash
 git rebase main || echo "stopped: $?"
-git status
+# git's own spelling of a todo line changed between versions — 2.47 writes
+# "pick <id> <subject>" and 2.55 writes "pick <id> # <subject>" — so the line
+# that quotes one is compared by shape, and everything else exactly.
+git status | sed 's/^   pick .*/   pick A COMMIT/'
 git status --short
 cat c.txt
 git ls-files -s

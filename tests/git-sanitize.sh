@@ -251,6 +251,22 @@ git rebase rebase-clash 2>/dev/null || true
 git rebase --abort
 git status --short
 
+# A linked worktree, worked in and removed.
+git worktree add ../linked-tree
+git worktree list
+git worktree list --porcelain
+cd ../linked-tree
+git status --short
+printf 'from the linked tree\n' > linked.txt
+git add linked.txt
+git commit -q -m 'a commit from the linked worktree'
+git log --oneline -1
+cd "$OLDPWD"
+git branch
+git worktree remove ../linked-tree
+git worktree list
+git worktree prune
+
 git fsck 2>/dev/null || true
 SCENARIO
 
