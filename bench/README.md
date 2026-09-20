@@ -21,6 +21,15 @@ extra or blank later records fail validation; `tests/bench-loadables.py`
 exercises those failure paths. The `diff` case compares identical files and
 measures no edit-script generation.
 
+The four `git-*` cases work on one repository fixture: 2,000 tracked files
+in 64 directories, 200 commits over them, an index carrying their stat data,
+twenty files changed since it was written and five never added. Its
+timestamps are set rather than taken from the clock, because an entry
+written in the same second as the index can only be settled by reading the
+file, and these cases measure the other path. `git-add` compares the index
+both implementations write, byte for byte, rather than their (empty)
+output.
+
 ```sh
 python3 bench/loadables.py --output /tmp/loadables.json
 python3 bench/loadables.py --only fold --passes 9 --runs 7 --output /tmp/fold.json

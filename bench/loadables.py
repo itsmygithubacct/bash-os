@@ -806,6 +806,39 @@ def cases():
     # a space where git ls-files --stage uses a TAB. All 80000 tokens are
     # equal in order, and the builtin verifies the index's SHA-1 trailer over
     # the whole 1760032-byte body just as git's verify_hdr does.
+    # The git builtin on a repository of the size a working day has: 2000
+    # tracked files in 64 directories, 200 commits over them, 20 files
+    # changed since the index was written and 5 never added. Both columns
+    # restore the same index before every pass, so each pass sees the same
+    # repository and carries the same restore.
+    add('git', ['-C', 'gitrepo', 'status', '--porcelain'], fixture='empty',
+        label='git-status', maximum=20,
+        reset='cp gitindex.pristine gitrepo/.git/index',
+        env={'GIT_CONFIG_NOSYSTEM': '1'},
+        work='176032-byte index with 2000 entries read, then a walk of 64 '
+             'directories and 2005 files: every entry stat-compared, the 20 '
+             'whose timestamps moved re-read and hashed (13787 B), 25 paths '
+             'reported / 585 B')
+    add('git', ['-C', 'gitrepo', 'log', '--oneline'], fixture='empty',
+        label='git-log', maximum=20, env={'GIT_CONFIG_NOSYSTEM': '1'},
+        work='200 commits walked from HEAD, each one found in the loose '
+             'object store, inflated and parsed; 200 abbreviated ids and '
+             'subjects / 5090 B')
+    add('git', ['-C', 'gitrepo', 'diff'], fixture='empty',
+        label='git-diff', maximum=20,
+        reset='cp gitindex.pristine gitrepo/.git/index',
+        env={'GIT_CONFIG_NOSYSTEM': '1'},
+        work='2000 index entries stat-compared, the 20 that moved read '
+             '(13787 B) and diffed against the same inflated from the object '
+             'store; 522 lines / 27766 B of unified patch')
+    add('git', ['-C', 'gitrepo', 'add', '-A'], fixture='empty',
+        label='git-add', maximum=20, output='gitrepo/.git/index',
+        reset='cp gitindex.pristine gitrepo/.git/index',
+        env={'GIT_CONFIG_NOSYSTEM': '1'},
+        work='2005 paths held against a 2000-entry index; the 20 changed and '
+             '5 new ones (13837 B) read, hashed and written as loose '
+             'objects, and a 176472-byte index with 2005 entries written, '
+             'which both implementations write byte for byte alike')
     add('index', ['read', 'indexrepo/.git/index'], fixture='empty', host='git', host_args=['-C', 'indexrepo', 'ls-files', '--stage'], label='index-read', normalizer='fields', maximum=40, work="1760032-byte git index v2 with 20000 entries parsed; 20000 '<mode> <sha> <stage> <path>' lines / 1440000 bytes / 80000 fields emitted")
     # Nothing external emits a manifest-v2 row, so this is self-timed. The
     # rows carry uid/gid/mtime/ctime, which are stable for one bench run:
@@ -2046,6 +2079,119 @@ def fixtures(root, needed=None):
     if not (root/'indexrepo').exists():
         build_indexrepo(root)
     record(root/'indexrepo'/'.git'/'index', 'indexrepo.index')
+
+    # A repository for the git builtin: 2000 tracked files in 64
+    # directories, a history of 200 commits over them, an index carrying
+    # their stat data, and a working tree that has moved on since — 20 files
+    # changed and 5 never added. Built from pure Python (sha1 + zlib), so no
+    # git is needed to create it, and timestamps are set rather than taken
+    # from the clock: an entry written in the same second as the index can
+    # only be settled by reading the file, and these cases are meant to
+    # measure the other path, where the stat data answers.
+    def build_gitrepo(root, files=2000, commits=200):
+        import struct
+        import zlib
+        work = root/'gitrepo'
+        store = work/'.git'/'objects'
+        local = random.Random(20260912)
+        stamp = 1750000000
+
+        def keep(kind, body):
+            raw = kind+b' '+str(len(body)).encode()+b'\0'+body
+            sha = hashlib.sha1(raw).hexdigest()
+            directory = store/sha[:2]
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory/sha[2:]
+            if not target.exists():
+                target.write_bytes(zlib.compress(raw, 6))
+            return sha
+
+        def tree_of(entries):
+            # git orders a directory as if its name ended in a slash.
+            body = b''
+            for name in sorted(entries, key=lambda n: n.encode()
+                               + (b'/' if entries[n][0] == '40000' else b'')):
+                mode, sha = entries[name]
+                body += mode.encode()+b' '+name.encode()+b'\0'+bytes.fromhex(sha)
+            return keep(b'tree', body)
+
+        def text():
+            return ''.join(' '.join(local.choice(words) for _ in range(10))+'\n'
+                           for _ in range(12))
+
+        directories = {}
+        for i in range(files):
+            where, name = 'dir%02d' % (i % 64), 'file-%04d.txt' % i
+            (work/where).mkdir(parents=True, exist_ok=True)
+            body = text()
+            (work/where/name).write_text(body)
+            directories.setdefault(where, {})[name] = (
+                '100644', keep(b'blob', body.encode()))
+        subtrees = {name: ('40000', tree_of(entries))
+                    for name, entries in directories.items()}
+        tree = tree_of(subtrees)
+
+        # The history: the first commit holds everything, and each one after
+        # it changes a single file in the first directory.
+        parent = None
+        for n in range(commits):
+            if n:
+                name = 'file-%04d.txt' % ((n % 31)*64)
+                body = text()
+                (work/'dir00'/name).write_text(body)
+                directories['dir00'][name] = ('100644', keep(b'blob', body.encode()))
+                subtrees['dir00'] = ('40000', tree_of(directories['dir00']))
+                tree = tree_of(subtrees)
+            when = stamp+n*60
+            commit = 'tree %s\n' % tree
+            if parent:
+                commit += 'parent %s\n' % parent
+            commit += ('author Bench Author <author@bash-os.test> %d +0000\n'
+                       'committer Bench Committer <committer@bash-os.test> %d '
+                       '+0000\n\ncommit number %d\n' % (when, when, n))
+            parent = keep(b'commit', commit.encode())
+        (work/'.git'/'refs'/'heads').mkdir(parents=True, exist_ok=True)
+        (work/'.git'/'HEAD').write_text('ref: refs/heads/main\n')
+        (work/'.git'/'refs'/'heads'/'main').write_text(parent+'\n')
+
+        for where, entries in directories.items():
+            for name in entries:
+                os.utime(work/where/name, (stamp, stamp))
+        listing = sorted((f'{where}/{name}', sha)
+                         for where, entries in directories.items()
+                         for name, (mode, sha) in entries.items())
+        body = b'DIRC'+struct.pack('>II', 2, len(listing))
+        for path, sha in listing:
+            info = os.stat(work/path)
+            entry = struct.pack('>10I', int(info.st_ctime),
+                                info.st_ctime_ns % 1000000000,
+                                int(info.st_mtime),
+                                info.st_mtime_ns % 1000000000,
+                                info.st_dev & 0xffffffff,
+                                info.st_ino & 0xffffffff, 0o100644,
+                                info.st_uid, info.st_gid,
+                                info.st_size & 0xffffffff)
+            raw = path.encode()
+            entry += bytes.fromhex(sha)+struct.pack('>H', min(len(raw), 0xfff))+raw
+            entry += b'\0'*(8-(len(entry) % 8))
+            body += entry
+        body += hashlib.sha1(body).digest()
+        (work/'.git'/'index').write_bytes(body)
+        os.utime(work/'.git'/'index', (stamp+10, stamp+10))
+        shutil.copyfile(work/'.git'/'index', root/'gitindex.pristine')
+
+        # And then the working tree moves on, plainly enough that a stat says
+        # so: twenty files changed and five that were never added.
+        for i in range(20):
+            path = work/('dir%02d' % i)/('file-%04d.txt' % (i+192))
+            path.write_text(path.read_text().replace('alpha', 'OMEGA'))
+            os.utime(path, (stamp+20, stamp+20))
+        for i in range(5):
+            (work/'dir00'/('untracked-%d.txt' % i)).write_text('not added\n')
+
+    if not (root/'gitrepo').exists():
+        build_gitrepo(root)
+    record(root/'gitindex.pristine', 'gitindex.pristine')
 
     # A pkg repo INDEX that `pkg search --root pkgroot` scans. Only the repos
     # directory exists, so pkg's installed/ and cache/ opendirs miss cleanly.
