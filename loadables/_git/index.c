@@ -305,10 +305,12 @@ static int bgit_index_stamped;
 int
 bgit_index_racy (const bgit_index_entry *entry)
 {
+    /* An entry written in the same second as the index itself, or later,
+       cannot be told from a changed one by its stat data, so only its
+       content can say. git draws the line by seconds, since it compares
+       timestamps by seconds. */
     if (!bgit_index_stamped || !bgit_index_stamp_sec) return 0;
-    if (entry->mtime_sec > bgit_index_stamp_sec) return 1;
-    return entry->mtime_sec == bgit_index_stamp_sec &&
-           entry->mtime_nsec >= bgit_index_stamp_nsec;
+    return entry->mtime_sec >= bgit_index_stamp_sec;
 }
 
 static void

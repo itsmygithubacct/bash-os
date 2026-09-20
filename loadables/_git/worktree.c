@@ -68,12 +68,15 @@ bgit_worktree_matches (bgit_odb *odb, const char *full_path,
     /* The index records stat data; when it still agrees, the file is
        unchanged and need not be read — unless the entry is racy, written in
        the same tick as the index, when only the content can say. */
+    /* Seconds only, which is what git compares: it records the finer part
+       and reads it back, but only a build with USE_NSEC — which the stock
+       one is not — holds a file against it. What that leaves open, a
+       change made in the same second the index was written, is what the
+       racy rule below covers. */
     if (!bgit_index_racy (entry) &&
         entry->size == (uint32_t) st->st_size &&
         entry->mtime_sec == (uint32_t) st->st_mtim.tv_sec &&
-        entry->mtime_nsec == (uint32_t) st->st_mtim.tv_nsec &&
         entry->ctime_sec == (uint32_t) st->st_ctim.tv_sec &&
-        entry->ctime_nsec == (uint32_t) st->st_ctim.tv_nsec &&
         entry->ino == (uint32_t) st->st_ino)
         return 1;
     unsigned char *content = NULL;
