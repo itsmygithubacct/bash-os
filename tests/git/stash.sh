@@ -69,3 +69,16 @@ cat a.txt
 git status --short
 git stash list
 git log --oneline
+
+echo '=== a stash that will not go back cleanly ==='
+git add -A
+git commit -q -m 'settle before the conflict'
+printf 'one\nfrom the stash\n' > a.txt
+git stash push -q -m 'the one that conflicts'
+printf 'one\nfrom the branch\n' > a.txt
+git add a.txt
+git commit -q -m 'a change over the same lines'
+git stash pop || echo "pop said no: $?"
+cat a.txt
+git status --short
+git stash list

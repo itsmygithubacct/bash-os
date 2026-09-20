@@ -44,7 +44,7 @@ git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
                  <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
-git stash        [push] [-m <message>] | list | show [-p] [<stash>]
+git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       <upstream> [<branch>] | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
@@ -172,8 +172,19 @@ reflog, which is why `stash@{2}` is just a revision. A stash is two
 commits — one for the index as it stood, one for the working tree, whose
 parents are where HEAD was and that index commit — and they come out with
 the same ids git's do. Applying one is a three-way merge against where it
-was taken, so it can conflict like any other. Keeping untracked files
-(`-u`) is refused for now rather than half-done.
+was taken, so it can conflict like any other, and a pop that conflicts
+keeps the entry and says so.
+
+`-u` takes what is not tracked yet along with the rest. Those files
+become a third commit with no parent of its own — `untracked files on
+<branch>: …` — standing as the stash's third parent, which is how git
+marks that it has them; they then leave the working tree, and a
+directory left empty goes with them. An ignored file is not one of
+them. Popping puts them back where nothing stands in their way, and
+where something does it says `<path> already exists, no checkout`,
+leaves that file alone and keeps the entry. Even a pop whose tracked
+half is refused puts the untracked half back and says where it stands,
+which is what git does.
 
 `git rebase` replays what a branch has that its upstream does not, one
 commit at a time, each replay being the same three-way merge a cherry-pick
@@ -528,7 +539,6 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: stashing untracked files, interactive rebase,
-renames between the index and the working tree, and a merge with more
-than one base. The plan, including what each phase must match, is in the
+Left over from Phase 2: interactive rebase, submodules, renames between
+the index and the working tree, and a merge with more than one base. The plan, including what each phase must match, is in the
 implementation document for the port.

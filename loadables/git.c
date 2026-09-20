@@ -9877,6 +9877,86 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
 
 /* ---- stash ------------------------------------------------------------- */
 
+/* The untracked files a stash keeps with -u: what status would call
+   untracked, each one written into the object store so that a tree can
+   hold them. An ignored file is not one of them, as it is not for git. */
+static int
+git_stash_untracked (git_context *ctx, struct git_state *state,
+                     bgit_index_entry **out, size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state->index,
+                     state->n_index,
+                     state->have_head ? state->head_tree : NULL,
+                     1, 0, 0, &entries, &n) < 0)
+        return -1;
+    bgit_index_entry *kept = NULL;
+    size_t n_kept = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (!entries[i].untracked) continue;
+        char full[4096];
+        struct stat st;
+        if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                      entries[i].path) >= (int) sizeof full ||
+            lstat (full, &st) < 0 || S_ISDIR (st.st_mode))
+            continue;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (S_ISLNK (st.st_mode)) {
+            char target[4096];
+            ssize_t got = readlink (full, target, sizeof target);
+            if (got < 0) continue;
+            content = malloc ((size_t) got ? (size_t) got : 1);
+            if (!content) break;
+            memcpy (content, target, (size_t) got);
+            len = (size_t) got;
+        } else if (bgit_slurp_file (full, &content, &len) < 0)
+            continue;
+        char id[41];
+        int rc = bgit_write_object (ctx->odb.object_dirs[0], "blob", content,
+                                    len, 1, id);
+        free (content);
+        if (rc < 0) continue;
+        bgit_index_entry *grown = realloc (kept, (n_kept + 1) * sizeof *grown);
+        if (!grown) break;
+        kept = grown;
+        bgit_index_entry *entry = &kept[n_kept];
+        memset (entry, 0, sizeof *entry);
+        entry->mode = bgit_worktree_mode (&st);
+        if (bgit_hex_to_sha (id, entry->sha) < 0) continue;
+        size_t plen = strlen (entries[i].path);
+        entry->flags = (uint16_t) (plen > 0xFFF ? 0xFFF : plen);
+        entry->path = strdup (entries[i].path);
+        if (!entry->path) break;
+        n_kept++;
+    }
+    bgit_status_free (entries, n);
+    *out = kept;
+    *n_out = n_kept;
+    return 0;
+}
+
+/* Take a stashed untracked file out of the working tree, and the
+   directory it left behind if nothing else is in it. */
+static void
+git_stash_sweep (git_context *ctx, const char *path)
+{
+    char full[4096];
+    if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path) >=
+        (int) sizeof full)
+        return;
+    unlink (full);
+    char *slash;
+    while ((slash = strrchr (full, '/')) != NULL) {
+        *slash = '\0';
+        if (strlen (full) <= strlen (ctx->repo.work_tree)) break;
+        if (rmdir (full) < 0) break;        /* something else is in it */
+    }
+}
+
 /* A stash is two commits: one for the index as it stood, and one for the
    working tree, whose parents are where HEAD was and that index commit.
    The stack of them is refs/stash's own reflog, which is why stash@{2} is
@@ -9954,11 +10034,11 @@ git_stash_split (const char *line, char id[41], const char **message)
 static int
 git_cmd_stash (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git stash [push] [-m <message>] [-q] | list | show "
-                        "[-p] [<stash>] | apply [<stash>] | pop [<stash>] | "
-                        "drop [<stash>] | clear";
+    const char *usage = "git stash [push] [-m <message>] [-u] [-q] | list | "
+                        "show [-p] [<stash>] | apply [<stash>] | pop "
+                        "[<stash>] | drop [<stash>] | clear";
     const char *verb = "push", *message = NULL, *which = NULL;
-    int quiet = 0, patch = 0, stat_only = 0;
+    int quiet = 0, patch = 0, stat_only = 0, include_untracked = 0;
     int first = 1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
@@ -9977,8 +10057,7 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-p") || !strcmp (w, "--patch")) patch = 1;
         else if (!strcmp (w, "--stat")) stat_only = 1;
         else if (!strcmp (w, "-u") || !strcmp (w, "--include-untracked"))
-            return git_fatal ("this build's git stash cannot keep untracked "
-                              "files yet");
+            include_untracked = 1;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!which) which = w;
         else return git_usage (usage);
@@ -10047,6 +10126,18 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         }
         int dirty = n_changes > 0;
         bgit_diff_free (changes, n_changes);
+        /* With -u the untracked files are part of what is saved, so their
+           being there is reason enough to save. */
+        bgit_index_entry *untracked = NULL;
+        size_t n_untracked = 0;
+        if (include_untracked &&
+            git_stash_untracked (ctx, &state, &untracked, &n_untracked) < 0) {
+            bgit_index_free_entries (head_entries, n_head);
+            bgit_index_free_entries (working, n_working);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        dirty = dirty || n_untracked > 0;
         if (!dirty) {
             bgit_index_free_entries (head_entries, n_head);
             bgit_index_free_entries (working, n_working);
@@ -10095,8 +10186,30 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
             git_state_release (&state);
             return GIT_EXIT_FATAL;
         }
-        const char *work_parents[2] = { state.head, index_commit };
-        if (git_stash_commit (ctx, work_tree, work_parents, 2, work_message,
+        /* The untracked files are a commit of their own, with no parent,
+           and the stash's third — which is how git marks that it has
+           them. */
+        char untracked_commit[41] = "";
+        if (n_untracked) {
+            char untracked_tree[41], untracked_message[1200];
+            snprintf (untracked_message, sizeof untracked_message,
+                      "untracked files on %s: %s %s", branch, head_short,
+                      head_subject);
+            if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], untracked,
+                                 n_untracked, untracked_tree) < 0 ||
+                git_stash_commit (ctx, untracked_tree, NULL, 0,
+                                  untracked_message, 1, untracked_commit) < 0) {
+                bgit_index_free_entries (head_entries, n_head);
+                bgit_index_free_entries (working, n_working);
+                bgit_index_free_entries (untracked, n_untracked);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+        }
+        const char *work_parents[3] = { state.head, index_commit,
+                                        untracked_commit };
+        if (git_stash_commit (ctx, work_tree, work_parents,
+                              n_untracked ? 3 : 2, work_message,
                               0, work_commit) < 0) {
             bgit_index_free_entries (head_entries, n_head);
             bgit_index_free_entries (working, n_working);
@@ -10117,6 +10230,11 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         if (!status)
             bgit_reflog_append (&ctx->repo, "HEAD", state.head, state.head,
                                 "reset: moving to HEAD");
+        /* What was saved as untracked is taken out of the working tree, and
+           a directory left empty goes with it. */
+        for (size_t i = 0; !status && i < n_untracked; i++)
+            git_stash_sweep (ctx, untracked[i].path);
+        bgit_index_free_entries (untracked, n_untracked);
         bgit_index_free_entries (head_entries, n_head);
         bgit_index_free_entries (working, n_working);
         if (!status && !quiet)
@@ -10226,14 +10344,12 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         git_state_release (&state);
         return GIT_EXIT_FATAL;
     }
-    if (git_merge_safe (ctx, &state, paths, n_paths) < 0) {
-        bgit_merge_paths_free (paths, n_paths);
-        git_commit_release (&stash);
-        git_state_release (&state);
-        return 1;
-    }
+    /* A tree that would lose work is left alone — but the stash may still
+       carry untracked files, and git puts those back and says where it
+       stands either way. */
+    int refused = git_merge_safe (ctx, &state, paths, n_paths) < 0;
     int conflicts = 0;
-    for (size_t i = 0; i < n_paths; i++) {
+    for (size_t i = 0; !refused && i < n_paths; i++) {
         const bgit_merge_path *path = &paths[i];
         if (path->kind == BGIT_MERGE_AUTO || path->kind == BGIT_MERGE_CONTENT ||
             path->kind == BGIT_MERGE_ADD_ADD)
@@ -10254,16 +10370,54 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
                     path->path);
         }
     }
-    if (git_merge_apply (ctx, &state, paths, n_paths) < 0) {
+    if (!refused && git_merge_apply (ctx, &state, paths, n_paths) < 0) {
         bgit_merge_paths_free (paths, n_paths);
         git_commit_release (&stash);
         git_state_release (&state);
         return GIT_EXIT_FATAL;
     }
 
+    /* A stash taken with -u carries a third parent: the untracked files as
+       they stood. They come back where nothing stands in their way, and
+       what does is named rather than written over. */
+    int untracked_lost = 0;
+    if (stash.n_parents >= 3) {
+        char untracked_tree[41];
+        bgit_index_entry *files = NULL;
+        size_t n_files = 0;
+        if (bgit_commit_tree (&ctx->odb, stash.parents[2], untracked_tree) == 0 &&
+            bgit_read_tree (&ctx->odb, untracked_tree, &files, &n_files) == 0) {
+            for (size_t i = 0; i < n_files; i++) {
+                char full[4096];
+                struct stat st;
+                if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                              files[i].path) >= (int) sizeof full)
+                    continue;
+                if (lstat (full, &st) == 0) {
+                    fflush (stdout);
+                    fprintf (stderr, "%s already exists, no checkout\n",
+                             files[i].path);
+                    untracked_lost = 1;
+                    continue;
+                }
+                char sha[41];
+                bgit_sha_to_hex (files[i].sha, sha);
+                if (bgit_checkout_file (&ctx->odb, full, sha,
+                                        files[i].mode) < 0)
+                    untracked_lost = 1;
+            }
+            bgit_index_free_entries (files, n_files);
+        }
+        if (untracked_lost) {
+            fflush (stdout);
+            fprintf (stderr, "error: could not restore untracked files from "
+                             "stash\n");
+        }
+    }
+
     /* Without --index the changes come back unstaged: a path HEAD knows is
        put back as HEAD has it, and only what HEAD never had stays staged. */
-    if (!conflicts) {
+    if (!conflicts && !refused) {
         bgit_index_entry *head_entries = NULL;
         size_t n_head = 0;
         if (bgit_read_tree (&ctx->odb, state.head_tree, &head_entries,
@@ -10300,16 +10454,18 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
         }
     }
 
-    if (!conflicts && !strcmp (verb, "pop")) {
+    int held = conflicts || untracked_lost || refused;
+    if (!held && !strcmp (verb, "pop")) {
         if (bgit_reflog_drop (&ctx->repo, "refs/stash", wanted) < 0)
             status = GIT_EXIT_FATAL;
         else if (!quiet)
             printf ("Dropped refs/stash@{%zu} (%s)\n", wanted, stash_id);
-    }
+    } else if (held && !strcmp (verb, "pop"))
+        printf ("The stash entry is kept in case you need it again.\n");
     bgit_merge_paths_free (paths, n_paths);
     git_commit_release (&stash);
     git_state_release (&state);
-    return status ? status : (conflicts ? 1 : 0);
+    return status ? status : (held ? 1 : 0);
 }
 
 /* ---- cherry-pick and revert -------------------------------------------- */
