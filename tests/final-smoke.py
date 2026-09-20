@@ -323,7 +323,7 @@ def ssh_interop(d):
     key, hostkey = d/'client', d/'host'
     for path in [key,hostkey]: host('ssh-keygen','-q','-t','ed25519','-N','','-f',path)
     user = pwd.getpwuid(os.getuid()).pw_name
-    for client in ['openssh','builtin']:
+    for client in ['openssh','builtin','run']:
         with socket.socket() as reserve:
             reserve.bind(('127.0.0.1',0)); port = reserve.getsockname()[1]
         env = {**os.environ, 'BASHSSHD_RUN_DIR':str(d/('run-'+client)),
@@ -348,12 +348,22 @@ def ssh_interop(d):
                               '-o','StrictHostKeyChecking=accept-new','-o','UserKnownHostsFile='+str(known),
                               '-o','GlobalKnownHostsFile=/dev/null',user+'@127.0.0.1','printf fixture')
                 assert result == b'fixture'; checks += 1
-            else:
+            elif client == 'builtin':
                 result = run('eval', '''ssh connect 127.0.0.1 -p "$TEST_PORT" -l "$TEST_USER" -i "$TEST_KEY" --encrypted -h connection
 ssh exec "$connection" 'printf fixture'
 ssh close "$connection"
 ''',env={'TEST_PORT':str(port),'TEST_USER':user,'TEST_KEY':str(key),'BASHSSH_KNOWN_HOSTS':str(known)})
                 assert result == b'fixture',result
+            else:
+                # One command with the caller's own streams on it: what is
+                # piped in reaches it, what it writes comes back on the
+                # stream it wrote to, and the status is its own.
+                result = run('eval', '''printf 'fixture\n' | ssh run "$TEST_USER@127.0.0.1" \
+  'read line; printf "%s-seen" "$line"; printf stderr-too >&2; exit 3' \
+  -p "$TEST_PORT" -i "$TEST_KEY" --setenv LC_FIXTURE=carried''',
+                             env={'TEST_PORT':str(port),'TEST_USER':user,'TEST_KEY':str(key),
+                                  'BASHSSH_KNOWN_HOSTS':str(known)}, rc=3)
+                assert result == b'fixture-seen',result
             output, errors = proc.communicate(timeout=10); captured.extend(errors)
             assert proc.returncode == 0 and b'AddressSanitizer' not in captured and b'runtime error:' not in captured,(output,captured)
             checks += 1

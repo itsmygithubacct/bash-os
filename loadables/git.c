@@ -6927,8 +6927,10 @@ git_sq_quote (const char *word, char *out, size_t outsz)
     return 0;
 }
 
-/* What runs ssh: what the environment names, what the configuration names,
-   and otherwise ssh itself, which is the order git asks in. */
+/* What runs ssh: what the environment names, then what the configuration
+   names, which is the order git asks in. With neither, NULL — and then
+   this build's own ssh runs it, which wants no PATH and no other program
+   on the machine. */
 static const char *
 git_ssh_command (git_context *ctx)
 {
@@ -6936,7 +6938,7 @@ git_ssh_command (git_context *ctx)
     if (named && *named) return named;
     named = bgit_config_get (&ctx->cfg, "core.sshCommand");
     if (named && *named) return named;
-    return "ssh";
+    return NULL;
 }
 
 /* git tells one ssh from another by what it is called: the one called ssh
@@ -6996,7 +6998,7 @@ git_conn_open (git_conn *conn, git_context *ctx, const char *url,
             return -1;
         }
         const char *ssh = git_ssh_command (ctx);
-        int openssh = git_ssh_is_openssh (ssh);
+        int openssh = ssh && git_ssh_is_openssh (ssh);
         /* What the far end's shell is asked to run, quoted for it. */
         char quoted[4200], far_command[4400];
         if (git_sq_quote (far.path, quoted, sizeof quoted) < 0) {
@@ -7007,12 +7009,18 @@ git_conn_open (git_conn *conn, git_context *ctx, const char *url,
                   program ? program : service, quoted);
         const char *args[8];
         int n_args = 0;
-        if (openssh) {
+        if (!ssh) {
+            /* This build's own ssh: it takes the environment to carry as an
+               option rather than by name, since it sends what it is given
+               rather than what the machine happens to have. */
+            args[n_args++] = "--setenv";
+            args[n_args++] = "GIT_PROTOCOL=version=2";
+        } else if (openssh) {
             args[n_args++] = "-o";
             args[n_args++] = "SendEnv=GIT_PROTOCOL";
         }
         if (far.port[0]) {
-            if (!openssh) {
+            if (ssh && !openssh) {
                 git_fatal ("ssh variant 'simple' does not support setting "
                            "port");
                 return -1;
@@ -7023,7 +7031,8 @@ git_conn_open (git_conn *conn, git_context *ctx, const char *url,
         args[n_args++] = far.host;
         args[n_args++] = far_command;
         char script[4096];
-        snprintf (script, sizeof script, "%s \"$@\"", ssh);
+        snprintf (script, sizeof script, "%s \"$@\"",
+                  ssh ? ssh : "builtin ssh run");
         conn->child = git_start_argv (script, args, n_args, &conn->to_far,
                                       &conn->from_far);
         if (conn->child < 0) {
