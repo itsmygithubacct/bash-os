@@ -195,7 +195,7 @@
     },
     "git": {
       "helpers": [
-        "_git"
+        "_git", "_monocypher"
       ],
       "libs": [
         "-lz"

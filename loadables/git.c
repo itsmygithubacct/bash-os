@@ -57,6 +57,7 @@
 #include "_git_patch.h"
 #include "_git_proto.h"
 #include "_git_refs.h"
+#include "_git_sshsig.h"
 #include "_git_transport.h"
 #include "_git_rename.h"
 #include "_git_repo.h"
@@ -2370,6 +2371,62 @@ static void git_find_renames (git_context *ctx,
 
 /* ---- commit ------------------------------------------------------------ */
 
+/* The key a signature is made with: gpg.format says which kind of key,
+   and user.signingKey says which one. Returns 0 with the key, or -1 with
+   git's message. */
+static int
+git_signing_key (git_context *ctx, const char *named, bgit_ssh_key *key)
+{
+    const char *format = bgit_config_get (&ctx->cfg, "gpg.format");
+    if (format && strcmp (format, "ssh"))
+        return git_fatal ("this build signs with ssh keys; gpg.format is '%s'",
+                          format) < 0 ? -1 : -1;
+    const char *path = named ? named
+                             : bgit_config_get (&ctx->cfg, "user.signingKey");
+    if (!path || !*path) {
+        git_fatal ("this build needs user.signingKey to name an ssh key");
+        return -1;
+    }
+    if (!format) {
+        git_fatal ("this build signs with ssh keys; set gpg.format to ssh");
+        return -1;
+    }
+    return bgit_ssh_key_private (path, key);
+}
+
+/* Put a signature into a commit the way git does: a gpgsig header,
+   standing after the committer and before the message, whose lines after
+   the first are indented by one space. */
+static char *
+git_commit_signed (const char *body, size_t len, const char *armour,
+                   size_t *out_len)
+{
+    const char *blank = strstr (body, "\n\n");
+    if (!blank) return NULL;
+    size_t headers = (size_t) (blank - body) + 1;    /* up to the blank line */
+    size_t armour_len = strlen (armour);
+    char *out = malloc (len + armour_len * 2 + 32);
+    if (!out) return NULL;
+    size_t at = 0;
+    memcpy (out, body, headers);
+    at = headers;
+    at += (size_t) snprintf (out + at, armour_len + 16, "gpgsig ");
+    for (const char *line = armour; *line; ) {
+        const char *stop = strchr (line, '\n');
+        size_t line_len = stop ? (size_t) (stop - line) : strlen (line);
+        memcpy (out + at, line, line_len);
+        at += line_len;
+        out[at++] = '\n';
+        line = stop ? stop + 1 : line + line_len;
+        if (*line) out[at++] = ' ';                  /* the header goes on */
+    }
+    memcpy (out + at, body + headers, len - headers);
+    at += len - headers;
+    *out_len = at;
+    return out;
+}
+
+
 /* "Name <email> 1750000000 +0000" cut down to "Name <email>". */
 static void
 git_ident_who (const char *ident, char *out, size_t outsz)
@@ -2383,11 +2440,11 @@ static int
 git_cmd_commit (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git commit -q (-m <message> | -F <file>) [-a] "
-                        "[--amend] [--allow-empty]";
+                        "[--amend] [--allow-empty] [-S[<key>]] [--no-gpg-sign]";
     const char *messages[16];
     int n_messages = 0;
-    const char *message_file = NULL;
-    int all = 0, amend = 0, allow_empty = 0, quiet = 0;
+    const char *message_file = NULL, *signing_key = NULL;
+    int all = 0, amend = 0, allow_empty = 0, quiet = 0, sign = -1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -2401,6 +2458,10 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--amend")) amend = 1;
         else if (!strcmp (w, "--allow-empty")) allow_empty = 1;
         else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-S") || !strcmp (w, "--gpg-sign")) sign = 1;
+        else if (!strncmp (w, "-S", 2) && w[2]) { sign = 1; signing_key = w + 2; }
+        else if (!strncmp (w, "--gpg-sign=", 11)) { sign = 1; signing_key = w + 11; }
+        else if (!strcmp (w, "--no-gpg-sign")) sign = 0;
         else if (!strcmp (w, "-am") && p->next) {
             all = 1;
             messages[n_messages++] = p->next->word->word;
@@ -2570,6 +2631,32 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     }
     if (len == 0 || body[len - 1] != '\n') GIT_APPEND ("\n");
 #undef GIT_APPEND
+
+    /* A signature stands over the commit as it would be without one, so
+       it is made from what has been built and then put back into it. */
+    if (sign < 0) sign = bgit_config_bool (&ctx->cfg, "commit.gpgsign", 0);
+    if (sign) {
+        bgit_ssh_key key;
+        char *armour = NULL;
+        if (git_signing_key (ctx, signing_key, &key) < 0 ||
+            bgit_sshsig_sign (&key, "git", (const unsigned char *) body, len,
+                              &armour) < 0) {
+            free (body);
+            git_state_release (&state);
+            return git_fatal ("failed to write commit object");
+        }
+        size_t signed_len = 0;
+        char *signed_body = git_commit_signed (body, len, armour, &signed_len);
+        free (armour);
+        if (!signed_body) {
+            free (body);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        free (body);
+        body = signed_body;
+        len = signed_len;
+    }
 
     char commit[41];
     int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
@@ -4166,16 +4253,27 @@ done:
 static int
 git_cmd_tag (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git tag [-a] [-m <message>] [-f] <name> [<commit>] "
-                        "| -d <name> | -l [<pattern>]";
-    int annotate = 0, delete_tag = 0, list = 0, force = 0;
-    const char *message = NULL;
+    const char *usage = "git tag [-a] [-s] [-u <key>] [-m <message>] [-f] "
+                        "<name> [<commit>] | -d <name> | -l [<pattern>]";
+    int annotate = 0, delete_tag = 0, list = 0, force = 0, sign = 0;
+    const char *message = NULL, *signing_key = NULL;
     const char *names[2] = { NULL, NULL };
     int n_names = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-a") || !strcmp (w, "--annotate")) annotate = 1;
+        else if (!strcmp (w, "-s") || !strcmp (w, "--sign")) sign = annotate = 1;
+        else if (!strcmp (w, "--no-sign")) sign = 0;
+        else if ((!strcmp (w, "-u") || !strcmp (w, "--local-user")) && p->next) {
+            signing_key = p->next->word->word;
+            sign = annotate = 1;
+            p = p->next;
+        }
+        else if (!strncmp (w, "--local-user=", 13)) {
+            signing_key = w + 13;
+            sign = annotate = 1;
+        }
         else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_tag = 1;
         else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
         else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
@@ -4241,10 +4339,31 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
                              message[strlen (message) - 1] == '\n') ? "" : "\n");
         if (len < 0 || len >= (int) sizeof body)
             return git_fatal ("tag message too long");
-        if (bgit_write_object (ctx->odb.object_dirs[0], "tag",
-                               (const unsigned char *) body, (size_t) len, 1,
-                               pointed) < 0)
-            return GIT_EXIT_FATAL;
+        /* A signed tag carries its signature after the message, over
+           everything that stands before it. */
+        char *signed_body = NULL;
+        if (!sign) sign = bgit_config_bool (&ctx->cfg, "tag.gpgSign", 0);
+        if (sign) {
+            bgit_ssh_key key;
+            char *armour = NULL;
+            if (git_signing_key (ctx, signing_key, &key) < 0 ||
+                bgit_sshsig_sign (&key, "git", (const unsigned char *) body,
+                                  (size_t) len, &armour) < 0)
+                return git_fatal ("failed to write tag object");
+            size_t room = (size_t) len + strlen (armour) + 1;
+            signed_body = malloc (room);
+            if (!signed_body) { free (armour); return GIT_EXIT_FATAL; }
+            int whole = snprintf (signed_body, room, "%s%s", body, armour);
+            free (armour);
+            if (whole < 0) { free (signed_body); return GIT_EXIT_FATAL; }
+            len = whole;
+        }
+        int wrote = bgit_write_object (ctx->odb.object_dirs[0], "tag",
+                                       (const unsigned char *)
+                                       (signed_body ? signed_body : body),
+                                       (size_t) len, 1, pointed);
+        free (signed_body);
+        if (wrote < 0) return GIT_EXIT_FATAL;
     }
     if (bgit_ref_update (&ctx->repo, ref, pointed, NULL, NULL) < 0)
         return GIT_EXIT_FATAL;

@@ -17,7 +17,8 @@ at what changed, branching, switching, restoring and tagging.
 
 ```
 git add          [-A | -u] [-n] [-f] [--] [<pathspec>...]
-git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty] [-q]
+git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
+                 [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
                  [--ignored]
 git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
@@ -60,7 +61,8 @@ git push         [-q] [-f|--force] [--delete] [--tags] [-n|--dry-run]
 git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
                  [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
-git tag          [-a -m <message>] [-f] [<name> [<object>]] | (-d | -l) ...
+git tag          [-a] [-s] [-u <key>] [-m <message>] [-f] [<name>
+                 [<object>]] | (-d | -l) ...
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--is-inside-work-tree] [--is-bare-repository]
@@ -313,6 +315,18 @@ this build's client fetches from either server and gets the same; it
 clones, fetches and pushes over HTTP against git's own `http-backend`;
 and the packets themselves match git's, request for request.
 
+A commit or a tag can be signed with an ssh key, which is what
+`gpg.format = ssh` asks for: `user.signingKey` names the private key,
+`-S` or `commit.gpgsign` signs a commit, and `-s` or `tag.gpgSign` signs
+a tag. The signature is OpenSSH's SSHSIG over the object as it would be
+without one, armoured and written where git writes it — a `gpgsig`
+header in a commit, after the message in a tag. git reads both back and
+says `Good "git" signature`, which is what the test asks it to do.
+
+Only unencrypted ed25519 keys are signed with: one that wants a
+passphrase has nowhere here to ask for it, and says so rather than
+leaving something that will not verify.
+
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
 that is not what git would do.
@@ -409,6 +423,14 @@ fetching what the far end has gained, pushing back, a history too big to
 explode arriving as a pack, an address with no repository behind it, and
 a far end that wants a name and secret — without one, with the right one
 and with the wrong one. Nothing outside the machine is contacted.
+
+`tests/git-signing.py` signs a commit and a tag with a key `ssh-keygen`
+made, and hands them to git's own `verify-commit` and `verify-tag` with
+the key in an allowed-signers file: a signature is worth what somebody
+else makes of it. It also checks that a key nobody vouches for is
+refused, and that what this build cannot sign with — no key named, a
+format it has not got, a key behind a passphrase — is said rather than
+half-done.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
