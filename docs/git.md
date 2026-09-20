@@ -49,7 +49,8 @@ git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
                  <url> | get-url <name>
-git clone        [-q] [--bare] <path> | <http url> [<directory>]
+git clone        [-q] [--bare] [-n|--no-checkout] [-b|--branch <name>]
+                 [-o|--origin <name>] <path> | <http url> [<directory>]
 git fetch        [-q] [-p|--prune] [-t|--tags] [--upload-pack=<command>]
                  [<remote> | <path> [<refspec>...]]
 git pull         [-q] [--ff-only] [--no-ff] [--rebase] [<remote>]
@@ -248,6 +249,11 @@ with git's words for both. It takes a path as readily as the name of a
 remote, and records a tracking ref only for the one that has a name to
 record it under. A URL is refused rather than half-attempted: the
 protocols over a network are the phase after this one.
+
+A clone takes the branch it was asked for with `-b`, leaves the working
+tree alone with `--no-checkout`, and calls the remote what `--origin`
+says rather than `origin`. A branch the far end has not got is refused
+in git's words, before anything is written.
 
 A bare clone is a different thing from a checkout without a working tree:
 it is where the branches live, so git writes them as branches rather than

@@ -7529,14 +7529,28 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
 static int
 git_cmd_clone (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git clone [-q] [--bare] <source> [<directory>]";
+    const char *usage = "git clone [-q] [--bare] [-n|--no-checkout] "
+                        "[-b|--branch <name>] [-o|--origin <name>] "
+                        "<path> | <http url> [<directory>]";
     const char *source = NULL, *where = NULL;
-    int quiet = 0, bare = 0;
+    const char *wanted = NULL, *remote_name = "origin";
+    int quiet = 0, bare = 0, no_checkout = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
         else if (!strcmp (w, "--bare")) bare = 1;
+        else if (!strcmp (w, "-n") || !strcmp (w, "--no-checkout")) no_checkout = 1;
+        else if (!strncmp (w, "--branch=", 9)) wanted = w + 9;
+        else if ((!strcmp (w, "-b") || !strcmp (w, "--branch")) && p->next) {
+            wanted = p->next->word->word;
+            p = p->next;
+        }
+        else if (!strncmp (w, "--origin=", 9)) remote_name = w + 9;
+        else if ((!strcmp (w, "-o") || !strcmp (w, "--origin")) && p->next) {
+            remote_name = p->next->word->word;
+            p = p->next;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!source) source = w;
         else if (!where) where = w;
@@ -7630,7 +7644,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         snprintf (heads[n_heads].name, sizeof heads[n_heads].name, "%s",
                   refs[i].name);
         snprintf (heads[n_heads].local, sizeof heads[n_heads].local,
-                  "refs/remotes/origin/%s", refs[i].name + 11);
+                  "refs/remotes/%s/%s", remote_name, refs[i].name + 11);
         memcpy (heads[n_heads].id, refs[i].id, 41);
         n_heads++;
     }
@@ -7670,7 +7684,8 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     }
     free (roots);
 
-    /* What the far end's HEAD names is what gets checked out. */
+    /* What the far end's HEAD names is what gets checked out, unless a
+       branch was asked for by name. */
     char *head_ref = NULL;
     char head_id[41] = "";
     for (size_t i = 0; i < n_refs; i++) {
@@ -7678,6 +7693,21 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         if (refs[i].symref) head_ref = strdup (refs[i].symref);
         memcpy (head_id, refs[i].id, 41);
         break;
+    }
+    if (!status && wanted) {
+        char asked[4096];
+        snprintf (asked, sizeof asked, "refs/heads/%s", wanted);
+        int found = 0;
+        for (size_t i = 0; i < n_refs && !found; i++) {
+            if (strcmp (refs[i].name, asked)) continue;
+            free (head_ref);
+            head_ref = strdup (asked);
+            memcpy (head_id, refs[i].id, 41);
+            found = 1;
+        }
+        if (!found)
+            status = git_fatal ("Remote branch %s not found in upstream %s",
+                                wanted, remote_name);
     }
     bgit_proto_refs_release (refs, n_refs);
     refs = NULL;
@@ -7694,22 +7724,28 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
 
     char key[4096], value[4096];
     if (!status) {
-        if (git_config_write (ctx, "remote.origin.url", absolute) < 0)
+        snprintf (key, sizeof key, "remote.%s.url", remote_name);
+        if (git_config_write (ctx, key, absolute) < 0)
             status = GIT_EXIT_FATAL;
-        snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/origin/*");
-        if (!status && !bare &&
-            git_config_write (ctx, "remote.origin.fetch", value) < 0)
+        snprintf (key, sizeof key, "remote.%s.fetch", remote_name);
+        snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/%s/*",
+                  remote_name);
+        if (!status && !bare && git_config_write (ctx, key, value) < 0)
             status = GIT_EXIT_FATAL;
     }
     if (!status && head_ref && !strncmp (head_ref, "refs/heads/", 11)) {
         const char *branch = head_ref + 11;
         char tracking[4096];
-        snprintf (tracking, sizeof tracking, "refs/remotes/origin/%s", branch);
-        if (!bare && bgit_symref_write (&ctx->repo, "refs/remotes/origin/HEAD",
-                                        tracking, message) < 0)
+        char head_tracking[4096];
+        snprintf (tracking, sizeof tracking, "refs/remotes/%s/%s", remote_name,
+                  branch);
+        snprintf (head_tracking, sizeof head_tracking, "refs/remotes/%s/HEAD",
+                  remote_name);
+        if (!bare && bgit_symref_write (&ctx->repo, head_tracking, tracking,
+                                        message) < 0)
             status = GIT_EXIT_FATAL;
         snprintf (key, sizeof key, "branch.%s.remote", branch);
-        if (!status && !bare && git_config_write (ctx, key, "origin") < 0)
+        if (!status && !bare && git_config_write (ctx, key, remote_name) < 0)
             status = GIT_EXIT_FATAL;
         snprintf (key, sizeof key, "branch.%s.merge", branch);
         if (!status && !bare && git_config_write (ctx, key, head_ref) < 0)
@@ -7725,7 +7761,7 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
                 status = GIT_EXIT_FATAL;
             if (!status && bgit_symref_write (&ctx->repo, "HEAD", local, NULL) < 0)
                 status = GIT_EXIT_FATAL;
-            if (!status && !bare) {
+            if (!status && !bare && !no_checkout) {
                 /* The working tree and index follow. */
                 struct git_state state;
                 if (git_state_load (ctx, &state) < 0) status = GIT_EXIT_FATAL;
