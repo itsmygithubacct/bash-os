@@ -331,6 +331,19 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
     check(b'Everything up-to-date' in again.stderr, 'and nothing the next time',
           again.stderr[:200])
 
+    # git checks what arrives when it is told to, and what this build
+    # sends must pass that check.
+    strict = tmp/'strict.git'
+    git(tmp, 'init', '-q', '-b', 'main', '--bare', str(strict))
+    git(strict, 'config', 'receive.fsckObjects', 'true')
+    bgit('push', f'--receive-pack={THEIRS_RECEIVE}', strict, 'main',
+         cwd=sender, env=with_path)
+    check(git(strict, 'rev-parse', 'main').stdout
+          == git(sender, 'rev-parse', 'main').stdout,
+          'a far end that checks what it is sent')
+    check(git(strict, 'fsck', '--no-progress', '--strict').returncode == 0,
+          'and finds nothing wrong with it')
+
     # What git's receive-pack refuses, this build reports as git's client
     # reports it — including what the far end said for itself, which goes
     # line by line behind "remote:".
