@@ -490,7 +490,8 @@ bgit_proto_fetch (bgit_proto_io *io,
     /* No thin pack is asked for: this end completes nothing from its own
        objects yet. Offset deltas it can read. */
     if (bgit_proto_writef (io, "ofs-delta\n") < 0 ||
-        bgit_proto_writef (io, "no-progress\n") < 0)
+        bgit_proto_writef (io, "no-progress\n") < 0 ||
+        bgit_proto_writef (io, "include-tag\n") < 0)
         return -1;
     for (size_t i = 0; i < n_wants; i++)
         if (bgit_proto_writef (io, "want %s\n", wants[i]) < 0) return -1;

@@ -163,6 +163,8 @@ static int git_rebase_list (git_context *ctx, const char *name,
 static int git_write_state_file (git_context *ctx, const char *name,
                                  const char *content);
 static void git_remove_state_file (git_context *ctx, const char *name);
+/* pull ends in one of these, depending on what it was asked for. */
+static int git_cmd_rebase (git_context *ctx, WORD_LIST *args);
 
 static int
 git_context_open (git_context *ctx)
@@ -5836,6 +5838,7 @@ struct git_v2_request {
     char (*ids)[41];             /* fetch: wants first, then haves */
     size_t n_wants, n_haves;
     int done;
+    int include_tag;             /* send the tags of what is being sent */
 };
 
 static void
@@ -5864,7 +5867,7 @@ git_v2_keep_id (struct git_v2_request *request, const char *id)
 /* Answer one fetch: the objects the client asked for, less everything it
    says it already has, in a pack sent down the first side-band channel. */
 static int
-git_v2_fetch (bgit_odb *odb, struct git_v2_request *request)
+git_v2_fetch (bgit_repo *repo, bgit_odb *odb, struct git_v2_request *request)
 {
     char (*ids)[41] = request->ids;
     const char **wants = calloc (request->n_wants ? request->n_wants : 1,
@@ -5911,6 +5914,29 @@ git_v2_fetch (bgit_odb *odb, struct git_v2_request *request)
         status = -1;
     free (wants);
     free (haves);
+
+    /* include-tag: a tag that points at something being sent goes with
+       it, which is how a fetch picks up the tags of what it fetched. */
+    if (!status && request->include_tag) {
+        bgit_ref *tags = NULL;
+        size_t n_tags = 0;
+        if (bgit_refs_list (repo, "refs/tags/", &tags, &n_tags) == 0) {
+            for (size_t i = 0; i < n_tags; i++) {
+                char peeled[41];
+                if (git_peel_fully (odb, tags[i].sha, peeled) != 0) continue;
+                int wanted = 0;
+                for (size_t k = 0; k < n_send && !wanted; k++)
+                    if (!memcmp (send[k], peeled, 40)) wanted = 1;
+                if (!wanted) continue;
+                char (*grown)[41] = realloc (send, (n_send + 1) * sizeof *grown);
+                if (!grown) break;
+                send = grown;
+                memcpy (send[n_send], tags[i].sha, 41);
+                n_send++;
+            }
+            bgit_refs_free (tags, n_tags);
+        }
+    }
 
     unsigned char *body = NULL;
     size_t body_len = 0;
@@ -5992,7 +6018,8 @@ git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
                 if (got == BGIT_PKT_FLUSH || got == BGIT_PKT_EOF) break;
                 if (got == BGIT_PKT_DELIM) continue;
                 if (got < 0) { bad = 1; break; }
-                if (!strcmp (line, "symrefs")) request.symrefs = 1;
+                if (!strcmp (line, "include-tag")) request.include_tag = 1;
+                else if (!strcmp (line, "symrefs")) request.symrefs = 1;
                 else if (!strcmp (line, "peel")) request.peel = 1;
                 else if (!strcmp (line, "done")) request.done = 1;
                 else if (!strncmp (line, "ref-prefix ", 11)) {
@@ -6022,7 +6049,7 @@ git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
                                       request.n_prefixes, request.symrefs,
                                       request.peel) < 0;
             else if (!bad && !strcmp (command, "fetch"))
-                bad = git_v2_fetch (&odb, &request) < 0;
+                bad = git_v2_fetch (&repo, &odb, &request) < 0;
             else if (!bad)
                 status = git_fatal ("this build's git upload-pack does not "
                                     "have the '%s' command", command);
@@ -7039,6 +7066,16 @@ git_remote_heads (bgit_repo *remote, const char *name,
     return 0;
 }
 
+/* One ref a fetch brings over, and where it lands. */
+struct git_fetch_want {
+    char src[4096];          /* the ref over there */
+    char dst[4096];          /* the ref here, empty for one only recorded */
+    char id[41];
+    char old[41];
+    int forced;              /* the refspec had a + in front of it */
+    int is_new, updated, unmade, forced_update, refused;
+};
+
 /* The summary line a fetch or a push prints for one ref. */
 static void
 git_report_ref (git_context *ctx, const char *old, const char *id,
@@ -7053,6 +7090,45 @@ git_report_ref (git_context *ctx, const char *old, const char *id,
     git_abbrev (ctx, old, 7, old_short, sizeof old_short);
     fprintf (stderr, "   %s..%s  %-*s -> %s\n", old_short, new_short, width,
              from, to);
+}
+
+/* The line a fetch prints for one ref: the same shapes a push prints,
+   with the left column lined up, which is how git prints a fetch. */
+static void
+git_report_fetch (git_context *ctx, const char *name,
+                  const struct git_fetch_want *want, int width)
+{
+    const char *from = want->unmade ? "(none)" : git_ref_short (want->src);
+    char to[4096];
+    if (!strncmp (want->dst, "refs/remotes/", 13))
+        snprintf (to, sizeof to, "%s", want->dst + 13);
+    else snprintf (to, sizeof to, "%s", git_ref_short (want->dst));
+    (void) name;
+    char what[32];
+    if (want->refused) {
+        fprintf (stderr, " ! %-18s%-*s -> %s  (non-fast-forward)\n",
+                 "[rejected]", width, from, to);
+        return;
+    }
+    if (want->unmade) {
+        fprintf (stderr, " - %-18s%-*s -> %s\n", "[deleted]", width, from, to);
+        return;
+    }
+    if (want->is_new) {
+        snprintf (what, sizeof what, "[new %s]",
+                  strncmp (want->src, "refs/tags/", 10) ? "branch" : "tag");
+        fprintf (stderr, " * %-18s%-*s -> %s\n", what, width, from, to);
+        return;
+    }
+    char old_short[41], new_short[41];
+    git_abbrev (ctx, want->old, 7, old_short, sizeof old_short);
+    git_abbrev (ctx, want->id, 7, new_short, sizeof new_short);
+    if (want->forced_update)
+        fprintf (stderr, " + %s...%s %-*s -> %s  (forced update)\n", old_short,
+                 new_short, width, from, to);
+    else
+        fprintf (stderr, "   %s..%s  %-*s -> %s\n", old_short, new_short, width,
+                 from, to);
 }
 
 /* The same for a push, which has more to say: a tag is not a branch, a
@@ -7093,16 +7169,88 @@ git_report_push (git_context *ctx, const struct git_push_want *want)
         fprintf (stderr, "   %s..%s  %s -> %s\n", old_short, new_short, from, to);
 }
 
+/* One side of a refspec, with the star that stands for the rest. A
+   refspec is "<src>:<dst>", either side possibly ending in "*", and a +
+   in front says an update need not be a fast-forward. */
+struct git_refspec {
+    char src[4096];
+    char dst[4096];
+    int forced;
+};
+
+/* Does NAME match PATTERN, which may end in a star? What the star stood
+   for is left in REST. */
+static int
+git_refspec_matches (const char *pattern, const char *name, char *rest,
+                     size_t restsz)
+{
+    size_t len = strlen (pattern);
+    if (len && pattern[len - 1] == '*') {
+        if (strncmp (name, pattern, len - 1)) return 0;
+        snprintf (rest, restsz, "%s", name + len - 1);
+        return 1;
+    }
+    if (strcmp (pattern, name)) return 0;
+    *rest = '\0';
+    return 1;
+}
+
+/* The name a matched ref lands under here. */
+static void
+git_refspec_target (const struct git_refspec *spec, const char *rest, char *out,
+                    size_t outsz)
+{
+    size_t len = strlen (spec->dst);
+    if (len && spec->dst[len - 1] == '*')
+        snprintf (out, outsz, "%.*s%s", (int) (len - 1), spec->dst, rest);
+    else snprintf (out, outsz, "%s", spec->dst);
+}
+
+/* Read one refspec as it was written. */
+static void
+git_refspec_read (const char *text, const char *name, struct git_refspec *out)
+{
+    memset (out, 0, sizeof *out);
+    if (*text == '+') {
+        out->forced = 1;
+        text++;
+    }
+    const char *colon = strchr (text, ':');
+    if (colon) {
+        snprintf (out->src, sizeof out->src, "%.*s", (int) (colon - text), text);
+        snprintf (out->dst, sizeof out->dst, "%s", colon + 1);
+    } else {
+        snprintf (out->src, sizeof out->src, "%s", text);
+        out->dst[0] = '\0';           /* recorded, but not landed anywhere */
+    }
+    /* A short name on either side means the branch of that name. */
+    if (*out->src && strncmp (out->src, "refs/", 5) && !strchr (out->src, '*')) {
+        char full[4096];
+        snprintf (full, sizeof full, "refs/heads/%s", out->src);
+        snprintf (out->src, sizeof out->src, "%s", full);
+    }
+    if (*out->dst && strncmp (out->dst, "refs/", 5) && !strchr (out->dst, '*')) {
+        char full[4096];
+        snprintf (full, sizeof full, "refs/remotes/%s/%s", name, out->dst);
+        snprintf (out->dst, sizeof out->dst, "%s", full);
+    }
+}
+
 static int
 git_cmd_fetch (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git fetch [-q] [--upload-pack=<command>] [<remote>]";
+    const char *usage = "git fetch [-q] [-p|--prune] [-t|--tags] "
+                        "[--upload-pack=<command>] [<remote> [<refspec>...]]";
     const char *name = NULL, *program = NULL;
-    int quiet = 0;
+    const char *given[32];
+    size_t n_given = 0;
+    int quiet = 0, prune = 0, with_tags = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-p") || !strcmp (w, "--prune")) prune = 1;
+        else if (!strcmp (w, "-t") || !strcmp (w, "--tags")) with_tags = 1;
         else if (!strncmp (w, "--upload-pack=", 14)) program = w + 14;
         else if ((!strcmp (w, "-u") || !strcmp (w, "--upload-pack")) && p->next) {
             program = p->next->word->word;
@@ -7110,64 +7258,116 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
-        else return git_usage (usage);
+        else if (n_given < sizeof given / sizeof *given) given[n_given++] = w;
+        else return git_fatal ("this build's git fetch takes fewer refspecs "
+                               "than that");
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     if (!name) name = "origin";
+    /* A name from the configuration stands for its URL; anything else is
+       the path itself, which is what git accepts too. */
     const char *url = git_remote_url (ctx, name);
-    if (!url) return git_fatal ("'%s' does not appear to be a git repository",
-                                name);
+    if (!url) url = name;
     if (!git_can_reach (url))
         return git_fatal ("this build's git fetch takes a path or an http "
                           "URL; ssh is not done yet");
+
+    /* What to ask for: the refspecs given, or the one the remote is
+       configured with, and the tags when they were asked for. */
+    struct git_refspec specs[34];
+    size_t n_specs = 0;
+    for (size_t i = 0; i < n_given; i++)
+        git_refspec_read (given[i], name, &specs[n_specs++]);
+    if (!n_specs) {
+        char key[4096];
+        snprintf (key, sizeof key, "remote.%s.fetch", name);
+        const char *configured = bgit_config_get (&ctx->cfg, key);
+        char standing[4096];
+        if (!configured) {
+            snprintf (standing, sizeof standing,
+                      "+refs/heads/*:refs/remotes/%s/*", name);
+            configured = standing;
+        }
+        git_refspec_read (configured, name, &specs[n_specs++]);
+    }
+    if (with_tags) git_refspec_read ("+refs/tags/*:refs/tags/*", name,
+                                     &specs[n_specs++]);
 
     /* The far end is asked over the protocol, the way git asks it, even
        when it is a directory on this machine. */
     git_conn conn;
     if (git_far_end_open (&conn, ctx, url, program, 1) < 0) return GIT_EXIT_FATAL;
 
+    const char *prefixes[36];
+    size_t n_prefixes = 0;
+    for (size_t i = 0; i < n_specs && n_prefixes < 34; i++) {
+        static char held[34][4096];
+        snprintf (held[n_prefixes], sizeof held[0], "%s", specs[i].src);
+        char *star = strchr (held[n_prefixes], '*');
+        if (star) *star = '\0';
+        prefixes[n_prefixes] = held[n_prefixes];
+        n_prefixes++;
+    }
+    /* The tags are listed as well: a fetch takes the ones that point at
+       what it fetched, which is what include-tag asks the far end for. */
+    prefixes[n_prefixes++] = "refs/tags/";
+
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
-    const char *prefix = "refs/heads/";
     int status = 0;
-    if (bgit_proto_ls_refs (&conn.io, &prefix, 1, 0, 0, &refs, &n_refs) < 0)
+    if (bgit_proto_ls_refs (&conn.io, prefixes, n_prefixes, 0, 0, &refs,
+                            &n_refs) < 0)
         status = git_far_end_gone ();
 
-    struct git_remote_ref *heads = NULL;
-    size_t n_heads = 0;
+    /* Which of them each refspec asks for, and where each lands. */
+    struct git_fetch_want *wants = NULL;
+    size_t n_wants = 0;
     if (!status) {
-        heads = calloc (n_refs ? n_refs : 1, sizeof *heads);
-        if (!heads) status = GIT_EXIT_FATAL;
+        wants = calloc (n_refs ? n_refs : 1, sizeof *wants);
+        if (!wants) status = GIT_EXIT_FATAL;
     }
-    if (!status) {
-        for (size_t i = 0; i < n_refs; i++) {
-            snprintf (heads[i].name, sizeof heads[i].name, "%s", refs[i].name);
-            snprintf (heads[i].local, sizeof heads[i].local, "refs/remotes/%s/%s",
-                      name, refs[i].name + 11);
-            memcpy (heads[i].id, refs[i].id, 41);
+    for (size_t i = 0; !status && i < n_refs; i++) {
+        for (size_t k = 0; k < n_specs; k++) {
+            char rest[4096];
+            if (!git_refspec_matches (specs[k].src, refs[i].name, rest,
+                                      sizeof rest))
+                continue;
+            struct git_fetch_want *want = &wants[n_wants];
+            memset (want, 0, sizeof *want);
+            snprintf (want->src, sizeof want->src, "%s", refs[i].name);
+            if (*specs[k].dst)
+                git_refspec_target (&specs[k], rest, want->dst, sizeof want->dst);
+            memcpy (want->id, refs[i].id, 41);
+            if (*want->dst && bgit_ref_read (&ctx->repo, want->dst, want->old) != 0)
+                want->old[0] = '\0';
+            want->is_new = *want->dst && !*want->old;
+            want->updated = *want->dst &&
+                            (want->is_new || strcmp (want->old, want->id));
+            want->forced = specs[k].forced;
+            n_wants++;
+            break;
         }
-        n_heads = n_refs;
     }
 
     /* Ask for what is missing here, saying what is already here so the
        far end sends no more than it must. */
-    if (!status && n_heads) {
-        const char **wants = calloc (n_heads, sizeof *wants);
+    if (!status && n_wants) {
+        const char **asked = calloc (n_wants, sizeof *asked);
         char (*have_ids)[41] = NULL;
-        size_t n_wants = 0, n_haves = 0;
-        if (!wants || git_local_haves (ctx, &have_ids, &n_haves) < 0)
+        size_t n_asked = 0, n_haves = 0;
+        if (!asked || git_local_haves (ctx, &have_ids, &n_haves) < 0)
             status = GIT_EXIT_FATAL;
-        for (size_t i = 0; !status && i < n_heads; i++)
-            if (!bgit_odb_has (&ctx->odb, heads[i].id))
-                wants[n_wants++] = heads[i].id;
-        if (!status && n_wants) {
+        for (size_t i = 0; !status && i < n_wants; i++)
+            if (!bgit_odb_has (&ctx->odb, wants[i].id))
+                asked[n_asked++] = wants[i].id;
+        if (!status && n_asked) {
             const char **haves = calloc (n_haves ? n_haves : 1, sizeof *haves);
             if (!haves) status = GIT_EXIT_FATAL;
             for (size_t i = 0; !status && i < n_haves; i++) haves[i] = have_ids[i];
             unsigned char *pack = NULL;
             size_t pack_len = 0;
-            if (!status && bgit_proto_fetch (&conn.io, wants, n_wants,
-                                             haves, n_haves, &pack, &pack_len) < 0)
+            if (!status && bgit_proto_fetch (&conn.io, asked, n_asked, haves,
+                                             n_haves, &pack, &pack_len) < 0)
                 status = git_far_end_gone ();
             if (!status && git_store_pack (ctx, pack, pack_len) < 0)
                 status = git_fatal ("cannot store what the far end sent");
@@ -7175,39 +7375,153 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
             free (haves);
         }
         free (have_ids);
-        free (wants);
+        free (asked);
     }
-    bgit_proto_refs_release (refs, n_refs);
 
-    int width = 10, any = 0;   /* git's own minimum for this column */
-    for (size_t i = 0; !status && i < n_heads; i++) {
-        char current[41] = "";
-        heads[i].is_new = bgit_ref_read (&ctx->repo, heads[i].local, current) != 0;
-        if (!heads[i].is_new) memcpy (heads[i].old, current, 41);
-        heads[i].updated = heads[i].is_new || strcmp (current, heads[i].id);
-        if (heads[i].updated) any = 1;
-        int len = (int) strlen (heads[i].name + 11);
+    /* A tag that came with the objects is written down here, which is
+       what git does with the tags of what it fetched. */
+    for (size_t i = 0; !status && i < n_refs; i++) {
+        if (strncmp (refs[i].name, "refs/tags/", 10)) continue;
+        int already = 0;
+        for (size_t k = 0; k < n_wants && !already; k++)
+            if (!strcmp (wants[k].src, refs[i].name)) already = 1;
+        char here[41];
+        if (already || !bgit_odb_has (&ctx->odb, refs[i].id)) continue;
+        if (bgit_ref_read (&ctx->repo, refs[i].name, here) == 0) continue;
+        struct git_fetch_want *want = &wants[n_wants++];
+        memset (want, 0, sizeof *want);
+        snprintf (want->src, sizeof want->src, "%s", refs[i].name);
+        snprintf (want->dst, sizeof want->dst, "%s", refs[i].name);
+        memcpy (want->id, refs[i].id, 41);
+        want->is_new = want->updated = 1;
+    }
+
+    /* Whether an update is a fast-forward can only be told once the
+       objects are here, so it is told now rather than before. An update
+       that is not one needs the + that git writes in front of a
+       refspec, or it is refused. */
+    for (size_t i = 0; !status && i < n_wants; i++) {
+        struct git_fetch_want *want = &wants[i];
+        if (!want->updated || want->is_new) continue;
+        if (bgit_is_ancestor (&ctx->odb, want->old, want->id) > 0) continue;
+        if (want->forced) want->forced_update = 1;
+        else {
+            want->refused = 1;
+            want->updated = 0;
+        }
+    }
+
+    /* What is no longer over there goes from here, when asked. */
+    struct git_fetch_want *gone = NULL;
+    size_t n_gone = 0;
+    if (!status && prune) {
+        for (size_t k = 0; k < n_specs; k++) {
+            size_t len = strlen (specs[k].dst);
+            if (!len || specs[k].dst[len - 1] != '*') continue;
+            char prefix[4096];
+            snprintf (prefix, sizeof prefix, "%.*s", (int) (len - 1), specs[k].dst);
+            bgit_ref *here = NULL;
+            size_t n_here = 0;
+            if (bgit_refs_list (&ctx->repo, prefix, &here, &n_here) < 0) continue;
+            struct git_fetch_want *grown = realloc (gone, (n_gone + n_here) *
+                                                    sizeof *grown);
+            if (!grown) { bgit_refs_free (here, n_here); break; }
+            gone = grown;
+            for (size_t i = 0; i < n_here; i++) {
+                int still = 0;
+                for (size_t w = 0; w < n_wants && !still; w++)
+                    if (!strcmp (wants[w].dst, here[i].name)) still = 1;
+                /* origin/HEAD is not a branch the far end lists. */
+                if (still || !strcmp (here[i].name + strlen (prefix), "HEAD"))
+                    continue;
+                struct git_fetch_want *want = &gone[n_gone];
+                memset (want, 0, sizeof *want);
+                snprintf (want->dst, sizeof want->dst, "%s", here[i].name);
+                memcpy (want->old, here[i].sha, 41);
+                want->unmade = want->updated = 1;
+                n_gone++;
+            }
+            bgit_refs_free (here, n_here);
+        }
+    }
+
+    /* The refs themselves, then what a merge would use. */
+    int width = 10, any = 0;        /* git's own minimum for this column */
+    for (size_t i = 0; !status && i < n_wants + n_gone; i++) {
+        struct git_fetch_want *want = i < n_wants ? &wants[i] : &gone[i - n_wants];
+        if (!want->updated && !want->refused) continue;
+        any = 1;
+        int len = (int) strlen (want->unmade ? "(none)" : git_ref_short (want->src));
         if (len > width) width = len;
     }
-    for (size_t i = 0; !status && i < n_heads; i++) {
-        if (!heads[i].updated) continue;
-        const char *message = heads[i].is_new ? "fetch: storing head"
+    for (size_t i = 0; !status && i < n_wants; i++) {
+        if (!wants[i].updated) continue;
+        const char *message = wants[i].is_new ? "fetch: storing head"
                                               : "fetch: fast-forward";
-        if (bgit_ref_update (&ctx->repo, heads[i].local, heads[i].id, NULL,
+        if (bgit_ref_update (&ctx->repo, wants[i].dst, wants[i].id, NULL,
                              message) < 0)
             status = GIT_EXIT_FATAL;
     }
+    for (size_t i = 0; !status && i < n_gone; i++)
+        if (bgit_ref_delete (&ctx->repo, gone[i].dst, NULL, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+
+    /* FETCH_HEAD is what a fetch leaves for a merge to read: every ref
+       it brought, and which one of them the current branch follows. */
+    if (!status) {
+        char upstream[4096] = "";
+        struct git_state state;
+        if (git_state_load (ctx, &state) == 0) {
+            if (state.branch) {
+                char key[4096];
+                snprintf (key, sizeof key, "branch.%s.merge", state.branch + 11);
+                const char *merge = bgit_config_get (&ctx->cfg, key);
+                if (merge) snprintf (upstream, sizeof upstream, "%s", merge);
+            }
+            git_state_release (&state);
+        }
+        if (!*upstream && n_wants) snprintf (upstream, sizeof upstream, "%s",
+                                             wants[0].src);
+        char *record = NULL;
+        size_t record_len = 0, record_cap = 0;
+        for (size_t i = 0; i < n_wants; i++) {
+            char line[8192];
+            int len = snprintf (line, sizeof line, "%s\t%s\t%s '%s' of %s\n",
+                                wants[i].id,
+                                strcmp (wants[i].src, upstream) ? "not-for-merge" : "",
+                                strncmp (wants[i].src, "refs/tags/", 10) ? "branch"
+                                                                        : "tag",
+                                git_ref_short (wants[i].src), url);
+            if (bgit_pack_buf_append ((unsigned char **) &record, &record_len,
+                                      &record_cap, line, (size_t) len) < 0) {
+                status = GIT_EXIT_FATAL;
+                break;
+            }
+        }
+        if (!status) {
+            char path[4096];
+            snprintf (path, sizeof path, "%s/FETCH_HEAD", ctx->repo.git_dir);
+            FILE *out = fopen (path, "w");
+            if (!out || (record_len &&
+                         fwrite (record, 1, record_len, out) != record_len) ||
+                fclose (out) != 0)
+                status = git_fatal ("cannot write FETCH_HEAD");
+        }
+        free (record);
+    }
+
     if (!status && any && !quiet) {
         fprintf (stderr, "From %s\n", url);
-        for (size_t i = 0; i < n_heads; i++) {
-            if (!heads[i].updated) continue;
-            char to[4096];
-            snprintf (to, sizeof to, "%s/%s", name, heads[i].name + 11);
-            git_report_ref (ctx, heads[i].is_new ? NULL : heads[i].old,
-                            heads[i].id, heads[i].name + 11, to, width);
+        for (size_t i = 0; i < n_wants + n_gone; i++) {
+            struct git_fetch_want *want = i < n_wants ? &wants[i]
+                                                      : &gone[i - n_wants];
+            if (!want->updated && !want->refused) continue;
+            git_report_fetch (ctx, name, want, width);
         }
     }
-    free (heads);
+    bgit_proto_refs_release (refs, n_refs);
+    free (wants);
+    free (gone);
     if (git_conn_close (&conn) < 0 && !status) status = git_far_end_gone ();
     return status;
 }
@@ -7779,18 +8093,36 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
 static int
 git_cmd_pull (git_context *ctx, WORD_LIST *args)
 {
-    /* Fetch, then merge what was fetched, which is what pull is. */
-    const char *usage = "git pull [<remote>]";
+    /* Fetch, then join what was fetched to this branch — by merging it,
+       or by replaying this branch on top of it. */
+    const char *usage = "git pull [-q] [--ff-only] [--no-ff] [--rebase] "
+                        "[<remote>]";
     const char *name = NULL;
+    int ff_only = 0, no_ff = 0, rebase = -1, quiet = 0;
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
-        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) continue;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) { quiet = 1; continue; }
+        if (!strcmp (w, "--ff-only")) { ff_only = 1; continue; }
+        if (!strcmp (w, "--no-ff")) { no_ff = 1; continue; }
+        if (!strcmp (w, "--ff")) continue;
+        if (!strcmp (w, "-r") || !strcmp (w, "--rebase")) { rebase = 1; continue; }
+        if (!strcmp (w, "--no-rebase")) { rebase = 0; continue; }
         if (w[0] == '-' && w[1]) return git_usage (usage);
         if (!name) name = w;
         else return git_usage (usage);
     }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* What was not said on the command line the configuration may say. */
+    if (rebase < 0) rebase = bgit_config_bool (&ctx->cfg, "pull.rebase", 0);
+    if (!ff_only && !no_ff) {
+        const char *ff = bgit_config_get (&ctx->cfg, "pull.ff");
+        if (ff && !strcmp (ff, "only")) ff_only = 1;
+        else if (ff && !strcmp (ff, "false")) no_ff = 1;
+    }
+
     WORD_LIST *fetch_args = name
         ? make_word_list (make_word ((char *) name), NULL) : NULL;
+    if (quiet) fetch_args = make_word_list (make_word ("-q"), fetch_args);
     int status = git_cmd_fetch (ctx, fetch_args);
     dispose_words (fetch_args);
     if (status) return status;
@@ -7810,9 +8142,17 @@ git_cmd_pull (git_context *ctx, WORD_LIST *args)
     snprintf (tracking, sizeof tracking, "%s/%s", remote, branch);
     git_state_release (&state);
 
-    WORD_LIST *merge_args = make_word_list (make_word (tracking), NULL);
-    status = git_cmd_merge (ctx, merge_args);
-    dispose_words (merge_args);
+    /* A rebase replays this branch on what was fetched; a merge joins
+       them. Either way the argument is where the far end got to. */
+    WORD_LIST *onto = make_word_list (make_word (tracking), NULL);
+    if (rebase) status = git_cmd_rebase (ctx, onto);
+    else {
+        if (no_ff) onto = make_word_list (make_word ("--no-ff"), onto);
+        if (ff_only) onto = make_word_list (make_word ("--ff-only"), onto);
+        if (quiet) onto = make_word_list (make_word ("-q"), onto);
+        status = git_cmd_merge (ctx, onto);
+    }
+    dispose_words (onto);
     return status;
 }
 

@@ -50,8 +50,9 @@ git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
                  <url> | get-url <name>
 git clone        [-q] [--bare] <path> | <http url> [<directory>]
-git fetch        [-q] [--upload-pack=<command>] [<remote>]
-git pull         [<remote>]
+git fetch        [-q] [-p|--prune] [-t|--tags] [--upload-pack=<command>]
+                 [<remote> | <path> [<refspec>...]]
+git pull         [-q] [--ff-only] [--no-ff] [--rebase] [<remote>]
 git push         [-q] [-f|--force] [--delete] [--tags] [-n|--dry-run]
                  [-u|--set-upstream] [--receive-pack=<command>]
                  [<remote> | <path> [<refspec>...]]
@@ -201,7 +202,17 @@ Clone, fetch and pull go over the protocol, the way git goes over it even
 when both repositories are directories on this machine: `upload-pack` is
 started at the far end, `ls-refs` says what it has, and `fetch` asks for
 what is missing here — naming what is already here, so a second fetch
-carries only what the first one did not. What comes back is a packfile,
+carries only what the first one did not. A fetch takes the refspecs it
+was given or the one the remote is configured with, `--prune` to drop
+what the far end no longer has, and `--tags` for every tag; the tags that
+point at what it fetched come with it either way, which is what
+`include-tag` asks for. What came over is written into `FETCH_HEAD`,
+with the one the branch follows marked for merging and the rest not.
+
+`git pull` is a fetch and then one of two things: a merge, or — with
+`--rebase`, or `pull.rebase` — this branch replayed on what came over.
+`--ff-only` refuses anything but a fast-forward, in git's words, and
+`pull.ff = only` says the same thing standing. What comes back is a packfile,
 kept the way git keeps one: exploded into loose objects when it holds
 fewer than a hundred, written into `objects/pack` beside a generated
 index when it holds more.
