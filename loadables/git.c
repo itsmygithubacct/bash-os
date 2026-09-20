@@ -5992,19 +5992,37 @@ git_url_is_http (const char *url)
     return !strncmp (url, "http://", 7) || !strncmp (url, "https://", 8);
 }
 
+/* ssh://[user@]host[:port]/path, and the scp-style [user@]host:path that
+   git reads the same way: a colon that stands before any slash. An address
+   in brackets keeps its own colons — [::1]:repo.git. */
+static int
+git_url_is_ssh (const char *url)
+{
+    if (!strncmp (url, "ssh://", 6)) return 1;
+    if (strstr (url, "://")) return 0;
+    if (*url == '[') {
+        const char *close = strstr (url, "]:");
+        return close != NULL;
+    }
+    const char *colon = strchr (url, ':');
+    const char *slash = strchr (url, '/');
+    return colon && (!slash || colon < slash);
+}
+
 /* A path with no protocol in front of it. */
 static int
 git_local_only (const char *url)
 {
-    return !strstr (url, "://") && strncmp (url, "git@", 4);
+    return !strstr (url, "://") && !git_url_is_ssh (url);
 }
 
-/* Somewhere this build can reach: a path, or an address over HTTP. The
-   rest — ssh, and git's own port — wait for the phase after this. */
+/* Somewhere this build can reach: a path, an address over HTTP, or a host
+   to run the far end on over ssh. git's own port is not done. */
 static int
 git_can_reach (const char *url)
 {
-    return git_local_only (url) || git_url_is_http (url);
+    return git_local_only (url) || git_url_is_http (url) ||
+           git_url_is_ssh (url);
 }
 
 static int
@@ -6770,8 +6788,8 @@ git_far_environ (void)
    from *FROM_FAR. PROGRAM is what to run, or NULL for this build's own
    COMMAND, which is how git runs its own for a path. */
 static pid_t
-git_start_far_end (const char *program, const char *command, const char *path,
-                   int *to_far, int *from_far)
+git_start_argv (const char *script, const char *const *args, int n_args,
+                int *to_far, int *from_far)
 {
     int down[2], up[2];
     if (pipe (down) < 0) return -1;
@@ -6799,11 +6817,17 @@ git_start_far_end (const char *program, const char *command, const char *path,
         char **env = git_far_environ ();
         /* The shell running it is the one we are inside: a bash-os machine
            need not have another. */
-        char script[4096];
-        snprintf (script, sizeof script, "%s \"$@\"",
-                  program ? program : command);
-        execle ("/proc/self/exe", "bash", "--noprofile", "--norc", "-c", script,
-                "git-far-end", path, (char *) NULL, env);
+        const char *argv[16];
+        int at = 0;
+        argv[at++] = "bash";
+        argv[at++] = "--noprofile";
+        argv[at++] = "--norc";
+        argv[at++] = "-c";
+        argv[at++] = script;
+        argv[at++] = "git-far-end";
+        for (int i = 0; i < n_args && at < 15; i++) argv[at++] = args[i];
+        argv[at] = NULL;
+        execve ("/proc/self/exe", (char *const *) argv, env);
         _exit (127);
     }
     close (down[0]);
@@ -6811,6 +6835,122 @@ git_start_far_end (const char *program, const char *command, const char *path,
     *to_far = down[1];
     *from_far = up[0];
     return child;
+}
+
+/* The far end this build runs itself, for a repository on this machine. */
+static pid_t
+git_start_far_end (const char *program, const char *command, const char *path,
+                   int *to_far, int *from_far)
+{
+    char script[4096];
+    snprintf (script, sizeof script, "%s \"$@\"", program ? program : command);
+    const char *args[1] = { path };
+    return git_start_argv (script, args, 1, to_far, from_far);
+}
+
+/* ---- the far end on another machine ------------------------------------ */
+
+/* What ssh is told to reach, taken out of the URL. */
+struct git_ssh_far {
+    char host[512];        /* [user@]host, as ssh takes it */
+    char port[16];
+    char path[4096];       /* the repository over there */
+};
+
+/* Read ssh://[user@]host[:port]/path, or [user@]host:path. Returns 0. */
+static int
+git_ssh_parse (const char *url, struct git_ssh_far *far)
+{
+    memset (far, 0, sizeof *far);
+    const char *at = url, *path = NULL;
+    if (!strncmp (url, "ssh://", 6)) {
+        at = url + 6;
+        path = strchr (at, '/');
+        size_t host_len = path ? (size_t) (path - at) : strlen (at);
+        if (host_len >= sizeof far->host) return -1;
+        memcpy (far->host, at, host_len);
+        far->host[host_len] = '\0';
+        /* A port stands after the last colon, outside any brackets. */
+        char *close = strchr (far->host, ']');
+        char *colon = strrchr (close ? close : far->host, ':');
+        if (colon) {
+            snprintf (far->port, sizeof far->port, "%s", colon + 1);
+            *colon = '\0';
+        }
+        /* ssh://host/~/repo means the path is under the home directory,
+           which is what the far end makes of a leading tilde. */
+        const char *where = path ? path : "/";
+        if (where[0] == '/' && where[1] == '~') where++;
+        snprintf (far->path, sizeof far->path, "%s", where);
+    } else {
+        const char *colon = *url == '[' ? strstr (url, "]:") + 1
+                                        : strchr (url, ':');
+        if (!colon) return -1;
+        size_t host_len = (size_t) (colon - url);
+        if (host_len >= sizeof far->host) return -1;
+        memcpy (far->host, url, host_len);
+        far->host[host_len] = '\0';
+        snprintf (far->path, sizeof far->path, "%s", colon + 1);
+    }
+    /* Brackets are the URL's way of holding an address together; ssh takes
+       the address itself. */
+    if (far->host[0] == '[') {
+        char *close = strchr (far->host, ']');
+        if (close) {
+            *close = '\0';
+            memmove (far->host, far->host + 1, strlen (far->host + 1) + 1);
+        }
+    }
+    return far->host[0] ? 0 : -1;
+}
+
+/* A word for the far end's shell, quoted the way git quotes one. */
+static int
+git_sq_quote (const char *word, char *out, size_t outsz)
+{
+    size_t at = 0;
+    if (at + 1 >= outsz) return -1;
+    out[at++] = '\'';
+    for (const char *p = word; *p; p++) {
+        if (*p == '\'') {
+            if (at + 4 >= outsz) return -1;
+            memcpy (out + at, "'\\''", 4);
+            at += 4;
+        } else {
+            if (at + 1 >= outsz) return -1;
+            out[at++] = *p;
+        }
+    }
+    if (at + 2 > outsz) return -1;
+    out[at++] = '\'';
+    out[at] = '\0';
+    return 0;
+}
+
+/* What runs ssh: what the environment names, what the configuration names,
+   and otherwise ssh itself, which is the order git asks in. */
+static const char *
+git_ssh_command (git_context *ctx)
+{
+    const char *named = getenv ("GIT_SSH_COMMAND");
+    if (named && *named) return named;
+    named = bgit_config_get (&ctx->cfg, "core.sshCommand");
+    if (named && *named) return named;
+    return "ssh";
+}
+
+/* git tells one ssh from another by what it is called: the one called ssh
+   takes -p for a port and can be asked to carry GIT_PROTOCOL along, and
+   anything else is handed the host and the command and nothing besides. */
+static int
+git_ssh_is_openssh (const char *command)
+{
+    size_t len = strcspn (command, " \t");
+    const char *word = command, *end = command + len;
+    for (const char *p = end; p > word; p--)
+        if (p[-1] == '/') { word = p; break; }
+    size_t name = (size_t) (end - word);
+    return name == 3 && !strncmp (word, "ssh", 3);
 }
 
 /* Open a conversation with the far end named by URL, and leave it where
@@ -6847,6 +6987,52 @@ git_conn_open (git_conn *conn, git_context *ctx, const char *url,
         int rc = git_http_request (conn, "GET", ask, NULL, NULL, 0);
         conn->follow = 0;
         return rc < 0 ? -1 : 0;
+    }
+
+    if (git_url_is_ssh (url)) {
+        struct git_ssh_far far;
+        if (git_ssh_parse (url, &far) < 0) {
+            git_fatal ("bad ssh address '%s'", url);
+            return -1;
+        }
+        const char *ssh = git_ssh_command (ctx);
+        int openssh = git_ssh_is_openssh (ssh);
+        /* What the far end's shell is asked to run, quoted for it. */
+        char quoted[4200], far_command[4400];
+        if (git_sq_quote (far.path, quoted, sizeof quoted) < 0) {
+            git_fatal ("the path is too long for the far end");
+            return -1;
+        }
+        snprintf (far_command, sizeof far_command, "%s %s",
+                  program ? program : service, quoted);
+        const char *args[8];
+        int n_args = 0;
+        if (openssh) {
+            args[n_args++] = "-o";
+            args[n_args++] = "SendEnv=GIT_PROTOCOL";
+        }
+        if (far.port[0]) {
+            if (!openssh) {
+                git_fatal ("ssh variant 'simple' does not support setting "
+                           "port");
+                return -1;
+            }
+            args[n_args++] = "-p";
+            args[n_args++] = far.port;
+        }
+        args[n_args++] = far.host;
+        args[n_args++] = far_command;
+        char script[4096];
+        snprintf (script, sizeof script, "%s \"$@\"", ssh);
+        conn->child = git_start_argv (script, args, n_args, &conn->to_far,
+                                      &conn->from_far);
+        if (conn->child < 0) {
+            git_fatal ("cannot start the far end: %s", strerror (errno));
+            return -1;
+        }
+        bgit_pkt_from_fd (&conn->reader, conn->from_far);
+        bgit_proto_io_fd (&conn->io, &conn->reader, conn->to_far);
+        return 0;
     }
 
     char command[64];
@@ -7393,8 +7579,8 @@ git_cmd_ls_remote (git_context *ctx, WORD_LIST *args)
         return git_fatal ("No remote configured to list refs from.");
 
     if (!git_can_reach (where))
-        return git_fatal ("this build's git ls-remote takes a path or an http "
-                          "URL; ssh is not done yet");
+        return git_fatal ("this build's git ls-remote takes a path, an ssh "
+                          "address or an http URL; git:// is not done");
     if (!named && !quiet) fprintf (stderr, "From %s\n", where);
 
     git_conn conn;
@@ -7661,8 +7847,8 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     const char *url = git_remote_url (ctx, name);
     if (!url) url = name;
     if (!git_can_reach (url))
-        return git_fatal ("this build's git fetch takes a path or an http "
-                          "URL; ssh is not done yet");
+        return git_fatal ("this build's git fetch takes a path, an ssh "
+                          "address or an http URL; git:// is not done");
 
     /* What to ask for: the refspecs given, or the one the remote is
        configured with, and the tags when they were asked for. */
@@ -7950,8 +8136,8 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     }
     if (!source) return git_usage (usage);
     if (!git_can_reach (source))
-        return git_fatal ("this build's git clone takes a path or an http "
-                          "URL; ssh is not done yet");
+        return git_fatal ("this build's git clone takes a path, an ssh "
+                          "address or an http URL; git:// is not done");
 
     /* Where it lands: the last part of the source, without any .git. */
     char target[4096];
@@ -7965,12 +8151,13 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         len = strlen (copy);
         while (len && copy[len - 1] == '/') copy[--len] = '\0';
         const char *base = strrchr (copy, '/');
+        if (!base && git_url_is_ssh (copy)) base = strrchr (copy, ':');
         snprintf (target, sizeof target, "%s", base ? base + 1 : copy);
     }
     if (!*target) return git_fatal ("cannot work out a directory name");
 
     char absolute[4096];
-    if (git_url_is_http (source))
+    if (git_url_is_http (source) || git_url_is_ssh (source))
         snprintf (absolute, sizeof absolute, "%s", source);
     else {
         if (git_absolute (source, absolute, sizeof absolute) < 0)
@@ -8234,8 +8421,8 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     if (!url) url = name;
     if (!git_can_reach (url)) {
         git_state_release (&state);
-        return git_fatal ("this build's git push takes a path or an http URL; "
-                          "ssh is not done yet");
+        return git_fatal ("this build's git push takes a path, an ssh address "
+                          "or an http URL; git:// is not done");
     }
 
     /* What to ask for: a refspec each, the tags if they were asked for,

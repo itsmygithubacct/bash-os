@@ -318,6 +318,26 @@ this build's client fetches from either server and gets the same; it
 clones, fetches and pushes over HTTP against git's own `http-backend`;
 and the packets themselves match git's, request for request.
 
+Over ssh the same conversation runs through a command on another
+machine: `ssh://[user@]host[:port]/path` and the scp-style
+`[user@]host:path` both name one, and what runs there is
+`git-upload-pack '<path>'` or `git-receive-pack '<path>'`, the path
+quoted for the far end's shell. Which ssh is used is `GIT_SSH_COMMAND`,
+then `core.sshCommand`, then `ssh`; and, as git does, this build tells
+one from another by what it is called. The one called `ssh` is given
+`-o SendEnv=GIT_PROTOCOL` so the far end learns which protocol version
+is meant, and `-p` for a port; anything else is handed the host and the
+command and nothing besides, and asking such a command for a port is
+refused in git's words. A bracketed address — `[2001:db8::1]:repo.git` —
+keeps its own colons, and a path that begins with `~` is left for the
+far end's shell to expand.
+
+Both ends work over it: this build clones, fetches and pushes through
+git's `git-upload-pack` and `git-receive-pack`, and git clones and
+pushes through this build's. The far end must be told `GIT_PROTOCOL`,
+since this build speaks version 2 only; with a real `ssh` that is what
+`SendEnv` is for, and it needs the server to accept it.
+
 A commit or a tag can be signed with an ssh key, which is what
 `gpg.format = ssh` asks for: `user.signingKey` names the private key,
 `-S` or `commit.gpgsign` signs a commit, and `-s` or `tag.gpgSign` signs
@@ -446,6 +466,15 @@ fetching what the far end has gained, pushing back, a history too big to
 explode arriving as a pack, an address with no repository behind it, and
 a far end that wants a name and secret — without one, with the right one
 and with the wrong one. Nothing outside the machine is contacted.
+
+`tests/git-ssh.py` runs the transport with a stand-in named `ssh`: it
+takes the arguments git's ssh takes, writes down the line it was given,
+and runs the command here rather than there. Each shape of address is
+handed to both implementations and the two lines are held against each
+other, word for word; then a clone, a fetch and a push go through it to
+git's far end, and a clone and a push come back the other way through
+this build's. Nothing outside the machine is contacted, and no server is
+needed.
 
 `tests/git-signing.py` signs a commit and a tag with a key `ssh-keygen`
 made, and hands them to git's own `verify-commit` and `verify-tag` with
