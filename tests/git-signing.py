@@ -8,6 +8,10 @@ A signature is only worth anything if somebody else accepts it, so what
 this build signs is handed to git's own `verify-commit` and `verify-tag`
 with the key in an allowed-signers file. The key is made by ssh-keygen,
 which is also what says whether the format is right.
+
+Then the other way about: what git signs, this build checks, and it says
+about it what git says about it — down to the fingerprint, which is where
+a key gets its name.
 """
 
 import os
@@ -150,5 +154,105 @@ with tempfile.TemporaryDirectory(prefix='git-signing-') as name:
                   status=128, config=('gpg.format=ssh', f'user.signingKey={locked}'))
     check(b'passphrase' in result.stderr, 'a key that is locked away',
           result.stderr[:200])
+
+    # --- and this build checking signatures -----------------------------
+    # The same repository, now read the other way: what git signed a moment
+    # ago is handed back to this build, which must say what git says.
+    ours = bgit('verify-commit', 'HEAD', cwd=repo, status=0, config=verifying)
+    theirs = git(repo, 'verify-commit', 'HEAD', config=verifying)
+    check(b'Good "git" signature for signer@bash-os.test' in ours.stderr,
+          'this build verifies what it signed', ours.stderr[:200])
+    check(ours.stderr == theirs.stderr, 'in the words git uses for it',
+          ours.stderr[:200], theirs.stderr[:200])
+
+    # The fingerprint in that line is the key's own name, and ssh-keygen is
+    # what says what that is.
+    named = subprocess.run([KEYGEN, '-lf', str(key)], capture_output=True,
+                           timeout=120, check=True)
+    fingerprint = named.stdout.split()[1]
+    check(fingerprint in ours.stderr, 'the key is named as ssh-keygen names it',
+          fingerprint, ours.stderr[:200])
+
+    # A commit git signed itself, which is the direction that matters for
+    # reading somebody else's history.
+    (repo/'a.txt').write_text('one\ntwo\nthree\nfour\n')
+    git(repo, 'commit', '-q', '-S', '-am', 'signed by git itself',
+        config=signing)
+    ours = bgit('verify-commit', 'HEAD', cwd=repo, status=0, config=verifying)
+    theirs = git(repo, 'verify-commit', 'HEAD', config=verifying)
+    check(ours.stderr == theirs.stderr, 'a signature git made, read here',
+          ours.stderr[:200], theirs.stderr[:200])
+
+    # -v prints what was signed, which is the object without the header the
+    # signature sits in.
+    ours = bgit('verify-commit', '-v', 'HEAD', cwd=repo, status=0,
+                config=verifying)
+    check(b'gpgsig' not in ours.stdout, 'the signature is not part of it',
+          ours.stdout[:300])
+    check(ours.stdout == git(repo, 'verify-commit', '-v', 'HEAD',
+                             config=verifying).stdout,
+          'and is what git prints for it', ours.stdout[:300])
+
+    # A tag, the same way round.
+    git(repo, 'tag', '-s', '-m', 'a tag git signed', 'v2', config=signing)
+    ours = bgit('verify-tag', 'v2', cwd=repo, status=0, config=verifying)
+    check(ours.stderr == git(repo, 'verify-tag', 'v2', config=verifying).stderr,
+          'a tag git signed, read here', ours.stderr[:200])
+
+    # An unsigned commit is not a bad signature: git says nothing at all
+    # about it and leaves with 1.
+    (repo/'a.txt').write_text('one\ntwo\nthree\nfour\nfive\n')
+    bgit('commit', '-q', '-am', 'not signed', cwd=repo)
+    ours = bgit('verify-commit', 'HEAD', cwd=repo, status=1, config=verifying)
+    check(ours.stderr == b'' and ours.stdout == b'',
+          'nothing is said about an unsigned commit', ours.stderr[:200])
+
+    # A commit whose message was changed under its signature.
+    body = git(repo, 'cat-file', 'commit', 'HEAD~1').stdout
+    tampered = tmp/'tampered'
+    tampered.write_bytes(body.replace(b'signed by git itself', b'something else'))
+    changed = git(repo, 'hash-object', '-t', 'commit', '-w',
+                  str(tampered)).stdout.decode().strip()
+    ours = bgit('verify-commit', changed, cwd=repo, status=1, config=verifying)
+    theirs = git(repo, 'verify-commit', changed, check_status=False,
+                 config=verifying)
+    check(b'Could not verify signature.' in ours.stderr,
+          'a message changed under its signature', ours.stderr[:200])
+    check(ours.stderr == theirs.stderr, 'refused in git\'s words',
+          ours.stderr[:200], theirs.stderr[:200])
+
+    # A good signature by a key nobody vouches for is not enough.
+    ours = bgit('verify-commit', 'HEAD~1', cwd=repo, status=1,
+                config=('gpg.format=ssh', f'gpg.ssh.allowedSignersFile={stranger}'))
+    check(b'Good "git" signature with ED25519 key' in ours.stderr,
+          'the signature itself is good', ours.stderr[:200])
+    check(b'No principal matched.' in ours.stderr, 'but nobody vouches for it',
+          ours.stderr[:200])
+
+    # What log --show-signature sets under the commit line, and where.
+    ours = bgit('log', '--show-signature', '-1', 'HEAD~1', cwd=repo,
+                config=verifying)
+    theirs = git(repo, 'log', '--show-signature', '-1', 'HEAD~1',
+                 config=verifying)
+    check(ours.stdout == theirs.stdout, 'log --show-signature, line for line',
+          ours.stdout[:300], theirs.stdout[:300])
+    check(bgit('show', '--show-signature', '-s', 'HEAD~1', cwd=repo,
+               config=verifying).stdout == theirs.stdout,
+          'and show says the same')
+    check(bgit('log', '-1', 'HEAD~1', cwd=repo, config=verifying).stdout
+          == git(repo, 'log', '-1', 'HEAD~1', config=verifying).stdout,
+          'while a log without it says nothing about signatures')
+
+    # What cannot be verified is named as git names it.
+    for verb, target, kind in (('verify-commit', 'v2', 'tag'),
+                               ('verify-tag', 'HEAD', 'commit')):
+        ours = bgit(verb, target, cwd=repo, status=1, config=verifying)
+        theirs = git(repo, verb, target, check_status=False, config=verifying)
+        check(ours.stderr == theirs.stderr, f'{verb} on a {kind}',
+              ours.stderr[:200], theirs.stderr[:200])
+    ours = bgit('verify-commit', 'nope', cwd=repo, status=1, config=verifying)
+    check(ours.stderr == git(repo, 'verify-commit', 'nope', check_status=False,
+                             config=verifying).stderr,
+          'and a name that is nothing at all', ours.stderr[:200])
 
 print(f'git-signing: {checks} checks passed')

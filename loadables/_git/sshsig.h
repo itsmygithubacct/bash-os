@@ -38,6 +38,10 @@ int bgit_ssh_key_public (const char *text, bgit_ssh_key *key);
 /* The public key as that same line, without a comment. */
 int bgit_ssh_key_line (const bgit_ssh_key *key, char *out, size_t outsz);
 
+/* The name ssh-keygen calls this key by: "SHA256:" and the digest of the
+   key's blob in base64, with the padding left off. Returns 0, or -1. */
+int bgit_ssh_key_fingerprint (const bgit_ssh_key *key, char *out, size_t outsz);
+
 /* Sign LEN bytes at PAYLOAD under NAMESPACE, and give back the armoured
    signature for the caller to free. Returns 0, or -1. */
 int bgit_sshsig_sign (const bgit_ssh_key *key, const char *name_space,

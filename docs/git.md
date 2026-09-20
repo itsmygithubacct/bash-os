@@ -26,8 +26,9 @@ git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
                  [<commit> [<commit>]] [-- <path>...]
 git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [-n <number>] [--reverse] [--first-parent] [--date=raw]
-                 [<revision>...]
-git show         [-p | -s | --stat] [--oneline] [--format=<format>] [<object>...]
+                 [--show-signature] [<revision>...]
+git show         [-p | -s | --stat] [--oneline] [--format=<format>]
+                 [--show-signature] [<object>...]
 git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
                  | (-m | -M) <old> <new>
 git switch       [-q] [-c <new>] [--detach] <branch>
@@ -92,6 +93,8 @@ git pack-objects [-q] <base-name> < <object-list>
 git index-pack   [-v] [-o <index-file>] <pack-file>
 git unpack-objects [-q] < <pack-file>
 git verify-pack  [-v] [-s] <idx-file>
+git verify-commit [-v | --verbose] [--raw] <commit>...
+git verify-tag   [-v | --verbose] [--raw] <tag>...
 git upload-pack  [--stateless-rpc] [--advertise-refs] <directory>
 git receive-pack <directory>
 ```
@@ -323,9 +326,29 @@ without one, armoured and written where git writes it — a `gpgsig`
 header in a commit, after the message in a tag. git reads both back and
 says `Good "git" signature`, which is what the test asks it to do.
 
+The reading goes the other way too. `git verify-commit` and `git
+verify-tag` take a signature back out of the object — a `gpgsig` header
+in a commit, the block after the message in a tag — check it against
+what the object says without it, and name the key by the SHA-256
+fingerprint `ssh-keygen -l` would print for it. Whether that key is
+anybody is a separate question, and `gpg.ssh.allowedSignersFile`
+answers it: a key that stands in that file is reported as `Good "git"
+signature for <principal>`, and one that does not is still a good
+signature but matches no principal, which leaves with 1. `-v` prints
+what was signed, and `--show-signature` sets the same lines under the
+commit line in `log` and `show`. An unsigned commit is not a bad one:
+git says nothing about it and leaves with 1, and so does this.
+
+Where git leans on `ssh-keygen` for the check it also passes on what
+`ssh-keygen` said about a file it could not read; this build says only
+`No principal matched.` Every other line is git's, word for word, and
+the test holds the two outputs against each other.
+
 Only unencrypted ed25519 keys are signed with: one that wants a
 passphrase has nowhere here to ask for it, and says so rather than
-leaving something that will not verify.
+leaving something that will not verify. A signature of another kind —
+an OpenPGP one, which git would hand to `gpg` — is not checked here and
+says so rather than passing or failing it.
 
 A merge with more than one base — two branches that have already merged
 each other — is refused rather than merged against one of them, because
@@ -430,7 +453,12 @@ the key in an allowed-signers file: a signature is worth what somebody
 else makes of it. It also checks that a key nobody vouches for is
 refused, and that what this build cannot sign with — no key named, a
 format it has not got, a key behind a passphrase — is said rather than
-half-done.
+half-done. Then back the other way: what git signed is checked here, and
+this build's `verify-commit`, `verify-tag` and `log --show-signature`
+are held against git's own output — the good signature, the key's
+fingerprint as `ssh-keygen -l` prints it, a message changed under its
+signature, a key nobody vouches for, an unsigned commit, and a name that
+is the wrong kind of object or nothing at all.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;

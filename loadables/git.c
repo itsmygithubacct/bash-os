@@ -3097,12 +3097,204 @@ git_commit_touches (git_context *ctx, const struct git_commit *commit,
     return n > 0;
 }
 
+/* ---- checking what a signature says ------------------------------------- */
+
+/* The signature an object carries, taken back out of it: a commit keeps one
+   in a gpgsig header, a tag keeps one after the message. Returns 1 with the
+   armour and the bytes it was made over, 0 when nothing is signed, and -1
+   when what is there is not a kind this build can check. Both strings are
+   the caller's to free. */
+static int
+git_signature_take (enum bgit_type type, const unsigned char *data, size_t len,
+                    char **payload_out, size_t *payload_len, char **armour_out)
+{
+    static const char opening[] = "-----BEGIN SSH SIGNATURE-----";
+    const char *body = (const char *) data;
+    const char *end = body + len;
+    *payload_out = NULL;
+    *armour_out = NULL;
+
+    if (type == BGIT_COMMIT) {
+        /* Among the headers, before the blank line the message begins at. */
+        const char *start = NULL, *stop = NULL;
+        for (const char *at = body; at < end; ) {
+            const char *nl = memchr (at, '\n', (size_t) (end - at));
+            size_t line = nl ? (size_t) (nl - at) : (size_t) (end - at);
+            if (!line) break;
+            if (line > 7 && !strncmp (at, "gpgsig ", 7)) {
+                start = at;
+                stop = nl ? nl + 1 : end;
+                while (stop < end && *stop == ' ') {  /* the header goes on */
+                    const char *next = memchr (stop, '\n',
+                                               (size_t) (end - stop));
+                    stop = next ? next + 1 : end;
+                }
+                break;
+            }
+            at = nl ? nl + 1 : end;
+        }
+        if (!start) return 0;
+
+        char *armour = malloc ((size_t) (stop - start) + 1);
+        char *payload = malloc (len + 1);
+        if (!armour || !payload) {
+            free (armour);
+            free (payload);
+            return -1;
+        }
+        /* The value, with the space that carries each further line taken
+           off again. */
+        size_t at_armour = 0;
+        for (const char *line = start + 7; line < stop; ) {
+            const char *nl = memchr (line, '\n', (size_t) (stop - line));
+            size_t n = nl ? (size_t) (nl - line) : (size_t) (stop - line);
+            memcpy (armour + at_armour, line, n);
+            at_armour += n;
+            armour[at_armour++] = '\n';
+            line = nl ? nl + 1 : stop;
+            if (line < stop && *line == ' ') line++;
+        }
+        armour[at_armour] = '\0';
+        size_t head = (size_t) (start - body);
+        memcpy (payload, body, head);
+        memcpy (payload + head, stop, (size_t) (end - stop));
+        size_t size = head + (size_t) (end - stop);
+        payload[size] = '\0';
+        if (strncmp (armour, opening, strlen (opening))) {
+            free (armour);
+            free (payload);
+            return -1;
+        }
+        *payload_out = payload;
+        *payload_len = size;
+        *armour_out = armour;
+        return 1;
+    }
+
+    /* A tag's signature stands at the end, so the last block is the one
+       that signs it: a message may well talk about signatures. */
+    const char *found = NULL, *armoured = NULL;
+    for (const char *line = body; line < end; ) {
+        const char *nl = memchr (line, '\n', (size_t) (end - line));
+        size_t n = nl ? (size_t) (nl - line) : (size_t) (end - line);
+        if (n >= 11 && !strncmp (line, "-----BEGIN ", 11)) {
+            found = line;
+            armoured = n == strlen (opening) && !strncmp (line, opening, n)
+                       ? line : NULL;
+        }
+        line = nl ? nl + 1 : end;
+    }
+    if (!found) return 0;
+    if (!armoured) return -1;
+    size_t size = (size_t) (armoured - body);
+    char *payload = malloc (size + 1);
+    char *armour = malloc ((size_t) (end - armoured) + 1);
+    if (!payload || !armour) {
+        free (payload);
+        free (armour);
+        return -1;
+    }
+    memcpy (payload, body, size);
+    payload[size] = '\0';
+    memcpy (armour, armoured, (size_t) (end - armoured));
+    armour[end - armoured] = '\0';
+    *payload_out = payload;
+    *payload_len = size;
+    *armour_out = armour;
+    return 1;
+}
+
+/* Say about a signature what git says about it, on OUT — stderr for
+   verify-commit, stdout for log --show-signature. Returns 0 when the
+   signature is good and somebody vouches for the key it was made with, and
+   1 otherwise. With PAYLOAD_OUT, what was signed is left there when there
+   was a signature at all, which is what -v prints. */
+static int
+git_verify_signature (git_context *ctx, FILE *out, const unsigned char *data,
+                      size_t len, enum bgit_type type, char **payload_out,
+                      size_t *payload_len)
+{
+    char *payload = NULL, *armour = NULL;
+    size_t size = 0;
+    int have = git_signature_take (type, data, len, &payload, &size, &armour);
+    if (payload_out) *payload_out = NULL;
+    if (have <= 0) {
+        if (have < 0) {
+            fflush (stdout);
+            fprintf (stderr, "error: this build checks ssh signatures only\n");
+        }
+        return 1;
+    }
+    if (out == stderr) fflush (stdout);
+
+    bgit_ssh_key key;
+    int checked = bgit_sshsig_check (armour, "git",
+                                     (const unsigned char *) payload, size,
+                                     &key);
+    free (armour);
+    if (payload_out) {
+        *payload_out = payload;
+        *payload_len = size;
+    } else
+        free (payload);
+
+    if (checked != 0) {
+        fprintf (out, "Could not verify signature.\n");
+        if (checked > 0)
+            fprintf (out, "Signature verification failed: incorrect "
+                          "signature\n");
+        return 1;
+    }
+
+    char fingerprint[128] = "";
+    bgit_ssh_key_fingerprint (&key, fingerprint, sizeof fingerprint);
+
+    /* Whom the key belongs to, if gpg.ssh.allowedSignersFile says. */
+    char principal[256] = "";
+    const char *named = bgit_config_get (&ctx->cfg,
+                                         "gpg.ssh.allowedSignersFile");
+    int vouched = 0;
+    if (named && *named) {
+        char path[4096];
+        if (named[0] == '~' && named[1] == '/' && getenv ("HOME"))
+            snprintf (path, sizeof path, "%s/%s", getenv ("HOME"), named + 2);
+        else
+            snprintf (path, sizeof path, "%s", named);
+        vouched = bgit_ssh_allowed_signer (path, &key, principal,
+                                           sizeof principal) == 1;
+    }
+    if (vouched)
+        fprintf (out, "Good \"git\" signature for %s with ED25519 key %s\n",
+                 principal, fingerprint);
+    else {
+        /* git leans on ssh-keygen here and passes on what it said about the
+           file it could not match in; this build says only the outcome. */
+        fprintf (out, "Good \"git\" signature with ED25519 key %s\n",
+                 fingerprint);
+        fprintf (out, "No principal matched.\n");
+    }
+    return vouched ? 0 : 1;
+}
+
+/* What `log --show-signature` sets under the commit line. */
+static void
+git_show_commit_signature (git_context *ctx, FILE *out, const char *id)
+{
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0) return;
+    if (type == BGIT_COMMIT)
+        git_verify_signature (ctx, out, data, len, type, NULL, NULL);
+    free (data);
+}
+
 /* One commit as `git log` and `git show` print it: the header, the message
    indented by four spaces, then whatever diff was asked for. */
 static void
 git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
                   int oneline, const char *format, int raw_date,
-                  const struct git_diff_format *diff,
+                  int show_signature, const struct git_diff_format *diff,
                   const char *const *paths, int n_paths)
 {
     if (oneline) {
@@ -3116,6 +3308,7 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
         char date[128];
         git_format_date (commit->author_date, raw_date, date, sizeof date);
         fprintf (out, "commit %s\n", commit->id);
+        if (show_signature) git_show_commit_signature (ctx, out, commit->id);
         if (commit->n_parents > 1) {
             fprintf (out, "Merge:");
             for (int j = 0; j < commit->n_parents; j++) {
@@ -3170,9 +3363,11 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git log [--oneline] [--format=<format>] "
                         "[-p] [--stat] [--graph] [-n <number>] [--reverse] "
-                        "[--first-parent] [--date=raw] [<revision>...]";
+                        "[--first-parent] [--date=raw] [--show-signature] "
+                        "[<revision>...]";
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0, graph = 0;
+    int show_signature = 0;
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
@@ -3195,6 +3390,8 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--reverse")) reverse = 1;
         else if (!strcmp (w, "--first-parent")) first_parent = 1;
         else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (!strcmp (w, "--show-signature")) show_signature = 1;
+        else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
@@ -3326,13 +3523,13 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             FILE *capture = open_memstream (&block, &size);
             if (!capture) { git_commit_release (&commit); free (ordered); return GIT_EXIT_FATAL; }
             git_print_commit (ctx, capture, &commit, oneline, format, raw_date,
-                              &diff, paths, n_paths);
+                              show_signature, &diff, paths, n_paths);
             fclose (capture);
             git_print_graph (block);
             free (block);
         } else
             git_print_commit (ctx, stdout, &commit, oneline, format, raw_date,
-                              &diff, paths, n_paths);
+                              show_signature, &diff, paths, n_paths);
         first = 0;
         shown++;
         git_commit_release (&commit);
@@ -3595,11 +3792,11 @@ static int
 git_cmd_show (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git show [-p | -s | --stat] [--oneline] "
-                        "[--format=<format>] [<object>...]";
+                        "[--format=<format>] [--show-signature] [<object>...]";
     struct git_diff_format diff;
     git_diff_format_init (&diff);
     const char *format = NULL;
-    int oneline = 0, raw_date = 0;
+    int oneline = 0, raw_date = 0, show_signature = 0;
     const char *objects[16];
     int n_objects = 0;
 
@@ -3609,6 +3806,8 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
         else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (!strcmp (w, "--show-signature")) show_signature = 1;
+        else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
         else if (git_diff_format_option (&diff, w)) ;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_objects < (int) (sizeof objects / sizeof *objects))
@@ -3657,12 +3856,86 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
             if (git_commit_read (ctx, id, &commit) < 0)
                 return git_fatal ("unable to read %s", id);
             git_print_commit (ctx, stdout, &commit, oneline, format,
-                              raw_date, &diff, NULL, 0);
+                              raw_date, show_signature, &diff, NULL, 0);
             git_commit_release (&commit);
             break;
         }
     }
     return 0;
+}
+
+/* verify-commit and verify-tag are one walk over two kinds of object. */
+static int
+git_cmd_verify (git_context *ctx, WORD_LIST *args, enum bgit_type want)
+{
+    const char *what = want == BGIT_COMMIT ? "commit" : "tag";
+    char usage[96];
+    snprintf (usage, sizeof usage, "git verify-%s [-v | --verbose] [--raw] "
+                                   "<%s>...", what, what);
+    int verbose = 0;
+    const char *names[32];
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "--raw")) ;   /* an ssh signature says no more */
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < (int) (sizeof names / sizeof *names))
+            names[n_names++] = w;
+        else return git_fatal ("too many %ss", what);
+    }
+    if (!n_names) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* Every name is looked at, and one bad one settles the status. */
+    int worst = 0;
+    for (int i = 0; i < n_names; i++) {
+        char id[41];
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (git_resolve (ctx, names[i], id, NULL) < 0 ||
+            bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0) {
+            fflush (stdout);
+            fprintf (stderr, "error: %s '%s' not found.\n", what, names[i]);
+            worst = 1;
+            continue;
+        }
+        if (type != want) {
+            fflush (stdout);
+            fprintf (stderr, "error: %s: cannot verify a non-%s object of "
+                             "type %s.\n", names[i], what,
+                     bgit_type_name (type));
+            free (data);
+            worst = 1;
+            continue;
+        }
+        char *payload = NULL;
+        size_t payload_len = 0;
+        if (git_verify_signature (ctx, stderr, data, len, type,
+                                  verbose ? &payload : NULL, &payload_len))
+            worst = 1;
+        if (payload) {
+            /* What was signed, which is the object without its signature. */
+            fwrite (payload, 1, payload_len, stdout);
+            free (payload);
+        }
+        free (data);
+    }
+    return worst;
+}
+
+static int
+git_cmd_verify_commit (git_context *ctx, WORD_LIST *args)
+{
+    return git_cmd_verify (ctx, args, BGIT_COMMIT);
+}
+
+static int
+git_cmd_verify_tag (git_context *ctx, WORD_LIST *args)
+{
+    return git_cmd_verify (ctx, args, BGIT_TAG);
 }
 
 /* ---- branches, switching, restoring, resetting and tags ----------------- */
@@ -10904,7 +11177,9 @@ static const struct {
     { "update-ref",   git_cmd_update_ref },
     { "upload-pack",  git_cmd_upload_pack },
     { "var",          git_cmd_var },
+    { "verify-commit", git_cmd_verify_commit },
     { "verify-pack",  git_cmd_verify_pack },
+    { "verify-tag",   git_cmd_verify_tag },
     { "worktree",     git_cmd_worktree },
     { "write-tree",   git_cmd_write_tree },
     { NULL, NULL }

@@ -322,6 +322,22 @@ git ls-remote --symref --tags "$HOME/repo"
 git ls-remote "$HOME/bare-copy"
 cd "$HOME/repo"
 
+# Signing, and then reading a signature back: the armour, the key file and
+# the allowed-signers list are all blobs walked byte by byte.
+if command -v ssh-keygen > /dev/null; then
+  ssh-keygen -q -t ed25519 -N '' -C signer@bash-os.test -f "$HOME/sign-key"
+  printf 'signer@bash-os.test %s\n' "$(cut -d' ' -f1,2 "$HOME/sign-key.pub")" \
+    > "$HOME/allowed"
+  signs=(-c gpg.format=ssh -c "user.signingKey=$HOME/sign-key")
+  checks=(-c "gpg.ssh.allowedSignersFile=$HOME/allowed")
+  git "${signs[@]}" commit -q -S --allow-empty -m 'a signed commit'
+  git "${signs[@]}" tag -s -m 'a signed tag' signed-tag
+  git "${checks[@]}" verify-commit -v HEAD
+  git "${checks[@]}" verify-tag signed-tag
+  git "${checks[@]}" log --show-signature -1
+  git verify-commit HEAD || true      # nobody vouches for the key here
+fi
+
 git fsck 2>/dev/null || true
 SCENARIO
 
