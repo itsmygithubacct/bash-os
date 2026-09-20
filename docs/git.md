@@ -323,20 +323,39 @@ machine: `ssh://[user@]host[:port]/path` and the scp-style
 `[user@]host:path` both name one, and what runs there is
 `git-upload-pack '<path>'` or `git-receive-pack '<path>'`, the path
 quoted for the far end's shell. Which ssh is used is `GIT_SSH_COMMAND`,
-then `core.sshCommand`, then `ssh`; and, as git does, this build tells
-one from another by what it is called. The one called `ssh` is given
+then `core.sshCommand`, and with neither this build's own — `ssh run`,
+which needs no PATH and no other program on the machine. A command that
+is named is treated as git treats one: this build tells one ssh from
+another by what it is called, the one called `ssh` is given
 `-o SendEnv=GIT_PROTOCOL` so the far end learns which protocol version
-is meant, and `-p` for a port; anything else is handed the host and the
-command and nothing besides, and asking such a command for a port is
-refused in git's words. A bracketed address — `[2001:db8::1]:repo.git` —
-keeps its own colons, and a path that begins with `~` is left for the
-far end's shell to expand.
+is meant and `-p` for a port, and anything else is handed the host and
+the command and nothing besides — asking such a command for a port is
+refused in git's words. The builtin is told the same things in its own
+terms: `--setenv GIT_PROTOCOL=version=2` and `-p`. A bracketed address —
+`[2001:db8::1]:repo.git` — keeps its own colons, and a path that begins
+with `~` is left for the far end's shell to expand.
+
+`ssh run [user@]host <command>` is what carries it: one command on
+another machine with this process's own input and output on it, and the
+remote command's own status at the end. That is what a protocol needs
+and what `ssh exec` — which hands over a file and collects two blobs —
+cannot do. With no `-i`, the keys everybody keeps under `~/.ssh` are
+tried in ssh's order. The `sshd` builtin hosts the same conversation
+from the other side: a command it runs has the channel on its streams
+rather than being run to completion and reported afterwards, so it can
+answer a client that is waiting to hear before it speaks again.
 
 Both ends work over it: this build clones, fetches and pushes through
 git's `git-upload-pack` and `git-receive-pack`, and git clones and
 pushes through this build's. The far end must be told `GIT_PROTOCOL`,
-since this build speaks version 2 only; with a real `ssh` that is what
-`SendEnv` is for, and it needs the server to accept it.
+since this build speaks version 2 only; that is what `SendEnv` is for,
+and it needs the server to accept it — `AcceptEnv GIT_PROTOCOL` in
+sshd's configuration, which OpenSSH and this build's `sshd` both read.
+
+With nothing else on the machine the whole of it is this build: the
+`git` builtin reaching out, the `ssh` builtin carrying it, the `sshd`
+builtin hosting it, and a far end at the other end. The test does
+exactly that, over the loopback address.
 
 A commit or a tag can be signed with an ssh key, which is what
 `gpg.format = ssh` asks for: `user.signingKey` names the private key,
@@ -467,7 +486,11 @@ explode arriving as a pack, an address with no repository behind it, and
 a far end that wants a name and secret — without one, with the right one
 and with the wrong one. Nothing outside the machine is contacted.
 
-`tests/git-ssh.py` runs the transport with a stand-in named `ssh`: it
+`tests/git-ssh.py` ends by running a clone, a fetch and a push over the
+`ssh` builtin to the `sshd` builtin on the loopback address, with a key
+it makes for the occasion — no stand-in anywhere, and a live stream in
+both directions. Before that it runs the transport with a stand-in named
+`ssh`: it
 takes the arguments git's ssh takes, writes down the line it was given,
 and runs the command here rather than there. Each shape of address is
 handed to both implementations and the two lines are held against each

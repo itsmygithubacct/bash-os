@@ -15,10 +15,14 @@ when the direction is the other way about.
 
 import os
 from pathlib import Path
+import pwd
 import shutil
+import signal
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 binary = Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash')
@@ -213,5 +217,83 @@ with tempfile.TemporaryDirectory(prefix='git-ssh-') as name:
     git(cloned, 'ls-remote', '--upload-pack=/some/other/upload-pack', 'origin',
         check_status=False, env=ours)
     check(mine == lines(), 'a far end named by --upload-pack', mine)
+
+    # --- and over this build's own ssh, to this build's own sshd ---------
+    # No stand-in and nothing else on the machine: the client is the ssh
+    # builtin, the server is the sshd builtin, and what runs over there is
+    # a far end asked for by name. A command that talks back while it runs
+    # is the whole of it — both ends have to carry a live stream.
+    if b'sshd' in subprocess.run([str(binary), '--noprofile', '--norc', '-c',
+                                  'PATH=; enable -a'], capture_output=True,
+                                 timeout=60).stdout:
+        (tmp/'.ssh').mkdir(exist_ok=True)
+        identity = tmp/'.ssh'/'id_ed25519'
+        hostkey = tmp/'hostkey'
+        keygen = shutil.which('ssh-keygen')
+        if not keygen:
+            raise SystemExit('git-ssh: ssh-keygen is required')
+        for path in (identity, hostkey):
+            subprocess.run([keygen, '-q', '-t', 'ed25519', '-N', '', '-f',
+                            str(path)], check=True, timeout=120)
+        # The far end learns which protocol version is meant from the
+        # environment, and a server only passes on what it is told to.
+        (tmp/'sshd.conf').write_text('AcceptEnv GIT_PROTOCOL\n')
+        with socket.socket() as reserve:
+            reserve.bind(('127.0.0.1', 0))
+            port = reserve.getsockname()[1]
+        user = pwd.getpwuid(os.getuid()).pw_name
+        known = tmp/'known-hosts'
+        server = subprocess.Popen(
+            [str(binary), '--noprofile', '--norc', '-c',
+             'sshd run --encrypted -F "$1" -a 127.0.0.1 -p "$2" -k "$3"',
+             '_', str(tmp/'sshd.conf'), str(port), str(hostkey)],
+            env={**os.environ, 'LC_ALL': 'C',
+                 'BASHSSHD_RUN_DIR': str(tmp/'sshd-run'),
+                 'BASHSSHD_AUTHORIZED_KEYS': str(identity)+'.pub'},
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            said = bytearray()
+            deadline = time.monotonic() + 20
+            while b'listening' not in said:
+                assert time.monotonic() < deadline and server.poll() is None, said
+                said.extend(os.read(server.stderr.fileno(), 4096))
+            over_ssh = {'BASHSSH_KNOWN_HOSTS': str(known),
+                        'GIT_SSH_COMMAND': ''}
+            address = f'ssh://{user}@127.0.0.1:{port}{origin}'
+
+            live = tmp/'over-ours'
+            bgit('clone', address, str(live), cwd=tmp, env=over_ssh)
+            check((live/'c.txt').read_text() == 'git pushed this\n',
+                  'a clone with nothing but this build between the ends')
+            check(git(live, 'rev-parse', 'HEAD').stdout
+                  == git(origin, 'rev-parse', 'main').stdout, 'and the commit')
+
+            # What the far end gains afterwards, fetched the same way.
+            (work/'a.txt').write_text('one\ntwo\nthree\n')
+            git(work, 'commit', '-q', '-am', 'the fifth commit')
+            git(work, 'push', '-q', str(origin), '+main:main')
+            bgit('fetch', 'origin', cwd=live, env=over_ssh)
+            check(git(live, 'rev-parse', 'origin/main').stdout
+                  == git(work, 'rev-parse', 'HEAD').stdout,
+                  'a fetch over the same')
+
+            # And a push, which is the direction that sends a pack.
+            git(live, 'reset', '-q', '--hard', 'origin/main')
+            (live/'d.txt').write_text('and back again\n')
+            git(live, 'add', 'd.txt')
+            git(live, 'commit', '-q', '-m', 'the sixth commit')
+            bgit('push', 'origin', 'main', cwd=live, env=over_ssh)
+            check(git(origin, 'rev-parse', 'main').stdout
+                  == git(live, 'rev-parse', 'HEAD').stdout,
+                  'and a push that lands')
+        finally:
+            if server.poll() is None:
+                os.killpg(server.pid, signal.SIGTERM)
+                try:
+                    server.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(server.pid, signal.SIGKILL)
+                    server.wait()
 
 print(f'git-ssh: {checks} checks passed')
