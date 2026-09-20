@@ -173,7 +173,49 @@ bgit_worktree_walk (const bgit_repo *repo, bgit_walk_fn fn, void *ctx)
 struct bgit_status_build {
     bgit_status_entry *entries;
     size_t n, cap;
+    /* Where a path already sits, so that finding it again is a lookup and
+       not a walk: a status over a few thousand paths looks every one of
+       them up at least twice. index+1, with 0 for an empty slot. */
+    size_t *slots;
+    size_t n_slots;
 };
+
+static unsigned long
+bgit_status_hash (const char *path)
+{
+    unsigned long hash = 1469598103934665603UL;      /* FNV-1a */
+    for (const unsigned char *p = (const unsigned char *) path; *p; p++) {
+        hash ^= *p;
+        hash *= 1099511628211UL;
+    }
+    return hash;
+}
+
+static void
+bgit_status_place (struct bgit_status_build *build, size_t at)
+{
+    size_t mask = build->n_slots - 1;
+    size_t slot = bgit_status_hash (build->entries[at].path) & mask;
+    while (build->slots[slot]) slot = (slot + 1) & mask;
+    build->slots[slot] = at + 1;
+}
+
+/* Keep the table at least twice the size of what it holds. Returns -1 only
+   when there is no memory, and then the caller falls back to a walk. */
+static int
+bgit_status_room (struct bgit_status_build *build)
+{
+    if (build->slots && build->n_slots >= (build->n + 1) * 2) return 0;
+    size_t want = build->n_slots ? build->n_slots * 2 : 64;
+    while (want < (build->n + 1) * 2) want *= 2;
+    size_t *grown = calloc (want, sizeof *grown);
+    if (!grown) return -1;
+    free (build->slots);
+    build->slots = grown;
+    build->n_slots = want;
+    for (size_t i = 0; i < build->n; i++) bgit_status_place (build, i);
+    return 0;
+}
 
 /* An untracked path is its own record: git lists a file that the index no
    longer has and an untracked file of the same name on separate lines. */
@@ -192,54 +234,102 @@ bgit_status_append (struct bgit_status_build *build, const char *path)
     entry->path = strdup (path);
     if (!entry->path) return NULL;
     build->n++;
+    if (bgit_status_room (build) == 0) bgit_status_place (build, build->n - 1);
     return entry;
 }
 
 static bgit_status_entry *
 bgit_status_at (struct bgit_status_build *build, const char *path)
 {
-    for (size_t i = 0; i < build->n; i++)
-        if (!strcmp (build->entries[i].path, path)) return &build->entries[i];
-    if (build->n == build->cap) {
-        size_t next = build->cap ? build->cap * 2 : 32;
-        bgit_status_entry *grown = realloc (build->entries, next * sizeof *grown);
-        if (!grown) return NULL;
-        build->entries = grown;
-        build->cap = next;
-    }
-    bgit_status_entry *entry = &build->entries[build->n];
-    memset (entry, 0, sizeof *entry);
-    entry->path = strdup (path);
-    if (!entry->path) return NULL;
-    build->n++;
-    return entry;
+    if (build->slots) {
+        size_t mask = build->n_slots - 1;
+        size_t slot = bgit_status_hash (path) & mask;
+        while (build->slots[slot]) {
+            bgit_status_entry *entry = &build->entries[build->slots[slot] - 1];
+            if (!strcmp (entry->path, path)) return entry;
+            slot = (slot + 1) & mask;
+        }
+    } else
+        for (size_t i = 0; i < build->n; i++)
+            if (!strcmp (build->entries[i].path, path))
+                return &build->entries[i];
+    return bgit_status_append (build, path);
 }
 
 struct bgit_untracked_ctx {
     const bgit_repo *repo;
     const bgit_index_entry *index;
     size_t n_index;
+    int index_sorted;
     const bgit_ignore *ignore;
     struct bgit_status_build *build;
     int untracked_all;
     int want_ignored;
 };
 
+/* Entries kept in path order — an index, or a tree read out whole — can be
+   searched rather than walked, and a status over a few thousand paths is
+   otherwise all walking: every path visited would be held against every
+   entry there is. Whether they really are in order is worth the one pass
+   it takes to find out, because nothing here writes them. */
+static int
+bgit_entries_sorted (const bgit_index_entry *entries, size_t n)
+{
+    for (size_t i = 1; i < n; i++)
+        if (strcmp (entries[i - 1].path, entries[i].path) > 0) return 0;
+    return 1;
+}
+
+/* The first entry that does not sort before PATH's first LEN bytes. */
+static size_t
+bgit_entry_lower_bound (const bgit_index_entry *entries, size_t n,
+                        const char *path, size_t len)
+{
+    size_t low = 0, high = n;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        if (strncmp (entries[mid].path, path, len) < 0) low = mid + 1;
+        else high = mid;
+    }
+    return low;
+}
+
+/* PATH's entry, or NULL. With several stages of it, the first — which is
+   what a walk from the start would have found. */
+static const bgit_index_entry *
+bgit_entry_find (const bgit_index_entry *entries, size_t n, const char *path,
+                 int sorted)
+{
+    if (!sorted) {
+        for (size_t i = 0; i < n; i++)
+            if (!strcmp (entries[i].path, path)) return &entries[i];
+        return NULL;
+    }
+    size_t at = bgit_entry_lower_bound (entries, n, path, strlen (path));
+    return at < n && !strcmp (entries[at].path, path) ? &entries[at] : NULL;
+}
+
 /* Does the index hold this path, or anything under it? */
 static int
 bgit_index_covers (const bgit_index_entry *index, size_t n, const char *path,
-                   int is_dir)
+                   int is_dir, int sorted)
 {
     size_t len = strlen (path);
-    for (size_t i = 0; i < n; i++) {
-        if (!is_dir) {
-            if (!strcmp (index[i].path, path)) return 1;
-            continue;
+    if (!sorted) {
+        for (size_t i = 0; i < n; i++) {
+            if (!is_dir) {
+                if (!strcmp (index[i].path, path)) return 1;
+                continue;
+            }
+            if (!strncmp (index[i].path, path, len) && index[i].path[len] == '/')
+                return 1;
         }
-        if (!strncmp (index[i].path, path, len) && index[i].path[len] == '/')
-            return 1;
+        return 0;
     }
-    return 0;
+    size_t at = bgit_entry_lower_bound (index, n, path, len);
+    if (at >= n) return 0;
+    if (!is_dir) return !strcmp (index[at].path, path);
+    return !strncmp (index[at].path, path, len) && index[at].path[len] == '/';
 }
 
 /* Does this directory hold anything git would report? An empty one, or one
@@ -294,7 +384,8 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         return 1;      /* nothing below an ignored directory is reported */
     }
     if (is_dir) {
-        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1))
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
+                               ctx->index_sorted))
             return 0;  /* tracked files inside: look further down */
         if (!bgit_dir_has_content (ctx->repo, ctx->ignore, path))
             return 1;  /* empty, or wholly ignored: git says nothing */
@@ -307,7 +398,9 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         entry->worktree_mode = bgit_worktree_mode (st);
         return 1;      /* git names the directory, not its contents */
     }
-    if (bgit_index_covers (ctx->index, ctx->n_index, path, 0)) return 0;
+    if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
+                           ctx->index_sorted))
+        return 0;
     bgit_status_entry *entry = bgit_status_append (ctx->build, path);
     if (!entry) return -1;
     entry->untracked = 1;
@@ -348,6 +441,7 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
 {
     struct bgit_status_build build;
     memset (&build, 0, sizeof build);
+    int index_sorted = bgit_entries_sorted (index, n_index);
 
     /* A path the index holds in more than one stage is unmerged: it is
        reported by which stages exist, not by comparing anything. */
@@ -380,16 +474,12 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     size_t n_head = 0;
     if (head_tree && bgit_read_tree (odb, head_tree, &head, &n_head) < 0)
         return -1;
+    int head_sorted = bgit_entries_sorted (head, n_head);
     for (size_t i = 0; i < n_head; i++) {
-        const bgit_index_entry *staged = NULL;
-        int unmerged = 0;
-        for (size_t j = 0; j < n_index; j++) {
-            if (strcmp (index[j].path, head[i].path)) continue;
-            if ((index[j].flags >> 12) & 3) { unmerged = 1; break; }
-            staged = &index[j];
-            break;
-        }
-        if (unmerged) continue;
+        const bgit_index_entry *staged = bgit_entry_find (index, n_index,
+                                                          head[i].path,
+                                                          index_sorted);
+        if (staged && ((staged->flags >> 12) & 3)) continue;   /* unmerged */
         bgit_status_entry *entry = bgit_status_at (&build, head[i].path);
         if (!entry) goto oom;
         entry->head_mode = head[i].mode;
@@ -408,10 +498,8 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     }
     for (size_t j = 0; j < n_index; j++) {
         if ((index[j].flags >> 12) & 3) continue;
-        int in_head = 0;
-        for (size_t i = 0; i < n_head && !in_head; i++)
-            if (!strcmp (index[j].path, head[i].path)) in_head = 1;
-        if (in_head) continue;
+        if (bgit_entry_find (head, n_head, index[j].path, head_sorted))
+            continue;
         bgit_status_entry *entry = bgit_status_at (&build, index[j].path);
         if (!entry) goto oom;
         entry->index_mode = index[j].mode;
@@ -496,7 +584,8 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     bgit_ignore ignore;
     if (bgit_ignore_load (&ignore, repo, cfg) < 0) goto oom;
     struct bgit_untracked_ctx ctx = {
-        .repo = repo, .index = index, .n_index = n_index, .ignore = &ignore,
+        .repo = repo, .index = index, .n_index = n_index,
+        .index_sorted = index_sorted, .ignore = &ignore,
         .build = &build, .untracked_all = untracked_all,
         .want_ignored = want_ignored
     };
@@ -518,6 +607,9 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
         }
     }
     build.n = kept;
+    free (build.slots);                 /* the paths have moved; it is done */
+    build.slots = NULL;
+    build.n_slots = 0;
 
     if (build.n > 1)
         qsort (build.entries, build.n, sizeof *build.entries, bgit_status_cmp);
@@ -526,6 +618,7 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
     return 0;
 oom:
     bgit_index_free_entries (head, n_head);
+    free (build.slots);
     bgit_status_free (build.entries, build.n);
     return -1;
 }

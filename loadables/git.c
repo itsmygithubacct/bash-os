@@ -1021,31 +1021,55 @@ git_index_store (git_context *ctx, bgit_index_entry *entries, size_t n)
     return bgit_index_write (path, entries, n);
 }
 
-/* Replace or append one path in the index. */
+/* Where PATH sits in the index, or where it would go. The index is kept in
+   path order — that is how it is read and how it is written — so finding a
+   path in it is a search and not a walk: a command that looks up every path
+   in a working tree of a few thousand files does nothing else otherwise. */
+static size_t
+git_index_place (const bgit_index_entry *entries, size_t n, const char *path)
+{
+    size_t low = 0, high = n;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        if (strcmp (entries[mid].path, path) < 0) low = mid + 1;
+        else high = mid;
+    }
+    return low;
+}
+
+/* PATH's entry, or NULL. With several stages of it, the first. */
+static bgit_index_entry *
+git_index_lookup (bgit_index_entry *entries, size_t n, const char *path)
+{
+    size_t at = git_index_place (entries, n, path);
+    return at < n && !strcmp (entries[at].path, path) ? &entries[at] : NULL;
+}
+
+/* Replace or insert one path in the index, keeping it in path order. */
 static int
 git_index_put (bgit_index_entry **entries, size_t *n, size_t *cap,
                const bgit_index_entry *entry)
 {
-    /* Staging a path that was in dispute settles it: the conflict's stages
-       go, and one stage-zero entry takes their place. */
-    int unmerged = 0;
-    for (size_t i = 0; i < *n; i++)
-        if (!strcmp ((*entries)[i].path, entry->path) &&
-            (((*entries)[i].flags >> 12) & 3))
-            unmerged = 1;
-    if (unmerged) {
-        char *path = strdup (entry->path);
-        if (!path) return -1;
-        bgit_index_remove_path (entries, n, path);
-        free (path);
-    }
-    for (size_t i = 0; i < *n; i++) {
-        if (strcmp ((*entries)[i].path, entry->path) != 0) continue;
-        char *keep = (*entries)[i].path;
-        (*entries)[i] = *entry;
-        (*entries)[i].path = keep;
-        free (entry->path);
-        return 0;
+    size_t at = git_index_place (*entries, *n, entry->path);
+    size_t past = at;
+    while (past < *n && !strcmp ((*entries)[past].path, entry->path)) past++;
+    if (past > at) {
+        /* Staging a path that was in dispute settles it: the conflict's
+           stages go, and one stage-zero entry takes their place. */
+        int unmerged = 0;
+        for (size_t i = at; i < past; i++)
+            if (((*entries)[i].flags >> 12) & 3) unmerged = 1;
+        if (!unmerged) {
+            char *keep = (*entries)[at].path;
+            (*entries)[at] = *entry;
+            (*entries)[at].path = keep;
+            free (entry->path);
+            return 0;
+        }
+        for (size_t i = at; i < past; i++) free ((*entries)[i].path);
+        memmove (&(*entries)[at], &(*entries)[past],
+                 (*n - past) * sizeof **entries);
+        *n -= past - at;
     }
     if (*n == *cap) {
         size_t next = *cap ? *cap * 2 : 32;
@@ -1054,7 +1078,10 @@ git_index_put (bgit_index_entry **entries, size_t *n, size_t *cap,
         *entries = grown;
         *cap = next;
     }
-    (*entries)[(*n)++] = *entry;
+    memmove (&(*entries)[at + 1], &(*entries)[at],
+             (*n - at) * sizeof **entries);
+    (*entries)[at] = *entry;
+    (*n)++;
     return 0;
 }
 
@@ -1877,12 +1904,12 @@ git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
     if (bgit_ignore_match (add->ignore, path, 0, &rule)) return 0;
 
     /* Already staged and unchanged? Then there is nothing to do. */
-    for (size_t i = 0; i < add->state->n_index; i++) {
-        if (strcmp (add->state->index[i].path, path) != 0) continue;
+    bgit_index_entry *staged = git_index_lookup (add->state->index,
+                                                 add->state->n_index, path);
+    if (staged) {
         char full[4096];
         snprintf (full, sizeof full, "%s/%s", add->ctx->repo.work_tree, path);
-        if (bgit_worktree_matches (&add->ctx->odb, full,
-                                   &add->state->index[i], st))
+        if (bgit_worktree_matches (&add->ctx->odb, full, staged, st))
             return 0;
         *add->changed = 1;
         if (add->dry_run) return 0;
