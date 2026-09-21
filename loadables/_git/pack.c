@@ -295,7 +295,17 @@ bgit_pack_inflate (const unsigned char *src, size_t srcn, size_t expected,
 {
     z_stream s = {0};
     if (inflateInit (&s) != Z_OK) return -1;
+    /* The size an object's header claims is not to be trusted with a
+       malloc: a pack from the other end of a fetch can claim anything at
+       all, and asking for it is how a clone is turned into an
+       out-of-memory. Deflate cannot turn one byte into more than about a
+       thousand, so what the input could possibly hold bounds the first
+       allocation; anything larger than that grows as it actually
+       arrives. */
+    size_t ceiling = srcn > (SIZE_MAX - 64) / 1032 ? SIZE_MAX - 64
+                                                   : srcn * 1032 + 64;
     size_t cap = expected <= SIZE_MAX - 64 ? expected + 64 : expected;
+    if (cap > ceiling) cap = ceiling;
     if (cap < 64) cap = 64;
     unsigned char *buf = malloc (cap);
     if (!buf) { inflateEnd (&s); return -1; }
@@ -602,6 +612,14 @@ bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
      *   masking the real bounds. The downstream copy/literal checks
      *   stay sound under the SIZE_MAX cap. */
     if (tgt_size > SIZE_MAX) return -1;
+    /* What a delta says it will come to is not to be trusted with a
+       malloc either. Every byte of a delta can ask for at most one copy
+       of sixty-five thousand bytes, so the delta's own length bounds what
+       applying it can possibly produce; a claim past that is a lie, and
+       asking for it is how a fetch is turned into an out-of-memory. */
+    size_t ceiling = deltan > SIZE_MAX / 0x10000 ? SIZE_MAX
+                                                 : deltan * 0x10000;
+    if (tgt_size > ceiling) return -1;
     unsigned char *buf = malloc ((size_t) tgt_size);
     if (!buf && tgt_size > 0) return -1;
     size_t bo = 0;
