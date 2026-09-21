@@ -581,6 +581,13 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# The housekeeping, which reads every reflog and then every object.
+git gc --auto > /dev/null
+git gc --no-prune > /dev/null
+git gc --prune=now > /dev/null
+git gc > /dev/null
+git log --oneline > /dev/null
+git fsck 2>/dev/null || true
 # Putting the store into one pack and taking the loose copies away, which
 # walks every object twice: once to choose what goes in, once to delta it.
 git repack > /dev/null

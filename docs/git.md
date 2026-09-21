@@ -50,6 +50,7 @@ git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
                  [--no-reflogs] [--connectivity-only] [<object>...]
 git prune        [-n | --dry-run] [-v] [--expire <time>] [<head>...]
 git repack       [-a] [-d] [-q] [-l] [-f] [--window=<n>] [--depth=<n>]
+git gc           [-q] [--auto] [--aggressive] [--prune=<date> | --no-prune]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -300,6 +301,24 @@ the same pack contents as git, object for object, in about five seconds
 against git's three, and the pack comes out about one percent larger
 because the delta search settles sooner. What is unreachable and loose is
 left alone; `git prune` is what takes that away.
+
+`git gc` is the three of those in git's order. The reflogs go first —
+entries older than ninety days, and thirty for one the ref can no longer
+be walked back to, with the stash's left alone however old it is — then
+everything reachable is packed and the loose copies taken away, then what
+is unreachable and older than two weeks, and last the administrative
+directory of a worktree that has been gone three months. `--prune=<date>`
+moves that middle cutoff, `--no-prune` leaves the unreachable objects
+where they are, and `--auto` does nothing at all until there are as many
+loose objects or packs as git's own thresholds name. `--aggressive` is
+accepted and changes nothing.
+
+Where gc leaves the store is not where git leaves it. git puts recent
+unreachable objects into a cruft pack; here they stay loose until they
+are old enough for prune to take them. git also packs the loose refs and
+writes a commit-graph, and this build does neither. What the repository
+holds afterwards is the same either way, which is what the parity
+scenario compares.
 
 What a head is, `fsck` takes from git: the refs, HEAD, the index, and the
 reflogs. Two of the index's extensions count as well — the sides of a
@@ -1042,9 +1061,9 @@ HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
-fsck, prune and repack.
+fsck, prune, repack and gc.
 
-What is not here yet, in the order it would be missed: `gc`; `notes`,
+What is not here yet, in the order it would be missed: `notes`,
 `bisect`,
 `archive` and `bundle`; `remote show`; `diff --word-diff`;
 `describe --contains` and `--all`;
@@ -1052,8 +1071,9 @@ What is not here yet, in the order it would be missed: `gc`; `notes`,
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent
-unreachable objects into. Nothing reads them that this build cannot
-answer another way, and git rebuilds any of them when it wants them.
+unreachable objects into. Nor is the commit-graph, or a `packed-refs`
+written by gc. Nothing reads any of them that this build cannot answer
+another way, and git rebuilds them when it wants them.
 
 What is left out was left out on purpose. A repository whose objects are
 named by SHA-256 is refused rather than half read. `git://` is not spoken

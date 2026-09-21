@@ -9645,6 +9645,10 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
 
 /* ---- prune -------------------------------------------------------------- */
 
+/* Written out below git prune, which is what asks for it; git gc asks too. */
+static int git_prune_run (git_context *ctx, int dry_run, int verbose,
+                          time_t expire, const char **heads, size_t n_heads);
+
 /* A loose object file older than EXPIRE and reached by nothing goes; the
    fanout directory goes with it once it is empty, and so does a temporary
    file left behind by a write that did not finish. */
@@ -9673,7 +9677,13 @@ git_cmd_prune (git_context *ctx, WORD_LIST *args)
         else if (n_heads < sizeof heads / sizeof heads[0]) heads[n_heads++] = w;
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    return git_prune_run (ctx, dry_run, verbose, expire, heads, n_heads);
+}
 
+static int
+git_prune_run (git_context *ctx, int dry_run, int verbose, time_t expire,
+               const char **heads, size_t n_heads)
+{
     struct git_fsck walk_state;
     memset (&walk_state, 0, sizeof walk_state);
     walk_state.ctx = ctx;
@@ -12289,6 +12299,8 @@ git_repack_objects (git_context *ctx, int unpacked_only, char (**out)[41],
     return 0;
 }
 
+static int git_repack_run (git_context *ctx, int all, int remove_redundant);
+
 /* Put what is reachable into one pack, and with -d take away what that
    makes redundant: the packs it replaces and the loose copies it holds. */
 static int
@@ -12320,6 +12332,13 @@ git_cmd_repack (git_context *ctx, WORD_LIST *args)
         else return git_usage (usage);
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    return git_repack_run (ctx, all, remove_redundant);
+}
+
+/* Written out below git repack, which is what asks for it; git gc asks too. */
+static int
+git_repack_run (git_context *ctx, int all, int remove_redundant)
+{
     if (!ctx->odb.n_object_dirs) return git_fatal ("no object directory");
     const char *objects = ctx->odb.object_dirs[0];
 
@@ -12454,6 +12473,293 @@ git_cmd_repack (git_context *ctx, WORD_LIST *args)
     }
     free (ids);
     return status;
+}
+
+/* ---- gc ----------------------------------------------------------------- */
+
+/* Both written out beside git worktree, which is what makes them. */
+static int git_remove_path (const char *full);
+
+/* How many loose objects there are, which is what --auto looks at before
+   deciding there is anything to do. It stops counting at LIMIT, since the
+   answer past that is only "enough". */
+static unsigned long
+git_loose_count (git_context *ctx, unsigned long limit)
+{
+    if (!ctx->odb.n_object_dirs) return 0;
+    const char *objects = ctx->odb.object_dirs[0];
+    unsigned long count = 0;
+    DIR *top = opendir (objects);
+    if (!top) return 0;
+    struct dirent *entry;
+    while ((entry = readdir (top)) && count < limit) {
+        if (strlen (entry->d_name) != 2 ||
+            !isxdigit ((unsigned char) entry->d_name[0]) ||
+            !isxdigit ((unsigned char) entry->d_name[1]))
+            continue;
+        char dir[4096];
+        if ((size_t) snprintf (dir, sizeof dir, "%s/%s", objects,
+                               entry->d_name) >= sizeof dir)
+            continue;
+        DIR *inner = opendir (dir);
+        if (!inner) continue;
+        struct dirent *one;
+        while ((one = readdir (inner)) && count < limit)
+            if (strlen (one->d_name) == 38) count++;
+        closedir (inner);
+    }
+    closedir (top);
+    return count;
+}
+
+/* How many packs there are, which --auto looks at as well. */
+static unsigned long
+git_pack_count (git_context *ctx)
+{
+    if (!ctx->odb.n_object_dirs) return 0;
+    char dir[4096];
+    if ((size_t) snprintf (dir, sizeof dir, "%s/pack",
+                           ctx->odb.object_dirs[0]) >= sizeof dir)
+        return 0;
+    DIR *handle = opendir (dir);
+    if (!handle) return 0;
+    unsigned long count = 0;
+    struct dirent *entry;
+    while ((entry = readdir (handle))) {
+        size_t len = strlen (entry->d_name);
+        if (len > 5 && !strcmp (entry->d_name + len - 5, ".pack")) count++;
+    }
+    closedir (handle);
+    return count;
+}
+
+/* One reflog, with the entries that have been there long enough taken out.
+   An entry the ref can still be walked back to is kept longer than one it
+   cannot, which is the difference between gc's two cutoffs. The file stays
+   even when nothing is left in it, as git leaves it. */
+static void
+git_gc_expire_log (git_context *ctx, const char *path, const char *refname,
+                   time_t keep_after, time_t keep_unreachable_after)
+{
+    unsigned char *raw = NULL;
+    size_t len = 0;
+    if (bgit_slurp_file (path, &raw, &len) < 0) return;
+    char tip[41] = "";
+    if (bgit_ref_resolve (&ctx->repo, refname, tip, NULL) != 0 ||
+        !bgit_all_hex (tip))
+        tip[0] = '\0';
+
+    char *kept = malloc (len + 1);
+    size_t kept_len = 0;
+    if (!kept) { free (raw); return; }
+    size_t at = 0;
+    while (at < len) {
+        size_t end = at;
+        while (end < len && raw[end] != '\n') end++;
+        size_t line_len = end - at;
+        const char *line = (const char *) raw + at;
+        /* "<old> <new> <who> <time> <tz>[\t<message>]" */
+        const char *tab = memchr (line, '\t', line_len);
+        size_t head_len = tab ? (size_t) (tab - line) : line_len;
+        long long when = 0;
+        const char *scan = line + head_len;
+        int fields = 0;
+        while (scan > line && fields < 2) {
+            const char *space = memrchr (line, ' ', (size_t) (scan - line));
+            if (!space) break;
+            fields++;
+            if (fields == 2) when = strtoll (space + 1, NULL, 10);
+            scan = space;
+        }
+        int keep = 1;
+        if (line_len && fields == 2) {
+            if (when <= (long long) keep_after) keep = 0;
+            else if (when <= (long long) keep_unreachable_after &&
+                     line_len > 81 && *tip) {
+                char id[41];
+                memcpy (id, line + 41, 40);
+                id[40] = '\0';
+                if (bgit_all_hex (id) &&
+                    bgit_is_ancestor (&ctx->odb, id, tip) <= 0)
+                    keep = 0;
+            }
+        }
+        if (keep && line_len) {
+            memcpy (kept + kept_len, line, line_len);
+            kept_len += line_len;
+            kept[kept_len++] = '\n';
+        }
+        at = end + 1;
+    }
+    if (kept_len != len) {
+        char temp[4096];
+        if ((size_t) snprintf (temp, sizeof temp, "%s.gc-%ld", path,
+                               (long) getpid ()) < sizeof temp) {
+            FILE *out = fopen (temp, "w");
+            if (out) {
+                int ok = kept_len == 0 ||
+                         fwrite (kept, 1, kept_len, out) == kept_len;
+                if (fclose (out) != 0) ok = 0;
+                if (!ok || rename (temp, path) != 0) unlink (temp);
+            }
+        }
+    }
+    free (kept);
+    free (raw);
+}
+
+/* Every reflog under the git directory, except the stash's: git leaves
+   that one alone however old it is, and what it holds is only there. */
+static void
+git_gc_expire_reflogs (git_context *ctx, const char *dir, const char *prefix,
+                       time_t keep_after, time_t keep_unreachable_after)
+{
+    DIR *handle = opendir (dir);
+    if (!handle) return;
+    struct dirent *entry;
+    while ((entry = readdir (handle))) {
+        if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, ".."))
+            continue;
+        char path[4096], name[4096];
+        if ((size_t) snprintf (path, sizeof path, "%s/%s", dir,
+                               entry->d_name) >= sizeof path)
+            continue;
+        if ((size_t) snprintf (name, sizeof name, "%s%s%s", prefix,
+                               *prefix ? "/" : "", entry->d_name) >= sizeof name)
+            continue;
+        struct stat st;
+        if (lstat (path, &st) < 0) continue;
+        if (S_ISDIR (st.st_mode)) {
+            git_gc_expire_reflogs (ctx, path, name, keep_after,
+                                   keep_unreachable_after);
+            continue;
+        }
+        if (!strcmp (name, "refs/stash")) continue;
+        git_gc_expire_log (ctx, path, name, keep_after, keep_unreachable_after);
+    }
+    closedir (handle);
+}
+
+/* The housekeeping, in git's order: everything reachable into one pack,
+   the loose copies away with it, then what is unreachable and old enough
+   to go, and the administrative directories of worktrees that are gone. */
+static int
+git_cmd_gc (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git gc [-q | --quiet] [--aggressive] [--auto] "
+                        "[--force] [--prune=<date> | --no-prune]";
+    int auto_only = 0, prune = 1;
+    time_t expire = 0;
+    int have_expire = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--auto")) auto_only = 1;
+        else if (!strcmp (w, "--no-prune")) prune = 0;
+        else if (!strncmp (w, "--prune=", 8)) {
+            prune = 1;
+            expire = (time_t) git_approxidate (w + 8);
+            have_expire = 1;
+        } else if (!strcmp (w, "--prune")) { prune = 1; have_expire = 0; }
+        /* Accepted and no more than that: this build packs the same way
+           however hard it is asked to try, and says nothing as it goes. */
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet") ||
+                 !strcmp (w, "--aggressive") || !strcmp (w, "--force") ||
+                 !strcmp (w, "--cruft") || !strcmp (w, "--no-cruft") ||
+                 !strcmp (w, "--keep-largest-pack") ||
+                 !strncmp (w, "--max-cruft-size=", 17))
+            ;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (auto_only) {
+        /* git's own thresholds: enough loose objects to be worth packing,
+           or enough packs to be worth joining. */
+        unsigned long loose_limit = 6700, pack_limit = 50;
+        const char *value = bgit_config_get (&ctx->cfg, "gc.auto");
+        if (value && *value) loose_limit = strtoul (value, NULL, 10);
+        value = bgit_config_get (&ctx->cfg, "gc.autopacklimit");
+        if (value && *value) pack_limit = strtoul (value, NULL, 10);
+        int enough = (loose_limit &&
+                      git_loose_count (ctx, loose_limit) >= loose_limit) ||
+                     (pack_limit && git_pack_count (ctx) > pack_limit);
+        if (!enough) return 0;
+    }
+
+    /* First, since an entry that goes may be the only thing holding a
+       commit, and the pack that follows should not take it in. */
+    char logs[4096];
+    if ((size_t) snprintf (logs, sizeof logs, "%s/logs",
+                           ctx->repo.common_dir) < sizeof logs) {
+        time_t keep_after = (time_t) git_approxidate ("90.days.ago");
+        time_t keep_unreachable_after = (time_t) git_approxidate ("30.days.ago");
+        const char *value = bgit_config_get (&ctx->cfg, "gc.reflogexpire");
+        if (value && *value) keep_after = (time_t) git_approxidate (value);
+        value = bgit_config_get (&ctx->cfg, "gc.reflogexpireunreachable");
+        if (value && *value)
+            keep_unreachable_after = (time_t) git_approxidate (value);
+        git_gc_expire_reflogs (ctx, logs, "", keep_after,
+                               keep_unreachable_after);
+        /* A linked worktree keeps its own HEAD and its own log of it. */
+        char worktrees[4096];
+        if ((size_t) snprintf (worktrees, sizeof worktrees, "%s/worktrees",
+                               ctx->repo.common_dir) < sizeof worktrees) {
+            DIR *handle = opendir (worktrees);
+            if (handle) {
+                struct dirent *entry;
+                while ((entry = readdir (handle))) {
+                    if (entry->d_name[0] == '.') continue;
+                    char dir[4096], name[4096];
+                    if ((size_t) snprintf (dir, sizeof dir, "%s/%s/logs",
+                                           worktrees,
+                                           entry->d_name) >= sizeof dir)
+                        continue;
+                    if ((size_t) snprintf (name, sizeof name, "worktrees/%s",
+                                           entry->d_name) >= sizeof name)
+                        continue;
+                    git_gc_expire_reflogs (ctx, dir, name, keep_after,
+                                           keep_unreachable_after);
+                }
+                closedir (handle);
+            }
+        }
+    }
+
+    int status = git_repack_run (ctx, 1, 1);
+    if (status) return status;
+    /* The pack that was just written is not one the store knows about yet,
+       and prune is about to ask what is where. */
+    bgit_odb_release (&ctx->odb);
+    if (bgit_odb_open (&ctx->repo, &ctx->odb) < 0)
+        return git_fatal ("cannot reopen the object store");
+    ctx->odb.quiet = 1;
+    if (prune) {
+        if (!have_expire) expire = (time_t) git_approxidate ("2.weeks.ago");
+        status = git_prune_run (ctx, 0, 0, expire, NULL, 0);
+        if (status) return status;
+    }
+    /* An administrative directory whose worktree is gone goes too — but not
+       as soon as `git worktree prune` would take it: gc leaves one alone
+       until it has been gone a while, in case the worktree is on a disk
+       that is not mounted at the moment. */
+    time_t worktree_expire = (time_t) git_approxidate ("3.months.ago");
+    struct git_worktree *trees = NULL;
+    size_t n = 0;
+    if (git_worktrees (ctx, &trees, &n) == 0) {
+        for (size_t i = 1; i < n; i++) {
+            struct stat st;
+            if (lstat (trees[i].path, &st) == 0) continue;
+            char marker[4096];
+            if ((size_t) snprintf (marker, sizeof marker, "%s/gitdir",
+                                   trees[i].admin) >= sizeof marker)
+                continue;
+            if (stat (marker, &st) == 0 && st.st_mtime > worktree_expire)
+                continue;
+            git_remove_path (trees[i].admin);
+        }
+        free (trees);
+    }
+    return 0;
 }
 
 static int
@@ -15896,9 +16202,6 @@ git_worktree_add (git_context *ctx, const char *where, const char *start,
     git_state_release (&state);
     return status;
 }
-
-/* Remove a directory and everything under it. */
-static int git_remove_path (const char *full);
 
 static int
 git_worktree_remove (git_context *ctx, const char *where, int force)
@@ -21093,6 +21396,7 @@ static const struct {
     { "index-pack",   git_cmd_index_pack },
     { "format-patch", git_cmd_format_patch },
     { "fsck",         git_cmd_fsck },
+    { "gc",           git_cmd_gc },
     { "grep",         git_cmd_grep },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },
