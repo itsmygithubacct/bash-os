@@ -581,6 +581,15 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# An archive of the tree, which walks every object and writes every byte.
+git archive HEAD > /dev/null
+git archive --prefix=pre/ HEAD > /dev/null
+git archive HEAD nest > /dev/null
+git archive -o "$HOME/archive.tar" HEAD
+git archive "HEAD^{tree}" > /dev/null
+git archive --list > /dev/null
+git archive --format=zip HEAD > /dev/null 2>&1 || true
+
 # Bisecting, which walks the history counting what each commit reaches.
 git bisect start > /dev/null 2>&1 || true
 git bisect bad > /dev/null 2>&1 || true

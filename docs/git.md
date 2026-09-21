@@ -51,6 +51,8 @@ git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
 git prune        [-n | --dry-run] [-v] [--expire <time>] [<head>...]
 git repack       [-a] [-d] [-q] [-l] [-f] [--window=<n>] [--depth=<n>]
 git gc           [-q] [--auto] [--aggressive] [--prune=<date> | --no-prune]
+git archive      [--format=tar] [--prefix=<prefix>] [-o <file>] [-l]
+                 <tree-ish> [<path>...]
 git bisect       (start [--term-new=<t>] [--term-old=<t>] [<bad> [<good>...]]
                  | bad [<rev>] | good [<rev>] | skip [<rev>...] | terms
                  | log | replay <file> | run <cmd>... | reset [<commit>])
@@ -309,6 +311,21 @@ the same pack contents as git, object for object, in about five seconds
 against git's three, and the pack comes out about one percent larger
 because the delta search settles sooner. What is unreachable and loose is
 left alone; `git prune` is what takes that away.
+
+`git archive` writes a commit's tree out as a tar: ustar headers, every
+file owned by root and dated by the commit, the mode 0664 or 0775 by its
+executable bit, symbolic links as links, and the commit's own id in a pax
+header the archive carries. A path too long for a header is split across
+the prefix field where there is a slash to split it at, and otherwise goes
+into an extended header of its own, as git does it. `--prefix=` puts a
+string in front of every name, and a directory entry of its own ahead of
+them when it ends in a slash; paths named after the tree-ish limit what
+goes in; `-o` writes to a file rather than to the output. Checked against
+git byte for byte, over this project's own tree and over one made to have
+the awkward names in it.
+
+Only tar is written. `--format=zip`, `tgz` and `tar.gz` say so rather than
+writing something else, and `--list` names the one format this build has.
 
 `git bisect` halves a history to find where it went wrong. The verdicts
 are refs — `refs/bisect/bad`, one `refs/bisect/good-<id>` for each good
@@ -1112,10 +1129,9 @@ HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
-fsck, prune, repack, gc, notes and bisect.
+fsck, prune, repack, gc, notes, bisect and archive.
 
-What is not here yet, in the order it would be missed: `archive` and
-`bundle`; `remote show`; `diff --word-diff`;
+What is not here yet, in the order it would be missed: `bundle`; `remote show`; `diff --word-diff`;
 `describe --contains` and `--all`; and `--date=human`.
 
 Three things git writes beside a pack are not written here: the reverse

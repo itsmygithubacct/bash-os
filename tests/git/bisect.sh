@@ -49,7 +49,10 @@ git bisect good || echo "said no: $?"
 git bisect log || echo "said no: $?"
 git bisect start
 git bisect good HEAD~3
-git bisect bad HEAD~5 || echo "said no: $?"
+# git 2.55 puts the two words in quotes here where 2.47 does not; the
+# quotes are taken out of both sides rather than pinning one git.
+git bisect bad HEAD~5 2>&1 | sed "s/'//g"
+if git bisect bad HEAD~5 > /dev/null 2>&1; then echo 'said: 0'; else echo "said: $?"; fi
 git bisect reset
 
 echo '=== a transcript replayed ==='

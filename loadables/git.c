@@ -9745,6 +9745,314 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
     return fsck.errors;
 }
 
+/* ---- archive ------------------------------------------------------------ */
+
+/* A tar as git writes one: ustar headers, everything owned by root, every
+   file dated by the commit the archive was made from, and the whole thing
+   padded out to a twenty-block boundary. */
+struct git_archive {
+    git_context *ctx;
+    FILE *out;
+    const char *prefix;
+    time_t when;
+    const char *const *paths;
+    int n_paths;
+    unsigned long long written;
+    int failed;
+};
+
+static void
+git_tar_octal (char *field, size_t n, unsigned long long value)
+{
+    snprintf (field, n, "%0*llo", (int) n - 1, value);
+}
+
+static void
+git_tar_put (struct git_archive *ar, const void *data, size_t len)
+{
+    if (ar->failed) return;
+    if (fwrite (data, 1, len, ar->out) != len) ar->failed = 1;
+    ar->written += len;
+}
+
+/* Pad what has just been written out to the next 512-byte block. */
+static void
+git_tar_pad (struct git_archive *ar, size_t len)
+{
+    static const char zeros[512];
+    size_t over = len % 512;
+    if (over) git_tar_put (ar, zeros, 512 - over);
+}
+
+/* One header block. NAME may be split across the prefix field, as ustar
+   allows, and the checksum is over the block with its own field blank. */
+static void
+git_tar_header (struct git_archive *ar, const char *name, const char *prefix,
+                unsigned mode, unsigned long long size, char type,
+                const char *link)
+{
+    char block[512];
+    memset (block, 0, sizeof block);
+    /* A name that fills the field exactly is not terminated, which is what
+       the format allows and what git writes. */
+    size_t name_len = strlen (name);
+    memcpy (block, name, name_len < 100 ? name_len : 100);
+    git_tar_octal (block + 100, 8, mode & 07777);   /* permissions only */
+    git_tar_octal (block + 108, 8, 0);
+    git_tar_octal (block + 116, 8, 0);
+    git_tar_octal (block + 124, 12, size);
+    git_tar_octal (block + 136, 12, (unsigned long long) ar->when);
+    memset (block + 148, ' ', 8);
+    block[156] = type;
+    if (link) {
+        size_t link_len = strlen (link);
+        memcpy (block + 157, link, link_len < 100 ? link_len : 100);
+    }
+    memcpy (block + 257, "ustar", 6);
+    memcpy (block + 263, "00", 2);
+    snprintf (block + 265, 32, "root");
+    snprintf (block + 297, 32, "root");
+    git_tar_octal (block + 329, 8, 0);
+    git_tar_octal (block + 337, 8, 0);
+    if (prefix) {
+        size_t prefix_len = strlen (prefix);
+        memcpy (block + 345, prefix, prefix_len < 155 ? prefix_len : 155);
+    }
+    unsigned long sum = 0;
+    for (size_t i = 0; i < sizeof block; i++)
+        sum += (unsigned char) block[i];
+    snprintf (block + 148, 8, "%07lo", sum);
+    git_tar_put (ar, block, sizeof block);
+}
+
+/* A path that does not fit in a header goes in as far as it will, with the
+   whole of it in an extended header of its own in front. */
+static void
+git_tar_entry (struct git_archive *ar, const char *path, const char *id,
+               unsigned mode, unsigned long long size, char type,
+               const char *link)
+{
+    size_t len = strlen (path);
+    if (len <= 100) {
+        git_tar_header (ar, path, NULL, mode, size, type, link);
+        return;
+    }
+    /* ustar splits a long path at a slash: at most 155 bytes before it and
+       fewer than 100 after. */
+    if (len <= 255) {
+        /* As much as will go in the prefix, so the search runs back from
+           the last slash that is not the one a directory ends with. */
+        size_t at = len - 2 < 155 ? len - 2 : 155;
+        for (; at > 0; at--) {
+            if (path[at] != '/') continue;
+            if (len - at - 1 > 100) continue;
+            char prefix[156];
+            memcpy (prefix, path, at);
+            prefix[at] = '\0';
+            git_tar_header (ar, path + at + 1, prefix, mode, size, type, link);
+            return;
+        }
+    }
+    /* Nowhere to split it: git writes the path as a pax record instead,
+       under a header named after the object itself. */
+    char record[8192];
+    /* The record counts itself: the length, a space, "path=", the path and
+       a newline. */
+    size_t body = strlen (" path=") + len + 1;
+    size_t digits = 1;
+    for (size_t total = body + digits; ; ) {
+        size_t count = 1;
+        for (size_t value = total; value >= 10; value /= 10) count++;
+        if (count == digits) break;
+        digits = count;
+        total = body + digits;
+    }
+    int wrote = snprintf (record, sizeof record, "%zu path=%s\n",
+                          body + digits, path);
+    if (wrote < 0 || (size_t) wrote >= sizeof record) { ar->failed = 1; return; }
+    char header_name[128];
+    snprintf (header_name, sizeof header_name, "%s.paxheader", id);
+    git_tar_header (ar, header_name, NULL, 0100666, (unsigned long long) wrote,
+                    'x', NULL);
+    git_tar_put (ar, record, (size_t) wrote);
+    git_tar_pad (ar, (size_t) wrote);
+    /* The entry itself is named after the object, the path being in the
+       header in front of it. */
+    snprintf (header_name, sizeof header_name, "%s.data", id);
+    git_tar_header (ar, header_name, NULL, mode, size, type, link);
+}
+
+/* Does one of the paths named cover this one? With none named, all are. A
+   directory is also wanted when a named path lies inside it, since the way
+   to that path is written out before the path itself. */
+static int
+git_archive_wanted (const struct git_archive *ar, const char *path, int tree)
+{
+    if (!ar->n_paths) return 1;
+    size_t path_len = strlen (path);
+    for (int i = 0; i < ar->n_paths; i++) {
+        size_t len = strlen (ar->paths[i]);
+        while (len && ar->paths[i][len - 1] == '/') len--;
+        if (!strncmp (path, ar->paths[i], len) &&
+            (!path[len] || path[len] == '/'))
+            return 1;
+        if (tree && !strncmp (ar->paths[i], path, path_len) &&
+            ar->paths[i][path_len] == '/')
+            return 1;
+    }
+    return 0;
+}
+
+static int
+git_archive_entry (void *data, const char *mode, const char *type,
+                   const char *sha, const char *path)
+{
+    struct git_archive *ar = data;
+    if (ar->failed) return -1;
+    unsigned long value = strtoul (mode, NULL, 8);
+    char full[8192];
+    if ((size_t) snprintf (full, sizeof full, "%s%s", ar->prefix ? ar->prefix : "",
+                           path) >= sizeof full)
+        return -1;
+    if (!strcmp (type, "commit")) return 0;    /* a gitlink holds nothing */
+    if (!strcmp (type, "tree")) {
+        if (!git_archive_wanted (ar, path, 1)) return 0;
+        char directory[8192];
+        if ((size_t) snprintf (directory, sizeof directory, "%s/", full) >=
+            sizeof directory)
+            return -1;
+        /* git hands a directory 0777 and takes the umask off it. */
+        git_tar_entry (ar, directory, sha, 0775, 0, '5', NULL);
+        return 0;
+    }
+    if (!git_archive_wanted (ar, path, 0)) return 0;
+    enum bgit_type kind;
+    unsigned char *content = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ar->ctx->odb, sha, &kind, &content, &len) < 0)
+        return -1;
+    if ((value & 0170000) == 0120000) {
+        char target[4096];
+        size_t take = len < sizeof target - 1 ? len : sizeof target - 1;
+        memcpy (target, content, take);
+        target[take] = '\0';
+        git_tar_entry (ar, full, sha, 0777, 0, '2', target);
+    } else {
+        /* A file comes out 0666 or 0777 by its executable bit, less the
+           umask, which is git's own reading of it. */
+        unsigned out_mode = ((value & 0111) ? 0777 : 0666) & ~0002u;
+        git_tar_entry (ar, full, sha, out_mode, len, '0', NULL);
+        git_tar_put (ar, content, len);
+        git_tar_pad (ar, len);
+    }
+    free (content);
+    return ar->failed ? -1 : 0;
+}
+
+static int
+git_cmd_archive (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git archive [--format=tar] [--prefix=<prefix>] "
+                        "[-o <file>] [-l | --list] <tree-ish> [<path>...]";
+    const char *format = NULL, *prefix = NULL, *output = NULL, *name = NULL;
+    const char *paths[64];
+    int n_paths = 0, list = 0, after_dashes = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (after_dashes) {
+            if (n_paths < (int) (sizeof paths / sizeof paths[0]))
+                paths[n_paths++] = w;
+            continue;
+        }
+        if (!strcmp (w, "--")) after_dashes = 1;
+        else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
+        else if (!strncmp (w, "--format=", 9)) format = w + 9;
+        else if (!strcmp (w, "--format") && p->next) { format = p->next->word->word; p = p->next; }
+        else if (!strncmp (w, "--prefix=", 9)) prefix = w + 9;
+        else if (!strcmp (w, "-o") && p->next) { output = p->next->word->word; p = p->next; }
+        else if (!strncmp (w, "--output=", 9)) output = w + 9;
+        else if (!strcmp (w, "-v") || !strcmp (w, "--verbose") ||
+                 !strcmp (w, "--worktree-attributes")) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!name) name = w;
+        else if (n_paths < (int) (sizeof paths / sizeof paths[0]))
+            paths[n_paths++] = w;
+    }
+    if (list) {
+        printf ("tar\n");
+        return 0;
+    }
+    if (!name) return git_usage (usage);
+    if (format && strcmp (format, "tar")) {
+        if (!strcmp (format, "zip") || !strcmp (format, "tgz") ||
+            !strcmp (format, "tar.gz"))
+            return git_fatal ("this build's git archive writes tar, not %s",
+                              format);
+        return git_fatal ("Unknown archive format '%s'", format);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char id[41], tree[41];
+    if (git_resolve (ctx, name, id, NULL) < 0)
+        return git_fatal ("not a valid object name: %s", name);
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0)
+        return git_fatal ("not a valid object name: %s", name);
+    free (data);
+    struct git_archive ar;
+    memset (&ar, 0, sizeof ar);
+    ar.ctx = ctx;
+    ar.prefix = prefix;
+    ar.paths = paths;
+    ar.n_paths = n_paths;
+    ar.when = time (NULL);
+    char commit[41] = "";
+    if (type == BGIT_COMMIT || type == BGIT_TAG) {
+        if (bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0 ||
+            bgit_commit_tree (&ctx->odb, commit, tree) < 0)
+            return git_fatal ("not a valid object name: %s", name);
+        struct git_commit read;
+        if (git_commit_read (ctx, commit, &read) == 0) {
+            ar.when = (time_t) strtoll (read.committer_date, NULL, 10);
+            git_commit_release (&read);
+        }
+    } else if (type == BGIT_TREE) memcpy (tree, id, 41);
+    else return git_fatal ("not a tree object: %s", name);
+
+    ar.out = stdout;
+    if (output) {
+        ar.out = fopen (output, "w");
+        if (!ar.out) return git_fatal ("cannot create %s", output);
+    }
+    /* A commit says which one it was, in a header the whole archive
+       carries. */
+    if (*commit) {
+        char record[128];
+        int wrote = snprintf (record, sizeof record, "52 comment=%s\n", commit);
+        git_tar_header (&ar, "pax_global_header", NULL, 0100666,
+                        (unsigned long long) wrote, 'g', NULL);
+        git_tar_put (&ar, record, (size_t) wrote);
+        git_tar_pad (&ar, (size_t) wrote);
+    }
+    /* A prefix that ends in a slash is a directory of its own, ahead of
+       everything; one that does not is only a string in front of each
+       name. */
+    if (prefix && *prefix && prefix[strlen (prefix) - 1] == '/')
+        git_tar_entry (&ar, prefix, tree, 0775, 0, '5', NULL);
+    int rc = bgit_tree_walk (&ctx->odb, tree, "", 1, 1, git_archive_entry, &ar);
+    /* Two empty blocks end it, and the whole is rounded to twenty. */
+    static const char zeros[512];
+    git_tar_put (&ar, zeros, 512);
+    git_tar_put (&ar, zeros, 512);
+    while (ar.written % 10240) git_tar_put (&ar, zeros, 512);
+    if (output) fclose (ar.out);
+    else fflush (stdout);
+    if (rc < 0 || ar.failed) return git_fatal ("cannot write the archive");
+    return 0;
+}
+
 /* ---- bisect ------------------------------------------------------------- */
 
 /* While a transcript is being replayed the verdicts are only recorded: git
@@ -22802,6 +23110,7 @@ static const struct {
     { "add",          git_cmd_add },
     { "am",           git_cmd_am },
     { "apply",        git_cmd_apply },
+    { "archive",      git_cmd_archive },
     { "bisect",       git_cmd_bisect },
     { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
