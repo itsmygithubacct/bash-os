@@ -176,6 +176,42 @@ static int git_far_end_open (git_conn *conn, git_context *ctx, const char *url,
 static int git_far_end_gone (void);
 static int git_conn_close (git_conn *conn);
 
+/* A name for a commit worked out from a ref that reaches it: the ref's own
+   name, how many first-parent steps down from it the commit is, and how far
+   the walk came to get there. Which of two names is better is git's rule:
+   a tag beats anything else, an older tag beats a newer one, and between
+   two of a kind the nearer one wins. */
+struct git_rev_name {
+    char sha[41];
+    char *tip;
+    long generation;
+    long distance;
+    int from_tag;
+    long long taggerdate;
+    int used;
+};
+
+/* A merge is counted as a long way round, so that a name coming down the
+   first-parent line is preferred to one crossing a merge. git's own
+   weight. */
+#define GIT_MERGE_WEIGHT 65535
+
+struct git_rev_names {
+    struct git_rev_name *slots;
+    size_t n_slots, n;
+};
+
+/* Working them out is written beside name-rev, which is what asks; both
+   describe --contains and name-rev itself do. */
+static int git_name_revs (git_context *ctx, const char *pattern, int only_tags,
+                          struct git_rev_names *names);
+static void git_rev_name_of (const struct git_rev_names *names,
+                             const char *sha, int strip, char *out,
+                             size_t outsz);
+static void git_rev_name_written (const char *tip, long generation, int strip,
+                                  char *out, size_t outsz);
+static void git_rev_names_release (struct git_rev_names *names);
+
 /* Both written out beside git notes, which is what keeps them. */
 static int git_note_text (git_context *ctx, const char *ref,
                           const char *object, char **out, size_t *len);
@@ -7301,6 +7337,7 @@ struct git_describe_tag {
     char name[512];
     char commit[41];
     int annotated;              /* git prefers one of these */
+    int priority;               /* 2 an annotated tag, 1 a tag, 0 any ref */
     long long tagged;           /* when an annotated tag was made */
     int depth;                  /* commits between it and the target */
     int order;                  /* where the walk found it */
@@ -7308,19 +7345,24 @@ struct git_describe_tag {
 
 /* The tags this repository has, peeled to the commits they name. */
 static int
-git_describe_tags (git_context *ctx, const char *match,
+git_describe_tags (git_context *ctx, const char *match, int any_ref,
                    struct git_describe_tag **out, size_t *n_out)
 {
     *out = NULL;
     *n_out = 0;
     bgit_ref *refs = NULL;
     size_t n_refs = 0;
-    if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n_refs) < 0) return -1;
+    if (bgit_refs_list (&ctx->repo, any_ref ? "refs/" : "refs/tags/", &refs,
+                        &n_refs) < 0)
+        return -1;
     struct git_describe_tag *tags = calloc (n_refs ? n_refs : 1, sizeof *tags);
     if (!tags) { bgit_refs_free (refs, n_refs); return -1; }
     size_t n = 0;
     for (size_t i = 0; i < n_refs; i++) {
-        const char *name = refs[i].name + strlen ("refs/tags/");
+        /* With every ref in play a name keeps what comes after refs/, which
+           is what git prints for one. */
+        const char *name = refs[i].name +
+                           strlen (any_ref ? "refs/" : "refs/tags/");
         enum bgit_type type;
         unsigned char *data = NULL;
         size_t len = 0;
@@ -7349,16 +7391,19 @@ git_describe_tags (git_context *ctx, const char *match,
         char commit[41];
         if (bgit_peel_to_type (&ctx->odb, refs[i].sha, BGIT_COMMIT, commit) < 0)
             continue;
-        /* One name per commit: an annotated tag beats a light one, a
-           newer annotated tag beats an older, and among light ones the
-           first read wins — which is git's own order. */
+        /* One name per commit, chosen as git chooses: an annotated tag
+           beats a light one and either beats a ref that is not a tag; a
+           newer annotated tag beats an older; and among equals the first
+           read wins, which is git's own order. */
+        int is_tag = !any_ref || !strncmp (name, "tags/", 5);
+        int priority = is_tag ? (annotated ? 2 : 1) : 0;
         size_t at = n;
         for (size_t j = 0; j < n; j++)
             if (!strcmp (tags[j].commit, commit)) { at = j; break; }
         if (at < n) {
             struct git_describe_tag *held = &tags[at];
-            if (held->annotated > annotated) continue;
-            if (held->annotated == annotated &&
+            if (held->priority > priority) continue;
+            if (held->priority == priority &&
                 (!annotated || held->tagged >= tagged))
                 continue;
         } else
@@ -7366,6 +7411,7 @@ git_describe_tags (git_context *ctx, const char *match,
         snprintf (tags[at].name, sizeof tags[at].name, "%s", name);
         snprintf (tags[at].commit, sizeof tags[at].commit, "%s", commit);
         tags[at].annotated = annotated;
+        tags[at].priority = priority;
         tags[at].tagged = tagged;
     }
     bgit_refs_free (refs, n_refs);
@@ -7403,7 +7449,7 @@ git_cmd_describe (git_context *ctx, WORD_LIST *args)
                         "[--candidates=<n>] [--dirty[=<mark>]] "
                         "[<commit-ish>...]";
     int use_all_tags = 0, long_form = 0, always = 0, abbrev = 7;
-    int candidates = 10, want_dirty = 0;
+    int candidates = 10, want_dirty = 0, contains = 0, any_ref = 0;
     const char *match = NULL, *mark = "-dirty";
     const char *named[16];
     int n_named = 0;
@@ -7427,22 +7473,57 @@ git_cmd_describe (git_context *ctx, WORD_LIST *args)
         else if (!strncmp (w, "--match=", 8)) match = w + 8;
         else if (!strcmp (w, "--dirty")) want_dirty = 1;
         else if (!strncmp (w, "--dirty=", 8)) { want_dirty = 1; mark = w + 8; }
-        else if (!strcmp (w, "--contains") || !strcmp (w, "--all"))
-            return git_fatal ("this build's git describe has no %s yet", w);
+        else if (!strcmp (w, "--contains")) contains = 1;
+        else if (!strcmp (w, "--all")) any_ref = 1;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_named < (int) (sizeof named / sizeof *named))
             named[n_named++] = w;
         else return git_fatal ("too many arguments");
     }
     if (!n_named) named[n_named++] = "HEAD";
+    /* With every ref in play, whether a tag was annotated no longer says
+       which ones may be used. */
+    if (any_ref) use_all_tags = 1;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* --contains asks the other question: not which tag is behind this
+       commit, but which name reaches it, which is what name-rev works
+       out. */
+    if (contains) {
+        struct git_rev_names names;
+        if (git_name_revs (ctx, any_ref ? NULL : "refs/tags/*", 0, &names) < 0)
+            return GIT_EXIT_FATAL;
+        int rc = 0;
+        for (int i = 0; i < n_named && !rc; i++) {
+            char id[41], target[41];
+            if (git_resolve (ctx, named[i], id, NULL) < 0 ||
+                bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, target) < 0) {
+                rc = git_fatal ("Not a valid object name %s", named[i]);
+                break;
+            }
+            char shown[4096];
+            git_rev_name_of (&names, target, !any_ref, shown, sizeof shown);
+            if (!strcmp (shown, "undefined")) {
+                if (always) {
+                    char abbreviated[41];
+                    git_abbrev (ctx, target, abbrev ? abbrev : 7, abbreviated,
+                                sizeof abbreviated);
+                    printf ("%s\n", abbreviated);
+                } else rc = git_fatal ("cannot describe '%s'", target);
+                continue;
+            }
+            printf ("%s\n", shown);
+        }
+        git_rev_names_release (&names);
+        return rc;
+    }
 
     if (long_form && !abbrev)
         return git_fatal ("options '--long' and '--abbrev=0' cannot be used "
                           "together");
     struct git_describe_tag *tags = NULL;
     size_t n_tags = 0;
-    if (git_describe_tags (ctx, match, &tags, &n_tags) < 0)
+    if (git_describe_tags (ctx, match, any_ref, &tags, &n_tags) < 0)
         return git_fatal ("cannot read refs");
     int saw_lightweight = 0;
     for (size_t i = 0; i < n_tags; i++)
@@ -7474,13 +7555,14 @@ git_cmd_describe (git_context *ctx, WORD_LIST *args)
         struct git_describe_tag *best = NULL;
         int found = 0;
         for (size_t j = 0; j < n_walk && found < candidates + 1; j++) {
+            /* Several names can sit on one commit: an annotated tag is
+               taken over a lightweight one, and either over a branch. */
             struct git_describe_tag *tag = NULL;
             for (size_t k = 0; k < n_tags; k++)
                 if ((use_all_tags || tags[k].annotated) &&
-                    !strcmp (tags[k].commit, walk[j])) {
+                    !strcmp (tags[k].commit, walk[j]) &&
+                    (!tag || tags[k].priority > tag->priority))
                     tag = &tags[k];
-                    break;
-                }
             if (!tag) continue;
             if (j == 0) { tag->depth = 0; best = tag; break; }
             if (found >= candidates) break;
@@ -11511,6 +11593,363 @@ git_cmd_bundle (git_context *ctx, WORD_LIST *args)
     free (names);
     free (stops);
     free (stop_names);
+    return rc;
+}
+
+/* ---- name-rev ----------------------------------------------------------- */
+
+static void
+git_rev_names_release (struct git_rev_names *names)
+{
+    for (size_t i = 0; i < names->n_slots; i++)
+        if (names->slots[i].used) free (names->slots[i].tip);
+    free (names->slots);
+    memset (names, 0, sizeof *names);
+}
+
+/* The slot for an id, made if it is not there yet. */
+static struct git_rev_name *
+git_rev_name_slot (struct git_rev_names *names, const char *sha, int make)
+{
+    if (!names->n_slots) {
+        if (!make) return NULL;
+        names->n_slots = 1024;
+        names->slots = calloc (names->n_slots, sizeof *names->slots);
+        if (!names->slots) { names->n_slots = 0; return NULL; }
+    }
+    for (;;) {
+        unsigned long hash = 5381;
+        for (const char *c = sha; *c; c++) hash = hash * 33 + (unsigned char) *c;
+        size_t at = hash % names->n_slots;
+        for (size_t step = 0; step < names->n_slots; step++) {
+            struct git_rev_name *slot = &names->slots[(at + step) % names->n_slots];
+            if (!slot->used) {
+                if (!make) return NULL;
+                if ((names->n + 1) * 2 > names->n_slots) break;   /* grow first */
+                memcpy (slot->sha, sha, 41);
+                slot->used = 1;
+                slot->tip = NULL;
+                slot->generation = 0;
+                slot->distance = 0;
+                slot->from_tag = 0;
+                slot->taggerdate = 0;
+                names->n++;
+                return slot;
+            }
+            if (!strcmp (slot->sha, sha)) return slot;
+        }
+        /* Full, or nearly: take a bigger table and put everything back. */
+        if (!make) return NULL;
+        size_t bigger = names->n_slots * 4;
+        struct git_rev_name *grown = calloc (bigger, sizeof *grown);
+        if (!grown) return NULL;
+        struct git_rev_name *old = names->slots;
+        size_t old_slots = names->n_slots;
+        names->slots = grown;
+        names->n_slots = bigger;
+        names->n = 0;
+        for (size_t i = 0; i < old_slots; i++) {
+            if (!old[i].used) continue;
+            struct git_rev_name *slot = git_rev_name_slot (names, old[i].sha, 1);
+            if (slot) {
+                slot->tip = old[i].tip;
+                slot->generation = old[i].generation;
+                slot->distance = old[i].distance;
+                slot->from_tag = old[i].from_tag;
+                slot->taggerdate = old[i].taggerdate;
+            }
+        }
+        free (old);
+    }
+}
+
+/* git's own comparison, kept in its own words: an older tag is preferred
+   even when it is farther off. */
+static int
+git_rev_name_better (const struct git_rev_name *held, long long taggerdate,
+                     long generation, long distance, int from_tag)
+{
+    if (!held->tip) return 1;
+    if (from_tag && held->from_tag)
+        return held->taggerdate > taggerdate ||
+               (held->taggerdate == taggerdate && held->distance > distance);
+    if (held->from_tag != from_tag) return from_tag;
+    if (held->distance != distance) return held->distance > distance;
+    return held->generation > generation;
+}
+
+/* Walk down from every ref, naming what it reaches. A name that turns out
+   better than the one a commit already had replaces it, and the commit is
+   looked at again, so the order of the walk does not decide the answer. */
+static int
+git_name_revs (git_context *ctx, const char *pattern, int only_tags,
+               struct git_rev_names *names)
+{
+    memset (names, 0, sizeof *names);
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (bgit_refs_list (&ctx->repo, only_tags ? "refs/tags/" : "refs/",
+                        &refs, &n_refs) < 0)
+        return -1;
+    char (*pending)[41] = NULL;
+    size_t n_pending = 0, cap_pending = 0;
+
+#define GIT_NAME_PUSH(id) do { \
+    if (n_pending == cap_pending) { \
+        size_t next = cap_pending ? cap_pending * 2 : 256; \
+        char (*grown)[41] = realloc (pending, next * sizeof *grown); \
+        if (!grown) goto done; \
+        pending = grown; \
+        cap_pending = next; \
+    } \
+    memcpy (pending[n_pending++], (id), 41); \
+} while (0)
+
+    for (size_t i = 0; i < n_refs; i++) {
+        const char *full = refs[i].name;
+        if (pattern && fnmatch (pattern, full, 0) != 0) continue;
+        /* A branch is named by itself; anything else keeps whatever comes
+           after refs/, which is how git shortens them here. */
+        const char *shown = full;
+        if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
+        else if (!strncmp (shown, "refs/", 5)) shown += 5;
+        int from_tag = !strncmp (shown, "tags/", 5);
+        /* An annotated tag names the commit under it, and says when it was
+           made, which is what decides between two tags. */
+        char commit[41];
+        long long taggerdate = 0;
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        memcpy (commit, refs[i].sha, 41);
+        if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data, &len) == 0) {
+            if (type == BGIT_TAG) {
+                const char *body = (const char *) data;
+                for (size_t at = 0; at < len;) {
+                    const char *nl = memchr (body + at, '\n', len - at);
+                    size_t line = nl ? (size_t) (nl - (body + at)) : len - at;
+                    if (!line) break;
+                    if (!strncmp (body + at, "tagger ", 7)) {
+                        const char *right = memrchr (body + at, '>', line);
+                        if (right) taggerdate = strtoll (right + 1, NULL, 10);
+                    }
+                    if (!nl) break;
+                    at += line + 1;
+                }
+            }
+            free (data);
+        }
+        if (bgit_peel_to_type (&ctx->odb, refs[i].sha, BGIT_COMMIT, commit) < 0)
+            continue;
+        /* A ref that is not an annotated tag is dated by the commit it
+           names, which is what decides between two of them; and one that
+           had to be peeled names the commit as <tag>^0, since the tag's own
+           name is the tag object. */
+        int peeled = strcmp (refs[i].sha, commit) != 0;
+        char named[4200];
+        snprintf (named, sizeof named, "%s%s", shown, peeled ? "^0" : "");
+        if (!taggerdate) {
+            struct git_commit read;
+            if (git_commit_read (ctx, commit, &read) == 0) {
+                taggerdate = strtoll (read.committer_date, NULL, 10);
+                git_commit_release (&read);
+            }
+        }
+        struct git_rev_name *slot = git_rev_name_slot (names, commit, 1);
+        if (!slot) continue;
+        if (!git_rev_name_better (slot, taggerdate, 0, 0, from_tag)) continue;
+        free (slot->tip);
+        slot->tip = strdup (named);
+        slot->generation = 0;
+        slot->distance = 0;
+        slot->from_tag = from_tag;
+        slot->taggerdate = taggerdate;
+        if (!slot->tip) continue;
+        GIT_NAME_PUSH (commit);
+    }
+
+    while (n_pending) {
+        char sha[41];
+        memcpy (sha, pending[--n_pending], 41);
+        struct git_rev_name *held = git_rev_name_slot (names, sha, 0);
+        if (!held || !held->tip) continue;
+        char tip[4096];
+        snprintf (tip, sizeof tip, "%s", held->tip);
+        long generation = held->generation, distance = held->distance;
+        int from_tag = held->from_tag;
+        long long taggerdate = held->taggerdate;
+        char parents[BGIT_MAX_PARENTS][41];
+        int count = bgit_commit_parents (&ctx->odb, sha, parents,
+                                        BGIT_MAX_PARENTS);
+        for (int i = 0; i < count; i++) {
+            char next_tip[4096];
+            long next_generation, next_distance;
+            if (i == 0) {
+                snprintf (next_tip, sizeof next_tip, "%s", tip);
+                next_generation = generation + 1;
+                next_distance = distance + 1;
+            } else {
+                /* Off the first-parent line the name says which parent it
+                   went down, and counting starts again from there. */
+                char written[4096];
+                git_rev_name_written (tip, generation, 0, written,
+                                      sizeof written);
+                snprintf (next_tip, sizeof next_tip, "%s^%d", written, i + 1);
+                next_generation = 0;
+                next_distance = distance + GIT_MERGE_WEIGHT;
+            }
+            struct git_rev_name *slot = git_rev_name_slot (names, parents[i], 1);
+            if (!slot) continue;
+            if (!git_rev_name_better (slot, taggerdate, next_generation,
+                                      next_distance, from_tag))
+                continue;
+            char *kept = strdup (next_tip);
+            if (!kept) continue;
+            free (slot->tip);
+            slot->tip = kept;
+            slot->generation = next_generation;
+            slot->distance = next_distance;
+            slot->from_tag = from_tag;
+            slot->taggerdate = taggerdate;
+            GIT_NAME_PUSH (parents[i]);
+        }
+    }
+#undef GIT_NAME_PUSH
+ done:
+    free (pending);
+    bgit_refs_free (refs, n_refs);
+    return 0;
+}
+
+/* A tip and the steps down from it, written out: with steps to add, a
+   trailing ^0 on the tip goes, since <tag>^0~1 and <tag>~1 name the same
+   commit and git writes the shorter. */
+static void
+git_rev_name_written (const char *tip, long generation, int strip, char *out,
+                      size_t outsz)
+{
+    if (strip && !strncmp (tip, "tags/", 5)) tip += 5;
+    if (!generation) {
+        snprintf (out, outsz, "%s", tip);
+        return;
+    }
+    size_t len = strlen (tip);
+    if (len > 2 && !strcmp (tip + len - 2, "^0")) len -= 2;
+    snprintf (out, outsz, "%.*s~%ld", (int) len, tip, generation);
+}
+
+/* What a commit is called, for `name-rev` to print: the ref's name with the
+   steps down from it, or "undefined" when no ref reaches it. */
+static void
+git_rev_name_of (const struct git_rev_names *names, const char *sha, int strip,
+                 char *out, size_t outsz)
+{
+    const struct git_rev_name *held =
+        git_rev_name_slot ((struct git_rev_names *) names, sha, 0);
+    if (!held || !held->tip) {
+        snprintf (out, outsz, "undefined");
+        return;
+    }
+    git_rev_name_written (held->tip, held->generation, strip, out, outsz);
+}
+
+static int
+git_cmd_name_rev (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git name-rev [--name-only] [--tags] "
+                        "[--refs=<pattern>] [--all] [--annotate-stdin] "
+                        "<commit>...";
+    int name_only = 0, only_tags = 0, all = 0, from_stdin = 0, deprecated = 0;
+    const char *pattern = NULL;
+    const char *revs[64];
+    size_t n_revs = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--name-only")) name_only = 1;
+        else if (!strcmp (w, "--tags")) only_tags = 1;
+        else if (!strncmp (w, "--refs=", 7)) pattern = w + 7;
+        else if (!strcmp (w, "--all")) all = 1;
+        else if (!strcmp (w, "--annotate-stdin")) from_stdin = 1;
+        else if (!strcmp (w, "--stdin")) { from_stdin = 1; deprecated = 1; }
+        else if (!strcmp (w, "--no-undefined") || !strcmp (w, "--always")) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_revs < sizeof revs / sizeof revs[0]) revs[n_revs++] = w;
+    }
+    if (deprecated)
+        fprintf (stderr, "warning: --stdin is deprecated. Please use "
+                         "--annotate-stdin instead, which is functionally "
+                         "equivalent.\nThis option will be removed in a future "
+                         "release.\n");
+    if (!all && !from_stdin && !n_revs) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    struct git_rev_names names;
+    if (git_name_revs (ctx, pattern, only_tags, &names) < 0)
+        return GIT_EXIT_FATAL;
+    int rc = 0;
+    char shown[4096];
+    if (all) {
+        /* Every commit the store holds that a ref reaches. */
+        char (*ids)[41] = NULL;
+        size_t n = 0;
+        if (bgit_odb_list (&ctx->odb, &ids, &n) == 0) {
+            for (size_t i = 0; i < n; i++) {
+                struct git_rev_name *held = git_rev_name_slot (&names, ids[i], 0);
+                if (!held || !held->tip) continue;
+                git_rev_name_of (&names, ids[i], only_tags, shown, sizeof shown);
+                printf ("%s %s\n", ids[i], shown);
+            }
+            free (ids);
+        }
+    }
+    for (size_t i = 0; i < n_revs; i++) {
+        char id[41];
+        if (git_resolve (ctx, revs[i], id, NULL) < 0) {
+            rc = git_fatal ("Could not get sha1 for %s. Skipping.", revs[i]);
+            continue;
+        }
+        char commit[41];
+        if (bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0)
+            memcpy (commit, id, 41);
+        git_rev_name_of (&names, commit, only_tags, shown, sizeof shown);
+        if (name_only) printf ("%s\n", shown);
+        else printf ("%s %s\n", revs[i], shown);
+    }
+    if (from_stdin) {
+        char line[8192];
+        clearerr (stdin);
+        while (fgets (line, sizeof line, stdin)) {
+            /* Every id in the line is named where it stands, which is what
+               annotating a stream means. */
+            size_t at = 0;
+            while (line[at]) {
+                size_t run = 0;
+                while (isxdigit ((unsigned char) line[at + run])) run++;
+                if (run >= 40) {
+                    char id[41];
+                    memcpy (id, line + at, 40);
+                    id[40] = '\0';
+                    char commit[41];
+                    if (bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT,
+                                           commit) < 0)
+                        memcpy (commit, id, 41);
+                    struct git_rev_name *held =
+                        git_rev_name_slot (&names, commit, 0);
+                    fwrite (line + at, 1, 40, stdout);
+                    if (held && held->tip) {
+                        git_rev_name_of (&names, commit, only_tags, shown,
+                                         sizeof shown);
+                        printf (" (%s)", shown);
+                    }
+                    at += 40;
+                    continue;
+                }
+                if (run) { fwrite (line + at, 1, run, stdout); at += run; continue; }
+                fputc (line[at++], stdout);
+            }
+        }
+    }
+    git_rev_names_release (&names);
     return rc;
 }
 
@@ -24003,6 +24442,7 @@ static const struct {
     { "merge-base",   git_cmd_merge_base },
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
+    { "name-rev",     git_cmd_name_rev },
     { "notes",        git_cmd_notes },
     { "pack-objects", git_cmd_pack_objects },
     { "prune",        git_cmd_prune },

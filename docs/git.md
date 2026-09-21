@@ -69,6 +69,8 @@ git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
                  [-e <pattern>] [--cached] [<pattern>] [<tree-ish>]
                  [-- <path>...]
 git shortlog     [-n] [-s] [-e] [--no-merges] [<revision range>]
+git name-rev     [--name-only] [--tags] [--refs=<pattern>] [--all]
+                 [--annotate-stdin] [<commit>...]
 git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
                  [--match <pattern>] [--candidates=<n>] [--dirty[=<mark>]]
                  [<commit-ish>...]
@@ -506,7 +508,20 @@ takes nothing but a tag on the commit itself, `--match` narrows which tags
 count, `--candidates=<n>` how many are weighed, and `--dirty[=<mark>]`
 says when the working tree has moved on. Where two tags name one commit,
 git keeps the annotated one, the later of two annotated ones, and the
-first read of two light ones; this does the same.
+first read of two light ones; this does the same, and with `--all` — where
+any ref may name a commit, not only a tag — a tag is kept over a branch.
+
+`git describe --contains` asks the other question: not which tag is behind
+a commit but which name reaches it, as `<tag>~<n>` or `<tag>~<n>^<m>` when
+the way there crosses a merge. That is what `git name-rev` works out, and
+it is here too: every ref is walked down from, each commit taking the best
+name offered it — a tag over anything else, an older tag over a newer,
+and between two of a kind the nearer one, which is git's own order. A
+commit no ref reaches is `undefined`, and `describe --contains` refuses
+it. `--name-only` leaves the given name off the line, `--tags` keeps to
+tags and writes them without the `tags/`, `--refs=<pattern>` narrows which
+refs may name anything, `--all` names every commit in the store, and
+`--annotate-stdin` writes a stream through with every id in it named.
 
 Which of the commits found are shown is git's own set of filters, and
 `git rev-list` takes them too: `--grep=`, `--author=` and `--committer=`

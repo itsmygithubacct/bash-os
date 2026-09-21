@@ -3,7 +3,7 @@
 # that tag is, and the commit's own id — with the rules git uses to choose
 # between two tags on one commit, and the words it refuses in.
 # Run through tests/git-parity.py, never on its own.
-# requires: init add commit tag branch checkout merge describe
+# requires: init add commit tag branch checkout merge describe name-rev rev-parse
 set -e
 
 git init -q -b main .
@@ -37,6 +37,25 @@ git describe --match 'nothing*' || echo "said no: $?"
 git describe --match 'nothing*' --always
 git describe nosuchrev || echo "said no: $?"
 git describe HEAD HEAD~2
+
+echo '=== which name reaches a commit, rather than which is behind it ==='
+# A commit no tag is on top of cannot be described this way, which is what
+# git says about the ones past the last tag.
+git describe --contains HEAD || echo "said no: $?"
+git describe --contains note-two
+git describe --contains light-one
+git describe --contains --all HEAD
+git describe --all HEAD
+git describe --all HEAD~2
+git describe --all --long HEAD~1
+
+echo '=== and the same question asked of name-rev ==='
+git name-rev --name-only HEAD
+git name-rev --name-only HEAD~2
+git name-rev HEAD~1
+git name-rev --tags --name-only HEAD~1
+git name-rev --name-only --refs='refs/tags/note*' HEAD~2
+git rev-parse HEAD | git name-rev --annotate-stdin
 
 echo '=== two tags on one commit ==='
 git tag light-two HEAD~1

@@ -581,6 +581,16 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Naming a commit after the refs that reach it, which walks the whole
+# history from every ref.
+git name-rev --name-only HEAD > /dev/null
+git name-rev HEAD~1 > /dev/null 2>&1 || true
+git name-rev --tags --name-only HEAD > /dev/null 2>&1 || true
+git name-rev --all > /dev/null 2>&1 || true
+git rev-parse HEAD | git name-rev --annotate-stdin > /dev/null 2>&1 || true
+git describe --contains HEAD > /dev/null 2>&1 || true
+git describe --all HEAD > /dev/null 2>&1 || true
+
 # What is known about a remote, which asks the far end and reads the refs
 # it left here.
 git remote > /dev/null
