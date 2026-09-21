@@ -194,7 +194,10 @@ variable are matched without regard to case, and the subsection between
 them exactly, as git matches them. Writing keeps the
 rest of the file as it is, and the name's case as you typed it. The
 identity in a reflog entry comes from `GIT_COMMITTER_*` or `user.name` and
-`user.email`.
+`user.email`. With neither set, this build writes `bash-os
+<bash-os@localhost>` where git guesses a name from the password file and
+an address from the hostname: the guess is what git does, and not putting
+the machine's name into a commit is what this does instead.
 
 Reads cover loose objects, every pack, and the alternates named by
 `objects/info/alternates` or `GIT_ALTERNATE_OBJECT_DIRECTORIES`. A
