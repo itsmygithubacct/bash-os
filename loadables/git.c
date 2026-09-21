@@ -1643,6 +1643,21 @@ struct git_objects {
 
 struct git_objects_ctx { struct git_objects *seen; };
 
+/* Whether an id is in such a set, without putting it there. */
+static int
+git_objects_held (const struct git_objects *set, const char *sha)
+{
+    size_t low = 0, high = set->n;
+    while (low < high) {
+        size_t middle = (low + high) / 2;
+        int order = memcmp (set->ids[middle], sha, 40);
+        if (!order) return 1;
+        if (order < 0) low = middle + 1;
+        else high = middle;
+    }
+    return 0;
+}
+
 static int
 git_objects_seen (struct git_objects *seen, const char *sha)
 {
@@ -1666,6 +1681,20 @@ git_objects_seen (struct git_objects *seen, const char *sha)
     memcpy (seen->ids[low], sha, 40);
     seen->ids[low][40] = '\0';
     seen->n++;
+    return 0;
+}
+
+/* The same, for the objects a range leaves out: they are remembered so
+   that nothing inside them is named, and nothing is printed. */
+static int
+git_objects_mark (void *context, const char *mode, const char *type,
+                  const char *sha, const char *path)
+{
+    (void) type;
+    (void) path;
+    if (mode && !strcmp (mode, "160000")) return 0;
+    struct git_objects_ctx *ctx = context;
+    git_objects_seen (ctx->seen, sha);
     return 0;
 }
 
@@ -1763,10 +1792,23 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
             goto done;
         }
         if (git_walk_push (ctx, &walk, commit) < 0) { status = GIT_EXIT_FATAL; goto done; }
+        /* What the far side of a range already holds is not named. Its
+           trees are remembered before anything is printed, since an
+           object is named the first time it is seen. */
+        if (with_objects && !count_only) {
+            char older[41];
+            struct git_objects_ctx mark_ctx = { &seen };
+            if (bgit_commit_tree (&ctx->odb, commit, older) == 0 &&
+                !git_objects_seen (&seen, older))
+                bgit_tree_walk (&ctx->odb, older, "", 1, 1, git_objects_mark,
+                                &mark_ctx);
+        }
     }
+    struct git_objects left_out = {0};
     while (walk.n_pending) {
         char current[41];
         memcpy (current, walk.pending[--walk.n_pending].id, 41);
+        if (with_objects && !count_only) git_objects_seen (&left_out, current);
         char parents[BGIT_MAX_PARENTS][41];
         int count = bgit_commit_parents (&ctx->odb, current, parents,
                                          BGIT_MAX_PARENTS);
@@ -1805,7 +1847,22 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 
         /* With --objects the tree each commit holds, and everything under
            it, is named too — each with the path it has there. */
+        char parents[BGIT_MAX_PARENTS][41];
+        int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
         if (with_objects && !count_only) {
+            /* What the far side of the range already holds is not named:
+               at the edge, the trees it left out are remembered first, so
+               that nothing under them is listed as new. */
+            for (int i = 0; i < n; i++) {
+                if (!git_objects_held (&left_out, parents[i])) continue;
+                char older[41];
+                if (bgit_commit_tree (&ctx->odb, parents[i], older) != 0)
+                    continue;
+                struct git_objects_ctx mark_ctx = { &seen };
+                if (git_objects_seen (&seen, older)) continue;
+                bgit_tree_walk (&ctx->odb, older, "", 1, 1, git_objects_mark,
+                                &mark_ctx);
+            }
             char tree[41];
             if (bgit_commit_tree (&ctx->odb, current, tree) == 0) {
                 struct git_objects_ctx seen_ctx = { &seen };
@@ -1815,8 +1872,6 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
             }
         }
 
-        char parents[BGIT_MAX_PARENTS][41];
-        int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
         for (int i = 0; i < n; i++)
             if (git_walk_push (ctx, &walk, parents[i]) < 0) {
                 status = GIT_EXIT_FATAL;
@@ -1825,6 +1880,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     }
     if (count_only) printf ("%ld\n", emitted);
     free (seen.ids);
+    free (left_out.ids);
 done:
     free (walk.seen); free (walk.slots);
     free (walk.pending);
@@ -2308,6 +2364,64 @@ git_submodule_note (git_context *ctx, const bgit_status_entry *entry,
 /* `git status` with no format option: the report written for a person.
    Sections in git's order, each followed by a blank line, and the closing
    sentence that says what, if anything, is there to commit. */
+/* The commits one set of revisions has that another does not, newest
+   first. */
+static int git_collect_commits (git_context *ctx, const char *const *revs,
+                                int n_revs, const char *const *excludes,
+                                int n_excludes, int first_parent, long limit,
+                                char (**out)[41], size_t *n_out);
+
+/* The branch this one follows, and how far apart the two have got.
+   Returns 0 when there is no upstream, 1 when there is, and 2 when the
+   configuration names one that is not here any more. */
+static int
+git_status_upstream (git_context *ctx, struct git_state *state,
+                     const char *branch, char *name, size_t size,
+                     long *ahead, long *behind)
+{
+    *ahead = *behind = 0;
+    if (!branch) return 0;
+    char key[4200];
+    snprintf (key, sizeof key, "branch.%s.remote", branch);
+    const char *remote = bgit_config_get (&ctx->cfg, key);
+    snprintf (key, sizeof key, "branch.%s.merge", branch);
+    const char *merge = bgit_config_get (&ctx->cfg, key);
+    if (!remote || !merge) return 0;
+    const char *shortened = merge;
+    if (!strncmp (shortened, "refs/heads/", 11)) shortened += 11;
+    /* A branch may follow one in this repository, which is what a remote
+       of "." means. */
+    char ref[4200];
+    if (!strcmp (remote, ".")) {
+        snprintf (ref, sizeof ref, "%s", merge);
+        snprintf (name, size, "%s", shortened);
+    } else {
+        snprintf (ref, sizeof ref, "refs/remotes/%s/%s", remote, shortened);
+        snprintf (name, size, "%s/%s", remote, shortened);
+    }
+    char id[41];
+    if (bgit_ref_read (&ctx->repo, ref, id) != 0) return 2;
+    if (!state->have_head) return 1;
+
+    const char *mine[1] = { state->head };
+    const char *theirs[1] = { id };
+    char (*ordered)[41] = NULL;
+    size_t count = 0;
+    if (git_collect_commits (ctx, mine, 1, theirs, 1, 0, -1, &ordered,
+                             &count) == 0) {
+        *ahead = (long) count;
+        free (ordered);
+    }
+    ordered = NULL;
+    count = 0;
+    if (git_collect_commits (ctx, theirs, 1, mine, 1, 0, -1, &ordered,
+                             &count) == 0) {
+        *behind = (long) count;
+        free (ordered);
+    }
+    return 1;
+}
+
 static void
 git_status_long (git_context *ctx, struct git_state *state,
                  const bgit_status_entry *entries, size_t n,
@@ -2317,7 +2431,35 @@ git_status_long (git_context *ctx, struct git_state *state,
     /* A rebase in progress speaks for itself, in place of the branch. */
     int rebasing = git_rebase_in_progress (ctx);
     if (rebasing) ;
-    else if (branch_name) printf ("On branch %s\n", branch_name);
+    else if (branch_name) {
+        printf ("On branch %s\n", branch_name);
+        /* Where this branch stands against the one it follows, in git's
+           words, which are different for each of the four ways it can. */
+        char upstream[4200];
+        long ahead = 0, behind = 0;
+        int following = git_status_upstream (ctx, state, branch_name, upstream,
+                                             sizeof upstream, &ahead, &behind);
+        if (following == 2)
+            printf ("Your branch is based on '%s', but the upstream is "
+                    "gone.\n  (use \"git branch --unset-upstream\" to "
+                    "fixup)\n\n", upstream);
+        else if (following && !ahead && !behind)
+            printf ("Your branch is up to date with '%s'.\n\n", upstream);
+        else if (following && ahead && behind)
+            printf ("Your branch and '%s' have diverged,\nand have %ld and "
+                    "%ld different commits each, respectively.\n  (use "
+                    "\"git pull\" if you want to integrate the remote branch "
+                    "with yours)\n\n", upstream, ahead, behind);
+        else if (following && ahead)
+            printf ("Your branch is ahead of '%s' by %ld commit%s.\n  (use "
+                    "\"git push\" to publish your local commits)\n\n",
+                    upstream, ahead, ahead == 1 ? "" : "s");
+        else if (following)
+            printf ("Your branch is behind '%s' by %ld commit%s, and can be "
+                    "fast-forwarded.\n  (use \"git pull\" to update your "
+                    "local branch)\n\n", upstream, behind,
+                    behind == 1 ? "" : "s");
+    }
     else if (state->have_head) {
         char abbreviated[41];
         git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
@@ -2531,6 +2673,19 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
+        /* Short options run together, as git takes them: -sb is both. */
+        if (w[0] == '-' && w[1] && w[1] != '-' && !strchr (w, 'u') && w[2]) {
+            int known = 1;
+            for (const char *c = w + 1; *c && known; c++)
+                if (*c != 's' && *c != 'b') known = 0;
+            if (known) {
+                for (const char *c = w + 1; *c; c++) {
+                    if (*c == 's') short_format = 1;
+                    else branch = 1;
+                }
+                continue;
+            }
+        }
         if (!strcmp (w, "-s") || !strcmp (w, "--short")) short_format = 1;
         else if (!strcmp (w, "--porcelain")) { porcelain = 1; version = 1; }
         else if (!strcmp (w, "--porcelain=v1")) { porcelain = 1; version = 1; }
@@ -2569,13 +2724,27 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         git_state_release (&state);
         return 0;
     }
+    char upstream[4200] = "";
+    long ahead = 0, behind = 0;
+    int following = branch ? git_status_upstream (ctx, &state, branch_name,
+                                                  upstream, sizeof upstream,
+                                                  &ahead, &behind) : 0;
     if (branch && version == 2 && porcelain) {
         printf ("# branch.oid %s\n", state.have_head ? state.head : "(initial)");
         printf ("# branch.head %s\n", branch_name ? branch_name : "(detached)");
+        if (following) printf ("# branch.upstream %s\n", upstream);
+        if (following == 1) printf ("# branch.ab +%ld -%ld\n", ahead, behind);
     } else if (branch) {
-        /* The short format's header, with git's "No commits yet" wording. */
-        printf ("## %s%s\n", state.have_head ? "" : "No commits yet on ",
+        /* The short format's header, with git's "No commits yet" wording,
+           and what the branch it follows has that it has not. */
+        printf ("## %s%s", state.have_head ? "" : "No commits yet on ",
                 branch_name ? branch_name : "HEAD (no branch)");
+        if (following) printf ("...%s", upstream);
+        if (following == 2) printf (" [gone]");
+        else if (ahead && behind) printf (" [ahead %ld, behind %ld]", ahead, behind);
+        else if (ahead) printf (" [ahead %ld]", ahead);
+        else if (behind) printf (" [behind %ld]", behind);
+        printf ("\n");
     }
 
     for (size_t i = 0; i < n; i++) {
