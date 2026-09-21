@@ -41,8 +41,8 @@ git clean        [-d] [-f] [-n] [-q] [-x | -X] [--] [<path>...]
 git merge-base   [--all] <commit> <commit>... | --is-ancestor <a> <b>
                  | (--independent | --octopus) <commit>...
 git merge-file   [-p] [-L <label>]... <current> <base> <other>
-git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
-                 <commit> | --abort
+git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
+                 [-e | --no-edit] [-q] <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
 git submodule    [status [--cached]] | init | update [--init] [-q]
                  [<path>...]
@@ -470,9 +470,19 @@ leaving something that will not verify. A signature of another kind —
 an OpenPGP one, which git would hand to `gpg` — is not checked here and
 says so rather than passing or failing it.
 
-A merge with more than one base — two branches that have already merged
-each other — is refused rather than merged against one of them, because
-that is not what git would do.
+Two branches that have already merged each other have more than one
+merge base, and neither on its own is what the next merge should be held
+against. They are merged into a base of this build's own making —
+conflicts and all, which is what git's `ort` puts in its own — and the
+merge is then held against that. A commit that comes out of a
+criss-cross is git's, id for id. Where there are more than two bases
+they are folded in one at a time, each fold standing as a commit so the
+next base has something to be held against.
+
+A merge into a branch that is not `master` or `main` says so in its
+subject — `Merge branch 'side' into topic` — which is git's rule, and
+`-e` writes the message in the editor over what the merge would have
+said by itself.
 
 The three-way merge behind `merge-file` is git's: what one side changed
 alone is taken, what both changed the same way is taken once, and the rest
@@ -609,8 +619,7 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: a merge with more than one base, and
-`--rebase-merges`. `git submodule
+Left over from Phase 2: `--rebase-merges`. `git submodule
 add`, `deinit` and `foreach` are not there either: what this build has
 is the three verbs a checkout needs. The plan, including what each phase must match, is in the
 implementation document for the port.

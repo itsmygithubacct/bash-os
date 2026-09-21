@@ -166,6 +166,10 @@ static int git_write_state_file (git_context *ctx, const char *name,
 static void git_remove_state_file (git_context *ctx, const char *name);
 /* pull ends in one of these, depending on what it was asked for. */
 static int git_cmd_rebase (git_context *ctx, WORD_LIST *args);
+/* The tree a set of merge bases stands for, which merge needs before the
+   code that works it out is reached. */
+static int git_base_tree (git_context *ctx, char (*bases)[41], size_t n_bases,
+                          char out_tree[41]);
 /* "1750000000 +0000" as git writes a date, and an identity without its
    timestamp: the editor's template wants both before the code that writes
    them is reached. */
@@ -5344,11 +5348,13 @@ git_read_state_id (git_context *ctx, const char *name, char out[41])
     return ok;
 }
 
-/* The name a merge records for what was merged, as git words it. */
+/* The name a merge records for what was merged, as git words it. A merge
+   into anything but the branch a repository starts on says so — git names
+   master and main and nothing else. */
 static void
 git_merge_label (git_context *ctx, const char *name, const char *id,
                  char *label, size_t label_size, char *subject,
-                 size_t subject_size)
+                 size_t subject_size, const char *into)
 {
     char resolved[41];
     char *symref = NULL;
@@ -5363,6 +5369,11 @@ git_merge_label (git_context *ctx, const char *name, const char *id,
     } else {
         snprintf (label, label_size, "%s", name);
         snprintf (subject, subject_size, "Merge commit '%s'", id);
+    }
+    if (into && !strncmp (into, "refs/heads/", 11)) into += 11;
+    if (into && *into && strcmp (into, "master") && strcmp (into, "main")) {
+        size_t at = strlen (subject);
+        snprintf (subject + at, subject_size - at, " into %s", into);
     }
     free (symref);
 }
@@ -5530,9 +5541,11 @@ static int
 git_cmd_merge (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git merge [-m <message>] [--no-ff] [--ff-only] "
-                        "[--no-commit] [-q] <commit> | --abort";
+                        "[--no-commit] [-e | --no-edit] [-q] <commit> "
+                        "| --abort";
     const char *message = NULL, *name = NULL;
     int no_ff = 0, ff_only = 0, no_commit = 0, abort_merge = 0, quiet = 0;
+    int edit = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -5543,6 +5556,10 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--no-commit")) no_commit = 1;
         else if (!strcmp (w, "--abort")) abort_merge = 1;
         else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        /* A merge that settles is committed without asking, as git's is
+           when it is not asked; -e says to write the message after all. */
+        else if (!strcmp (w, "--no-edit")) edit = 0;
+        else if (!strcmp (w, "-e") || !strcmp (w, "--edit")) edit = 1;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
         else return git_fatal ("this build's git merge takes one commit");
@@ -5607,7 +5624,7 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     }
     char label[256], subject[1024];
     git_merge_label (ctx, name, their_commit, label, sizeof label,
-                     subject, sizeof subject);
+                     subject, sizeof subject, state.branch);
     if (message) snprintf (subject, sizeof subject, "%s", message);
 
     char (*bases)[41] = NULL;
@@ -5623,11 +5640,13 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
         git_state_release (&state);
         return git_fatal ("refusing to merge unrelated histories");
     }
-    if (n_bases > 1) {
+    /* Two branches that have merged each other have more than one base,
+       and neither on its own is what the merge should be held against. */
+    char made_up_base[41] = "";
+    if (n_bases > 1 && git_base_tree (ctx, bases, n_bases, made_up_base) < 0) {
         free (bases);
         git_state_release (&state);
-        return git_fatal ("this build's git merge needs a single merge base; "
-                          "this merge has %zu", n_bases);
+        return GIT_EXIT_FATAL;
     }
     char base[41];
     memcpy (base, bases[0], 41);
@@ -5699,7 +5718,8 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
     }
 
     char base_tree[41];
-    if (bgit_commit_tree (&ctx->odb, base, base_tree) < 0) {
+    if (*made_up_base) memcpy (base_tree, made_up_base, 41);
+    else if (bgit_commit_tree (&ctx->odb, base, base_tree) < 0) {
         git_state_release (&state);
         return GIT_EXIT_FATAL;
     }
@@ -5797,6 +5817,42 @@ git_cmd_merge (git_context *ctx, WORD_LIST *args)
         bgit_merge_paths_free (paths, n_paths);
         git_state_release (&state);
         return git_fatal ("cannot determine the identity to use");
+    }
+    /* With -e the message is written in the editor over what the merge
+       would have said by itself. */
+    char written[8192];
+    if (edit) {
+        char editmsg[4096];
+        snprintf (editmsg, sizeof editmsg, "%s/MERGE_MSG", ctx->repo.git_dir);
+        FILE *out = fopen (editmsg, "w");
+        if (!out) {
+            bgit_merge_paths_free (paths, n_paths);
+            git_state_release (&state);
+            return git_fatal ("could not write '%s'", editmsg);
+        }
+        fprintf (out, "%s\n", subject);
+        git_commit_template (ctx, out, &state, author, committer, 0, 0);
+        fclose (out);
+        if (git_edit_file (ctx, editmsg, 0) < 0) {
+            bgit_merge_paths_free (paths, n_paths);
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        size_t len = 0;
+        char *edited = git_message_body (editmsg, &len);
+        if (!edited || !len) {
+            free (edited);
+            bgit_merge_paths_free (paths, n_paths);
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "Aborting commit due to empty commit message.\n");
+            return 1;
+        }
+        snprintf (written, sizeof written, "%s", edited);
+        free (edited);
+        size_t at = strlen (written);
+        while (at && written[at - 1] == '\n') written[--at] = '\0';
+        snprintf (subject, sizeof subject, "%s", written);
     }
     char *body = NULL;
     size_t body_len = 0;
@@ -10948,6 +11004,137 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
     status = git_rebase_finish (ctx, &state, head_name, onto, quiet);
     git_state_release (&state);
     return status;
+}
+
+/* ---- merging over more than one base ------------------------------------ */
+
+/* The tree two commits merge into, over their own base — which may itself
+   have to be worked out this way. Two branches that have merged each other
+   have two bases, and neither is the right one to compare against: git
+   merges them into a base of its own making, conflicts and all, and the
+   real merge is then held against that. Returns 0 with the tree. */
+static int git_merge_to_tree (git_context *ctx, const char *ours,
+                              const char *theirs, char out_tree[41]);
+
+/* What a set of bases stands for: one tree, made by merging them. */
+static int
+git_base_tree (git_context *ctx, char (*bases)[41], size_t n_bases,
+               char out_tree[41])
+{
+    if (!n_bases) return -1;
+    if (n_bases == 1) return bgit_commit_tree (&ctx->odb, bases[0], out_tree);
+    /* More than two are folded in one at a time, each fold standing as a
+       commit of its own so that the next base has something to be held
+       against. Such a commit is reachable from nothing and is left where
+       it lies, as git leaves its own. */
+    char carried[41];
+    memcpy (carried, bases[0], 41);
+    for (size_t i = 1; i < n_bases; i++) {
+        char tree[41];
+        if (git_merge_to_tree (ctx, carried, bases[i], tree) < 0) return -1;
+        if (i + 1 == n_bases) {
+            memcpy (out_tree, tree, 41);
+            return 0;
+        }
+        char author[1024], committer[1024];
+        if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+            bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+            return -1;
+        char *body = NULL;
+        size_t body_len = 0;
+        FILE *builder = open_memstream (&body, &body_len);
+        if (!builder) return -1;
+        fprintf (builder, "tree %s\nparent %s\nparent %s\nauthor %s\n"
+                          "committer %s\n\nmerged common ancestors\n",
+                 tree, carried, bases[i], author, committer);
+        fclose (builder);
+        int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                    (const unsigned char *) body, body_len, 1,
+                                    carried);
+        free (body);
+        if (rc < 0) return -1;
+    }
+    return -1;
+}
+
+static int
+git_merge_to_tree (git_context *ctx, const char *ours, const char *theirs,
+                   char out_tree[41])
+{
+    char (*bases)[41] = NULL;
+    size_t n_bases = 0;
+    const char *twos[1] = { theirs };
+    if (bgit_merge_bases_many (&ctx->odb, ours, twos, 1, &bases, &n_bases) < 0)
+        return -1;
+    char base_tree[41] = "";
+    int have_base = n_bases && git_base_tree (ctx, bases, n_bases,
+                                              base_tree) == 0;
+    free (bases);
+
+    char our_tree[41], their_tree[41];
+    if (bgit_commit_tree (&ctx->odb, ours, our_tree) < 0 ||
+        bgit_commit_tree (&ctx->odb, theirs, their_tree) < 0)
+        return -1;
+    bgit_merge_path *paths = NULL;
+    size_t n_paths = 0;
+    if (bgit_merge_trees (&ctx->odb, ctx->odb.object_dirs[0],
+                          have_base ? base_tree : NULL, our_tree, their_tree,
+                          "ours", "theirs", &paths, &n_paths) < 0)
+        return -1;
+
+    /* Our side, with what the merge settled written over it. A path that
+       did not settle keeps the text with the markers in it, which is what
+       git's own made-up base holds. */
+    bgit_index_entry *entries = NULL;
+    size_t n_entries = 0, cap = 0;
+    if (bgit_read_tree (&ctx->odb, our_tree, &entries, &n_entries) < 0) {
+        bgit_merge_paths_free (paths, n_paths);
+        return -1;
+    }
+    cap = n_entries;
+    int failed = 0;
+    for (size_t i = 0; i < n_paths && !failed; i++) {
+        bgit_merge_path *path = &paths[i];
+        char sha[41];
+        uint32_t mode = path->mode;
+        if (path->kind == BGIT_MERGE_CLEAN && !path->mode) {
+            bgit_index_remove_path (&entries, &n_entries, path->path);
+            continue;
+        }
+        if (path->text) {
+            if (bgit_write_object (ctx->odb.object_dirs[0], "blob",
+                                   (const unsigned char *) path->text,
+                                   path->len, 1, sha) < 0) {
+                failed = 1;
+                break;
+            }
+            if (!mode) mode = path->our_mode ? path->our_mode
+                                             : path->their_mode;
+        } else if (path->sha[0])
+            memcpy (sha, path->sha, 41);
+        else {
+            bgit_index_remove_path (&entries, &n_entries, path->path);
+            continue;
+        }
+        bgit_index_entry entry;
+        memset (&entry, 0, sizeof entry);
+        entry.mode = mode ? mode : 0100644;
+        if (bgit_hex_to_sha (sha, entry.sha) < 0) { failed = 1; break; }
+        size_t len = strlen (path->path);
+        entry.flags = (uint16_t) (len > 0xFFF ? 0xFFF : len);
+        entry.path = strdup (path->path);
+        if (!entry.path ||
+            git_index_put (&entries, &n_entries, &cap, &entry) < 0)
+            failed = 1;
+    }
+    bgit_merge_paths_free (paths, n_paths);
+    if (!failed && n_entries > 1)
+        qsort (entries, n_entries, sizeof *entries, bgit_index_path_cmp);
+    if (!failed)
+        failed = bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], entries,
+                                  n_entries, out_tree) < 0;
+    bgit_index_free_entries (entries, n_entries);
+    return failed ? -1 : 0;
 }
 
 /* ---- stash ------------------------------------------------------------- */
