@@ -6975,6 +6975,752 @@ git_tag_note (git_context *ctx, const char *sha)
     return note;
 }
 
+/* ---- apply ------------------------------------------------------------- */
+
+/* One hunk of a patch: the lines as written, each keeping the space, plus
+   or minus in front of it. */
+struct git_apply_hunk {
+    long old_start, old_count, new_start, new_count;
+    char **lines;
+    size_t n_lines;
+};
+
+/* One file's worth of a patch. */
+struct git_apply_file {
+    char *old_path, *new_path;
+    int is_new, is_delete, is_rename, is_binary;
+    unsigned old_mode, new_mode;
+    struct git_apply_hunk *hunks;
+    size_t n_hunks;
+    size_t added, removed;
+};
+
+static void
+git_apply_release (struct git_apply_file *files, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = 0; j < files[i].n_hunks; j++) {
+            for (size_t k = 0; k < files[i].hunks[j].n_lines; k++)
+                free (files[i].hunks[j].lines[k]);
+            free (files[i].hunks[j].lines);
+        }
+        free (files[i].hunks);
+        free (files[i].old_path);
+        free (files[i].new_path);
+    }
+    free (files);
+}
+
+/* What a path in a patch is called once <n> leading parts are taken off,
+   which is what -p<n> asks for. NULL for /dev/null. */
+static char *
+git_apply_strip (const char *path, int strip)
+{
+    if (!strcmp (path, "/dev/null")) return NULL;
+    const char *at = path;
+    for (int i = 0; i < strip; i++) {
+        const char *slash = strchr (at, '/');
+        if (!slash) break;
+        at = slash + 1;
+    }
+    return strdup (at);
+}
+
+/* Read a patch into the files and hunks it describes. */
+static int
+git_apply_parse (const char *text, size_t len, int strip,
+                 struct git_apply_file **out, size_t *n_out)
+{
+    struct git_apply_file *files = NULL;
+    size_t n = 0, cap = 0;
+    struct git_apply_file *file = NULL;
+    struct git_apply_hunk *hunk = NULL;
+
+    for (size_t at = 0; at < len;) {
+        const char *line = text + at;
+        const char *nl = memchr (line, '\n', len - at);
+        size_t line_len = nl ? (size_t) (nl - line) : len - at;
+        at += line_len + (nl ? 1 : 0);
+        char held[8192];
+        size_t keep = line_len < sizeof held - 1 ? line_len : sizeof held - 1;
+        memcpy (held, line, keep);
+        held[keep] = '\0';
+
+        if (!strncmp (held, "diff --git ", 11)) {
+            if (n == cap) {
+                size_t next = cap ? cap * 2 : 16;
+                struct git_apply_file *grown = realloc (files,
+                                                        next * sizeof *grown);
+                if (!grown) goto oom;
+                files = grown;
+                cap = next;
+            }
+            file = &files[n++];
+            memset (file, 0, sizeof *file);
+            hunk = NULL;
+            continue;
+        }
+        if (!file) continue;
+        if (!strncmp (held, "new file mode ", 14)) {
+            file->is_new = 1;
+            file->new_mode = (unsigned) strtoul (held + 14, NULL, 8);
+            continue;
+        }
+        if (!strncmp (held, "deleted file mode ", 18)) {
+            file->is_delete = 1;
+            file->old_mode = (unsigned) strtoul (held + 18, NULL, 8);
+            continue;
+        }
+        if (!strncmp (held, "old mode ", 9)) {
+            file->old_mode = (unsigned) strtoul (held + 9, NULL, 8);
+            continue;
+        }
+        if (!strncmp (held, "new mode ", 9)) {
+            file->new_mode = (unsigned) strtoul (held + 9, NULL, 8);
+            continue;
+        }
+        if (!strncmp (held, "rename from ", 12)) {
+            file->is_rename = 1;
+            free (file->old_path);
+            file->old_path = git_apply_strip (held + 12, strip);
+            continue;
+        }
+        if (!strncmp (held, "rename to ", 10)) {
+            file->is_rename = 1;
+            free (file->new_path);
+            file->new_path = git_apply_strip (held + 10, strip);
+            continue;
+        }
+        if (!strncmp (held, "GIT binary patch", 16)) {
+            file->is_binary = 1;
+            continue;
+        }
+        if (!strncmp (held, "--- ", 4)) {
+            free (file->old_path);
+            file->old_path = git_apply_strip (held + 4, strip);
+            if (!file->old_path) file->is_new = 1;
+            continue;
+        }
+        if (!strncmp (held, "+++ ", 4)) {
+            free (file->new_path);
+            file->new_path = git_apply_strip (held + 4, strip);
+            if (!file->new_path) file->is_delete = 1;
+            continue;
+        }
+        if (!strncmp (held, "@@ ", 3)) {
+            long os = 1, oc = 1, ns = 1, nc = 1;
+            const char *p = held + 3;
+            if (*p == '-') p++;
+            os = strtol (p, (char **) &p, 10);
+            if (*p == ',') oc = strtol (p + 1, (char **) &p, 10);
+            while (*p == ' ') p++;
+            if (*p == '+') p++;
+            ns = strtol (p, (char **) &p, 10);
+            if (*p == ',') nc = strtol (p + 1, (char **) &p, 10);
+            struct git_apply_hunk *grown = realloc (file->hunks,
+                                                    (file->n_hunks + 1) *
+                                                    sizeof *grown);
+            if (!grown) goto oom;
+            file->hunks = grown;
+            hunk = &file->hunks[file->n_hunks++];
+            memset (hunk, 0, sizeof *hunk);
+            hunk->old_start = os;
+            hunk->old_count = oc;
+            hunk->new_start = ns;
+            hunk->new_count = nc;
+            continue;
+        }
+        if (!hunk) continue;
+        if (held[0] != ' ' && held[0] != '+' && held[0] != '-' &&
+            held[0] != '\\' && held[0] != '\0')
+            continue;
+        char **grown = realloc (hunk->lines,
+                                (hunk->n_lines + 1) * sizeof *grown);
+        if (!grown) goto oom;
+        hunk->lines = grown;
+        /* A line that is empty in the patch stands for an empty context
+           line, which is what git makes of it. */
+        hunk->lines[hunk->n_lines] = strdup (held[0] ? held : " ");
+        if (!hunk->lines[hunk->n_lines]) goto oom;
+        hunk->n_lines++;
+        if (held[0] == '+') file->added++;
+        else if (held[0] == '-') file->removed++;
+    }
+    *out = files;
+    *n_out = n;
+    return 0;
+oom:
+    git_apply_release (files, n);
+    return -1;
+}
+
+/* The lines of a file, without their newlines. */
+struct git_apply_lines {
+    char **line;
+    size_t n, cap;
+    int missing_newline;
+};
+
+static int
+git_apply_split (const char *text, size_t len, struct git_apply_lines *out)
+{
+    memset (out, 0, sizeof *out);
+    for (size_t at = 0; at < len;) {
+        const char *nl = memchr (text + at, '\n', len - at);
+        size_t line_len = nl ? (size_t) (nl - (text + at)) : len - at;
+        if (out->n == out->cap) {
+            size_t next = out->cap ? out->cap * 2 : 64;
+            char **grown = realloc (out->line, next * sizeof *grown);
+            if (!grown) return -1;
+            out->line = grown;
+            out->cap = next;
+        }
+        out->line[out->n] = malloc (line_len + 1);
+        if (!out->line[out->n]) return -1;
+        memcpy (out->line[out->n], text + at, line_len);
+        out->line[out->n][line_len] = '\0';
+        out->n++;
+        if (!nl) { out->missing_newline = 1; break; }
+        at += line_len + 1;
+    }
+    return 0;
+}
+
+static void
+git_apply_lines_release (struct git_apply_lines *lines)
+{
+    for (size_t i = 0; i < lines->n; i++) free (lines->line[i]);
+    free (lines->line);
+}
+
+/* Does the hunk's old side sit at this line of the file? */
+static int
+git_apply_fits (const struct git_apply_hunk *hunk,
+                const struct git_apply_lines *lines, size_t at)
+{
+    size_t i = at;
+    for (size_t k = 0; k < hunk->n_lines; k++) {
+        const char *line = hunk->lines[k];
+        if (line[0] == '+' || line[0] == '\\') continue;
+        if (i >= lines->n) return 0;
+        if (strcmp (lines->line[i], line + 1)) return 0;
+        i++;
+    }
+    return 1;
+}
+
+/* Apply one file's hunks. Returns 0 and the new content, or -1 with the
+   line the patch failed at in *FAILED. */
+static int
+git_apply_hunks (const struct git_apply_file *file,
+                 const struct git_apply_lines *lines, char **out, size_t *out_len,
+                 long *failed)
+{
+    char *result = NULL;
+    size_t result_len = 0, result_cap = 0;
+    size_t pos = 0;
+    long offset = 0;
+#define GIT_APPLY_PUT(text, text_len, newline)                              \
+    do {                                                                    \
+        size_t want = result_len + (text_len) + 1;                          \
+        if (want > result_cap) {                                            \
+            size_t next = result_cap ? result_cap * 2 : 4096;               \
+            while (next < want) next *= 2;                                  \
+            char *grown = realloc (result, next);                           \
+            if (!grown) { free (result); return -1; }                       \
+            result = grown;                                                 \
+            result_cap = next;                                              \
+        }                                                                   \
+        memcpy (result + result_len, (text), (text_len));                   \
+        result_len += (text_len);                                           \
+        if (newline) result[result_len++] = '\n';                           \
+    } while (0)
+
+    for (size_t h = 0; h < file->n_hunks; h++) {
+        const struct git_apply_hunk *hunk = &file->hunks[h];
+        /* A hunk with no leading context must match the start of the
+           file, and one with no trailing context its end. */
+        int at_start = hunk->old_start <= 1;
+        int at_end = 1;
+        for (size_t k = hunk->n_lines; k-- > 0;) {
+            if (hunk->lines[k][0] == '\\') continue;
+            at_end = hunk->lines[k][0] != ' ';
+            break;
+        }
+        size_t want = 0;
+        for (size_t k = 0; k < hunk->n_lines; k++)
+            if (hunk->lines[k][0] == ' ' || hunk->lines[k][0] == '-') want++;
+        long wanted = hunk->old_start - 1 + offset;
+        if (wanted < 0) wanted = 0;
+        long found = -1;
+        for (long spread = 0; found < 0; spread++) {
+            long forward = wanted + spread, back = wanted - spread;
+            int tried = 0;
+            if (forward >= 0 && (size_t) forward + want <= lines->n) {
+                tried = 1;
+                if ((!at_start || forward == 0) &&
+                    (!at_end || (size_t) forward + want == lines->n) &&
+                    git_apply_fits (hunk, lines, (size_t) forward))
+                    found = forward;
+            }
+            if (found < 0 && spread && back >= 0 &&
+                (size_t) back + want <= lines->n) {
+                tried = 1;
+                if ((!at_start || back == 0) &&
+                    (!at_end || (size_t) back + want == lines->n) &&
+                    git_apply_fits (hunk, lines, (size_t) back))
+                    found = back;
+            }
+            if (found < 0 && !tried) break;
+        }
+        if (found < 0) {
+            free (result);
+            *failed = hunk->old_start;
+            return -1;
+        }
+        for (size_t i = pos; i < (size_t) found; i++)
+            GIT_APPLY_PUT (lines->line[i], strlen (lines->line[i]),
+                           i + 1 < lines->n || !lines->missing_newline);
+        for (size_t k = 0; k < hunk->n_lines; k++) {
+            const char *line = hunk->lines[k];
+            if (line[0] == '-' || line[0] == '\\') continue;
+            int newline = 1;
+            /* "\ No newline at end of file" after a line says it ends
+               without one. */
+            if (k + 1 < hunk->n_lines && hunk->lines[k + 1][0] == '\\')
+                newline = 0;
+            GIT_APPLY_PUT (line + 1, strlen (line + 1), newline);
+        }
+        pos = (size_t) found + want;
+        offset = found - (hunk->old_start - 1);
+    }
+    for (size_t i = pos; i < lines->n; i++)
+        GIT_APPLY_PUT (lines->line[i], strlen (lines->line[i]),
+                       i + 1 < lines->n || !lines->missing_newline);
+#undef GIT_APPLY_PUT
+    if (!result) {
+        result = malloc (1);
+        if (!result) return -1;
+    }
+    *out = result;
+    *out_len = result_len;
+    return 0;
+}
+
+/* Write the content out, making the directories above it first, since a
+   patch may add a file deep in a tree. */
+static int
+git_apply_write (const char *path, const char *content, size_t len,
+                 unsigned mode)
+{
+    char held[4096];
+    snprintf (held, sizeof held, "%s", path);
+    for (char *slash = strchr (held + 1, '/'); slash;
+         slash = strchr (slash + 1, '/')) {
+        *slash = '\0';
+        mkdir (held, 0777);
+        *slash = '/';
+    }
+    int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC,
+                   mode == 0100755 ? 0777 : 0666);
+    if (fd < 0) return -1;
+    size_t at = 0;
+    while (at < len) {
+        ssize_t wrote = write (fd, content + at, len - at);
+        if (wrote <= 0) { close (fd); return -1; }
+        at += (size_t) wrote;
+    }
+    return close (fd) == 0 ? 0 : -1;
+}
+
+/* What --stat writes, which is not the shape git's diff writes: the name
+   in a column of its own, then the count, then the marks. */
+static void
+git_apply_stat (const struct git_apply_file *files, size_t n)
+{
+    size_t max_name = 0, max_change = 0, added = 0, removed = 0;
+    for (size_t i = 0; i < n; i++) {
+        const char *name = files[i].new_path ? files[i].new_path
+                                             : files[i].old_path;
+        size_t len = name ? strlen (name) : 0;
+        if (len > max_name) max_name = len;
+        size_t change = files[i].added + files[i].removed;
+        if (change > max_change) max_change = change;
+        added += files[i].added;
+        removed += files[i].removed;
+    }
+    if (max_name > 50) max_name = 50;
+    for (size_t i = 0; i < n; i++) {
+        char shown[8192];
+        const char *name = files[i].new_path ? files[i].new_path
+                                             : files[i].old_path;
+        snprintf (shown, sizeof shown, "%s", name ? name : "");
+        size_t width = max_name + strlen (shown) > 70 ? 70 - max_name
+                                                      : max_change;
+        int add = (int) files[i].added, del = (int) files[i].removed;
+        if (max_change && (size_t) (add + del) > width) {
+            int total = (int) (((size_t) (add + del) * width +
+                                max_change / 2) / max_change);
+            add = (int) (((size_t) add * width + max_change / 2) / max_change);
+            del = total - add;
+        }
+        printf (" %-*s |%5zu %.*s%.*s\n", (int) max_name, shown,
+                files[i].added + files[i].removed, add,
+                "++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+                "++++++++++++++", del,
+                "------------------------------------------------------"
+                "----------------");
+    }
+    bgit_stat_summary (stdout, n, added, removed);
+}
+
+static int
+git_cmd_apply (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git apply [--check] [--stat] [--numstat] "
+                        "[--summary] [-R] [-p<n>] [--index] [--cached] "
+                        "[<patch>...]";
+    int check = 0, stat_only = 0, numstat = 0, summary = 0, reverse = 0;
+    int strip = 1, with_index = 0, cached = 0;
+    const char *names[16];
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--check")) check = 1;
+        else if (!strcmp (w, "--stat")) stat_only = 1;
+        else if (!strcmp (w, "--numstat")) numstat = 1;
+        else if (!strcmp (w, "--summary")) summary = 1;
+        else if (!strcmp (w, "-R") || !strcmp (w, "--reverse")) reverse = 1;
+        else if (!strncmp (w, "-p", 2) && git_all_digits (w + 2))
+            strip = atoi (w + 2);
+        else if (!strcmp (w, "--index")) with_index = 1;
+        else if (!strcmp (w, "--cached")) cached = with_index = 1;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < (int) (sizeof names / sizeof *names))
+            names[n_names++] = w;
+        else return git_fatal ("too many patches");
+    }
+
+    /* The patch, from the files named or from what is feeding us. */
+    char *text = NULL;
+    size_t len = 0;
+    if (!n_names) {
+        unsigned char *data = NULL;
+        if (bgit_slurp_fd (STDIN_FILENO, &data, &len) < 0)
+            return git_fatal ("cannot read the patch");
+        text = (char *) data;
+    } else {
+        for (int i = 0; i < n_names; i++) {
+            unsigned char *data = NULL;
+            size_t piece = 0;
+            if (bgit_slurp_file (names[i], &data, &piece) < 0) {
+                free (text);
+                return git_fatal ("cannot open patch '%s'", names[i]);
+            }
+            char *grown = realloc (text, len + piece + 1);
+            if (!grown) { free (text); free (data); return GIT_EXIT_FATAL; }
+            text = grown;
+            memcpy (text + len, data, piece);
+            len += piece;
+            text[len] = '\0';
+            free (data);
+        }
+    }
+
+    struct git_apply_file *files = NULL;
+    size_t n = 0;
+    if (git_apply_parse (text ? text : "", len, strip, &files, &n) < 0) {
+        free (text);
+        return GIT_EXIT_FATAL;
+    }
+    free (text);
+    if (!n) {
+        git_apply_release (files, n);
+        fflush (stdout);
+        fprintf (stderr, "error: No valid patches in input (allow with "
+                         "\"--allow-empty\")\n");
+        return GIT_EXIT_FATAL;
+    }
+    if (reverse)
+        for (size_t i = 0; i < n; i++) {
+            /* The two sides change places, and so does every line. */
+            char *swap = files[i].old_path;
+            files[i].old_path = files[i].new_path;
+            files[i].new_path = swap;
+            int was_new = files[i].is_new;
+            files[i].is_new = files[i].is_delete;
+            files[i].is_delete = was_new;
+            unsigned mode = files[i].old_mode;
+            files[i].old_mode = files[i].new_mode;
+            files[i].new_mode = mode;
+            size_t added = files[i].added;
+            files[i].added = files[i].removed;
+            files[i].removed = added;
+            for (size_t h = 0; h < files[i].n_hunks; h++) {
+                struct git_apply_hunk *hunk = &files[i].hunks[h];
+                long start = hunk->old_start, count = hunk->old_count;
+                hunk->old_start = hunk->new_start;
+                hunk->old_count = hunk->new_count;
+                hunk->new_start = start;
+                hunk->new_count = count;
+                for (size_t k = 0; k < hunk->n_lines; k++)
+                    if (hunk->lines[k][0] == '+') hunk->lines[k][0] = '-';
+                    else if (hunk->lines[k][0] == '-') hunk->lines[k][0] = '+';
+            }
+        }
+    if (reverse)
+        for (size_t i = 0; i < n / 2; i++) {
+            struct git_apply_file swap = files[i];
+            files[i] = files[n - 1 - i];
+            files[n - 1 - i] = swap;
+        }
+
+    if (stat_only || numstat || summary) {
+        if (stat_only) git_apply_stat (files, n);
+        if (numstat)
+            for (size_t i = 0; i < n; i++) {
+                const char *name = files[i].new_path ? files[i].new_path
+                                                     : files[i].old_path;
+                printf ("%zu\t%zu\t%s\n", files[i].added, files[i].removed,
+                        name ? name : "");
+            }
+        if (summary)
+            for (size_t i = 0; i < n; i++) {
+                if (files[i].is_new)
+                    printf (" create mode %06o %s\n",
+                            files[i].new_mode ? files[i].new_mode : 0100644,
+                            files[i].new_path);
+                else if (files[i].is_delete)
+                    printf (" delete mode %06o %s\n",
+                            files[i].old_mode ? files[i].old_mode : 0100644,
+                            files[i].old_path);
+                else if (files[i].is_rename)
+                    printf (" rename %s => %s (%d%%)\n", files[i].old_path,
+                            files[i].new_path, 100);
+                if (!files[i].is_new && !files[i].is_delete &&
+                    files[i].old_mode && files[i].new_mode &&
+                    files[i].old_mode != files[i].new_mode)
+                    printf (" mode change %06o => %06o %s\n",
+                            files[i].old_mode, files[i].new_mode,
+                            files[i].new_path ? files[i].new_path
+                                              : files[i].old_path);
+            }
+        git_apply_release (files, n);
+        return 0;
+    }
+    if (git_context_open (ctx) != 0) { git_apply_release (files, n); return GIT_EXIT_FATAL; }
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) {
+        git_apply_release (files, n);
+        return GIT_EXIT_FATAL;
+    }
+
+    /* Everything is worked out before anything is written, which is what
+       makes --check the same run without the writing. */
+    char **results = calloc (n ? n : 1, sizeof *results);
+    size_t *result_lens = calloc (n ? n : 1, sizeof *result_lens);
+    int status = 0;
+    if (!results || !result_lens) status = GIT_EXIT_FATAL;
+    for (size_t i = 0; i < n && status != GIT_EXIT_FATAL; i++) {
+        struct git_apply_file *file = &files[i];
+        const char *target = file->new_path ? file->new_path : file->old_path;
+        if (file->is_binary) {
+            status = git_fatal ("cannot apply binary patch to '%s' without "
+                                "full index line", target);
+            break;
+        }
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s",
+                  ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                  file->is_delete && file->old_path ? file->old_path : target);
+        unsigned char *before = NULL;
+        size_t before_len = 0;
+        if (!file->is_new) {
+            const char *from = file->old_path ? file->old_path : target;
+            if (cached) {
+                bgit_index_entry *entry = git_index_lookup (state.index,
+                                                            state.n_index, from);
+                char hex[41];
+                enum bgit_type type;
+                if (!entry) {
+                    fflush (stdout);
+                    fprintf (stderr, "error: %s: does not exist in index\n", from);
+                    status = 1;
+                    continue;
+                }
+                bgit_sha_to_hex (entry->sha, hex);
+                if (bgit_odb_read (&ctx->odb, hex, &type, &before,
+                                   &before_len) < 0) {
+                    status = git_fatal ("cannot read %s", from);
+                    break;
+                }
+            } else {
+                char source[4096];
+                snprintf (source, sizeof source, "%s/%s",
+                          ctx->repo.work_tree ? ctx->repo.work_tree : ".", from);
+                /* Whether it is there at all is asked first, so that the
+                   complaint is git's one and not the reader's too. */
+                struct stat st;
+                if (lstat (source, &st) < 0) {
+                    fflush (stdout);
+                    fprintf (stderr, "error: %s: No such file or directory\n",
+                             from);
+                    status = 1;
+                    continue;
+                }
+                if (file->old_mode) {
+                    unsigned mode = bgit_worktree_mode (&st);
+                    if (mode != file->old_mode) {
+                        fflush (stdout);
+                        fprintf (stderr, "warning: %s has type %o, expected "
+                                         "%o\n", from, mode, file->old_mode);
+                    }
+                }
+                if (bgit_slurp_file (source, &before, &before_len) < 0) {
+                    status = 1;
+                    continue;
+                }
+            }
+        }
+        if (file->is_rename && file->old_path && file->new_path &&
+            strcmp (file->old_path, file->new_path)) {
+            struct stat st;
+            char onto[4096];
+            snprintf (onto, sizeof onto, "%s/%s",
+                      ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                      file->new_path);
+            if (!cached && lstat (onto, &st) == 0) {
+                fflush (stdout);
+                fprintf (stderr, "error: %s: already exists in working "
+                                 "directory\n", file->new_path);
+                status = 1;
+                continue;
+            }
+        }
+        if (file->is_new) {
+            struct stat st;
+            if (!cached && lstat (full, &st) == 0) {
+                fflush (stdout);
+                fprintf (stderr, "error: %s: already exists in working "
+                                 "directory\n", target);
+                status = 1;
+                continue;
+            }
+            if (cached && git_index_lookup (state.index, state.n_index, target)) {
+                fflush (stdout);
+                fprintf (stderr, "error: %s: already exists in index\n", target);
+                status = 1;
+                continue;
+            }
+        }
+        struct git_apply_lines lines;
+        if (git_apply_split ((const char *) (before ? before : (unsigned char *) ""),
+                             before_len, &lines) < 0) {
+            free (before);
+            status = GIT_EXIT_FATAL;
+            break;
+        }
+        long failed = 0;
+        if (git_apply_hunks (file, &lines, &results[i], &result_lens[i],
+                             &failed) < 0) {
+            fflush (stdout);
+            fprintf (stderr, "error: patch failed: %s:%ld\n",
+                     file->old_path ? file->old_path : target, failed);
+            fprintf (stderr, "error: %s: patch does not apply\n",
+                     file->old_path ? file->old_path : target);
+            status = 1;
+        }
+        git_apply_lines_release (&lines);
+        free (before);
+    }
+
+    if (!status && !check) {
+        for (size_t i = 0; i < n && !status; i++) {
+            struct git_apply_file *file = &files[i];
+            const char *target = file->new_path ? file->new_path
+                                                : file->old_path;
+            const char *from = file->old_path ? file->old_path : target;
+            char full[4096];
+            snprintf (full, sizeof full, "%s/%s",
+                      ctx->repo.work_tree ? ctx->repo.work_tree : ".", target);
+            if (!cached) {
+                if (file->is_delete) {
+                    char gone[4096];
+                    snprintf (gone, sizeof gone, "%s/%s",
+                              ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                              from);
+                    unlink (gone);
+                } else {
+                    if (git_apply_write (full, results[i], result_lens[i],
+                                         file->new_mode) < 0) {
+                        status = git_fatal ("cannot write '%s'", target);
+                        break;
+                    }
+                    if (file->new_mode && file->new_mode != file->old_mode)
+                        chmod (full, file->new_mode == 0100755 ? 0777 & ~0022
+                                                               : 0666 & ~0022);
+                    if (file->is_rename && strcmp (from, target)) {
+                        char gone[4096];
+                        snprintf (gone, sizeof gone, "%s/%s",
+                                  ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                                  from);
+                        unlink (gone);
+                    }
+                }
+            }
+            if (with_index) {
+                if (file->is_delete)
+                    bgit_index_remove_path (&state.index, &state.n_index,
+                                            (char *) from);
+                else {
+                    char sha[41];
+                    if (bgit_write_object (ctx->odb.object_dirs[0], "blob",
+                                           (const unsigned char *) results[i],
+                                           result_lens[i], 1, sha) < 0) {
+                        status = GIT_EXIT_FATAL;
+                        break;
+                    }
+                    if (file->is_rename && strcmp (from, target))
+                        bgit_index_remove_path (&state.index, &state.n_index,
+                                                (char *) from);
+                    bgit_index_entry entry;
+                    memset (&entry, 0, sizeof entry);
+                    entry.path = strdup (target);
+                    if (!entry.path) { status = GIT_EXIT_FATAL; break; }
+                    entry.mode = file->new_mode ? file->new_mode : 0100644;
+                    bgit_hex_to_sha (sha, entry.sha);
+                    size_t plen = strlen (target);
+                    entry.flags = (uint16_t) (plen > 0xFFF ? 0xFFF : plen);
+                    if (!cached) {
+                        struct stat st;
+                        if (lstat (full, &st) == 0) {
+                            uint32_t mode = entry.mode;
+                            bgit_index_entry_set_stat (&entry, &st);
+                            entry.mode = mode;
+                        }
+                    }
+                    if (git_index_put (&state.index, &state.n_index,
+                                       &state.cap_index, &entry) < 0) {
+                        status = GIT_EXIT_FATAL;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!status && with_index &&
+            git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+
+    for (size_t i = 0; i < n; i++) free (results[i]);
+    free (results);
+    free (result_lens);
+    git_state_release (&state);
+    git_apply_release (files, n);
+    return status;
+}
+
 /* ---- grep -------------------------------------------------------------- */
 
 struct git_grep {
@@ -17925,6 +18671,7 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "add",          git_cmd_add },
+    { "apply",        git_cmd_apply },
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },

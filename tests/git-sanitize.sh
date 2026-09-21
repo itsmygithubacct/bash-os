@@ -154,6 +154,16 @@ git log --oneline -S line -- long.txt
 git log --oneline -G 'line [0-9]'
 git log --oneline -i --pickaxe-regex -S 'LINE [0-9]+'
 git log --oneline -S nothingatall
+# A patch, read back and applied.
+git diff HEAD~1 HEAD > round.diff 2>/dev/null || git diff HEAD > round.diff
+git apply --stat round.diff > /dev/null || true
+git apply --numstat round.diff > /dev/null || true
+git apply --summary round.diff > /dev/null || true
+git apply --check round.diff 2>/dev/null || true
+git apply --check -R round.diff 2>/dev/null || true
+git apply -R round.diff 2>/dev/null || true
+git apply round.diff 2>/dev/null || true
+rm -f round.diff
 git grep line || true
 git grep -n -i LINE || true
 git grep -l line || true

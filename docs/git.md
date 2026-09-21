@@ -39,6 +39,8 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
+                 [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
                  [-e <pattern>] [--cached] [<pattern>] [<tree-ish>]
                  [-- <path>...]
@@ -216,6 +218,18 @@ follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
 the tag says beside it — the annotation for an annotated tag, and the
 commit's own message for a light one — a line at a time, the first beside
 the name and the rest indented.
+
+`git apply` takes a patch back the way it came: the hunks are matched
+against the files, moving up or down where a line has shifted, and a hunk
+with no leading context has to match the start of the file, one with no
+trailing context its end — which is git's rule, and why a patch made
+against a file's first lines is refused where one made against its middle
+is not. Nothing is written until every file's hunks have been placed, so
+`--check` is the same run without the writing, and a patch that fails
+anywhere leaves everything alone. `--stat`, `--numstat` and `--summary`
+say what a patch would do, `-R` turns it around, `-p<n>` says how much of
+each path to drop, and `--index` and `--cached` carry it into the index
+as well, or into the index alone.
 
 `git grep` searches what the repository tracks, and nothing else: the
 files in the working tree by default, the index with `--cached`, or a
