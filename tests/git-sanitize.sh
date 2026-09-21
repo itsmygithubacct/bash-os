@@ -581,6 +581,18 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Bisecting, which walks the history counting what each commit reaches.
+git bisect start > /dev/null 2>&1 || true
+git bisect bad > /dev/null 2>&1 || true
+git bisect good HEAD~2 > /dev/null 2>&1 || true
+git bisect skip > /dev/null 2>&1 || true
+git bisect log > /dev/null 2>&1 || true
+git bisect terms > /dev/null 2>&1 || true
+git bisect reset > /dev/null 2>&1 || true
+git bisect start HEAD HEAD~3 > /dev/null 2>&1 || true
+git bisect run test -f long.txt > /dev/null 2>&1 || true
+git bisect reset > /dev/null 2>&1 || true
+
 # Notes: a tree of text beside the commits, read on every log line.
 git notes add -m 'a note on the tip' > /dev/null 2>&1 || true
 git notes append -m 'a second line' > /dev/null 2>&1 || true

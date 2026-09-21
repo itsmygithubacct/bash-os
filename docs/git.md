@@ -51,6 +51,9 @@ git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
 git prune        [-n | --dry-run] [-v] [--expire <time>] [<head>...]
 git repack       [-a] [-d] [-q] [-l] [-f] [--window=<n>] [--depth=<n>]
 git gc           [-q] [--auto] [--aggressive] [--prune=<date> | --no-prune]
+git bisect       (start [--term-new=<t>] [--term-old=<t>] [<bad> [<good>...]]
+                 | bad [<rev>] | good [<rev>] | skip [<rev>...] | terms
+                 | log | replay <file> | run <cmd>... | reset [<commit>])
 git notes        [--ref <ref>] (list [<object>] | add [-f] [-m <msg>]
                  [-F <file>] [<object>] | append [-m <msg>] [<object>] |
                  copy [-f] <from> <to> | show [<object>] |
@@ -306,6 +309,27 @@ the same pack contents as git, object for object, in about five seconds
 against git's three, and the pack comes out about one percent larger
 because the delta search settles sooner. What is unreachable and loose is
 left alone; `git prune` is what takes that away.
+
+`git bisect` halves a history to find where it went wrong. The verdicts
+are refs — `refs/bisect/bad`, one `refs/bisect/good-<id>` for each good
+commit, and `refs/bisect/skip-<id>` for one that could not be tested — so
+a bisection survives anything that happens between two runs, and the
+transcript `git bisect log` prints is what `git bisect replay` reads back.
+`--term-new`/`--term-old` (or `--term-bad`/`--term-good`) give the two
+ends words of one's own, which the refs and the transcript then use.
+`reset` puts HEAD back where `start` found it.
+
+Which commit is offered next is git's own choice: the one that halves
+what is left best, counted as how many of the remaining commits each one
+reaches, with ties going to the oldest. That count is worked out parents
+first, taking a parent's count and adding one where a commit has a single
+parent still in play, and walking only where two lines of history meet.
+
+`git bisect run <cmd>` tests each commit by running a command: zero says
+good, 125 says the commit cannot be tested and is skipped, anything else
+says bad. git hands the words to the system; here they go through this
+shell, so that a builtin can be the test, which in a tree with nothing
+else in it is the only kind of command there is.
 
 `git notes` keeps text beside a commit without changing it: a blob per
 annotated object, in a tree under `refs/notes/commits`, with a commit on
@@ -1088,10 +1112,10 @@ HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
-fsck, prune, repack, gc and notes.
+fsck, prune, repack, gc, notes and bisect.
 
-What is not here yet, in the order it would be missed: `bisect`,
-`archive` and `bundle`; `remote show`; `diff --word-diff`;
+What is not here yet, in the order it would be missed: `archive` and
+`bundle`; `remote show`; `diff --word-diff`;
 `describe --contains` and `--all`; and `--date=human`.
 
 Three things git writes beside a pack are not written here: the reverse

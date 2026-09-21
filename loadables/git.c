@@ -6544,10 +6544,13 @@ git_head_detach (git_context *ctx, struct git_state *state, const char *commit,
     return 0;
 }
 
-/* Move HEAD to another branch or commit, updating the working tree. */
+/* Move HEAD to another branch or commit, updating the working tree. With
+   ANNOUNCE, the two lines git says about the move are said as well: what
+   HEAD was on, when it was on nothing but a commit, and the branch it is
+   on now. */
 static int
-git_switch_to (git_context *ctx, struct git_state *state, const char *target,
-               int detach, int force)
+git_switch_to_saying (git_context *ctx, struct git_state *state,
+                      const char *target, int detach, int force, int announce)
 {
     char ref[4096] = "", id[41], commit[41];
     int is_branch = 0;
@@ -6590,7 +6593,33 @@ git_switch_to (git_context *ctx, struct git_state *state, const char *target,
                             commit, message);
     } else if (git_head_detach (ctx, state, commit, message) < 0)
         return GIT_EXIT_FATAL;
+    if (announce) {
+        fflush (stdout);
+        if (state->have_head && !state->branch) {
+            char abbreviated[41], subject[4096] = "";
+            git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
+            struct git_commit was;
+            if (git_commit_read (ctx, state->head, &was) == 0) {
+                git_subject (&was, subject, sizeof subject);
+                git_commit_release (&was);
+            }
+            fprintf (stderr, "Previous HEAD position was %s %s\n", abbreviated,
+                     subject);
+        }
+        if (is_branch && !detach) {
+            if (state->branch && !strcmp (state->branch, ref))
+                fprintf (stderr, "Already on '%s'\n", target);
+            else fprintf (stderr, "Switched to branch '%s'\n", target);
+        }
+    }
     return 0;
+}
+
+static int
+git_switch_to (git_context *ctx, struct git_state *state, const char *target,
+               int detach, int force)
+{
+    return git_switch_to_saying (ctx, state, target, detach, force, 0);
 }
 
 static int
@@ -9714,6 +9743,836 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
     free (fsck.objects);
     free (fsck.absent);
     return fsck.errors;
+}
+
+/* ---- bisect ------------------------------------------------------------- */
+
+/* While a transcript is being replayed the verdicts are only recorded: git
+   works out where to go once, at the end, rather than after every line. */
+static int git_bisect_replaying;
+
+/* A bisection is kept in the git directory: where to go back to, what the
+   two ends are called, what has been said so far, and which commit is out
+   for testing. The verdicts themselves are refs — refs/bisect/bad and one
+   refs/bisect/good-<id> for each — which is what makes a bisection survive
+   anything that reads the repository between two runs. */
+struct git_bisect {
+    git_context *ctx;
+    char bad_term[64], good_term[64];
+    char bad[41];                   /* "" while none is known */
+    char (*good)[41];
+    size_t n_good;
+    char (*skipped)[41];
+    size_t n_skipped;
+};
+
+static void
+git_bisect_release (struct git_bisect *state)
+{
+    free (state->good);
+    free (state->skipped);
+    memset (state, 0, sizeof *state);
+}
+
+/* One of the bisection's own files, by name. */
+static int
+git_bisect_path (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    return snprintf (out, outsz, "%s/%s", ctx->repo.git_dir, name) <
+           (int) outsz ? 0 : -1;
+}
+
+static int
+git_bisect_write (git_context *ctx, const char *name, const char *text)
+{
+    char path[4096];
+    if (git_bisect_path (ctx, name, path, sizeof path) < 0) return -1;
+    return git_write_file (path, text);
+}
+
+static int
+git_bisect_read_line (git_context *ctx, const char *name, char *out,
+                      size_t outsz)
+{
+    char path[4096];
+    if (git_bisect_path (ctx, name, path, sizeof path) < 0) return -1;
+    FILE *f = fopen (path, "r");
+    if (!f) return -1;
+    if (!fgets (out, (int) outsz, f)) { fclose (f); return -1; }
+    fclose (f);
+    size_t len = strlen (out);
+    while (len && (out[len - 1] == '\n' || out[len - 1] == '\r')) out[--len] = '\0';
+    return 0;
+}
+
+static void
+git_bisect_remove (git_context *ctx, const char *name)
+{
+    char path[4096];
+    if (git_bisect_path (ctx, name, path, sizeof path) == 0) unlink (path);
+}
+
+/* Add a line to the transcript, which `git bisect log` prints and
+   `git bisect replay` reads back. */
+static void
+git_bisect_note (git_context *ctx, const char *format, ...)
+{
+    char path[4096];
+    if (git_bisect_path (ctx, "BISECT_LOG", path, sizeof path) < 0) return;
+    FILE *f = fopen (path, "a");
+    if (!f) return;
+    va_list args;
+    va_start (args, format);
+    vfprintf (f, format, args);
+    va_end (args);
+    fclose (f);
+}
+
+/* 1 while a bisection is under way. */
+static int
+git_bisect_running (git_context *ctx)
+{
+    char path[4096];
+    struct stat st;
+    return git_bisect_path (ctx, "BISECT_START", path, sizeof path) == 0 &&
+           stat (path, &st) == 0;
+}
+
+/* What the two ends are called, which --term-old and --term-new can
+   change. */
+static void
+git_bisect_terms (git_context *ctx, struct git_bisect *state)
+{
+    snprintf (state->bad_term, sizeof state->bad_term, "bad");
+    snprintf (state->good_term, sizeof state->good_term, "good");
+    char path[4096];
+    if (git_bisect_path (ctx, "BISECT_TERMS", path, sizeof path) < 0) return;
+    FILE *f = fopen (path, "r");
+    if (!f) return;
+    char line[64];
+    if (fgets (line, sizeof line, f)) {
+        line[strcspn (line, "\r\n")] = '\0';
+        if (*line) snprintf (state->bad_term, sizeof state->bad_term, "%s", line);
+    }
+    if (fgets (line, sizeof line, f)) {
+        line[strcspn (line, "\r\n")] = '\0';
+        if (*line) snprintf (state->good_term, sizeof state->good_term, "%s", line);
+    }
+    fclose (f);
+}
+
+/* The verdicts so far, read from the refs that hold them. */
+static int
+git_bisect_load (git_context *ctx, struct git_bisect *state)
+{
+    memset (state, 0, sizeof *state);
+    state->ctx = ctx;
+    git_bisect_terms (ctx, state);
+    bgit_ref *refs = NULL;
+    size_t n = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/bisect/", &refs, &n) != 0) return 0;
+    for (size_t i = 0; i < n; i++) {
+        const char *name = refs[i].name + strlen ("refs/bisect/");
+        if (!strcmp (name, "bad")) memcpy (state->bad, refs[i].sha, 41);
+        else if (!strncmp (name, "good-", 5)) {
+            char (*grown)[41] = realloc (state->good,
+                                         (state->n_good + 1) * sizeof *grown);
+            if (!grown) break;
+            state->good = grown;
+            memcpy (state->good[state->n_good++], refs[i].sha, 41);
+        } else if (!strncmp (name, "skip-", 5)) {
+            char (*grown)[41] = realloc (state->skipped,
+                                         (state->n_skipped + 1) * sizeof *grown);
+            if (!grown) break;
+            state->skipped = grown;
+            memcpy (state->skipped[state->n_skipped++], refs[i].sha, 41);
+        }
+    }
+    bgit_refs_free (refs, n);
+    return 0;
+}
+
+/* How many steps git says are roughly left, which is its own estimate over
+   the size of the set rather than a logarithm outright. */
+static int
+git_bisect_steps (int all)
+{
+    if (all < 3) return 0;
+    int n = 0;
+    while ((1 << (n + 1)) <= all) n++;
+    int e = 1 << n;
+    int x = all - e;
+    return e < 3 * x ? n : n - 1;
+}
+
+/* The commits still in question: reachable from the bad one, not reachable
+   from any good one. Sorted newest first, as the walk gives them. */
+static int
+git_bisect_candidates (struct git_bisect *state, char (**out)[41],
+                       size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    if (!*state->bad) return 0;
+    char (*ids)[41] = NULL;
+    size_t n = 0, cap = 0;
+    char (*pending)[41] = NULL;
+    size_t n_pending = 0, cap_pending = 0;
+
+#define GIT_BISECT_PUSH(list, count, room, value) do { \
+    if ((count) == (room)) { \
+        size_t next = (room) ? (room) * 2 : 64; \
+        char (*grown)[41] = realloc ((list), next * sizeof *grown); \
+        if (!grown) goto done; \
+        (list) = grown; \
+        (room) = next; \
+    } \
+    memcpy ((list)[(count)++], (value), 41); \
+} while (0)
+
+    GIT_BISECT_PUSH (pending, n_pending, cap_pending, state->bad);
+    while (n_pending) {
+        char id[41];
+        memcpy (id, pending[--n_pending], 41);
+        int seen = 0;
+        for (size_t i = 0; i < n; i++)
+            if (!strcmp (ids[i], id)) { seen = 1; break; }
+        if (seen) continue;
+        int excluded = 0;
+        for (size_t i = 0; i < state->n_good && !excluded; i++)
+            if (bgit_is_ancestor (&state->ctx->odb, id, state->good[i]) > 0 ||
+                !strcmp (id, state->good[i]))
+                excluded = 1;
+        if (excluded) continue;
+        GIT_BISECT_PUSH (ids, n, cap, id);
+        char parents[BGIT_MAX_PARENTS][41];
+        int count = bgit_commit_parents (&state->ctx->odb, id, parents,
+                                         BGIT_MAX_PARENTS);
+        for (int i = 0; i < count; i++)
+            GIT_BISECT_PUSH (pending, n_pending, cap_pending, parents[i]);
+    }
+#undef GIT_BISECT_PUSH
+ done:
+    free (pending);
+    *out = ids;
+    *n_out = n;
+    return 0;
+}
+
+/* Which of the candidates to test next: the one that halves the set best.
+
+   Each commit's weight is how many of the set it reaches, itself included.
+   Worked out parents first, a commit with a single parent in the set takes
+   its parent's weight and one more; only where two lines of history meet
+   does the count have to be made by walking, so that what they share is
+   not counted twice. Ties go to the oldest, as git's own scan does. */
+static long
+git_bisect_choose (struct git_bisect *state, char (*ids)[41], size_t n,
+                   int *weight_out)
+{
+    *weight_out = 0;
+    if (!n) return -1;
+    int *weights = calloc (n, sizeof *weights);
+    int *waiting = calloc (n, sizeof *waiting);
+    long *order = calloc (n, sizeof *order);
+    char (*parents)[BGIT_MAX_PARENTS][41] =
+        calloc (n, sizeof (char[BGIT_MAX_PARENTS][41]));
+    int *n_parents = calloc (n, sizeof *n_parents);
+    long (*inside)[BGIT_MAX_PARENTS] = calloc (n, sizeof *inside);
+    if (!weights || !waiting || !order || !parents || !n_parents || !inside) {
+        free (weights); free (waiting); free (order);
+        free (parents); free (n_parents); free (inside);
+        return -1;
+    }
+    for (size_t k = 0; k < n; k++) {
+        n_parents[k] = bgit_commit_parents (&state->ctx->odb, ids[k],
+                                            parents[k], BGIT_MAX_PARENTS);
+        for (int i = 0; i < n_parents[k]; i++) {
+            inside[k][i] = -1;
+            for (size_t j = 0; j < n; j++)
+                if (!strcmp (ids[j], parents[k][i])) { inside[k][i] = (long) j; break; }
+            if (inside[k][i] >= 0) waiting[k]++;
+        }
+    }
+    /* Parents before children, so that a weight is never asked for before
+       it has been worked out. */
+    size_t n_order = 0;
+    for (size_t k = 0; k < n; k++) if (!waiting[k]) order[n_order++] = (long) k;
+    for (size_t at = 0; at < n_order; at++) {
+        long done = order[at];
+        for (size_t k = 0; k < n; k++)
+            for (int i = 0; i < n_parents[k]; i++)
+                if (inside[k][i] == done && --waiting[k] == 0)
+                    order[n_order++] = (long) k;
+    }
+    for (size_t at = 0; at < n_order; at++) {
+        long k = order[at];
+        int held = 0;
+        long only = -1;
+        for (int i = 0; i < n_parents[k]; i++)
+            if (inside[k][i] >= 0) { held++; only = inside[k][i]; }
+        if (!held) weights[k] = 1;
+        else if (held == 1) weights[k] = weights[only] + 1;
+        else {
+            /* Two histories joined here: walk what this commit reaches,
+               within the set, so that what they share is counted once. */
+            char (*pending)[41] = malloc (n * sizeof *pending);
+            char *seen = calloc (n, 1);
+            size_t n_pending = 0, reached = 0;
+            if (!pending || !seen) { free (pending); free (seen); break; }
+            memcpy (pending[n_pending++], ids[k], 41);
+            while (n_pending) {
+                char id[41];
+                memcpy (id, pending[--n_pending], 41);
+                size_t at_id = n;
+                for (size_t j = 0; j < n; j++)
+                    if (!strcmp (ids[j], id)) { at_id = j; break; }
+                if (at_id == n || seen[at_id]) continue;
+                seen[at_id] = 1;
+                reached++;
+                for (int i = 0; i < n_parents[at_id] && n_pending < n; i++)
+                    memcpy (pending[n_pending++], parents[at_id][i], 41);
+            }
+            weights[k] = (int) reached;
+            free (pending);
+            free (seen);
+        }
+    }
+    long best = -1;
+    int best_distance = -1;
+    for (size_t k = n; k-- > 0;) {          /* oldest first */
+        int skipped = 0;
+        for (size_t i = 0; i < state->n_skipped && !skipped; i++)
+            if (!strcmp (ids[k], state->skipped[i])) skipped = 1;
+        if (skipped || !strcmp (ids[k], state->bad)) continue;
+        int distance = weights[k];
+        if ((int) n - distance < distance) distance = (int) n - distance;
+        if (distance > best_distance) {
+            best_distance = distance;
+            best = (long) k;
+            *weight_out = weights[k];
+        }
+    }
+    free (weights);
+    free (waiting);
+    free (order);
+    free (parents);
+    free (n_parents);
+    free (inside);
+    return best;
+}
+
+/* Put the working tree on a commit without saying anything about it, which
+   is what bisect does between one verdict and the next. */
+static int
+git_bisect_checkout (git_context *ctx, const char *commit)
+{
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return -1;
+    int rc = git_switch_to (ctx, &state, commit, 1, 0);
+    git_state_release (&state);
+    return rc ? -1 : 0;
+}
+
+/* The subject line of a commit, for the lines bisect prints about one. */
+static int
+git_bisect_subject (git_context *ctx, const char *id, char *out, size_t outsz)
+{
+    struct git_commit commit;
+    if (git_commit_read (ctx, id, &commit) < 0) return -1;
+    git_subject (&commit, out, outsz);
+    git_commit_release (&commit);
+    return 0;
+}
+
+/* Say where the bisection stands, and either put the next commit out for
+   testing or name the first bad one. */
+static int
+git_bisect_step (struct git_bisect *state)
+{
+    git_context *ctx = state->ctx;
+    if (!*state->bad || !state->n_good) {
+        /* These say good and bad whatever the two ends have been called,
+           which is what git says. */
+        if (!*state->bad && !state->n_good)
+            printf ("status: waiting for both good and bad commits\n");
+        else if (!*state->bad)
+            printf ("status: waiting for bad commit, %zu good commit%s known\n",
+                    state->n_good, state->n_good == 1 ? "" : "s");
+        else
+            printf ("status: waiting for good commit(s), bad commit known\n");
+        return 0;
+    }
+    /* Every good commit has to be behind the bad one, or the answer the
+       bisection would give means nothing. */
+    for (size_t i = 0; i < state->n_good; i++)
+        if (bgit_is_ancestor (&ctx->odb, state->good[i], state->bad) <= 0) {
+            fflush (stdout);
+            fprintf (stderr, "Some %s revs are not ancestors of the %s rev.\n"
+                             "git bisect cannot work properly in this case.\n"
+                             "Maybe you mistook %s and %s revs?\n",
+                     state->good_term, state->bad_term, state->good_term,
+                     state->bad_term);
+            return 1;
+        }
+    git_bisect_write (ctx, "BISECT_ANCESTORS_OK", "");
+
+    char (*ids)[41] = NULL;
+    size_t n = 0;
+    if (git_bisect_candidates (state, &ids, &n) < 0) return GIT_EXIT_FATAL;
+    int weight = 0;
+    long best = git_bisect_choose (state, ids, n, &weight);
+    if (best < 0) {
+        /* Nothing left to try: the bad commit is the first one. */
+        char subject[4096] = "";
+        git_bisect_subject (ctx, state->bad, subject, sizeof subject);
+        printf ("%s is the first %s commit\n", state->bad, state->bad_term);
+        git_bisect_note (ctx, "# first %s commit: [%s] %s\n",
+                         state->bad_term,
+                         state->bad, subject);
+        free (ids);
+        struct git_commit commit;
+        if (git_commit_read (ctx, state->bad, &commit) == 0) {
+            struct git_diff_format diff;
+            git_diff_format_init (&diff);
+            diff.stat = 1;
+            struct git_date_format date;
+            git_date_format_set (&date, "default");
+            git_print_commit (ctx, stdout, &commit, 0, NULL, &date,
+                              GIT_DECORATE_NO, 0, &diff, NULL, 0);
+            git_commit_release (&commit);
+        }
+        return 0;
+    }
+    char chosen[41];
+    memcpy (chosen, ids[best], 41);
+    free (ids);
+    int left = (int) n - weight - 1;
+    if (left < 0) left = 0;
+    int steps = git_bisect_steps ((int) n);
+    printf ("Bisecting: %d revision%s left to test after this (roughly %d "
+            "step%s)\n", left, left == 1 ? "" : "s", steps,
+            steps == 1 ? "" : "s");
+    char subject[4096] = "";
+    git_bisect_subject (ctx, chosen, subject, sizeof subject);
+    printf ("[%s] %s\n", chosen, subject);
+    char text[64];
+    snprintf (text, sizeof text, "%s\n", chosen);
+    git_bisect_write (ctx, "BISECT_EXPECTED_REV", text);
+    return git_bisect_checkout (ctx, chosen) < 0 ? GIT_EXIT_FATAL : 0;
+}
+
+/* What `git bisect run` runs. git hands the words to the system; here they
+   go through this shell, so that a builtin can be the test — which is the
+   only kind of command there is in a tree with nothing else in it. */
+static int
+git_bisect_run_words (WORD_LIST *words)
+{
+    char script[8192];
+    size_t at = 0;
+    for (WORD_LIST *p = words; p; p = p->next) {
+        if (at + 4 >= sizeof script) return -1;
+        if (at) script[at++] = ' ';
+        script[at++] = '\'';
+        for (const char *c = p->word->word; *c; c++) {
+            if (at + 8 >= sizeof script) return -1;
+            if (*c == '\'') {
+                memcpy (script + at, "'\\''", 4);
+                at += 4;
+            } else script[at++] = *c;
+        }
+        script[at++] = '\'';
+    }
+    script[at] = '\0';
+    fflush (stdout);
+    fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) return -1;
+    if (!child) {
+        array_needs_making = 1;
+        maybe_make_export_env ();
+        const char *argv[6];
+        int n = 0;
+        argv[n++] = "bash";
+        argv[n++] = "--noprofile";
+        argv[n++] = "--norc";
+        argv[n++] = "-c";
+        argv[n++] = script;
+        argv[n] = NULL;
+        execve ("/proc/self/exe", (char *const *) argv, export_env);
+        _exit (127);
+    }
+    int status = 0;
+    while (waitpid (child, &status, 0) < 0 && errno == EINTR) ;
+    if (!WIFEXITED (status)) return -1;
+    return WEXITSTATUS (status);
+}
+
+/* Record a verdict as the ref that holds it, and say so in the log. */
+static int
+git_bisect_verdict (struct git_bisect *state, const char *kind,
+                    const char *name, const char *id, int note)
+{
+    /* The refs are named bad, good-<id> and skip-<id> whatever the two ends
+       are called, which is how git names them. */
+    char ref[4096], subject[4096] = "";
+    if (!strcmp (kind, "bad")) snprintf (ref, sizeof ref, "refs/bisect/bad");
+    else snprintf (ref, sizeof ref, "refs/bisect/%s-%s", kind, id);
+    if (bgit_ref_set (&state->ctx->repo, ref, id, NULL) < 0) return -1;
+    (void) name;
+    git_bisect_subject (state->ctx, id, subject, sizeof subject);
+    const char *term = !strcmp (kind, "bad") ? state->bad_term
+                     : !strcmp (kind, "good") ? state->good_term : "skip";
+    git_bisect_note (state->ctx, "# %s: [%s] %s\n", term, id, subject);
+    /* An end given to `git bisect start` is in the start line already; one
+       given on its own is a command of its own in the transcript. */
+    if (note) git_bisect_note (state->ctx, "git bisect %s %s\n", term, id);
+    return 0;
+}
+
+/* Take the bisection down: the refs, the files, and back to where it
+   started. */
+static int
+git_bisect_reset (git_context *ctx, const char *target)
+{
+    char where[4096] = "";
+    if (!target && git_bisect_read_line (ctx, "BISECT_START", where,
+                                         sizeof where) == 0 && *where)
+        target = where;
+    bgit_ref *refs = NULL;
+    size_t n = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/bisect/", &refs, &n) == 0) {
+        for (size_t i = 0; i < n; i++)
+            bgit_ref_delete (&ctx->repo, refs[i].name, NULL, NULL);
+        bgit_refs_free (refs, n);
+    }
+    int rc = 0;
+    if (target && *target) {
+        struct git_state state;
+        if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+        rc = git_switch_to_saying (ctx, &state, target, 0, 0, 1);
+        git_state_release (&state);
+    }
+    git_bisect_remove (ctx, "BISECT_START");
+    git_bisect_remove (ctx, "BISECT_TERMS");
+    git_bisect_remove (ctx, "BISECT_NAMES");
+    git_bisect_remove (ctx, "BISECT_LOG");
+    git_bisect_remove (ctx, "BISECT_EXPECTED_REV");
+    git_bisect_remove (ctx, "BISECT_ANCESTORS_OK");
+    git_bisect_remove (ctx, "BISECT_HEAD");
+    return rc;
+}
+
+static int
+git_cmd_bisect (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage =
+        "git bisect (start [<bad> [<good>...]] | bad [<rev>] | good [<rev>] | "
+        "skip [<rev>...] | terms | log | replay <file> | run <cmd>... | "
+        "reset [<commit>])";
+    if (!args) {
+        fflush (stdout);
+        fprintf (stderr, "fatal: need a command\n\nusage: %s\n", usage);
+        return GIT_EXIT_USAGE;
+    }
+    const char *verb = args->word->word;
+    WORD_LIST *rest = args->next;
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (!strcmp (verb, "start")) {
+        const char *bad = NULL;
+        const char *good[64];
+        size_t n_good = 0;
+        char bad_term[64] = "bad", good_term[64] = "good";
+        for (WORD_LIST *p = rest; p; p = p->next) {
+            const char *w = p->word->word;
+            if (!strncmp (w, "--term-new=", 11) || !strncmp (w, "--term-bad=", 11))
+                snprintf (bad_term, sizeof bad_term, "%s", strchr (w, '=') + 1);
+            else if (!strncmp (w, "--term-old=", 11) ||
+                     !strncmp (w, "--term-good=", 12))
+                snprintf (good_term, sizeof good_term, "%s",
+                          strchr (w, '=') + 1);
+            else if (!strcmp (w, "--no-checkout") || !strcmp (w, "--first-parent"))
+                return git_fatal ("this build's git bisect does not have %s", w);
+            else if (!strcmp (w, "--")) break;
+            else if (w[0] == '-' && w[1]) return git_usage (usage);
+            else if (!bad) bad = w;
+            else if (n_good < sizeof good / sizeof good[0]) good[n_good++] = w;
+        }
+        if (git_bisect_running (ctx)) git_bisect_reset (ctx, NULL);
+        /* Where to go back to: the branch that is checked out, or the
+           commit if HEAD is detached. */
+        char *symref = NULL, head[41];
+        char where[4096] = "";
+        if (bgit_ref_resolve (&ctx->repo, "HEAD", head, &symref) == 0) {
+            if (symref && !strncmp (symref, "refs/heads/", 11))
+                snprintf (where, sizeof where, "%s", symref + 11);
+            else snprintf (where, sizeof where, "%s", head);
+        }
+        free (symref);
+        char text[4096];
+        snprintf (text, sizeof text, "%s\n", where);
+        git_bisect_write (ctx, "BISECT_START", text);
+        snprintf (text, sizeof text, "%s\n%s\n", bad_term, good_term);
+        git_bisect_write (ctx, "BISECT_TERMS", text);
+        git_bisect_write (ctx, "BISECT_NAMES", "");
+        git_bisect_write (ctx, "BISECT_LOG", "");
+
+        struct git_bisect state;
+        git_bisect_load (ctx, &state);
+        int rc = 0;
+        if (bad) {
+            char id[41];
+            if (git_resolve (ctx, bad, id, NULL) < 0)
+                rc = git_fatal ("Not a valid object name: '%s'.", bad);
+            else {
+                memcpy (state.bad, id, 41);
+                git_bisect_verdict (&state, "bad", bad, id, 0);
+            }
+        }
+        for (size_t i = 0; i < n_good && !rc; i++) {
+            char id[41];
+            if (git_resolve (ctx, good[i], id, NULL) < 0) {
+                rc = git_fatal ("Not a valid object name: '%s'.", good[i]);
+                break;
+            }
+            char (*grown)[41] = realloc (state.good,
+                                         (state.n_good + 1) * sizeof *grown);
+            if (!grown) { rc = GIT_EXIT_FATAL; break; }
+            state.good = grown;
+            memcpy (state.good[state.n_good++], id, 41);
+            git_bisect_verdict (&state, "good", good[i], id, 0);
+        }
+        if (!rc) {
+            /* The transcript keeps the command as it was given, arguments
+               and all, so that a replay does the same thing again. */
+            char line[4096];
+            size_t at = (size_t) snprintf (line, sizeof line, "git bisect start");
+            for (WORD_LIST *w = rest; w && at < sizeof line; w = w->next)
+                at += (size_t) snprintf (line + at, sizeof line - at, " '%s'",
+                                         w->word->word);
+            git_bisect_note (ctx, "%s\n", line);
+            if (!bad && !n_good)
+                git_bisect_note (ctx, "# status: waiting for both good and bad "
+                                 "commits\n");
+            else if (!n_good)
+                git_bisect_note (ctx, "# status: waiting for good commit(s), "
+                                 "bad commit known\n");
+            rc = git_bisect_step (&state);
+        }
+        git_bisect_release (&state);
+        return rc;
+    }
+
+    if (!strcmp (verb, "reset")) {
+        if (!git_bisect_running (ctx)) return 0;
+        return git_bisect_reset (ctx, rest ? rest->word->word : NULL);
+    }
+
+    if (!strcmp (verb, "log")) {
+        if (!git_bisect_running (ctx)) {
+            fflush (stdout);
+            fprintf (stderr, "error: We are not bisecting.\n");
+            return 1;
+        }
+        char path[4096];
+        if (git_bisect_path (ctx, "BISECT_LOG", path, sizeof path) < 0)
+            return GIT_EXIT_FATAL;
+        unsigned char *text = NULL;
+        size_t len = 0;
+        if (bgit_slurp_file (path, &text, &len) == 0) {
+            fwrite (text, 1, len, stdout);
+            free (text);
+        }
+        return 0;
+    }
+
+    /* A replay starts a bisection of its own, so it does not need one
+       already under way; the verdicts do. */
+    if (!git_bisect_running (ctx) && strcmp (verb, "terms") &&
+        strcmp (verb, "replay")) {
+        fflush (stdout);
+        fprintf (stderr, "You need to start by \"git bisect start\"\n\n");
+        return 1;
+    }
+
+    struct git_bisect state;
+    git_bisect_load (ctx, &state);
+
+    if (!strcmp (verb, "terms")) {
+        int rc = 0;
+        if (!git_bisect_running (ctx)) {
+            fflush (stdout);
+            fprintf (stderr, "error: no terms defined\n");
+            rc = 1;
+        } else if (rest && !strcmp (rest->word->word, "--term-good"))
+            printf ("%s\n", state.good_term);
+        else if (rest && !strcmp (rest->word->word, "--term-bad"))
+            printf ("%s\n", state.bad_term);
+        else
+            printf ("Your current terms are %s for the old state\nand %s for "
+                    "the new state.\n", state.good_term, state.bad_term);
+        git_bisect_release (&state);
+        return rc;
+    }
+
+    int is_bad = !strcmp (verb, state.bad_term) || !strcmp (verb, "new");
+    int is_good = !strcmp (verb, state.good_term) || !strcmp (verb, "old");
+    if (is_bad || is_good || !strcmp (verb, "skip")) {
+        int rc = 0;
+        const char *names[64];
+        size_t n_names = 0;
+        for (WORD_LIST *p = rest; p; p = p->next)
+            if (n_names < sizeof names / sizeof names[0])
+                names[n_names++] = p->word->word;
+        if (!n_names) { names[0] = "HEAD"; n_names = 1; }
+        for (size_t i = 0; i < n_names && !rc; i++) {
+            char id[41];
+            if (git_resolve (ctx, names[i], id, NULL) < 0) {
+                rc = git_fatal ("Bad rev input: %s", names[i]);
+                break;
+            }
+            if (is_bad) {
+                memcpy (state.bad, id, 41);
+                git_bisect_verdict (&state, "bad", names[i], id, 1);
+            } else if (is_good) {
+                char (*grown)[41] = realloc (state.good,
+                                             (state.n_good + 1) * sizeof *grown);
+                if (!grown) { rc = GIT_EXIT_FATAL; break; }
+                state.good = grown;
+                memcpy (state.good[state.n_good++], id, 41);
+                git_bisect_verdict (&state, "good", names[i], id, 1);
+            } else {
+                char (*grown)[41] = realloc (state.skipped,
+                                             (state.n_skipped + 1) * sizeof *grown);
+                if (!grown) { rc = GIT_EXIT_FATAL; break; }
+                state.skipped = grown;
+                memcpy (state.skipped[state.n_skipped++], id, 41);
+                git_bisect_verdict (&state, "skip", names[i], id, 1);
+            }
+        }
+        if (!rc) {
+            if (!*state.bad)
+                git_bisect_note (ctx, "# status: waiting for bad commit, %zu "
+                                 "good commit%s known\n", state.n_good,
+                                 state.n_good == 1 ? "" : "s");
+            else if (!state.n_good)
+                git_bisect_note (ctx, "# status: waiting for good commit(s), "
+                                 "bad commit known\n");
+            if (!git_bisect_replaying) rc = git_bisect_step (&state);
+        }
+        git_bisect_release (&state);
+        return rc;
+    }
+
+    if (!strcmp (verb, "replay")) {
+        int rc = 0;
+        if (!rest) rc = git_usage (usage);
+        else {
+            unsigned char *text = NULL;
+            size_t len = 0;
+            if (bgit_slurp_file (rest->word->word, &text, &len) < 0)
+                rc = GIT_EXIT_FATAL;
+            else {
+                git_bisect_release (&state);
+                git_bisect_reset (ctx, NULL);
+                size_t at = 0;
+                while (at < len && !rc) {
+                    size_t end = at;
+                    while (end < len && text[end] != '\n') end++;
+                    char line[4096];
+                    size_t take = end - at < sizeof line - 1 ? end - at
+                                                             : sizeof line - 1;
+                    memcpy (line, text + at, take);
+                    line[take] = '\0';
+                    at = end + 1;
+                    if (line[0] == '#' || !*line) continue;
+                    if (strncmp (line, "git bisect ", 11)) continue;
+                    /* Each line is a command of its own, given again. */
+                    WORD_LIST *words = NULL, *tail = NULL;
+                    char *saved = NULL;
+                    for (char *word = strtok_r (line + 11, " \t", &saved); word;
+                         word = strtok_r (NULL, " \t", &saved)) {
+                        /* The transcript quotes what was given; the quotes
+                           are the transcript's, not part of the word. */
+                        size_t len = strlen (word);
+                        if (len > 1 && word[0] == '\'' && word[len - 1] == '\'') {
+                            word[len - 1] = '\0';
+                            word++;
+                        }
+                        WORD_LIST *one = make_word_list (make_word (word), NULL);
+                        if (!words) words = tail = one;
+                        else { tail->next = one; tail = one; }
+                    }
+                    if (words) {
+                        git_bisect_replaying = 1;
+                        rc = git_cmd_bisect (ctx, words);
+                        git_bisect_replaying = 0;
+                        dispose_words (words);
+                    }
+                }
+                free (text);
+                if (!rc) {
+                    struct git_bisect after;
+                    git_bisect_load (ctx, &after);
+                    rc = git_bisect_step (&after);
+                    git_bisect_release (&after);
+                }
+                return rc;
+            }
+        }
+        git_bisect_release (&state);
+        return rc;
+    }
+
+    if (!strcmp (verb, "run")) {
+        int rc = 0;
+        if (!rest) { git_bisect_release (&state); return git_usage (usage); }
+        for (;;) {
+            char shown[4096] = "";
+            size_t at = 0;
+            for (WORD_LIST *p = rest; p; p = p->next)
+                at += (size_t) snprintf (shown + at, sizeof shown - at, "%s'%s'",
+                                         at ? " " : "", p->word->word);
+            printf ("running %s\n", shown);
+            fflush (stdout);
+            int status = git_bisect_run_words (rest);
+            if (status < 0 || status == 125) {
+                /* 125 says the commit cannot be tested. */
+                WORD_LIST *skip = make_word_list (make_word ("skip"), NULL);
+                rc = git_cmd_bisect (ctx, skip);
+                dispose_words (skip);
+            } else {
+                WORD_LIST *verdict =
+                    make_word_list (make_word (status ? (char *) "bad"
+                                                      : (char *) "good"), NULL);
+                rc = git_cmd_bisect (ctx, verdict);
+                dispose_words (verdict);
+            }
+            if (rc) break;
+            char expected[64];
+            if (git_bisect_read_line (ctx, "BISECT_EXPECTED_REV", expected,
+                                      sizeof expected) < 0) break;
+            struct git_bisect again;
+            git_bisect_load (ctx, &again);
+            char (*ids)[41] = NULL;
+            size_t n = 0;
+            git_bisect_candidates (&again, &ids, &n);
+            int weight = 0;
+            long best = git_bisect_choose (&again, ids, n, &weight);
+            free (ids);
+            git_bisect_release (&again);
+            if (best < 0) break;
+        }
+        if (!rc) printf ("bisect found first %s commit\n", state.bad_term);
+        git_bisect_release (&state);
+        return rc;
+    }
+
+    git_bisect_release (&state);
+    fflush (stdout);
+    fprintf (stderr, "fatal: unknown command: %s\n", verb);
+    return GIT_EXIT_USAGE;
 }
 
 /* ---- notes -------------------------------------------------------------- */
@@ -21943,6 +22802,7 @@ static const struct {
     { "add",          git_cmd_add },
     { "am",           git_cmd_am },
     { "apply",        git_cmd_apply },
+    { "bisect",       git_cmd_bisect },
     { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
