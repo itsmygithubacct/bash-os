@@ -4242,7 +4242,8 @@ git_commit_read (git_context *ctx, const char *id, struct git_commit *commit)
 /* The ways git can write a date, as --date= names them. */
 enum {
     GIT_DATE_DEFAULT, GIT_DATE_RAW, GIT_DATE_ISO, GIT_DATE_ISO_STRICT,
-    GIT_DATE_SHORT, GIT_DATE_RELATIVE, GIT_DATE_UNIX, GIT_DATE_RFC2822,
+    GIT_DATE_SHORT, GIT_DATE_RELATIVE, GIT_DATE_HUMAN, GIT_DATE_UNIX,
+    GIT_DATE_RFC2822,
     GIT_DATE_STRFTIME
 };
 
@@ -4298,6 +4299,7 @@ git_date_format_set (struct git_date_format *how, const char *name)
     else if (git_date_named (name, len, "short")) how->mode = GIT_DATE_SHORT;
     else if (git_date_named (name, len, "relative"))
         how->mode = GIT_DATE_RELATIVE;
+    else if (git_date_named (name, len, "human")) how->mode = GIT_DATE_HUMAN;
     else if (git_date_named (name, len, "unix")) how->mode = GIT_DATE_UNIX;
     else if (git_date_named (name, len, "rfc") ||
              git_date_named (name, len, "rfc2822")) how->mode = GIT_DATE_RFC2822;
@@ -4310,12 +4312,16 @@ git_date_format_set (struct git_date_format *how, const char *name)
 static int
 git_date_format_read (struct git_date_format *how, const char *name)
 {
-    if (!strcmp (name, "human") || !strncmp (name, "auto:", 5))
+    if (!strncmp (name, "auto:", 5))
         return git_fatal ("this build's git has no --date=%s yet", name);
     if (git_date_format_set (how, name) < 0)
         return git_fatal ("unknown date format %s", name);
     return 0;
 }
+
+/* Written out below, beside the modes each placeholder names. */
+static void git_format_date_mode (const char *raw, int mode, char *out,
+                                  size_t outsz);
 
 /* git's default date: "Sun Jun 15 12:26:40 2025 +0000", in the commit's own
    zone, which is what the raw "<seconds> <zone>" pair records — or in the
@@ -4455,6 +4461,65 @@ git_format_date_as (const char *raw, const struct git_date_format *how,
                   tm.tm_mday);
         return;
     }
+    if (mode == GIT_DATE_HUMAN) {
+        /* What the reader can work out for himself is left off: the year
+           when it is this one, the date when it is within a few days, the
+           time when the year has gone, and the zone when it is his own.
+           Today, said within the day, is a distance instead. */
+        long long now = (long long) time (NULL);
+        struct tm today;
+        time_t moment = (time_t) now;
+        tzset ();
+        int same_year = 0, same_day = 0;
+        long local_offset = 0;
+        if (localtime_r (&moment, &today)) {
+            same_year = today.tm_year == tm.tm_year;
+            same_day = same_year && today.tm_mon == tm.tm_mon &&
+                       today.tm_mday == tm.tm_mday;
+            local_offset = today.tm_gmtoff;
+        }
+        /* How far back it is, counted in days on the calendar rather than
+           in seconds: the reader's day against the date's own. */
+        long day_apart = 0;
+        {
+            struct tm *pair[2] = { &today, &tm };
+            long number[2];
+            for (int i = 0; i < 2; i++) {
+                long y = pair[i]->tm_year + 1900, m = pair[i]->tm_mon + 1,
+                     d = pair[i]->tm_mday;
+                y -= m <= 2;
+                long era = (y >= 0 ? y : y - 399) / 400;
+                long yoe = y - era * 400;
+                long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+                long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+                number[i] = era * 146097 + doe - 719468;
+            }
+            day_apart = number[0] - number[1];
+        }
+        if (same_day && now >= seconds && now - seconds < 24 * 3600) {
+            git_format_date_mode (raw, GIT_DATE_RELATIVE, out, outsz);
+            return;
+        }
+        const char *shown_zone = "";
+        char with_zone[16] = "";
+        if (!how->local && tm.tm_gmtoff != local_offset) {
+            snprintf (with_zone, sizeof with_zone, " %s", zone);
+            shown_zone = with_zone;
+        }
+        if (same_year && day_apart >= 0 && day_apart < 5)
+            snprintf (out, outsz, "%s %02d:%02d%s", days[tm.tm_wday],
+                      tm.tm_hour, tm.tm_min, shown_zone);
+        else if (same_year)
+            /* Once the date is there the zone is not: git leaves it off
+               for anything but the last few days. */
+            snprintf (out, outsz, "%s %s %d %02d:%02d", days[tm.tm_wday],
+                      months[tm.tm_mon], tm.tm_mday, tm.tm_hour, tm.tm_min);
+        else
+            snprintf (out, outsz, "%s %d %d", months[tm.tm_mon], tm.tm_mday,
+                      tm.tm_year + 1900);
+        return;
+    }
+
     /* The day of the month is not padded, and a date read off the
        reader's own clock carries no zone at all. */
     snprintf (out, outsz, "%s %s %d %02d:%02d:%02d %d%s%s",

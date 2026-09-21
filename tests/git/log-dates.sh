@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # A date is written the way --date= asks for it, and a commit carries the
 # names that point at it the way --decorate asks. Every mode is compared
-# here except the two that count from the moment of the run — relative and
-# human — which no two runs agree on.
+# here except relative, which counts from the moment of the run and which
+# no two runs agree on. Human counts from that moment too, but every date
+# here is more than a year old, which is one settled answer whenever the
+# run happens.
 # Run through tests/git-parity.py, never on its own.
 # requires: init add commit tag branch update-ref log show checkout
 set -e
@@ -29,6 +31,11 @@ for mode in default raw iso iso8601 iso-strict iso8601-strict short unix \
     echo "--- $mode"
     git log --date=$mode --format='%ad|%cd'
 done
+
+echo '=== what is left off once a date is old enough to speak for itself ==='
+git log --date=human --format='%ad|%cd'
+TZ='XYZ-5:30' git log --date=human --format='%ad' -1
+git log --date=human-local --format='%ad'
 
 echo '=== and the same, read off the clock in front of the reader ==='
 for mode in local default-local iso-local iso-strict-local short-local \

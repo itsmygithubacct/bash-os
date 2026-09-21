@@ -556,13 +556,20 @@ then empties the index rather than complaining that HEAD is not a
 revision.
 
 `git log` writes a date the way `--date=` asks for it: `default`, `raw`,
-`iso`, `iso-strict`, `short`, `unix`, `rfc`, `relative`, and a `format:`
-pattern of the caller's own, each of them also with a `-local` suffix that
-reads the time off the clock in front of the reader instead of the one the
-commit recorded. `%ad` and `%cd` follow that option, while `%at`, `%ai`,
-`%aI`, `%as` and `%ar` each name a mode of their own. The two modes that
-count from the moment of the run are `relative`, which is written, and
-`human`, which is not.
+`iso`, `iso-strict`, `short`, `unix`, `rfc`, `relative`, `human`, and a
+`format:` pattern of the caller's own, each of them also with a `-local`
+suffix that reads the time off the clock in front of the reader instead of
+the one the commit recorded. `%ad` and `%cd` follow that option, while
+`%at`, `%ai`, `%aI`, `%as` and `%ar` each name a mode of their own.
+
+`human` leaves off whatever the reader can work out for himself: a date
+from today is said as a distance, one from the last few days keeps its
+weekday and time, one from this year adds the month and day, and an older
+one is the month, the day and the year with no time at all. The zone is
+shown only where the date is not, and only when it is not the reader's
+own. Near or far is counted in days on the calendar, not in seconds, so
+the same commit reads differently either side of the reader's midnight —
+which is git's own arithmetic, checked against it across five zones.
 
 The names that point at a commit go where git puts them: `--decorate`
 after the id, `--decorate=full` with every ref written out whole, and with
@@ -1151,7 +1158,7 @@ fsck, prune, repack, gc, notes, bisect, archive and bundle.
 
 What is not here yet, in the order it would be missed: cloning straight
 from a bundle; `remote show`; `diff --word-diff`; `describe --contains`
-and `--all`; and `--date=human`.
+and `--all`.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent
