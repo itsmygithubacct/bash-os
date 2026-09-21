@@ -38,6 +38,9 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
+                 [--match <pattern>] [--candidates=<n>] [--dirty[=<mark>]]
+                 [<commit-ish>...]
 git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
                  | (-m | -M) <old> <new>
 git switch       [-q] [-c <new>] [--detach] <branch>
@@ -180,6 +183,17 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+`git describe` calls a commit by the nearest tag behind it, how far back
+that tag is and the commit's own short id — `<tag>-<n>-g<id>`, or the tag
+alone when it names the commit. Only annotated tags count unless `--tags`
+says otherwise, `--long` always writes the three parts, `--abbrev=0`
+writes the name alone, `--always` falls back to the id, `--exact-match`
+takes nothing but a tag on the commit itself, `--match` narrows which tags
+count, `--candidates=<n>` how many are weighed, and `--dirty[=<mark>]`
+says when the working tree has moved on. Where two tags name one commit,
+git keeps the annotated one, the later of two annotated ones, and the
+first read of two light ones; this does the same.
 
 Which of the commits found are shown is git's own set of filters, and
 `git rev-list` takes them too: `--grep=`, `--author=` and `--committer=`

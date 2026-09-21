@@ -6401,14 +6401,259 @@ done:
     return status;
 }
 
+/* ---- describe ---------------------------------------------------------- */
+
+/* A tag that might name a commit: how it is written, what it stands on,
+   and which of two tags on the same commit git keeps. */
+struct git_describe_tag {
+    char name[512];
+    char commit[41];
+    int annotated;              /* git prefers one of these */
+    long long tagged;           /* when an annotated tag was made */
+    int depth;                  /* commits between it and the target */
+    int order;                  /* where the walk found it */
+};
+
+/* The tags this repository has, peeled to the commits they name. */
+static int
+git_describe_tags (git_context *ctx, const char *match,
+                   struct git_describe_tag **out, size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n_refs) < 0) return -1;
+    struct git_describe_tag *tags = calloc (n_refs ? n_refs : 1, sizeof *tags);
+    if (!tags) { bgit_refs_free (refs, n_refs); return -1; }
+    size_t n = 0;
+    for (size_t i = 0; i < n_refs; i++) {
+        const char *name = refs[i].name + strlen ("refs/tags/");
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        int annotated = 0;
+        long long tagged = 0;
+        if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data, &len) == 0) {
+            annotated = type == BGIT_TAG;
+            if (annotated) {
+                /* When it was made, which decides between two of them. */
+                const char *body = (const char *) data;
+                for (size_t at = 0; at < len;) {
+                    const char *nl = memchr (body + at, '\n', len - at);
+                    size_t line = nl ? (size_t) (nl - (body + at)) : len - at;
+                    if (!line) break;
+                    if (!strncmp (body + at, "tagger ", 7)) {
+                        const char *right = memrchr (body + at, '>', line);
+                        if (right) tagged = strtoll (right + 1, NULL, 10);
+                    }
+                    if (!nl) break;
+                    at += line + 1;
+                }
+            }
+            free (data);
+        }
+        if (match && *match && fnmatch (match, name, 0) != 0) continue;
+        char commit[41];
+        if (bgit_peel_to_type (&ctx->odb, refs[i].sha, BGIT_COMMIT, commit) < 0)
+            continue;
+        /* One name per commit: an annotated tag beats a light one, a
+           newer annotated tag beats an older, and among light ones the
+           first read wins — which is git's own order. */
+        size_t at = n;
+        for (size_t j = 0; j < n; j++)
+            if (!strcmp (tags[j].commit, commit)) { at = j; break; }
+        if (at < n) {
+            struct git_describe_tag *held = &tags[at];
+            if (held->annotated > annotated) continue;
+            if (held->annotated == annotated &&
+                (!annotated || held->tagged >= tagged))
+                continue;
+        } else
+            n++;
+        snprintf (tags[at].name, sizeof tags[at].name, "%s", name);
+        snprintf (tags[at].commit, sizeof tags[at].commit, "%s", commit);
+        tags[at].annotated = annotated;
+        tags[at].tagged = tagged;
+    }
+    bgit_refs_free (refs, n_refs);
+    *out = tags;
+    *n_out = n;
+    return 0;
+}
+
+/* Is anything the index tracks different from HEAD or from the files? */
+static int
+git_describe_dirty (git_context *ctx)
+{
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return 0;
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    int dirty = 0;
+    if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state.index,
+                     state.n_index, state.have_head ? state.head_tree : NULL,
+                     0, 0, 0, &entries, &n) == 0) {
+        for (size_t i = 0; i < n && !dirty; i++)
+            if (entries[i].staged || entries[i].unstaged || entries[i].unmerged)
+                dirty = 1;
+        bgit_status_free (entries, n);
+    }
+    git_state_release (&state);
+    return dirty;
+}
+
+static int
+git_cmd_describe (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git describe [--tags] [--long] [--always] "
+                        "[--abbrev=<n>] [--exact-match] [--match <pattern>] "
+                        "[--candidates=<n>] [--dirty[=<mark>]] "
+                        "[<commit-ish>...]";
+    int use_all_tags = 0, long_form = 0, always = 0, abbrev = 7;
+    int candidates = 10, want_dirty = 0;
+    const char *match = NULL, *mark = "-dirty";
+    const char *named[16];
+    int n_named = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--tags")) use_all_tags = 1;
+        else if (!strcmp (w, "--long")) long_form = 1;
+        else if (!strcmp (w, "--always")) always = 1;
+        else if (!strncmp (w, "--abbrev=", 9)) {
+            abbrev = atoi (w + 9);
+            if (abbrev && abbrev < 4) abbrev = 4;
+            if (abbrev > 40) abbrev = 40;
+        }
+        else if (!strcmp (w, "--exact-match")) candidates = 0;
+        else if (!strncmp (w, "--candidates=", 13)) candidates = atoi (w + 13);
+        else if (!strcmp (w, "--match") && p->next) {
+            match = p->next->word->word;
+            p = p->next;
+        }
+        else if (!strncmp (w, "--match=", 8)) match = w + 8;
+        else if (!strcmp (w, "--dirty")) want_dirty = 1;
+        else if (!strncmp (w, "--dirty=", 8)) { want_dirty = 1; mark = w + 8; }
+        else if (!strcmp (w, "--contains") || !strcmp (w, "--all"))
+            return git_fatal ("this build's git describe has no %s yet", w);
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_named < (int) (sizeof named / sizeof *named))
+            named[n_named++] = w;
+        else return git_fatal ("too many arguments");
+    }
+    if (!n_named) named[n_named++] = "HEAD";
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (long_form && !abbrev)
+        return git_fatal ("options '--long' and '--abbrev=0' cannot be used "
+                          "together");
+    struct git_describe_tag *tags = NULL;
+    size_t n_tags = 0;
+    if (git_describe_tags (ctx, match, &tags, &n_tags) < 0)
+        return git_fatal ("cannot read refs");
+    int saw_lightweight = 0;
+    for (size_t i = 0; i < n_tags; i++)
+        if (!tags[i].annotated) saw_lightweight = 1;
+
+    int status = 0;
+    for (int i = 0; i < n_named && !status; i++) {
+        char id[41], target[41];
+        if (git_resolve (ctx, named[i], id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, target) < 0) {
+            status = git_fatal ("Not a valid object name %s", named[i]);
+            break;
+        }
+        if (!n_tags && !always) {
+            status = git_fatal ("No names found, cannot describe anything.");
+            break;
+        }
+        /* The commits behind the target, newest first: a tag on one of
+           them is a candidate, and the ones nearest the target come
+           first, which is the order git considers them in. */
+        char (*walk)[41] = NULL;
+        size_t n_walk = 0;
+        const char *starts[1] = { target };
+        if (git_collect_commits (ctx, starts, 1, NULL, 0, 0, -1, &walk,
+                                 &n_walk) < 0) {
+            status = git_fatal ("cannot read %s", named[i]);
+            break;
+        }
+        struct git_describe_tag *best = NULL;
+        int found = 0;
+        for (size_t j = 0; j < n_walk && found < candidates + 1; j++) {
+            struct git_describe_tag *tag = NULL;
+            for (size_t k = 0; k < n_tags; k++)
+                if ((use_all_tags || tags[k].annotated) &&
+                    !strcmp (tags[k].commit, walk[j])) {
+                    tag = &tags[k];
+                    break;
+                }
+            if (!tag) continue;
+            if (j == 0) { tag->depth = 0; best = tag; break; }
+            if (found >= candidates) break;
+            tag->order = ++found;
+            /* How many commits the target has that the tag does not. */
+            char (*between)[41] = NULL;
+            size_t n_between = 0;
+            const char *excludes[1] = { tag->commit };
+            if (git_collect_commits (ctx, starts, 1, excludes, 1, 0, -1,
+                                     &between, &n_between) < 0)
+                continue;
+            free (between);
+            tag->depth = (int) n_between;
+            if (!best || tag->depth < best->depth) best = tag;
+        }
+        free (walk);
+        if (!best) {
+            if (always) {
+                char abbreviated[41];
+                git_abbrev (ctx, target, abbrev ? abbrev : 7, abbreviated,
+                            sizeof abbreviated);
+                printf ("%s%s\n", abbreviated,
+                        want_dirty && git_describe_dirty (ctx) ? mark : "");
+                continue;
+            }
+            if (!candidates)
+                status = git_fatal ("no tag exactly matches '%s'", target);
+            else if (saw_lightweight && !use_all_tags) {
+                fflush (stdout);
+                fprintf (stderr, "fatal: No annotated tags can describe '%s'.\n"
+                                 "However, there were unannotated tags: try "
+                                 "--tags.\n", target);
+                status = GIT_EXIT_FATAL;
+            } else {
+                fflush (stdout);
+                fprintf (stderr, "fatal: No tags can describe '%s'.\n"
+                                 "Try --always, or create some tags.\n", target);
+                status = GIT_EXIT_FATAL;
+            }
+            break;
+        }
+        const char *dirt = want_dirty && git_describe_dirty (ctx) ? mark : "";
+        /* With no abbreviation asked for, the name stands on its own. */
+        if ((!best->depth && !long_form) || !abbrev) {
+            printf ("%s%s\n", best->name, dirt);
+            continue;
+        }
+        char abbreviated[41];
+        git_abbrev (ctx, target, abbrev ? abbrev : 7, abbreviated,
+                    sizeof abbreviated);
+        printf ("%s-%d-g%s%s\n", best->name, best->depth, abbreviated, dirt);
+    }
+    free (tags);
+    return status;
+}
+
 static int
 git_cmd_tag (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git tag [-a] [-s] [-u <key>] [-m <message>] [-f] "
-                        "<name> [<commit>] | -d <name> | -l [<pattern>]";
+                        "<name> [<commit>] | -d <name>... | -l [<pattern>]";
     int annotate = 0, delete_tag = 0, list = 0, force = 0, sign = 0;
     const char *message = NULL, *signing_key = NULL;
-    const char *names[2] = { NULL, NULL };
+    /* Two for making one tag, and as many as are given for deleting. */
+    const char *names[64] = { NULL };
     int n_names = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
@@ -6433,23 +6678,34 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         } else if (!strcmp (w, "-am") && p->next) {
             message = p->next->word->word; annotate = 1; p = p->next;
         } else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (n_names < 2) names[n_names++] = w;
+        else if (n_names < (int) (sizeof names / sizeof *names))
+            names[n_names++] = w;
         else return git_usage (usage);
     }
+    if (!delete_tag && n_names > 2) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     if (delete_tag) {
         if (!n_names) return git_usage (usage);
-        char ref[4096], id[41];
-        snprintf (ref, sizeof ref, "refs/tags/%s", names[0]);
-        if (bgit_ref_read (&ctx->repo, ref, id) != 0)
-            return git_fatal ("tag '%s' not found.", names[0]);
-        if (bgit_ref_delete (&ctx->repo, ref, NULL, NULL) < 0)
-            return GIT_EXIT_FATAL;
-        char abbreviated[41];
-        git_abbrev (ctx, id, 7, abbreviated, sizeof abbreviated);
-        printf ("Deleted tag '%s' (was %s)\n", names[0], abbreviated);
-        return 0;
+        /* git deletes as many as it is given, says so for each, and a
+           name it does not know is an error that does not stop it. */
+        int status = 0;
+        for (int i = 0; i < n_names; i++) {
+            char ref[4096], id[41];
+            snprintf (ref, sizeof ref, "refs/tags/%s", names[i]);
+            if (bgit_ref_read (&ctx->repo, ref, id) != 0) {
+                fflush (stdout);
+                fprintf (stderr, "error: tag '%s' not found.\n", names[i]);
+                status = 1;
+                continue;
+            }
+            if (bgit_ref_delete (&ctx->repo, ref, NULL, NULL) < 0)
+                return GIT_EXIT_FATAL;
+            char abbreviated[41];
+            git_abbrev (ctx, id, 7, abbreviated, sizeof abbreviated);
+            printf ("Deleted tag '%s' (was %s)\n", names[i], abbreviated);
+        }
+        return status;
     }
     if (list || !n_names) {
         bgit_ref *refs = NULL;
@@ -16622,6 +16878,7 @@ static const struct {
     { "commit",       git_cmd_commit },
     { "commit-tree",  git_cmd_commit_tree },
     { "config",       git_cmd_config },
+    { "describe",     git_cmd_describe },
     { "diff",         git_cmd_diff },
     { "fetch",        git_cmd_fetch },
     { "for-each-ref", git_cmd_for_each_ref },

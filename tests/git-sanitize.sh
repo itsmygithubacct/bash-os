@@ -153,6 +153,12 @@ GIT_AUTHOR_NAME='Prefix Author' GIT_AUTHOR_EMAIL='prefix@bash-os.test' \
 GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000000 +0000' \
   git commit -q --allow-empty -m 'made with a name given for this command alone'
 git log -1 --format='%an <%ae> %ad'
+git describe --tags
+git describe --tags --long
+git describe --always --abbrev=12
+git describe --tags --dirty
+git describe --tags --match 'v*' 2>/dev/null || true
+git describe 2>/dev/null || true                  # the error path, quietly
 git log --oneline --decorate
 git log --oneline --decorate=full
 git log --decorate=full -1
