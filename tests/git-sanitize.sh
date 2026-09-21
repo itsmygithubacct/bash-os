@@ -229,6 +229,21 @@ git blame nosuchfile 2>/dev/null || true
 git count-objects
 git count-objects -v
 git count-objects -H
+# Every object read at once, with every way of asking about the ones nothing
+# reaches, and a link that cannot be followed.
+git fsck > /dev/null
+git fsck --unreachable > /dev/null
+git fsck --no-dangling --root --tags > /dev/null
+git fsck --connectivity-only --no-reflogs > /dev/null
+git fsck --verbose > /dev/null 2>&1
+git fsck HEAD > /dev/null
+git fsck nosuchthing > /dev/null 2>&1 || true
+gone=$(git rev-parse 'HEAD^{tree}')
+gone_path=".git/objects/${gone%"${gone#??}"}/${gone#??}"
+mv "$gone_path" gone.object 2>/dev/null || true
+git fsck > /dev/null 2>&1 || true
+git fsck --connectivity-only > /dev/null 2>&1 || true
+mv gone.object "$gone_path" 2>/dev/null || true
 git diff -R HEAD~1 HEAD > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3

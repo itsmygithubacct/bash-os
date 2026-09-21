@@ -131,4 +131,14 @@ int bgit_odb_has (bgit_odb *odb, const char *sha);
 int bgit_odb_read (bgit_odb *odb, const char *name, enum bgit_type *type,
                    unsigned char **data, size_t *len);
 
+/* Every object the store holds, loose and packed, as 40 hex digits plus NUL,
+   sorted and without repeats. What a command that has to look at all of them
+   starts from. Caller frees *out. Returns 0, or -1. Silent. */
+int bgit_odb_list (bgit_odb *odb, char (**out)[41], size_t *n);
+
+/* Where the loose object SHA is kept, in the objects directory that holds
+   it. Returns 0 and fills OUT, or -1 when no directory has it. Silent. */
+int bgit_odb_loose_path (bgit_odb *odb, const char *sha, char *out,
+                         size_t outsz);
+
 #endif /* BASH_OS_GIT_ODB_H */

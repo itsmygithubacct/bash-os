@@ -43,6 +43,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <zlib.h>
 
 #include "loadables.h"
 #include "command-run.h"
@@ -8892,6 +8893,677 @@ git_cmd_count_objects (git_context *ctx, WORD_LIST *args)
     if (human) printf ("size-garbage: %s\n", garbage_shown);
     else printf ("size-garbage: %llu\n", garbage_size / 1024);
     return 0;
+}
+
+/* ---- fsck --------------------------------------------------------------- */
+
+/* What fsck comes to know about one object: what it is, whether anything at
+   all points at it, and whether a root reaches it. The array is sorted by
+   id, so a link is looked up by bisection. */
+struct git_fsck_object {
+    char sha[41];
+    unsigned char type;        /* enum bgit_type */
+    unsigned char present;     /* readable, and named by what it holds */
+    unsigned char used;        /* something points at it */
+    unsigned char reachable;   /* a root reaches it */
+};
+
+/* Referenced by something reachable but not in the store. */
+struct git_fsck_absent {
+    char sha[41];
+    unsigned char type;        /* what the reference expected it to be */
+};
+
+struct git_fsck {
+    git_context *ctx;
+    struct git_fsck_object *objects;
+    size_t n;
+    struct git_fsck_absent *absent;
+    size_t n_absent, cap_absent;
+    int show_unreachable, show_dangling, show_roots, show_tags;
+    int verbose, connectivity_only;
+    int errors;                /* git's bitmask: 1 an object, 2 reachability */
+};
+
+/* git names a loose object by the path it opened, which inside a working
+   tree is the relative one. */
+static const char *
+git_fsck_shown_path (const struct git_fsck *f, const char *path)
+{
+    const char *root = f->ctx->repo.work_tree;
+    if (!root || !*root) return path;
+    size_t n = strlen (root);
+    while (n && root[n - 1] == '/') n--;
+    if (!strncmp (path, root, n) && path[n] == '/') return path + n + 1;
+    return path;
+}
+
+/* What git's decompression layer says before fsck says anything: the
+   message zlib gives for the object's first bytes, then the file it could
+   not unpack. */
+static void
+git_fsck_unpack_error (struct git_fsck *f, const char *path)
+{
+    int fd = open (path, O_RDONLY);
+    unsigned char raw[64], out[64];
+    ssize_t got = fd >= 0 ? read (fd, raw, sizeof raw) : -1;
+    if (fd >= 0) close (fd);
+    if (got > 0) {
+        z_stream stream;
+        memset (&stream, 0, sizeof stream);
+        stream.next_in = raw;
+        stream.avail_in = (uInt) got;
+        stream.next_out = out;
+        stream.avail_out = sizeof out;
+        int rc = inflateInit (&stream);
+        if (rc == Z_OK) rc = inflate (&stream, Z_SYNC_FLUSH);
+        if (rc != Z_OK && rc != Z_STREAM_END && rc != Z_BUF_ERROR)
+            fprintf (stderr, "error: inflate: data stream error (%s)\n",
+                     stream.msg ? stream.msg : "unknown error");
+        inflateEnd (&stream);
+    }
+    fprintf (stderr, "error: unable to unpack header of %s\n",
+             git_fsck_shown_path (f, path));
+}
+
+static long
+git_fsck_find (const struct git_fsck *f, const char *sha)
+{
+    size_t low = 0, high = f->n;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        int order = strcmp (f->objects[mid].sha, sha);
+        if (order < 0) low = mid + 1;
+        else if (order > 0) high = mid;
+        else return (long) mid;
+    }
+    return -1;
+}
+
+/* Every object one object points at: a commit's tree and its parents, a
+   tag's object, a tree's entries. A gitlink names a commit another
+   repository keeps, so it is not one of ours to miss. */
+typedef void (*git_fsck_link_fn) (struct git_fsck *f, void *arg,
+                                  const char *child, enum bgit_type expected);
+
+static void
+git_fsck_links (struct git_fsck *f, enum bgit_type type,
+                const unsigned char *data, size_t len,
+                git_fsck_link_fn fn, void *arg)
+{
+    if (type == BGIT_COMMIT || type == BGIT_TAG) {
+        const char *text = (const char *) data;
+        size_t at = 0;
+        enum bgit_type points_to = type == BGIT_TAG ? BGIT_COMMIT : BGIT_TREE;
+        while (at < len) {
+            size_t end = at;
+            while (end < len && text[end] != '\n') end++;
+            size_t line = end - at;
+            if (line == 0) break;          /* the message starts here */
+            if (type == BGIT_TAG && line > 5 && !strncmp (text + at, "type ", 5)) {
+                char name[16];
+                size_t n = line - 5 < sizeof name - 1 ? line - 5 : sizeof name - 1;
+                memcpy (name, text + at + 5, n);
+                name[n] = '\0';
+                if (!strcmp (name, "tree")) points_to = BGIT_TREE;
+                else if (!strcmp (name, "blob")) points_to = BGIT_BLOB;
+                else if (!strcmp (name, "tag")) points_to = BGIT_TAG;
+            }
+            at = end + 1;
+        }
+        at = 0;
+        while (at < len) {
+            size_t end = at;
+            while (end < len && text[end] != '\n') end++;
+            size_t line = end - at;
+            if (line == 0) break;
+            const char *label = type == BGIT_TAG ? "object " : "tree ";
+            size_t label_len = strlen (label);
+            if (line == label_len + 40 && !strncmp (text + at, label, label_len)) {
+                char sha[41];
+                memcpy (sha, text + at + label_len, 40);
+                sha[40] = '\0';
+                if (bgit_all_hex (sha))
+                    fn (f, arg, sha, type == BGIT_TAG ? points_to : BGIT_TREE);
+            } else if (type == BGIT_COMMIT && line == 47 &&
+                       !strncmp (text + at, "parent ", 7)) {
+                char sha[41];
+                memcpy (sha, text + at + 7, 40);
+                sha[40] = '\0';
+                if (bgit_all_hex (sha)) fn (f, arg, sha, BGIT_COMMIT);
+            }
+            at = end + 1;
+        }
+        return;
+    }
+    if (type != BGIT_TREE) return;
+    size_t at = 0;
+    while (at < len) {
+        size_t space = at;
+        while (space < len && data[space] != ' ') space++;
+        if (space >= len) return;
+        char mode[8];
+        size_t mode_len = space - at;
+        if (mode_len >= sizeof mode) return;
+        memcpy (mode, data + at, mode_len);
+        mode[mode_len] = '\0';
+        size_t nul = space;
+        while (nul < len && data[nul] != '\0') nul++;
+        if (nul + 21 > len) return;
+        char sha[41];
+        bgit_sha_to_hex (data + nul + 1, sha);
+        unsigned long value = strtoul (mode, NULL, 8);
+        if ((value & 0170000) == 0160000) {
+            /* a gitlink */
+        } else if ((value & 0170000) == 0040000 || !strcmp (mode, "40000")) {
+            fn (f, arg, sha, BGIT_TREE);
+        } else {
+            fn (f, arg, sha, BGIT_BLOB);
+        }
+        at = nul + 21;
+    }
+}
+
+/* Pass one marks what is pointed at, whoever points at it. */
+static void
+git_fsck_mark_used (struct git_fsck *f, void *arg, const char *child,
+                    enum bgit_type expected)
+{
+    (void) arg;
+    (void) expected;
+    long at = git_fsck_find (f, child);
+    if (at >= 0) f->objects[at].used = 1;
+}
+
+/* An object's own checks: that it is named by what it holds, and that a
+   commit says the things a commit has to say. */
+static void
+git_fsck_check_object (struct git_fsck *f, struct git_fsck_object *o)
+{
+    enum bgit_type type = BGIT_UNKNOWN;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&f->ctx->odb, o->sha, &type, &data, &len) < 0) {
+        if (!f->connectivity_only) {
+            char path[4096];
+            if (bgit_odb_loose_path (&f->ctx->odb, o->sha, path, sizeof path) == 0) {
+                git_fsck_unpack_error (f, path);
+                fprintf (stderr, "error: %s: object corrupt or missing: %s\n",
+                         o->sha, git_fsck_shown_path (f, path));
+            }
+            else
+                fprintf (stderr, "error: %s: object corrupt or missing\n", o->sha);
+            f->errors |= 1;
+        }
+        o->present = f->connectivity_only ? 1 : 0;
+        return;
+    }
+    o->type = (unsigned char) type;
+    o->present = 1;
+    if (f->verbose)
+        fprintf (stderr, "Checking %s %s\n", bgit_type_name (type), o->sha);
+
+    if (!f->connectivity_only) {
+        char header[64];
+        int header_len = snprintf (header, sizeof header, "%s %zu",
+                                   bgit_type_name (type), len);
+        unsigned char *whole = malloc ((size_t) header_len + 1 + len);
+        if (whole) {
+            memcpy (whole, header, (size_t) header_len + 1);
+            if (len) memcpy (whole + header_len + 1, data, len);
+            unsigned char digest[20];
+            char hex[41];
+            bgit_sha1 (whole, (size_t) header_len + 1 + len, digest);
+            bgit_sha_to_hex (digest, hex);
+            free (whole);
+            char path[4096];
+            if (strcmp (hex, o->sha) != 0 &&
+                bgit_odb_loose_path (&f->ctx->odb, o->sha, path,
+                                     sizeof path) == 0) {
+                fprintf (stderr,
+                         "error: %s: hash-path mismatch, found at: %s\n",
+                         hex, git_fsck_shown_path (f, path));
+                f->errors |= 1;
+                o->present = 0;
+                free (data);
+                return;
+            }
+        }
+        if (type == BGIT_COMMIT) {
+            /* git reads a commit's header from the top, the tree first. One
+               that does not start that way is not a commit it can parse, and
+               it says that rather than naming the field that is missing. */
+            int parsed = len > 45 && !memcmp (data, "tree ", 5) &&
+                         data[45] == '\n';
+            if (parsed) {
+                char tree[41];
+                memcpy (tree, data + 5, 40);
+                tree[40] = '\0';
+                parsed = bgit_all_hex (tree);
+            }
+            if (!parsed) {
+                char path[4096];
+                fprintf (stderr, "error: bogus commit object %s\n", o->sha);
+                if (bgit_odb_loose_path (&f->ctx->odb, o->sha, path,
+                                         sizeof path) == 0)
+                    fprintf (stderr, "error: %s: object could not be parsed: "
+                                     "%s\n", o->sha,
+                             git_fsck_shown_path (f, path));
+                else
+                    fprintf (stderr, "error: %s: object could not be parsed\n",
+                             o->sha);
+                f->errors |= 1;
+                o->present = 0;
+                free (data);
+                return;
+            }
+            static const struct { const char *label, *id; } wanted[] = {
+                { "author ", "missingAuthor" },
+                { "committer ", "missingCommitter" },
+            };
+            for (size_t i = 0; i < sizeof wanted / sizeof wanted[0]; i++) {
+                size_t label_len = strlen (wanted[i].label);
+                int found = 0;
+                size_t at = 0;
+                while (at < len) {
+                    size_t end = at;
+                    while (end < len && data[end] != '\n') end++;
+                    if (end == at) break;
+                    if (end - at > label_len &&
+                        !strncmp ((const char *) data + at, wanted[i].label,
+                                  label_len)) {
+                        found = 1;
+                        break;
+                    }
+                    at = end + 1;
+                }
+                if (!found) {
+                    char name[32];
+                    snprintf (name, sizeof name, "%.*s",
+                              (int) label_len - 1, wanted[i].label);
+                    fprintf (stderr,
+                             "error in commit %s: %s: invalid format - "
+                             "expected '%s' line\n", o->sha, wanted[i].id, name);
+                    f->errors |= 1;
+                    /* git stops at the first thing wrong with an object: it
+                       neither calls it a root nor follows what it points
+                       at, though the object itself is still there. */
+                    free (data);
+                    return;
+                }
+            }
+        }
+    }
+    if (f->show_roots && type == BGIT_COMMIT) {
+        int parents = 0;
+        size_t seek = 0;
+        while (seek < len) {
+            size_t end = seek;
+            while (end < len && data[end] != '\n') end++;
+            if (end == seek) break;
+            if (end - seek > 7 &&
+                !strncmp ((const char *) data + seek, "parent ", 7))
+                parents++;
+            seek = end + 1;
+        }
+        if (!parents) printf ("root %s\n", o->sha);
+    }
+    git_fsck_links (f, type, data, len, git_fsck_mark_used, NULL);
+    free (data);
+}
+
+/* Pass two walks out from the roots. What it cannot follow it says so
+   about, once, in git's two-line wording. */
+struct git_fsck_walk {
+    char (*pending)[41];
+    size_t n, cap;
+};
+
+/* An object referenced but not in the store, remembered once. Returns the
+   entry, or NULL when there is no memory for another. */
+static struct git_fsck_absent *
+git_fsck_absent_note (struct git_fsck *f, const char *sha, enum bgit_type type,
+                      int *first)
+{
+    *first = 0;
+    for (size_t i = 0; i < f->n_absent; i++)
+        if (!strcmp (f->absent[i].sha, sha)) {
+            if (f->absent[i].type == BGIT_UNKNOWN)
+                f->absent[i].type = (unsigned char) type;
+            return &f->absent[i];
+        }
+    if (f->n_absent == f->cap_absent) {
+        size_t next = f->cap_absent ? f->cap_absent * 2 : 16;
+        struct git_fsck_absent *grown =
+            realloc (f->absent, next * sizeof *grown);
+        if (!grown) return NULL;
+        f->absent = grown;
+        f->cap_absent = next;
+    }
+    memcpy (f->absent[f->n_absent].sha, sha, 41);
+    f->absent[f->n_absent].type = (unsigned char) type;
+    f->errors |= 2;
+    *first = 1;
+    return &f->absent[f->n_absent++];
+}
+
+static void
+git_fsck_push (struct git_fsck *f, struct git_fsck_walk *walk, const char *sha)
+{
+    long at = git_fsck_find (f, sha);
+    /* A head that names an object the store does not have is where fsck
+       first hears of it, and it is missing rather than linked to badly. */
+    if (at < 0) {
+        int first;
+        git_fsck_absent_note (f, sha, BGIT_UNKNOWN, &first);
+        return;
+    }
+    if (!f->objects[at].present || f->objects[at].reachable) return;
+    if (walk->n == walk->cap) {
+        size_t next = walk->cap ? walk->cap * 2 : 64;
+        char (*grown)[41] = realloc (walk->pending, next * sizeof *grown);
+        if (!grown) return;
+        walk->pending = grown;
+        walk->cap = next;
+    }
+    memcpy (walk->pending[walk->n++], sha, 41);
+}
+
+/* A link out of a reachable object: followed if it is there, reported if
+   it is not. */
+struct git_fsck_from {
+    struct git_fsck_walk *walk;
+    const char *sha;
+    enum bgit_type type;
+};
+
+static void
+git_fsck_follow (struct git_fsck *f, void *arg, const char *child,
+                 enum bgit_type expected)
+{
+    struct git_fsck_from *from = arg;
+    long at = git_fsck_find (f, child);
+    if (at >= 0 && f->objects[at].present) {
+        git_fsck_push (f, from->walk, child);
+        return;
+    }
+    /* An object whose file is there but unreadable has been complained
+       about already: git calls it missing without calling the link broken,
+       and so is one a head named before anything pointed at it. */
+    int first = 0;
+    if (!git_fsck_absent_note (f, child, expected, &first)) return;
+    if (first && at < 0) {
+        printf ("broken link from %7s %s\n", bgit_type_name (from->type),
+                from->sha);
+        printf ("              to %7s %s\n", bgit_type_name (expected), child);
+    }
+}
+
+static void
+git_fsck_reach (struct git_fsck *f, struct git_fsck_walk *walk)
+{
+    while (walk->n) {
+        char sha[41];
+        memcpy (sha, walk->pending[--walk->n], 41);
+        long at = git_fsck_find (f, sha);
+        if (at < 0 || !f->objects[at].present || f->objects[at].reachable)
+            continue;
+        f->objects[at].reachable = 1;
+        f->objects[at].used = 1;
+        if (f->verbose) fprintf (stderr, "Checking %s\n", sha);
+        enum bgit_type type = BGIT_UNKNOWN;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (&f->ctx->odb, sha, &type, &data, &len) < 0) continue;
+        struct git_fsck_from from = { walk, f->objects[at].sha, type };
+        git_fsck_links (f, type, data, len, git_fsck_follow, &from);
+        free (data);
+    }
+}
+
+/* Every reflog under the git directory, whatever it is a log of. */
+static void
+git_fsck_reflog_roots (struct git_fsck *f, struct git_fsck_walk *walk,
+                       const char *dir)
+{
+    DIR *handle = opendir (dir);
+    if (!handle) return;
+    struct dirent *entry;
+    while ((entry = readdir (handle))) {
+        if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, ".."))
+            continue;
+        char path[4096];
+        if ((size_t) snprintf (path, sizeof path, "%s/%s", dir,
+                               entry->d_name) >= sizeof path)
+            continue;
+        struct stat st;
+        if (lstat (path, &st) < 0) continue;
+        if (S_ISDIR (st.st_mode)) {
+            git_fsck_reflog_roots (f, walk, path);
+            continue;
+        }
+        FILE *log = fopen (path, "r");
+        if (!log) continue;
+        char line[8192];
+        while (fgets (line, sizeof line, log)) {
+            if (strlen (line) < 82) continue;
+            char old_sha[41], new_sha[41];
+            memcpy (old_sha, line, 40);
+            old_sha[40] = '\0';
+            memcpy (new_sha, line + 41, 40);
+            new_sha[40] = '\0';
+            if (!bgit_all_hex (old_sha) || !bgit_all_hex (new_sha)) continue;
+            if (f->verbose)
+                fprintf (stderr, "Checking reflog %s->%s\n", old_sha, new_sha);
+            static const char zeros[41] =
+                "0000000000000000000000000000000000000000";
+            if (strcmp (old_sha, zeros)) git_fsck_push (f, walk, old_sha);
+            if (strcmp (new_sha, zeros)) git_fsck_push (f, walk, new_sha);
+        }
+        fclose (log);
+    }
+    closedir (handle);
+}
+
+static int
+git_cmd_fsck (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage =
+        "git fsck [--tags] [--root] [--unreachable] [--cache] [--no-reflogs] "
+        "[--strict] [--verbose] [--[no-]dangling] [--connectivity-only] "
+        "[<object>...]";
+    struct git_fsck fsck;
+    memset (&fsck, 0, sizeof fsck);
+    fsck.ctx = ctx;
+    fsck.show_dangling = 1;
+    int reflogs = 1;
+    const char *heads[64];
+    size_t n_heads = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--unreachable")) fsck.show_unreachable = 1;
+        else if (!strcmp (w, "--dangling")) fsck.show_dangling = 1;
+        else if (!strcmp (w, "--no-dangling")) fsck.show_dangling = 0;
+        else if (!strcmp (w, "--root")) fsck.show_roots = 1;
+        else if (!strcmp (w, "--tags")) fsck.show_tags = 1;
+        else if (!strcmp (w, "--verbose") || !strcmp (w, "-v")) fsck.verbose = 1;
+        else if (!strcmp (w, "--connectivity-only")) fsck.connectivity_only = 1;
+        else if (!strcmp (w, "--no-reflogs")) reflogs = 0;
+        else if (!strcmp (w, "--reflogs")) reflogs = 1;
+        /* Accepted and no more than that: this store always reads its packs
+           and alternates, always treats the index as a head, and checks what
+           it checks. */
+        else if (!strcmp (w, "--cache") || !strcmp (w, "--no-cache") ||
+                 !strcmp (w, "--full") || !strcmp (w, "--no-full") ||
+                 !strcmp (w, "--strict") || !strcmp (w, "--no-strict") ||
+                 !strcmp (w, "--progress") || !strcmp (w, "--no-progress"))
+            ;
+        else if (w[0] == '-') return git_usage (usage);
+        else if (n_heads < sizeof heads / sizeof heads[0]) heads[n_heads++] = w;
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char (*names)[41] = NULL;
+    size_t n = 0;
+    if (bgit_odb_list (&ctx->odb, &names, &n) < 0) {
+        fflush (stdout);
+        fprintf (stderr, "fatal: out of memory\n");
+        return GIT_EXIT_FATAL;
+    }
+    fsck.objects = calloc (n ? n : 1, sizeof *fsck.objects);
+    if (!fsck.objects) {
+        free (names);
+        fflush (stdout);
+        fprintf (stderr, "fatal: out of memory\n");
+        return GIT_EXIT_FATAL;
+    }
+    fsck.n = n;
+    for (size_t i = 0; i < n; i++) {
+        memcpy (fsck.objects[i].sha, names[i], 41);
+        fsck.objects[i].type = BGIT_UNKNOWN;
+    }
+    free (names);
+
+    if (fsck.verbose)
+        for (size_t i = 0; i < ctx->odb.n_object_dirs; i++)
+            fprintf (stderr, "Checking object directory\n");
+    for (size_t i = 0; i < fsck.n; i++)
+        git_fsck_check_object (&fsck, &fsck.objects[i]);
+
+    struct git_fsck_walk walk;
+    memset (&walk, 0, sizeof walk);
+
+    /* Objects named on the command line stand in for the refs, the index
+       and the reflogs: git walks out from those and nothing else. */
+    int default_heads = n_heads == 0;
+    if (fsck.verbose && default_heads) fprintf (stderr, "Checking HEAD link\n");
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    int have_refs = 0;
+    if (bgit_refs_list (&ctx->repo, "", &refs, &n_refs) == 0) {
+        have_refs = n_refs > 0;
+        for (size_t i = 0; i < n_refs; i++) {
+            if (default_heads) git_fsck_push (&fsck, &walk, refs[i].sha);
+            if (!fsck.show_tags || strncmp (refs[i].name, "refs/tags/", 10))
+                continue;
+            enum bgit_type type = BGIT_UNKNOWN;
+            unsigned char *data = NULL;
+            size_t len = 0;
+            if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data, &len) < 0)
+                continue;
+            if (type == BGIT_TAG) {
+                char target[41] = "";
+                char kind[16] = "";
+                size_t at = 0;
+                while (at < len) {
+                    size_t end = at;
+                    while (end < len && data[end] != '\n') end++;
+                    if (end == at) break;
+                    if (end - at == 47 &&
+                        !strncmp ((const char *) data + at, "object ", 7)) {
+                        memcpy (target, data + at + 7, 40);
+                        target[40] = '\0';
+                    } else if (end - at > 5 &&
+                               !strncmp ((const char *) data + at, "type ", 5)) {
+                        size_t take = end - at - 5;
+                        if (take >= sizeof kind) take = sizeof kind - 1;
+                        memcpy (kind, data + at + 5, take);
+                        kind[take] = '\0';
+                    }
+                    at = end + 1;
+                }
+                if (*target)
+                    printf ("tagged %s %s (%s) in %s\n", *kind ? kind : "commit",
+                            target, refs[i].name + 10, refs[i].sha);
+            }
+            free (data);
+        }
+    }
+    char head[41];
+    if (default_heads) {
+        if (bgit_ref_resolve (&ctx->repo, "HEAD", head, NULL) == 0 &&
+            bgit_all_hex (head)) {
+            git_fsck_push (&fsck, &walk, head);
+            have_refs = 1;
+        } else {
+            char *target = NULL;
+            if (bgit_symref_read (&ctx->repo, "HEAD", &target) == 0 && target) {
+                const char *shown = !strncmp (target, "refs/heads/", 11)
+                                        ? target + 11 : target;
+                fprintf (stderr,
+                         "notice: HEAD points to an unborn branch (%s)\n",
+                         shown);
+                free (target);
+            }
+        }
+        if (!have_refs) fprintf (stderr, "notice: No default references\n");
+    }
+
+    for (size_t i = 0; i < n_heads; i++) {
+        char full[41];
+        if (git_resolve (ctx, heads[i], full, NULL) == 0)
+            git_fsck_push (&fsck, &walk, full);
+        else {
+            fflush (stdout);
+            fprintf (stderr, "error: invalid parameter: expected sha1, got "
+                             "'%s'\n", heads[i]);
+            fsck.errors |= 1;
+        }
+    }
+
+    /* What the index holds is a head too, so a staged file is not lost. */
+    char index_path[4096];
+    struct stat index_st;
+    if (default_heads &&
+        git_index_path (ctx, index_path, sizeof index_path) == 0 &&
+        stat (index_path, &index_st) == 0) {
+        bgit_index_entry *entries = NULL;
+        size_t n_entries = 0;
+        if (bgit_index_read (index_path, &entries, &n_entries) == 0) {
+            for (size_t i = 0; i < n_entries; i++) {
+                char sha[41];
+                bgit_sha_to_hex (entries[i].sha, sha);
+                git_fsck_push (&fsck, &walk, sha);
+            }
+            bgit_index_free_entries (entries, n_entries);
+        }
+        /* The sides of a conflict that was resolved are held too, so that
+           `git checkout -m` can bring them back. */
+        char (*undo)[41] = NULL;
+        size_t n_undo = 0;
+        if (bgit_index_resolve_undo (index_path, &undo, &n_undo) == 0) {
+            for (size_t i = 0; i < n_undo; i++)
+                git_fsck_push (&fsck, &walk, undo[i]);
+            free (undo);
+        }
+    }
+
+    if (reflogs && default_heads) {
+        char logs[4096];
+        if ((size_t) snprintf (logs, sizeof logs, "%s/logs",
+                               ctx->repo.common_dir) < sizeof logs)
+            git_fsck_reflog_roots (&fsck, &walk, logs);
+    }
+
+    git_fsck_reach (&fsck, &walk);
+
+    for (size_t i = 0; i < fsck.n_absent; i++)
+        printf ("missing %s %s\n", bgit_type_name (fsck.absent[i].type),
+                fsck.absent[i].sha);
+    for (size_t i = 0; i < fsck.n; i++) {
+        struct git_fsck_object *o = &fsck.objects[i];
+        if (!o->present || o->reachable) continue;
+        if (fsck.show_unreachable)
+            printf ("unreachable %s %s\n", bgit_type_name (o->type), o->sha);
+        else if (!o->used && fsck.show_dangling)
+            printf ("dangling %s %s\n", bgit_type_name (o->type), o->sha);
+    }
+
+    bgit_refs_free (refs, n_refs);
+    free (walk.pending);
+    free (fsck.objects);
+    free (fsck.absent);
+    return fsck.errors;
 }
 
 /* ---- format-patch ------------------------------------------------------ */
@@ -19999,6 +20671,7 @@ static const struct {
     { "hash-object",  git_cmd_hash_object },
     { "index-pack",   git_cmd_index_pack },
     { "format-patch", git_cmd_format_patch },
+    { "fsck",         git_cmd_fsck },
     { "grep",         git_cmd_grep },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },

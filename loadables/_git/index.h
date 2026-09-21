@@ -102,6 +102,12 @@ int bgit_index_info_line_to_entry (char *line, bgit_index_entry *out,
                                    int *is_remove);
 
 /* Release the verified-checksum snapshot held between calls. */
+/* The object ids an index keeps for a conflict that has been resolved, in
+   its resolve-undo extension, as 40 hex digits plus NUL. What fsck counts
+   as held so a resolved conflict's sides are not called lost. Caller frees
+   *out. Returns 0, or -1. Silent. */
+int bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n);
+
 void bgit_index_cache_release (void);
 
 #endif /* BASH_OS_GIT_INDEX_H */

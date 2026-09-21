@@ -596,3 +596,93 @@ bgit_index_info_line_to_entry (char *line, bgit_index_entry *out,
     out->path = strdup (path);
     return out->path ? 0 : -1;
 }
+
+/* ---- resolve-undo ------------------------------------------------------- */
+
+/* The extension holds, for each path whose conflict was resolved, the three
+   stage modes as octal text and one object id for every mode that is not
+   zero. Nothing else here reads it; fsck counts those ids as held. */
+int
+bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    size_t flen;
+    unsigned char *buf = bgit_index_slurp (path, &flen);
+    if (!buf) return -1;
+    if (flen < 32 || memcmp (buf, "DIRC", 4) != 0) { free (buf); return -1; }
+    uint32_t ver = bgit_be32 (buf, 4);
+    if (ver != 2 && ver != 3) { free (buf); return -1; }
+    uint32_t n_entries = bgit_be32 (buf, 8);
+
+    size_t off = 12;
+    for (uint32_t i = 0; i < n_entries; i++) {
+        if (off + 62 > flen - 20) { free (buf); return -1; }
+        uint16_t flags = bgit_be16 (buf, off + 60);
+        off += 62;
+        size_t extended_len = 0;
+        if (ver >= 3 && (flags & 0x4000)) {
+            if (off + 2 > flen - 20) { free (buf); return -1; }
+            off += 2;
+            extended_len = 2;
+        }
+        size_t path_len = flags & 0xFFF;
+        const unsigned char *nul = memchr (buf + off, 0, flen - 20 - off);
+        if (path_len == 0xFFF && nul) path_len = (size_t) (nul - buf - off);
+        if (!nul || (size_t) (nul - buf - off) != path_len) {
+            free (buf);
+            return -1;
+        }
+        off += path_len;
+        size_t entry_len = 62 + extended_len + path_len;
+        size_t pad = 8 - (entry_len % 8);
+        if (pad > flen - 20 - off) { free (buf); return -1; }
+        off += pad;
+    }
+
+    char (*ids)[41] = NULL;
+    size_t n = 0, cap = 0;
+    while (off + 8 <= flen - 20) {
+        uint32_t size = bgit_be32 (buf, off + 4);
+        const unsigned char *body = buf + off + 8;
+        if (size > flen - 20 - off - 8) break;
+        if (memcmp (buf + off, "REUC", 4) == 0) {
+            size_t at = 0;
+            while (at < size) {
+                /* the path, then three modes, then an id per mode that is set */
+                const unsigned char *end = memchr (body + at, 0, size - at);
+                if (!end) break;
+                at = (size_t) (end - body) + 1;
+                int set[3] = { 0, 0, 0 };
+                int ok = 1;
+                for (int stage = 0; stage < 3 && ok; stage++) {
+                    end = at < size ? memchr (body + at, 0, size - at) : NULL;
+                    if (!end) { ok = 0; break; }
+                    set[stage] = (end - (body + at)) > 0 && body[at] != '0';
+                    at = (size_t) (end - body) + 1;
+                }
+                if (!ok) break;
+                for (int stage = 0; stage < 3; stage++) {
+                    if (!set[stage]) continue;
+                    if (at + 20 > size) { ok = 0; break; }
+                    if (n == cap) {
+                        size_t next = cap ? cap * 2 : 16;
+                        char (*grown)[41] = realloc (ids, next * sizeof *grown);
+                        if (!grown) { free (ids); free (buf); return -1; }
+                        ids = grown;
+                        cap = next;
+                    }
+                    bgit_sha_to_hex (body + at, ids[n]);
+                    n++;
+                    at += 20;
+                }
+                if (!ok) break;
+            }
+        }
+        off += 8 + size;
+    }
+    free (buf);
+    *out = ids;
+    *n_out = n;
+    return 0;
+}

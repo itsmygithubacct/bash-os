@@ -433,3 +433,104 @@ bgit_odb_read (bgit_odb *odb, const char *name, enum bgit_type *type,
     if (!odb->quiet) builtin_error ("Not a valid object name %s", name);
     return -1;
 }
+
+/* ---- every object at once ---------------------------------------------- */
+
+/* Sorted, so a caller can look one up and so repeats stand together: the
+   same object can be loose in one directory and packed in another. */
+static int
+bgit_sha_cmp (const void *a, const void *b)
+{
+    return strcmp ((const char *) a, (const char *) b);
+}
+
+int
+bgit_odb_list (bgit_odb *odb, char (**out)[41], size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    bgit_odb_scan_packs (odb);
+
+    char (*names)[41] = NULL;
+    size_t n = 0, cap = 0;
+    /* Room for what is there already keeps the doubling down to a few
+       steps on a repository with a pack of any size. */
+    for (size_t i = 0; i < odb->n_packs; i++)
+        cap += bgit_pack_be32 (odb->packs[i].idx + 8 + 255 * 4);
+    cap += 256;
+    names = malloc (cap * sizeof *names);
+    if (!names) return -1;
+
+    for (size_t d = 0; d < odb->n_object_dirs; d++) {
+        for (unsigned value = 0; value < 256; value++) {
+            char prefix[3];
+            snprintf (prefix, sizeof prefix, "%02x", value);
+            const bgit_loose_dir *listing = bgit_loose_listing (odb, d, prefix);
+            if (!listing) continue;
+            for (size_t i = 0; i < listing->n; i++) {
+                if (n == cap) {
+                    size_t next = cap ? cap * 2 : 256;
+                    char (*grown)[41] = realloc (names, next * sizeof *grown);
+                    if (!grown) { free (names); return -1; }
+                    names = grown;
+                    cap = next;
+                }
+                names[n][0] = prefix[0];
+                names[n][1] = prefix[1];
+                memcpy (names[n] + 2, listing->names[i], 38);
+                names[n][40] = '\0';
+                /* A name that is not 40 hexadecimal digits is not an object,
+                   whatever it is doing in there. */
+                if (bgit_all_hex (names[n])) n++;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < odb->n_packs; i++) {
+        const struct bgit_pack_file *p = &odb->packs[i];
+        uint32_t total = bgit_pack_be32 (p->idx + 8 + 255 * 4);
+        size_t sha_bytes = (size_t) total * 20;
+        if (total != 0 && sha_bytes / 20 != (size_t) total) continue;
+        if (sha_bytes > p->idx_len - 1032) continue;
+        for (uint32_t k = 0; k < total; k++) {
+            if (n == cap) {
+                size_t next = cap ? cap * 2 : 256;
+                char (*grown)[41] = realloc (names, next * sizeof *grown);
+                if (!grown) { free (names); return -1; }
+                names = grown;
+                cap = next;
+            }
+            bgit_sha_to_hex (p->idx + 1032 + (size_t) k * 20, names[n]);
+            n++;
+        }
+    }
+
+    if (n > 1) {
+        qsort (names, n, sizeof *names, bgit_sha_cmp);
+        size_t kept = 1;
+        for (size_t i = 1; i < n; i++)
+            if (strcmp (names[i], names[kept - 1]) != 0)
+                memcpy (names[kept++], names[i], 41);
+        n = kept;
+    }
+    *out = names;
+    *n_out = n;
+    return 0;
+}
+
+int
+bgit_odb_loose_path (bgit_odb *odb, const char *sha, char *out, size_t outsz)
+{
+    if (!sha || strlen (sha) != 40) return -1;
+    for (size_t d = 0; d < odb->n_object_dirs; d++) {
+        char path[4096];
+        if (snprintf (path, sizeof path, "%s/%c%c/%s", odb->object_dirs[d],
+                      sha[0], sha[1], sha + 2) >= (int) sizeof path)
+            continue;
+        struct stat st;
+        if (stat (path, &st) != 0 || !S_ISREG (st.st_mode)) continue;
+        if (snprintf (out, outsz, "%s", path) >= (int) outsz) return -1;
+        return 0;
+    }
+    return -1;
+}

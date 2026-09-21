@@ -46,6 +46,8 @@ git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
 git blame        [-s] [-l] [-L <start>[,<end>]] [<rev>] [--] <file>
 git count-objects [-v] [-H]
+git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
+                 [--no-reflogs] [--connectivity-only] [<object>...]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -252,6 +254,28 @@ those letters off. `git reflog` takes a `--format=` of its own, where
 placeholders stand beside them. `git count-objects` counts what the store
 holds: the loose objects and what they take up on disk, and with `-v` the
 packs beside them.
+
+`git fsck` reads every object the store has, loose and packed, checks that
+each one is named by what it holds, and then walks out from the refs, the
+index and the reflogs to see what is reached. An object nothing points at
+is `dangling`; with `--unreachable`, everything the walk did not arrive at
+is listed, whether something points at it or not, and `--no-dangling`
+leaves both out. A link it cannot follow is reported as git reports it,
+`broken link from` one object `to` another, and the object at the far end
+is `missing`. `--root` names every commit with no parent, `--tags` names
+what each annotated tag points at, `--no-reflogs` stops the reflogs
+counting as heads, and `--connectivity-only` follows the links without
+reading what the objects hold. Named objects replace the heads it would
+otherwise start from. The exit status is git's: 1 for something wrong with
+an object, 2 for something that could not be reached, and both together
+for both.
+
+Two things about `fsck` are not git's. The order is one: git lists
+unreachable objects in the order of its own object table, which is not
+reproduced here, so a comparison has to sort. The other is how much of an
+object is checked — the id it is stored under, whether it parses at all,
+and whether a commit says who wrote it, rather than git's whole catalogue
+of stricter rules about names, dates and modes.
 
 `git log --follow <file>` carries the history past the commit that
 renamed it: the path it asks about changes as the walk goes back, and
@@ -978,15 +1002,15 @@ All four phases of the port are in, and so is what each of them named:
 the everyday commands, history editing, remotes over a path and over
 HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
-the listings in full, and describe, shortlog, grep, apply, format-patch
-and am.
+the listings in full, and describe, shortlog, grep, apply, format-patch,
+am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects
+and fsck.
 
-What is not here yet, in the order it would be missed: `git blame`; the
-housekeeping commands — `gc`, `repack`, `prune`, `count-objects` and
-`fsck`; `notes`, `bisect`, `archive` and `bundle`; `remote show`;
-`log --follow`; `diff -R` and `--word-diff`; `reflog --format=`;
-`cat-file --batch-all-objects`; `describe --contains` and `--all`; and
-`--date=human`.
+What is not here yet, in the order it would be missed: the housekeeping
+that rewrites the store — `gc`, `repack` and `prune`; `notes`, `bisect`,
+`archive` and `bundle`; `remote show`; `diff --word-diff`;
+`cat-file --batch-all-objects`; `describe --contains` and `--all`;
+`--date=human`; and `%N`.
 
 What is left out was left out on purpose. A repository whose objects are
 named by SHA-256 is refused rather than half read. `git://` is not spoken
