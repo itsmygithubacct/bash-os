@@ -251,6 +251,37 @@ git rebase rebase-clash 2>/dev/null || true
 git rebase --abort
 git status --short
 
+# A rebase that keeps its merges, which builds a todo list of labels and
+# merge commands, runs it, stops over a conflict and is taken up again.
+git switch -q -c merges-base rebase-base
+printf 'one\ntwo\nthree\n' > m.txt
+git add m.txt
+git commit -q -m 'a file for the merges'
+git switch -q -c merges-side
+printf 'SIDE\ntwo\nthree\n' > m.txt
+git commit -q -am 'the side changes it'
+git switch -q merges-base
+printf 'TRUNK\ntwo\nthree\n' > m.txt
+git commit -q -am 'the trunk changes it'
+git merge --no-edit merges-side -m "Merge branch 'merges-side'" 2>/dev/null || true
+printf 'settled\ntwo\nthree\n' > m.txt
+git add m.txt
+git commit -q -m "Merge branch 'merges-side'"
+printf 'after\n' > m2.txt
+git add m2.txt
+git commit -q -m 'after the merge'
+git switch -q -c merges-moved merges-base~3
+printf 'one\ntwo\nthree\nfour\n' > m.txt
+git add m.txt
+git commit -q -m 'the base moved under the merges'
+git switch -q merges-base
+git rebase -r merges-moved 2>/dev/null || true
+git status --short
+printf 'settled again\ntwo\nthree\nfour\n' > m.txt
+git add m.txt
+GIT_EDITOR=true git rebase --continue
+git log --oneline -4
+
 # A linked worktree, worked in and removed.
 git worktree add ../linked-tree
 git worktree list

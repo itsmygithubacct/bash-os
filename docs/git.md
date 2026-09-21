@@ -48,8 +48,8 @@ git submodule    [status [--cached]] | init | update [--init] [-q]
                  [<path>...]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
-git rebase       [-i] <upstream> [<branch>] | --continue | --abort
-                 | --skip
+git rebase       [-i] [-r | --rebase-merges[=(no-)rebase-cousins]]
+                 <upstream> [<branch>] | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
@@ -237,6 +237,37 @@ A commit that already stands where it would land is moved to rather than
 replayed, as git does: the run of them at the start is stepped over in
 one go, which is why a rebase that changes nothing says nothing at all,
 and each one after that is a `rebase: fast-forward` in the log.
+
+A plain rebase replays what one branch did, and a merge did none of it:
+the merges are left out and what they brought in is replayed on its own,
+in the order git replays it — by date, then set so that nothing stands
+before a commit it descends from.
+
+`git rebase -r`, or `--rebase-merges`, keeps them instead. It writes a
+list of another shape: `label onto` for the commit the rebase lands on,
+then a section for each branch that was merged in — a `# Branch <name>`
+comment, a `reset` to where it grew from, its commits, and a `label`
+naming its tip — and then the branch being rebased, whose merges are
+`merge -C <commit> <label>` lines. The names come from the merge
+messages, as git's do: `Merge branch 'side'` gives `side`, a pull
+request gives what stands after `from`, anything else gives the whole
+subject, with everything that is not a letter or a digit turned into a
+dash and a number added when two would be called the same. A commit two
+branches grew from is labelled `branch-point`. A branch that grew from
+further back than this rebase itself keeps where it was, unless
+`--rebase-merges=rebase-cousins` says to move it onto the new base too.
+The labels are refs under `refs/rewritten` while the rebase runs, and go
+when it finishes or is called off.
+
+The three commands can also be written by hand in any `-i` list. `label`
+names where HEAD stands, `reset` comes back to a name or a commit, and
+`merge` merges a label in — reusing the message and author of the merge
+it is replaying, moving to that merge when nothing about it has changed,
+and otherwise held against the base the two sides share, made up from
+several where there are several. A merge that does not settle stops the
+rebase with `Could not apply`, leaves `MERGE_HEAD` behind, and
+`git rebase --continue` then asks for the message and makes the merge
+commit, exactly as git does.
 
 `git submodule` covers the three verbs a checkout needs. `status` says
 where each one stands: a minus for one with nothing checked out, a plus
@@ -624,9 +655,9 @@ All four phases of the port are in: the everyday commands, history
 editing, remotes over a path and over HTTP, and ssh and signing. What is
 left is the odd corner of each.
 
-`git rebase --rebase-merges` is the last of Phase 2 — a rebase that
-keeps the merges in what it replays, with the `label`, `reset` and
-`merge` commands that go with it. `git submodule add`, `deinit` and
+The one todo command this build does not answer is `update-ref`, which
+git writes only when it is told to `--update-refs`; a list holding one
+stops with `error: invalid command`. `git submodule add`, `deinit` and
 `foreach` are not there either: what this build has is the three verbs a
 checkout needs. `git fetch` still wants the name of a remote where git
 also takes a path, which needs `FETCH_HEAD` to mean anything. And
