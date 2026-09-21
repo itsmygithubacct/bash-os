@@ -266,6 +266,40 @@ class WrapperTests(BuiltinTest):
         self.assertEqual(result.stdout, f"{self.root}/files\n" * 2)
 
 
+class TempEnvTests(BuiltinTest):
+    """bash hands a builtin one buffer for a variable set for a single command
+    (VAR=x cmd) and frees it when the next one is asked for, so a builtin that
+    reads two of them at once used to be left holding freed memory."""
+
+    def test_man_reads_manpath_beside_the_quiet_flag(self):
+        pages = self.root / "man"
+        (pages / "man1").mkdir(parents=True)
+        (pages / "man1" / "probe.1").write_text(".TH PROBE 1\n")
+        (pages / "whatis").write_text("probe (1) - a page to find\n")
+        result = self.shell(
+            f'MANPATH={pages} BASHMAN_STALE_QUIET=1 whatis probe')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "probe (1) - a page to find\n")
+
+    def test_mail_reads_both_alias_paths(self):
+        aliases = self.root / "aliases-file-with-a-long-name"
+        aliases.write_text("postmaster: root\nprobe: someone\n")
+        database = self.root / "db"
+        result = self.shell(
+            f'BASHMAIL_ALIASES={aliases} BASHMAIL_ALIASES_DB={database} '
+            'mail newaliases')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(database.exists())
+
+    def test_sv_keeps_the_run_directory_it_was_given(self):
+        run = self.root / "a-run-directory-with-a-long-name"
+        logs = self.root / "lg"
+        result = self.shell(f'BASHSV_RUNDIR={run} BASHSV_LOGDIR={logs} sv status')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(run.is_dir())
+        self.assertTrue(logs.is_dir())
+
+
 class PagerTests(BuiltinTest):
     def test_redirected_write_failure_is_reported(self):
         if not os.access("/dev/full", os.W_OK):

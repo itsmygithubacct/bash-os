@@ -364,12 +364,15 @@ bm_whatis_source_newer (const char *root, time_t whatis_mtime)
 FILE *
 bm_open_whatis (void)
 {
+    /* bash hands a loadable one buffer for a variable set for a single
+       command (VAR=x man ...) and frees it when the next one is asked for,
+       so MANPATH is taken away before BASHMAN_STALE_QUIET is read. */
     const char *mp = getenv ("MANPATH");
     if (!mp || !*mp) mp = BM_DEFAULT_MANPATH;
-    const char *quiet = getenv ("BASHMAN_STALE_QUIET");
-    int do_check = !(quiet && *quiet && quiet[0] != '0');
     char buf[4096];
     strncpy (buf, mp, sizeof buf - 1); buf[sizeof buf - 1] = '\0';
+    const char *quiet = getenv ("BASHMAN_STALE_QUIET");
+    int do_check = !(quiet && *quiet && quiet[0] != '0');
     char *save = NULL;
     for (char *p = strtok_r (buf, ":", &save); p; p = strtok_r (NULL, ":", &save))
     {

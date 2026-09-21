@@ -338,11 +338,24 @@ handle_resize(void)
 /* lifecycle                                                             */
 /* ===================================================================== */
 
+/* bash hands a loadable one buffer for a variable set for a single
+   command (VAR=x cmd) and frees it when the next one is asked for, so a
+   value has to be taken away before another is read. */
+static const char *
+bls_env (const char *name, char *out, size_t outsz)
+{
+  const char *value = getenv (name);
+  if (!value || !*value) return NULL;
+  snprintf (out, outsz, "%s", value);
+  return out;
+}
+
 static void
 detect_color_mode(void)
 {
-    const char *ct = getenv("COLORTERM");
-    const char *tm = getenv("TERM");
+    char ct_held[128], tm_held[128];
+    const char *ct = bls_env ("COLORTERM", ct_held, sizeof ct_held);
+    const char *tm = bls_env ("TERM", tm_held, sizeof tm_held);
     if (ct && (strstr(ct, "truecolor") || strstr(ct, "24bit"))) { S.color_mode = BLS_MODE_TRUECOLOR; return; }
     if (tm && strstr(tm, "256")) { S.color_mode = BLS_MODE_256; return; }
     if (tm && strcmp(tm, "linux") == 0) { S.color_mode = BLS_MODE_16; return; }

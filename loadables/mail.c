@@ -98,6 +98,18 @@ bm_sigstop (int sig)
   bm_stop = 1;
 }
 
+/* bash hands a loadable one buffer for a variable set for a single
+   command (VAR=x cmd) and frees it when the next one is asked for, so a
+   value has to be taken away before another is read. */
+static const char *
+bm_env (const char *name, char *out, size_t outsz)
+{
+  const char *value = getenv (name);
+  if (!value || !*value) return NULL;
+  snprintf (out, outsz, "%s", value);
+  return out;
+}
+
 /* ---- small I/O helpers --------------------------------------------- */
 
 /* Write all n bytes; -1 on error. */
@@ -419,8 +431,9 @@ static int
 bm_submit_cmd (WORD_LIST *args)
 {
   const char *sender = "";
-  const char *sockpath = getenv ("BASHMAIL_SUBMIT_SOCK");
-  const char *queue = getenv ("BASHMAIL_QUEUE_DIR");
+  char sock_held[512], queue_held[512];
+  const char *sockpath = bm_env ("BASHMAIL_SUBMIT_SOCK", sock_held, sizeof sock_held);
+  const char *queue = bm_env ("BASHMAIL_QUEUE_DIR", queue_held, sizeof queue_held);
   int direct = 0;
   char *rcpts[BM_MAX_RCPT];
   int nrcpt = 0;
@@ -583,8 +596,9 @@ bm_chown_mail (const char *path)
 static int
 bm_serve_cmd (WORD_LIST *args)
 {
-  const char *sockpath = getenv ("BASHMAIL_SUBMIT_SOCK");
-  const char *queue = getenv ("BASHMAIL_QUEUE_DIR");
+  char sock_held[512], queue_held[512];
+  const char *sockpath = bm_env ("BASHMAIL_SUBMIT_SOCK", sock_held, sizeof sock_held);
+  const char *queue = bm_env ("BASHMAIL_QUEUE_DIR", queue_held, sizeof queue_held);
   const char *conf = NULL;
   size_t maxmsg = BM_MAX_MSG;
 
@@ -1164,8 +1178,9 @@ bm_cmp_lines (const void *a, const void *b)
 static int
 bm_newaliases_cmd (WORD_LIST *args)
 {
-  const char *src = getenv ("BASHMAIL_ALIASES");
-  const char *db = getenv ("BASHMAIL_ALIASES_DB");
+  char src_held[512], db_held[512];
+  const char *src = bm_env ("BASHMAIL_ALIASES", src_held, sizeof src_held);
+  const char *db = bm_env ("BASHMAIL_ALIASES_DB", db_held, sizeof db_held);
   if (!src || !*src) src = BM_DEFAULT_ALIASES;
   if (!db || !*db) db = BM_DEFAULT_ALIASES_DB;
 
@@ -1248,9 +1263,10 @@ bm_newaliases_cmd (WORD_LIST *args)
 static int
 bm_expand_cmd (WORD_LIST *args)
 {
-  const char *db = getenv ("BASHMAIL_ALIASES_DB");
-  const char *aliases = getenv ("BASHMAIL_ALIASES");
-  const char *fwd_root = getenv ("BASHMAIL_FORWARD_ROOT");
+  char db_held[512], aliases_held[512], fwd_held[512];
+  const char *db = bm_env ("BASHMAIL_ALIASES_DB", db_held, sizeof db_held);
+  const char *aliases = bm_env ("BASHMAIL_ALIASES", aliases_held, sizeof aliases_held);
+  const char *fwd_root = bm_env ("BASHMAIL_FORWARD_ROOT", fwd_held, sizeof fwd_held);
   char *rcpts[BM_MAX_RCPT];
   int nrcpt = 0;
 

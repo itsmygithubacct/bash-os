@@ -184,6 +184,17 @@ static void bssh_child_guard_child_end (struct bssh_child_guard *g)
   sigprocmask (SIG_SETMASK, &g->old_mask, NULL);
 }
 
+/* bash hands a loadable one buffer for a variable set for a single command
+   (VAR=x ssh ...) and frees it when the next one is asked for, so a value has
+   to be taken away before another is read. */
+static const char *bssh_env (const char *name, char *out, size_t outsz)
+{
+  const char *value = getenv (name);
+  if (!value || !*value) return NULL;
+  snprintf (out, outsz, "%s", value);
+  return out;
+}
+
 static const char *next_word (WORD_LIST **p)
 {
   if (!p || !*p) return NULL;
@@ -663,10 +674,11 @@ static int libssh_connect_session (const char *host, const char *port,
   /* F06 item 5: client crypto allow-lists from env (fail-closed — a rejected
      set aborts the connect, never silently falls back to defaults). */
   {
-    const char *c = getenv ("BASHSSH_CIPHERS");
-    const char *m = getenv ("BASHSSH_MACS");
-    const char *k = getenv ("BASHSSH_KEX");
-    const char *rk = getenv ("BASHSSH_REKEY");
+    char c_held[512], m_held[512], k_held[512], rk_held[64];
+    const char *c = bssh_env ("BASHSSH_CIPHERS", c_held, sizeof c_held);
+    const char *m = bssh_env ("BASHSSH_MACS", m_held, sizeof m_held);
+    const char *k = bssh_env ("BASHSSH_KEX", k_held, sizeof k_held);
+    const char *rk = bssh_env ("BASHSSH_REKEY", rk_held, sizeof rk_held);
     if ((c && *c && (ssh_options_set (session, SSH_OPTIONS_CIPHERS_C_S, c) != SSH_OK
                   || ssh_options_set (session, SSH_OPTIONS_CIPHERS_S_C, c) != SSH_OK))
         || (m && *m && (ssh_options_set (session, SSH_OPTIONS_HMAC_C_S, m) != SSH_OK
@@ -3524,10 +3536,12 @@ static int known_hosts_cmd (WORD_LIST *args)
   const char *sub = next_word (&args);
   if (!sub) { builtin_error ("known-hosts add|verify HOST [KEY] [-V RC]"); return EX_USAGE; }
 
-  const char *home = getenv ("HOME");
+  char home_held[512], configured_held[512];
+  const char *home = bssh_env ("HOME", home_held, sizeof home_held);
   if (!home) home = "/root";
   char dir[512], path[512];
-  const char *configured = getenv ("BASHSSH_KNOWN_HOSTS");
+  const char *configured = bssh_env ("BASHSSH_KNOWN_HOSTS", configured_held,
+                                     sizeof configured_held);
   if (snprintf (dir, sizeof dir, "%s/.ssh", home) >= (int) sizeof dir ||
       (configured && *configured
        ? snprintf (path, sizeof path, "%s", configured)

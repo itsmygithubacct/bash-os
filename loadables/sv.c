@@ -103,6 +103,18 @@ struct bsv_log_policy {
   int timestamp;
 };
 
+/* bash hands a loadable one buffer for a variable set for a single command
+   (VAR=x sv ...) and frees it when the next one is asked for, so a value has
+   to be taken away before another is read. */
+static const char *
+bsv_env (const char *name, char *out, size_t outsz)
+{
+  const char *value = getenv (name);
+  if (!value || !*value) return NULL;
+  snprintf (out, outsz, "%s", value);
+  return out;
+}
+
 static int
 bsv_clamp_log_generations (long n)
 {
@@ -3103,8 +3115,9 @@ bsv_log (const char *name, int nlines)
 static const char *
 bsv_cron_root (void)
 {
-  const char *s = getenv ("BASHCRON_SPOOL_DIR");
-  return (s && *s) ? s : "/var/spool/cron";
+  static char held[512];
+  const char *s = bsv_env ("BASHCRON_SPOOL_DIR", held, sizeof held);
+  return s ? s : "/var/spool/cron";
 }
 
 static int
@@ -3122,9 +3135,9 @@ bsv_safe_tab_user (const char *s)
 static const char *
 bsv_timer_user (char *buf, size_t bufsz)
 {
-  const char *u = getenv ("USER");
+  const char *u = bsv_env ("USER", buf, bufsz);
   if (bsv_safe_tab_user (u))
-    return u;
+    return buf;
   struct passwd *pw = getpwuid (getuid ());
   if (pw && bsv_safe_tab_user (pw->pw_name))
     return pw->pw_name;
@@ -3197,12 +3210,13 @@ bsv_timer_collect_schedule (WORD_LIST *list, char *out, size_t out_sz)
 static int
 bsv_timer_build_command (char *out, size_t out_sz, const char *name)
 {
+  char max_held[32], gen_held[32];
   const char *envs[][2] = {
     { "BASHSV_DIR", bsv_sv_dir },
     { "BASHSV_RUNDIR", bsv_run_dir },
     { "BASHSV_LOGDIR", bsv_log_dir },
-    { "BASHSV_LOG_MAX_BYTES", getenv ("BASHSV_LOG_MAX_BYTES") },
-    { "BASHSV_LOG_GENERATIONS", getenv ("BASHSV_LOG_GENERATIONS") },
+    { "BASHSV_LOG_MAX_BYTES", bsv_env ("BASHSV_LOG_MAX_BYTES", max_held, sizeof max_held) },
+    { "BASHSV_LOG_GENERATIONS", bsv_env ("BASHSV_LOG_GENERATIONS", gen_held, sizeof gen_held) },
   };
   size_t pos = 0;
   out[0] = '\0';
@@ -3755,20 +3769,28 @@ sv_builtin (WORD_LIST *list)
   bsv_log_max_bytes = 1048576;
   bsv_log_generations = 1;
 
-  bsv_sv_dir = getenv ("BASHSV_DIR") && *getenv ("BASHSV_DIR") ? getenv ("BASHSV_DIR") : bsv_sv_dir;
-  bsv_run_dir = getenv ("BASHSV_RUNDIR") && *getenv ("BASHSV_RUNDIR") ? getenv ("BASHSV_RUNDIR") : bsv_run_dir;
-  bsv_log_dir = getenv ("BASHSV_LOGDIR") && *getenv ("BASHSV_LOGDIR") ? getenv ("BASHSV_LOGDIR") : bsv_log_dir;
-  if (getenv ("BASHSV_LOG_MAX_BYTES") && *getenv ("BASHSV_LOG_MAX_BYTES"))
+  /* Each of these is kept for the rest of the call, so it is copied into a
+     buffer of its own rather than left pointing at the one bash reuses. */
+  static char sv_dir_held[512], run_dir_held[512], log_dir_held[512];
+  const char *v;
+  if ((v = bsv_env ("BASHSV_DIR", sv_dir_held, sizeof sv_dir_held)))
+    bsv_sv_dir = v;
+  if ((v = bsv_env ("BASHSV_RUNDIR", run_dir_held, sizeof run_dir_held)))
+    bsv_run_dir = v;
+  if ((v = bsv_env ("BASHSV_LOGDIR", log_dir_held, sizeof log_dir_held)))
+    bsv_log_dir = v;
+  char num_held[32];
+  if ((v = bsv_env ("BASHSV_LOG_MAX_BYTES", num_held, sizeof num_held)))
     {
       char *end = NULL;
-      long long n = strtoll (getenv ("BASHSV_LOG_MAX_BYTES"), &end, 10);
+      long long n = strtoll (v, &end, 10);
       if (end && *end == '\0' && n >= 0)
         bsv_log_max_bytes = (off_t) n;
     }
-  if (getenv ("BASHSV_LOG_GENERATIONS") && *getenv ("BASHSV_LOG_GENERATIONS"))
+  if ((v = bsv_env ("BASHSV_LOG_GENERATIONS", num_held, sizeof num_held)))
     {
       char *end = NULL;
-      long n = strtol (getenv ("BASHSV_LOG_GENERATIONS"), &end, 10);
+      long n = strtol (v, &end, 10);
       if (end && *end == '\0')
         bsv_log_generations = bsv_clamp_log_generations (n);
     }
