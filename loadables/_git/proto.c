@@ -317,13 +317,27 @@ int
 bgit_proto_read_caps (bgit_pkt_reader *reader, bgit_proto_caps *caps)
 {
     memset (caps, 0, sizeof *caps);
+    int named_service = 0;
     for (;;) {
         char *line = NULL;
         int length = bgit_pkt_read_line (reader, &line);
-        if (length == BGIT_PKT_FLUSH) break;
+        if (length == BGIT_PKT_FLUSH) {
+            /* Over HTTP the advertisement opens by naming the service,
+               and the flush after that line is not the end of it: what
+               the far end can do comes after. */
+            if (named_service && !caps->n) {
+                named_service = 0;
+                continue;
+            }
+            break;
+        }
         if (length < 0) {
             bgit_proto_caps_release (caps);
             return -1;
+        }
+        if (!caps->n && !strncmp (line, "# service=", 10)) {
+            named_service = 1;
+            continue;
         }
         if (bgit_caps_add (caps, line) < 0) {
             bgit_proto_caps_release (caps);

@@ -61,11 +61,16 @@ def bgit(*args, cwd, status=0):
     return result
 
 
-def serve(root, wants=None):
+def serve(root, wants=None, name_the_service=False):
     """git http-backend behind an HTTP server, as git's own tests run it.
 
     Anything under /private.git needs the name and secret in WANTS, so
     that what this build does about being asked for one can be checked.
+
+    With NAME_THE_SERVICE the version-2 advertisement is prefixed with the
+    `# service=` line and the flush after it, which git's own backend
+    leaves out and which the servers of at least one large forge put in.
+    A client has to read both.
     """
     seen = []
 
@@ -122,6 +127,10 @@ def serve(root, wants=None):
                     status = int(value.split()[0])
                 else:
                     headers.append((name.decode().strip(), value.decode().strip()))
+            if (name_the_service and self.command == 'GET' and
+                    b'version 2' in payload[:64]):
+                line = b'# service=git-upload-pack\n'
+                payload = (b'%04x' % (len(line) + 4)) + line + b'0000' + payload
             self.send_response(status)
             for name, value in headers:
                 self.send_header(name, value)
@@ -284,5 +293,23 @@ with tempfile.TemporaryDirectory(prefix='git-http-') as name:
               'a URL with no repository behind it', result.stderr[:200])
     finally:
         server.shutdown()
+
+    # A server that names the service before saying what it can do, which
+    # git's own backend does not and the large forges do. The client has
+    # to read past that line to the version-2 advertisement behind it.
+    forge = serve(served, name_the_service=True)
+    try:
+        url = f'http://127.0.0.1:{forge.server_address[1]}/far.git'
+        listed = bgit('ls-remote', url, cwd=tmp)
+        check(b'refs/heads/main' in listed.stdout,
+              'ls-remote past a named service', listed.stdout[:200])
+        cloned = tmp/'from-forge'
+        bgit('clone', '-q', url, str(cloned), cwd=tmp)
+        check((cloned/'a.txt').is_file(), 'clone past a named service',
+              sorted(p.name for p in cloned.iterdir()))
+        check(git(cloned, 'fsck', '--no-progress', '--strict').returncode == 0,
+              'what it cloned that way is sound')
+    finally:
+        forge.shutdown()
 
 print(f'git-http: {checks} checks passed')

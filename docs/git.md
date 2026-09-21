@@ -459,6 +459,10 @@ in pkt-lines, four hexadecimal digits of length and then that many bytes,
 with the three lengths that carry no payload meaning the end of a
 section, a divide inside one, and the end of a response.
 
+An advertisement over HTTP may open by naming the service before it says
+what the far end can do, with a flush between the two; git's own backend
+leaves that line out and the large forges put it in, so both are read.
+
 `ls-refs` answers with the refs asked for, carrying what HEAD points at
 and what a tag points at. `fetch` answers with a packfile down the first
 side-band channel, holding everything the wants reach that the haves do
