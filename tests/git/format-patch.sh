@@ -23,7 +23,9 @@ printf 'deep\n' > sub/deep.txt
 git add sub/deep.txt
 git commit -q -am 'a third: with punctuation, and a slash/here'
 
-level() { sed -e 's/^2\.47\.3.*$/<version>/'; }
+# The trailer names the version of whatever wrote the patch, and the two
+# sides are different builds, so that one line is levelled.
+level() { sed -e 's/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9].*$/<version>/'; }
 
 echo '=== two patches, one after the other ==='
 git format-patch --stdout HEAD~2 | level
