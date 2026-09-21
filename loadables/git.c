@@ -8373,6 +8373,302 @@ git_cmd_am (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* ---- blame ------------------------------------------------------------- */
+
+/* Where one line of the file is thought to have come from, until a commit
+   is found that changed it. */
+struct git_blame_line {
+    char commit[41];     /* the commit still suspected of it */
+    char *path;          /* what the file was called there */
+    long at;             /* which line of that commit's file it is */
+    int settled;         /* the suspect changed it: the answer */
+    int boundary;        /* and had nothing before it, as git's ^ says */
+};
+
+/* The blob a path held in one commit, split into lines. Returns 0, or -1
+   when the commit has no such path. */
+static int
+git_blame_content (git_context *ctx, const char *commit, const char *path,
+                   struct git_apply_lines *out)
+{
+    char spec[8192];
+    if ((size_t) snprintf (spec, sizeof spec, "%s:%s", commit, path) >=
+        sizeof spec)
+        return -1;
+    char id[41];
+    if (bgit_rev_parse (&ctx->repo, &ctx->odb, spec, id, NULL) < 0) return -1;
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, id, &type, &data, &len) < 0) return -1;
+    if (type != BGIT_BLOB) { free (data); return -1; }
+    int rc = git_apply_split ((const char *) data, len, out);
+    free (data);
+    return rc;
+}
+
+/* What the path was called in the parent, when the change that made this
+   commit renamed it. The caller frees the result. */
+static char *
+git_blame_renamed_from (git_context *ctx, const char *parent,
+                        const char *commit, const char *path)
+{
+    char old_tree[41], new_tree[41];
+    if (bgit_commit_tree (&ctx->odb, parent, old_tree) < 0 ||
+        bgit_commit_tree (&ctx->odb, commit, new_tree) < 0)
+        return NULL;
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_diff_trees (&ctx->odb, old_tree, new_tree, &entries, &n) < 0)
+        return NULL;
+    struct git_diff_format format;
+    git_diff_format_init (&format);
+    git_find_renames (ctx, &format, &entries, &n, 0);
+    char *from = NULL;
+    for (size_t i = 0; i < n; i++)
+        if (entries[i].from && !strcmp (entries[i].path, path)) {
+            from = strdup (entries[i].from);
+            break;
+        }
+    bgit_diff_free (entries, n);
+    return from;
+}
+
+/* Lines that the parent has in the same shape pass to it; the rest stay
+   with the commit under suspicion. Returns 1 when the parent had the file
+   at all. */
+static int
+git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
+                const char *commit, const char *path, const char *parent,
+                const struct git_apply_lines *now)
+{
+    char *from = NULL;
+    struct git_apply_lines before;
+    if (git_blame_content (ctx, parent, path, &before) < 0) {
+        from = git_blame_renamed_from (ctx, parent, commit, path);
+        if (!from) return 0;
+        if (git_blame_content (ctx, parent, from, &before) < 0) {
+            free (from);
+            return 0;
+        }
+    }
+    /* The two versions, line by line. */
+    char *old_text = NULL, *new_text = NULL;
+    size_t old_len = 0, new_len = 0;
+    FILE *builder = open_memstream (&old_text, &old_len);
+    if (builder) {
+        for (size_t i = 0; i < before.n; i++)
+            fprintf (builder, "%s\n", before.line[i]);
+        fclose (builder);
+    }
+    builder = open_memstream (&new_text, &new_len);
+    if (builder) {
+        for (size_t i = 0; i < now->n; i++)
+            fprintf (builder, "%s\n", now->line[i]);
+        fclose (builder);
+    }
+    bgit_xdiff_file old_file, new_file;
+    bgit_xdiff_load (&old_file, old_text ? old_text : "", old_len);
+    bgit_xdiff_load (&new_file, new_text ? new_text : "", new_len);
+    bgit_xdiff_result result;
+    long *to_parent = calloc (now->n ? now->n : 1, sizeof *to_parent);
+    int ok = to_parent && bgit_xdiff (&old_file, &new_file, 0, &result) == 0;
+    if (ok) {
+        size_t oi = 0;
+        for (size_t ni = 0; ni < now->n; ni++) {
+            if (result.new_changed[ni]) { to_parent[ni] = -1; continue; }
+            while (oi < before.n && result.old_changed[oi]) oi++;
+            to_parent[ni] = (long) oi++;
+        }
+        for (size_t i = 0; i < n_lines; i++) {
+            struct git_blame_line *line = &lines[i];
+            if (line->settled || strcmp (line->commit, commit)) continue;
+            if (strcmp (line->path, path)) continue;
+            if (line->at < 0 || (size_t) line->at >= now->n) continue;
+            long there = to_parent[line->at];
+            if (there < 0) continue;      /* this commit changed it */
+            memcpy (line->commit, parent, 41);
+            free (line->path);
+            line->path = strdup (from ? from : path);
+            line->at = there;
+        }
+        bgit_xdiff_result_release (&result);
+    }
+    free (to_parent);
+    bgit_xdiff_release (&old_file);
+    bgit_xdiff_release (&new_file);
+    free (old_text);
+    free (new_text);
+    git_apply_lines_release (&before);
+    free (from);
+    return 1;
+}
+
+static int
+git_cmd_blame (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git blame [-s] [-l] [-L <start>[,<end>]] "
+                        "[<rev>] [--] <file>";
+    int short_form = 0, long_ids = 0, no_more = 0;
+    long first = 1, last = -1;
+    const char *path = NULL, *rev = NULL;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "-s")) short_form = 1;
+        else if (!no_more && !strcmp (w, "-l")) long_ids = 1;
+        else if (!no_more && !strcmp (w, "-L") && p->next) {
+            /* Without an end, the range runs to the end of the file. */
+            const char *range = (p = p->next)->word->word;
+            first = atol (range);
+            const char *comma = strchr (range, ',');
+            last = comma ? atol (comma + 1) : -1;
+        }
+        else if (!no_more && !strncmp (w, "-L", 2) && w[2]) {
+            first = atol (w + 2);
+            const char *comma = strchr (w + 2, ',');
+            last = comma ? atol (comma + 1) : -1;
+        }
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!path) path = w;
+        else if (!rev) { rev = path; path = w; }
+        else return git_usage (usage);
+    }
+    if (!path) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char start[41];
+    if (git_resolve (ctx, rev ? rev : "HEAD", start, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, start, BGIT_COMMIT, start) < 0)
+        return git_fatal_ambiguous (rev ? rev : "HEAD");
+
+    struct git_apply_lines text;
+    if (git_blame_content (ctx, start, path, &text) < 0)
+        return git_fatal ("no such path '%s' in %s", path, rev ? rev : "HEAD");
+
+    struct git_blame_line *lines = calloc (text.n ? text.n : 1, sizeof *lines);
+    if (!lines) { git_apply_lines_release (&text); return GIT_EXIT_FATAL; }
+    for (size_t i = 0; i < text.n; i++) {
+        memcpy (lines[i].commit, start, 41);
+        lines[i].path = strdup (path);
+        lines[i].at = (long) i;
+        if (!lines[i].path) {
+            for (size_t j = 0; j < i; j++) free (lines[j].path);
+            free (lines);
+            git_apply_lines_release (&text);
+            return GIT_EXIT_FATAL;
+        }
+    }
+
+    /* Take the newest suspect each time round, so that a line is held
+       against the commits that could have changed it in order. */
+    for (;;) {
+        long long newest = -1;
+        char suspect[41] = "";
+        const char *suspect_path = NULL;
+        for (size_t i = 0; i < text.n; i++) {
+            if (lines[i].settled) continue;
+            long long when = git_commit_date (ctx, lines[i].commit);
+            if (when > newest) {
+                newest = when;
+                memcpy (suspect, lines[i].commit, 41);
+                suspect_path = lines[i].path;
+            }
+        }
+        if (!*suspect) break;
+        char held_path[4096];
+        snprintf (held_path, sizeof held_path, "%s", suspect_path);
+        struct git_apply_lines now;
+        if (git_blame_content (ctx, suspect, held_path, &now) < 0) {
+            for (size_t i = 0; i < text.n; i++)
+                if (!lines[i].settled && !strcmp (lines[i].commit, suspect))
+                    lines[i].settled = 1;
+            continue;
+        }
+        char parents[BGIT_MAX_PARENTS][41];
+        int n_parents = bgit_commit_parents (&ctx->odb, suspect, parents,
+                                             BGIT_MAX_PARENTS);
+        for (int i = 0; i < n_parents; i++)
+            git_blame_pass (ctx, lines, text.n, suspect, held_path,
+                            parents[i], &now);
+        /* Whatever is still held against it, it is answerable for — and a
+           commit with nothing before it at all is the one git marks. */
+        for (size_t i = 0; i < text.n; i++)
+            if (!lines[i].settled && !strcmp (lines[i].commit, suspect) &&
+                !strcmp (lines[i].path, held_path)) {
+                lines[i].settled = 1;
+                lines[i].boundary = n_parents <= 0;
+            }
+        git_apply_lines_release (&now);
+    }
+
+    /* What each of them says about itself, and how wide the columns are. */
+    if (last < 0 || (size_t) last > text.n) last = (long) text.n;
+    if (first < 1) first = 1;
+    size_t name_width = 0, number_width = 1, path_width = 0;
+    int show_path = 0;
+    for (long i = first; i <= last; i++) {
+        struct git_commit commit;
+        if (git_commit_read (ctx, lines[i - 1].commit, &commit) == 0) {
+            size_t len = strlen (commit.author_name);
+            if (len > name_width) name_width = len;
+            git_commit_release (&commit);
+        }
+        if (strcmp (lines[i - 1].path, path)) show_path = 1;
+        size_t len = strlen (lines[i - 1].path);
+        if (len > path_width) path_width = len;
+        size_t digits = 1;
+        for (long n = i; n >= 10; n /= 10) digits++;
+        if (digits > number_width) number_width = digits;
+    }
+    for (long i = first; i <= last; i++) {
+        struct git_blame_line *line = &lines[i - 1];
+        char id[64];
+        if (long_ids)
+            /* The caret takes the place of a digit, so the column stays
+               as wide as an id. */
+            snprintf (id, sizeof id, "%s%.*s", line->boundary ? "^" : "",
+                      line->boundary ? 39 : 40, line->commit);
+        else {
+            char abbreviated[41];
+            git_abbrev (ctx, line->commit, line->boundary ? 7 : 8, abbreviated,
+                        sizeof abbreviated);
+            snprintf (id, sizeof id, "%s%s", line->boundary ? "^" : "",
+                      abbreviated);
+        }
+        if (short_form) {
+            if (show_path)
+                printf ("%s %-*s %*ld) %s\n", id, (int) path_width, line->path,
+                        (int) number_width, i, text.line[i - 1]);
+            else printf ("%s %*ld) %s\n", id, (int) number_width, i,
+                         text.line[i - 1]);
+            continue;
+        }
+        struct git_commit commit;
+        char who[1024] = "", when[128] = "";
+        if (git_commit_read (ctx, line->commit, &commit) == 0) {
+            snprintf (who, sizeof who, "%s", commit.author_name);
+            git_format_date_mode (commit.author_date, GIT_DATE_ISO, when,
+                                  sizeof when);
+            git_commit_release (&commit);
+        }
+        /* Where the file has been called something else, git says so
+           between the id and the author. */
+        if (show_path)
+            printf ("%s %-*s (%-*s %s %*ld) %s\n", id, (int) path_width,
+                    line->path, (int) name_width, who, when,
+                    (int) number_width, i, text.line[i - 1]);
+        else
+            printf ("%s (%-*s %s %*ld) %s\n", id, (int) name_width, who, when,
+                    (int) number_width, i, text.line[i - 1]);
+    }
+    for (size_t i = 0; i < text.n; i++) free (lines[i].path);
+    free (lines);
+    git_apply_lines_release (&text);
+    return 0;
+}
+
 /* ---- count-objects ----------------------------------------------------- */
 
 /* A size in kibibytes as git says it out loud, which it does by turning
@@ -19618,6 +19914,7 @@ static const struct {
     { "add",          git_cmd_add },
     { "am",           git_cmd_am },
     { "apply",        git_cmd_apply },
+    { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },

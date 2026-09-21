@@ -219,6 +219,11 @@ git config --add many.things two
 git config --get-all many.things
 git config --unset-all many.things
 git config --remove-section many 2>/dev/null || true
+git blame long.txt > /dev/null
+git blame -s long.txt > /dev/null
+git blame -l -L 1,5 long.txt > /dev/null
+git blame nest/deeper/file.txt > /dev/null
+git blame nosuchfile 2>/dev/null || true
 git count-objects
 git count-objects -v
 git count-objects -H
