@@ -115,6 +115,18 @@ for flags in -c -m -d -o -t -s --directory '-o --exclude-standard' \
   git ls-files $flags > /dev/null
 done
 git ls-files -i 2>/dev/null || true          # the error path, quietly
+git ls-files -o -i --directory --exclude-standard > /dev/null
+git status --ignored --short > /dev/null
+git status --ignored --short -uall > /dev/null
+git check-ignore -v -n nest nest/deeper/file.txt sweepdir/x.txt || true
+git rev-parse --all > /dev/null
+git rev-parse --branches --tags --remotes > /dev/null
+git rev-list --parents HEAD > /dev/null
+git log -3 --format='%h%x09%s' > /dev/null
+for stat in --stat=40 --stat=16 --stat=200,50,1 --stat-graph-width=4 \
+            --stat-name-width=12 --stat-count=1; do
+  git diff "$stat" topic~1 topic > /dev/null
+done
 git ls-tree HEAD > /dev/null
 git ls-tree -r -t HEAD > /dev/null
 git ls-tree -l -r HEAD > /dev/null

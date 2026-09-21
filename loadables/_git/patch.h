@@ -53,9 +53,20 @@ int bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
                    const bgit_patch_options *options,
                    bgit_diffstat_entry **out);
 
-/* The forms git prints from those counts. */
+/* The forms git prints from those counts.
+
+   How wide a stat is drawn and how many of its lines are shown: 0 in a
+   field means the width git works out for itself. */
+typedef struct {
+    int width;         /* the whole line */
+    int name_width;    /* the column the paths sit in */
+    int graph_width;   /* the column of + and - marks */
+    int count;         /* how many files to show, the rest as " ..." */
+} bgit_diffstat_layout;
+
 void bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats,
-                          size_t n, const char *line_prefix);
+                          size_t n, const char *line_prefix,
+                          const bgit_diffstat_layout *layout);
 void bgit_numstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n);
 void bgit_shortstat_write (FILE *out, const bgit_diffstat_entry *stats,
                            size_t n, const char *line_prefix);

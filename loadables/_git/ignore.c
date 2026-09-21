@@ -233,14 +233,41 @@ bgit_ignore_rule_matches (const bgit_ignore_rule *rule, const char *path,
     }
 }
 
-int
-bgit_ignore_match (const bgit_ignore *ignore, const char *path, int is_dir,
-                   const bgit_ignore_rule **matched)
+/* The last rule that has anything to say about this path, which is the one
+   that decides. */
+static const bgit_ignore_rule *
+bgit_ignore_last (const bgit_ignore *ignore, const char *path, int is_dir)
 {
     const bgit_ignore_rule *last = NULL;
     for (size_t i = 0; i < ignore->n; i++)
         if (bgit_ignore_rule_matches (&ignore->rules[i], path, is_dir))
-            last = &ignore->rules[i];      /* the last match decides */
+            last = &ignore->rules[i];
+    return last;
+}
+
+int
+bgit_ignore_match (const bgit_ignore *ignore, const char *path, int is_dir,
+                   const bgit_ignore_rule **matched)
+{
+    /* Each directory on the way down first: once one is excluded, nothing
+       under it can be brought back, and git names that rule as the one
+       that covers the path. */
+    char held[4096];
+    size_t len = strlen (path);
+    if (len < sizeof held) {
+        memcpy (held, path, len + 1);
+        for (char *slash = strchr (held, '/'); slash;
+             slash = strchr (slash + 1, '/')) {
+            *slash = '\0';
+            const bgit_ignore_rule *above = bgit_ignore_last (ignore, held, 1);
+            *slash = '/';
+            if (above && !above->negated) {
+                if (matched) *matched = above;
+                return 1;
+            }
+        }
+    }
+    const bgit_ignore_rule *last = bgit_ignore_last (ignore, path, is_dir);
     if (matched) *matched = last;
     return last && !last->negated;
 }

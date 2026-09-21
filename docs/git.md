@@ -21,8 +21,11 @@ git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
                  [-e | --no-edit] [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
                  [--ignored]
-git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
+git diff         [-p] [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
+                 [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
+                 [--stat-width=<n>] [--stat-name-width=<n>]
+                 [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
 git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [-n <number>] [--reverse] [--first-parent]
@@ -76,6 +79,7 @@ git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--is-inside-work-tree] [--is-bare-repository]
                  [--abbrev-ref] [--short[=N]] [--symbolic-full-name]
+                 [--all] [--branches] [--tags] [--remotes]
                  [--verify] [-q] <rev>...
 git cat-file     (-t | -s | -e | -p | <type>) <object>
 git hash-object  [-t <type>] [-w] [--stdin | --stdin-paths] [<file>...]
@@ -96,7 +100,8 @@ git read-tree    <tree-ish>
 git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
 git ls-tree      [-d] [-r] [-t] [-l] [-z] [--name-only] [--abbrev=<n>]
                  <tree-ish> [<path>...]
-git rev-list     [--count] [-n <number>] [--objects] [--all] <commit>...
+git rev-list     [--count] [-n <number>] [--objects] [--parents] [--all]
+                 <commit>...
 git var          (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)
 git check-ignore [-v] [--non-matching] [<pathname>...]
 git pack-objects [-q] <base-name> < <object-list>
@@ -169,6 +174,21 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+An ignore rule that excludes a directory excludes everything under it,
+and nothing below can be brought back: `git check-ignore -v` names that
+rule for a path inside such a directory, as git names it. A directory
+whose content is ignored to the last file is itself what
+`git status --ignored` reports, while an ignored file inside an untracked
+directory is named on its own — and a `.gitignore` deeper down is read as
+the walk reaches it.
+
+A stat is drawn to whatever `--stat=<width>[,<name-width>[,<count>]]` asks
+for, or the same in `--stat-width=`, `--stat-name-width=`,
+`--stat-graph-width=` and `--stat-count=`: a name too long for its column
+is cut from the left at a directory boundary and written with a leading
+`...`, and the files past `<count>` are one `...` line of their own, with
+the summary underneath still counting them all.
 
 `git ls-files` answers with what the index holds, and with `-m`, `-d` and
 `-o` what has changed, gone, or was never taken in — the last of those

@@ -394,6 +394,20 @@ git_cmd_rev_parse (git_context *ctx, WORD_LIST *args)
         } else if (!strcmp (w, "--is-bare-repository")) {
             printf ("%s\n", ctx->repo.bare ? "true" : "false");
             printed = 1;
+        } else if (!strcmp (w, "--all") || !strcmp (w, "--branches") ||
+                   !strcmp (w, "--tags") || !strcmp (w, "--remotes")) {
+            /* Every ref of that kind, as it stands, in ref order. */
+            const char *under = !strcmp (w, "--branches") ? "refs/heads/"
+                              : !strcmp (w, "--tags") ? "refs/tags/"
+                              : !strcmp (w, "--remotes") ? "refs/remotes/"
+                              : "refs/";
+            bgit_ref *refs = NULL;
+            size_t n_refs = 0;
+            if (bgit_refs_list (&ctx->repo, under, &refs, &n_refs) < 0)
+                return git_fatal ("cannot read refs");
+            for (size_t i = 0; i < n_refs; i++) printf ("%s\n", refs[i].sha);
+            bgit_refs_free (refs, n_refs);
+            printed = 1;
         } else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) {
             quiet = 1;
         } else if (!strcmp (w, "--verify")) {
@@ -1920,9 +1934,10 @@ git_objects_visit (void *context, const char *mode, const char *type,
 static int
 git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git rev-list [--count] [--objects] [-n <number> | "
-                        "--max-count=<number>] <commit>... [^<commit>]";
-    int count_only = 0, with_objects = 0;
+    const char *usage = "git rev-list [--count] [--objects] [--parents] "
+                        "[-n <number> | --max-count=<number>] <commit>... "
+                        "[^<commit>]";
+    int count_only = 0, with_objects = 0, with_parents = 0;
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     int n_revs = 0, n_excludes = 0;
@@ -1931,6 +1946,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         const char *w = p->word->word;
         if (!strcmp (w, "--count")) count_only = 1;
         else if (!strcmp (w, "--objects")) with_objects = 1;
+        else if (!strcmp (w, "--parents")) with_parents = 1;
         else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
@@ -2048,13 +2064,19 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         walk.n_pending--;
 
         if (limit >= 0 && emitted >= limit) break;
-        if (!count_only) printf ("%s\n", current);
+        char parents[BGIT_MAX_PARENTS][41];
+        int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
+        if (!count_only) {
+            /* With --parents each line carries what the commit came from. */
+            printf ("%s", current);
+            if (with_parents)
+                for (int i = 0; i < n; i++) printf (" %s", parents[i]);
+            printf ("\n");
+        }
         emitted++;
 
         /* With --objects the tree each commit holds, and everything under
            it, is named too — each with the path it has there. */
-        char parents[BGIT_MAX_PARENTS][41];
-        int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
         if (with_objects && !count_only) {
             /* What the far side of the range already holds is not named:
                at the edge, the trees it left out are remembered first, so
@@ -3059,6 +3081,7 @@ struct git_diff_format {
     int no_patch;
     int no_renames;
     int context;
+    bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
 static void git_diff_format_init (struct git_diff_format *format);
@@ -4240,6 +4263,16 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             break;
         }
         case 'n': fputc ('\n', out); break;
+        case 'x': {
+            /* %xNN is the byte those two hex digits stand for. */
+            int high = isxdigit ((unsigned char) p[1]) ? p[1] : 0;
+            int low = high && isxdigit ((unsigned char) p[2]) ? p[2] : 0;
+            if (!low) { fputc ('%', out); fputc ('x', out); break; }
+            char pair[3] = { (char) high, (char) low, '\0' };
+            fputc ((int) strtol (pair, NULL, 16), out);
+            p += 2;
+            break;
+        }
         case '%': fputc ('%', out); break;
         case '\0': return;
         default: fputc ('%', out); fputc (*p, out); break;
@@ -4905,6 +4938,36 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     if (!strcmp (w, "-p") || !strcmp (w, "-u") || !strcmp (w, "--patch"))
         format->patch = 1;
     else if (!strcmp (w, "--stat")) format->stat = 1;
+    else if (!strncmp (w, "--stat=", 7)) {
+        /* --stat=<width>[,<name-width>[,<count>]] */
+        format->stat = 1;
+        const char *at = w + 7;
+        int *fields[3] = { &format->stat_layout.width,
+                           &format->stat_layout.name_width,
+                           &format->stat_layout.count };
+        for (int i = 0; i < 3 && *at; i++) {
+            *fields[i] = atoi (at);
+            const char *comma = strchr (at, ',');
+            if (!comma) break;
+            at = comma + 1;
+        }
+    }
+    else if (!strncmp (w, "--stat-width=", 13)) {
+        format->stat = 1;
+        format->stat_layout.width = atoi (w + 13);
+    }
+    else if (!strncmp (w, "--stat-name-width=", 18)) {
+        format->stat = 1;
+        format->stat_layout.name_width = atoi (w + 18);
+    }
+    else if (!strncmp (w, "--stat-graph-width=", 19)) {
+        format->stat = 1;
+        format->stat_layout.graph_width = atoi (w + 19);
+    }
+    else if (!strncmp (w, "--stat-count=", 13)) {
+        format->stat = 1;
+        format->stat_layout.count = atoi (w + 13);
+    }
     else if (!strcmp (w, "--numstat")) format->numstat = 1;
     else if (!strcmp (w, "--shortstat")) format->shortstat = 1;
     else if (!strcmp (w, "--summary")) format->summary = 1;
@@ -4969,7 +5032,8 @@ git_diff_emit (git_context *ctx, FILE *out,
                 return -1;
             if (format->numstat) bgit_numstat_write (out, counted, n);
             if (format->stat) bgit_diffstat_write (out, counted, n,
-                                                   options.line_prefix);
+                                                   options.line_prefix,
+                                                   &format->stat_layout);
             if (format->shortstat) bgit_shortstat_write (out, counted, n,
                                                          options.line_prefix);
             free (counted);

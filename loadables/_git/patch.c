@@ -479,27 +479,40 @@ bgit_stat_name (const bgit_diff_entry *entry, char *quoted, size_t quoted_size,
 
 void
 bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
-                     const char *line_prefix)
+                     const char *line_prefix,
+                     const bgit_diffstat_layout *layout)
 {
     if (!n) return;
     char quoted[8192];
+    /* Only the lines that will be shown decide how wide the columns are,
+       while the summary underneath counts every file. */
+    size_t shown = n;
+    if (layout && layout->count > 0 && (size_t) layout->count < n)
+        shown = (size_t) layout->count;
     size_t max_change = 0, max_len = 0, added = 0, removed = 0;
     for (size_t i = 0; i < n; i++) {
-        char both[8192];
-        const char *name = bgit_stat_name (stats[i].entry, quoted, sizeof quoted,
-                                           both, sizeof both);
-        size_t len = strlen (name);
-        if (len > max_len) max_len = len;
+        if (i < shown) {
+            char both[8192];
+            const char *name = bgit_stat_name (stats[i].entry, quoted,
+                                               sizeof quoted, both,
+                                               sizeof both);
+            size_t len = strlen (name);
+            if (len > max_len) max_len = len;
+            if (!stats[i].binary) {
+                size_t change = stats[i].added + stats[i].removed;
+                if (change > max_change) max_change = change;
+            }
+        }
         if (stats[i].binary) continue;
-        size_t change = stats[i].added + stats[i].removed;
-        if (change > max_change) max_change = change;
         added += stats[i].added;
         removed += stats[i].removed;
     }
 
-    int width = 80;
+    int width = layout && layout->width > 0 ? layout->width : 80;
     int number_width = bgit_decimal_width (max_change);
-    int name_width = (int) max_len;
+    int name_width = layout && layout->name_width > 0 &&
+                     (size_t) layout->name_width < max_len
+                     ? layout->name_width : (int) max_len;
     int graph_width = (int) max_change;
     if (width < 16 + 6 + number_width) width = 16 + 6 + number_width;
     if (name_width + number_width + 6 + graph_width > width) {
@@ -507,22 +520,32 @@ bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
             graph_width = width * 3 / 8 - number_width - 6;
             if (graph_width < 6) graph_width = 6;
         }
+        /* A graph width of its own is a ceiling: it leaves room for the
+           names before they are fitted, and holds after they have been. */
+        if (layout && layout->graph_width > 0 &&
+            layout->graph_width < graph_width)
+            graph_width = layout->graph_width;
         if (name_width > width - number_width - 6 - graph_width)
             name_width = width - number_width - 6 - graph_width;
         else
             graph_width = width - number_width - 6 - name_width;
     }
+    if (layout && layout->graph_width > 0 && layout->graph_width < graph_width)
+        graph_width = layout->graph_width;
 
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < shown; i++) {
         char both[8192];
         const char *name = bgit_stat_name (stats[i].entry, quoted, sizeof quoted,
                                            both, sizeof both);
         size_t len = strlen (name);
         char shortened[8192];
         if ((int) len > name_width && name_width > 3) {
-            /* Too long to show whole: git keeps the end of the path. */
+            /* Too long to show whole: git keeps the end of the path, and
+               then as much of it as starts at a directory of its own. */
+            const char *tail = name + len - (size_t) name_width + 3;
+            const char *slash = strchr (tail, '/');
             snprintf (shortened, sizeof shortened, "...%s",
-                      name + len - (size_t) name_width + 3);
+                      slash ? slash : tail);
             name = shortened;
         }
         fprintf (out, "%s %-*s |", line_prefix, name_width, name);
@@ -549,6 +572,8 @@ bgit_diffstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n,
         bgit_show_graph (out, '-', del);
         fputc ('\n', out);
     }
+    /* What was left out is one line of its own, as git marks it. */
+    if (shown < n) fprintf (out, "%s ...\n", line_prefix);
     fprintf (out, "%s", line_prefix);
     bgit_stat_summary (out, n, added, removed);
 }

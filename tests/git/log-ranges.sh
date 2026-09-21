@@ -73,3 +73,13 @@ git log --oneline 'HEAD~9..HEAD' || echo "bad range: $?"
 git log --oneline nosuchrev || echo "bad revision: $?"
 git rev-list nosuchrev || echo "bad rev-list: $?"
 git rev-list --count '^nosuchrev' HEAD || echo "bad exclusion: $?"
+
+# --parents puts what each commit came from on its line, merges included.
+git rev-list --parents HEAD
+git rev-list --parents --count HEAD
+git rev-list --parents -2 HEAD
+# and rev-parse names every ref there is, in ref order.
+git rev-parse --all
+git rev-parse --branches
+git rev-parse --tags
+git rev-parse --remotes

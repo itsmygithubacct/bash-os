@@ -99,3 +99,18 @@ git ls-tree HEAD nosuch
 git ls-tree HEAD dir kept.txt
 git ls-tree -l -r HEAD
 git ls-tree 'HEAD^{tree}' dir
+
+echo '=== directories that hold nothing, or nothing but ignored files ==='
+mkdir -p hollow shut/inside only-ignored deeper/down
+printf 'shut/\n' >> .gitignore
+printf 'a\n' > shut/inside/a.txt
+printf 'b\n' > only-ignored/b.log
+printf 'c\n' > deeper/down/c.log
+git ls-files -o --directory --exclude-standard
+git ls-files -o --directory
+git ls-files -o -i --directory --exclude-standard
+git ls-files -o -i --exclude-standard
+git status --short
+git status --ignored --short
+git status --ignored --short -uall
+git status --porcelain=v2 --ignored

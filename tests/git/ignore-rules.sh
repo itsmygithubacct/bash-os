@@ -43,3 +43,20 @@ done
 git check-ignore -v --non-matching keep.log not-ignored.txt || echo "non-matching exits $?"
 git check-ignore a.log docs/draft.md
 if git check-ignore not-ignored.txt; then echo 'unexpected match'; else echo "no match exits $?"; fi
+
+# Nothing under an excluded directory can be brought back, and git names
+# the rule that excluded the directory as the one that covers the path.
+mkdir -p shut/away nest/deep docs
+printf 'shut/\n!shut/away/keep.txt\nnest/deep/\ndocs/*\n!docs/keep.md\n' >> .gitignore
+printf 'x\n' > shut/away/keep.txt
+printf 'y\n' > nest/deep/thing
+printf 'z\n' > docs/keep.md
+printf 'w\n' > docs/other.md
+mkdir -p docs/sub
+printf 'v\n' > docs/sub/deep.md
+for path in shut shut/away shut/away/keep.txt nest/deep nest/deep/thing \
+            docs/keep.md docs/other.md docs/sub/deep.md; do
+    git check-ignore -v --non-matching "$path" || echo "exit $?: $path"
+done
+git status --short
+git status --ignored --short

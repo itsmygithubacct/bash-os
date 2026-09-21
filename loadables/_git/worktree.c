@@ -366,10 +366,13 @@ struct bgit_untracked_ctx {
     const bgit_index_entry *index;
     size_t n_index;
     int index_sorted;
-    const bgit_ignore *ignore;
+    bgit_ignore *ignore;
     struct bgit_status_build *build;
     int untracked_all;
     int want_ignored;
+    /* A directory already named as untracked: below it only what an
+       ignore rule covers is named again. */
+    char untracked_root[4096];
 };
 
 /* Entries kept in path order — an index, or a tree read out whole — can be
@@ -483,6 +486,25 @@ bgit_dir_has_content (const bgit_repo *repo, const bgit_ignore *ignore,
     return found;
 }
 
+/* Is there anything at all in this directory? An empty one is not named,
+   however it is asked for. */
+static int
+bgit_dir_has_entries (const bgit_repo *repo, const char *relative)
+{
+    char dir[4096];
+    if ((size_t) snprintf (dir, sizeof dir, "%s/%s", repo->work_tree,
+                           relative) >= sizeof dir)
+        return 0;
+    DIR *handle = opendir (dir);
+    if (!handle) return 0;
+    struct dirent *entry;
+    int found = 0;
+    while (!found && (entry = readdir (handle)) != NULL)
+        found = strcmp (entry->d_name, ".") && strcmp (entry->d_name, "..");
+    closedir (handle);
+    return found;
+}
+
 /* ---- what the index does not hold -------------------------------------- */
 
 struct bgit_others_ctx {
@@ -490,7 +512,7 @@ struct bgit_others_ctx {
     const bgit_index_entry *index;
     size_t n_index;
     int index_sorted;
-    const bgit_ignore *ignore;
+    bgit_ignore *ignore;
     int directory, exclude, only_ignored;
     /* The ignored directory being listed from, so that what is under it is
        known to be ignored too however it is named. */
@@ -540,6 +562,12 @@ bgit_others_visit (void *vctx, const char *path, int is_dir,
         if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
                                ctx->index_sorted))
             return 1;        /* the index holds it whole: a submodule */
+        /* A directory can hold rules of its own, and they decide what is
+           under it. */
+        if (bgit_ignore_add_dir (ctx->ignore, ctx->repo, path) < 0) return -1;
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
+                               ctx->index_sorted))
+            return 0;        /* tracked files inside: whatever the rules say */
         if (ignored) {
             if (!ctx->only_ignored) return 1;
             if (ctx->directory)
@@ -549,14 +577,20 @@ bgit_others_visit (void *vctx, const char *path, int is_dir,
                           path);
             return 0;        /* everything below it is ignored as well */
         }
-        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
-                               ctx->index_sorted))
-            return 0;        /* tracked files inside: look further down */
-        if (ctx->only_ignored) return 0;   /* ignored ones may still be below */
+        if (ctx->only_ignored) {
+            /* Ignored files may still be below. A directory holding those
+               alone is named as well, where whole directories are named. */
+            if (ctx->directory &&
+                bgit_dir_has_entries (ctx->repo, path) &&
+                !bgit_dir_has_content (ctx->repo,
+                                       ctx->exclude ? ctx->ignore : NULL, path) &&
+                bgit_others_add (ctx, path, 1) < 0)
+                return -1;
+            return 0;
+        }
         if (!ctx->directory) return 0;
-        if (!bgit_dir_has_content (ctx->repo, ctx->exclude ? ctx->ignore : NULL,
-                                   path))
-            return 1;
+        /* ls-files names every directory the index does not reach into,
+           an empty one included — it is status that leaves those out. */
         return bgit_others_add (ctx, path, 1) < 0 ? -1 : 1;
     }
     if (bgit_index_covers (ctx->index, ctx->n_index, path, 0, ctx->index_sorted))
@@ -611,10 +645,30 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
                       const struct stat *st)
 {
     struct bgit_untracked_ctx *ctx = vctx;
+    int within = bgit_path_under (path, ctx->untracked_root);
+    if (!within) *ctx->untracked_root = '\0';
+
+    /* What the index holds is neither untracked nor ignored, whatever the
+       rules say about the name. */
+    if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
+                           ctx->index_sorted))
+        return is_dir ? 1 : 0;       /* a submodule, or a tracked file */
+    if (is_dir) {
+        /* A directory can hold rules of its own, and they decide what is
+           under it. */
+        if (bgit_ignore_add_dir (ctx->ignore, ctx->repo, path) < 0) return -1;
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
+                               ctx->index_sorted))
+            return 0;                /* tracked files inside: go on down */
+    }
     const bgit_ignore_rule *rule = NULL;
     int ignored = bgit_ignore_match (ctx->ignore, path, is_dir, &rule);
     if (ignored) {
-        if (ctx->want_ignored) {
+        if (!ctx->want_ignored) return 1;
+        /* With every untracked file named one by one, the ignored ones are
+           named that way too. */
+        if (is_dir && ctx->untracked_all) return 0;
+        if (!is_dir || bgit_dir_has_content (ctx->repo, NULL, path)) {
             char name[4096];
             snprintf (name, sizeof name, "%s%s", path, is_dir ? "/" : "");
             bgit_status_entry *entry = bgit_status_append (ctx->build, name);
@@ -624,26 +678,36 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         return 1;      /* nothing below an ignored directory is reported */
     }
     if (is_dir) {
-        if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
-                               ctx->index_sorted))
-            return 1;  /* the index holds it whole: a submodule */
-        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
-                               ctx->index_sorted))
-            return 0;  /* tracked files inside: look further down */
-        if (!bgit_dir_has_content (ctx->repo, ctx->ignore, path))
-            return 1;  /* empty, or wholly ignored: git says nothing */
+        if (!bgit_dir_has_content (ctx->repo, ctx->ignore, path)) {
+            /* Nothing here but ignored files, if anything at all: git
+               names the directory for them, and says nothing of an empty
+               one. */
+            if (!ctx->want_ignored) return 1;
+            if (ctx->untracked_all) return 0;
+            if (bgit_dir_has_content (ctx->repo, NULL, path)) {
+                char name[4096];
+                snprintf (name, sizeof name, "%s/", path);
+                bgit_status_entry *entry = bgit_status_append (ctx->build, name);
+                if (!entry) return -1;
+                entry->ignored = 1;
+            }
+            return 1;
+        }
         if (ctx->untracked_all) return 0;
+        if (within) return 0;   /* the name above it stands for this too */
         char name[4096];
         snprintf (name, sizeof name, "%s/", path);
         bgit_status_entry *entry = bgit_status_append (ctx->build, name);
         if (!entry) return -1;
         entry->untracked = 1;
         entry->worktree_mode = bgit_worktree_mode (st);
-        return 1;      /* git names the directory, not its contents */
-    }
-    if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
-                           ctx->index_sorted))
+        /* git names the directory, not its contents — but an ignored file
+           under it is still named, so the walk goes on when it must. */
+        if (!ctx->want_ignored) return 1;
+        snprintf (ctx->untracked_root, sizeof ctx->untracked_root, "%s", path);
         return 0;
+    }
+    if (within) return 0;
     bgit_status_entry *entry = bgit_status_append (ctx->build, path);
     if (!entry) return -1;
     entry->untracked = 1;
