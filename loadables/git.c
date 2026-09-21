@@ -166,6 +166,12 @@ static int git_write_state_file (git_context *ctx, const char *name,
 static void git_remove_state_file (git_context *ctx, const char *name);
 /* pull ends in one of these, depending on what it was asked for. */
 static int git_cmd_rebase (git_context *ctx, WORD_LIST *args);
+/* "1750000000 +0000" as git writes a date, and an identity without its
+   timestamp: the editor's template wants both before the code that writes
+   them is reached. */
+static void git_format_date (const char *raw, int keep_raw, char *out,
+                             size_t outsz);
+static void git_ident_who (const char *ident, char *out, size_t outsz);
 
 static int
 git_context_open (git_context *ctx)
@@ -2585,6 +2591,189 @@ git_commit_signed (const char *body, size_t len, const char *armour,
 }
 
 
+/* Run an editor over PATH, the way git runs one: GIT_EDITOR, then
+   core.editor, then VISUAL, then EDITOR, and vi when nothing names one.
+   What is named is a command line the shell reads, with the file added at
+   the end, so "emacs -nw" works as well as a bare name; and ":" does
+   nothing at all, which is git's way of leaving a file as it is. With
+   SEQUENCE, the todo list's own editor is asked for first. Returns 0 when
+   the editor came back happy, and -1 otherwise. */
+static int
+git_edit_file (git_context *ctx, const char *path, int sequence)
+{
+    const char *editor = NULL;
+    if (sequence) {
+        editor = getenv ("GIT_SEQUENCE_EDITOR");
+        if (!editor || !*editor)
+            editor = bgit_config_get (&ctx->cfg, "sequence.editor");
+    }
+    if (!editor || !*editor) editor = getenv ("GIT_EDITOR");
+    if (!editor || !*editor) editor = bgit_config_get (&ctx->cfg, "core.editor");
+    if (!editor || !*editor) editor = getenv ("VISUAL");
+    if (!editor || !*editor) editor = getenv ("EDITOR");
+    if (!editor || !*editor) editor = "vi";
+    if (!strcmp (editor, ":")) return 0;
+
+    fflush (stdout);
+    fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) return -1;
+    if (!child) {
+        char script[4096];
+        snprintf (script, sizeof script, "%s \"$@\"", editor);
+        /* The shell keeps its own table of variables and only builds the
+           environment array when it is about to run something outside
+           itself, so an assignment standing before this command — the
+           editor is often told what to write that way — is not in
+           `environ` yet. */
+        array_needs_making = 1;
+        maybe_make_export_env ();
+        const char *argv[8];
+        int at = 0;
+        argv[at++] = "bash";
+        argv[at++] = "--noprofile";
+        argv[at++] = "--norc";
+        argv[at++] = "-c";
+        argv[at++] = script;
+        argv[at++] = "git-editor";
+        argv[at++] = path;
+        argv[at] = NULL;
+        execve ("/proc/self/exe", (char *const *) argv, export_env);
+        _exit (127);
+    }
+    int status = 0;
+    while (waitpid (child, &status, 0) < 0 && errno == EINTR) ;
+    if (!WIFEXITED (status) || WEXITSTATUS (status)) {
+        git_fatal ("There was a problem with the editor '%s'.", editor);
+        return -1;
+    }
+    return 0;
+}
+
+/* What a message file says once the comment lines are taken out of it,
+   with the blank lines around it trimmed the way git trims them. Returns
+   the text, for the caller to free, or NULL. */
+static char *
+git_message_body (const char *path, size_t *out_len)
+{
+    unsigned char *text = NULL;
+    size_t len = 0;
+    if (bgit_slurp_file (path, &text, &len) < 0) return NULL;
+    char *out = malloc (len + 2);
+    if (!out) { free (text); return NULL; }
+    size_t at = 0;
+    for (size_t i = 0; i < len; ) {
+        size_t stop = i;
+        while (stop < len && text[stop] != '\n') stop++;
+        if (text[i] != '#') {
+            memcpy (out + at, text + i, stop - i);
+            at += stop - i;
+            out[at++] = '\n';
+        }
+        i = stop < len ? stop + 1 : len;
+    }
+    free (text);
+    /* Leading and trailing blank lines are not part of a message. */
+    size_t start = 0;
+    while (start < at && (out[start] == '\n' || out[start] == ' ' ||
+                          out[start] == '\t'))
+        start++;
+    while (at > start && (out[at - 1] == '\n' || out[at - 1] == ' ' ||
+                          out[at - 1] == '\t'))
+        at--;
+    if (at > start) out[at++] = '\n';
+    memmove (out, out + start, at - start);
+    at -= start;
+    out[at] = '\0';
+    *out_len = at;
+    return out;
+}
+
+/* The comment block git puts under a commit message in the editor: what
+   status would say, with every line behind a '#' and the advice left out,
+   since none of it is part of the message. */
+static void
+git_commit_template (git_context *ctx, FILE *out, struct git_state *state,
+                     const char *author, const char *committer, int amend)
+{
+    const char *branch = state->branch;
+    if (branch && !strncmp (branch, "refs/heads/", 11)) branch += 11;
+    fprintf (out, "\n# Please enter the commit message for your changes. "
+                  "Lines starting\n# with '#' will be ignored, and an empty "
+                  "message aborts the commit.\n#\n");
+    /* Who wrote it, when it is not whoever is committing it, and when the
+       date is one git calls interesting — which is a commit being amended,
+       since it keeps the date it had. */
+    char author_who[1024], committer_who[1024];
+    git_ident_who (author, author_who, sizeof author_who);
+    git_ident_who (committer, committer_who, sizeof committer_who);
+    int said = 0;
+    if (strcmp (author_who, committer_who)) {
+        fprintf (out, "# Author:    %s\n", author_who);
+        said = 1;
+    }
+    if (amend) {
+        const char *stamp = strrchr (author, '>');
+        char shown[128] = "";
+        if (stamp) git_format_date (stamp + 2, 0, shown, sizeof shown);
+        fprintf (out, "# Date:      %s\n", shown);
+        said = 1;
+    }
+    if (said) fprintf (out, "#\n");
+    if (branch) fprintf (out, "# On branch %s\n", branch);
+    /* A repository with no commit yet says so, set apart. */
+    if (!state->have_head) fprintf (out, "#\n# Initial commit\n#\n");
+
+    /* What the commit will hold: against HEAD normally, and against what
+       HEAD stands on when the commit is being amended, since the one
+       being replaced is not part of the answer. */
+    char base[41] = "";
+    int have_base = state->have_head;
+    if (have_base) memcpy (base, state->head_tree, 41);
+    if (amend && state->have_head) {
+        char parents[BGIT_MAX_PARENTS][41];
+        int n_parents = bgit_commit_parents (&ctx->odb, state->head, parents,
+                                             BGIT_MAX_PARENTS);
+        have_base = n_parents > 0 &&
+                    bgit_commit_tree (&ctx->odb, parents[0], base) == 0;
+    }
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_status (&ctx->repo, &ctx->odb, &ctx->cfg, state->index,
+                     state->n_index, have_base ? base : NULL,
+                     0, 0, 1, &entries, &n) < 0)
+        return;
+    char quoted[8192];
+    for (int part = 0; part < 3; part++) {
+        int any = 0;
+        for (size_t i = 0; i < n; i++) {
+            const bgit_status_entry *entry = &entries[i];
+            int wanted = part == 0 ? (entry->staged || entry->unmerged)
+                       : part == 1 ? (entry->unstaged && !entry->unmerged)
+                                   : entry->untracked;
+            if (!wanted) continue;
+            if (!any) {
+                fprintf (out, "# %s\n", part == 0 ? "Changes to be committed:"
+                              : part == 1 ? "Changes not staged for commit:"
+                                          : "Untracked files:");
+                any = 1;
+            }
+            const char *name = bgit_quote_path (entry->path, quoted,
+                                                sizeof quoted);
+            if (part == 2) fprintf (out, "#\t%s\n", name);
+            else if (entry->unmerged)
+                fprintf (out, "#\t%-12s%s\n",
+                         git_unmerged_label (entry->unmerged), name);
+            else
+                fprintf (out, "#\t%-12s%s\n",
+                         git_status_label (part == 0 ? entry->staged
+                                                     : entry->unstaged), name);
+        }
+        if (any) fprintf (out, "#\n");
+    }
+    bgit_status_free (entries, n);
+}
+
 /* "Name <email> 1750000000 +0000" cut down to "Name <email>". */
 static void
 git_ident_who (const char *ident, char *out, size_t outsz)
@@ -2597,12 +2786,14 @@ git_ident_who (const char *ident, char *out, size_t outsz)
 static int
 git_cmd_commit (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git commit -q (-m <message> | -F <file>) [-a] "
-                        "[--amend] [--allow-empty] [-S[<key>]] [--no-gpg-sign]";
+    const char *usage = "git commit [-q] [-m <message> | -F <file>] [-a] "
+                        "[-e | --no-edit] [--amend] [--allow-empty] "
+                        "[-S[<key>]] [--no-gpg-sign]";
     const char *messages[16];
     int n_messages = 0;
     const char *message_file = NULL, *signing_key = NULL;
     int all = 0, amend = 0, allow_empty = 0, quiet = 0, sign = -1;
+    int edit = 0, no_edit = 0, use_editor = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -2620,6 +2811,8 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         else if (!strncmp (w, "-S", 2) && w[2]) { sign = 1; signing_key = w + 2; }
         else if (!strncmp (w, "--gpg-sign=", 11)) { sign = 1; signing_key = w + 11; }
         else if (!strcmp (w, "--no-gpg-sign")) sign = 0;
+        else if (!strcmp (w, "-e") || !strcmp (w, "--edit")) edit = 1;
+        else if (!strcmp (w, "--no-edit")) no_edit = 1;
         else if (!strcmp (w, "-am") && p->next) {
             all = 1;
             messages[n_messages++] = p->next->word->word;
@@ -2628,7 +2821,8 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         else return git_usage (usage);
     }
     if (!n_messages && !message_file) {
-        /* Concluding a merge has a message ready in MERGE_MSG. */
+        /* Concluding a merge has a message ready in MERGE_MSG, which the
+           editor is then given to start from, as git gives it. */
         char merge_msg[4096];
         struct stat st;
         if (git_context_open (ctx) == 0 &&
@@ -2636,10 +2830,9 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
                       ctx->repo.git_dir) < (int) sizeof merge_msg &&
             lstat (merge_msg, &st) == 0)
             message_file = strdup (merge_msg);
-        else
-            return git_fatal ("this build's git commit needs -m or -F; it has "
-                              "no editor support yet");
+        use_editor = !no_edit;
     }
+    if (edit) use_editor = 1;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     struct git_state state;
@@ -2746,6 +2939,73 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
         git_state_release (&state);
         return git_fatal ("cannot determine the identity to use");
+    }
+
+    /* With no message given, one is written in the editor, over whatever
+       there is to start from: what -m said, what a merge left in
+       MERGE_MSG, or the message of the commit being amended. */
+    char editmsg[4096];
+    if (use_editor) {
+        if (snprintf (editmsg, sizeof editmsg, "%s/COMMIT_EDITMSG",
+                      ctx->repo.git_dir) >= (int) sizeof editmsg) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        FILE *out = fopen (editmsg, "w");
+        if (!out) {
+            git_state_release (&state);
+            return git_fatal ("could not write '%s'", editmsg);
+        }
+        if (message_file) {
+            unsigned char *text = NULL;
+            size_t text_len = 0;
+            if (bgit_slurp_file (message_file, &text, &text_len) == 0) {
+                fwrite (text, 1, text_len, out);
+                free (text);
+            }
+        } else if (n_messages) {
+            for (int i = 0; i < n_messages; i++)
+                fprintf (out, "%s%s\n", i ? "\n" : "", messages[i]);
+        } else if (amend) {
+            /* The message of the commit being amended, which is whatever
+               stands after the blank line in it. */
+            enum bgit_type type;
+            unsigned char *data = NULL;
+            size_t len = 0;
+            if (bgit_odb_read (&ctx->odb, state.head, &type, &data, &len) == 0) {
+                const char *body = (const char *) data;
+                for (size_t i = 0; i + 1 < len; i++)
+                    if (body[i] == '\n' && body[i + 1] == '\n') {
+                        fwrite (body + i + 2, 1, len - i - 2, out);
+                        break;
+                    }
+                free (data);
+            }
+        }
+        git_commit_template (ctx, out, &state, author, committer, amend);
+        fclose (out);
+        if (git_edit_file (ctx, editmsg, 0) < 0) {
+            git_state_release (&state);
+            return GIT_EXIT_FATAL;
+        }
+        size_t edited_len = 0;
+        char *edited = git_message_body (editmsg, &edited_len);
+        if (!edited || !edited_len) {
+            free (edited);
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "Aborting commit due to empty commit message.\n");
+            return 1;
+        }
+        /* What is left is the message, and the file holds only that. */
+        out = fopen (editmsg, "w");
+        if (out) {
+            fwrite (edited, 1, edited_len, out);
+            fclose (out);
+        }
+        free (edited);
+        message_file = editmsg;
+        n_messages = 0;
     }
 
     size_t cap = 4096, len = 0;
@@ -4762,6 +5022,31 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         char tagger[1024];
         if (bgit_ident (&ctx->cfg, 1, tagger, sizeof tagger) < 0)
             return git_fatal ("cannot determine the identity to use");
+        /* With nothing said on the command line, the message is written in
+           the editor, over the note git leaves there. */
+        char written[8192];
+        if (!message) {
+            char editmsg[4096];
+            if (snprintf (editmsg, sizeof editmsg, "%s/TAG_EDITMSG",
+                          ctx->repo.git_dir) >= (int) sizeof editmsg)
+                return GIT_EXIT_FATAL;
+            FILE *out = fopen (editmsg, "w");
+            if (!out) return git_fatal ("could not write '%s'", editmsg);
+            fprintf (out, "\n#\n# Write a message for tag:\n#   %s\n"
+                          "# Lines starting with '#' will be ignored.\n",
+                     names[0]);
+            fclose (out);
+            if (git_edit_file (ctx, editmsg, 0) < 0) return GIT_EXIT_FATAL;
+            size_t edited_len = 0;
+            char *edited = git_message_body (editmsg, &edited_len);
+            if (!edited || !edited_len) {
+                free (edited);
+                return git_fatal ("no tag message?");
+            }
+            snprintf (written, sizeof written, "%s", edited);
+            free (edited);
+            message = written;
+        }
         char body[8192];
         int len = snprintf (body, sizeof body,
                             "object %s\ntype commit\ntag %s\ntagger %s\n\n%s%s",
@@ -6919,7 +7204,12 @@ git_far_end_gone (void)
 static char **
 git_far_environ (void)
 {
-    extern char **environ;
+    /* Built from the shell's own table, which is where an assignment
+       standing before this command is until something outside the shell
+       is run. */
+    array_needs_making = 1;
+    maybe_make_export_env ();
+    char **environ = export_env;
     static const char *const leave_behind[] = {
         "GIT_PROTOCOL=", "GIT_DIR=", "GIT_WORK_TREE=", "GIT_INDEX_FILE=",
         "GIT_OBJECT_DIRECTORY=", "GIT_ALTERNATE_OBJECT_DIRECTORIES=", NULL

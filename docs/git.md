@@ -18,7 +18,7 @@ at what changed, branching, switching, restoring and tagging.
 ```
 git add          [-A | -u] [-n] [-f] [--] [<pathspec>...]
 git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
-                 [-q] [-S[<key>]] [--no-gpg-sign]
+                 [-e | --no-edit] [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
                  [--ignored]
 git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
@@ -168,6 +168,19 @@ author and message; a revert writes `Revert "<subject>"` and says which
 commit it undoes. Either can conflict, and then leaves `CHERRY_PICK_HEAD`
 or `REVERT_HEAD` behind for `--continue` or `--abort`, with `git status`
 saying which is under way.
+
+With no `-m` and no `-F`, the message is written in an editor, which is
+`GIT_EDITOR`, then `core.editor`, then `VISUAL`, then `EDITOR`, and `vi`
+when nothing names one; `:` does nothing, as it does for git. What the
+editor is given is git's own template — the two lines about what will be
+ignored, who wrote it when that is not who is committing it, the date
+when a commit is being amended, and the status underneath, every line
+behind a `#` — and what comes back is the message with those lines taken
+out. An empty message is `Aborting commit due to empty commit message.`
+and nothing committed. `-e` opens the editor over what `-m` said; a
+merge starts from `MERGE_MSG`, and `--no-edit` takes it as it stands.
+`git tag -a` is written the same way, over git's note, and an empty one
+is `fatal: no tag message?`.
 
 `git stash` keeps its stack where git keeps it: in `refs/stash`'s own
 reflog, which is why `stash@{2}` is just a revision. A stash is two
