@@ -933,7 +933,17 @@ message and changes nothing.
 
 All four phases of the port are in, and so is what each of them named:
 the everyday commands, history editing, remotes over a path and over
-HTTP, and ssh and signing.
+HTTP, and ssh and signing — and, since then, what everyday use asked for
+next: the log's dates, decorations and filters, the two that read a diff,
+the listings in full, and describe, shortlog, grep, apply, format-patch
+and am.
+
+What is not here yet, in the order it would be missed: `git blame`; the
+housekeeping commands — `gc`, `repack`, `prune`, `count-objects` and
+`fsck`; `notes`, `bisect`, `archive` and `bundle`; `remote show`;
+`log --follow`; `diff -R` and `--word-diff`; `reflog --format=`;
+`cat-file --batch-all-objects`; `describe --contains` and `--all`; and
+`--date=human`.
 
 What is left out was left out on purpose. A repository whose objects are
 named by SHA-256 is refused rather than half read. `git://` is not spoken
