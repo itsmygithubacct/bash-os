@@ -348,6 +348,28 @@ git commit -q -m 'something to push'
 git push bare
 git remote remove bare
 
+# A repository inside a repository: taken in, listed, run in, let go of,
+# and taken up again from what was left behind.
+cd "$HOME"
+git init -q -b main library
+printf 'a library\n' > library/lib.txt
+git -C library add lib.txt
+git -C library commit -q -m 'the library'
+cd "$HOME/repo"
+git submodule add ../library vendor/library
+cat .gitmodules
+git status --short
+git commit -q -m 'take the library in'
+git submodule status
+git submodule foreach 'echo "in $name at $sha1"'
+git submodule deinit vendor/library
+git submodule status
+git submodule update --init
+git submodule status
+cat vendor/library/lib.txt
+git submodule deinit --all -f
+cd "$HOME/repo"
+
 # Packing by hand, where objects that are nearly the same go in as deltas
 # against one another rather than whole: a file changed a line at a time,
 # then every object written into a pack and read back out of it.

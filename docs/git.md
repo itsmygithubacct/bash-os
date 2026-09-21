@@ -45,7 +45,8 @@ git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
                  [-e | --no-edit] [-q] <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
 git submodule    [status [--cached]] | init | update [--init] [-q]
-                 [<path>...]
+                 | add <url> [<path>] | deinit [-f] [--all]
+                 | foreach [-q] <command> [<path>...]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       [-i] [-r | --rebase-merges[=(no-)rebase-cousins]]
@@ -270,7 +271,8 @@ rebase with `Could not apply`, leaves `MERGE_HEAD` behind, and
 `git rebase --continue` then asks for the message and makes the merge
 commit, exactly as git does.
 
-`git submodule` covers the three verbs a checkout needs. `status` says
+`git submodule` covers what a checkout needs and what putting one
+together needs. `status` says
 where each one stands: a minus for one with nothing checked out, a plus
 for one whose commit is not what the index records, and after the path
 what `describe` would call that commit — `heads/main`, or
@@ -285,6 +287,25 @@ records; `--init` does the registering on the way. A second `update`
 with nothing to do says nothing, as git's does. The url may be a path or
 an address this build can reach; the nested commands run as this build's
 own git, in a child of their own.
+
+`add` takes a repository in: it clones it where it is to live, puts its
+git directory under `.git/modules`, writes the name, path and url into
+`.gitmodules` — the url as it was given, relative and all — says here
+where that really points, and stages both the file and the gitlink.
+`deinit` is the other way round: the working tree of the submodule is
+emptied and this repository forgets where it came from, while what is
+under `.git/modules` stays, so a later `update` puts it back without
+fetching anything. A submodule with changes of its own is not let go of
+without `-f`, in git's words. `foreach` runs a command in each submodule
+that is there, with `$name`, `$sm_path`, `$displaypath`, `$sha1` and
+`$toplevel` set as git sets them, saying `Entering '<path>'` first unless
+told to be quiet, and stopping at the first command that fails.
+
+`git add` stages a directory that holds a repository of its own as the
+commit it stands at — a gitlink — and says what git says about adding an
+embedded repository, unless `--no-warn-embedded-repo` says not to, which
+is what `submodule add` passes. A gitlink is not an object of this
+repository, so `rev-list --objects` leaves it out, as git's does.
 
 `git rebase` replays what a branch has that its upstream does not, one
 commit at a time, each replay being the same three-way merge a cherry-pick
@@ -683,9 +704,7 @@ left is the odd corner of each.
 
 The one todo command this build does not answer is `update-ref`, which
 git writes only when it is told to `--update-refs`; a list holding one
-stops with `error: invalid command`. `git submodule add`, `deinit` and
-`foreach` are not there either: what this build has is the three verbs a
-checkout needs. And `git://` is not spoken at all.
+stops with `error: invalid command`. And `git://` is not spoken at all.
 
 The plan, including what each phase must match, is in the implementation
 document for the port.

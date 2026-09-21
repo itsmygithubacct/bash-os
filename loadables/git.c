@@ -257,6 +257,19 @@ git_cmd_init (git_context *ctx, WORD_LIST *args)
     if (!bgit_ref_name_ok (branch))
         return git_fatal ("invalid branch name: '%s'", branch);
 
+    /* Every directory above it as well, which is what git makes. */
+    {
+        char made[4096];
+        snprintf (made, sizeof made, "%s", where);
+        for (char *slash = strchr (made[0] == '/' ? made + 1 : made, '/');
+             slash; slash = strchr (slash + 1, '/')) {
+            *slash = '\0';
+            if (mkdir (made, 0777) < 0 && errno != EEXIST)
+                return git_fatal ("cannot mkdir %s: %s", made,
+                                  strerror (errno));
+            *slash = '/';
+        }
+    }
     if (mkdir (where, 0777) < 0 && errno != EEXIST)
         return git_fatal ("cannot mkdir %s: %s", where, strerror (errno));
     char git_dir[4096];
@@ -1660,8 +1673,10 @@ static int
 git_objects_visit (void *context, const char *mode, const char *type,
                    const char *sha, const char *path)
 {
-    (void) mode;
     (void) type;
+    /* A gitlink names a commit of another repository, which this one does
+       not have and does not list. */
+    if (mode && !strcmp (mode, "160000")) return 0;
     struct git_objects_ctx *ctx = context;
     if (!git_objects_seen (ctx->seen, sha)) printf ("%s %s\n", sha, path);
     return 0;
@@ -1938,6 +1953,7 @@ struct git_add_ctx {
     const char *pathspec;      /* "" for everything */
     int update_only;           /* -u: only what the index already has */
     int dry_run;
+    int warn_embedded;         /* say so when a repository is staged as one */
     int *changed;
 };
 
@@ -1968,6 +1984,60 @@ git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
            is inside it belongs to that repository, not to this one. */
         bgit_index_entry *linked = git_index_lookup (add->state->index,
                                                     add->state->n_index, path);
+        /* A repository inside this one that nothing knows about yet is
+           staged as the commit it stands at, and git says so out loud
+           unless it was a submodule being taken in. */
+        if (!linked && git_path_in_spec (path, add->pathspec)) {
+            char full[4096], head[41];
+            if (snprintf (full, sizeof full, "%s/%s", add->ctx->repo.work_tree,
+                          path) < (int) sizeof full &&
+                bgit_submodule_head (full, head) == 0) {
+                *add->changed = 1;
+                if (add->warn_embedded) {
+                    fflush (stdout);
+                    fprintf (stderr, "warning: adding embedded git "
+                                     "repository: %s\n", path);
+                    fprintf (stderr,
+                      "hint: You've added another git repository inside your "
+                      "current repository.\n"
+                      "hint: Clones of the outer repository will not contain "
+                      "the contents of\n"
+                      "hint: the embedded repository and will not know how to "
+                      "obtain it.\n"
+                      "hint: If you meant to add a submodule, use:\n"
+                      "hint:\n"
+                      "hint: \tgit submodule add <url> %s\n"
+                      "hint:\n"
+                      "hint: If you added this path by mistake, you can remove "
+                      "it from the\n"
+                      "hint: index with:\n"
+                      "hint:\n"
+                      "hint: \tgit rm --cached %s\n"
+                      "hint:\n"
+                      "hint: See \"git help submodule\" for more "
+                      "information.\n"
+                      "hint: Disable this message with \"git config "
+                      "advice.addEmbeddedRepo false\"\n", path, path);
+                }
+                if (!add->dry_run) {
+                    bgit_index_entry entry;
+                    memset (&entry, 0, sizeof entry);
+                    entry.path = strdup (path);
+                    if (!entry.path) return -1;
+                    bgit_index_entry_set_stat (&entry, st);
+                    entry.mode = 0160000;
+                    entry.size = 0;
+                    bgit_hex_to_sha (head, entry.sha);
+                    size_t len = strlen (path);
+                    entry.flags = (uint16_t) (len > 0xfff ? 0xfff : len);
+                    if (git_index_put (&add->state->index,
+                                       &add->state->n_index,
+                                       &add->state->cap_index, &entry) < 0)
+                        return -1;
+                }
+                return 1;
+            }
+        }
         if (linked && linked->mode == 0160000) {
             if (!git_path_in_spec (path, add->pathspec)) return 1;
             char full[4096], head[41], stored[41];
@@ -2016,14 +2086,20 @@ static int
 git_cmd_add (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git add [-A | --all] [-u | --update] [-n | --dry-run] "
-                        "[-f | --force] [--] <pathspec>...";
+                        "[-f | --force] [--no-warn-embedded-repo] [--] "
+                        "<pathspec>...";
     int all = 0, update_only = 0, dry_run = 0, force = 0, no_more = 0;
+    int warn_embedded = 1;
     const char *specs[32];
     int n_specs = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "--no-warn-embedded-repo")) {
+            warn_embedded = 0;
+            continue;
+        }
         if (!no_more && (!strcmp (w, "-A") || !strcmp (w, "--all"))) all = 1;
         else if (!no_more && (!strcmp (w, "-u") || !strcmp (w, "--update"))) update_only = 1;
         else if (!no_more && (!strcmp (w, "-n") || !strcmp (w, "--dry-run"))) dry_run = 1;
@@ -2068,7 +2144,8 @@ git_cmd_add (git_context *ctx, WORD_LIST *args)
         struct git_add_ctx add = {
             .ctx = ctx, .state = &state, .ignore = &ignore,
             .pathspec = spec_list[i], .update_only = update_only,
-            .dry_run = dry_run, .changed = &changed
+            .dry_run = dry_run, .warn_embedded = warn_embedded,
+            .changed = &changed
         };
         if (bgit_worktree_walk (&ctx->repo, git_add_visit, &add) < 0) {
             status = GIT_EXIT_FATAL;
@@ -13336,14 +13413,15 @@ git_submodule_wanted (const struct git_submodule *sub,
    came from: ./x and ../x are resolved against remote.origin.url, and
    against the superproject's own directory when it has no origin. */
 static void
-git_submodule_url (git_context *ctx, const char *url, char *out, size_t outsz)
+git_submodule_url_maybe (git_context *ctx, const char *url, char *out,
+                         size_t outsz, int say)
 {
     if (strncmp (url, "./", 2) && strncmp (url, "../", 3)) {
         snprintf (out, outsz, "%s", url);
         return;
     }
     const char *origin = bgit_config_get (&ctx->cfg, "remote.origin.url");
-    if (!origin) {
+    if (!origin && say) {
         /* git says this out loud, since where a relative url points then
            depends on where this repository happens to sit. */
         fflush (stdout);
@@ -13366,6 +13444,12 @@ git_submodule_url (git_context *ctx, const char *url, char *out, size_t outsz)
         else if (slash) slash[1] = '\0';
     }
     snprintf (out, outsz, "%s/%s", base, rest);
+}
+
+static void
+git_submodule_url (git_context *ctx, const char *url, char *out, size_t outsz)
+{
+    git_submodule_url_maybe (ctx, url, out, outsz, 1);
 }
 
 /* What `git describe --all --always` would call COMMIT over there: the
@@ -13542,6 +13626,218 @@ git_submodule_register (git_context *ctx, const struct git_submodule *sub,
     return 0;
 }
 
+/* Where a submodule's git directory belongs once it is cloned, and the
+   pairing between the two halves on its own. */
+static int git_submodule_relocate (git_context *ctx,
+                                   const struct git_submodule *sub);
+static int git_submodule_link (git_context *ctx,
+                               const struct git_submodule *sub);
+
+/* Everything under a directory, taken away. The directory itself stays,
+   which is what git leaves where a submodule was. Returns 0, or -1. */
+static int
+git_empty_directory (const char *path)
+{
+    DIR *dir = opendir (path);
+    if (!dir) return -1;
+    struct dirent *entry;
+    int failed = 0;
+    while ((entry = readdir (dir))) {
+        if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, "..")) continue;
+        char full[4096];
+        if (snprintf (full, sizeof full, "%s/%s", path, entry->d_name) >=
+            (int) sizeof full) {
+            failed = 1;
+            continue;
+        }
+        struct stat st;
+        if (lstat (full, &st) < 0) { failed = 1; continue; }
+        if (S_ISDIR (st.st_mode)) {
+            if (git_empty_directory (full) < 0 || rmdir (full) < 0) failed = 1;
+        } else if (unlink (full) < 0)
+            failed = 1;
+    }
+    closedir (dir);
+    return failed ? -1 : 0;
+}
+
+/* Take a repository in as a submodule: clone it where it is to live, write
+   it down in .gitmodules, say here where it really came from, and stage
+   both the file and the gitlink. */
+static int
+git_submodule_add (git_context *ctx, struct git_state *state, const char *url,
+                   const char *given, int quiet)
+{
+    char path[4096];
+    if (given) snprintf (path, sizeof path, "%s", given);
+    else {
+        /* The last part of the url, without the .git a bare one carries. */
+        const char *base = strrchr (url, '/');
+        base = base ? base + 1 : url;
+        snprintf (path, sizeof path, "%s", base);
+        size_t len = strlen (path);
+        if (len > 4 && !strcmp (path + len - 4, ".git")) path[len - 4] = '\0';
+    }
+    size_t len = strlen (path);
+    while (len && path[len - 1] == '/') path[--len] = '\0';
+    if (!len) return git_fatal ("repo URL: '%s' must be absolute or begin with "
+                               "./|../", url);
+    for (size_t i = 0; i < state->n_index; i++)
+        if (!strcmp (state->index[i].path, path))
+            return git_fatal ("'%s' already exists in the index", path);
+
+    char full[4096];
+    snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path);
+    if (!quiet) {
+        fflush (stdout);
+        fprintf (stderr, "Cloning into '%s'...\ndone.\n", full);
+    }
+    const char *clone_args[4] = { "clone", "-q", url, path };
+    struct git_submodule sub;
+    memset (&sub, 0, sizeof sub);
+    snprintf (sub.name, sizeof sub.name, "%s", path);
+    snprintf (sub.path, sizeof sub.path, "%s", path);
+    snprintf (sub.url, sizeof sub.url, "%s", url);
+    if (git_run_in (ctx->repo.work_tree, clone_args, 4) != 0 ||
+        git_submodule_relocate (ctx, &sub) < 0)
+        return git_fatal ("clone of '%s' into submodule path '%s' failed",
+                          url, full);
+
+    /* What it is called and where it came from, for whoever clones this
+       repository next; the url stays as it was given, relative and all. */
+    char modules[4096], key[4400];
+    snprintf (modules, sizeof modules, "%s/.gitmodules", ctx->repo.work_tree);
+    snprintf (key, sizeof key, "submodule.%s.path", sub.name);
+    if (bgit_config_set_file (modules, key, sub.path, 0) < 0) return -1;
+    snprintf (key, sizeof key, "submodule.%s.url", sub.name);
+    if (bgit_config_set_file (modules, key, sub.url, 0) < 0) return -1;
+
+    /* And where it really is, which is this repository's own business. */
+    char resolved[4096], config_path[4096];
+    git_submodule_url_maybe (ctx, sub.url, resolved, sizeof resolved, 0);
+    snprintf (config_path, sizeof config_path, "%s/config", ctx->repo.git_dir);
+    snprintf (key, sizeof key, "submodule.%s.url", sub.name);
+    if (bgit_config_set_file (config_path, key, resolved, 0) < 0) return -1;
+    snprintf (key, sizeof key, "submodule.%s.active", sub.name);
+    if (bgit_config_set_file (config_path, key, "true", 0) < 0) return -1;
+
+    const char *add_args[5] = { "add", "--no-warn-embedded-repo", "--",
+                                ".gitmodules", sub.path };
+    if (git_run_in (ctx->repo.work_tree, add_args, 5) != 0)
+        return git_fatal ("Failed to add submodule '%s'", sub.path);
+    return 0;
+}
+
+/* Undo what init did: empty the working tree of the submodule and forget
+   where it came from. What is under .git/modules stays, so that taking it
+   up again costs nothing. */
+static int
+git_submodule_deinit (git_context *ctx, struct git_state *state, int force,
+                      int all, const char *const *paths, int n_paths)
+{
+    if (!all && !n_paths)
+        return git_fatal ("Use '--all' if you really want to deinitialize all "
+                          "submodules");
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    if (git_submodules (ctx, state, &subs, &n) < 0) return GIT_EXIT_FATAL;
+    /* A path that names no submodule is git's usual complaint. */
+    for (int i = 0; i < n_paths; i++) {
+        int known = 0;
+        for (size_t k = 0; k < n && !known; k++)
+            if (!strcmp (subs[k].path, paths[i])) known = 1;
+        if (!known) {
+            free (subs);
+            fflush (stdout);
+            fprintf (stderr, "error: pathspec '%s' did not match any file(s) "
+                             "known to git\n", paths[i]);
+            return 1;
+        }
+    }
+
+    int status = 0;
+    char config_path[4096];
+    snprintf (config_path, sizeof config_path, "%s/config", ctx->repo.git_dir);
+    for (size_t i = 0; i < n && !status; i++) {
+        if (!all && !git_submodule_wanted (&subs[i], paths, n_paths)) continue;
+        char full[4096];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                  subs[i].path);
+        char head[41];
+        int there = bgit_submodule_head (full, head) == 0;
+        if (there && !force) {
+            int changed = 0, untracked = 0;
+            bgit_submodule_dirt (full, &changed, &untracked);
+            if (changed || untracked || strcmp (head, subs[i].sha)) {
+                fflush (stdout);
+                fprintf (stderr, "error: the following file has local "
+                                 "modifications:\n    %s\n(use --cached to keep "
+                                 "the file, or -f to force removal)\n",
+                         subs[i].path);
+                status = git_fatal ("Submodule work tree '%s' contains local "
+                                    "modifications; use '-f' to discard them",
+                                    subs[i].path);
+                break;
+            }
+        }
+        if (there && git_empty_directory (full) < 0) {
+            status = git_fatal ("could not empty '%s'", subs[i].path);
+            break;
+        }
+        if (there) printf ("Cleared directory '%s'\n", subs[i].path);
+        char key[4400];
+        snprintf (key, sizeof key, "submodule.%s.url", subs[i].name);
+        bgit_config_unset_file (config_path, key);
+        snprintf (key, sizeof key, "submodule.%s.active", subs[i].name);
+        bgit_config_unset_file (config_path, key);
+        printf ("Submodule '%s' (%s) unregistered for path '%s'\n",
+                subs[i].name, subs[i].url, subs[i].path);
+    }
+    free (subs);
+    return status;
+}
+
+/* Run a command in each submodule that is there, with the same handful of
+   variables set that git sets. */
+static int
+git_submodule_foreach (git_context *ctx, struct git_state *state,
+                       const char *command, int quiet)
+{
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    if (git_submodules (ctx, state, &subs, &n) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+    for (size_t i = 0; i < n && !status; i++) {
+        char full[4096], head[41];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                  subs[i].path);
+        if (bgit_submodule_head (full, head) < 0) continue;   /* not there */
+        if (!quiet) printf ("Entering '%s'\n", subs[i].path);
+        char quoted_dir[8192], quoted_name[8192], quoted_path[8192];
+        char quoted_top[8192], script[65536];
+        git_sq_quote (full, quoted_dir, sizeof quoted_dir);
+        git_sq_quote (subs[i].name, quoted_name, sizeof quoted_name);
+        git_sq_quote (subs[i].path, quoted_path, sizeof quoted_path);
+        git_sq_quote (ctx->repo.work_tree, quoted_top, sizeof quoted_top);
+        snprintf (script, sizeof script,
+                  "cd %s || exit 1; name=%s; sm_path=%s; displaypath=%s; "
+                  "sha1=%s; toplevel=%s; "
+                  "export name sm_path displaypath sha1 toplevel; %s",
+                  quoted_dir, quoted_name, quoted_path, quoted_path,
+                  subs[i].sha, quoted_top, command);
+        fflush (stdout);
+        int rc = git_run_shell (script);
+        if (rc != 0) {
+            fflush (stdout);
+            fprintf (stderr, "fatal: run_command returned non-zero status for "
+                             "%s\n.\n", subs[i].path);
+            status = GIT_EXIT_FATAL;
+        }
+    }
+    free (subs);
+    return status;
+}
+
 static int
 git_submodule_init (git_context *ctx, struct git_state *state, int quiet,
                     const char *const *paths, int n_paths)
@@ -13579,11 +13875,34 @@ git_submodule_relocate (git_context *ctx, const struct git_submodule *sub)
         *slash = '/';
     }
     if (rename (from, to) < 0) return -1;
+    return git_submodule_link (ctx, sub);
+}
+
+/* Point a submodule's working tree at the git directory kept for it, and
+   that git directory back at the working tree. */
+static int
+git_submodule_link (git_context *ctx, const struct git_submodule *sub)
+{
+    char to[4096], link[4096], target[4096];
+    snprintf (to, sizeof to, "%s/modules/%s", ctx->repo.common_dir, sub->name);
+    /* The working tree's own directory, and every one above it. */
+    {
+        char made[4096];
+        snprintf (made, sizeof made, "%s/%s", ctx->repo.work_tree, sub->path);
+        for (char *slash = strchr (made + 1, '/'); slash;
+             slash = strchr (slash + 1, '/')) {
+            *slash = '\0';
+            mkdir (made, 0777);
+            *slash = '/';
+        }
+        mkdir (made, 0777);
+    }
     /* Back to the superproject's root from the submodule, then down. */
     size_t depth = 1;
     for (const char *p = sub->path; *p; p++) if (*p == '/') depth++;
     char up[256] = "";
-    for (size_t i = 0; i < depth; i++) snprintf (up + i * 3, sizeof up - i * 3, "../");
+    for (size_t i = 0; i < depth; i++)
+        snprintf (up + i * 3, sizeof up - i * 3, "../");
     const char *git_dir_name = strrchr (ctx->repo.common_dir, '/');
     snprintf (target, sizeof target, "gitdir: %s%s/modules/%s\n", up,
               git_dir_name ? git_dir_name + 1 : ".git", sub->name);
@@ -13633,24 +13952,54 @@ git_submodule_update (git_context *ctx, struct git_state *state, int init,
             break;
         }
         char full[4096], head[41];
-        int moved = 0;
+        int moved = 0, reattached = 0;
         snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
                   subs[i].path);
         if (bgit_submodule_head (full, head) < 0) {
-            /* Nothing there yet: clone it, then put its git directory
-               where git keeps a submodule's. */
-            if (!quiet) {
-                fflush (stdout);
-                fprintf (stderr, "Cloning into '%s'...\ndone.\n", full);
+            /* Its git directory may still be here from before — a deinit
+               leaves it — and then there is nothing to clone: the working
+               tree is pointed back at it and filled from the commit. */
+            char module[4096];
+            struct stat st;
+            snprintf (module, sizeof module, "%s/modules/%s",
+                      ctx->repo.common_dir, subs[i].name);
+            if (lstat (module, &st) == 0 && S_ISDIR (st.st_mode)) {
+                if (git_submodule_link (ctx, &subs[i]) < 0) {
+                    status = git_fatal ("could not reattach submodule path "
+                                        "'%s'", subs[i].path);
+                    break;
+                }
+                reattached = 1;
+            } else {
+                if (!quiet) {
+                    fflush (stdout);
+                    fprintf (stderr, "Cloning into '%s'...\ndone.\n", full);
+                }
+                const char *clone_args[4] = { "clone", "-q", url,
+                                              subs[i].path };
+                if (git_run_in (ctx->repo.work_tree, clone_args, 4) != 0 ||
+                    git_submodule_relocate (ctx, &subs[i]) < 0) {
+                    status = git_fatal ("clone of '%s' into submodule path "
+                                        "'%s' failed", url, subs[i].path);
+                    break;
+                }
+                moved = 1;
             }
-            const char *clone_args[4] = { "clone", "-q", url, subs[i].path };
-            if (git_run_in (ctx->repo.work_tree, clone_args, 4) != 0 ||
-                git_submodule_relocate (ctx, &subs[i]) < 0) {
-                status = git_fatal ("clone of '%s' into submodule path '%s' "
-                                    "failed", url, subs[i].path);
+        }
+        if (reattached) {
+            /* The working tree is empty, whatever its HEAD says, so the
+               checkout has to be told to lay everything out again. */
+            const char *fill_args[4] = { "checkout", "-q", "-f",
+                                         subs[i].sha };
+            if (git_run_in (full, fill_args, 4) != 0) {
+                status = git_fatal ("Unable to checkout '%s' in submodule path "
+                                    "'%s'", subs[i].sha, subs[i].path);
                 break;
             }
-            moved = 1;
+            if (!quiet)
+                printf ("Submodule path '%s': checked out '%s'\n",
+                        subs[i].path, subs[i].sha);
+            continue;
         }
         /* Whether it was just cloned or was already there, it is moved to
            the commit the index records. */
@@ -13678,23 +14027,34 @@ static int
 git_cmd_submodule (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git submodule [status [--cached]] | init | "
-                        "update [--init] [-q] [<path>...]";
+                        "update [--init] [-q] | add <url> [<path>] | "
+                        "deinit [-f] [--all] | foreach <command> [<path>...]";
     const char *verb = "status";
     const char *paths[32];
     int n_paths = 0, cached = 0, init = 0, quiet = 0, first = 1;
+    int force = 0, all = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (first && (!strcmp (w, "status") || !strcmp (w, "init") ||
-                      !strcmp (w, "update"))) {
+                      !strcmp (w, "update") || !strcmp (w, "add") ||
+                      !strcmp (w, "deinit") || !strcmp (w, "foreach"))) {
             verb = w;
             first = 0;
             continue;
         }
         first = 0;
+        /* What foreach is to run is a command, not an option of ours. */
+        if (!strcmp (verb, "foreach") && n_paths) {
+            if (n_paths < (int) (sizeof paths / sizeof *paths))
+                paths[n_paths++] = w;
+            continue;
+        }
         if (!strcmp (w, "--cached")) cached = 1;
         else if (!strcmp (w, "--init")) init = 1;
         else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "--all")) all = 1;
         else if (!strcmp (w, "--")) continue;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_paths < (int) (sizeof paths / sizeof *paths))
@@ -13712,7 +14072,22 @@ git_cmd_submodule (git_context *ctx, WORD_LIST *args)
         status = git_submodule_status (ctx, &state, cached, paths, n_paths);
     else if (!strcmp (verb, "init"))
         status = git_submodule_init (ctx, &state, quiet, paths, n_paths);
-    else
+    else if (!strcmp (verb, "add")) {
+        if (!n_paths) {
+            git_state_release (&state);
+            return git_usage (usage);
+        }
+        status = git_submodule_add (ctx, &state, paths[0],
+                                    n_paths > 1 ? paths[1] : NULL, quiet);
+    } else if (!strcmp (verb, "deinit"))
+        status = git_submodule_deinit (ctx, &state, force, all, paths, n_paths);
+    else if (!strcmp (verb, "foreach")) {
+        if (!n_paths) {
+            git_state_release (&state);
+            return git_usage (usage);
+        }
+        status = git_submodule_foreach (ctx, &state, paths[0], quiet);
+    } else
         status = git_submodule_update (ctx, &state, init, quiet, paths,
                                        n_paths);
     git_state_release (&state);

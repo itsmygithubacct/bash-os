@@ -9,6 +9,7 @@
 # mind being told.
 # Run through tests/git-parity.py, never on its own.
 # requires: init add commit status submodule update-index rev-parse config
+# requires: rev-list ls-files
 set -e
 
 here=$PWD
@@ -81,7 +82,48 @@ cat lib/l.txt
 git submodule status
 git status --short
 
-# The upstream is not part of what is compared: it is a repository of its
-# own, and two implementations write its insides differently.
-rm -rf upstream
+echo '=== taking one in with add ==='
+git init -q -b main second
+printf 'the second library\n' > second/s.txt
+git -C second add s.txt
+git -C second commit -q -m 'the second library'
+git -c protocol.file.allow=always submodule add ./second vendor/second 2>&1 | tidy
+cat .gitmodules
+git status --short
+git ls-files -s
+git config --local --get submodule.vendor/second.url | tidy
+git config --local --get submodule.vendor/second.active
+git commit -q -m 'the second submodule'
+
+echo '=== what the repository holds, which is not the submodule ==='
+# A gitlink names a commit of another repository: this one does not have
+# it, and does not list it among its own objects.
+git rev-list --objects HEAD | sort
+
+echo '=== running something in each of them ==='
+git submodule foreach 'echo "name=$name path=$sm_path sha=$sha1 here=${toplevel##*/}"' | tidy
+git submodule foreach --quiet 'echo "quiet $name"'
+git submodule foreach 'exit 3' || echo "status $?"
+
+echo '=== and letting one go with deinit ==='
+git submodule status | tidy
+git submodule deinit vendor/second
+git submodule status | tidy
+git status --short
+git config --local --get submodule.vendor/second.url || echo '(nothing configured)'
+ls vendor/second | wc -l
+
+echo '=== which a deinit will not do over local changes ==='
+git -c protocol.file.allow=always submodule update --init vendor/second 2>&1 | tidy
+printf 'changed\n' >> vendor/second/s.txt
+git submodule deinit vendor/second || echo "status $?"
+git submodule deinit -f vendor/second
+git submodule status | tidy
+
+echo '=== and a path that names no submodule ==='
+git submodule deinit nowhere || echo "status $?"
+
+# The upstreams are not part of what is compared: they are repositories of
+# their own, and two implementations write their insides differently.
+rm -rf upstream second
 git status --short
