@@ -150,8 +150,11 @@ it does not validate board devices or drivers.
 The [CI workflow](../.github/workflows/test.yml) builds every named profile and
 a custom list, runs native dynamic/static behavior and sanitizer tests, builds
 the pinned dependencies for a full static RISC-V executable and runs it under
-QEMU. It also runs bounded LDAP BER/filter, image-decoder and TOML fuzzing with
-Clang's libFuzzer, AddressSanitizer and UndefinedBehaviorSanitizer:
+QEMU. It also runs bounded fuzzing with Clang's libFuzzer, AddressSanitizer
+and UndefinedBehaviorSanitizer over the LDAP BER/filter parsers, the image
+decoder, TOML, packfiles and deltas — including the property that a delta this
+build writes applies back to exactly what it was made from — and the git
+index:
 
 ```sh
 ./build.sh --profile shell

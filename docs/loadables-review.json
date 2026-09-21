@@ -490,6 +490,14 @@
       "status": "Contract",
       "evidence": "tests/input-lifetime.py",
       "scope": "Mixed-reader integration across native and RISC-V musl: fresh redirects, file operands, empty input and descriptor ownership; shared GNU byte cases only."
+    },
+    {
+      "names": [
+        "git"
+      ],
+      "status": "Parity",
+      "evidence": "tests/git-parity.py",
+      "scope": "Thirty-seven scenarios run under this build and under real git in fresh trees, comparing exit status, stdout, stderr and then the repository itself \u2014 refs, HEAD, index, status, stash, log, reflog and fsck \u2014 read back by real git. Object store, refs, packs, protocol, HTTP, ssh and signing have suites of their own."
     }
   ],
   "sanitizer_groups": [
@@ -676,6 +684,13 @@
         "gpu"
       ],
       "evidence": "tests/gpu-sanitize.sh"
+    },
+    {
+      "names": [
+        "git"
+      ],
+      "evidence": "tests/git-sanitize.sh",
+      "scope": "The builtin and its helpers under ASan and UBSan over a scenario shaped to reach the edges: long files changed in many places, binary files, quoted paths, merges, rebases, submodules, worktrees, packing by hand and the protocol both ways."
     }
   ],
   "fuzz": {
@@ -683,7 +698,8 @@
     "toml": "tests/fuzz-toml.c",
     "tiv": "tests/fuzz-image.c",
     "kitty": "tests/fuzz-image.c",
-    "sixel": "tests/fuzz-image.c"
+    "sixel": "tests/fuzz-image.c",
+    "git": "tests/fuzz-pack.c"
   },
   "comparators": {
     "asort": {
