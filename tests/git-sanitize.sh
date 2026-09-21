@@ -581,6 +581,17 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Moving HEAD about, which says where it was and how the branch stands.
+git checkout topic
+git checkout main
+git checkout HEAD~1 2>/dev/null || true
+git checkout main
+git checkout --detach HEAD~1 2>/dev/null || true
+git checkout -
+git switch topic
+git switch -
+git rev-parse '@{-1}' > /dev/null 2>&1 || true
+
 # A bundle, which is the refs and a pack of what they reach in one file.
 git bundle create "$HOME/all.bundle" --all > /dev/null 2>&1 || true
 git bundle list-heads "$HOME/all.bundle" > /dev/null 2>&1 || true

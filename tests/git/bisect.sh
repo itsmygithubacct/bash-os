@@ -5,12 +5,16 @@
 # requires: init add commit bisect checkout branch merge rev-list log grep
 set -e
 
-# git 2.55 puts the two terms in quotes where 2.47 does not — "waiting for
-# both 'good' and 'bad' commits" against "waiting for both good and bad
-# commits". The quotes are taken off both sides rather than pinning one
-# git; nothing else in this scenario quotes those words.
+# The status lines differ between the two gits this is held against: 2.55
+# puts the terms in quotes where 2.47 does not, and where the terms are the
+# caller's own 2.55 uses them while 2.47 says good and bad regardless. Both
+# are levelled here, to 2.47's wording, rather than pinning one git;
+# nothing else in this scenario quotes those words or names those terms.
 terms () { sed -e "s/'good'/good/g" -e "s/'bad'/bad/g" \
-               -e "s/'broken'/broken/g" -e "s/'works'/works/g"; }
+               -e "s/'broken'/broken/g" -e "s/'works'/works/g" \
+               -e "s/waiting for both works and broken commits/waiting for both good and bad commits/" \
+               -e "s/waiting for works commit(s), broken commit known/waiting for good commit(s), bad commit known/" \
+               -e "s/waiting for broken commit, \(.*\) works commit/waiting for bad commit, \1 good commit/"; }
 
 git init -q -b main .
 for i in 1 2 3 4 5 6 7 8; do

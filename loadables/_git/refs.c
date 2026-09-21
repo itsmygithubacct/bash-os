@@ -467,6 +467,10 @@ bgit_ref_update (const bgit_repo *repo, const char *refname,
         bgit_lock_rollback (&lock);
         return -1;
     }
+    /* A ref set to what it already held has not moved, and git's log of it
+       records moves. HEAD is written elsewhere, where a checkout logs the
+       move whether the id changed or not. */
+    if (exists && !strcmp (current, new_sha)) return 0;
     return bgit_reflog_append (repo, refname, exists ? current : NULL, new_sha,
                                message);
 }

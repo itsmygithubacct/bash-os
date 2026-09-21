@@ -232,11 +232,60 @@ git_context_close (git_context *ctx)
     ctx->open = 0;
 }
 
+/* The branch HEAD was on before this one, and the one before that: what
+   `@{-1}` names, and what `git checkout -` is short for. HEAD's reflog
+   says where every move came from, so the answer is read back out of it.
+   Returns 0 and the branch's name, or -1. */
+static int
+git_previous_branch (git_context *ctx, long back, char *out, size_t outsz)
+{
+    char **lines = NULL;
+    size_t n = 0;
+    if (back < 1 || bgit_reflog_lines (&ctx->repo, "HEAD", &lines, &n) != 0)
+        return -1;
+    int rc = -1;
+    long seen = 0;
+    /* Oldest first is how the log is kept, so the walk goes the other way. */
+    for (size_t i = n; i-- > 0;) {
+        const char *message = strchr (lines[i], '\t');
+        if (!message) continue;
+        message++;
+        if (strncmp (message, "checkout: moving from ", 22)) continue;
+        const char *from = message + 22;
+        const char *to = strstr (from, " to ");
+        if (!to) continue;
+        if (++seen < back) continue;
+        size_t len = (size_t) (to - from);
+        if (len >= outsz) len = outsz - 1;
+        memcpy (out, from, len);
+        out[len] = '\0';
+        rc = 0;
+        break;
+    }
+    for (size_t i = 0; i < n; i++) free (lines[i]);
+    free (lines);
+    return rc;
+}
+
 /* Resolve a revision: an id, an abbreviation, a ref, or any of those with
-   git's suffixes (^, ~, ^{type}, @{n}). */
+   git's suffixes (^, ~, ^{type}, @{n}), and `@{-n}` for a branch HEAD was
+   on before. */
 static int
 git_resolve (git_context *ctx, const char *name, char full[41], char **symref)
 {
+    char rewritten[4096];
+    if (name && !strncmp (name, "@{-", 3)) {
+        const char *close = strchr (name + 3, '}');
+        char *end = NULL;
+        long back = strtol (name + 3, &end, 10);
+        if (close && end == close && back > 0) {
+            char branch[4096];
+            if (git_previous_branch (ctx, back, branch, sizeof branch) == 0 &&
+                (size_t) snprintf (rewritten, sizeof rewritten, "%s%s", branch,
+                                   close + 1) < sizeof rewritten)
+                name = rewritten;
+        }
+    }
     return bgit_rev_parse (&ctx->repo, &ctx->odb, name, full, symref);
 }
 
@@ -3014,8 +3063,38 @@ git_status_upstream (git_context *ctx, struct git_state *state,
         snprintf (ref, sizeof ref, "%s", merge);
         snprintf (name, size, "%s", shortened);
     } else {
-        snprintf (ref, sizeof ref, "refs/remotes/%s/%s", remote, shortened);
+        /* Where the branch it follows is kept here is the remote's own
+           business: its fetch refspec says, and without one git has
+           nowhere to look and says nothing. */
+        char fetch_key[4200];
+        snprintf (fetch_key, sizeof fetch_key, "remote.%s.fetch", remote);
+        const char **specs = NULL;
+        size_t n_specs = bgit_config_get_all (&ctx->cfg, fetch_key, &specs);
+        int mapped = 0;
+        for (size_t i = 0; i < n_specs && !mapped; i++) {
+            const char *spec = specs[i];
+            if (*spec == '+') spec++;
+            const char *colon = strchr (spec, ':');
+            if (!colon) continue;
+            size_t from_len = (size_t) (colon - spec);
+            const char *to = colon + 1;
+            if (from_len && spec[from_len - 1] == '*' && strchr (to, '*')) {
+                if (strncmp (merge, spec, from_len - 1)) continue;
+                const char *star = strchr (to, '*');
+                snprintf (ref, sizeof ref, "%.*s%s%s", (int) (star - to), to,
+                          merge + from_len - 1, star + 1);
+                mapped = 1;
+            } else if (!strncmp (merge, spec, from_len) && !merge[from_len]) {
+                snprintf (ref, sizeof ref, "%s", to);
+                mapped = 1;
+            }
+        }
+        if (!mapped) return 0;
         snprintf (name, size, "%s/%s", remote, shortened);
+        if (strncmp (ref, "refs/remotes/", 13) == 0) {
+            const char *rest = ref + 13;
+            snprintf (name, size, "%s", rest);
+        }
     }
     char id[41];
     if (bgit_ref_read (&ctx->repo, ref, id) != 0) return 2;
@@ -3040,6 +3119,40 @@ git_status_upstream (git_context *ctx, struct git_state *state,
     return 1;
 }
 
+/* Where a branch stands against the one it follows, in git's words, which
+   are different for each of the four ways it can stand. status leaves a
+   blank line after it; checkout does not. */
+static void
+git_upstream_summary (git_context *ctx, struct git_state *state,
+                      const char *branch_name, int blank_after)
+{
+    char upstream[4200];
+    long ahead = 0, behind = 0;
+    int following = git_status_upstream (ctx, state, branch_name, upstream,
+                                         sizeof upstream, &ahead, &behind);
+    const char *after = blank_after ? "\n" : "";
+    if (following == 2)
+        printf ("Your branch is based on '%s', but the upstream is gone.\n"
+                "  (use \"git branch --unset-upstream\" to fixup)\n%s",
+                upstream, after);
+    else if (following && !ahead && !behind)
+        printf ("Your branch is up to date with '%s'.\n%s", upstream, after);
+    else if (following && ahead && behind)
+        printf ("Your branch and '%s' have diverged,\nand have %ld and %ld "
+                "different commits each, respectively.\n  (use \"git pull\" "
+                "if you want to integrate the remote branch with yours)\n%s",
+                upstream, ahead, behind, after);
+    else if (following && ahead)
+        printf ("Your branch is ahead of '%s' by %ld commit%s.\n  (use "
+                "\"git push\" to publish your local commits)\n%s",
+                upstream, ahead, ahead == 1 ? "" : "s", after);
+    else if (following)
+        printf ("Your branch is behind '%s' by %ld commit%s, and can be "
+                "fast-forwarded.\n  (use \"git pull\" to update your local "
+                "branch)\n%s", upstream, behind, behind == 1 ? "" : "s",
+                after);
+}
+
 static void
 git_status_long (git_context *ctx, struct git_state *state,
                  const bgit_status_entry *entries, size_t n,
@@ -3051,32 +3164,7 @@ git_status_long (git_context *ctx, struct git_state *state,
     if (rebasing) ;
     else if (branch_name) {
         printf ("On branch %s\n", branch_name);
-        /* Where this branch stands against the one it follows, in git's
-           words, which are different for each of the four ways it can. */
-        char upstream[4200];
-        long ahead = 0, behind = 0;
-        int following = git_status_upstream (ctx, state, branch_name, upstream,
-                                             sizeof upstream, &ahead, &behind);
-        if (following == 2)
-            printf ("Your branch is based on '%s', but the upstream is "
-                    "gone.\n  (use \"git branch --unset-upstream\" to "
-                    "fixup)\n\n", upstream);
-        else if (following && !ahead && !behind)
-            printf ("Your branch is up to date with '%s'.\n\n", upstream);
-        else if (following && ahead && behind)
-            printf ("Your branch and '%s' have diverged,\nand have %ld and "
-                    "%ld different commits each, respectively.\n  (use "
-                    "\"git pull\" if you want to integrate the remote branch "
-                    "with yours)\n\n", upstream, ahead, behind);
-        else if (following && ahead)
-            printf ("Your branch is ahead of '%s' by %ld commit%s.\n  (use "
-                    "\"git push\" to publish your local commits)\n\n",
-                    upstream, ahead, ahead == 1 ? "" : "s");
-        else if (following)
-            printf ("Your branch is behind '%s' by %ld commit%s, and can be "
-                    "fast-forwarded.\n  (use \"git pull\" to update your "
-                    "local branch)\n\n", upstream, behind,
-                    behind == 1 ? "" : "s");
+        git_upstream_summary (ctx, state, branch_name, 1);
     }
     else if (state->have_head) {
         char abbreviated[41];
@@ -6609,10 +6697,46 @@ git_head_detach (git_context *ctx, struct git_state *state, const char *commit,
     return 0;
 }
 
+/* What a move says for itself: nothing, or the lines git says about it.
+   GIT_SAY_NEW is for a branch this command has just made, and
+   GIT_SAY_ADVICE adds the paragraph git puts in front of a detached HEAD
+   nobody asked for outright. */
+enum { GIT_SAY_NOTHING = 0, GIT_SAY_MOVE = 1, GIT_SAY_NEW = 2,
+       GIT_SAY_ADVICE = 4 };
+
+/* The paragraph git sets in front of a detached HEAD, worded as git words
+   it, for a checkout that detached without being asked to. */
+static void
+git_detached_advice (const char *target)
+{
+    fprintf (stderr,
+        "Note: switching to '%s'.\n"
+        "\n"
+        "You are in 'detached HEAD' state. You can look around, make "
+        "experimental\n"
+        "changes and commit them, and you can discard any commits you make in "
+        "this\n"
+        "state without impacting any branches by switching back to a branch.\n"
+        "\n"
+        "If you want to create a new branch to retain commits you create, you "
+        "may\n"
+        "do so (now or later) by using -c with the switch command. Example:\n"
+        "\n"
+        "  git switch -c <new-branch-name>\n"
+        "\n"
+        "Or undo this operation with:\n"
+        "\n"
+        "  git switch -\n"
+        "\n"
+        "Turn off this advice by setting config variable advice.detachedHead "
+        "to false\n"
+        "\n", target);
+}
+
 /* Move HEAD to another branch or commit, updating the working tree. With
-   ANNOUNCE, the two lines git says about the move are said as well: what
-   HEAD was on, when it was on nothing but a commit, and the branch it is
-   on now. */
+   ANNOUNCE, what git says about the move is said as well: where HEAD was
+   when it was on nothing but a commit, where it is now, and how the branch
+   it lands on stands against the one it follows. */
 static int
 git_switch_to_saying (git_context *ctx, struct git_state *state,
                       const char *target, int detach, int force, int announce)
@@ -6658,9 +6782,12 @@ git_switch_to_saying (git_context *ctx, struct git_state *state,
                             commit, message);
     } else if (git_head_detach (ctx, state, commit, message) < 0)
         return GIT_EXIT_FATAL;
-    if (announce) {
+    if (announce & GIT_SAY_MOVE) {
         fflush (stdout);
-        if (state->have_head && !state->branch) {
+        /* Where HEAD was, when it was on nothing but a commit and is about
+           to be somewhere else. */
+        if (state->have_head && !state->branch &&
+            strcmp (state->head, commit)) {
             char abbreviated[41], subject[4096] = "";
             git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
             struct git_commit was;
@@ -6672,9 +6799,23 @@ git_switch_to_saying (git_context *ctx, struct git_state *state,
                      subject);
         }
         if (is_branch && !detach) {
-            if (state->branch && !strcmp (state->branch, ref))
+            if (announce & GIT_SAY_NEW)
+                fprintf (stderr, "Switched to a new branch '%s'\n", target);
+            else if (state->branch && !strcmp (state->branch, ref))
                 fprintf (stderr, "Already on '%s'\n", target);
             else fprintf (stderr, "Switched to branch '%s'\n", target);
+            fflush (stderr);
+            git_upstream_summary (ctx, state, target, 0);
+            fflush (stdout);
+        } else {
+            char abbreviated[41], subject[4096] = "";
+            git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+            struct git_commit now;
+            if (git_commit_read (ctx, commit, &now) == 0) {
+                git_subject (&now, subject, sizeof subject);
+                git_commit_release (&now);
+            }
+            fprintf (stderr, "HEAD is now at %s %s\n", abbreviated, subject);
         }
     }
     return 0;
@@ -6693,11 +6834,11 @@ git_cmd_switch (git_context *ctx, WORD_LIST *args)
     const char *usage = "git switch [-q] [-c <new-branch>] [-C <new-branch>] "
                         "[--detach] [-f] <branch>";
     const char *create = NULL, *target = NULL;
-    int detach = 0, force = 0, force_create = 0;
+    int detach = 0, force = 0, force_create = 0, quiet = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
-        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) continue;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) { quiet = 1; continue; }
         if ((!strcmp (w, "-c") || !strcmp (w, "--create")) && p->next) {
             create = p->next->word->word; p = p->next;
         } else if (!strcmp (w, "-C") && p->next) {
@@ -6741,10 +6882,20 @@ git_cmd_switch (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
             goto done;
         }
-        status = git_switch_to (ctx, &state, create, 0, force);
+        status = git_switch_to_saying (ctx, &state, create, 0, force,
+                                       quiet ? GIT_SAY_NOTHING
+                                             : GIT_SAY_MOVE | GIT_SAY_NEW);
         goto done;
     }
-    status = git_switch_to (ctx, &state, target, detach, force);
+    if (!target) { status = git_usage (usage); goto done; }
+    /* A lone dash is the branch before this one, which is what git makes
+       of it here. */
+    char previous[4096];
+    if (!strcmp (target, "-") &&
+        git_previous_branch (ctx, 1, previous, sizeof previous) == 0)
+        target = previous;
+    status = git_switch_to_saying (ctx, &state, target, detach, force,
+                                   quiet ? GIT_SAY_NOTHING : GIT_SAY_MOVE);
 done:
     git_state_release (&state);
     return status;
@@ -6757,12 +6908,15 @@ git_cmd_checkout (git_context *ctx, WORD_LIST *args)
                         "[-f] (<branch> | [<tree-ish>] -- <path>...)";
     const char *create = NULL, *target = NULL;
     const char *paths[32];
-    int n_paths = 0, detach = 0, force = 0, no_more = 0;
+    int n_paths = 0, detach = 0, force = 0, no_more = 0, quiet = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
-        if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) continue;
+        if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) {
+            quiet = 1;
+            continue;
+        }
         if (!no_more && (!strcmp (w, "-b") || !strcmp (w, "-B")) && p->next) {
             create = p->next->word->word; p = p->next;
         } else if (!no_more && !strcmp (w, "--detach")) detach = 1;
@@ -6814,11 +6968,27 @@ git_cmd_checkout (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
             goto done;
         }
-        status = git_switch_to (ctx, &state, create, 0, force);
+        status = git_switch_to_saying (ctx, &state, create, 0, force,
+                                       quiet ? GIT_SAY_NOTHING
+                                             : GIT_SAY_MOVE | GIT_SAY_NEW);
         goto done;
     }
     if (!target) { status = git_usage (usage); goto done; }
-    status = git_switch_to (ctx, &state, target, detach, force);
+    char previous[4096];
+    if (!strcmp (target, "-") &&
+        git_previous_branch (ctx, 1, previous, sizeof previous) == 0)
+        target = previous;
+    {
+        /* A detached HEAD nobody asked for outright gets git's paragraph
+           about it in front of the move. */
+        int say = quiet ? GIT_SAY_NOTHING : GIT_SAY_MOVE;
+        char branch_ref[4096], held[41];
+        snprintf (branch_ref, sizeof branch_ref, "refs/heads/%s", target);
+        int names_branch = bgit_ref_read (&ctx->repo, branch_ref, held) == 0;
+        if ((say & GIT_SAY_MOVE) && !names_branch && !detach)
+            git_detached_advice (target);
+        status = git_switch_to_saying (ctx, &state, target, detach, force, say);
+    }
 done:
     git_state_release (&state);
     return status;

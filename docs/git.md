@@ -329,6 +329,17 @@ the awkward names in it.
 Only tar is written. `--format=zip`, `tgz` and `tar.gz` say so rather than
 writing something else, and `--list` names the one format this build has.
 
+`git checkout` and `git switch` say what they did, as git says it: the
+branch they landed on, or that HEAD was already there, or that the branch
+was made on the way; where HEAD was when it was on nothing but a commit;
+and, for a checkout that detached without being asked to, the paragraph
+git puts in front of that. Landing on a branch that follows another adds
+how the two stand — up to date, ahead, behind, or diverged — read through
+the remote's own fetch refspec, so a branch whose remote maps nothing says
+nothing. `-q` leaves all of it out. A lone `-` is the branch HEAD was on
+before this one, which is also what `@{-1}` names anywhere a revision
+goes, read back out of HEAD's own log.
+
 `git bundle` puts the refs and the objects behind them into one file, to
 be carried somewhere there is no network: the header names what it holds
 and what it takes for granted, and the rest of the file is a pack.
