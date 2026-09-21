@@ -154,6 +154,7 @@ git log --oneline -S line -- long.txt
 git log --oneline -G 'line [0-9]'
 git log --oneline -i --pickaxe-regex -S 'LINE [0-9]+'
 git log --oneline -S nothingatall
+git format-patch --stdout -2 > mail.mbox
 git format-patch --stdout -2 > /dev/null
 git format-patch --stdout -1 > /dev/null
 git format-patch -o mail -1 > /dev/null
@@ -168,6 +169,12 @@ git apply --check -R round.diff 2>/dev/null || true
 git apply -R round.diff 2>/dev/null || true
 git apply round.diff 2>/dev/null || true
 rm -f round.diff
+# And mail read back into a branch of its own.
+git checkout -q -b mailed HEAD~1 2>/dev/null && {
+  git am mail.mbox 2>/dev/null || git am --abort || true
+  git checkout -q topic 2>/dev/null || git checkout -q main
+}
+rm -f mail.mbox
 git grep line || true
 git grep -n -i LINE || true
 git grep -l line || true

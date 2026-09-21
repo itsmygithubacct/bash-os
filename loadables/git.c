@@ -7048,6 +7048,9 @@ git_apply_parse (const char *text, size_t len, int strip,
     size_t n = 0, cap = 0;
     struct git_apply_file *file = NULL;
     struct git_apply_hunk *hunk = NULL;
+    /* How many lines of each side the hunk still expects: what comes after
+       them — a mail's trailer, say — is not part of it. */
+    long old_left = 0, new_left = 0;
 
     for (size_t at = 0; at < len;) {
         const char *line = text + at;
@@ -7141,12 +7144,22 @@ git_apply_parse (const char *text, size_t len, int strip,
             hunk->old_count = oc;
             hunk->new_start = ns;
             hunk->new_count = nc;
+            old_left = oc;
+            new_left = nc;
             continue;
         }
         if (!hunk) continue;
         if (held[0] != ' ' && held[0] != '+' && held[0] != '-' &&
             held[0] != '\\' && held[0] != '\0')
             continue;
+        if (held[0] != '\\' && old_left <= 0 && new_left <= 0) {
+            hunk = NULL;                  /* the hunk is complete */
+            continue;
+        }
+        if (held[0] == ' ') { old_left--; new_left--; }
+        else if (held[0] == '-') old_left--;
+        else if (held[0] == '+') new_left--;
+        else if (!held[0]) { old_left--; new_left--; }
         char **grown = realloc (hunk->lines,
                                 (hunk->n_lines + 1) * sizeof *grown);
         if (!grown) goto oom;
@@ -7732,6 +7745,486 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
     git_state_release (&state);
     git_apply_release (files, n);
     return status;
+}
+
+/* ---- am ---------------------------------------------------------------- */
+
+/* "Sun, 15 Jun 2025 15:06:40 +0000" as git writes a date: the seconds and
+   the zone the mail carried. */
+static int
+git_am_date (const char *text, char *out, size_t outsz)
+{
+    static const char *const months[] = { "Jan", "Feb", "Mar", "Apr", "May",
+                                          "Jun", "Jul", "Aug", "Sep", "Oct",
+                                          "Nov", "Dec" };
+    const char *at = text;
+    while (*at == ' ') at++;
+    /* The day name, if it is there, is of no use. */
+    const char *comma = strchr (at, ',');
+    if (comma && comma - at <= 4) at = comma + 1;
+    while (*at == ' ') at++;
+    int day = 0, year = 0, hour = 0, minute = 0, second = 0;
+    char month_name[16] = "", zone[16] = "+0000";
+    if (sscanf (at, "%d %15s %d %d:%d:%d %15s", &day, month_name, &year, &hour,
+                &minute, &second, zone) < 6)
+        return -1;
+    int month = -1;
+    for (int i = 0; i < 12; i++)
+        if (!strncasecmp (month_name, months[i], 3)) month = i;
+    if (month < 0) return -1;
+    struct tm tm;
+    memset (&tm, 0, sizeof tm);
+    tm.tm_year = year - 1900;
+    tm.tm_mon = month;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = minute;
+    tm.tm_sec = second;
+    long long seconds = (long long) timegm (&tm);
+    if (zone[0] == '+' || zone[0] == '-') {
+        int zh = 0, zm = 0;
+        sscanf (zone + 1, "%2d%2d", &zh, &zm);
+        long long off = zh * 3600 + zm * 60;
+        seconds += zone[0] == '-' ? off : -off;
+    } else snprintf (zone, sizeof zone, "+0000");
+    snprintf (out, outsz, "%lld %s", seconds, zone);
+    return 0;
+}
+
+/* One message: who wrote it, what it says, and the patch under the "---". */
+struct git_am_mail {
+    char author[1200];
+    char subject[4096];
+    char *message;
+    const char *patch;
+    size_t patch_len;
+};
+
+static int
+git_am_read (const char *text, size_t len, struct git_am_mail *out)
+{
+    memset (out, 0, sizeof *out);
+    char name[512] = "", mail[512] = "", date[128] = "";
+    size_t at = 0;
+    /* The line git puts at the top of each message is not a header. */
+    if (!strncmp (text, "From ", 5)) {
+        const char *nl = memchr (text, '\n', len);
+        at = nl ? (size_t) (nl - text) + 1 : len;
+    }
+    /* The headers, down to the blank line. */
+    while (at < len) {
+        const char *line = text + at;
+        const char *nl = memchr (line, '\n', len - at);
+        size_t line_len = nl ? (size_t) (nl - line) : len - at;
+        at += line_len + (nl ? 1 : 0);
+        if (!line_len) break;
+        char held[8192];
+        size_t keep = line_len < sizeof held - 1 ? line_len : sizeof held - 1;
+        memcpy (held, line, keep);
+        held[keep] = '\0';
+        if (!strncasecmp (held, "From: ", 6)) {
+            const char *who = held + 6;
+            const char *open = strrchr (who, '<');
+            const char *close = open ? strchr (open, '>') : NULL;
+            if (open && close) {
+                snprintf (mail, sizeof mail, "%.*s", (int) (close - open - 1),
+                          open + 1);
+                size_t plain = (size_t) (open - who);
+                while (plain && who[plain - 1] == ' ') plain--;
+                snprintf (name, sizeof name, "%.*s", (int) plain, who);
+            } else snprintf (name, sizeof name, "%s", who);
+        } else if (!strncasecmp (held, "Date: ", 6))
+            snprintf (date, sizeof date, "%s", held + 6);
+        else if (!strncasecmp (held, "Subject: ", 9)) {
+            const char *subject = held + 9;
+            /* "[PATCH n/m] " in front of it is not part of the subject. */
+            while (*subject == '[') {
+                const char *close = strchr (subject, ']');
+                if (!close) break;
+                subject = close + 1;
+                while (*subject == ' ') subject++;
+            }
+            snprintf (out->subject, sizeof out->subject, "%s", subject);
+        }
+    }
+    /* The body, down to the line of dashes that starts the patch. */
+    char *message = NULL;
+    size_t message_len = 0;
+    FILE *builder = open_memstream (&message, &message_len);
+    if (!builder) return -1;
+    fprintf (builder, "%s\n", out->subject);
+    int wrote_body = 0;
+    while (at < len) {
+        const char *line = text + at;
+        const char *nl = memchr (line, '\n', len - at);
+        size_t line_len = nl ? (size_t) (nl - line) : len - at;
+        if (line_len == 3 && !memcmp (line, "---", 3)) {
+            at += line_len + (nl ? 1 : 0);
+            break;
+        }
+        if (line_len || wrote_body) {
+            if (!wrote_body) fprintf (builder, "\n");
+            wrote_body = 1;
+            fprintf (builder, "%.*s\n", (int) line_len, line);
+        }
+        at += line_len + (nl ? 1 : 0);
+    }
+    fclose (builder);
+    /* What the mail leaves at its end, trailer and all, is the patch. */
+    out->message = message;
+    out->patch = text + at;
+    out->patch_len = len - at;
+    char stamp[128] = "";
+    if (!*date || git_am_date (date, stamp, sizeof stamp) < 0) {
+        time_t now = time (NULL);
+        snprintf (stamp, sizeof stamp, "%lld +0000", (long long) now);
+    }
+    snprintf (out->author, sizeof out->author, "%s <%s> %s",
+              *name ? name : "bash-os", *mail ? mail : "bash-os@localhost",
+              stamp);
+    return 0;
+}
+
+/* Put a commit on the branch HEAD stands on, as am does for each patch. */
+static int
+git_am_commit (git_context *ctx, const char *author, const char *message,
+               const char *subject)
+{
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return -1;
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state.index,
+                         state.n_index, tree) < 0) {
+        git_state_release (&state);
+        return -1;
+    }
+    char committer[1024];
+    if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0) {
+        git_state_release (&state);
+        return -1;
+    }
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) { git_state_release (&state); return -1; }
+    fprintf (builder, "tree %s\n", tree);
+    if (state.have_head) fprintf (builder, "parent %s\n", state.head);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    fprintf (builder, "\n%s", message);
+    size_t at = strlen (message);
+    if (!at || message[at - 1] != '\n') fprintf (builder, "\n");
+    fclose (builder);
+    char written[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1,
+                                written);
+    free (body);
+    if (rc < 0) { git_state_release (&state); return -1; }
+    char reflog[1200];
+    snprintf (reflog, sizeof reflog, "am: %s", subject);
+    const char *ref = state.branch ? state.branch : "HEAD";
+    if (bgit_ref_update (&ctx->repo, ref, written,
+                         state.have_head ? state.head : NULL, reflog) < 0) {
+        git_state_release (&state);
+        return -1;
+    }
+    if (state.branch)
+        bgit_reflog_append (&ctx->repo, "HEAD",
+                            state.have_head ? state.head : NULL, written,
+                            reflog);
+    git_state_release (&state);
+    return 0;
+}
+
+/* Where am keeps what it is in the middle of. */
+static void
+git_am_state_path (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    snprintf (out, outsz, "%s/rebase-apply%s%s", ctx->repo.git_dir,
+              name && *name ? "/" : "", name ? name : "");
+}
+
+/* The same directory as git names it in a message: relative, where the
+   reader is standing at the top of the worktree. */
+static void
+git_am_state_shown (git_context *ctx, char *out, size_t outsz)
+{
+    char cwd[4096], top[4096];
+    if (ctx->repo.work_tree && getcwd (cwd, sizeof cwd) &&
+        !strcmp (cwd, ctx->repo.work_tree) &&
+        (size_t) snprintf (top, sizeof top, "%s/.git",
+                           ctx->repo.work_tree) < sizeof top &&
+        !strcmp (top, ctx->repo.git_dir)) {
+        snprintf (out, outsz, ".git/rebase-apply");
+        return;
+    }
+    snprintf (out, outsz, "%s/rebase-apply", ctx->repo.git_dir);
+}
+
+static int
+git_am_state_write (git_context *ctx, const char *name, const char *text)
+{
+    char path[4096];
+    git_am_state_path (ctx, name, path, sizeof path);
+    FILE *f = fopen (path, "w");
+    if (!f) return -1;
+    fputs (text, f);
+    return fclose (f) == 0 ? 0 : -1;
+}
+
+static int
+git_am_state_read (git_context *ctx, const char *name, char *out, size_t outsz)
+{
+    char path[4096];
+    git_am_state_path (ctx, name, path, sizeof path);
+    FILE *f = fopen (path, "r");
+    if (!f) return -1;
+    if (!fgets (out, (int) outsz, f)) { fclose (f); return -1; }
+    fclose (f);
+    size_t at = strlen (out);
+    while (at && (out[at - 1] == '\n' || out[at - 1] == '\r')) out[--at] = '\0';
+    return 0;
+}
+
+static void
+git_am_state_clear (git_context *ctx)
+{
+    char path[4096];
+    git_am_state_path (ctx, "", path, sizeof path);
+    DIR *handle = opendir (path);
+    if (handle) {
+        struct dirent *entry;
+        while ((entry = readdir (handle))) {
+            if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, ".."))
+                continue;
+            char one[4096];
+            snprintf (one, sizeof one, "%s/%s", path, entry->d_name);
+            unlink (one);
+        }
+        closedir (handle);
+    }
+    rmdir (path);
+}
+
+static int
+git_cmd_am (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git am [-q] [--continue | --skip | --abort] "
+                        "[<mbox>...]";
+    int quiet = 0, do_continue = 0, skip = 0, abort_am = 0;
+    const char *names[16];
+    int n_names = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "--continue") || !strcmp (w, "-r") ||
+                 !strcmp (w, "--resolved")) do_continue = 1;
+        else if (!strcmp (w, "--skip")) skip = 1;
+        else if (!strcmp (w, "--abort")) abort_am = 1;
+        else if (!strcmp (w, "-3") || !strcmp (w, "--3way") ||
+                 !strcmp (w, "--no-3way")) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_names < (int) (sizeof names / sizeof *names))
+            names[n_names++] = w;
+        else return git_fatal ("too many mailboxes");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    char state_dir[4096];
+    git_am_state_path (ctx, "", state_dir, sizeof state_dir);
+    struct stat st;
+    int in_progress = stat (state_dir, &st) == 0;
+
+    if (abort_am) {
+        if (!in_progress)
+            return git_fatal ("Resolve operation not in progress, we are not "
+                              "resuming.");
+        char safety[41] = "";
+        git_am_state_read (ctx, "abort-safety", safety, sizeof safety);
+        git_am_state_clear (ctx);
+        if (*safety) {
+            WORD_LIST *reset = make_word_list (make_word ((char *) safety),
+                                               NULL);
+            reset = make_word_list (make_word ("--hard"), reset);
+            reset = make_word_list (make_word ("-q"), reset);
+            int status = git_cmd_reset (ctx, reset);
+            dispose_words (reset);
+            return status;
+        }
+        return 0;
+    }
+    if ((do_continue || skip) && !in_progress)
+        return git_fatal ("Resolve operation not in progress, we are not "
+                          "resuming.");
+    if (!do_continue && !skip && in_progress) {
+        char shown[4096];
+        git_am_state_shown (ctx, shown, sizeof shown);
+        return git_fatal ("previous rebase directory %s still exists but mbox "
+                          "given.", shown);
+    }
+
+    long first = 1, last = 0;
+    if (do_continue || skip) {
+        char held[64];
+        if (git_am_state_read (ctx, "next", held, sizeof held) == 0)
+            first = atol (held);
+        if (git_am_state_read (ctx, "last", held, sizeof held) == 0)
+            last = atol (held);
+        if (do_continue) {
+            /* What was settled by hand is committed as the mail said. */
+            char author[1200] = "", subject[4096] = "";
+            char path[4096];
+            git_am_state_path (ctx, "message", path, sizeof path);
+            unsigned char *message = NULL;
+            size_t message_len = 0;
+            git_am_state_read (ctx, "author", author, sizeof author);
+            git_am_state_read (ctx, "subject", subject, sizeof subject);
+            if (bgit_slurp_file (path, &message, &message_len) < 0)
+                return git_fatal ("cannot read what was being applied");
+            char *text = malloc (message_len + 1);
+            if (!text) { free (message); return GIT_EXIT_FATAL; }
+            memcpy (text, message, message_len);
+            text[message_len] = '\0';
+            free (message);
+            /* git names the patch again as it takes it up. */
+            if (!quiet) printf ("Applying: %s\n", subject);
+            int rc = git_am_commit (ctx, author, text, subject);
+            free (text);
+            if (rc < 0) return GIT_EXIT_FATAL;
+        }
+        first++;
+    } else {
+        /* A fresh run: every message is written down first, so that what
+           is left can be gone on with. */
+        char *text = NULL;
+        size_t len = 0;
+        if (!n_names) {
+            unsigned char *data = NULL;
+            if (bgit_slurp_fd (STDIN_FILENO, &data, &len) < 0)
+                return git_fatal ("cannot read the mailbox");
+            text = (char *) data;
+        } else
+            for (int i = 0; i < n_names; i++) {
+                unsigned char *data = NULL;
+                size_t piece = 0;
+                if (bgit_slurp_file (names[i], &data, &piece) < 0) {
+                    free (text);
+                    return GIT_EXIT_FATAL;
+                }
+                char *grown = realloc (text, len + piece + 1);
+                if (!grown) { free (text); free (data); return GIT_EXIT_FATAL; }
+                text = grown;
+                memcpy (text + len, data, piece);
+                len += piece;
+                text[len] = '\0';
+                free (data);
+            }
+        if (mkdir (state_dir, 0777) < 0 && errno != EEXIST) {
+            free (text);
+            return git_fatal ("cannot make %s", state_dir);
+        }
+        /* Split on the line each message begins with. */
+        size_t start = 0;
+        for (size_t at = 0; at <= len; at++) {
+            int boundary = at == len ||
+                           ((at == 0 || text[at - 1] == '\n') &&
+                            at + 5 <= len && !memcmp (text + at, "From ", 5));
+            if (!boundary || at == start) continue;
+            char name[64];
+            snprintf (name, sizeof name, "%04ld", last + 1);
+            char path[4096];
+            git_am_state_path (ctx, name, path, sizeof path);
+            FILE *f = fopen (path, "w");
+            if (!f) { free (text); return GIT_EXIT_FATAL; }
+            fwrite (text + start, 1, at - start, f);
+            fclose (f);
+            last++;
+            start = at;
+        }
+        free (text);
+        if (!last) {
+            git_am_state_clear (ctx);
+            fflush (stdout);
+            fprintf (stderr, "error: empty mbox\n");
+            return GIT_EXIT_FATAL;
+        }
+        char held[64];
+        snprintf (held, sizeof held, "%ld\n", last);
+        git_am_state_write (ctx, "last", held);
+        struct git_state state;
+        if (git_state_load (ctx, &state) == 0) {
+            if (state.have_head) {
+                char line[64];
+                snprintf (line, sizeof line, "%s\n", state.head);
+                git_am_state_write (ctx, "abort-safety", line);
+                char orig[4096];
+                snprintf (orig, sizeof orig, "%s/ORIG_HEAD", ctx->repo.git_dir);
+                FILE *f = fopen (orig, "w");
+                if (f) { fputs (line, f); fclose (f); }
+            }
+            git_state_release (&state);
+        }
+    }
+
+    for (long number = first; number <= last; number++) {
+        char name[64], held[64];
+        snprintf (name, sizeof name, "%04ld", number);
+        char path[4096];
+        git_am_state_path (ctx, name, path, sizeof path);
+        unsigned char *raw = NULL;
+        size_t raw_len = 0;
+        if (bgit_slurp_file (path, &raw, &raw_len) < 0)
+            return git_fatal ("cannot read %s", path);
+        struct git_am_mail mail;
+        if (git_am_read ((const char *) raw, raw_len, &mail) < 0) {
+            free (raw);
+            return git_fatal ("cannot read the mail in %s", path);
+        }
+        if (!quiet) printf ("Applying: %s\n", mail.subject);
+        fflush (stdout);
+        /* The patch itself, put where apply can be handed it. */
+        char patch_path[4096];
+        git_am_state_path (ctx, "patch", patch_path, sizeof patch_path);
+        FILE *f = fopen (patch_path, "w");
+        if (!f) { free (mail.message); free (raw); return GIT_EXIT_FATAL; }
+        fwrite (mail.patch, 1, mail.patch_len, f);
+        fclose (f);
+        WORD_LIST *apply = make_word_list (make_word (patch_path), NULL);
+        apply = make_word_list (make_word ("--index"), apply);
+        int rc = git_cmd_apply (ctx, apply);
+        dispose_words (apply);
+        if (rc) {
+            snprintf (held, sizeof held, "%ld\n", number);
+            git_am_state_write (ctx, "next", held);
+            git_am_state_write (ctx, "author", mail.author);
+            git_am_state_write (ctx, "subject", mail.subject);
+            git_am_state_write (ctx, "message", mail.message);
+            printf ("Patch failed at %04ld %s\n", number, mail.subject);
+            fflush (stdout);
+            fprintf (stderr, "hint: Use 'git am --show-current-patch=diff' to "
+                             "see the failed patch\n");
+            fprintf (stderr, "hint: When you have resolved this problem, run "
+                             "\"git am --continue\".\n");
+            fprintf (stderr, "hint: If you prefer to skip this patch, run "
+                             "\"git am --skip\" instead.\n");
+            fprintf (stderr, "hint: To restore the original branch and stop "
+                             "patching, run \"git am --abort\".\n");
+            fprintf (stderr, "hint: Disable this message with \"git config "
+                             "advice.mergeConflict false\"\n");
+            free (mail.message);
+            free (raw);
+            return 128;
+        }
+        int committed = git_am_commit (ctx, mail.author, mail.message,
+                                       mail.subject);
+        free (mail.message);
+        free (raw);
+        if (committed < 0) return GIT_EXIT_FATAL;
+    }
+    git_am_state_clear (ctx);
+    return 0;
 }
 
 /* ---- format-patch ------------------------------------------------------ */
@@ -18818,6 +19311,7 @@ static const struct {
     git_command_fn run;
 } git_commands[] = {
     { "add",          git_cmd_add },
+    { "am",           git_cmd_am },
     { "apply",        git_cmd_apply },
     { "branch",       git_cmd_branch },
     { "cat-file",     git_cmd_cat_file },

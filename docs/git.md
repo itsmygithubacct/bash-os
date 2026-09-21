@@ -39,6 +39,7 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git am           [-q] [--continue | --skip | --abort] [<mbox>...]
 git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
@@ -220,6 +221,13 @@ follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
 the tag says beside it — the annotation for an annotated tag, and the
 commit's own message for a light one — a line at a time, the first beside
 the name and the rest indented.
+
+`git am` reads such mail back: each message's patch is applied and
+committed with the author and date it carried, and `Applying: <subject>`
+says which one is going on. A patch that will not go on stops it with
+git's words and leaves what it was doing under `rebase-apply`, so
+`--continue` takes it up once the paths have been settled by hand,
+`--skip` passes over it, and `--abort` puts the branch back where it was.
 
 `git format-patch` writes each commit out as mail, the way a patch is
 sent: the magic `From <id> Mon Sep 17 00:00:00 2001` line, who wrote it
