@@ -86,6 +86,14 @@ git status --short
 git reset -q --hard HEAD
 rm -f new.txt moved.txt
 
+echo '=== and one that tries to climb out of the repository ==='
+printf 'diff --git a/../escape.txt b/../escape.txt\nindex 1234567..89abcde 100644\n--- a/../escape.txt\n+++ b/../escape.txt\n@@ -1 +1 @@\n-one\n+two\n' > escape.diff
+git apply escape.diff || echo "said no: $?"
+git apply --check escape.diff || echo "said no: $?"
+printf 'diff --git a/.git/config b/.git/config\nindex 1234567..89abcde 100644\n--- a/.git/config\n+++ b/.git/config\n@@ -1 +1 @@\n-x\n+y\n' > dotgit.diff
+git apply dotgit.diff || echo "said no: $?"
+rm -f escape.diff dotgit.diff
+
 echo '=== and from a pipe ==='
 cat all.diff | git apply --check
 echo "piped: $?"

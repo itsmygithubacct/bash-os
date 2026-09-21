@@ -7436,6 +7436,24 @@ git_apply_hunks (const struct git_apply_file *file,
     return 0;
 }
 
+/* Is this a path a patch may touch? A patch is read from outside, and
+   what it names has to stay inside the repository: nothing that climbs
+   above it, and nothing in the administrative directory. */
+static int
+git_apply_path_ok (const char *path)
+{
+    if (!path || !*path || *path == '/') return 0;
+    for (const char *at = path; at;) {
+        const char *slash = strchr (at, '/');
+        size_t len = slash ? (size_t) (slash - at) : strlen (at);
+        if (len == 2 && !memcmp (at, "..", 2)) return 0;
+        if (len == 4 && !strncasecmp (at, ".git", 4)) return 0;
+        if (!slash) break;
+        at = slash + 1;
+    }
+    return 1;
+}
+
 /* Write the content out, making the directories above it first, since a
    patch may add a file deep in a tree. */
 static int
@@ -7659,6 +7677,17 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
                                 "full index line", target);
             break;
         }
+        /* A path that does not start at the repository is refused before
+           anything at all is read of it. */
+        if ((file->old_path && *file->old_path == '/') ||
+            (file->new_path && *file->new_path == '/')) {
+            fflush (stdout);
+            fprintf (stderr, "error: invalid path '%s'\n",
+                     file->old_path && *file->old_path == '/' ? file->old_path
+                                                              : file->new_path);
+            status = GIT_EXIT_FATAL;
+            break;
+        }
         char full[4096];
         snprintf (full, sizeof full, "%s/%s",
                   ctx->repo.work_tree ? ctx->repo.work_tree : ".",
@@ -7742,6 +7771,20 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
                 status = 1;
                 continue;
             }
+        }
+        /* Where the patch says to write has to stay inside the
+           repository: a patch comes from outside, and one that climbs
+           above the worktree, or into its administrative directory, is
+           refused as git refuses it. */
+        if ((file->old_path && !git_apply_path_ok (file->old_path)) ||
+            (file->new_path && !git_apply_path_ok (file->new_path))) {
+            fflush (stdout);
+            fprintf (stderr, "error: invalid path '%s'\n",
+                     file->old_path && !git_apply_path_ok (file->old_path)
+                     ? file->old_path : file->new_path);
+            free (before);
+            status = GIT_EXIT_FATAL;
+            break;
         }
         struct git_apply_lines lines;
         if (git_apply_split ((const char *) (before ? before : (unsigned char *) ""),

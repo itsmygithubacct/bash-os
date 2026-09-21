@@ -251,6 +251,11 @@ placeholders stand beside them. `git count-objects` counts what the store
 holds: the loose objects and what they take up on disk, and with `-v` the
 packs beside them.
 
+A patch comes from outside, so what it names is checked before anything
+is written: a path that climbs above the worktree, one that starts at the
+root of the filesystem, and one that leads into `.git` are each refused
+with git's `invalid path`, and nothing is read or written for them.
+
 `git apply` takes a patch back the way it came: the hunks are matched
 against the files, moving up or down where a line has shifted, and a hunk
 with no leading context has to match the start of the file, one with no

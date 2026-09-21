@@ -168,6 +168,26 @@ git apply --check round.diff 2>/dev/null || true
 git apply --check -R round.diff 2>/dev/null || true
 git apply -R round.diff 2>/dev/null || true
 git apply round.diff 2>/dev/null || true
+# Patches that are wrong in the ways a patch from outside can be wrong.
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,99999 +1,99999 @@\n one\n' > bad1.diff
+printf 'diff --git a/x b/x\n@@ -0,0 +1 @@\n' > bad2.diff
+printf 'diff --git a/x b/x\nGIT binary patch\nliteral 4\n' > bad3.diff
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-one\n' > bad4.diff
+printf '@@ -1 +1 @@\n one\n' > bad5.diff
+printf 'diff --git a/../../escape b/../../escape\n--- a/../../escape\n+++ b/../../escape\n@@ -0,0 +1 @@\n+x\n' > bad6.diff
+for bad in bad1.diff bad2.diff bad3.diff bad4.diff bad5.diff bad6.diff; do
+  git apply --check "$bad" 2>/dev/null || true
+  git apply --stat "$bad" 2>/dev/null || true
+  git apply --numstat "$bad" 2>/dev/null || true
+  git apply -R --check "$bad" 2>/dev/null || true
+done
+rm -f bad1.diff bad2.diff bad3.diff bad4.diff bad5.diff bad6.diff
+# And mail that is not quite mail.
+printf 'From 0 Mon Sep 17 00:00:00 2001\nSubject: [PATCH] x\n\n---\n' > bad.mbox
+git am bad.mbox 2>/dev/null || git am --abort 2>/dev/null || true
+printf 'not mail at all\n' > bad2.mbox
+git am bad2.mbox 2>/dev/null || git am --abort 2>/dev/null || true
+rm -f bad.mbox bad2.mbox
 rm -f round.diff
 # And mail read back into a branch of its own.
 git checkout -q -b mailed HEAD~1 2>/dev/null && {
