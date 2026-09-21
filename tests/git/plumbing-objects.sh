@@ -59,3 +59,10 @@ git config user.name 'Config Reader'
 git config --get user.name
 git config --list --local
 git var GIT_AUTHOR_IDENT
+
+# What the store holds, counted: loose objects and what they take up, and
+# the same after they have been packed away.
+git count-objects
+git count-objects -v
+git count-objects -H
+git count-objects -v -H

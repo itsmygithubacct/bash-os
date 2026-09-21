@@ -75,3 +75,12 @@ git log -1 --stat=60,20
 git log -2 --format='%h%x09%s'
 git log -1 --format='a%x41b%x2Cc'
 git log -1 --format='%x25%xZZ%x4'
+
+# The change as it would be to undo, and the paths without their letters.
+git diff -R HEAD~1 HEAD
+git diff --no-prefix HEAD~1 HEAD
+git diff -R --no-prefix HEAD~1 HEAD
+git diff -R --stat HEAD~1 HEAD
+git diff -R --name-status HEAD~1 HEAD
+git diff -R --numstat HEAD~1 HEAD
+git show -R HEAD

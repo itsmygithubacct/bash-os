@@ -24,6 +24,7 @@ git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
 git diff         [-p] [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
+                 [-R] [--no-prefix]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -42,6 +43,7 @@ git show         [-p | -s | --stat] [--oneline] [--format=<format>]
 git am           [-q] [--continue | --skip | --abort] [<mbox>...]
 git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
+git count-objects [-v] [-H]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -237,6 +239,14 @@ last line is this build's own version rather than git's, which is the one
 thing about the output that is deliberately not the same. Without
 `--stdout` each patch is a file named for its subject, and `-o` says
 where to put them.
+
+`git diff -R` shows a change as it would be to undo — the two sides swap,
+and so do the letters in front of the paths — and `--no-prefix` leaves
+those letters off. `git reflog` takes a `--format=` of its own, where
+`%gd` is the entry's name and `%gs` what it says, and the commit's own
+placeholders stand beside them. `git count-objects` counts what the store
+holds: the loose objects and what they take up on disk, and with `-v` the
+packs beside them.
 
 `git apply` takes a patch back the way it came: the hunks are matched
 against the files, moving up or down where a line has shifted, and a hunk

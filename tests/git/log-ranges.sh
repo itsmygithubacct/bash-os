@@ -143,3 +143,11 @@ git shortlog -e HEAD
 git shortlog -s --no-merges HEAD
 git shortlog 'HEAD~2..HEAD'
 git log | git shortlog -sn
+
+# The reflog written the way --format= asks.
+git reflog -3
+git reflog --format='%gd' -3
+git reflog --format='%gd|%gs' -3
+git reflog --format='%h%x20%gs' -3
+git reflog --format='%H%n%gs' -1
+git reflog --format='%gd %s' -2

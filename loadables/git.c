@@ -977,15 +977,30 @@ git_cmd_for_each_ref (git_context *ctx, WORD_LIST *args)
 
 /* ---- reflog ------------------------------------------------------------ */
 
+/* One reflog entry written the way --format= asks. */
+static void git_reflog_formatted (git_context *ctx, const char *format,
+                                  const char *ref, size_t number,
+                                  const char *id, const char *message);
+
 static int
 git_cmd_reflog (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git reflog [show] [<ref>]";
-    const char *ref = NULL;
+    const char *usage = "git reflog [show] [--format=<format>] [-<n>] "
+                        "[<ref>]";
+    const char *ref = NULL, *format = NULL;
+    long limit = -1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "show")) continue;
+        if (!strncmp (w, "--format=", 9)) { format = w + 9; continue; }
+        if (!strncmp (w, "--pretty=", 9)) { format = w + 9; continue; }
+        if (!strcmp (w, "-n") && p->next) {
+            limit = atol ((p = p->next)->word->word);
+            continue;
+        }
+        if (!strncmp (w, "--max-count=", 12)) { limit = atol (w + 12); continue; }
+        if (w[0] == '-' && git_all_digits (w + 1)) { limit = atol (w + 1); continue; }
         if (w[0] == '-' && w[1]) return git_usage (usage);
         if (!ref) ref = w;
         else return git_usage (usage);
@@ -1017,7 +1032,10 @@ git_cmd_reflog (git_context *ctx, WORD_LIST *args)
             display = display + strlen (strip[i]);
 
     /* Newest first, numbered from 0, as git shows them. */
+    long shown = 0;
     for (size_t i = n; i > 0; i--) {
+        if (limit >= 0 && shown >= limit) break;
+        shown++;
         const char *line = lines[i - 1];
         char new_id[41] = "";
         const char *message = strchr (line, '\t');
@@ -1025,8 +1043,13 @@ git_cmd_reflog (git_context *ctx, WORD_LIST *args)
         new_id[40] = '\0';
         char abbreviated[41];
         git_abbrev (ctx, new_id, 7, abbreviated, sizeof abbreviated);
-        printf ("%s %s@{%zu}: %s\n", abbreviated, display, n - i,
-                message ? message + 1 : "");
+        if (!format) {
+            printf ("%s %s@{%zu}: %s\n", abbreviated, display, n - i,
+                    message ? message + 1 : "");
+            continue;
+        }
+        git_reflog_formatted (ctx, format, display, n - i, new_id,
+                              message ? message + 1 : "");
     }
     for (size_t i = 0; i < n; i++) free (lines[i]);
     free (lines);
@@ -3377,6 +3400,8 @@ struct git_diff_format {
     int no_patch;
     int no_renames;
     int context;
+    int reverse;                        /* -R: the two sides change places */
+    int no_prefix;                      /* the paths stand without a/ and b/ */
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
@@ -3962,7 +3987,11 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
     } else {
         for (int i = 0; i < n_messages; i++)
             GIT_APPEND ("%s%s\n", i ? "\n" : "", messages[i]);
+        /* What the reflog says is the message's first line: a reflog
+           entry is one line, and git writes no more of it than that. */
         snprintf (subject, sizeof subject, "%s", messages[0]);
+        char *nl = strchr (subject, '\n');
+        if (nl) *nl = '\0';
     }
     if (len == 0 || body[len - 1] != '\n') GIT_APPEND ("\n");
 #undef GIT_APPEND
@@ -4768,6 +4797,49 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
     fputc ('\n', out);
 }
 
+/* One reflog entry written the way --format= asks: the entry's own two
+   placeholders, and the commit's for everything else. */
+static void
+git_reflog_formatted (git_context *ctx, const char *format, const char *ref,
+                      size_t number, const char *id, const char *message)
+{
+    char selector[4096];
+    snprintf (selector, sizeof selector, "%s@{%zu}", ref, number);
+    struct git_commit commit;
+    int have = git_commit_read (ctx, id, &commit) == 0;
+    /* The commit's placeholders are written by the same code the log uses,
+       into a string of its own, since that code ends a record with a
+       newline and this one is a line of its own. */
+    char *shown = NULL;
+    size_t shown_len = 0;
+    if (have) {
+        FILE *capture = open_memstream (&shown, &shown_len);
+        if (capture) {
+            struct git_date_format date;
+            git_date_format_init (&date);
+            git_format_commit (ctx, capture, &commit, format, &date, 0);
+            fclose (capture);
+            if (shown_len && shown[shown_len - 1] == '\n')
+                shown[--shown_len] = '\0';
+        }
+    }
+    /* Then this entry's own two, over what came back. */
+    const char *at = shown ? shown : format;
+    for (; *at; at++) {
+        if (at[0] == '%' && at[1] == 'g' &&
+            (at[2] == 'd' || at[2] == 'D' || at[2] == 's')) {
+            fputs (at[2] == 's' ? message : selector, stdout);
+            at += 2;
+            continue;
+        }
+        fputc (*at, stdout);
+    }
+    fputc ('\n', stdout);
+    free (shown);
+    if (have) git_commit_release (&commit);
+}
+
+
 /* The commits reachable from REVS but not from EXCLUDES, newest first by
    commit date — which is what `git log A..B` asks for. */
 static int
@@ -5492,6 +5564,8 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9')
         format->context = atoi (w + 2);
     else if (!strncmp (w, "--unified=", 10)) format->context = atoi (w + 10);
+    else if (!strcmp (w, "-R")) format->reverse = 1;
+    else if (!strcmp (w, "--no-prefix")) format->no_prefix = 1;
     else if (!strcmp (w, "--no-renames")) format->no_renames = 1;
     else if (!strcmp (w, "-M") || !strcmp (w, "--find-renames"))
         format->no_renames = 0;
@@ -5516,6 +5590,30 @@ git_diff_emit (git_context *ctx, FILE *out,
     options.context = format->context;
     options.new_from_worktree = new_from_worktree;
     options.line_prefix = line_prefix ? line_prefix : "";
+    if (format->no_prefix) options.prefix_old = options.prefix_new = "";
+    /* -R shows the change as it would be to undo: the sides swap, and so
+       do the letters in front of the paths. */
+    bgit_diff_entry *turned = NULL;
+    if (format->reverse && n) {
+        turned = calloc (n, sizeof *turned);
+        if (!turned) return -1;
+        for (size_t i = 0; i < n; i++) {
+            turned[i] = entries[i];
+            memcpy (turned[i].old_sha, entries[i].new_sha, 41);
+            memcpy (turned[i].new_sha, entries[i].old_sha, 41);
+            turned[i].old_mode = entries[i].new_mode;
+            turned[i].new_mode = entries[i].old_mode;
+            turned[i].status = entries[i].status == 'A' ? 'D'
+                             : entries[i].status == 'D' ? 'A'
+                             : entries[i].status;
+        }
+        entries = turned;
+        if (!format->no_prefix) {
+            options.prefix_old = "b/";
+            options.prefix_new = "a/";
+        }
+        options.new_from_worktree = 0;
+    }
 
     int named = format->name_only || format->name_status;
     int stats = format->stat || format->numstat || format->shortstat;
@@ -5543,8 +5641,10 @@ git_diff_emit (git_context *ctx, FILE *out,
         bgit_diffstat_entry *counted = NULL;
         if (stats) {
             if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &options,
-                               &counted) < 0)
+                               &counted) < 0) {
+                free (turned);
                 return -1;
+            }
             if (format->numstat) bgit_numstat_write (out, counted, n);
             if (format->stat) bgit_diffstat_write (out, counted, n,
                                                    options.line_prefix,
@@ -5568,8 +5668,11 @@ git_diff_emit (git_context *ctx, FILE *out,
                 counted_anything = 1;
     if (patch && counted_anything) fputc ('\n', out);
     if (patch &&
-        bgit_patch_write (out, &ctx->odb, &ctx->repo, entries, n, &options) < 0)
+        bgit_patch_write (out, &ctx->odb, &ctx->repo, entries, n, &options) < 0) {
+        free (turned);
         return -1;
+    }
+    free (turned);
     return 0;
 }
 
@@ -8224,6 +8327,165 @@ git_cmd_am (git_context *ctx, WORD_LIST *args)
         if (committed < 0) return GIT_EXIT_FATAL;
     }
     git_am_state_clear (ctx);
+    return 0;
+}
+
+/* ---- count-objects ----------------------------------------------------- */
+
+/* A size in kibibytes as git says it out loud, which it does by turning
+   it back into bytes first. */
+static void
+git_count_human (unsigned long long kb, char *out, size_t outsz)
+{
+    unsigned long long bytes = kb;
+    if (bytes > 1024ULL * 1024 * 1024)
+        snprintf (out, outsz, "%llu.%02llu GiB", bytes >> 30,
+                  (bytes & ((1ULL << 30) - 1)) / 10737419);
+    else if (bytes > 1024ULL * 1024)
+        snprintf (out, outsz, "%llu.%02llu MiB", bytes >> 20,
+                  (bytes & ((1ULL << 20) - 1)) / 10486);
+    else if (bytes > 1024)
+        snprintf (out, outsz, "%llu.%02llu KiB", bytes >> 10,
+                  (bytes & 1023) / 10);
+    else snprintf (out, outsz, "%llu byte%s", bytes, bytes == 1 ? "" : "s");
+}
+
+/* What one pack index says it holds: the last of its fanout counters. */
+static unsigned long
+git_count_pack_objects (const char *path)
+{
+    FILE *f = fopen (path, "rb");
+    if (!f) return 0;
+    unsigned char head[8];
+    if (fread (head, 1, 8, f) != 8) { fclose (f); return 0; }
+    unsigned char fanout[4];
+    long at = head[0] == 0xff && head[1] == 't' && head[2] == 'O' &&
+              head[3] == 'c' ? 8 + 255 * 4 : 255 * 4;
+    if (fseek (f, at, SEEK_SET) != 0 || fread (fanout, 1, 4, f) != 4) {
+        fclose (f);
+        return 0;
+    }
+    fclose (f);
+    return ((unsigned long) fanout[0] << 24) | ((unsigned long) fanout[1] << 16) |
+           ((unsigned long) fanout[2] << 8) | fanout[3];
+}
+
+static int
+git_cmd_count_objects (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git count-objects [-v] [-H | --human-readable]";
+    int verbose = 0, human = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "-H") || !strcmp (w, "--human-readable")) human = 1;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* The loose objects, in the store this repository writes to. */
+    const char *objects = ctx->odb.n_object_dirs ? ctx->odb.object_dirs[0] : NULL;
+    unsigned long long count = 0, size = 0, garbage = 0, garbage_size = 0;
+    if (objects) {
+        DIR *top = opendir (objects);
+        if (top) {
+            struct dirent *entry;
+            while ((entry = readdir (top))) {
+                if (strlen (entry->d_name) != 2 ||
+                    !isxdigit ((unsigned char) entry->d_name[0]) ||
+                    !isxdigit ((unsigned char) entry->d_name[1]))
+                    continue;
+                char dir[4096];
+                if ((size_t) snprintf (dir, sizeof dir, "%s/%s", objects,
+                                       entry->d_name) >= sizeof dir)
+                    continue;
+                DIR *inner = opendir (dir);
+                if (!inner) continue;
+                struct dirent *one;
+                while ((one = readdir (inner))) {
+                    if (one->d_name[0] == '.') continue;
+                    char path[4096];
+                    if ((size_t) snprintf (path, sizeof path, "%s/%s", dir,
+                                           one->d_name) >= sizeof path)
+                        continue;
+                    struct stat st;
+                    if (lstat (path, &st) < 0 || !S_ISREG (st.st_mode)) continue;
+                    unsigned long long kb =
+                        (unsigned long long) st.st_blocks * 512;
+                    int named = strlen (one->d_name) == 38;
+                    for (const char *c = one->d_name; named && *c; c++)
+                        if (!isxdigit ((unsigned char) *c)) named = 0;
+                    if (named) { count++; size += kb; }
+                    else { garbage++; garbage_size += kb; }
+                }
+                closedir (inner);
+            }
+            closedir (top);
+        }
+    }
+
+    /* And the packs beside them. */
+    unsigned long long packs = 0, in_pack = 0, pack_size = 0;
+    char pack_dir[4096] = "";
+    if (objects &&
+        (size_t) snprintf (pack_dir, sizeof pack_dir, "%s/pack",
+                           objects) < sizeof pack_dir) {
+        DIR *handle = opendir (pack_dir);
+        if (handle) {
+            struct dirent *entry;
+            while ((entry = readdir (handle))) {
+                size_t len = strlen (entry->d_name);
+                if (len < 5 || strcmp (entry->d_name + len - 4, ".idx")) continue;
+                char path[4096];
+                if ((size_t) snprintf (path, sizeof path, "%s/%s", pack_dir,
+                                       entry->d_name) >= sizeof path)
+                    continue;
+                packs++;
+                in_pack += git_count_pack_objects (path);
+                struct stat index_st;
+                /* git counts the index beside the pack it belongs to. */
+                if (lstat (path, &index_st) == 0)
+                    pack_size += (unsigned long long) index_st.st_size;
+                char pack[4096];
+                snprintf (pack, sizeof pack, "%.*s.pack", (int) (len - 4),
+                          entry->d_name);
+                char full[4096];
+                if ((size_t) snprintf (full, sizeof full, "%s/%s", pack_dir,
+                                       pack) >= sizeof full)
+                    continue;
+                struct stat st;
+                /* A pack is counted by what it says it is, not by what it
+                   takes up, which is what git counts here. */
+                if (lstat (full, &st) == 0)
+                    pack_size += (unsigned long long) st.st_size;
+            }
+            closedir (handle);
+        }
+    }
+
+    if (!verbose) {
+        if (human) {
+            char shown[64];
+            git_count_human (size, shown, sizeof shown);
+            printf ("%llu objects, %s\n", count, shown);
+        } else printf ("%llu objects, %llu kilobytes\n", count, size / 1024);
+        return 0;
+    }
+    char size_shown[64], pack_shown[64], garbage_shown[64];
+    git_count_human (size, size_shown, sizeof size_shown);
+    git_count_human (pack_size, pack_shown, sizeof pack_shown);
+    git_count_human (garbage_size, garbage_shown, sizeof garbage_shown);
+    printf ("count: %llu\n", count);
+    if (human) printf ("size: %s\n", size_shown);
+    else printf ("size: %llu\n", size / 1024);
+    printf ("in-pack: %llu\n", in_pack);
+    printf ("packs: %llu\n", packs);
+    if (human) printf ("size-pack: %s\n", pack_shown);
+    else printf ("size-pack: %llu\n", pack_size / 1024);
+    printf ("prune-packable: 0\n");
+    printf ("garbage: %llu\n", garbage);
+    if (human) printf ("size-garbage: %s\n", garbage_shown);
+    else printf ("size-garbage: %llu\n", garbage_size / 1024);
     return 0;
 }
 
@@ -19323,6 +19585,7 @@ static const struct {
     { "commit",       git_cmd_commit },
     { "commit-tree",  git_cmd_commit_tree },
     { "config",       git_cmd_config },
+    { "count-objects", git_cmd_count_objects },
     { "describe",     git_cmd_describe },
     { "diff",         git_cmd_diff },
     { "fetch",        git_cmd_fetch },

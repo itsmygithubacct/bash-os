@@ -199,6 +199,12 @@ git config --add many.things two
 git config --get-all many.things
 git config --unset-all many.things
 git config --remove-section many 2>/dev/null || true
+git count-objects
+git count-objects -v
+git count-objects -H
+git diff -R HEAD~1 HEAD > /dev/null
+git diff --no-prefix HEAD~1 HEAD > /dev/null
+git reflog --format='%gd|%gs' -3
 git branch -v
 git branch -vv
 git branch -a -v
