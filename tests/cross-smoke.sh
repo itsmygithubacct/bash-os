@@ -26,4 +26,7 @@ python3 tests/input-lifetime.py "$d/bash-os"
 python3 tests/helper-smoke.py "$d/bash-os"
 python3 tests/final-smoke.py "$d/bash-os"
 python3 tests/gpu-smoke.py "$d/bash-os"
+# The git builtin on the emulated machine, held against the real git on
+# this one: a repository written there must read the same way here.
+python3 tests/git-parity.py "$d/bash-os" basic-commit branches
 echo 'cross-smoke: exact selection, compression, nested execution and behavior fixtures passed'

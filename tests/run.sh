@@ -78,6 +78,11 @@ for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams co
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
 check 'static final imports' python3 tests/final-smoke.py out/bash-static
+# The git builtin in the static build, which links its zlib in rather than
+# finding one: a handful of scenarios is enough to see that it reads and
+# writes a repository the same way there.
+check 'static git parity' python3 tests/git-parity.py out/bash-static \
+  basic-commit branches log-diff packs
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
