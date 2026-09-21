@@ -31,6 +31,7 @@ reported rather than passing because both sides failed alike.
 
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -170,7 +171,33 @@ def state(directory):
             output = b'\n'.join(line for line in output.splitlines()
                                  if not line.startswith(b'dangling '))
         facts[label] = (status, output)
+    facts['reflog'] = (facts['reflog'][0], level_merge_action(facts))
     return facts
+
+
+def level_merge_action(facts):
+    """The reflog action on a merge a rebase made, levelled.
+
+    git changed its mind about this between versions: 2.47 leaves whatever
+    the command before it said — `rebase (pick)`, or
+    `rebase (reset): '<label>'` — where 2.55 says `rebase (merge)`. A
+    reflog line that names a merge commit is compared without that part;
+    everything else about every line, this one included, is compared
+    exactly.
+    """
+    merges = set()
+    for line in facts['log'][1].splitlines():
+        fields = line.split()
+        if (len(fields) > 3 and len(fields[0]) == 40 and len(fields[3]) == 40
+                and all(c in b'0123456789abcdef' for c in fields[3])):
+            merges.add(fields[0])
+    levelled = []
+    for line in facts['reflog'][1].splitlines():
+        if line.split(b' ', 1)[0] in merges:
+            line = re.sub(rb"rebase \((pick|merge)\): ", b"rebase: ", line)
+            line = re.sub(rb"rebase \(reset\): '[^']*': ", b"rebase: ", line)
+        levelled.append(line)
+    return b'\n'.join(levelled)
 
 
 def compare(label, left, right):

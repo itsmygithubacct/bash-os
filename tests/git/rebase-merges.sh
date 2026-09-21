@@ -8,19 +8,17 @@
 # requires: init add commit merge rebase log status rev-parse checkout branch config
 set -e
 
-printf '%s\n' '#!/bin/sh' \
-  'while IFS= read -r line; do printf "%s\n" "$line"; done < "$1" > shown' \
-  > show-todo
-chmod 755 show-todo
-
 # git's own spelling of a todo line changed between versions — 2.47 writes
 # "pick <id> <subject>" and 2.55 writes "pick <id> # <subject>" — so the
-# lists quoted here have that one difference levelled out, in this one
-# place, and everything else about them is compared exactly.
-todo() {
-  sed -e 's/^\(pick [0-9a-f][0-9a-f]*\) # /\1 /' \
-      -e 's/^\(#    pick [0-9a-f][0-9a-f]*\) # /\1 /' "$1"
-}
+# scripts that copy a list out level that one difference as they write,
+# which is also the shape the harness compares the copies in. Everything
+# else about the lists is compared exactly. Nothing but the shell itself
+# is used: these run with no PATH at all.
+level='  case $line in "pick "*" # "*|"#    pick "*" # "*)'
+level="$level"' line="${line%% # *} ${line#* # }";; esac'
+printf '%s\n' '#!/bin/sh' 'while IFS= read -r line; do' "$level" \
+  '  printf "%s\n" "$line"' 'done < "$1" > shown' > show-todo
+chmod 755 show-todo
 
 git init -q -b main .
 # The dates here are pinned, and so in the past. A repository this busy is
@@ -50,7 +48,7 @@ git checkout -q main
 
 echo '=== the list it writes ==='
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r newbase
-todo shown
+cat shown
 
 echo '=== and what it left ==='
 git log --format='%s'
@@ -78,7 +76,7 @@ git checkout -q farther
 commit f1.txt 'farther along' 'farther along'
 git checkout -q trunk
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r farther
-todo shown
+cat shown
 git log --format='%s'
 git log --format='%s' HEAD^2
 git log --format='%p %s' -1
@@ -94,14 +92,14 @@ git checkout -q cousin-base
 commit c3.txt 'cousin base' 'cousin base'
 git checkout -q cousin-main
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r cousin-base || echo "rebase said no: $?"
-todo shown
+cat shown
 git log --format='%s'
 
 echo '=== and the same, told to move the cousins too ==='
 git reset -q --hard cousin-main@{1} 2>/dev/null || true
 git log --format='%s' -1
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i --rebase-merges=rebase-cousins cousin-base || echo "rebase said no: $?"
-todo shown
+cat shown
 git log --format='%s'
 git status --short
 
@@ -119,16 +117,15 @@ git checkout -q deep-base
 commit d5.txt 'moved' 'the deep base moved'
 git checkout -q deep
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r deep-base
-todo shown
+cat shown
 git log --format='%s'
 git log --format='%s' HEAD~1^2
 git log --format='%p %s' -1
 git status --short
 
 echo '=== a merge that does not settle ==='
-printf '%s\n' '#!/bin/sh' \
-  'while IFS= read -r line; do printf "%s\n" "$line"; done < "$1" > editor-saw' \
-  > keep-message
+printf '%s\n' '#!/bin/sh' 'while IFS= read -r line; do' "$level" \
+  '  printf "%s\n" "$line"' 'done < "$1" > editor-saw' > keep-message
 chmod 755 keep-message
 export GIT_EDITOR=./keep-message
 
@@ -168,7 +165,7 @@ git rebase --continue
 git log --format='%s'
 git log --format='%p %s' -1
 git status --short
-todo editor-saw
+cat editor-saw
 
 echo '=== and one that is called off ==='
 git reset -q --hard tangle@{1}
