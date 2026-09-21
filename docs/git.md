@@ -58,7 +58,8 @@ git clone        [-q] [--bare] [-n|--no-checkout] [-b|--branch <name>]
                  [-o|--origin <name>] <path> | <http url> [<directory>]
 git fetch        [-q] [-p|--prune] [-t|--tags] [--upload-pack=<command>]
                  [<remote> | <path> [<refspec>...]]
-git pull         [-q] [--ff-only] [--no-ff] [--rebase] [<remote>]
+git pull         [-q] [--ff-only] [--no-ff] [--rebase]
+                 [<remote> | <path> [<refspec>...]]
 git push         [-q] [-f|--force] [--delete] [--tags] [-n|--dry-run]
                  [-u|--set-upstream] [--receive-pack=<command>]
                  [<remote> | <path> [<refspec>...]]
@@ -327,8 +328,23 @@ point at what it fetched come with it either way, which is what
 `include-tag` asks for. What came over is written into `FETCH_HEAD`,
 with the one the branch follows marked for merging and the rest not.
 
+The remote can be a path or a URL rather than a name, and then there is
+nowhere for what it brings to land: there are no remote-tracking refs for
+something that is not a remote, so it goes into `FETCH_HEAD` and nowhere
+else — whatever the far end has checked out when nothing was asked for,
+and otherwise the branches and tags named, each one left for a merge to
+take. Naming `FETCH_HEAD` afterwards means the first line of it, which is
+how git reads it too, so `git merge FETCH_HEAD` and `git log FETCH_HEAD`
+say what they say in git. No tag comes along uninvited that way, which is
+also git's rule.
+
 `git pull` is a fetch and then one of two things: a merge, or — with
 `--rebase`, or `pull.rebase` — this branch replayed on what came over.
+It passes on what it was given, so `git pull <path> <branch>` fetches
+that branch from there and joins it. What a merge joins is what the fetch
+wrote down, which is why the merge says where it came from —
+`Merge branch 'main' of ../far` — and what a replay goes onto is the
+branch this one follows, when there is one.
 `--ff-only` refuses anything but a fast-forward, in git's words, and
 `pull.ff = only` says the same thing standing. What comes back is a packfile,
 kept the way git keeps one: exploded into loose objects when it holds
@@ -669,9 +685,7 @@ The one todo command this build does not answer is `update-ref`, which
 git writes only when it is told to `--update-refs`; a list holding one
 stops with `error: invalid command`. `git submodule add`, `deinit` and
 `foreach` are not there either: what this build has is the three verbs a
-checkout needs. `git fetch` still wants the name of a remote where git
-also takes a path, which needs `FETCH_HEAD` to mean anything. And
-`git://` is not spoken at all.
+checkout needs. And `git://` is not spoken at all.
 
 The plan, including what each phase must match, is in the implementation
 document for the port.

@@ -4,7 +4,7 @@
 # with FETCH_HEAD left behind for a merge to read. The repositories live
 # under HOME, which the harness does not compare. Run through
 # tests/git-parity.py, never on its own.
-# requires: init add commit branch tag fetch clone remote for-each-ref
+# requires: init add commit branch tag fetch clone remote for-each-ref merge
 # requires: rev-parse log config
 set -e
 
@@ -51,3 +51,25 @@ git for-each-ref --format='%(refname)' refs/remotes/
 echo '=== a second fetch has nothing to say ==='
 git fetch 2>&1 | sed "s|$root|ROOT|"
 echo "status: $?"
+
+echo '=== a path is not a remote: what it brings is only written down ==='
+cd "$root/near"
+git fetch ../far 2>&1 | sed "s|$root|ROOT|"
+sed "s|$root|ROOT|" .git/FETCH_HEAD
+git for-each-ref --format='%(refname)' refs/remotes/
+git rev-parse FETCH_HEAD
+git log --format='%s' -1 FETCH_HEAD
+
+echo '=== asked for a branch, and for a tag, by name ==='
+git fetch ../far other 2>&1 | sed "s|$root|ROOT|"
+sed "s|$root|ROOT|" .git/FETCH_HEAD
+git fetch ../far refs/tags/v2 2>&1 | sed "s|$root|ROOT|"
+sed "s|$root|ROOT|" .git/FETCH_HEAD
+git for-each-ref --format='%(refname)' refs/tags/
+
+echo '=== and merging what it wrote down ==='
+git fetch ../far main 2>&1 | sed "s|$root|ROOT|"
+sed "s|$root|ROOT|" .git/FETCH_HEAD
+git merge FETCH_HEAD
+git log --format='%s' -1
+git status --short

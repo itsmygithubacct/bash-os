@@ -193,6 +193,31 @@ bgit_rev_base (const bgit_repo *repo, bgit_odb *odb, const char *name,
         return 0;
     }
     if (symref && *symref) { free (*symref); *symref = NULL; }
+    /* FETCH_HEAD is a list rather than a ref — an id, what a merge should
+       make of it, and where it came from, a line for each — and naming it
+       means the first of them, which is what git reads too. */
+    if (!strchr (name, '/') && repo->git_dir) {
+        char path[4096];
+        if (snprintf (path, sizeof path, "%s/%s", repo->git_dir, name) <
+            (int) sizeof path) {
+            FILE *file = fopen (path, "r");
+            char line[4096];
+            if (file) {
+                int got = fgets (line, sizeof line, file) != NULL &&
+                          strlen (line) > 40 &&
+                          (line[40] == ' ' || line[40] == '\t');
+                for (int i = 0; got && i < 40; i++)
+                    if (!isxdigit ((unsigned char) line[i])) got = 0;
+                fclose (file);
+                if (got) {
+                    memcpy (out, line, 40);
+                    out[40] = '\0';
+                    if (symref) *symref = strdup (name);
+                    return 0;
+                }
+            }
+        }
+    }
     static const char *const prefixes[] = {
         "refs/", "refs/tags/", "refs/heads/", "refs/remotes/", NULL
     };

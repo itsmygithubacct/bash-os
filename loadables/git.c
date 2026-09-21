@@ -5447,6 +5447,41 @@ git_merge_label (git_context *ctx, const char *name, const char *id,
     char resolved[41];
     char *symref = NULL;
     (void) git_resolve (ctx, name, resolved, &symref);
+    /* FETCH_HEAD says for itself what was fetched and where from — a
+       branch of a URL, a tag of one — and git's merge message is that
+       line with "Merge " in front of it. */
+    if (!strcmp (name, "FETCH_HEAD")) {
+        char path[4096];
+        char line[8192] = "";
+        if (snprintf (path, sizeof path, "%s/FETCH_HEAD", ctx->repo.git_dir) <
+            (int) sizeof path) {
+            FILE *file = fopen (path, "r");
+            if (file) {
+                char held[8192];
+                while (fgets (held, sizeof held, file)) {
+                    char *first = strchr (held, '\t');
+                    if (!first || strncmp (first + 1, "\t", 1)) continue;
+                    snprintf (line, sizeof line, "%s", first + 2);
+                    char *end = strchr (line, '\n');
+                    if (end) *end = '\0';
+                    break;                 /* the first one for merging */
+                }
+                fclose (file);
+            }
+        }
+        if (*line) {
+            snprintf (label, label_size, "%s", line);
+            snprintf (subject, subject_size, "Merge %s", line);
+            if (into && !strncmp (into, "refs/heads/", 11)) into += 11;
+            if (into && *into && strcmp (into, "master") &&
+                strcmp (into, "main")) {
+                size_t at = strlen (subject);
+                snprintf (subject + at, subject_size - at, " into %s", into);
+            }
+            free (symref);
+            return;
+        }
+    }
     if (symref && !strncmp (symref, "refs/heads/", 11)) {
         snprintf (label, label_size, "%s", symref + 11);
         snprintf (subject, subject_size, "Merge branch '%s'", symref + 11);
@@ -8689,6 +8724,7 @@ struct git_fetch_want {
     char id[41];
     char old[41];
     int forced;              /* the refspec had a + in front of it */
+    int asked;               /* a refspec named it, rather than a tag that came along */
     int is_new, updated, unmade, forced_update, refused;
 };
 
@@ -8721,6 +8757,14 @@ git_report_fetch (git_context *ctx, const char *name,
     else snprintf (to, sizeof to, "%s", git_ref_short (want->dst));
     (void) name;
     char what[32];
+    /* A ref with nowhere to land was only written down, and git says so
+       plainly: what it is, and that FETCH_HEAD is where it went. */
+    if (!*want->dst) {
+        fprintf (stderr, " * %-18s%-*s -> FETCH_HEAD\n",
+                 strncmp (want->src, "refs/tags/", 10) ? "branch" : "tag",
+                 width, from);
+        return;
+    }
     if (want->refused) {
         fprintf (stderr, " ! %-18s%-*s -> %s  (non-fast-forward)\n",
                  "[rejected]", width, from, to);
@@ -8881,8 +8925,12 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     if (!name) name = "origin";
     /* A name from the configuration stands for its URL; anything else is
-       the path itself, which is what git accepts too. */
+       the path itself, which is what git accepts too. A fetch like that
+       has nowhere to put what it brings — there are no remote-tracking
+       refs for a URL that is not a remote — so what it brings is written
+       down in FETCH_HEAD and nowhere else, which is what git does. */
     const char *url = git_remote_url (ctx, name);
+    int anonymous = !url;
     if (!url) url = name;
     if (!git_can_reach (url))
         return git_fatal ("this build's git fetch takes a path, an ssh "
@@ -8894,7 +8942,13 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     size_t n_specs = 0;
     for (size_t i = 0; i < n_given; i++)
         git_refspec_read (given[i], name, &specs[n_specs++]);
-    if (!n_specs) {
+    if (!n_specs && anonymous) {
+        /* Whatever the far end has checked out, and only into
+           FETCH_HEAD. */
+        memset (&specs[n_specs], 0, sizeof specs[0]);
+        snprintf (specs[n_specs].src, sizeof specs[0].src, "HEAD");
+        n_specs++;
+    } else if (!n_specs) {
         char key[4096];
         snprintf (key, sizeof key, "remote.%s.fetch", name);
         const char *configured = bgit_config_get (&ctx->cfg, key);
@@ -8925,8 +8979,9 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         n_prefixes++;
     }
     /* The tags are listed as well: a fetch takes the ones that point at
-       what it fetched, which is what include-tag asks the far end for. */
-    prefixes[n_prefixes++] = "refs/tags/";
+       what it fetched, which is what include-tag asks the far end for.
+       A fetch from a URL takes none of them, as git's does not. */
+    if (!anonymous) prefixes[n_prefixes++] = "refs/tags/";
 
     bgit_proto_ref *refs = NULL;
     size_t n_refs = 0;
@@ -8960,6 +9015,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
             want->updated = *want->dst &&
                             (want->is_new || strcmp (want->old, want->id));
             want->forced = specs[k].forced;
+            want->asked = 1;
             n_wants++;
             break;
         }
@@ -8996,7 +9052,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
 
     /* A tag that came with the objects is written down here, which is
        what git does with the tags of what it fetched. */
-    for (size_t i = 0; !status && i < n_refs; i++) {
+    for (size_t i = 0; !status && !anonymous && i < n_refs; i++) {
         if (strncmp (refs[i].name, "refs/tags/", 10)) continue;
         int already = 0;
         for (size_t k = 0; k < n_wants && !already; k++)
@@ -9065,7 +9121,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     int width = 10, any = 0;        /* git's own minimum for this column */
     for (size_t i = 0; !status && i < n_wants + n_gone; i++) {
         struct git_fetch_want *want = i < n_wants ? &wants[i] : &gone[i - n_wants];
-        if (!want->updated && !want->refused) continue;
+        if (!want->updated && !want->refused && *want->dst) continue;
         any = 1;
         int len = (int) strlen (want->unmade ? "(none)" : git_ref_short (want->src));
         if (len > width) width = len;
@@ -9102,9 +9158,18 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         size_t record_len = 0, record_cap = 0;
         for (size_t i = 0; i < n_wants; i++) {
             char line[8192];
-            int len = snprintf (line, sizeof line, "%s\t%s\t%s '%s' of %s\n",
-                                wants[i].id,
-                                strcmp (wants[i].src, upstream) ? "not-for-merge" : "",
+            /* A ref asked for by name from a URL is what the fetch was
+               for, and git leaves it for a merge to take. */
+            int for_merge = !strcmp (wants[i].src, upstream) ||
+                            (anonymous && wants[i].asked);
+            int len;
+            if (anonymous && !strcmp (wants[i].src, "HEAD"))
+                len = snprintf (line, sizeof line, "%s\t%s\t%s\n",
+                                wants[i].id, for_merge ? "" : "not-for-merge",
+                                url);
+            else
+                len = snprintf (line, sizeof line, "%s\t%s\t%s '%s' of %s\n",
+                                wants[i].id, for_merge ? "" : "not-for-merge",
                                 strncmp (wants[i].src, "refs/tags/", 10) ? "branch"
                                                                         : "tag",
                                 git_ref_short (wants[i].src), url);
@@ -9131,7 +9196,7 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < n_wants + n_gone; i++) {
             struct git_fetch_want *want = i < n_wants ? &wants[i]
                                                       : &gone[i - n_wants];
-            if (!want->updated && !want->refused) continue;
+            if (!want->updated && !want->refused && *want->dst) continue;
             git_report_fetch (ctx, name, want, width);
         }
     }
@@ -9749,8 +9814,10 @@ git_cmd_pull (git_context *ctx, WORD_LIST *args)
     /* Fetch, then join what was fetched to this branch — by merging it,
        or by replaying this branch on top of it. */
     const char *usage = "git pull [-q] [--ff-only] [--no-ff] [--rebase] "
-                        "[<remote>]";
+                        "[<remote> [<refspec>...]]";
     const char *name = NULL;
+    const char *given[32];
+    size_t n_given = 0;
     int ff_only = 0, no_ff = 0, rebase = -1, quiet = 0;
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -9762,19 +9829,30 @@ git_cmd_pull (git_context *ctx, WORD_LIST *args)
         if (!strcmp (w, "--no-rebase")) { rebase = 0; continue; }
         if (w[0] == '-' && w[1]) return git_usage (usage);
         if (!name) name = w;
+        else if (n_given < sizeof given / sizeof *given) given[n_given++] = w;
         else return git_usage (usage);
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
-    /* What was not said on the command line the configuration may say. */
-    if (rebase < 0) rebase = bgit_config_bool (&ctx->cfg, "pull.rebase", 0);
+    /* What was not said on the command line the configuration may say —
+       and when neither says anything, a pull that cannot simply catch up
+       is one git refuses to guess about. */
+    int said = rebase >= 0 || ff_only || no_ff;
+    const char *configured_rebase = bgit_config_get (&ctx->cfg, "pull.rebase");
+    if (rebase < 0)
+        rebase = configured_rebase
+                 ? bgit_config_bool (&ctx->cfg, "pull.rebase", 0) : 0;
+    if (configured_rebase) said = 1;
     if (!ff_only && !no_ff) {
         const char *ff = bgit_config_get (&ctx->cfg, "pull.ff");
+        if (ff) said = 1;
         if (ff && !strcmp (ff, "only")) ff_only = 1;
         else if (ff && !strcmp (ff, "false")) no_ff = 1;
     }
 
-    WORD_LIST *fetch_args = name
-        ? make_word_list (make_word ((char *) name), NULL) : NULL;
+    WORD_LIST *fetch_args = NULL;
+    for (size_t i = n_given; i-- > 0; )
+        fetch_args = make_word_list (make_word ((char *) given[i]), fetch_args);
+    if (name) fetch_args = make_word_list (make_word ((char *) name), fetch_args);
     if (quiet) fetch_args = make_word_list (make_word ("-q"), fetch_args);
     int status = git_cmd_fetch (ctx, fetch_args);
     dispose_words (fetch_args);
@@ -9793,11 +9871,49 @@ git_cmd_pull (git_context *ctx, WORD_LIST *args)
     if (!remote) remote = name ? name : "origin";
     char tracking[4096];
     snprintf (tracking, sizeof tracking, "%s/%s", remote, branch);
+    char head[41] = "";
+    if (state.have_head) memcpy (head, state.head, 41);
     git_state_release (&state);
 
     /* A rebase replays this branch on what was fetched; a merge joins
-       them. Either way the argument is where the far end got to. */
-    WORD_LIST *onto = make_word_list (make_word (tracking), NULL);
+       them. Either way the argument is where the far end got to: the
+       branch this one follows, when the pull was of a remote and asked
+       for nothing in particular, and otherwise what the fetch wrote down
+       in FETCH_HEAD — which is what git takes as well. */
+    const char *target = tracking;
+    if (n_given || (name && !git_remote_url (ctx, name)) || !rebase)
+        target = "FETCH_HEAD";
+
+    /* Two branches that have each gone their own way can be joined by a
+       merge or by a replay, and git will not choose for you. */
+    char fetched[41];
+    if (!said && *head && git_resolve (ctx, target, fetched, NULL) == 0 &&
+        bgit_is_ancestor (&ctx->odb, head, fetched) <= 0 &&
+        bgit_is_ancestor (&ctx->odb, fetched, head) <= 0) {
+        fflush (stdout);
+        fprintf (stderr,
+          "hint: You have divergent branches and need to specify how to "
+          "reconcile them.\n"
+          "hint: You can do so by running one of the following commands "
+          "sometime before\n"
+          "hint: your next pull:\n"
+          "hint:\n"
+          "hint:   git config pull.rebase false  # merge\n"
+          "hint:   git config pull.rebase true   # rebase\n"
+          "hint:   git config pull.ff only       # fast-forward only\n"
+          "hint:\n"
+          "hint: You can replace \"git config\" with \"git config --global\" "
+          "to set a default\n"
+          "hint: preference for all repositories. You can also pass --rebase, "
+          "--no-rebase,\n"
+          "hint: or --ff-only on the command line to override the configured "
+          "default per\n"
+          "hint: invocation.\n");
+        return git_fatal ("Need to specify how to reconcile divergent "
+                          "branches.");
+    }
+
+    WORD_LIST *onto = make_word_list (make_word ((char *) target), NULL);
     if (rebase) status = git_cmd_rebase (ctx, onto);
     else {
         if (no_ff) onto = make_word_list (make_word ("--no-ff"), onto);
