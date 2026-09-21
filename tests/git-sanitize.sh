@@ -581,6 +581,20 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Notes: a tree of text beside the commits, read on every log line.
+git notes add -m 'a note on the tip' > /dev/null 2>&1 || true
+git notes append -m 'a second line' > /dev/null 2>&1 || true
+git notes add -m 'on an older one' HEAD~1 > /dev/null 2>&1 || true
+git notes list > /dev/null
+git notes show > /dev/null
+git log -3 > /dev/null
+git log -3 --format='%h %N' > /dev/null
+git log -3 --no-notes > /dev/null
+git notes --ref reviews add -m 'looked at it' > /dev/null 2>&1 || true
+git log -1 --notes=reviews > /dev/null
+git notes remove HEAD~1 > /dev/null 2>&1 || true
+git notes prune > /dev/null
+
 # The housekeeping, which reads every reflog and then every object.
 git gc --auto > /dev/null
 git gc --no-prune > /dev/null

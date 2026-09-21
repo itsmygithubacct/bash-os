@@ -51,6 +51,11 @@ git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
 git prune        [-n | --dry-run] [-v] [--expire <time>] [<head>...]
 git repack       [-a] [-d] [-q] [-l] [-f] [--window=<n>] [--depth=<n>]
 git gc           [-q] [--auto] [--aggressive] [--prune=<date> | --no-prune]
+git notes        [--ref <ref>] (list [<object>] | add [-f] [-m <msg>]
+                 [-F <file>] [<object>] | append [-m <msg>] [<object>] |
+                 copy [-f] <from> <to> | show [<object>] |
+                 remove [--ignore-missing] [<object>...] | prune [-n] |
+                 get-ref)
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -301,6 +306,28 @@ the same pack contents as git, object for object, in about five seconds
 against git's three, and the pack comes out about one percent larger
 because the delta search settles sooner. What is unreachable and loose is
 left alone; `git prune` is what takes that away.
+
+`git notes` keeps text beside a commit without changing it: a blob per
+annotated object, in a tree under `refs/notes/commits`, with a commit on
+that ref for every change and the message git gives it. `add` refuses to
+write over a note that is there unless `-f` says to, `append` puts a blank
+line between what was there and what is new, `copy` takes one note to
+another object, `remove` takes it away, and `prune` drops the notes whose
+objects are gone. `--ref` or `GIT_NOTES_REF` or `core.notesRef` names a
+different notes ref, and a short name is taken to be under `refs/notes/`.
+There is no editor here, so `add` and `append` need `-m` or `-F`.
+
+`git log` and `git show` put a note under the message of the commit it is
+about, indented the same way, with the ref named in the heading when it is
+not the usual one; `--no-notes` leaves them out and `--notes=<ref>` reads
+another ref. `%N` in a format is the note's text.
+
+Notes are kept at the size git keeps them at while a tree is small: the
+path is the annotated object's whole id. git spreads those names into
+directories once a notes tree grows large, and reads either layout; a
+repository with thousands of notes written here would therefore hold a
+larger tree than git would have written, though git reads it and says the
+same things about it.
 
 `git gc` is the three of those in git's order. The reflogs go first —
 entries older than ninety days, and thirty for one the ref can no longer
@@ -1061,13 +1088,11 @@ HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
-fsck, prune, repack and gc.
+fsck, prune, repack, gc and notes.
 
-What is not here yet, in the order it would be missed: `notes`,
-`bisect`,
+What is not here yet, in the order it would be missed: `bisect`,
 `archive` and `bundle`; `remote show`; `diff --word-diff`;
-`describe --contains` and `--all`;
-`--date=human`; and `%N`.
+`describe --contains` and `--all`; and `--date=human`.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent

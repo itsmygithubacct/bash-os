@@ -121,6 +121,15 @@ git_fatal_ambiguous (const char *name)
     return GIT_EXIT_FATAL;
 }
 
+#define GIT_NOTES_REF "refs/notes/commits"
+
+/* The notes a walk is showing, which `log` and `show` set for as long as
+   they run: git puts them under the message of every commit that has one,
+   and answers %N with the text. Empty means none are being shown. */
+static char git_notes_showing[512];
+
+
+
 /* Values from `git -c key=value`, applied over every configuration file. */
 #define GIT_MAX_OVERRIDES 32
 static const char *git_overrides[GIT_MAX_OVERRIDES];
@@ -134,6 +143,12 @@ typedef struct {
     bgit_config cfg;
     int open;
 } git_context;
+
+/* Both written out beside git notes, which is what keeps them. */
+static int git_note_text (git_context *ctx, const char *ref,
+                          const char *object, char **out, size_t *len);
+static void git_notes_ref (git_context *ctx, const char *named, char *out,
+                           size_t outsz);
 
 /* One checkout of this repository: where it is, what it has checked out,
    and the administrative directory that ties the two together. */
@@ -4754,6 +4769,17 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             fputs (abbreviated, out);
             break;
         }
+        case 'N': {
+            char *text = NULL;
+            size_t len = 0;
+            if (*git_notes_showing &&
+                git_note_text (ctx, git_notes_showing, commit->id, &text,
+                               &len) == 0) {
+                fwrite (text, 1, len, out);
+                free (text);
+            }
+            break;
+        }
         case 'T': fputs (commit->tree, out); break;
         case 'P':
             for (int i = 0; i < commit->n_parents; i++)
@@ -5298,6 +5324,35 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             if (!nl) break;
             line = nl + 1;
         }
+        /* A note about this commit goes under its message, set off by a
+           blank line and indented the same way. */
+        char *note = NULL;
+        size_t note_len = 0;
+        if (*git_notes_showing &&
+            git_note_text (ctx, git_notes_showing, commit->id, &note,
+                           &note_len) == 0) {
+            /* Notes from anywhere but the usual place say where they are
+               from. */
+            if (!strcmp (git_notes_showing, GIT_NOTES_REF))
+                fputs ("\nNotes:\n", out);
+            else {
+                const char *shown = !strncmp (git_notes_showing, "refs/notes/", 11)
+                                        ? git_notes_showing + 11
+                                        : git_notes_showing;
+                fprintf (out, "\nNotes (%s):\n", shown);
+            }
+            const char *at = note;
+            const char *stop = note + note_len;
+            while (at < stop) {
+                const char *nl = memchr (at, '\n', (size_t) (stop - at));
+                size_t len = nl ? (size_t) (nl - at) : (size_t) (stop - at);
+                if (!nl && !len) break;
+                fprintf (out, "    %.*s\n", (int) len, at);
+                if (!nl) break;
+                at = nl + 1;
+            }
+            free (note);
+        }
     }
     if (diff && git_diff_wanted (diff)) {
         /* The long format keeps a blank line between message and diff; the
@@ -5343,6 +5398,8 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, graph = 0;
     int show_signature = 0, decorate = -1, follow = 0;
+    int show_notes = 1;
+    const char *notes_ref = NULL;
     struct git_date_format date;
     git_date_format_init (&date);
     struct git_log_filter filter;
@@ -5392,6 +5449,9 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         }
         else if (!strcmp (w, "--show-signature")) show_signature = 1;
         else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
+        else if (!strcmp (w, "--no-notes")) show_notes = 0;
+        else if (!strcmp (w, "--notes")) { show_notes = 1; notes_ref = NULL; }
+        else if (!strncmp (w, "--notes=", 8)) { show_notes = 1; notes_ref = w + 8; }
         else if (!strcmp (w, "--follow")) follow = 1;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
@@ -5443,6 +5503,10 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     if (decorate < 0)
         decorate = isatty (STDOUT_FILENO) ? GIT_DECORATE_SHORT : GIT_DECORATE_NO;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    git_notes_showing[0] = '\0';
+    if (show_notes)
+        git_notes_ref (ctx, notes_ref, git_notes_showing,
+                       sizeof git_notes_showing);
 
     /* A word that is not a revision but names a file is a path, which is
        how git reads `git log <file>`. */
@@ -5948,6 +6012,8 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
     git_diff_format_init (&diff);
     const char *format = NULL;
     int oneline = 0, show_signature = 0, decorate = -1;
+    int show_notes = 1;
+    const char *notes_ref = NULL;
     struct git_date_format date;
     git_date_format_init (&date);
     const char *objects[16];
@@ -5976,6 +6042,9 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
         }
         else if (!strcmp (w, "--show-signature")) show_signature = 1;
         else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
+        else if (!strcmp (w, "--no-notes")) show_notes = 0;
+        else if (!strcmp (w, "--notes")) { show_notes = 1; notes_ref = NULL; }
+        else if (!strncmp (w, "--notes=", 8)) { show_notes = 1; notes_ref = w + 8; }
         else if (git_diff_format_option (&diff, w)) ;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_objects < (int) (sizeof objects / sizeof *objects))
@@ -5989,6 +6058,10 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
     /* A patch is what show is for, unless another form was named. */
     if (!git_diff_wanted (&diff) && !diff.no_patch) diff.patch = 1;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    git_notes_showing[0] = '\0';
+    if (show_notes)
+        git_notes_ref (ctx, notes_ref, git_notes_showing,
+                       sizeof git_notes_showing);
 
     for (int i = 0; i < n_objects; i++) {
         char id[41];
@@ -9641,6 +9714,500 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
     free (fsck.objects);
     free (fsck.absent);
     return fsck.errors;
+}
+
+/* ---- notes -------------------------------------------------------------- */
+
+/* A note is a blob in a tree under refs/notes/commits, named by the id of
+   the object it is about. git fans that name out into directories once a
+   tree grows large; up to that size, and that is every repository a person
+   reads notes in by hand, the name is the whole forty digits. */
+/* One note: the object it is about and the blob that holds the text. */
+struct git_note {
+    char object[41];
+    char blob[41];
+};
+
+struct git_notes {
+    struct git_note *held;
+    size_t n, cap;
+};
+
+static int
+git_notes_add_held (struct git_notes *notes, const char *object,
+                    const char *blob)
+{
+    if (notes->n == notes->cap) {
+        size_t next = notes->cap ? notes->cap * 2 : 32;
+        struct git_note *grown = realloc (notes->held, next * sizeof *grown);
+        if (!grown) return -1;
+        notes->held = grown;
+        notes->cap = next;
+    }
+    memcpy (notes->held[notes->n].object, object, 41);
+    memcpy (notes->held[notes->n].blob, blob, 41);
+    notes->n++;
+    return 0;
+}
+
+/* A path in a notes tree is the annotated object's id, with the slashes of
+   whatever fanout it was written at taken back out. */
+static int
+git_notes_collect (void *data, const char *mode, const char *type,
+                   const char *sha, const char *path)
+{
+    struct git_notes *notes = data;
+    if (strcmp (type, "blob")) return 0;
+    (void) mode;
+    char name[64];
+    size_t at = 0;
+    for (const char *c = path; *c && at < sizeof name - 1; c++)
+        if (*c != '/') name[at++] = *c;
+    name[at] = '\0';
+    if (at != 40 || !bgit_all_hex (name)) return 0;
+    return git_notes_add_held (notes, name, sha) < 0 ? -1 : 0;
+}
+
+/* What the notes ref holds now, sorted by the object each note is about,
+   which is the order the tree keeps them in. */
+static int
+git_notes_read (git_context *ctx, const char *ref, struct git_notes *notes)
+{
+    memset (notes, 0, sizeof *notes);
+    char commit[41];
+    if (bgit_ref_read (&ctx->repo, ref, commit) != 0) return 0;  /* none yet */
+    char tree[41];
+    if (bgit_commit_tree (&ctx->odb, commit, tree) != 0) return 0;
+    if (bgit_tree_walk (&ctx->odb, tree, "", 1, 0, git_notes_collect,
+                        notes) < 0) {
+        free (notes->held);
+        memset (notes, 0, sizeof *notes);
+        return -1;
+    }
+    return 0;
+}
+
+static const char *
+git_notes_find (const struct git_notes *notes, const char *object)
+{
+    for (size_t i = 0; i < notes->n; i++)
+        if (!strcmp (notes->held[i].object, object)) return notes->held[i].blob;
+    return NULL;
+}
+
+static int
+git_notes_order (const void *a, const void *b)
+{
+    return strcmp (((const struct git_note *) a)->object,
+                   ((const struct git_note *) b)->object);
+}
+
+/* Write the notes out as a tree and put a commit on the notes ref, with the
+   message git gives that kind of change. */
+static int
+git_notes_commit (git_context *ctx, const char *ref, struct git_notes *notes,
+                  const char *reason)
+{
+    qsort (notes->held, notes->n, sizeof *notes->held, git_notes_order);
+    bgit_index_entry *entries = calloc (notes->n ? notes->n : 1,
+                                        sizeof *entries);
+    if (!entries) return -1;
+    for (size_t i = 0; i < notes->n; i++) {
+        entries[i].mode = 0100644;
+        bgit_hex_to_sha (notes->held[i].blob, entries[i].sha);
+        entries[i].path = strdup (notes->held[i].object);
+        entries[i].flags = (uint16_t) strlen (notes->held[i].object);
+        if (!entries[i].path) {
+            bgit_index_free_entries (entries, notes->n);
+            return -1;
+        }
+    }
+    char tree[41];
+    int rc = bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], entries,
+                              notes->n, tree);
+    bgit_index_free_entries (entries, notes->n);
+    if (rc < 0) return -1;
+
+    char parent[41];
+    int have_parent = bgit_ref_read (&ctx->repo, ref, parent) == 0;
+    char author[1024], committer[1024];
+    if (bgit_ident (&ctx->cfg, 0, author, sizeof author) < 0 ||
+        bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+        return -1;
+    char body[4096];
+    int len = snprintf (body, sizeof body,
+                        "tree %s\n%s%s%sauthor %s\ncommitter %s\n\n%s\n",
+                        tree, have_parent ? "parent " : "",
+                        have_parent ? parent : "", have_parent ? "\n" : "",
+                        author, committer, reason);
+    if (len < 0 || (size_t) len >= sizeof body) return -1;
+    char commit[41];
+    if (bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                           (const unsigned char *) body, (size_t) len, 1,
+                           commit) < 0)
+        return -1;
+    /* The reflog entry says what kind of change it was, with git's prefix. */
+    char logged[256];
+    snprintf (logged, sizeof logged, "notes: %s", reason);
+    return bgit_ref_update (&ctx->repo, ref, commit,
+                            have_parent ? parent : "", logged);
+}
+
+/* The text of a note, as `git notes show` prints it and `%N` gives it. */
+static int
+git_note_text (git_context *ctx, const char *ref, const char *object,
+               char **out, size_t *len)
+{
+    *out = NULL;
+    *len = 0;
+    struct git_notes notes;
+    if (git_notes_read (ctx, ref, &notes) < 0) return -1;
+    const char *blob = git_notes_find (&notes, object);
+    int rc = -1;
+    if (blob) {
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t n = 0;
+        if (bgit_odb_read (&ctx->odb, blob, &type, &data, &n) == 0 &&
+            type == BGIT_BLOB) {
+            *out = (char *) data;
+            *len = n;
+            rc = 0;
+        } else free (data);
+    }
+    free (notes.held);
+    return rc;
+}
+
+/* Which notes ref is in play: --ref, then GIT_NOTES_REF, then the
+   configured core.notesRef, then refs/notes/commits. A short name is
+   taken to be under refs/notes/. */
+static void
+git_notes_ref (git_context *ctx, const char *named, char *out, size_t outsz)
+{
+    char held[512];
+    const char *value = named;
+    if (!value) value = bgit_env ("GIT_NOTES_REF", held, sizeof held);
+    if (!value) value = bgit_config_get (&ctx->cfg, "core.notesref");
+    if (!value || !*value) value = GIT_NOTES_REF;
+    if (!strncmp (value, "refs/", 5)) snprintf (out, outsz, "%s", value);
+    else snprintf (out, outsz, "refs/notes/%s", value);
+}
+
+/* The text a -m or -F gave, joined the way git joins several of them. */
+struct git_note_message {
+    char *text;
+    size_t len, cap;
+};
+
+static int
+git_note_message_add (struct git_note_message *message, const char *text,
+                      size_t len)
+{
+    size_t want = message->len + len + 2;
+    if (want > message->cap) {
+        size_t next = message->cap ? message->cap : 256;
+        while (next < want) next *= 2;
+        char *grown = realloc (message->text, next);
+        if (!grown) return -1;
+        message->text = grown;
+        message->cap = next;
+    }
+    if (message->len) message->text[message->len++] = '\n';
+    memcpy (message->text + message->len, text, len);
+    message->len += len;
+    if (!message->len || message->text[message->len - 1] != '\n')
+        message->text[message->len++] = '\n';
+    message->text[message->len] = '\0';
+    return 0;
+}
+
+static int
+git_cmd_notes (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage =
+        "git notes [--ref <ref>] (list [<object>] | add [-f] [-m <msg>] "
+        "[-F <file>] [<object>] | append [-m <msg>] [<object>] | "
+        "copy [-f] <from> <to> | show [<object>] | remove [<object>...] | "
+        "prune [-n] | get-ref)";
+    const char *named_ref = NULL, *verb = NULL;
+    const char *objects[64];
+    size_t n_objects = 0;
+    int force = 0, dry_run = 0, ignore_missing = 0;
+    struct git_note_message message = { NULL, 0, 0 };
+    int have_message = 0;
+    int status = 0;
+
+    for (WORD_LIST *p = args; p && !status; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--ref") && p->next) { named_ref = p->next->word->word; p = p->next; }
+        else if (!strncmp (w, "--ref=", 6)) named_ref = w + 6;
+        else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "-n") || !strcmp (w, "--dry-run")) dry_run = 1;
+        else if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) ;
+        else if (!strcmp (w, "--ignore-missing")) ignore_missing = 1;
+        else if ((!strcmp (w, "-m") || !strcmp (w, "--message")) && p->next) {
+            p = p->next;
+            have_message = 1;
+            if (git_note_message_add (&message, p->word->word,
+                                      strlen (p->word->word)) < 0)
+                status = GIT_EXIT_FATAL;
+        } else if ((!strcmp (w, "-F") || !strcmp (w, "--file")) && p->next) {
+            p = p->next;
+            unsigned char *text = NULL;
+            size_t len = 0;
+            if (bgit_slurp_file (p->word->word, &text, &len) < 0)
+                status = GIT_EXIT_FATAL;
+            else {
+                have_message = 1;
+                if (git_note_message_add (&message, (const char *) text,
+                                          len) < 0)
+                    status = GIT_EXIT_FATAL;
+                free (text);
+            }
+        } else if (w[0] == '-' && w[1]) { free (message.text); return git_usage (usage); }
+        else if (!verb) verb = w;
+        else if (n_objects < sizeof objects / sizeof objects[0])
+            objects[n_objects++] = w;
+    }
+    if (status) { free (message.text); return status; }
+    if (!verb) verb = "list";
+    if (git_context_open (ctx) != 0) { free (message.text); return GIT_EXIT_FATAL; }
+
+    char ref[512];
+    git_notes_ref (ctx, named_ref, ref, sizeof ref);
+    if (!strcmp (verb, "get-ref")) {
+        free (message.text);
+        printf ("%s\n", ref);
+        return 0;
+    }
+
+    struct git_notes notes;
+    if (git_notes_read (ctx, ref, &notes) < 0) {
+        free (message.text);
+        return GIT_EXIT_FATAL;
+    }
+
+    if (!strcmp (verb, "list") || !strcmp (verb, "show")) {
+        int rc = 0;
+        if (!n_objects && !strcmp (verb, "list")) {
+            qsort (notes.held, notes.n, sizeof *notes.held, git_notes_order);
+            for (size_t i = 0; i < notes.n; i++)
+                printf ("%s %s\n", notes.held[i].blob, notes.held[i].object);
+        } else {
+            const char *name = n_objects ? objects[0] : "HEAD";
+            char id[41];
+            if (git_resolve (ctx, name, id, NULL) < 0)
+                rc = git_fatal ("Failed to resolve '%s' as a valid ref.", name);
+            else {
+                const char *blob = git_notes_find (&notes, id);
+                if (!blob) {
+                    fflush (stdout);
+                    fprintf (stderr, "error: no note found for object %s.\n", id);
+                    rc = 1;
+                } else if (!strcmp (verb, "list")) printf ("%s\n", blob);
+                else {
+                    enum bgit_type type;
+                    unsigned char *data = NULL;
+                    size_t len = 0;
+                    if (bgit_odb_read (&ctx->odb, blob, &type, &data, &len) < 0)
+                        rc = GIT_EXIT_FATAL;
+                    else {
+                        fwrite (data, 1, len, stdout);
+                        free (data);
+                    }
+                }
+            }
+        }
+        free (notes.held);
+        free (message.text);
+        return rc;
+    }
+
+    if (!strcmp (verb, "prune")) {
+        struct git_notes kept;
+        memset (&kept, 0, sizeof kept);
+        int changed = 0, rc = 0;
+        for (size_t i = 0; i < notes.n; i++) {
+            if (bgit_odb_has (&ctx->odb, notes.held[i].object)) {
+                if (git_notes_add_held (&kept, notes.held[i].object,
+                                        notes.held[i].blob) < 0)
+                    rc = GIT_EXIT_FATAL;
+                continue;
+            }
+            changed = 1;
+            if (dry_run) printf ("%s\n", notes.held[i].object);
+        }
+        if (!rc && changed && !dry_run &&
+            git_notes_commit (ctx, ref, &kept,
+                              "Notes removed by 'git notes prune'") < 0)
+            rc = GIT_EXIT_FATAL;
+        free (kept.held);
+        free (notes.held);
+        free (message.text);
+        return rc;
+    }
+
+    /* The rest change a note, so they need the object it is about. */
+    int rc = 0;
+    if (!strcmp (verb, "add") || !strcmp (verb, "append") ||
+        !strcmp (verb, "edit")) {
+        const char *name = n_objects ? objects[0] : "HEAD";
+        char id[41];
+        if (git_resolve (ctx, name, id, NULL) < 0)
+            rc = git_fatal ("Failed to resolve '%s' as a valid ref.", name);
+        else if (!have_message)
+            rc = git_fatal ("this build's git notes needs -m or -F; it does "
+                            "not open an editor");
+        else {
+            const char *existing = git_notes_find (&notes, id);
+            if (existing && !strcmp (verb, "add") && !force) {
+                fflush (stdout);
+                fprintf (stderr,
+                         "error: Cannot add notes. Found existing notes for "
+                         "object %s. Use '-f' to overwrite existing notes\n",
+                         id);
+                rc = 1;
+            } else {
+                if (existing && strcmp (verb, "append")) {
+                    fflush (stdout);
+                    fprintf (stderr,
+                             "Overwriting existing notes for object %s\n", id);
+                }
+                char *text = NULL;
+                size_t len = 0;
+                if (existing && !strcmp (verb, "append")) {
+                    enum bgit_type type;
+                    unsigned char *data = NULL;
+                    size_t n = 0;
+                    if (bgit_odb_read (&ctx->odb, existing, &type, &data,
+                                       &n) == 0) {
+                        /* git puts a blank line between what was there and
+                           what is being added. */
+                        len = n + 1 + message.len;
+                        text = malloc (len + 1);
+                        if (text) {
+                            memcpy (text, data, n);
+                            text[n] = '\n';
+                            memcpy (text + n + 1, message.text, message.len);
+                            text[len] = '\0';
+                        }
+                        free (data);
+                    }
+                }
+                if (!text) {
+                    len = message.len;
+                    text = malloc (len + 1);
+                    if (text) memcpy (text, message.text, len + 1);
+                }
+                char blob[41];
+                if (!text ||
+                    bgit_write_object (ctx->odb.object_dirs[0], "blob",
+                                       (const unsigned char *) text, len, 1,
+                                       blob) < 0)
+                    rc = GIT_EXIT_FATAL;
+                else {
+                    for (size_t i = 0; i < notes.n; i++)
+                        if (!strcmp (notes.held[i].object, id))
+                            memcpy (notes.held[i].blob, blob, 41);
+                    if (!existing && git_notes_add_held (&notes, id, blob) < 0)
+                        rc = GIT_EXIT_FATAL;
+                    char reason[128];
+                    snprintf (reason, sizeof reason, "Notes added by 'git notes %s'",
+                              verb);
+                    if (!rc && git_notes_commit (ctx, ref, &notes, reason) < 0)
+                        rc = GIT_EXIT_FATAL;
+                }
+                free (text);
+            }
+        }
+    } else if (!strcmp (verb, "copy")) {
+        if (n_objects < 2) rc = git_usage (usage);
+        else {
+            char from[41], to[41];
+            if (git_resolve (ctx, objects[0], from, NULL) < 0)
+                rc = git_fatal ("Failed to resolve '%s' as a valid ref.",
+                                objects[0]);
+            else if (git_resolve (ctx, objects[1], to, NULL) < 0)
+                rc = git_fatal ("Failed to resolve '%s' as a valid ref.",
+                                objects[1]);
+            else {
+                const char *source = git_notes_find (&notes, from);
+                const char *existing = git_notes_find (&notes, to);
+                if (!source) {
+                    fflush (stdout);
+                    fprintf (stderr, "error: missing notes on source object "
+                                     "%s. Cannot copy.\n", from);
+                    rc = 1;
+                } else if (existing && !force) {
+                    fflush (stdout);
+                    fprintf (stderr,
+                             "error: Cannot copy notes. Found existing notes "
+                             "for object %s. Use '-f' to overwrite existing "
+                             "notes\n", to);
+                    rc = 1;
+                } else {
+                    if (existing) {
+                        fflush (stdout);
+                        fprintf (stderr,
+                                 "Overwriting existing notes for object %s\n",
+                                 to);
+                    }
+                    char blob[41];
+                    memcpy (blob, source, 41);
+                    for (size_t i = 0; i < notes.n; i++)
+                        if (!strcmp (notes.held[i].object, to))
+                            memcpy (notes.held[i].blob, blob, 41);
+                    if (!existing && git_notes_add_held (&notes, to, blob) < 0)
+                        rc = GIT_EXIT_FATAL;
+                    if (!rc &&
+                        git_notes_commit (ctx, ref, &notes,
+                                          "Notes added by 'git notes copy'") < 0)
+                        rc = GIT_EXIT_FATAL;
+                }
+            }
+        }
+    } else if (!strcmp (verb, "remove")) {
+        if (!n_objects) { objects[0] = "HEAD"; n_objects = 1; }
+        int changed = 0;
+        for (size_t k = 0; k < n_objects && !rc; k++) {
+            char id[41];
+            if (git_resolve (ctx, objects[k], id, NULL) < 0) {
+                if (ignore_missing) continue;
+                rc = git_fatal ("Failed to resolve '%s' as a valid ref.",
+                                objects[k]);
+                break;
+            }
+            size_t at = notes.n;
+            for (size_t i = 0; i < notes.n; i++)
+                if (!strcmp (notes.held[i].object, id)) { at = i; break; }
+            if (at == notes.n) {
+                fflush (stdout);
+                if (ignore_missing) {
+                    fprintf (stderr, "Object %s has no note\n", objects[k]);
+                    continue;
+                }
+                fprintf (stderr, "error: no note found for object %s.\n", id);
+                rc = 1;
+                break;
+            }
+            fflush (stdout);
+            fprintf (stderr, "Removing note for object %s\n", objects[k]);
+            memmove (&notes.held[at], &notes.held[at + 1],
+                     (notes.n - at - 1) * sizeof *notes.held);
+            notes.n--;
+            changed = 1;
+        }
+        if (!rc && changed &&
+            git_notes_commit (ctx, ref, &notes,
+                              "Notes removed by 'git notes remove'") < 0)
+            rc = GIT_EXIT_FATAL;
+    } else {
+        rc = git_usage (usage);
+    }
+    free (notes.held);
+    free (message.text);
+    return rc;
 }
 
 /* ---- prune -------------------------------------------------------------- */
@@ -21407,6 +21974,7 @@ static const struct {
     { "merge-base",   git_cmd_merge_base },
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
+    { "notes",        git_cmd_notes },
     { "pack-objects", git_cmd_pack_objects },
     { "prune",        git_cmd_prune },
     { "pull",         git_cmd_pull },
