@@ -1,0 +1,124 @@
+--- examples/loadables/chmod.c
++++ examples/loadables/chmod.c
+@@ -44,6 +44,103 @@
+ 
+ extern int parse_symbolic_mode (char *, mode_t);
+ 
++/* POSIX: a clause that names nobody — `+x` rather than `u+x` — acts on
++   everybody, except that the bits the file mode creation mask holds back
++   are left alone. bash's parser has no umask of its own, so each clause is
++   taken on its own and what it would change is filtered here. */
++static int
++parse_mode_with_umask (char *mode, mode_t initial)
++{
++  mode_t mask, bits;
++  char *copy, *clause, *next;
++
++  mask = umask (0);
++  umask (mask);
++  bits = initial;
++  copy = savestring (mode);
++  for (clause = copy; clause; clause = next)
++    {
++      int named, after;
++      char *p;
++
++      next = strchr (clause, ',');
++      if (next)
++	*next++ = '\0';
++      p = clause;
++      named = 0;
++      while (*p == 'u' || *p == 'g' || *p == 'o' || *p == 'a')
++	{
++	  named = 1;
++	  p++;
++	}
++      after = parse_symbolic_mode (clause, bits);
++      if (after < 0)
++	{
++	  free (copy);
++	  return (-1);
++	}
++      if (named == 0)
++	{
++	  mode_t changed = ((mode_t) after) ^ bits;
++	  after = (int) (bits ^ (changed & ~mask));
++	}
++      bits = (mode_t) after;
++
++      /* The bits above the nine are the parser's blind spot: it masks a
++	 clause's permissions with the classes named, and s and t belong to
++	 no class. They are set here instead, and the mask has no say over
++	 them, which is what chmod does. */
++      {
++	mode_t special = 0;
++	int has_u, has_g, op_at;
++	char *action;
++
++	has_u = has_g = 0;
++	for (action = clause; *action == 'u' || *action == 'g' ||
++	     *action == 'o' || *action == 'a'; action++)
++	  {
++	    if (*action == 'u' || *action == 'a')
++	      has_u = 1;
++	    if (*action == 'g' || *action == 'a')
++	      has_g = 1;
++	  }
++	if (named == 0)
++	  has_u = has_g = 1;
++	op_at = *action;
++	for (action++; *action; action++)
++	  {
++	    if (*action == 's')
++	      {
++		if (has_u)
++		  special |= S_ISUID;
++		if (has_g)
++		  special |= S_ISGID;
++	      }
++	    else if (*action == 't')
++	      special |= S_ISVTX;
++	  }
++	if (special)
++	  {
++	    if (op_at == '-')
++	      bits &= ~special;
++	    else
++	      bits |= special;
++	  }
++	if (op_at == '=' && (has_u || has_g))
++	  {
++	    mode_t clear = 0;
++	    if (has_u)
++	      clear |= S_ISUID;
++	    if (has_g)
++	      clear |= S_ISGID;
++	    bits &= ~(clear & ~special);
++	  }
++      }
++    }
++  free (copy);
++  return ((int) bits);
++}
++
+ #define STANDARD_BITS	(S_IRWXU | S_IRWXG | S_IRWXO)
+ #define ALLBITS (STANDARD_BITS | S_ISUID| S_ISGID | S_ISVTX)
+ 
+@@ -94,7 +191,7 @@
+   else 				/* test for valid symbolic mode */
+     {
+       /* initial bits are a=rwx; the mode argument modifies them */
+-      lmode = parse_symbolic_mode (mode, ALLBITS);
++      lmode = parse_mode_with_umask (mode, ALLBITS);
+       if (lmode < 0)
+ 	{
+ 	  builtin_error ("invalid file mode: %s", mode);
+@@ -114,7 +211,7 @@
+ 
+       if (lmode == -1)
+ 	{
+-	  lmode = parse_symbolic_mode (mode, st.st_mode & ALLBITS);
++	  lmode = parse_mode_with_umask (mode, st.st_mode & ALLBITS);
+ 	  if (lmode < 0)
+ 	    {
+ 	      builtin_error ("`%s': invalid file mode: %s", l->word->word, mode);
