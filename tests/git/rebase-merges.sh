@@ -5,7 +5,7 @@
 # and what running it leaves behind — including a merge that conflicts, is
 # settled by hand, and taken up again.
 # Run through tests/git-parity.py, never on its own.
-# requires: init add commit merge rebase log status rev-parse checkout branch
+# requires: init add commit merge rebase log status rev-parse checkout branch config
 set -e
 
 printf '%s\n' '#!/bin/sh' \
@@ -13,7 +13,25 @@ printf '%s\n' '#!/bin/sh' \
   > show-todo
 chmod 755 show-todo
 
+# git's own spelling of a todo line changed between versions — 2.47 writes
+# "pick <id> <subject>" and 2.55 writes "pick <id> # <subject>" — so the
+# lists quoted here have that one difference levelled out, in this one
+# place, and everything else about them is compared exactly.
+todo() {
+  sed -e 's/^\(pick [0-9a-f][0-9a-f]*\) # /\1 /' \
+      -e 's/^\(#    pick [0-9a-f][0-9a-f]*\) # /\1 /' "$1"
+}
+
 git init -q -b main .
+# The dates here are pinned, and so in the past. A repository this busy is
+# enough for git to decide it is time to tidy up, and a tidy-up takes
+# every reflog entry older than ninety days with it — which is all of
+# them — leaving the two sides with different histories of themselves. So
+# this repository is told to leave that alone.
+git config gc.auto 0
+git config gc.reflogExpire never
+git config gc.reflogExpireUnreachable never
+git config maintenance.auto false
 commit() { printf '%s\n' "$2" > "$1"; git add "$1"; git commit -q -m "$3"; }
 
 commit b1.txt one 'base one'
@@ -32,7 +50,7 @@ git checkout -q main
 
 echo '=== the list it writes ==='
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r newbase
-cat shown
+todo shown
 
 echo '=== and what it left ==='
 git log --format='%s'
@@ -60,7 +78,7 @@ git checkout -q farther
 commit f1.txt 'farther along' 'farther along'
 git checkout -q trunk
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r farther
-cat shown
+todo shown
 git log --format='%s'
 git log --format='%s' HEAD^2
 git log --format='%p %s' -1
@@ -76,14 +94,14 @@ git checkout -q cousin-base
 commit c3.txt 'cousin base' 'cousin base'
 git checkout -q cousin-main
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r cousin-base || echo "rebase said no: $?"
-cat shown
+todo shown
 git log --format='%s'
 
 echo '=== and the same, told to move the cousins too ==='
 git reset -q --hard cousin-main@{1} 2>/dev/null || true
 git log --format='%s' -1
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i --rebase-merges=rebase-cousins cousin-base || echo "rebase said no: $?"
-cat shown
+todo shown
 git log --format='%s'
 git status --short
 
@@ -101,7 +119,7 @@ git checkout -q deep-base
 commit d5.txt 'moved' 'the deep base moved'
 git checkout -q deep
 GIT_SEQUENCE_EDITOR=./show-todo git rebase -i -r deep-base
-cat shown
+todo shown
 git log --format='%s'
 git log --format='%s' HEAD~1^2
 git log --format='%p %s' -1
@@ -150,7 +168,7 @@ git rebase --continue
 git log --format='%s'
 git log --format='%p %s' -1
 git status --short
-cat editor-saw
+todo editor-saw
 
 echo '=== and one that is called off ==='
 git reset -q --hard tangle@{1}
