@@ -277,6 +277,13 @@ its type and size, and with `--batch` it prints each one's contents after
 that. `--unordered` is accepted and changes nothing, since the listing is
 in order either way.
 
+What a head is, `fsck` takes from git: the refs, HEAD, the index, and the
+reflogs. Two of the index's extensions count as well — the sides of a
+conflict that was resolved, and the trees it has already worked out for
+what it holds — so a repository shared with real git is read the way git
+reads it. This build's own index does not write either extension, so an
+object held only by one of them can appear here where git left it.
+
 Two things about `fsck` are not git's. The order is one: git lists
 unreachable objects in the order of its own object table, which is not
 reproduced here, so a comparison has to sort. The other is how much of an

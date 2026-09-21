@@ -9563,13 +9563,19 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
             bgit_index_free_entries (entries, n_entries);
         }
         /* The sides of a conflict that was resolved are held too, so that
-           `git checkout -m` can bring them back. */
-        char (*undo)[41] = NULL;
-        size_t n_undo = 0;
-        if (bgit_index_resolve_undo (index_path, &undo, &n_undo) == 0) {
-            for (size_t i = 0; i < n_undo; i++)
-                git_fsck_push (&fsck, &walk, undo[i]);
-            free (undo);
+           `git checkout -m` can bring them back, and so are the trees the
+           index has already worked out for what it holds. */
+        char (*held)[41] = NULL;
+        size_t n_held = 0;
+        if (bgit_index_resolve_undo (index_path, &held, &n_held) == 0) {
+            for (size_t i = 0; i < n_held; i++)
+                git_fsck_push (&fsck, &walk, held[i]);
+            free (held);
+        }
+        if (bgit_index_cache_tree (index_path, &held, &n_held) == 0) {
+            for (size_t i = 0; i < n_held; i++)
+                git_fsck_push (&fsck, &walk, held[i]);
+            free (held);
         }
     }
 

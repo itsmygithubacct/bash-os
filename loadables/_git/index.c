@@ -599,14 +599,12 @@ bgit_index_info_line_to_entry (char *line, bgit_index_entry *out,
 
 /* ---- resolve-undo ------------------------------------------------------- */
 
-/* The extension holds, for each path whose conflict was resolved, the three
-   stage modes as octal text and one object id for every mode that is not
-   zero. Nothing else here reads it; fsck counts those ids as held. */
-int
-bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n_out)
+/* Where an index's extensions begin, which is after its entries. The file
+   is returned mapped; the caller frees it. Silent. */
+static int
+bgit_index_after_entries (const char *path, unsigned char **buf_out,
+                          size_t *flen_out, size_t *off_out)
 {
-    *out = NULL;
-    *n_out = 0;
     size_t flen;
     unsigned char *buf = bgit_index_slurp (path, &flen);
     if (!buf) return -1;
@@ -639,6 +637,36 @@ bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n_out)
         if (pad > flen - 20 - off) { free (buf); return -1; }
         off += pad;
     }
+    *buf_out = buf;
+    *flen_out = flen;
+    *off_out = off;
+    return 0;
+}
+
+/* Room for one more id in a growing list. Returns 0, or -1. */
+static int
+bgit_index_ids_room (char (**ids)[41], size_t n, size_t *cap)
+{
+    if (n < *cap) return 0;
+    size_t next = *cap ? *cap * 2 : 16;
+    char (*grown)[41] = realloc (*ids, next * sizeof *grown);
+    if (!grown) return -1;
+    *ids = grown;
+    *cap = next;
+    return 0;
+}
+
+/* The extension holds, for each path whose conflict was resolved, the three
+   stage modes as octal text and one object id for every mode that is not
+   zero. Nothing else here reads it; fsck counts those ids as held. */
+int
+bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    unsigned char *buf = NULL;
+    size_t flen = 0, off = 0;
+    if (bgit_index_after_entries (path, &buf, &flen, &off) < 0) return -1;
 
     char (*ids)[41] = NULL;
     size_t n = 0, cap = 0;
@@ -665,18 +693,74 @@ bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n_out)
                 for (int stage = 0; stage < 3; stage++) {
                     if (!set[stage]) continue;
                     if (at + 20 > size) { ok = 0; break; }
-                    if (n == cap) {
-                        size_t next = cap ? cap * 2 : 16;
-                        char (*grown)[41] = realloc (ids, next * sizeof *grown);
-                        if (!grown) { free (ids); free (buf); return -1; }
-                        ids = grown;
-                        cap = next;
+                    if (bgit_index_ids_room (&ids, n, &cap) < 0) {
+                        free (ids);
+                        free (buf);
+                        return -1;
                     }
                     bgit_sha_to_hex (body + at, ids[n]);
                     n++;
                     at += 20;
                 }
                 if (!ok) break;
+            }
+        }
+        off += 8 + size;
+    }
+    free (buf);
+    *out = ids;
+    *n_out = n;
+    return 0;
+}
+
+/* The trees an index has already worked out for the paths it holds (its
+   cache-tree extension), which git counts as held even before a commit
+   names them. An entry is
+       <name>\0<entries> <subtrees>\n[<20-byte id>]
+   laid out from the top down; a negative entry count means the tree is not
+   worked out yet and no id follows. */
+int
+bgit_index_cache_tree (const char *path, char (**out)[41], size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    unsigned char *buf = NULL;
+    size_t flen = 0, off = 0;
+    if (bgit_index_after_entries (path, &buf, &flen, &off) < 0) return -1;
+
+    char (*ids)[41] = NULL;
+    size_t n = 0, cap = 0;
+    while (off + 8 <= flen - 20) {
+        uint32_t size = bgit_be32 (buf, off + 4);
+        const unsigned char *body = buf + off + 8;
+        if (size > flen - 20 - off - 8) break;
+        if (memcmp (buf + off, "TREE", 4) == 0) {
+            size_t at = 0;
+            while (at < size) {
+                const unsigned char *end = memchr (body + at, 0, size - at);
+                if (!end) break;
+                at = (size_t) (end - body) + 1;
+                /* "<entries> <subtrees>\n" */
+                const unsigned char *line =
+                    at < size ? memchr (body + at, '\n', size - at) : NULL;
+                if (!line) break;
+                char counts[64];
+                size_t line_len = (size_t) (line - (body + at));
+                if (line_len >= sizeof counts) break;
+                memcpy (counts, body + at, line_len);
+                counts[line_len] = '\0';
+                at = (size_t) (line - body) + 1;
+                long entries = strtol (counts, NULL, 10);
+                if (entries < 0) continue;      /* not worked out yet */
+                if (at + 20 > size) break;
+                if (bgit_index_ids_room (&ids, n, &cap) < 0) {
+                    free (ids);
+                    free (buf);
+                    return -1;
+                }
+                bgit_sha_to_hex (body + at, ids[n]);
+                n++;
+                at += 20;
             }
         }
         off += 8 + size;

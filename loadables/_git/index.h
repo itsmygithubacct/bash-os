@@ -108,6 +108,12 @@ int bgit_index_info_line_to_entry (char *line, bgit_index_entry *out,
    *out. Returns 0, or -1. Silent. */
 int bgit_index_resolve_undo (const char *path, char (**out)[41], size_t *n);
 
+/* The trees an index has already worked out for the paths it holds, in its
+   cache-tree extension, as 40 hex digits plus NUL. git counts those as held
+   before any commit names them. Caller frees *out. Returns 0, or -1.
+   Silent. */
+int bgit_index_cache_tree (const char *path, char (**out)[41], size_t *n);
+
 void bgit_index_cache_release (void);
 
 #endif /* BASH_OS_GIT_INDEX_H */
