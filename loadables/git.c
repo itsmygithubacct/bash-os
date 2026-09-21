@@ -5188,8 +5188,10 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
     }
     if (diff && git_diff_wanted (diff)) {
         /* The long format keeps a blank line between message and diff; the
-           one-line format runs straight into it. */
-        if (!oneline) fputc ('\n', out);
+           one-line format runs straight into it. With a count and a patch
+           both asked for, git puts a line of dashes there instead. */
+        if (!oneline && diff->patch && diff->stat) fputs ("---\n", out);
+        else if (!oneline) fputc ('\n', out);
         git_commit_diff (ctx, out, commit, diff, paths, n_paths);
     }
 }
@@ -5554,6 +5556,17 @@ git_diff_emit (git_context *ctx, FILE *out,
         if (format->summary)
             bgit_diff_summary (out, entries, n, options.line_prefix);
     }
+    /* git keeps a blank line between what it counted and the patch —
+       when there was something to count, which a summary of a change that
+       creates and removes nothing has not. */
+    int counted_anything = n && (format->stat || format->numstat ||
+                                 format->shortstat);
+    if (n && format->summary && !counted_anything)
+        for (size_t i = 0; i < n && !counted_anything; i++)
+            if (entries[i].status != 'M' ||
+                entries[i].old_mode != entries[i].new_mode)
+                counted_anything = 1;
+    if (patch && counted_anything) fputc ('\n', out);
     if (patch &&
         bgit_patch_write (out, &ctx->odb, &ctx->repo, entries, n, &options) < 0)
         return -1;
@@ -7718,6 +7731,140 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
     free (result_lens);
     git_state_release (&state);
     git_apply_release (files, n);
+    return status;
+}
+
+/* ---- format-patch ------------------------------------------------------ */
+
+/* A subject as a file name: what git keeps of it is letters, digits, dots
+   and underscores, with a single dash for every run of anything else. */
+static void
+git_patch_name (const char *subject, char *out, size_t outsz)
+{
+    size_t at = 0;
+    int gap = 0;
+    for (const char *p = subject; *p && at + 1 < outsz; p++) {
+        unsigned char c = (unsigned char) *p;
+        if (isalnum (c) || c == '.' || c == '_') {
+            if (gap && at + 1 < outsz) out[at++] = '-';
+            gap = 0;
+            if (at + 1 < outsz) out[at++] = (char) c;
+        } else
+            gap = 1;
+    }
+    while (at && out[at - 1] == '.') at--;
+    out[at] = '\0';
+}
+
+static int
+git_cmd_format_patch (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git format-patch [--stdout] [-o <dir>] [-<n>] "
+                        "[--numbered | --no-numbered] [<since> | <range>]";
+    int to_stdout = 0, numbered = -1;
+    const char *directory = NULL;
+    long limit = -1;
+    const char *revs[8], *excludes[8];
+    int n_revs = 0, n_excludes = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--stdout")) to_stdout = 1;
+        else if ((!strcmp (w, "-o") || !strcmp (w, "--output-directory")) &&
+                 p->next)
+            directory = (p = p->next)->word->word;
+        else if (!strncmp (w, "--output-directory=", 19)) directory = w + 19;
+        else if (!strcmp (w, "--numbered") || !strcmp (w, "-n")) numbered = 1;
+        else if (!strcmp (w, "--no-numbered") || !strcmp (w, "-N")) numbered = 0;
+        else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (strstr (w, "..")) {
+            char *range = strdup (w);
+            if (!range) return GIT_EXIT_FATAL;
+            char *dots = strstr (range, "..");
+            *dots = '\0';
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes) ||
+                n_revs >= (int) (sizeof revs / sizeof *revs)) {
+                free (range);
+                return git_fatal ("too many revisions");
+            }
+            excludes[n_excludes++] = *range ? range : "HEAD";
+            revs[n_revs++] = dots[2] ? dots + 2 : "HEAD";
+        }
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) {
+            /* A revision on its own is where to start after, as git reads
+               it here. */
+            if (limit < 0 && n_excludes < (int) (sizeof excludes / sizeof *excludes))
+                excludes[n_excludes++] = w;
+            else revs[n_revs++] = w;
+        }
+        else return git_fatal ("too many revisions");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!n_revs) revs[n_revs++] = "HEAD";
+
+    char (*walk)[41] = NULL;
+    size_t n_walk = 0;
+    if (git_collect_commits (ctx, revs, n_revs, excludes, n_excludes, 0, limit,
+                             &walk, &n_walk) < 0)
+        return git_fatal ("cannot read the history");
+    if (numbered < 0) numbered = n_walk > 1;
+
+    int status = 0;
+    for (size_t i = 0; i < n_walk && !status; i++) {
+        /* Oldest first, which is the other way round from the walk. */
+        struct git_commit commit;
+        if (git_commit_read (ctx, walk[n_walk - 1 - i], &commit) < 0) continue;
+        char subject[4096], date[128];
+        git_subject (&commit, subject, sizeof subject);
+        git_format_date_mode (commit.author_date, GIT_DATE_RFC2822, date,
+                              sizeof date);
+        FILE *out = stdout;
+        char path[4096] = "";
+        /* One stream of mail has a blank line between its messages. */
+        if (to_stdout && i) fputc ('\n', stdout);
+        if (!to_stdout) {
+            char name[512];
+            git_patch_name (subject, name, sizeof name);
+            snprintf (path, sizeof path, "%s%s%04zu-%.52s.patch",
+                      directory ? directory : "", directory ? "/" : "", i + 1,
+                      name);
+            if (directory) mkdir (directory, 0777);
+            out = fopen (path, "w");
+            if (!out) {
+                git_commit_release (&commit);
+                status = git_fatal ("cannot open %s", path);
+                break;
+            }
+        }
+        fprintf (out, "From %s Mon Sep 17 00:00:00 2001\n", commit.id);
+        fprintf (out, "From: %s <%s>\n", commit.author_name,
+                 commit.author_email);
+        fprintf (out, "Date: %s\n", date);
+        if (numbered)
+            fprintf (out, "Subject: [PATCH %zu/%zu] %s\n\n", i + 1, n_walk,
+                     subject);
+        else fprintf (out, "Subject: [PATCH] %s\n\n", subject);
+        const char *body = git_body (&commit);
+        if (*body) {
+            fputs (body, out);
+            if (body[strlen (body) - 1] != '\n') fputc ('\n', out);
+        }
+        fprintf (out, "---\n");
+        struct git_diff_format diff;
+        git_diff_format_init (&diff);
+        diff.stat = 1;
+        diff.summary = 1;
+        diff.patch = 1;
+        git_commit_diff (ctx, out, &commit, &diff, NULL, 0);
+        fprintf (out, "-- \n%s\n\n", GIT_VERSION_STRING + strlen ("git version "));
+        if (out != stdout) {
+            fclose (out);
+            printf ("%s\n", path);
+        }
+        git_commit_release (&commit);
+    }
+    free (walk);
     return status;
 }
 
@@ -18688,6 +18835,7 @@ static const struct {
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "index-pack",   git_cmd_index_pack },
+    { "format-patch", git_cmd_format_patch },
     { "grep",         git_cmd_grep },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },

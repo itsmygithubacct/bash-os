@@ -154,6 +154,10 @@ git log --oneline -S line -- long.txt
 git log --oneline -G 'line [0-9]'
 git log --oneline -i --pickaxe-regex -S 'LINE [0-9]+'
 git log --oneline -S nothingatall
+git format-patch --stdout -2 > /dev/null
+git format-patch --stdout -1 > /dev/null
+git format-patch -o mail -1 > /dev/null
+rm -rf mail
 # A patch, read back and applied.
 git diff HEAD~1 HEAD > round.diff 2>/dev/null || git diff HEAD > round.diff
 git apply --stat round.diff > /dev/null || true

@@ -39,6 +39,8 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
+                 [<since> | <range>]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -218,6 +220,15 @@ follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
 the tag says beside it — the annotation for an annotated tag, and the
 commit's own message for a light one — a line at a time, the first beside
 the name and the rest indented.
+
+`git format-patch` writes each commit out as mail, the way a patch is
+sent: the magic `From <id> Mon Sep 17 00:00:00 2001` line, who wrote it
+and when, the subject numbered `[PATCH n/m]`, the body, then `---`, the
+stat, the summary and the patch, and a trailer naming what made it. That
+last line is this build's own version rather than git's, which is the one
+thing about the output that is deliberately not the same. Without
+`--stdout` each patch is a file named for its subject, and `-o` says
+where to put them.
 
 `git apply` takes a patch back the way it came: the hunks are matched
 against the files, moving up or down where a line has shifted, and a hunk
