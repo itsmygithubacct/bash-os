@@ -291,9 +291,10 @@ bgit_config_load (bgit_config *cfg, const bgit_repo *repo,
     char path[4096];
     if (bgit_config_global_file (path, sizeof path) == 0)
         bgit_config_read_file (cfg, path, 1);
-    const char *xdg = getenv ("XDG_CONFIG_HOME");
-    const char *home = getenv ("HOME");
-    if (!getenv ("GIT_CONFIG_GLOBAL")) {
+    char held_xdg[4096], held_home[4096], held_global[4096];
+    const char *xdg = bgit_env ("XDG_CONFIG_HOME", held_xdg, sizeof held_xdg);
+    const char *home = bgit_env ("HOME", held_home, sizeof held_home);
+    if (!bgit_env ("GIT_CONFIG_GLOBAL", held_global, sizeof held_global)) {
         if (xdg && *xdg) {
             snprintf (path, sizeof path, "%s/git/config", xdg);
             bgit_config_read_file (cfg, path, 1);
@@ -638,11 +639,18 @@ bgit_config_unset_file (const char *path, const char *key)
 int
 bgit_ident (const bgit_config *cfg, int committer, char *out, size_t outsz)
 {
-    const char *name = getenv (committer ? "GIT_COMMITTER_NAME" : "GIT_AUTHOR_NAME");
-    const char *email = getenv (committer ? "GIT_COMMITTER_EMAIL" : "GIT_AUTHOR_EMAIL");
-    const char *date = getenv (committer ? "GIT_COMMITTER_DATE" : "GIT_AUTHOR_DATE");
-    if ((!name || !*name) && cfg) name = bgit_config_get (cfg, "user.name");
-    if ((!email || !*email) && cfg) email = bgit_config_get (cfg, "user.email");
+    char held_name[512], held_email[512], held_date[64];
+    const char *name = bgit_env (committer ? "GIT_COMMITTER_NAME"
+                                           : "GIT_AUTHOR_NAME",
+                                 held_name, sizeof held_name);
+    const char *email = bgit_env (committer ? "GIT_COMMITTER_EMAIL"
+                                            : "GIT_AUTHOR_EMAIL",
+                                  held_email, sizeof held_email);
+    const char *date = bgit_env (committer ? "GIT_COMMITTER_DATE"
+                                           : "GIT_AUTHOR_DATE",
+                                 held_date, sizeof held_date);
+    if (!name && cfg) name = bgit_config_get (cfg, "user.name");
+    if (!email && cfg) email = bgit_config_get (cfg, "user.email");
     if (!name || !*name) name = "bash-os";
     if (!email || !*email) email = "bash-os@localhost";
 

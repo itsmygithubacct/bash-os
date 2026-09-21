@@ -39,6 +39,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <fnmatch.h>
+#include <regex.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -1732,6 +1733,196 @@ git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
+/* ---- which commits a log shows ----------------------------------------- */
+
+/* git's filters over the commit itself: who wrote it, what it says, how
+   many parents it has and when it was made. */
+struct git_log_filter {
+    const char *patterns[16];    /* --grep */
+    const char *authors[8];
+    const char *committers[8];
+    int n_patterns, n_authors, n_committers;
+    int extended;                /* -E: the wider regular expressions */
+    int fixed;                   /* -F: the pattern stands for itself */
+    int ignore_case;
+    int invert;                  /* --invert-grep, over the message alone */
+    int all_match;               /* every --grep, not any of them */
+    int min_parents, max_parents;
+    long long since, until;      /* seconds, or -1 */
+};
+
+static void
+git_log_filter_init (struct git_log_filter *filter)
+{
+    memset (filter, 0, sizeof *filter);
+    filter->min_parents = filter->max_parents = -1;
+    filter->since = filter->until = -1;
+}
+
+static int
+git_log_filtering (const struct git_log_filter *filter)
+{
+    return filter->n_patterns || filter->n_authors || filter->n_committers ||
+           filter->min_parents >= 0 || filter->max_parents >= 0 ||
+           filter->since >= 0 || filter->until >= 0;
+}
+
+/* One pattern against one piece of text, the way git reads the pattern:
+   a basic regular expression unless -E or -F says otherwise, over each
+   line of the text on its own. */
+static int
+git_log_matches (const struct git_log_filter *filter, const char *pattern,
+                 const char *text)
+{
+    if (filter->fixed) {
+        if (!filter->ignore_case) return strstr (text, pattern) != NULL;
+        for (const char *at = text; *at; at++) {
+            size_t i = 0;
+            while (pattern[i] &&
+                   tolower ((unsigned char) at[i]) ==
+                   tolower ((unsigned char) pattern[i]))
+                i++;
+            if (!pattern[i]) return 1;
+        }
+        return 0;
+    }
+    regex_t compiled;
+    int flags = REG_NOSUB | REG_NEWLINE;
+    if (filter->extended) flags |= REG_EXTENDED;
+    if (filter->ignore_case) flags |= REG_ICASE;
+    if (regcomp (&compiled, pattern, flags) != 0) return 0;
+    int hit = regexec (&compiled, text, 0, NULL, 0) == 0;
+    regfree (&compiled);
+    return hit;
+}
+
+/* "<seconds> <zone>" as a number of seconds. */
+static long long
+git_date_seconds (const char *raw)
+{
+    return strtoll (raw ? raw : "0", NULL, 10);
+}
+
+/* A --since or --until as git reads one: the forms that name a moment
+   outright, and the common relative ones. Anything else is taken for the
+   present moment, which is what git's own reading of a date it cannot
+   place comes to. */
+static long long
+git_approxidate (const char *text)
+{
+    long long now = (long long) time (NULL);
+    while (*text == ' ') text++;
+    if (*text == '@') return strtoll (text + 1, NULL, 10);
+    if (!strcmp (text, "now")) return now;
+    if (!strcmp (text, "yesterday")) return now - 86400;
+    int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+    char rest[64] = "";
+    int read = sscanf (text, "%d-%d-%d%63s", &year, &month, &day, rest);
+    if (read >= 3 && year > 1900) {
+        const char *at = rest;
+        if (*at == 'T' || *at == ' ') at++;
+        /* git fills in what the date does not say from the present
+           moment, so a bare day means that day at this time of it. */
+        struct tm tm;
+        time_t this_moment = (time_t) now;
+        tzset ();
+        if (!localtime_r (&this_moment, &tm)) memset (&tm, 0, sizeof tm);
+        tm.tm_year = year - 1900;
+        tm.tm_mon = month - 1;
+        tm.tm_mday = day;
+        if (sscanf (at, "%d:%d:%d", &hour, &minute, &second) >= 2) {
+            tm.tm_hour = hour;
+            tm.tm_min = minute;
+            tm.tm_sec = second;
+        }
+        tm.tm_isdst = -1;
+        const char *zone = strpbrk (at, "Z+");
+        if (!zone && at[0] && strchr (at + 1, '-')) zone = strchr (at + 1, '-');
+        if (zone) {
+            /* A zone of its own: read the time as UTC and shift it. */
+            long long stamp = (long long) timegm (&tm);
+            if (*zone != 'Z') {
+                int zh = 0, zm = 0;
+                sscanf (zone + 1, "%2d%*[:]%2d", &zh, &zm);
+                long long off = zh * 3600 + zm * 60;
+                stamp += *zone == '-' ? off : -off;
+            }
+            return stamp;
+        }
+        tzset ();
+        return (long long) mktime (&tm);
+    }
+    /* "<n> <unit> ago", written with spaces or with dots. */
+    char held[256];
+    snprintf (held, sizeof held, "%s", text);
+    for (char *at = held; *at; at++) if (*at == '.') *at = ' ';
+    long long count = 0;
+    char unit[32] = "";
+    if (sscanf (held, "%lld %31s", &count, unit) == 2) {
+        size_t len = strlen (unit);
+        if (len && unit[len - 1] == 's') unit[--len] = '\0';
+        long long span = 0;
+        if (!strcmp (unit, "second")) span = 1;
+        else if (!strcmp (unit, "minute")) span = 60;
+        else if (!strcmp (unit, "hour")) span = 3600;
+        else if (!strcmp (unit, "day")) span = 86400;
+        else if (!strcmp (unit, "week")) span = 7 * 86400;
+        else if (!strcmp (unit, "month")) span = 30 * 86400;
+        else if (!strcmp (unit, "year")) span = 365 * 86400;
+        if (span) return now - count * span;
+    }
+    return now;
+}
+
+/* The filter options both log and rev-list take. Returns 1 when the word
+   was one of them. */
+static int
+git_log_filter_option (struct git_log_filter *filter, const char *w)
+{
+    if (!strncmp (w, "--grep=", 7)) {
+        if (filter->n_patterns < (int) (sizeof filter->patterns /
+                                        sizeof *filter->patterns))
+            filter->patterns[filter->n_patterns++] = w + 7;
+    }
+    else if (!strncmp (w, "--author=", 9)) {
+        if (filter->n_authors < (int) (sizeof filter->authors /
+                                       sizeof *filter->authors))
+            filter->authors[filter->n_authors++] = w + 9;
+    }
+    else if (!strncmp (w, "--committer=", 12)) {
+        if (filter->n_committers < (int) (sizeof filter->committers /
+                                          sizeof *filter->committers))
+            filter->committers[filter->n_committers++] = w + 12;
+    }
+    else if (!strcmp (w, "-E") || !strcmp (w, "--extended-regexp"))
+        filter->extended = 1;
+    else if (!strcmp (w, "-F") || !strcmp (w, "--fixed-strings"))
+        filter->fixed = 1;
+    else if (!strcmp (w, "-i") || !strcmp (w, "--regexp-ignore-case"))
+        filter->ignore_case = 1;
+    else if (!strcmp (w, "--invert-grep")) filter->invert = 1;
+    else if (!strcmp (w, "--all-match")) filter->all_match = 1;
+    else if (!strcmp (w, "--merges")) filter->min_parents = 2;
+    else if (!strcmp (w, "--no-merges")) filter->max_parents = 1;
+    else if (!strncmp (w, "--min-parents=", 14))
+        filter->min_parents = atoi (w + 14);
+    else if (!strncmp (w, "--max-parents=", 14))
+        filter->max_parents = atoi (w + 14);
+    else if (!strcmp (w, "--no-min-parents")) filter->min_parents = -1;
+    else if (!strcmp (w, "--no-max-parents")) filter->max_parents = -1;
+    else if (!strncmp (w, "--since=", 8) || !strncmp (w, "--after=", 8))
+        filter->since = git_approxidate (w + 8);
+    else if (!strncmp (w, "--until=", 8) || !strncmp (w, "--before=", 9))
+        filter->until = git_approxidate (strchr (w, '=') + 1);
+    else return 0;
+    return 1;
+}
+
+/* Does the commit named by ID pass them? Reading it is what says. */
+static int git_log_keeps_id (git_context *ctx,
+                             const struct git_log_filter *filter,
+                             const char *id);
+
 /* ---- rev-list ---------------------------------------------------------- */
 
 struct git_walk {
@@ -1935,9 +2126,13 @@ static int
 git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git rev-list [--count] [--objects] [--parents] "
-                        "[-n <number> | --max-count=<number>] <commit>... "
-                        "[^<commit>]";
+                        "[-n <number> | --max-count=<number>] "
+                        "[--grep=<pattern>] [--author=<pattern>] "
+                        "[--merges | --no-merges] [--since=<date>] "
+                        "<commit>... [^<commit>]";
     int count_only = 0, with_objects = 0, with_parents = 0;
+    struct git_log_filter filter;
+    git_log_filter_init (&filter);
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     int n_revs = 0, n_excludes = 0;
@@ -1947,6 +2142,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (!strcmp (w, "--count")) count_only = 1;
         else if (!strcmp (w, "--objects")) with_objects = 1;
         else if (!strcmp (w, "--parents")) with_parents = 1;
+        else if (git_log_filter_option (&filter, w)) ;
         else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
@@ -2066,6 +2262,15 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (limit >= 0 && emitted >= limit) break;
         char parents[BGIT_MAX_PARENTS][41];
         int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
+        /* A commit the filters leave out is still walked through. */
+        if (!git_log_keeps_id (ctx, &filter, current)) {
+            for (int i = 0; i < n; i++)
+                if (git_walk_push (ctx, &walk, parents[i]) < 0) {
+                    status = GIT_EXIT_FATAL;
+                    goto done;
+                }
+            continue;
+        }
         if (!count_only) {
             /* With --parents each line carries what the commit came from. */
             printf ("%s", current);
@@ -4100,15 +4305,126 @@ git_format_date (const char *raw, int keep_raw, char *out, size_t outsz)
                           outsz);
 }
 
-/* The subject is the message's first line. */
+/* Is this commit one of the ones asked for? */
+static int
+git_log_keeps (const struct git_log_filter *filter,
+               const struct git_commit *commit)
+{
+    if (filter->min_parents >= 0 && commit->n_parents < filter->min_parents)
+        return 0;
+    if (filter->max_parents >= 0 && commit->n_parents > filter->max_parents)
+        return 0;
+    long long when = git_date_seconds (commit->committer_date);
+    if (filter->since >= 0 && when < filter->since) return 0;
+    if (filter->until >= 0 && when > filter->until) return 0;
+    if (filter->n_authors) {
+        char who[1024];
+        snprintf (who, sizeof who, "%s <%s>", commit->author_name,
+                  commit->author_email);
+        int hit = 0;
+        for (int i = 0; i < filter->n_authors && !hit; i++)
+            hit = git_log_matches (filter, filter->authors[i], who);
+        if (!hit) return 0;
+    }
+    if (filter->n_committers) {
+        char who[1024];
+        snprintf (who, sizeof who, "%s <%s>", commit->committer_name,
+                  commit->committer_email);
+        int hit = 0;
+        for (int i = 0; i < filter->n_committers && !hit; i++)
+            hit = git_log_matches (filter, filter->committers[i], who);
+        if (!hit) return 0;
+    }
+    if (filter->n_patterns) {
+        int hit = filter->all_match;
+        for (int i = 0; i < filter->n_patterns; i++) {
+            int one = git_log_matches (filter, filter->patterns[i],
+                                       commit->message);
+            if (filter->all_match) hit = hit && one;
+            else hit = hit || one;
+        }
+        if (filter->invert) hit = !hit;
+        if (!hit) return 0;
+    }
+    return 1;
+}
+
+/* The same, for a commit that has not been read yet. */
+static int
+git_log_keeps_id (git_context *ctx, const struct git_log_filter *filter,
+                  const char *id)
+{
+    if (!git_log_filtering (filter)) return 1;
+    struct git_commit commit;
+    if (git_commit_read (ctx, id, &commit) < 0) return 1;
+    int keep = git_log_keeps (filter, &commit);
+    git_commit_release (&commit);
+    return keep;
+}
+
+/* How long a line is without the whitespace at its end. */
+static size_t
+git_line_trimmed (const char *line, size_t len)
+{
+    while (len && (line[len - 1] == ' ' || line[len - 1] == '\t' ||
+                   line[len - 1] == '\r'))
+        len--;
+    return len;
+}
+
+/* Where a message's subject begins: git passes over the blank lines at
+   the top. */
+static const char *
+git_message_start (const char *message)
+{
+    for (const char *line = message; *line;) {
+        const char *nl = strchr (line, '\n');
+        size_t len = nl ? (size_t) (nl - line) : strlen (line);
+        if (git_line_trimmed (line, len)) return line;
+        if (!nl) return line + len;
+        line = nl + 1;
+    }
+    return message + strlen (message);
+}
+
+/* The subject is everything down to the first blank line, with the line
+   breaks inside it written as single spaces: git folds one that way. */
 static void
 git_subject (const struct git_commit *commit, char *out, size_t outsz)
 {
-    const char *nl = strchr (commit->message, '\n');
-    size_t len = nl ? (size_t) (nl - commit->message) : strlen (commit->message);
-    if (len >= outsz) len = outsz - 1;
-    memcpy (out, commit->message, len);
-    out[len] = '\0';
+    size_t at = 0;
+    *out = '\0';
+    for (const char *line = git_message_start (commit->message); *line;) {
+        const char *nl = strchr (line, '\n');
+        size_t len = git_line_trimmed (line, nl ? (size_t) (nl - line)
+                                                : strlen (line));
+        if (!len) break;
+        if (at && at + 1 < outsz) out[at++] = ' ';
+        if (at + len >= outsz) len = outsz > at + 1 ? outsz - at - 1 : 0;
+        memcpy (out + at, line, len);
+        at += len;
+        out[at] = '\0';
+        if (!nl) break;
+        line = nl + 1;
+    }
+}
+
+/* The body is what follows the blank line that ends the subject. */
+static const char *
+git_body (const struct git_commit *commit)
+{
+    const char *line = git_message_start (commit->message);
+    while (*line) {
+        const char *nl = strchr (line, '\n');
+        size_t len = git_line_trimmed (line, nl ? (size_t) (nl - line)
+                                                : strlen (line));
+        if (!nl) return line + strlen (line);
+        line = nl + 1;
+        if (!len) break;
+    }
+    /* Whatever blank lines stand between the two is not part of either. */
+    while (*line == '\n') line++;
+    return line;
 }
 
 /* How much of a ref's name a decoration carries. */
@@ -4243,14 +4559,7 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             fputs (buffer, out);
             break;
         }
-        case 'b': {
-            /* The body is what follows the blank line after the subject. */
-            const char *nl = strchr (commit->message, '\n');
-            const char *body = nl ? nl + 1 : "";
-            if (*body == '\n') body++;
-            fputs (body, out);
-            break;
-        }
+        case 'b': fputs (git_body (commit), out); break;
         case 'd':
         case 'D': {
             /* What names point here, the way git decorates a log line. */
@@ -4731,12 +5040,19 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
                         "[-p] [--stat] [--graph] [-n <number>] [--reverse] "
                         "[--first-parent] [--date=<format>] "
                         "[--decorate[=short|full|auto|no]] [--show-signature] "
-                        "[<revision>...]";
+                        "[--grep=<pattern>] [--author=<pattern>] "
+                        "[--committer=<pattern>] [-i] [-E] [-F] "
+                        "[--invert-grep] [--all-match] "
+                        "[--merges | --no-merges] [--min-parents=<n>] "
+                        "[--max-parents=<n>] [--since=<date>] "
+                        "[--until=<date>] [<revision>...]";
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, graph = 0;
     int show_signature = 0, decorate = -1;
     struct git_date_format date;
     git_date_format_init (&date);
+    struct git_log_filter filter;
+    git_log_filter_init (&filter);
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
@@ -4754,6 +5070,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         }
         if (!strcmp (w, "--oneline")) oneline = 1;
         else if (git_diff_format_option (&diff, w)) ;
+        else if (git_log_filter_option (&filter, w)) ;
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
         else if (!strcmp (w, "--reverse")) reverse = 1;
@@ -4856,8 +5173,10 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     char (*ordered)[41] = NULL;
     size_t n = 0;
     /* With a pathspec the limit counts what is shown, not what is walked. */
+    /* With anything to sift through, the limit counts what is shown. */
+    int sifting = n_paths || git_log_filtering (&filter);
     int rc = git_collect_commits (ctx, starts, n_starts, excludes, n_excludes,
-                                  first_parent, n_paths ? -1 : limit,
+                                  first_parent, sifting ? -1 : limit,
                                   &ordered, &n);
     bgit_refs_free (refs, n_refs);
     if (rc < 0) {
@@ -4891,6 +5210,10 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         struct git_commit commit;
         if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
         if (n_paths && !git_commit_touches (ctx, &commit, paths, n_paths)) {
+            git_commit_release (&commit);
+            continue;
+        }
+        if (!git_log_keeps (&filter, &commit)) {
             git_commit_release (&commit);
             continue;
         }

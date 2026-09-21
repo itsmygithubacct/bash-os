@@ -192,9 +192,13 @@ bgit_committer_ident (char *out, size_t outsz)
     if (bgit_ident_override)
         return snprintf (out, outsz, "%s", bgit_ident_override) < (int) outsz
                ? 0 : -1;
-    const char *name = getenv ("GIT_COMMITTER_NAME");
-    const char *email = getenv ("GIT_COMMITTER_EMAIL");
-    const char *date = getenv ("GIT_COMMITTER_DATE");
+    char held_name[512], held_email[512], held_date[64];
+    const char *name = bgit_env ("GIT_COMMITTER_NAME", held_name,
+                                 sizeof held_name);
+    const char *email = bgit_env ("GIT_COMMITTER_EMAIL", held_email,
+                                  sizeof held_email);
+    const char *date = bgit_env ("GIT_COMMITTER_DATE", held_date,
+                                 sizeof held_date);
     if (!name || !*name) name = "bash-os";
     if (!email || !*email) email = "bash-os@localhost";
 

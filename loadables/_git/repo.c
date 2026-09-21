@@ -167,14 +167,25 @@ bgit_repo_open (const char *git_dir, bgit_repo *out)
     return bgit_repo_fill (git_dir, NULL, out);
 }
 
+const char *
+bgit_env (const char *name, char *out, size_t outsz)
+{
+    const char *value = getenv (name);
+    if (!value || !*value) return NULL;
+    snprintf (out, outsz, "%s", value);
+    return out;
+}
+
 int
 bgit_repo_discover (const char *start, bgit_repo *out)
 {
-    const char *env_dir = getenv ("GIT_DIR");
-    if (env_dir && *env_dir) {
-        const char *work = getenv ("GIT_WORK_TREE");
+    char held_dir[4096], held_work[4096];
+    const char *env_dir = bgit_env ("GIT_DIR", held_dir, sizeof held_dir);
+    if (env_dir) {
+        const char *work = bgit_env ("GIT_WORK_TREE", held_work,
+                                     sizeof held_work);
         if (bgit_is_dir (env_dir))
-            return bgit_repo_fill (env_dir, work && *work ? work : ".", out);
+            return bgit_repo_fill (env_dir, work ? work : ".", out);
         return -1;
     }
     char *cur = realpath (start && *start ? start : ".", NULL);

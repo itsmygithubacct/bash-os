@@ -83,3 +83,53 @@ git rev-parse --all
 git rev-parse --branches
 git rev-parse --tags
 git rev-parse --remotes
+
+# Which of the commits found are shown: who made them, what they say, how
+# many parents they have, and when. Dates are pinned to the second here,
+# since a date git is told only the day of means that day at this time of
+# it — which no two runs agree on.
+git checkout -q -b filtered main
+GIT_AUTHOR_NAME='Ada Writer' GIT_AUTHOR_EMAIL='ada@bash-os.test' \
+GIT_AUTHOR_DATE='1750000200 +0000' GIT_COMMITTER_DATE='1750000200 +0000' \
+    git commit -q --allow-empty -m 'Ada writes about packs'
+GIT_AUTHOR_NAME='Bo Reader' GIT_AUTHOR_EMAIL='bo@bash-os.test' \
+GIT_AUTHOR_DATE='1750000400 +0000' GIT_COMMITTER_DATE='1750000400 +0000' \
+    git commit -q --allow-empty -m 'Bo writes about DATES
+and a second line about packs'
+GIT_AUTHOR_DATE='1750000600 +0000' GIT_COMMITTER_DATE='1750000600 +0000' \
+    git commit -q --allow-empty -m 'the last of them'
+
+echo '=== what they say ==='
+git log --oneline --grep=packs
+git log --oneline --grep=dates
+git log --oneline -i --grep=dates
+git log --oneline --grep=dates --grep=packs
+git log --oneline --all-match --grep=DATES --grep=packs
+git log --oneline --invert-grep --grep=packs -3
+git log --oneline -E --grep='packs|last'
+git log --oneline -F --grep='about packs'
+git log --oneline --grep='^Ada'
+git log --oneline --grep='packs$'
+git log --oneline --grep=nothingatall
+
+echo '=== who made them ==='
+git log --oneline --author=Ada
+git log --oneline --author='bash-os.test' -3
+git log --oneline --author=Ada --grep=nothingatall
+git log --oneline --committer='Parity Committer' -2
+
+echo '=== how many parents ==='
+git log --oneline --no-merges -3
+git log --oneline --merges
+git log --oneline --min-parents=1 -2
+git log --oneline --max-parents=0
+git rev-list --count --no-merges HEAD
+git rev-list --count --grep=packs HEAD
+git rev-list --max-count=2 --author=Ada HEAD
+
+echo '=== and when ==='
+git log --oneline --since=@1750000300
+git log --oneline --until=@1750000300 -2
+git log --oneline --since=@1750000300 --until=@1750000500
+git log --oneline --since='2025-06-15 15:10:00' 
+git checkout -q main

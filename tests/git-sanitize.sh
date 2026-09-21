@@ -135,6 +135,24 @@ git ls-tree HEAD nest > /dev/null
 git ls-tree HEAD nest/ > /dev/null
 git ls-tree -r -t HEAD nest/deeper > /dev/null
 git ls-tree --abbrev=8 HEAD nest > /dev/null
+# Which commits a log shows, and who is asked to make one.
+git log --oneline --grep=commit
+git log --oneline -i --grep=COMMIT
+git log --oneline -E --grep='commit|second'
+git log --oneline -F --grep='the first'
+git log --oneline --invert-grep --grep=commit
+git log --oneline --all-match --grep=commit --grep=first
+git log --oneline --author=bash-os --committer=bash-os
+git log --oneline --no-merges
+git log --oneline --merges
+git log --oneline --min-parents=0 --max-parents=1
+git log --oneline --since=@1 --until=@9999999999
+git log --oneline --since='2 years ago'
+git rev-list --count --grep=commit HEAD
+GIT_AUTHOR_NAME='Prefix Author' GIT_AUTHOR_EMAIL='prefix@bash-os.test' \
+GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000000 +0000' \
+  git commit -q --allow-empty -m 'made with a name given for this command alone'
+git log -1 --format='%an <%ae> %ad'
 git log --oneline --decorate
 git log --oneline --decorate=full
 git log --decorate=full -1

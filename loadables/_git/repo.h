@@ -29,6 +29,12 @@ typedef struct {
    the caller can word "not a git repository" its own way. */
 int bgit_repo_discover (const char *start, bgit_repo *out);
 
+/* One variable's value, copied away. bash hands a loadable a single
+   buffer for a variable set for this command alone and frees it when the
+   next one is asked for, so two values cannot be held at once. Returns
+   OUT, or NULL when the variable is unset or empty. */
+const char *bgit_env (const char *name, char *out, size_t outsz);
+
 /* Open a known git directory (or a directory containing .git). */
 int bgit_repo_open (const char *git_dir, bgit_repo *out);
 

@@ -30,7 +30,11 @@ git diff         [-p] [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
 git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [-n <number>] [--reverse] [--first-parent]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
-                 [--show-signature] [<revision>...]
+                 [--show-signature] [--grep=<pattern>] [--author=<pattern>]
+                 [--committer=<pattern>] [-i] [-E] [-F] [--invert-grep]
+                 [--all-match] [--merges | --no-merges]
+                 [--min-parents=<n>] [--max-parents=<n>]
+                 [--since=<date>] [--until=<date>] [<revision>...]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
@@ -101,6 +105,8 @@ git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
 git ls-tree      [-d] [-r] [-t] [-l] [-z] [--name-only] [--abbrev=<n>]
                  <tree-ish> [<path>...]
 git rev-list     [--count] [-n <number>] [--objects] [--parents] [--all]
+                 [--grep=<pattern>] [--author=<pattern>] [--merges]
+                 [--no-merges] [--since=<date>] [--until=<date>]
                  <commit>...
 git var          (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)
 git check-ignore [-v] [--non-matching] [<pathname>...]
@@ -174,6 +180,25 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+Which of the commits found are shown is git's own set of filters, and
+`git rev-list` takes them too: `--grep=`, `--author=` and `--committer=`
+are basic regular expressions over the message and over "Name <email>",
+with `-E` for the wider ones, `-F` for a pattern that stands for itself,
+`-i` to ignore case, `--invert-grep` and `--all-match`; `--merges`,
+`--no-merges`, `--min-parents=` and `--max-parents=` count parents; and
+`--since=` and `--until=` take a date. A date is read the way git reads
+one — `@<seconds>`, a day or a moment written out, and the common
+relative forms — and what it leaves unsaid is filled in from the present
+moment, so a bare day means that day at this time of it. A month there is
+thirty days and a year three hundred and sixty-five, and a date this
+build cannot place is taken for the present moment, which is what git
+does with one it cannot place either.
+
+A subject is the message down to its first blank line, with the breaks
+inside it written as single spaces and the whitespace at each line's end
+dropped, and the body is what follows that blank line: `%s`, `%b` and the
+one-line form all read them that way.
 
 An ignore rule that excludes a directory excludes everything under it,
 and nothing below can be brought back: `git check-ignore -v` names that
