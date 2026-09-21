@@ -56,6 +56,7 @@
 #include "_git_odb.h"
 #include "_git_pack.h"
 #include "_git_patch.h"
+#include "_git_xdiff.h"
 #include "_git_proto.h"
 #include "_git_refs.h"
 #include "_git_sshsig.h"
@@ -1749,6 +1750,9 @@ struct git_log_filter {
     int all_match;               /* every --grep, not any of them */
     int min_parents, max_parents;
     long long since, until;      /* seconds, or -1 */
+    const char *pickaxe;         /* -S: a string whose count has to change */
+    const char *diff_grep;       /* -G: a pattern an added or removed line has */
+    int pickaxe_regex;           /* -S reads its string as a pattern */
 };
 
 static void
@@ -1877,7 +1881,8 @@ git_approxidate (const char *text)
 /* The filter options both log and rev-list take. Returns 1 when the word
    was one of them. */
 static int
-git_log_filter_option (struct git_log_filter *filter, const char *w)
+git_log_filter_option (struct git_log_filter *filter, const char *w,
+                       const char **next)
 {
     if (!strncmp (w, "--grep=", 7)) {
         if (filter->n_patterns < (int) (sizeof filter->patterns /
@@ -1914,8 +1919,66 @@ git_log_filter_option (struct git_log_filter *filter, const char *w)
         filter->since = git_approxidate (w + 8);
     else if (!strncmp (w, "--until=", 8) || !strncmp (w, "--before=", 9))
         filter->until = git_approxidate (strchr (w, '=') + 1);
+    else if (!strncmp (w, "-S", 2) && w[2]) filter->pickaxe = w + 2;
+    else if (!strncmp (w, "-G", 2) && w[2]) filter->diff_grep = w + 2;
+    else if ((!strcmp (w, "-S") || !strcmp (w, "-G")) && next && *next) {
+        if (w[1] == 'S') filter->pickaxe = *next;
+        else filter->diff_grep = *next;
+        *next = NULL;             /* the word after it has been taken */
+    }
+    else if (!strcmp (w, "--pickaxe-regex")) filter->pickaxe_regex = 1;
     else return 0;
     return 1;
+}
+
+/* Is one of the two diff tests in play? They read the commit's own diff,
+   which the filters above never do. */
+static int
+git_log_pickaxing (const struct git_log_filter *filter)
+{
+    return filter->pickaxe != NULL || filter->diff_grep != NULL;
+}
+
+/* How often the needle appears in the text, without overlapping. */
+static size_t
+git_pickaxe_count (const struct git_log_filter *filter, const char *text,
+                   size_t len)
+{
+    const char *needle = filter->pickaxe;
+    size_t needle_len = strlen (needle), count = 0;
+    if (!needle_len || !text) return 0;
+    if (filter->pickaxe_regex) {
+        /* A pattern counts its matches, one after another. */
+        char *held = malloc (len + 1);
+        if (!held) return 0;
+        if (len) memcpy (held, text, len);
+        held[len] = '\0';
+        regex_t compiled;
+        int flags = REG_NEWLINE | (filter->extended ? REG_EXTENDED : 0) |
+                    (filter->ignore_case ? REG_ICASE : 0);
+        if (regcomp (&compiled, needle, flags) != 0) { free (held); return 0; }
+        const char *at = held;
+        regmatch_t where;
+        while (*at && regexec (&compiled, at, 1, &where, 0) == 0) {
+            count++;
+            at += where.rm_eo > where.rm_so ? where.rm_eo : where.rm_so + 1;
+        }
+        regfree (&compiled);
+        free (held);
+        return count;
+    }
+    for (size_t at = 0; at + needle_len <= len;) {
+        size_t i = 0;
+        while (i < needle_len &&
+               (filter->ignore_case
+                ? tolower ((unsigned char) text[at + i]) ==
+                  tolower ((unsigned char) needle[i])
+                : text[at + i] == needle[i]))
+            i++;
+        if (i == needle_len) { count++; at += needle_len; }
+        else at++;
+    }
+    return count;
 }
 
 /* Does the commit named by ID pass them? Reading it is what says. */
@@ -2139,10 +2202,15 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
+        /* A filter option may take the word after it; the helper says so
+           by letting go of it. */
+        const char *taken = p->next ? p->next->word->word : NULL;
         if (!strcmp (w, "--count")) count_only = 1;
         else if (!strcmp (w, "--objects")) with_objects = 1;
         else if (!strcmp (w, "--parents")) with_parents = 1;
-        else if (git_log_filter_option (&filter, w)) ;
+        else if (git_log_filter_option (&filter, w, &taken)) {
+            if (!taken && p->next) p = p->next;
+        }
         else if (!strcmp (w, "--all")) revs[n_revs++] = "--all";
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
@@ -4372,6 +4440,93 @@ git_log_keeps (const struct git_log_filter *filter,
     return 1;
 }
 
+/* Does the commit's own diff answer to -S or -G? A merge never does:
+   git's diff for one is empty unless it is asked for another. */
+static int
+git_pickaxe_keeps (git_context *ctx, const struct git_log_filter *filter,
+                   const struct git_commit *commit,
+                   const char *const *paths, int n_paths)
+{
+    if (commit->n_parents > 1) return 0;
+    char parent_tree[41];
+    const char *before = NULL;
+    if (commit->n_parents &&
+        bgit_commit_tree (&ctx->odb, commit->parents[0], parent_tree) == 0)
+        before = parent_tree;
+    bgit_diff_entry *entries = NULL;
+    size_t n = 0;
+    if (bgit_diff_trees (&ctx->odb, before, commit->tree, &entries, &n) < 0)
+        return 0;
+    regex_t compiled;
+    int have_regex = 0;
+    if (filter->diff_grep) {
+        int flags = REG_NEWLINE | (filter->extended ? REG_EXTENDED : 0) |
+                    (filter->ignore_case ? REG_ICASE : 0);
+        have_regex = regcomp (&compiled, filter->diff_grep, flags) == 0;
+        if (!have_regex) { bgit_diff_free (entries, n); return 0; }
+    }
+    int hit = 0;
+    for (size_t i = 0; i < n && !hit; i++) {
+        if (n_paths && !git_path_named (entries[i].path, paths, n_paths) &&
+            (!entries[i].from || !git_path_named (entries[i].from, paths,
+                                                  n_paths)))
+            continue;
+        unsigned char *old_data = NULL, *new_data = NULL;
+        size_t old_len = 0, new_len = 0;
+        enum bgit_type type;
+        if (entries[i].status != 'A' &&
+            bgit_odb_read (&ctx->odb, entries[i].old_sha, &type, &old_data,
+                           &old_len) < 0)
+            old_data = NULL;
+        if (entries[i].status != 'D' &&
+            bgit_odb_read (&ctx->odb, entries[i].new_sha, &type, &new_data,
+                           &new_len) < 0)
+            new_data = NULL;
+        if (filter->pickaxe)
+            hit = git_pickaxe_count (filter, (const char *) old_data, old_len) !=
+                  git_pickaxe_count (filter, (const char *) new_data, new_len);
+        else {
+            /* Every line the change adds or takes away, against the
+               pattern. */
+            bgit_xdiff_file old_file, new_file;
+            /* A file that was added or taken away is the empty side. */
+            bgit_xdiff_load (&old_file, old_data ? (const char *) old_data : "",
+                             old_len);
+            bgit_xdiff_load (&new_file, new_data ? (const char *) new_data : "",
+                             new_len);
+            bgit_xdiff_result result;
+            if (bgit_xdiff (&old_file, &new_file, 0, &result) == 0) {
+                for (size_t line = 0; line < old_file.n && !hit; line++) {
+                    if (!result.old_changed[line]) continue;
+                    char held[65536];
+                    size_t len = old_file.lengths[line];
+                    if (len >= sizeof held) len = sizeof held - 1;
+                    memcpy (held, old_file.lines[line], len);
+                    held[len] = '\0';
+                    hit = regexec (&compiled, held, 0, NULL, 0) == 0;
+                }
+                for (size_t line = 0; line < new_file.n && !hit; line++) {
+                    if (!result.new_changed[line]) continue;
+                    char held[65536];
+                    size_t len = new_file.lengths[line];
+                    if (len >= sizeof held) len = sizeof held - 1;
+                    memcpy (held, new_file.lines[line], len);
+                    held[len] = '\0';
+                    hit = regexec (&compiled, held, 0, NULL, 0) == 0;
+                }
+                bgit_xdiff_result_release (&result);
+            }
+            bgit_xdiff_release (&old_file);
+            bgit_xdiff_release (&new_file);
+        }
+        free (old_data);
+        free (new_data);
+    }
+    if (have_regex) regfree (&compiled);
+    bgit_diff_free (entries, n);
+    return hit;
+}
+
 /* The same, for a commit that has not been read yet. */
 static int
 git_log_keeps_id (git_context *ctx, const struct git_log_filter *filter,
@@ -5068,7 +5223,8 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
                         "[--invert-grep] [--all-match] "
                         "[--merges | --no-merges] [--min-parents=<n>] "
                         "[--max-parents=<n>] [--since=<date>] "
-                        "[--until=<date>] [<revision>...]";
+                        "[--until=<date>] [-S<string>] [-G<pattern>] "
+                        "[--pickaxe-regex] [<revision>...]";
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, graph = 0;
     int show_signature = 0, decorate = -1;
@@ -5091,9 +5247,14 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             else return git_fatal ("too many paths");
             continue;
         }
+        /* A filter option may take the word after it; the helper says so
+           by letting go of it. */
+        const char *taken = p->next ? p->next->word->word : NULL;
         if (!strcmp (w, "--oneline")) oneline = 1;
         else if (git_diff_format_option (&diff, w)) ;
-        else if (git_log_filter_option (&filter, w)) ;
+        else if (git_log_filter_option (&filter, w, &taken)) {
+            if (!taken && p->next) p = p->next;
+        }
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
         else if (!strcmp (w, "--reverse")) reverse = 1;
@@ -5197,7 +5358,8 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     size_t n = 0;
     /* With a pathspec the limit counts what is shown, not what is walked. */
     /* With anything to sift through, the limit counts what is shown. */
-    int sifting = n_paths || git_log_filtering (&filter);
+    int sifting = n_paths || git_log_filtering (&filter) ||
+                  git_log_pickaxing (&filter);
     int rc = git_collect_commits (ctx, starts, n_starts, excludes, n_excludes,
                                   first_parent, sifting ? -1 : limit,
                                   &ordered, &n);
@@ -5237,6 +5399,11 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             continue;
         }
         if (!git_log_keeps (&filter, &commit)) {
+            git_commit_release (&commit);
+            continue;
+        }
+        if (git_log_pickaxing (&filter) &&
+            !git_pickaxe_keeps (ctx, &filter, &commit, paths, n_paths)) {
             git_commit_release (&commit);
             continue;
         }

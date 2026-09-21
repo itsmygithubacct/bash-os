@@ -34,7 +34,8 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [--committer=<pattern>] [-i] [-E] [-F] [--invert-grep]
                  [--all-match] [--merges | --no-merges]
                  [--min-parents=<n>] [--max-parents=<n>]
-                 [--since=<date>] [--until=<date>] [<revision>...]
+                 [--since=<date>] [--until=<date>] [-S<string>]
+                 [-G<pattern>] [--pickaxe-regex] [<revision>...]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
@@ -236,6 +237,14 @@ moment, so a bare day means that day at this time of it. A month there is
 thirty days and a year three hundred and sixty-five, and a date this
 build cannot place is taken for the present moment, which is what git
 does with one it cannot place either.
+
+Two of the filters read the commit's own diff rather than the commit:
+`-S<string>` keeps the commits that changed how often the string appears
+in a file, and `-G<pattern>` those that added or took away a line the
+pattern matches. `--pickaxe-regex` makes the first read its string as a
+pattern too, and `-i` covers both. A merge answers to neither, as it does
+not for git: the diff git shows for one is empty unless it is asked for
+another.
 
 A subject is the message down to its first blank line, with the breaks
 inside it written as single spaces and the whitespace at each line's end

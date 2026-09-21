@@ -149,6 +149,11 @@ git log --oneline --min-parents=0 --max-parents=1
 git log --oneline --since=@1 --until=@9999999999
 git log --oneline --since='2 years ago'
 git rev-list --count --grep=commit HEAD
+git log --oneline -S line
+git log --oneline -S line -- long.txt
+git log --oneline -G 'line [0-9]'
+git log --oneline -i --pickaxe-regex -S 'LINE [0-9]+'
+git log --oneline -S nothingatall
 GIT_AUTHOR_NAME='Prefix Author' GIT_AUTHOR_EMAIL='prefix@bash-os.test' \
 GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000000 +0000' \
   git commit -q --allow-empty -m 'made with a name given for this command alone'

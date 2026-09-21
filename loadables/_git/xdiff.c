@@ -496,8 +496,11 @@ bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
         bgit_xdiff_result_release (out);
         return -1;
     }
-    memcpy (sorted_a, old->hashes, old->n * sizeof *sorted_a);
-    memcpy (sorted_b, new_file->hashes, new_file->n * sizeof *sorted_b);
+    /* A side with no lines at all has nothing to copy, and copying from
+       where it would have been is not allowed even for no bytes. */
+    if (old->n) memcpy (sorted_a, old->hashes, old->n * sizeof *sorted_a);
+    if (new_file->n)
+        memcpy (sorted_b, new_file->hashes, new_file->n * sizeof *sorted_b);
     qsort (sorted_a, old->n, sizeof *sorted_a, bgit_hash_cmp);
     qsort (sorted_b, new_file->n, sizeof *sorted_b, bgit_hash_cmp);
     size_t na = 0, nb = 0;
