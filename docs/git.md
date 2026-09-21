@@ -44,6 +44,8 @@ git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit] [-q]
                  <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
+git submodule    [status [--cached]] | init | update [--init] [-q]
+                 [<path>...]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       <upstream> [<branch>] | --continue | --abort | --skip
@@ -200,6 +202,22 @@ untracked files in it; the long form spells the same out after the name
 submodule the way git shows one, as the `Subproject commit` line
 changing. A submodule that was never cloned has nothing to say, which is
 also git's answer.
+
+`git submodule` covers the three verbs a checkout needs. `status` says
+where each one stands: a minus for one with nothing checked out, a plus
+for one whose commit is not what the index records, and after the path
+what `describe` would call that commit — `heads/main`, or
+`heads/main-2-g1234567` when it is not a ref's own tip. `init` resolves
+the url `.gitmodules` gives — a relative one against `remote.origin.url`,
+or against this repository when it has none, which git warns about and
+so does this — and writes it into this repository's configuration, where
+`update` reads it. `update` fetches what is missing, puts its git
+directory where git puts one (`.git/modules/<name>`, with a `.git` file
+in the submodule naming it) and moves it to the commit the index
+records; `--init` does the registering on the way. A second `update`
+with nothing to do says nothing, as git's does. The url may be a path or
+an address this build can reach; the nested commands run as this build's
+own git, in a child of their own.
 
 `git rebase` replays what a branch has that its upstream does not, one
 commit at a time, each replay being the same three-way merge a cherry-pick
@@ -554,8 +572,8 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: the `git submodule` command itself — the gitlink
-is read and written, but `status`, `init` and `update` are not there yet
-— interactive rebase, renames between the index and the working tree,
-and a merge with more than one base. The plan, including what each phase must match, is in the
+Left over from Phase 2: interactive rebase, renames between the index
+and the working tree, and a merge with more than one base. `git
+submodule add`, `deinit` and `foreach` are not there either: what this
+build has is the three verbs a checkout needs. The plan, including what each phase must match, is in the
 implementation document for the port.

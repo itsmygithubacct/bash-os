@@ -10599,6 +10599,474 @@ git_cmd_stash (git_context *ctx, WORD_LIST *args)
     return status ? status : (held ? 1 : 0);
 }
 
+/* ---- submodules --------------------------------------------------------- */
+
+struct git_submodule {
+    char name[256];
+    char path[4096];
+    char url[4096];      /* as .gitmodules writes it, which may be relative */
+    char sha[41];        /* the commit the index records */
+};
+
+/* Every submodule this repository has: a gitlink in the index, with the
+   name and url .gitmodules gives it. A gitlink that .gitmodules says
+   nothing about keeps its path for a name, which is git's fallback too. */
+static int
+git_submodules (git_context *ctx, struct git_state *state,
+                struct git_submodule **out, size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    bgit_config modules;
+    memset (&modules, 0, sizeof modules);
+    char where[4096];
+    if (ctx->repo.work_tree &&
+        snprintf (where, sizeof where, "%s/.gitmodules",
+                  ctx->repo.work_tree) < (int) sizeof where)
+        bgit_config_read_file (&modules, where, 2);
+
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    for (size_t i = 0; i < state->n_index; i++) {
+        if (state->index[i].mode != 0160000) continue;
+        struct git_submodule *grown = realloc (subs, (n + 1) * sizeof *grown);
+        if (!grown) {
+            free (subs);
+            bgit_config_release (&modules);
+            return -1;
+        }
+        subs = grown;
+        struct git_submodule *sub = &subs[n++];
+        memset (sub, 0, sizeof *sub);
+        snprintf (sub->path, sizeof sub->path, "%s", state->index[i].path);
+        snprintf (sub->name, sizeof sub->name, "%s", state->index[i].path);
+        bgit_sha_to_hex (state->index[i].sha, sub->sha);
+        /* Whichever section names this path names the submodule. */
+        for (size_t k = 0; k < modules.n; k++) {
+            const char *key = modules.entries[k].key;
+            size_t len = strlen (key);
+            if (strncmp (key, "submodule.", 10) || len <= 15 ||
+                strcmp (key + len - 5, ".path") ||
+                !modules.entries[k].value ||
+                strcmp (modules.entries[k].value, sub->path))
+                continue;
+            size_t name_len = len - 15;
+            if (name_len >= sizeof sub->name) continue;
+            memcpy (sub->name, key + 10, name_len);
+            sub->name[name_len] = '\0';
+        }
+        char key[4400];
+        snprintf (key, sizeof key, "submodule.%s.url", sub->name);
+        const char *url = bgit_config_get (&modules, key);
+        if (url) snprintf (sub->url, sizeof sub->url, "%s", url);
+    }
+    bgit_config_release (&modules);
+    *out = subs;
+    *n_out = n;
+    return 0;
+}
+
+/* Was this submodule asked for? With no paths named, all of them were. */
+static int
+git_submodule_wanted (const struct git_submodule *sub,
+                      const char *const *paths, int n_paths)
+{
+    if (!n_paths) return 1;
+    for (int i = 0; i < n_paths; i++)
+        if (!strcmp (paths[i], sub->path) ||
+            (!strncmp (sub->path, paths[i], strlen (paths[i])) &&
+             sub->path[strlen (paths[i])] == '/'))
+            return 1;
+    return 0;
+}
+
+/* A url in .gitmodules may be relative to where the superproject itself
+   came from: ./x and ../x are resolved against remote.origin.url, and
+   against the superproject's own directory when it has no origin. */
+static void
+git_submodule_url (git_context *ctx, const char *url, char *out, size_t outsz)
+{
+    if (strncmp (url, "./", 2) && strncmp (url, "../", 3)) {
+        snprintf (out, outsz, "%s", url);
+        return;
+    }
+    const char *origin = bgit_config_get (&ctx->cfg, "remote.origin.url");
+    if (!origin) {
+        /* git says this out loud, since where a relative url points then
+           depends on where this repository happens to sit. */
+        fflush (stdout);
+        fprintf (stderr, "warning: could not look up configuration "
+                         "'remote.origin.url'. Assuming this repository is "
+                         "its own authoritative upstream.\n");
+    }
+    char base[4096];
+    snprintf (base, sizeof base, "%s",
+              origin ? origin : (ctx->repo.work_tree ? ctx->repo.work_tree : "."));
+    size_t len = strlen (base);
+    while (len > 1 && base[len - 1] == '/') base[--len] = '\0';
+    const char *rest = url;
+    for (;;) {
+        if (!strncmp (rest, "./", 2)) { rest += 2; continue; }
+        if (strncmp (rest, "../", 3)) break;
+        rest += 3;
+        char *slash = strrchr (base, '/');
+        if (slash && slash != base) *slash = '\0';
+        else if (slash) slash[1] = '\0';
+    }
+    snprintf (out, outsz, "%s/%s", base, rest);
+}
+
+/* What `git describe --all --always` would call COMMIT over there: the
+   nearest ref that has it, and how far back it is. That is what git puts
+   in brackets after a submodule's path. Only the form `--all` gives is
+   made here; a repository with tags in it would have git reach for the
+   tag first. */
+static int
+git_describe_in (const char *repo_path, const char *commit, char *out,
+                 size_t outsz)
+{
+    bgit_repo repo;
+    bgit_odb odb;
+    if (git_open_remote (repo_path, &repo, &odb) < 0) return -1;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    bgit_refs_list (&repo, "refs/", &refs, &n_refs);
+
+    char (*seen)[41] = NULL;
+    int *depths = NULL;
+    size_t n_seen = 0, at = 0;
+    int found = -1;
+    const char *name = NULL;
+    int distance = 0;
+    for (;;) {
+        if (at == n_seen) {
+            if (!at) {
+                seen = malloc (sizeof *seen);
+                depths = malloc (sizeof *depths);
+                if (!seen || !depths) break;
+                snprintf (seen[0], 41, "%s", commit);
+                depths[0] = 0;
+                n_seen = 1;
+            } else break;
+        }
+        if (at >= n_seen || n_seen > 4096) break;
+        const char *current = seen[at];
+        int depth = depths[at];
+        /* A tag naming it beats a branch, and a branch beats the rest,
+           which is the order git looks in. */
+        for (int rank = 0; rank < 3 && found < 0; rank++) {
+            const char *prefix = rank == 0 ? "refs/tags/"
+                               : rank == 1 ? "refs/heads/" : "refs/";
+            for (size_t i = 0; i < n_refs; i++) {
+                if (strncmp (refs[i].name, prefix, strlen (prefix))) continue;
+                if (strcmp (refs[i].sha, current)) continue;
+                name = refs[i].name + 5;      /* past "refs/" */
+                distance = depth;
+                found = 1;
+                break;
+            }
+        }
+        if (found > 0) break;
+        char parents[BGIT_MAX_PARENTS][41];
+        int n_parents = bgit_commit_parents (&odb, current, parents,
+                                             BGIT_MAX_PARENTS);
+        for (int i = 0; i < n_parents; i++) {
+            int known = 0;
+            for (size_t k = 0; k < n_seen && !known; k++)
+                if (!strcmp (seen[k], parents[i])) known = 1;
+            if (known) continue;
+            char (*grown)[41] = realloc (seen, (n_seen + 1) * sizeof *seen);
+            int *grown_depths = realloc (depths, (n_seen + 1) * sizeof *depths);
+            if (grown) seen = grown;
+            if (grown_depths) depths = grown_depths;
+            if (!grown || !grown_depths) { n_seen = at + 1; break; }
+            snprintf (seen[n_seen], 41, "%s", parents[i]);
+            depths[n_seen] = depth + 1;
+            n_seen++;
+        }
+        at++;
+    }
+    if (found > 0) {
+        if (!distance) snprintf (out, outsz, "%s", name);
+        else snprintf (out, outsz, "%s-%d-g%.7s", name, distance, commit);
+    } else
+        snprintf (out, outsz, "%.7s", commit);
+    free (seen);
+    free (depths);
+    bgit_refs_free (refs, n_refs);
+    bgit_odb_release (&odb);
+    bgit_repo_release (&repo);
+    return 0;
+}
+
+/* Run this build's own git in another directory, as a child: a submodule
+   is another repository, and a command for it wants a context of its own.
+   Returns the status, or -1. */
+static int
+git_run_in (const char *directory, const char *const *args, int n_args)
+{
+    fflush (stdout);
+    fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) return -1;
+    if (!child) {
+        char **env = git_far_environ ();
+        const char *argv[24];
+        int at = 0;
+        argv[at++] = "bash";
+        argv[at++] = "--noprofile";
+        argv[at++] = "--norc";
+        argv[at++] = "-c";
+        argv[at++] = "builtin git \"$@\"";
+        argv[at++] = "git";
+        argv[at++] = "-C";
+        argv[at++] = directory;
+        for (int i = 0; i < n_args && at < 23; i++) argv[at++] = args[i];
+        argv[at] = NULL;
+        execve ("/proc/self/exe", (char *const *) argv, env);
+        _exit (127);
+    }
+    int status = 0;
+    while (waitpid (child, &status, 0) < 0 && errno == EINTR) ;
+    return WIFEXITED (status) ? WEXITSTATUS (status) : -1;
+}
+
+static int
+git_submodule_status (git_context *ctx, struct git_state *state, int cached,
+                      const char *const *paths, int n_paths)
+{
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    if (git_submodules (ctx, state, &subs, &n) < 0) return GIT_EXIT_FATAL;
+    for (size_t i = 0; i < n; i++) {
+        if (!git_submodule_wanted (&subs[i], paths, n_paths)) continue;
+        char full[4096], head[41];
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                  subs[i].path);
+        if (bgit_submodule_head (full, head) < 0) {
+            /* Nothing checked out there: git says so with a minus. */
+            printf ("-%s %s\n", subs[i].sha, subs[i].path);
+            continue;
+        }
+        const char *shown = cached ? subs[i].sha : head;
+        char described[256];
+        if (git_describe_in (full, shown, described, sizeof described) < 0)
+            described[0] = '\0';
+        printf ("%c%s %s", strcmp (head, subs[i].sha) ? '+' : ' ', shown,
+                subs[i].path);
+        if (described[0]) printf (" (%s)", described);
+        printf ("\n");
+    }
+    free (subs);
+    return 0;
+}
+
+/* Write submodule.<name>.url into this repository's own configuration,
+   which is what tells update where to clone from. */
+static int
+git_submodule_register (git_context *ctx, const struct git_submodule *sub,
+                        int quiet, char *resolved_out, size_t outsz)
+{
+    if (!sub->url[0]) {
+        git_fatal ("No url found for submodule path '%s' in .gitmodules",
+                   sub->path);
+        return -1;
+    }
+    char resolved[4096];
+    git_submodule_url (ctx, sub->url, resolved, sizeof resolved);
+    char key[4400];
+    snprintf (key, sizeof key, "submodule.%s.url", sub->name);
+    char config_path[4096];
+    snprintf (config_path, sizeof config_path, "%s/config", ctx->repo.git_dir);
+    if (bgit_config_set_file (config_path, key, resolved, 0) < 0) return -1;
+    snprintf (key, sizeof key, "submodule.%s.active", sub->name);
+    if (bgit_config_set_file (config_path, key, "true", 0) < 0) return -1;
+    if (!quiet) {
+        fflush (stdout);
+        fprintf (stderr, "Submodule '%s' (%s) registered for path '%s'\n",
+                 sub->name, resolved, sub->path);
+    }
+    if (resolved_out) snprintf (resolved_out, outsz, "%s", resolved);
+    return 0;
+}
+
+static int
+git_submodule_init (git_context *ctx, struct git_state *state, int quiet,
+                    const char *const *paths, int n_paths)
+{
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    if (git_submodules (ctx, state, &subs, &n) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+    for (size_t i = 0; i < n && !status; i++) {
+        if (!git_submodule_wanted (&subs[i], paths, n_paths)) continue;
+        char key[4400];
+        snprintf (key, sizeof key, "submodule.%s.url", subs[i].name);
+        if (bgit_config_get (&ctx->cfg, key)) continue;    /* already known */
+        if (git_submodule_register (ctx, &subs[i], quiet, NULL, 0) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+    free (subs);
+    return status;
+}
+
+/* Put the submodule's git directory where git keeps it — .git/modules/<name>
+   under the superproject — and leave a .git file pointing at it. */
+static int
+git_submodule_relocate (git_context *ctx, const struct git_submodule *sub)
+{
+    char from[4096], to[4096], link[4096], target[4096];
+    snprintf (from, sizeof from, "%s/%s/.git", ctx->repo.work_tree, sub->path);
+    snprintf (to, sizeof to, "%s/modules/%s", ctx->repo.common_dir, sub->name);
+    /* Every directory above it, as mkdir -p would. */
+    char made[4096];
+    snprintf (made, sizeof made, "%s", to);
+    for (char *slash = strchr (made + 1, '/'); slash; slash = strchr (slash + 1, '/')) {
+        *slash = '\0';
+        mkdir (made, 0777);
+        *slash = '/';
+    }
+    if (rename (from, to) < 0) return -1;
+    /* Back to the superproject's root from the submodule, then down. */
+    size_t depth = 1;
+    for (const char *p = sub->path; *p; p++) if (*p == '/') depth++;
+    char up[256] = "";
+    for (size_t i = 0; i < depth; i++) snprintf (up + i * 3, sizeof up - i * 3, "../");
+    const char *git_dir_name = strrchr (ctx->repo.common_dir, '/');
+    snprintf (target, sizeof target, "gitdir: %s%s/modules/%s\n", up,
+              git_dir_name ? git_dir_name + 1 : ".git", sub->name);
+    snprintf (link, sizeof link, "%s/%s/.git", ctx->repo.work_tree, sub->path);
+    FILE *out = fopen (link, "w");
+    if (!out) return -1;
+    fputs (target, out);
+    fclose (out);
+    /* And the other half of the pairing: where its working tree is. */
+    char worktree[4096];
+    snprintf (worktree, sizeof worktree, "%s%s../%s", "../../",
+              strchr (sub->name, '/') ? "../" : "", sub->path);
+    char config_path[4096];
+    snprintf (config_path, sizeof config_path, "%s/config", to);
+    return bgit_config_set_file (config_path, "core.worktree", worktree, 0);
+}
+
+static int
+git_submodule_update (git_context *ctx, struct git_state *state, int init,
+                      int quiet, const char *const *paths, int n_paths)
+{
+    struct git_submodule *subs = NULL;
+    size_t n = 0;
+    if (git_submodules (ctx, state, &subs, &n) < 0) return GIT_EXIT_FATAL;
+    int status = 0;
+    for (size_t i = 0; i < n && !status; i++) {
+        if (!git_submodule_wanted (&subs[i], paths, n_paths)) continue;
+        char key[4400];
+        snprintf (key, sizeof key, "submodule.%s.url", subs[i].name);
+        const char *url = bgit_config_get (&ctx->cfg, key);
+        if (!url && init) {
+            /* Registering says where it is; the answer is kept here, since
+               the configuration this command read is already behind. */
+            char resolved[4096];
+            if (git_submodule_register (ctx, &subs[i], quiet, resolved,
+                                        sizeof resolved) < 0) {
+                status = GIT_EXIT_FATAL;
+                break;
+            }
+            snprintf (subs[i].url, sizeof subs[i].url, "%s", resolved);
+            url = subs[i].url;
+        }
+        if (!url) {
+            status = git_fatal ("Submodule path '%s' not initialized\n"
+                                "Maybe you want to use 'update --init'?",
+                                subs[i].path);
+            break;
+        }
+        char full[4096], head[41];
+        int moved = 0;
+        snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                  subs[i].path);
+        if (bgit_submodule_head (full, head) < 0) {
+            /* Nothing there yet: clone it, then put its git directory
+               where git keeps a submodule's. */
+            if (!quiet) {
+                fflush (stdout);
+                fprintf (stderr, "Cloning into '%s'...\ndone.\n", full);
+            }
+            const char *clone_args[4] = { "clone", "-q", url, subs[i].path };
+            if (git_run_in (ctx->repo.work_tree, clone_args, 4) != 0 ||
+                git_submodule_relocate (ctx, &subs[i]) < 0) {
+                status = git_fatal ("clone of '%s' into submodule path '%s' "
+                                    "failed", url, subs[i].path);
+                break;
+            }
+            moved = 1;
+        }
+        /* Whether it was just cloned or was already there, it is moved to
+           the commit the index records. */
+        if (bgit_submodule_head (full, head) == 0 &&
+            strcmp (head, subs[i].sha)) {
+            const char *checkout_args[3] = { "checkout", "-q", subs[i].sha };
+            if (git_run_in (full, checkout_args, 3) != 0) {
+                status = git_fatal ("Unable to checkout '%s' in submodule "
+                                    "path '%s'", subs[i].sha, subs[i].path);
+                break;
+            }
+            moved = 1;
+        }
+        /* Only a submodule that was actually moved is reported, which is
+           what makes a second update say nothing. */
+        if (moved && !quiet)
+            printf ("Submodule path '%s': checked out '%s'\n", subs[i].path,
+                    subs[i].sha);
+    }
+    free (subs);
+    return status;
+}
+
+static int
+git_cmd_submodule (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git submodule [status [--cached]] | init | "
+                        "update [--init] [-q] [<path>...]";
+    const char *verb = "status";
+    const char *paths[32];
+    int n_paths = 0, cached = 0, init = 0, quiet = 0, first = 1;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (first && (!strcmp (w, "status") || !strcmp (w, "init") ||
+                      !strcmp (w, "update"))) {
+            verb = w;
+            first = 0;
+            continue;
+        }
+        first = 0;
+        if (!strcmp (w, "--cached")) cached = 1;
+        else if (!strcmp (w, "--init")) init = 1;
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "--")) continue;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_paths < (int) (sizeof paths / sizeof *paths))
+            paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->repo.work_tree)
+        return git_fatal ("this operation must be run in a work tree");
+
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
+    int status;
+    if (!strcmp (verb, "status"))
+        status = git_submodule_status (ctx, &state, cached, paths, n_paths);
+    else if (!strcmp (verb, "init"))
+        status = git_submodule_init (ctx, &state, quiet, paths, n_paths);
+    else
+        status = git_submodule_update (ctx, &state, init, quiet, paths,
+                                       n_paths);
+    git_state_release (&state);
+    return status;
+}
+
 /* ---- cherry-pick and revert -------------------------------------------- */
 
 /* The summary a picked or reverted commit prints: where it landed, who
@@ -11678,6 +12146,7 @@ static const struct {
     { "show",         git_cmd_show },
     { "show-ref",     git_cmd_show_ref },
     { "stash",        git_cmd_stash },
+    { "submodule",    git_cmd_submodule },
     { "status",       git_cmd_status },
     { "switch",       git_cmd_switch },
     { "symbolic-ref", git_cmd_symbolic_ref },
