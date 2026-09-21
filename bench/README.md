@@ -30,6 +30,14 @@ file, and these cases measure the other path. `git-add` compares the index
 both implementations write, byte for byte, rather than their (empty)
 output.
 
+`bench/git-scale.py [FILES] [COMMITS]` is the other half of the git
+measurement: a repository of a few thousand files and a few thousand
+commits, built from sha1 and zlib alone, with every command run through
+both implementations for wall time and peak resident memory. A clone runs
+over the protocol on both sides, since the local clone git is allowed to
+hardlink measures nothing. It writes a few hundred megabytes into a
+temporary directory, which is why it is a benchmark and not a test.
+
 ```sh
 python3 bench/loadables.py --output /tmp/loadables.json
 python3 bench/loadables.py --only fold --passes 9 --runs 7 --output /tmp/fold.json

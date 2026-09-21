@@ -603,6 +603,14 @@ fingerprint as `ssh-keygen -l` prints it, a message changed under its
 signature, a key nobody vouches for, an unsigned commit, and a name that
 is the wrong kind of object or nothing at all.
 
+`bench/git-scale.py` builds a repository of a few thousand files and a
+few thousand commits and runs each command through both implementations.
+On four thousand files and twenty thousand commits this build's `log
+--oneline` is 1.3 times git's time, `rev-list --count` 1.2, `diff` 1.7,
+`status` and `add` about 3, and the peak memory is git's to the megabyte.
+A clone over the protocol is 1.4 times git's time and writes a pack six
+times the size, since nothing here is deltified.
+
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;
 what bash-os writes — refs, a deleted packed ref, reflog entries, a
@@ -612,14 +620,17 @@ message and changes nothing.
 
 ## Still to come
 
-Phase 2 is done but for submodules, and Phase 3 is nearly done: clone,
-fetch, pull and push speak protocol v2 to a far end at a path or at an
-`http://` or `https://` address. What is left of it is SSH, which is the
-phase after.
-`git fetch` still wants the name of a remote where git also takes a
-path, which needs `FETCH_HEAD` to mean anything.
+All four phases of the port are in: the everyday commands, history
+editing, remotes over a path and over HTTP, and ssh and signing. What is
+left is the odd corner of each.
 
-Left over from Phase 2: `--rebase-merges`. `git submodule
-add`, `deinit` and `foreach` are not there either: what this build has
-is the three verbs a checkout needs. The plan, including what each phase must match, is in the
-implementation document for the port.
+`git rebase --rebase-merges` is the last of Phase 2 — a rebase that
+keeps the merges in what it replays, with the `label`, `reset` and
+`merge` commands that go with it. `git submodule add`, `deinit` and
+`foreach` are not there either: what this build has is the three verbs a
+checkout needs. `git fetch` still wants the name of a remote where git
+also takes a path, which needs `FETCH_HEAD` to mean anything. And
+`git://` is not spoken at all.
+
+The plan, including what each phase must match, is in the implementation
+document for the port.

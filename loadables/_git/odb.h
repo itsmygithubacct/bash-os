@@ -89,12 +89,24 @@ int bgit_slurp_file (const char *path, unsigned char **out, size_t *out_len);
 
 typedef struct bgit_pack_file bgit_pack_file;
 
+/* One objects/xx directory, listed once and kept: naming a commit by an
+   abbreviation asks which objects start with two given digits, and a log
+   over a long history asks it thousands of times. */
+typedef struct {
+    char prefix[3];
+    size_t dir;               /* which object directory it came from */
+    char (*names)[39];        /* the other 38 digits, in order */
+    size_t n;
+} bgit_loose_dir;
+
 typedef struct {
     char **object_dirs;
     size_t n_object_dirs;
     bgit_pack_file *packs;
     size_t n_packs;
     int packs_scanned;
+    bgit_loose_dir *listed;
+    size_t n_listed, cap_listed;
     /* Set by a caller that words its own messages, such as the git builtin,
        which says "fatal: ..." the way git does. */
     int quiet;

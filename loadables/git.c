@@ -1498,9 +1498,26 @@ git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
 struct git_walk {
     char (*seen)[41];
     size_t n_seen, cap_seen;
+    /* Where each seen commit sits, so that asking whether one has been
+       seen is a lookup: a history of twenty thousand commits is two
+       hundred million comparisons otherwise, and that is all a walk over
+       it would do. index+1, with 0 for an empty slot. */
+    size_t *slots;
+    size_t n_slots;
     struct { char id[41]; long long date; } *pending;
     size_t n_pending, cap_pending;
 };
+
+static unsigned long
+git_sha_hash (const char *sha)
+{
+    unsigned long hash = 1469598103934665603UL;      /* FNV-1a */
+    for (const unsigned char *p = (const unsigned char *) sha; *p; p++) {
+        hash ^= *p;
+        hash *= 1099511628211UL;
+    }
+    return hash;
+}
 
 static long long
 git_commit_date (git_context *ctx, const char *sha)
@@ -1529,11 +1546,22 @@ git_commit_date (git_context *ctx, const char *sha)
     return when;
 }
 
+/* 1 when this commit has been seen before, 0 when it is new (and is
+   remembered), -1 when there is no memory for it. */
 static int
 git_walk_seen (struct git_walk *walk, const char *sha)
 {
-    for (size_t i = 0; i < walk->n_seen; i++)
-        if (!strcmp (walk->seen[i], sha)) return 1;
+    if (walk->slots) {
+        size_t mask = walk->n_slots - 1;
+        size_t slot = git_sha_hash (sha) & mask;
+        while (walk->slots[slot]) {
+            if (!strcmp (walk->seen[walk->slots[slot] - 1], sha)) return 1;
+            slot = (slot + 1) & mask;
+        }
+    } else
+        for (size_t i = 0; i < walk->n_seen; i++)
+            if (!strcmp (walk->seen[i], sha)) return 1;
+
     if (walk->n_seen == walk->cap_seen) {
         size_t next = walk->cap_seen ? walk->cap_seen * 2 : 64;
         char (*grown)[41] = realloc (walk->seen, next * sizeof *grown);
@@ -1542,6 +1570,29 @@ git_walk_seen (struct git_walk *walk, const char *sha)
         walk->cap_seen = next;
     }
     memcpy (walk->seen[walk->n_seen++], sha, 41);
+
+    /* The table is kept at least twice the size of what it holds. */
+    if (!walk->slots || walk->n_slots < (walk->n_seen + 1) * 2) {
+        size_t want = walk->n_slots ? walk->n_slots * 2 : 256;
+        while (want < (walk->n_seen + 1) * 2) want *= 2;
+        size_t *grown = calloc (want, sizeof *grown);
+        if (grown) {
+            free (walk->slots);
+            walk->slots = grown;
+            walk->n_slots = want;
+            for (size_t i = 0; i < walk->n_seen; i++) {
+                size_t mask = walk->n_slots - 1;
+                size_t slot = git_sha_hash (walk->seen[i]) & mask;
+                while (walk->slots[slot]) slot = (slot + 1) & mask;
+                walk->slots[slot] = i + 1;
+            }
+        }
+    } else {
+        size_t mask = walk->n_slots - 1;
+        size_t slot = git_sha_hash (sha) & mask;
+        while (walk->slots[slot]) slot = (slot + 1) & mask;
+        walk->slots[slot] = walk->n_seen;
+    }
     return 0;
 }
 
@@ -1754,7 +1805,7 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     if (count_only) printf ("%ld\n", emitted);
     free (seen.ids);
 done:
-    free (walk.seen);
+    free (walk.seen); free (walk.slots);
     free (walk.pending);
     return status;
 }
@@ -3405,7 +3456,7 @@ git_collect_commits (git_context *ctx, const char *const *revs, int n_revs,
         char id[41], commit[41];
         if (git_resolve (ctx, excludes[i], id, NULL) < 0 ||
             bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
-            free (walk.seen); free (walk.pending);
+            free (walk.seen); free (walk.slots); free (walk.pending);
             return -1;
         }
         if (git_walk_push (ctx, &walk, commit) < 0) goto fail;
@@ -3424,7 +3475,7 @@ git_collect_commits (git_context *ctx, const char *const *revs, int n_revs,
         char id[41], commit[41];
         if (git_resolve (ctx, revs[i], id, NULL) < 0 ||
             bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0) {
-            free (walk.seen); free (walk.pending); free (ordered);
+            free (walk.seen); free (walk.slots); free (walk.pending); free (ordered);
             return -1;
         }
         if (git_walk_push (ctx, &walk, commit) < 0) goto fail;
@@ -3456,13 +3507,13 @@ git_collect_commits (git_context *ctx, const char *const *revs, int n_revs,
         for (int i = 0; i < count; i++)
             if (git_walk_push (ctx, &walk, parents[i]) < 0) goto fail;
     }
-    free (walk.seen);
+    free (walk.seen); free (walk.slots);
     free (walk.pending);
     *out = ordered;
     *n_out = n;
     return 0;
 fail:
-    free (walk.seen);
+    free (walk.seen); free (walk.slots);
     free (walk.pending);
     free (ordered);
     return -1;

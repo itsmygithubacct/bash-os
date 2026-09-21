@@ -77,6 +77,8 @@ bgit_odb_release (bgit_odb *odb)
         free (p->pack_path);
     }
     free (odb->packs);
+    for (size_t i = 0; i < odb->n_listed; i++) free (odb->listed[i].names);
+    free (odb->listed);
     bgit_repo_free_object_dirs (odb->object_dirs, odb->n_object_dirs);
     memset (odb, 0, sizeof *odb);
 }
@@ -190,34 +192,95 @@ bgit_pack_match_prefix (const struct bgit_pack_file *p, const char *prefix,
     return 0;
 }
 
-/* Loose objects with this prefix, in one objects directory. */
+static int
+bgit_name_cmp (const void *a, const void *b)
+{
+    return strcmp ((const char *) a, (const char *) b);
+}
+
+/* The listing of one objects/xx directory, read the first time it is
+   asked for and kept for the rest of the command. NULL when there is no
+   such directory, or no memory to remember it by. */
+static const bgit_loose_dir *
+bgit_loose_listing (bgit_odb *odb, size_t dir, const char *prefix)
+{
+    for (size_t i = 0; i < odb->n_listed; i++)
+        if (odb->listed[i].dir == dir &&
+            odb->listed[i].prefix[0] == prefix[0] &&
+            odb->listed[i].prefix[1] == prefix[1])
+            return &odb->listed[i];
+
+    char path[4096];
+    if (snprintf (path, sizeof path, "%s/%c%c", odb->object_dirs[dir],
+                  prefix[0], prefix[1]) >= (int) sizeof path)
+        return NULL;
+    char (*names)[39] = NULL;
+    size_t n = 0, cap = 0;
+    DIR *handle = opendir (path);
+    if (handle) {
+        struct dirent *entry;
+        while ((entry = readdir (handle)) != NULL) {
+            if (strlen (entry->d_name) != 38) continue;
+            if (n == cap) {
+                size_t next = cap ? cap * 2 : 64;
+                char (*grown)[39] = realloc (names, next * sizeof *grown);
+                if (!grown) break;
+                names = grown;
+                cap = next;
+            }
+            memcpy (names[n], entry->d_name, 38);
+            names[n][38] = '\0';
+            n++;
+        }
+        closedir (handle);
+    }
+    if (n > 1) qsort (names, n, sizeof *names, bgit_name_cmp);
+
+    if (odb->n_listed == odb->cap_listed) {
+        size_t next = odb->cap_listed ? odb->cap_listed * 2 : 32;
+        bgit_loose_dir *grown = realloc (odb->listed, next * sizeof *grown);
+        if (!grown) { free (names); return NULL; }
+        odb->listed = grown;
+        odb->cap_listed = next;
+    }
+    bgit_loose_dir *kept = &odb->listed[odb->n_listed++];
+    kept->prefix[0] = prefix[0];
+    kept->prefix[1] = prefix[1];
+    kept->prefix[2] = '\0';
+    kept->dir = dir;
+    kept->names = names;
+    kept->n = n;
+    return kept;
+}
+
 static void
-bgit_loose_match_prefix (const char *objects, const char *prefix, char full[41],
-                         int *matches)
+bgit_loose_match_prefix (bgit_odb *odb, size_t dir, const char *prefix,
+                         char full[41], int *matches)
 {
     size_t plen = strlen (prefix);
     if (plen < 2) return;
-    char dir[4096];
-    if (snprintf (dir, sizeof dir, "%s/%c%c", objects, prefix[0], prefix[1]) >=
-        (int) sizeof dir)
-        return;
-    DIR *handle = opendir (dir);
-    if (!handle) return;
-    struct dirent *entry;
-    while ((entry = readdir (handle)) != NULL) {
-        if (strlen (entry->d_name) != 38) continue;
+    const bgit_loose_dir *listing = bgit_loose_listing (odb, dir, prefix);
+    if (!listing) return;
+    /* The listing is in order, so the ones that carry on from the prefix
+       stand together: find where they start and walk while they last. */
+    size_t low = 0, high = listing->n;
+    size_t rest = plen - 2;
+    while (low < high) {
+        size_t mid = low + (high - low) / 2;
+        if (strncmp (listing->names[mid], prefix + 2, rest) < 0) low = mid + 1;
+        else high = mid;
+    }
+    for (size_t i = low; i < listing->n && *matches < 2; i++) {
+        if (strncmp (listing->names[i], prefix + 2, rest)) break;
         char hex[41];
         hex[0] = prefix[0];
         hex[1] = prefix[1];
-        memcpy (hex + 2, entry->d_name, 38);
+        memcpy (hex + 2, listing->names[i], 38);
         hex[40] = '\0';
-        if (strncmp (hex, prefix, plen) != 0) continue;
         if (*matches == 0) memcpy (full, hex, 41);
-        else if (strcmp (full, hex) != 0) { (*matches)++; break; }
+        else if (strcmp (full, hex)) { (*matches)++; break; }
         (*matches)++;
-        if (*matches > 1) break;
     }
-    closedir (handle);
 }
 
 int
@@ -245,7 +308,7 @@ bgit_odb_resolve (bgit_odb *odb, const char *name, char full[41])
     int matches = 0;
     char candidate[41] = "";
     for (size_t i = 0; i < odb->n_object_dirs && matches < 2; i++)
-        bgit_loose_match_prefix (odb->object_dirs[i], name, candidate, &matches);
+        bgit_loose_match_prefix (odb, i, name, candidate, &matches);
     bgit_odb_scan_packs (odb);
     for (size_t i = 0; i < odb->n_packs && matches < 2; i++)
         bgit_pack_match_prefix (&odb->packs[i], name, candidate, &matches);
