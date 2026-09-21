@@ -110,6 +110,7 @@ git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--all] [--branches] [--tags] [--remotes]
                  [--verify] [-q] <rev>...
 git cat-file     (-t | -s | -e | -p | <type>) <object>
+git cat-file     (--batch | --batch-check) [--batch-all-objects] [--unordered]
 git hash-object  [-t <type>] [-w] [--stdin | --stdin-paths] [<file>...]
 git update-ref   [-m <reason>] (-d <ref> [<old>] | <ref> <new> [<old>])
 git symbolic-ref [-m <reason>] [-q] [--short] <name> [<ref>]
@@ -269,6 +270,12 @@ reading what the objects hold. Named objects replace the heads it would
 otherwise start from. The exit status is git's: 1 for something wrong with
 an object, 2 for something that could not be reached, and both together
 for both.
+
+`git cat-file --batch-all-objects` reads from the same listing: with
+`--batch-check` it names every object the store holds, in id order, with
+its type and size, and with `--batch` it prints each one's contents after
+that. `--unordered` is accepted and changes nothing, since the listing is
+in order either way.
 
 Two things about `fsck` are not git's. The order is one: git lists
 unreachable objects in the order of its own object table, which is not
@@ -1009,7 +1016,7 @@ and fsck.
 What is not here yet, in the order it would be missed: the housekeeping
 that rewrites the store — `gc`, `repack` and `prune`; `notes`, `bisect`,
 `archive` and `bundle`; `remote show`; `diff --word-diff`;
-`cat-file --batch-all-objects`; `describe --contains` and `--all`;
+`describe --contains` and `--all`;
 `--date=human`; and `%N`.
 
 What is left out was left out on purpose. A repository whose objects are

@@ -516,8 +516,36 @@ git_print_tree (const unsigned char *data, size_t len)
 /* Read object names from stdin, as `git cat-file --batch` and
    `--batch-check` do, and report each one. */
 static int
-git_cat_file_batch (git_context *ctx, int with_content)
+git_cat_file_batch (git_context *ctx, int with_content, int all_objects)
 {
+    /* Every object the store holds, in id order, instead of the ones asked
+       for on stdin. */
+    if (all_objects) {
+        char (*names)[41] = NULL;
+        size_t n = 0;
+        if (bgit_odb_list (&ctx->odb, &names, &n) < 0) {
+            fflush (stdout);
+            fprintf (stderr, "fatal: out of memory\n");
+            return GIT_EXIT_FATAL;
+        }
+        for (size_t i = 0; i < n; i++) {
+            enum bgit_type type;
+            unsigned char *data = NULL;
+            size_t len = 0;
+            if (bgit_odb_read (&ctx->odb, names[i], &type, &data, &len) < 0) {
+                printf ("%s missing\n", names[i]);
+                continue;
+            }
+            printf ("%s %s %zu\n", names[i], bgit_type_name (type), len);
+            if (with_content) {
+                fwrite (data, 1, len, stdout);
+                putchar ('\n');
+            }
+            free (data);
+        }
+        free (names);
+        return 0;
+    }
     char *line = NULL;
     size_t cap = 0;
     ssize_t got;
@@ -550,15 +578,18 @@ static int
 git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git cat-file (-t | -s | -e | -p | <type>) <object> "
-                        "| (--batch | --batch-check)";
+                        "| (--batch | --batch-check) [--batch-all-objects]";
     int want_type = 0, want_size = 0, want_exists = 0, pretty = 0;
-    int batch = 0, batch_check = 0;
+    int batch = 0, batch_check = 0, all_objects = 0;
     const char *as_type = NULL, *name = NULL;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "--batch")) batch = 1;
         else if (!strcmp (w, "--batch-check")) batch_check = 1;
+        else if (!strcmp (w, "--batch-all-objects")) all_objects = 1;
+        /* The order this store lists them in is the sorted one either way. */
+        else if (!strcmp (w, "--unordered")) ;
         else if (!strcmp (w, "-t")) want_type = 1;
         else if (!strcmp (w, "-s")) want_size = 1;
         else if (!strcmp (w, "-e")) want_exists = 1;
@@ -571,11 +602,15 @@ git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
         else return git_usage (usage);
     }
     if (batch || batch_check) {
-        if (name || want_type || want_size || want_exists || pretty)
+        if (want_type || want_size || want_exists || pretty)
             return git_usage (usage);
+        if (name || as_type)
+            return git_fatal ("batch modes take no arguments");
         if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
-        return git_cat_file_batch (ctx, batch);
+        return git_cat_file_batch (ctx, batch, all_objects);
     }
+    if (all_objects)
+        return git_fatal ("'--batch-all-objects' requires a batch mode");
     if (!name) return git_usage (usage);
     if (want_type + want_size + want_exists + pretty + (as_type ? 1 : 0) != 1)
         return git_usage (usage);

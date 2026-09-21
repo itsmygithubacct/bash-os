@@ -66,3 +66,9 @@ git count-objects
 git count-objects -v
 git count-objects -H
 git count-objects -v -H
+
+# Every object the store holds, in id order, without being asked for one at
+# a time.
+git cat-file --batch-all-objects --batch-check
+git cat-file --batch-all-objects --batch-check --unordered
+git cat-file --batch-all-objects --batch
