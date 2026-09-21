@@ -431,10 +431,22 @@ bgit_index_covers (const bgit_index_entry *index, size_t n, const char *path,
         }
         return 0;
     }
-    size_t at = bgit_entry_lower_bound (index, n, path, len);
-    if (at >= n) return 0;
-    if (!is_dir) return !strcmp (index[at].path, path);
-    return !strncmp (index[at].path, path, len) && index[at].path[len] == '/';
+    if (!is_dir) {
+        size_t at = bgit_entry_lower_bound (index, n, path, len);
+        return at < n && !strcmp (index[at].path, path);
+    }
+    /* What is under a directory sorts after a sibling whose name carries
+       the same prefix and then a byte below '/' — "t/git-http.py" comes
+       before "t/git/x.sh" — so the slash is part of what is searched for. */
+    char under[4096];
+    if ((size_t) snprintf (under, sizeof under, "%s/", path) >= sizeof under) {
+        for (size_t i = 0; i < n; i++)
+            if (!strncmp (index[i].path, path, len) && index[i].path[len] == '/')
+                return 1;
+        return 0;
+    }
+    size_t at = bgit_entry_lower_bound (index, n, under, len + 1);
+    return at < n && !strncmp (index[at].path, under, len + 1);
 }
 
 /* Does this directory hold anything git would report? An empty one, or one

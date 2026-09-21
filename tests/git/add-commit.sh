@@ -49,3 +49,22 @@ git status -s
 git rev-parse HEAD 'HEAD~1' 'HEAD~2'
 git ls-files
 git ls-files -s
+
+# A directory sorts after a sibling file whose name carries its own and
+# then a byte below '/' — "t/git-http.py" comes before "t/git/x.sh" — so
+# a search of the index for what a directory holds has to allow for it.
+mkdir -p t/git
+printf 'x\n' > t/git-http.py
+printf 'y\n' > t/git/x.sh
+printf 'z\n' > 't/git!bang'
+git add t
+git commit -q -m 'a directory between its siblings'
+git status -s
+git status --porcelain=v2
+git ls-files t
+printf 'more\n' > t/git/later.sh
+git status -s
+git add -A
+git status --porcelain=v2
+git commit -q -m 'and one more under it'
+git status
