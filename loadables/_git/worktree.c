@@ -25,6 +25,9 @@
 #include "index.h"
 #include "odb.h"
 #include "rename.h"
+#include "config.h"
+#include "revision.h"
+#include "refs.h"
 #include "repo.h"
 #include "tree.h"
 #include "worktree.h"
@@ -59,11 +62,104 @@ bgit_worktree_read (const char *path, const struct stat *st,
     return rc;
 }
 
+/* What HEAD names, following the symbolic step it normally is: reading a
+   ref refuses a symbolic one, so the step is taken here. An unborn branch
+   names nothing, and says so. */
+static int
+bgit_head_id (const bgit_repo *repo, char out[41])
+{
+    char name[256] = "HEAD";
+    for (int step = 0; step < 5; step++) {
+        if (bgit_ref_read (repo, name, out) == 0) return 0;
+        char *target = NULL;
+        if (bgit_symref_read (repo, name, &target) != 0) return -1;
+        snprintf (name, sizeof name, "%s", target);
+        free (target);
+    }
+    return -1;
+}
+
+int
+bgit_submodule_head (const char *full_path, char out[41])
+{
+    bgit_repo repo;
+    if (bgit_repo_open (full_path, &repo) < 0) return -1;
+    int rc = bgit_head_id (&repo, out);
+    bgit_repo_release (&repo);
+    return rc;
+}
+
+int
+bgit_submodule_dirt (const char *full_path, int *changed, int *untracked)
+{
+    if (changed) *changed = 0;
+    if (untracked) *untracked = 0;
+    bgit_repo repo;
+    bgit_odb odb;
+    if (bgit_repo_open (full_path, &repo) < 0) return -1;
+    if (!repo.work_tree || bgit_odb_open (&repo, &odb) < 0) {
+        bgit_repo_release (&repo);
+        return -1;
+    }
+    odb.quiet = 1;
+    char head[41], tree[41] = "";
+    int have_head = bgit_head_id (&repo, head) == 0;
+    int have_tree = have_head && bgit_commit_tree (&odb, head, tree) == 0;
+    char index_path[4096];
+    bgit_index_entry *index = NULL;
+    size_t n_index = 0;
+    snprintf (index_path, sizeof index_path, "%s/index", repo.git_dir);
+    if (bgit_index_read (index_path, &index, &n_index) < 0) {
+        index = NULL;
+        n_index = 0;
+    }
+    bgit_config cfg;
+    memset (&cfg, 0, sizeof cfg);
+    bgit_config_load (&cfg, &repo, NULL, 0);
+    bgit_status_entry *entries = NULL;
+    size_t n = 0;
+    int rc = -1;
+    if (bgit_status (&repo, &odb, &cfg, index, n_index,
+                     have_tree ? tree : NULL, 0, 0, 0, &entries, &n) == 0) {
+        for (size_t i = 0; i < n; i++) {
+            if (entries[i].untracked) {
+                if (untracked) *untracked = 1;
+            } else if (entries[i].staged || entries[i].unstaged ||
+                       entries[i].unmerged) {
+                if (changed) *changed = 1;
+            }
+        }
+        bgit_status_free (entries, n);
+        rc = 0;
+    }
+    bgit_config_release (&cfg);
+    bgit_index_free_entries (index, n_index);
+    bgit_odb_release (&odb);
+    bgit_repo_release (&repo);
+    return rc;
+}
+
 int
 bgit_worktree_matches (bgit_odb *odb, const char *full_path,
                        const bgit_index_entry *entry, const struct stat *st)
 {
     (void) odb;
+    /* A submodule is a commit id, not a file: what the repository over
+       there has checked out is what it is held against, and the directory
+       itself is never read. One that was never cloned has nothing to say,
+       which is what git says about it. */
+    if (entry->mode == 0160000) {
+        char head[41];
+        if (bgit_submodule_head (full_path, head) < 0) return 1;
+        char stored[41];
+        bgit_sha_to_hex (entry->sha, stored);
+        if (strcmp (head, stored)) return 0;
+        /* The same commit, but a working tree of its own that has moved on
+           is a change too, which is what git reports. */
+        int changed = 0, untracked = 0;
+        bgit_submodule_dirt (full_path, &changed, &untracked);
+        return !changed && !untracked;
+    }
     if (entry->mode != bgit_worktree_mode (st)) return 0;
     /* The index records stat data; when it still agrees, the file is
        unchanged and need not be read — unless the entry is racy, written in
@@ -384,6 +480,9 @@ bgit_untracked_visit (void *vctx, const char *path, int is_dir,
         return 1;      /* nothing below an ignored directory is reported */
     }
     if (is_dir) {
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
+                               ctx->index_sorted))
+            return 1;  /* the index holds it whole: a submodule */
         if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
                                ctx->index_sorted))
             return 0;  /* tracked files inside: look further down */
@@ -567,7 +666,8 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
         } else if (!bgit_worktree_matches (odb, full, &index[j], &st)) {
             entry = bgit_status_at (&build, index[j].path);
             if (!entry) goto oom;
-            entry->worktree_mode = bgit_worktree_mode (&st);
+            entry->worktree_mode = index[j].mode == 0160000
+                                   ? 0160000 : bgit_worktree_mode (&st);
             entry->unstaged = bgit_status_kind (index[j].mode) !=
                               bgit_status_kind (entry->worktree_mode)
                               ? 'T' : 'M';

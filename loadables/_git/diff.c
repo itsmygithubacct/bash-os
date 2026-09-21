@@ -163,6 +163,16 @@ bgit_diff_index_worktree (const bgit_repo *repo, bgit_odb *odb,
             continue;
         }
         if (bgit_worktree_matches (odb, full, &index[i], &st)) continue;
+        /* A submodule differs by what it has checked out, and is named by
+           that rather than by anything read out of the directory. */
+        if (index[i].mode == 0160000) {
+            char head[41] = "";
+            if (bgit_submodule_head (full, head) == 0 &&
+                bgit_diff_push (&build, index[i].path, 'M', 0160000, old_hex,
+                                0160000, head) < 0)
+                goto oom;
+            continue;
+        }
         /* The file differs: name it by the id its content has now. */
         unsigned char *content = NULL;
         size_t len = 0;
@@ -228,6 +238,16 @@ bgit_worktree_entries (const bgit_repo *repo, bgit_odb *odb,
         if (!entry->path) { bgit_index_free_entries (entries, n); return -1; }
         entry->mode = bgit_worktree_mode (&st);
         memcpy (entry->sha, index[i].sha, 20);
+        /* A submodule's own HEAD stands for its content: there is nothing
+           there to read, and reading it would be reading a directory. */
+        if (index[i].mode == 0160000) {
+            char head[41];
+            entry->mode = 0160000;
+            if (bgit_submodule_head (full, head) == 0)
+                bgit_hex_to_sha (head, entry->sha);
+            n++;
+            continue;
+        }
         if (!bgit_worktree_matches (odb, full, &index[i], &st)) {
             unsigned char *content = NULL;
             size_t len = 0;

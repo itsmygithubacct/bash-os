@@ -67,6 +67,15 @@ uint32_t bgit_worktree_mode (const struct stat *st);
 
 /* 1 when the file at PATH still matches ENTRY, by stat data where that is
    conclusive and by content otherwise. */
+/* What the submodule at FULL_PATH has checked out. Returns 0 with the id,
+   or -1 when there is no repository there — one that was never cloned. */
+int bgit_submodule_head (const char *full_path, char out[41]);
+
+/* Whether the submodule at FULL_PATH has changes of its own: tracked ones
+   in *CHANGED, untracked ones in *UNTRACKED. Returns 0, or -1 when there
+   is no repository there to ask. */
+int bgit_submodule_dirt (const char *full_path, int *changed, int *untracked);
+
 int bgit_worktree_matches (bgit_odb *odb, const char *full_path,
                            const bgit_index_entry *entry, const struct stat *st);
 

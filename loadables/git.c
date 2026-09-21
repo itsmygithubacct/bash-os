@@ -1897,6 +1897,30 @@ git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
             return 1;
         const bgit_ignore_rule *rule = NULL;
         if (bgit_ignore_match (add->ignore, path, 1, &rule)) return 1;
+        /* A submodule is staged as the commit it has checked out, and what
+           is inside it belongs to that repository, not to this one. */
+        bgit_index_entry *linked = git_index_lookup (add->state->index,
+                                                    add->state->n_index, path);
+        if (linked && linked->mode == 0160000) {
+            if (!git_path_in_spec (path, add->pathspec)) return 1;
+            char full[4096], head[41], stored[41];
+            if (snprintf (full, sizeof full, "%s/%s", add->ctx->repo.work_tree,
+                          path) < (int) sizeof full &&
+                bgit_submodule_head (full, head) == 0) {
+                bgit_sha_to_hex (linked->sha, stored);
+                if (strcmp (head, stored)) {
+                    *add->changed = 1;
+                    if (!add->dry_run) {
+                        /* The commit, and the directory's stat data with
+                           it, which is what git records for a gitlink. */
+                        bgit_hex_to_sha (head, linked->sha);
+                        bgit_index_entry_set_stat (linked, st);
+                        linked->mode = 0160000;
+                    }
+                }
+            }
+            return 1;
+        }
         return 0;
     }
     if (!git_path_in_spec (path, add->pathspec)) return 0;
@@ -2061,6 +2085,82 @@ git_status_label (int code)
     }
 }
 
+/* Opening another repository — a submodule's, here — is written down
+   further along, where the far ends are. */
+static int git_open_remote (const char *url, bgit_repo *repo, bgit_odb *odb);
+
+/* How a submodule stands: whether the commit it points at has moved,
+   whether it has changes of its own, and whether it has untracked files.
+   Reading the repository over there is the only way to know, so this is
+   asked once and read twice — by the short form and by the long one. */
+struct git_submodule_state {
+    int is_submodule;
+    int moved, changed, untracked;
+};
+
+static void
+git_submodule_state (git_context *ctx, const bgit_status_entry *entry,
+                     struct git_submodule_state *out)
+{
+    memset (out, 0, sizeof *out);
+    uint32_t mode = entry->index_mode ? entry->index_mode : entry->head_mode;
+    if (mode != 0160000) return;
+    out->is_submodule = 1;
+
+    char full[4096], head[41];
+    if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree,
+                  entry->path) >= (int) sizeof full)
+        return;
+    if (bgit_submodule_head (full, head) < 0) return;
+    if (entry->index_sha[0] && strcmp (head, entry->index_sha))
+        out->moved = 1;
+    int changed = 0, untracked = 0;
+    bgit_submodule_dirt (full, &changed, &untracked);
+    out->changed = changed;
+    out->untracked = untracked;
+}
+
+
+
+/* What porcelain v2 puts in a path's third field: a submodule's state, or
+   the four dots that say it is not one. */
+static void
+git_status_kind_field (git_context *ctx, const bgit_status_entry *entry,
+                       char out[5])
+{
+    struct git_submodule_state sub;
+    git_submodule_state (ctx, entry, &sub);
+    if (!sub.is_submodule) {
+        snprintf (out, 5, "N...");
+        return;
+    }
+    snprintf (out, 5, "S%c%c%c", sub.moved ? 'C' : '.',
+              sub.changed ? 'M' : '.', sub.untracked ? 'U' : '.');
+}
+
+/* What the long form adds after a submodule's name. */
+static const char *
+git_submodule_note (git_context *ctx, const bgit_status_entry *entry,
+                    char *out, size_t outsz)
+{
+    struct git_submodule_state sub;
+    *out = '\0';
+    git_submodule_state (ctx, entry, &sub);
+    if (!sub.is_submodule) return out;
+    const char *parts[3];
+    int n = 0;
+    if (sub.moved) parts[n++] = "new commits";
+    if (sub.changed) parts[n++] = "modified content";
+    if (sub.untracked) parts[n++] = "untracked content";
+    if (!n) return out;
+    size_t at = (size_t) snprintf (out, outsz, " (");
+    for (int i = 0; i < n && at < outsz; i++)
+        at += (size_t) snprintf (out + at, outsz - at, "%s%s",
+                                 i ? ", " : "", parts[i]);
+    if (at < outsz) snprintf (out + at, outsz - at, ")");
+    return out;
+}
+
 /* `git status` with no format option: the report written for a person.
    Sections in git's order, each followed by a blank line, and the closing
    sentence that says what, if anything, is there to commit. */
@@ -2209,12 +2309,28 @@ git_status_long (git_context *ctx, struct git_state *state,
                 ? "  (use \"git add/rm <file>...\" to update what will be committed)\n"
                 : "  (use \"git add <file>...\" to update what will be committed)\n");
         printf ("  (use \"git restore <file>...\" to discard changes in working directory)\n");
+        /* A submodule with work of its own in it gets a line of its own:
+           what is in there cannot be committed from here. */
         for (size_t i = 0; i < n; i++) {
             if (entries[i].untracked || entries[i].ignored ||
                 entries[i].unmerged || !entries[i].unstaged)
                 continue;
-            printf ("\t%-12s%s\n", git_status_label (entries[i].unstaged),
-                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+            struct git_submodule_state sub;
+            git_submodule_state (ctx, &entries[i], &sub);
+            if (sub.is_submodule && (sub.changed || sub.untracked)) {
+                printf ("  (commit or discard the untracked or modified "
+                        "content in submodules)\n");
+                break;
+            }
+        }
+        for (size_t i = 0; i < n; i++) {
+            if (entries[i].untracked || entries[i].ignored ||
+                entries[i].unmerged || !entries[i].unstaged)
+                continue;
+            char note[128];
+            printf ("\t%-12s%s%s\n", git_status_label (entries[i].unstaged),
+                    bgit_quote_path (entries[i].path, quoted, sizeof quoted),
+                    git_submodule_note (ctx, &entries[i], note, sizeof note));
         }
         printf ("\n");
     }
@@ -2329,7 +2445,9 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
             /* An unmerged path has its own record, listing every stage. */
             git_status_letters (entry, &x, &y, '.');
             const char *zeros = "0000000000000000000000000000000000000000";
-            printf ("u %c%c N... %06o %06o %06o %06o %s %s %s %s\n", x, y,
+            char kind[5];
+            git_status_kind_field (ctx, entry, kind);
+            printf ("u %c%c %s %06o %06o %06o %06o %s %s %s %s\n", x, y, kind,
                     entry->head_mode, entry->index_mode, entry->their_mode,
                     entry->worktree_mode,
                     entry->head_sha[0] ? entry->head_sha : zeros,
@@ -2341,7 +2459,9 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         if (version == 2 && porcelain && entry->renamed_from &&
             *entry->renamed_from) {
             git_status_letters (entry, &x, &y, '.');
-            printf ("2 %c%c N... %06o %06o %06o %s %s R%d %s\t%s\n", x, y,
+            char kind[5];
+            git_status_kind_field (ctx, entry, kind);
+            printf ("2 %c%c %s %06o %06o %06o %s %s R%d %s\t%s\n", x, y, kind,
                     entry->head_mode, entry->index_mode,
                     entry->worktree_mode ? entry->worktree_mode
                                          : entry->index_mode,
@@ -2352,7 +2472,9 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         }
         if (version == 2 && porcelain) {
             git_status_letters (entry, &x, &y, '.');
-            printf ("1 %c%c N... %06o %06o %06o %s %s %s\n", x, y,
+            char kind[5];
+            git_status_kind_field (ctx, entry, kind);
+            printf ("1 %c%c %s %06o %06o %06o %s %s %s\n", x, y, kind,
                     entry->head_mode, entry->index_mode,
                     entry->unstaged == 'D' ? 0 : (entry->worktree_mode
                         ? entry->worktree_mode : entry->index_mode),
@@ -2363,6 +2485,15 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                     entry->path);
         } else {
             git_status_letters (entry, &x, &y, ' ');
+            /* A submodule says which kind of change it is: M for a commit
+               that moved, m for content of its own that changed, ? for
+               nothing but untracked files in it. */
+            if (y == 'M') {
+                struct git_submodule_state sub;
+                git_submodule_state (ctx, entry, &sub);
+                if (sub.is_submodule && !sub.moved)
+                    y = sub.changed ? 'm' : sub.untracked ? '?' : y;
+            }
             if (entry->renamed_from && *entry->renamed_from)
                 printf ("%c%c %s -> %s\n", x, y, entry->renamed_from,
                         entry->path);

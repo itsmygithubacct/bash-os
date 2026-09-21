@@ -139,6 +139,18 @@ bgit_patch_content (bgit_odb *odb, const bgit_repo *repo,
         (*data)[0] = '\0';
         return 0;
     }
+    /* A submodule has no blob. What git shows for one is the line that
+       names the commit it points at. */
+    if ((side ? entry->new_mode : entry->old_mode) == 0160000) {
+        char line[80];
+        int wrote = snprintf (line, sizeof line, "Subproject commit %s\n", sha);
+        if (wrote < 0 || wrote >= (int) sizeof line) return -1;
+        *data = malloc ((size_t) wrote + 1);
+        if (!*data) return -1;
+        memcpy (*data, line, (size_t) wrote + 1);
+        *len = (size_t) wrote;
+        return 0;
+    }
     if (side && options->new_from_worktree)
         return bgit_read_worktree_file (repo, entry->path, data, len);
 

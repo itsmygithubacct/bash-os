@@ -186,6 +186,21 @@ leaves that file alone and keeps the entry. Even a pop whose tracked
 half is refused puts the untracked half back and says where it stands,
 which is what git does.
 
+A repository that holds another one is read the way git reads it. The
+index entry for a submodule is a commit id, not a file: what the
+repository over there has checked out is what the entry is held against,
+the directory itself is never read, and nothing inside it is this
+repository's business — not as untracked files, and not when `git add`
+names the path, which stages the commit that submodule has now. `status`
+says which kind of change it is, as git does: `M` for a commit that
+moved, `m` for content of its own that changed, `?` for nothing but
+untracked files in it; the long form spells the same out after the name
+— `(new commits, modified content, untracked content)` — and
+`--porcelain=v2` carries git's `S<c><m><u>` field. A `diff` shows a
+submodule the way git shows one, as the `Subproject commit` line
+changing. A submodule that was never cloned has nothing to say, which is
+also git's answer.
+
 `git rebase` replays what a branch has that its upstream does not, one
 commit at a time, each replay being the same three-way merge a cherry-pick
 makes. HEAD is detached for the replay and the branch only moves at the
@@ -539,6 +554,8 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: interactive rebase, submodules, renames between
-the index and the working tree, and a merge with more than one base. The plan, including what each phase must match, is in the
+Left over from Phase 2: the `git submodule` command itself — the gitlink
+is read and written, but `status`, `init` and `update` are not there yet
+— interactive rebase, renames between the index and the working tree,
+and a merge with more than one base. The plan, including what each phase must match, is in the
 implementation document for the port.
