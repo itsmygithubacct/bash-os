@@ -6333,14 +6333,28 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
             goto done;
         }
-        /* A mixed reset keeps the files, so each entry takes their stat —
-           but the mode stays the one the tree records, not the permissions
-           the file happens to have. */
+        /* A mixed reset keeps the files, so an entry the index already
+           described this way keeps its stat data with it. One the reset
+           moves takes the file's stat only when the file is what the tree
+           says; otherwise the entry has to go on looking changed, which is
+           what git reports after a reset. */
         for (size_t i = 0; i < n; i++) {
+            bgit_index_entry *before = git_index_lookup (state.index,
+                                                         state.n_index,
+                                                         entries[i].path);
+            if (before && before->mode == entries[i].mode &&
+                memcmp (before->sha, entries[i].sha, 20) == 0) {
+                char *keep = entries[i].path;
+                entries[i] = *before;
+                entries[i].path = keep;
+                continue;
+            }
             char full[4096];
             snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, entries[i].path);
             struct stat st;
             if (lstat (full, &st) != 0) continue;
+            if (!bgit_worktree_matches (&ctx->odb, full, &entries[i], &st))
+                continue;
             uint32_t mode = entries[i].mode;
             bgit_index_entry_set_stat (&entries[i], &st);
             entries[i].mode = mode;

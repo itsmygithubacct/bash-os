@@ -63,6 +63,9 @@ git reset a.txt
 git status --short
 git add -A
 git reset
+# A second, so that what status reads is the stat data the reset wrote and
+# not a file written in the same tick as the index.
+sleep 1
 git status --short
 git add -A
 git reset -q
