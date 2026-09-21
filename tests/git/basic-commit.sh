@@ -53,3 +53,44 @@ git reset -q --hard HEAD
 git status --porcelain=v2 --branch
 git rev-parse HEAD 'HEAD^{tree}' main topic
 git reflog show main
+
+# reset says what it left behind, and takes a path where a revision would
+# go: git reset <file> is how a staged change is put back.
+printf 'staged\n' > a.txt
+printf 'other\n' > b.txt
+git add a.txt b.txt
+git reset a.txt
+git status --short
+git add -A
+git reset
+git status --short
+git add -A
+git reset -q
+git status --short
+git add -A
+git reset --soft
+git status --short
+rm b.txt
+git add -A
+git reset
+git reset --hard
+git status --short
+git reset nosuchthing || echo "said no: $?"
+
+# And before the first commit, where HEAD stands for the empty tree.
+mkdir -p unborn
+cd unborn
+git init -q -b main .
+printf 'z\n' > z.txt
+git add z.txt
+git reset
+git status --short
+git add z.txt
+git reset z.txt
+git status --short
+git add z.txt
+git reset --hard
+git status --short
+cd ..
+# and away, so that what is compared is this repository alone.
+rm -rf unborn

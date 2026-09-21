@@ -1255,51 +1255,155 @@ done:
     return status;
 }
 
+/* Does one of the paths named on the command line cover this one? A
+   directory covers everything under it, as git's pathspecs do. */
+static int
+git_path_named (const char *path, const char *const *patterns, int n)
+{
+    if (!n) return 1;
+    for (int i = 0; i < n; i++) {
+        size_t len = strlen (patterns[i]);
+        if (!len) continue;
+        if (!strcmp (path, patterns[i])) return 1;
+        if (!strncmp (path, patterns[i], len) &&
+            (patterns[i][len - 1] == '/' || path[len] == '/'))
+            return 1;
+    }
+    return 0;
+}
+
+/* One of ls-files' lines: the path, with the index's record of it when a
+   stage listing was asked for, behind the letter that says what it is. */
+static void
+git_ls_line (const bgit_index_entry *entry, const char *tag, int stage,
+             char end)
+{
+    char hex[41];
+    bgit_sha_to_hex (entry->sha, hex);
+    if (stage)
+        printf ("%s%o %s %d\t%s%c", tag, entry->mode, hex,
+                (entry->flags >> 12) & 0x3, entry->path, end);
+    else
+        printf ("%s%s%c", tag, entry->path, end);
+}
+
 static int
 git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git ls-files [-s | --stage] [-z] [--] [<file>...]";
+    const char *usage = "git ls-files [-c] [-d] [-m] [-o] [-i] [-u] [-t] "
+                        "[-s | --stage] [--directory] [--exclude-standard] "
+                        "[-z] [--] [<file>...]";
     int stage = 0, zero = 0, no_more_options = 0;
+    int cached = 0, deleted = 0, modified = 0, others = 0, only_ignored = 0;
+    int unmerged = 0, tags = 0, directory = 0, exclude = 0;
     const char *patterns[32];
     int n_patterns = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!no_more_options && !strcmp (w, "--")) { no_more_options = 1; continue; }
-        if (!no_more_options && (!strcmp (w, "-s") || !strcmp (w, "--stage"))) stage = 1;
-        else if (!no_more_options && !strcmp (w, "-z")) zero = 1;
-        else if (!no_more_options && !strcmp (w, "--cached")) { /* the default */ }
+        if (!no_more_options && w[0] == '-' && w[1] && w[1] != '-') {
+            /* git takes these one at a time or run together. */
+            for (const char *flag = w + 1; *flag; flag++) {
+                switch (*flag) {
+                case 'c': cached = 1; break;
+                case 'd': deleted = 1; break;
+                case 'm': modified = 1; break;
+                case 'o': others = 1; break;
+                case 'i': only_ignored = 1; break;
+                case 'u': unmerged = 1; break;
+                case 't': tags = 1; break;
+                case 's': stage = 1; break;
+                case 'z': zero = 1; break;
+                default: return git_usage (usage);
+                }
+            }
+        }
+        else if (!no_more_options && !strcmp (w, "--cached")) cached = 1;
+        else if (!no_more_options && !strcmp (w, "--deleted")) deleted = 1;
+        else if (!no_more_options && !strcmp (w, "--modified")) modified = 1;
+        else if (!no_more_options && !strcmp (w, "--others")) others = 1;
+        else if (!no_more_options && !strcmp (w, "--ignored")) only_ignored = 1;
+        else if (!no_more_options && !strcmp (w, "--unmerged")) unmerged = 1;
+        else if (!no_more_options && !strcmp (w, "--stage")) stage = 1;
+        else if (!no_more_options && !strcmp (w, "--directory")) directory = 1;
+        else if (!no_more_options && !strcmp (w, "--exclude-standard")) exclude = 1;
         else if (!no_more_options && w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_patterns < (int) (sizeof patterns / sizeof *patterns))
             patterns[n_patterns++] = w;
         else return git_fatal ("too many paths");
     }
+    /* -i says which of the others to list, so one of them has to have been
+       asked for: the default does not count, and is settled after. */
+    if (only_ignored) {
+        if (!others && !cached)
+            return git_fatal ("ls-files -i must be used with either -o or -c");
+        if (!exclude)
+            return git_fatal ("ls-files --ignored needs some exclude pattern");
+    }
+    /* -s asks for the index as well as for the form of the line; -u asks
+       for the form alone. With nothing named at all, git lists the index. */
+    if (stage) cached = 1;
+    if (!cached && !deleted && !modified && !others && !unmerged) cached = 1;
+    int stage_form = stage || unmerged;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     bgit_index_entry *entries = NULL;
     size_t n = 0;
     if (git_index_load (ctx, &entries, &n) < 0) return GIT_EXIT_FATAL;
-    for (size_t i = 0; i < n; i++) {
-        if (n_patterns) {
-            int matched = 0;
-            for (int j = 0; j < n_patterns && !matched; j++) {
-                size_t plen = strlen (patterns[j]);
-                if (!strcmp (entries[i].path, patterns[j]) ||
-                    (!strncmp (entries[i].path, patterns[j], plen) &&
-                     (patterns[j][plen - 1] == '/' || entries[i].path[plen] == '/')))
-                    matched = 1;
-            }
-            if (!matched) continue;
+    char end = zero ? '\0' : '\n';
+
+    /* git names what it does not track first, then walks the index once. */
+    if (others) {
+        char **paths = NULL;
+        size_t n_others = 0;
+        if (bgit_worktree_others (&ctx->repo, &ctx->cfg, entries, n, directory,
+                                  exclude, only_ignored, &paths,
+                                  &n_others) < 0) {
+            bgit_index_free_entries (entries, n);
+            return git_fatal ("cannot read the working tree");
         }
-        char hex[41];
-        bgit_sha_to_hex (entries[i].sha, hex);
-        if (stage)
-            printf ("%o %s %d\t%s%c", entries[i].mode, hex,
-                    (entries[i].flags >> 12) & 0x3, entries[i].path,
-                    zero ? '\0' : '\n');
-        else
-            printf ("%s%c", entries[i].path, zero ? '\0' : '\n');
+        for (size_t i = 0; i < n_others; i++)
+            if (git_path_named (paths[i], patterns, n_patterns))
+                printf ("%s%s%c", tags ? "? " : "", paths[i], end);
+        bgit_others_free (paths, n_others);
     }
+
+    bgit_ignore ignore;
+    int have_ignore = only_ignored &&
+                      bgit_ignore_load (&ignore, &ctx->repo, &ctx->cfg) == 0;
+    if (only_ignored && !have_ignore) {
+        bgit_index_free_entries (entries, n);
+        return git_fatal ("cannot read the exclude patterns");
+    }
+    for (size_t i = 0; i < n && (cached || deleted || modified || unmerged); i++) {
+        if (!git_path_named (entries[i].path, patterns, n_patterns)) continue;
+        int entry_stage = (entries[i].flags >> 12) & 0x3;
+        if (unmerged && !entry_stage) continue;
+        if (only_ignored) {
+            const bgit_ignore_rule *rule = NULL;
+            if (!bgit_ignore_match (&ignore, entries[i].path, 0, &rule)) continue;
+        }
+        /* What the path is, then what has happened to it since: git writes
+           the index's own line first, then removal, then change. */
+        if (cached || unmerged)
+            git_ls_line (&entries[i], tags ? (entry_stage ? "M " : "H ") : "",
+                         stage_form, end);
+        if (!deleted && !modified) continue;
+        char full[4096];
+        if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                               ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                               entries[i].path) >= sizeof full)
+            continue;
+        struct stat st;
+        int gone = lstat (full, &st) < 0;
+        if (deleted && gone)
+            git_ls_line (&entries[i], tags ? "R " : "", stage_form, end);
+        if (modified &&
+            (gone || !bgit_worktree_matches (&ctx->odb, full, &entries[i], &st)))
+            git_ls_line (&entries[i], tags ? "C " : "", stage_form, end);
+    }
+    if (have_ignore) bgit_ignore_release (&ignore);
     bgit_index_free_entries (entries, n);
     return 0;
 }
@@ -1462,42 +1566,145 @@ git_cmd_commit_tree (git_context *ctx, WORD_LIST *args)
     return 0;
 }
 
-struct git_ls_tree_options {
-    int name_only;
-    int zero;
+/* ls-tree reads a tree the way git reads it: one level at a time, going
+   below only where a path named on the command line leads or -r says to. */
+struct git_ls_tree {
+    git_context *ctx;
+    int recursive, show_trees, dirs_only, name_only, zero, long_form, abbrev;
+    struct { const char *name; int slashed; } specs[32];
+    int n_specs;
 };
+
+/* Does one of the paths named cover this one? With none named, all of
+   them are. */
+static int
+git_ls_tree_matched (const struct git_ls_tree *ls, const char *path)
+{
+    if (!ls->n_specs) return 1;
+    for (int i = 0; i < ls->n_specs; i++) {
+        const char *spec = ls->specs[i].name;
+        size_t len = strlen (spec);
+        if (!ls->specs[i].slashed && !strcmp (path, spec)) return 1;
+        if (!strncmp (path, spec, len) && path[len] == '/') return 1;
+    }
+    return 0;
+}
+
+/* Does one of them name this tree, or something inside it? */
+static int
+git_ls_tree_toward (const struct git_ls_tree *ls, const char *path)
+{
+    size_t len = strlen (path);
+    for (int i = 0; i < ls->n_specs; i++) {
+        const char *spec = ls->specs[i].name;
+        if (!strcmp (spec, path)) return 1;
+        if (!strncmp (spec, path, len) && spec[len] == '/') return 1;
+    }
+    return 0;
+}
+
+static void
+git_ls_tree_show (struct git_ls_tree *ls, const char *mode, const char *type,
+                  const char *sha, const char *path)
+{
+    char end = ls->zero ? '\0' : '\n';
+    if (ls->name_only) { printf ("%s%c", path, end); return; }
+    char id[41];
+    snprintf (id, sizeof id, "%.*s", ls->abbrev ? ls->abbrev : 40, sha);
+    if (ls->long_form) {
+        /* The size of what is there, and a dash for what has none. */
+        char size[32] = "-";
+        if (!strcmp (type, "blob")) {
+            enum bgit_type kind;
+            unsigned char *data = NULL;
+            size_t len = 0;
+            if (bgit_odb_read (&ls->ctx->odb, sha, &kind, &data, &len) == 0) {
+                snprintf (size, sizeof size, "%zu", len);
+                free (data);
+            }
+        }
+        printf ("%06lo %s %s %7s\t%s%c", strtoul (mode, NULL, 8), type, id,
+                size, path, end);
+    } else
+        printf ("%06lo %s %s\t%s%c", strtoul (mode, NULL, 8), type, id, path,
+                end);
+}
 
 static int
 git_ls_tree_entry (void *vctx, const char *mode, const char *type,
                    const char *sha, const char *path)
 {
-    struct git_ls_tree_options *options = vctx;
-    if (options->name_only)
-        printf ("%s%c", path, options->zero ? '\0' : '\n');
-    else
-        printf ("%06lo %s %s\t%s%c", strtoul (mode, NULL, 8), type, sha, path,
-                options->zero ? '\0' : '\n');
-    return 0;
+    struct git_ls_tree *ls = vctx;
+    int matched = git_ls_tree_matched (ls, path);
+    if (strcmp (type, "tree")) {
+        if (matched && !ls->dirs_only)
+            git_ls_tree_show (ls, mode, type, sha, path);
+        return 0;
+    }
+    if (matched) {
+        /* A tree that was asked for stands for itself, unless -r says to
+           open it. */
+        if (!ls->recursive) {
+            git_ls_tree_show (ls, mode, type, sha, path);
+            return 0;
+        }
+        if (ls->show_trees || ls->dirs_only)
+            git_ls_tree_show (ls, mode, type, sha, path);
+    } else if (ls->n_specs && git_ls_tree_toward (ls, path)) {
+        /* Only passed through on the way to what was asked for. */
+        if (ls->show_trees) git_ls_tree_show (ls, mode, type, sha, path);
+    } else
+        return 0;
+    char prefix[4096];
+    if ((size_t) snprintf (prefix, sizeof prefix, "%s/", path) >= sizeof prefix)
+        return 0;
+    return bgit_tree_walk (&ls->ctx->odb, sha, prefix, 0, 1, git_ls_tree_entry,
+                           ls);
 }
 
 static int
 git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git ls-tree [-r] [-t] [-z] [--name-only] <tree-ish>";
-    struct git_ls_tree_options options = {0};
-    int recursive = 0, show_trees = 0;
+    const char *usage = "git ls-tree [-d] [-r] [-t] [-l] [-z] [--name-only] "
+                        "[--abbrev=<n>] <tree-ish> [<path>...]";
+    struct git_ls_tree ls;
+    memset (&ls, 0, sizeof ls);
+    ls.ctx = ctx;
     const char *name = NULL;
+    int no_more = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
-        if (!strcmp (w, "-r")) recursive = 1;
-        else if (!strcmp (w, "-t")) show_trees = 1;
-        else if (!strcmp (w, "-z")) options.zero = 1;
-        else if (!strcmp (w, "--name-only") || !strcmp (w, "--name-status"))
-            options.name_only = 1;
-        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (!no_more && !strcmp (w, "-r")) ls.recursive = 1;
+        else if (!no_more && !strcmp (w, "-t")) ls.show_trees = 1;
+        else if (!no_more && !strcmp (w, "-d")) ls.dirs_only = 1;
+        else if (!no_more && (!strcmp (w, "-l") || !strcmp (w, "--long")))
+            ls.long_form = 1;
+        else if (!no_more && !strcmp (w, "-z")) ls.zero = 1;
+        else if (!no_more && (!strcmp (w, "--name-only") ||
+                              !strcmp (w, "--name-status")))
+            ls.name_only = 1;
+        else if (!no_more && !strncmp (w, "--abbrev=", 9)) {
+            ls.abbrev = atoi (w + 9);
+            if (ls.abbrev < 4) ls.abbrev = 4;
+            if (ls.abbrev > 40) ls.abbrev = 40;
+        }
+        else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
         else if (!name) name = w;
-        else return git_usage (usage);
+        else if (ls.n_specs < (int) (sizeof ls.specs / sizeof *ls.specs)) {
+            /* A path written with a trailing slash names what is inside
+               the tree, not the tree itself. */
+            size_t len = strlen (w);
+            int slashed = len && w[len - 1] == '/';
+            char *held = strdup (w);
+            if (!held) return GIT_EXIT_FATAL;
+            while (len && held[len - 1] == '/') held[--len] = '\0';
+            ls.specs[ls.n_specs].name = held;
+            ls.specs[ls.n_specs].slashed = slashed;
+            ls.n_specs++;
+        }
+        else return git_fatal ("too many paths");
     }
     if (!name) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
@@ -1506,8 +1713,7 @@ git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
     if (git_resolve (ctx, name, id, NULL) < 0 ||
         bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0)
         return git_fatal ("not a tree object");
-    if (bgit_tree_walk (&ctx->odb, tree, "", recursive, show_trees,
-                        git_ls_tree_entry, &options) < 0)
+    if (bgit_tree_walk (&ctx->odb, tree, "", 0, 1, git_ls_tree_entry, &ls) < 0)
         return git_fatal ("cannot read tree %s", tree);
     return 0;
 }
@@ -2002,11 +2208,25 @@ git_stage_file (git_context *ctx, struct git_state *state, const char *path,
                           &entry);
 }
 
+/* Does the index hold this path, or anything below it? An ignore rule
+   says what to take in, and has nothing to say about what is in already. */
+static int
+git_index_holds_under (const struct git_state *state, const char *path)
+{
+    size_t len = strlen (path);
+    for (size_t i = 0; i < state->n_index; i++)
+        if (!strncmp (state->index[i].path, path, len) &&
+            (state->index[i].path[len] == '/' || !state->index[i].path[len]))
+            return 1;
+    return 0;
+}
+
 struct git_add_ctx {
     git_context *ctx;
     struct git_state *state;
     const bgit_ignore *ignore;
     const char *pathspec;      /* "" for everything */
+    int force;                 /* -f: an ignore rule does not stand in the way */
     int update_only;           /* -u: only what the index already has */
     int dry_run;
     int warn_embedded;         /* say so when a repository is staged as one */
@@ -2035,7 +2255,9 @@ git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
             !git_path_in_spec (path, add->pathspec))
             return 1;
         const bgit_ignore_rule *rule = NULL;
-        if (bgit_ignore_match (add->ignore, path, 1, &rule)) return 1;
+        if (!add->force && bgit_ignore_match (add->ignore, path, 1, &rule) &&
+            !git_index_holds_under (add->state, path))
+            return 1;
         /* A submodule is staged as the commit it has checked out, and what
            is inside it belongs to that repository, not to this one. */
         bgit_index_entry *linked = git_index_lookup (add->state->index,
@@ -2117,12 +2339,15 @@ git_add_visit (void *vctx, const char *path, int is_dir, const struct stat *st)
         return 0;
     }
     if (!git_path_in_spec (path, add->pathspec)) return 0;
-    const bgit_ignore_rule *rule = NULL;
-    if (bgit_ignore_match (add->ignore, path, 0, &rule)) return 0;
-
-    /* Already staged and unchanged? Then there is nothing to do. */
+    /* What the index already holds is staged whatever the ignore rules
+       say. */
     bgit_index_entry *staged = git_index_lookup (add->state->index,
                                                  add->state->n_index, path);
+    const bgit_ignore_rule *rule = NULL;
+    if (!staged && !add->force &&
+        bgit_ignore_match (add->ignore, path, 0, &rule))
+        return 0;
+
     if (staged) {
         char full[4096];
         snprintf (full, sizeof full, "%s/%s", add->ctx->repo.work_tree, path);
@@ -2184,6 +2409,7 @@ git_cmd_add (git_context *ctx, WORD_LIST *args)
         char full[4096];
         snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, specs[i]);
         if (lstat (full, &st) < 0 || S_ISDIR (st.st_mode)) continue;
+        if (git_index_holds_under (&state, specs[i])) continue;
         const bgit_ignore_rule *rule = NULL;
         if (!bgit_ignore_match (&ignore, specs[i], 0, &rule)) continue;
         fflush (stdout);
@@ -2199,9 +2425,9 @@ git_cmd_add (git_context *ctx, WORD_LIST *args)
     for (int i = 0; i < spec_count && !status; i++) {
         struct git_add_ctx add = {
             .ctx = ctx, .state = &state, .ignore = &ignore,
-            .pathspec = spec_list[i], .update_only = update_only,
-            .dry_run = dry_run, .warn_embedded = warn_embedded,
-            .changed = &changed
+            .pathspec = spec_list[i], .force = force,
+            .update_only = update_only, .dry_run = dry_run,
+            .warn_embedded = warn_embedded, .changed = &changed
         };
         if (bgit_worktree_walk (&ctx->repo, git_add_visit, &add) < 0) {
             status = GIT_EXIT_FATAL;
@@ -5586,12 +5812,48 @@ done:
     return status;
 }
 
+/* Does this name something the repository knows — a path the index holds,
+   or a file that is there? It is how git tells a path from a revision. */
+static int
+git_path_known (git_context *ctx, struct git_state *state, const char *name)
+{
+    for (size_t i = 0; i < state->n_index; i++)
+        if (git_path_named (state->index[i].path, &name, 1)) return 1;
+    char full[4096];
+    struct stat st;
+    return (size_t) snprintf (full, sizeof full, "%s/%s",
+                              ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                              name) < sizeof full && lstat (full, &st) == 0;
+}
+
+/* What a mixed reset left between the index and the files, which git lists
+   over the whole tree however few paths were named. */
+static void
+git_reset_report (git_context *ctx, struct git_state *state)
+{
+    int first = 1;
+    for (size_t i = 0; i < state->n_index; i++) {
+        char full[4096];
+        if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                               ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                               state->index[i].path) >= sizeof full)
+            continue;
+        struct stat st;
+        int gone = lstat (full, &st) < 0;
+        if (!gone &&
+            bgit_worktree_matches (&ctx->odb, full, &state->index[i], &st))
+            continue;
+        if (first) { printf ("Unstaged changes after reset:\n"); first = 0; }
+        printf ("%c\t%s\n", gone ? 'D' : 'M', state->index[i].path);
+    }
+}
+
 static int
 git_cmd_reset (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git reset [--soft | --mixed | --hard] [-q] "
                         "[<commit>] [-- <path>...]";
-    int soft = 0, hard = 0, no_more = 0;
+    int soft = 0, hard = 0, no_more = 0, quiet = 0;
     const char *commit_name = NULL;
     const char *paths[32];
     int n_paths = 0;
@@ -5602,7 +5864,7 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
         if (!no_more && !strcmp (w, "--soft")) soft = 1;
         else if (!no_more && !strcmp (w, "--mixed")) { soft = hard = 0; }
         else if (!no_more && !strcmp (w, "--hard")) hard = 1;
-        else if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) continue;
+        else if (!no_more && (!strcmp (w, "-q") || !strcmp (w, "--quiet"))) quiet = 1;
         else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
         else if (!no_more && !commit_name && !n_paths) commit_name = w;
         else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
@@ -5614,7 +5876,42 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
 
     int status = 0;
     char id[41], commit[41], tree[41];
+    /* The first word is a revision when it names one, and a path when it
+       does not: git reset <file> is how a staged change is put back. */
+    if (commit_name && git_resolve (ctx, commit_name, id, NULL) < 0 &&
+        git_path_known (ctx, &state, commit_name) &&
+        n_paths < (int) (sizeof paths / sizeof *paths)) {
+        memmove (&paths[1], &paths[0], (size_t) n_paths * sizeof *paths);
+        paths[0] = commit_name;
+        n_paths++;
+        commit_name = NULL;
+    }
     const char *target = commit_name ? commit_name : "HEAD";
+    /* Before the first commit there is nothing to go back to, and git
+       takes HEAD to stand for the empty tree: the index is emptied, and
+       --hard takes the files with it. */
+    if (!commit_name && !state.have_head) {
+        for (size_t j = 0; j < state.n_index;) {
+            if (n_paths && !git_path_named (state.index[j].path, paths, n_paths)) {
+                j++;
+                continue;
+            }
+            char *gone = strdup (state.index[j].path);
+            if (!gone) { status = GIT_EXIT_FATAL; goto done; }
+            if (hard) {
+                char full[4096];
+                if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                                       ctx->repo.work_tree, gone) < sizeof full)
+                    unlink (full);
+            }
+            bgit_index_remove_path (&state.index, &state.n_index, gone);
+            free (gone);
+        }
+        if (!soft && git_index_store (ctx, state.index, state.n_index) < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status && !soft && !hard && !quiet) git_reset_report (ctx, &state);
+        goto done;
+    }
     if (git_resolve (ctx, target, id, NULL) < 0 ||
         bgit_peel_to_type (&ctx->odb, id, BGIT_COMMIT, commit) < 0 ||
         bgit_commit_tree (&ctx->odb, commit, tree) < 0) {
@@ -5628,6 +5925,7 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
                                  &state.n_index, paths, (size_t) n_paths, 1, 0) < 0 ||
             git_index_store (ctx, state.index, state.n_index) < 0)
             status = GIT_EXIT_FATAL;
+        if (!status && !quiet) git_reset_report (ctx, &state);
         goto done;
     }
 
@@ -5661,8 +5959,15 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
             entries[i].mode = mode;
         }
         int rc = git_index_store (ctx, entries, n);
-        bgit_index_free_entries (entries, n);
-        if (rc < 0) { status = GIT_EXIT_FATAL; goto done; }
+        if (rc < 0) {
+            bgit_index_free_entries (entries, n);
+            status = GIT_EXIT_FATAL;
+            goto done;
+        }
+        /* What the reset left behind is what is reported below. */
+        bgit_index_free_entries (state.index, state.n_index);
+        state.index = entries;
+        state.n_index = state.cap_index = n;
     }
 
     const char *ref = state.branch ? state.branch : "HEAD";
@@ -5676,6 +5981,20 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
     if (!status && state.branch)
         bgit_reflog_append (&ctx->repo, "HEAD", state.have_head ? state.head : NULL,
                             commit, message);
+    if (!status && !quiet) {
+        if (hard) {
+            /* Where the branch now stands, in git's words. */
+            struct git_commit landed;
+            if (git_commit_read (ctx, commit, &landed) == 0) {
+                char abbreviated[41], subject[4096];
+                git_abbrev (ctx, commit, 7, abbreviated, sizeof abbreviated);
+                git_subject (&landed, subject, sizeof subject);
+                printf ("HEAD is now at %s %s\n", abbreviated, subject);
+                git_commit_release (&landed);
+            }
+        } else if (!soft)
+            git_reset_report (ctx, &state);
+    }
 done:
     git_state_release (&state);
     return status;

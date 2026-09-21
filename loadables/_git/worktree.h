@@ -61,6 +61,19 @@ int bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
 
 void bgit_status_free (bgit_status_entry *entries, size_t n);
 
+/* Every path in the working tree the index does not hold, in path order.
+   With DIRECTORY a directory holding none of the index's paths is named
+   once, with a trailing '/', instead of what is under it. EXCLUDE applies
+   the ignore rules: without it nothing is ignored, and with it an ignored
+   path is left out — or is the only kind listed, when ONLY_IGNORED.
+   The caller frees the result with bgit_others_free. */
+int bgit_worktree_others (const bgit_repo *repo, const bgit_config *cfg,
+                          const bgit_index_entry *index, size_t n_index,
+                          int directory, int exclude, int only_ignored,
+                          char ***out, size_t *n_out);
+
+void bgit_others_free (char **paths, size_t n);
+
 /* The mode git records for a file: 100755 when it is executable, 120000 for
    a symbolic link, 100644 otherwise. */
 uint32_t bgit_worktree_mode (const struct stat *st);

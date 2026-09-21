@@ -36,7 +36,7 @@ git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
 git switch       [-q] [-c <new>] [--detach] <branch>
 git checkout     [-q] [-b <new>] <branch> | [--] <path>...
 git restore      [--staged] [--worktree] [--source=<tree>] [--] <path>...
-git reset        [-q] [--soft | --mixed | --hard] [<commit>] [-- <path>...]
+git reset        [-q] [--soft | --mixed | --hard] [<commit>] [--] [<path>...]
 git rm           [--cached] [-r] [-f] [-q] [--] <path>...
 git mv           [-v] [-f] [-k] [-n] <source>... <destination>
 git clean        [-d] [-f] [-n] [-q] [-x | -X] [--] [<path>...]
@@ -89,11 +89,13 @@ git config       [--global | --local | --file <file>] [-z]
                   | --add <key> <value> | <key> [<value>])
 git update-index [--add] [--remove] [--cacheinfo <mode>,<object>,<path>]
                  [--index-info] [--] [<file>...]
-git ls-files     [-s] [-z] [--] [<file>...]
+git ls-files     [-c] [-d] [-m] [-o] [-i] [-u] [-t] [-s] [-z]
+                 [--directory] [--exclude-standard] [--] [<file>...]
 git write-tree
 git read-tree    <tree-ish>
 git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
-git ls-tree      [-r] [-t] [-z] [--name-only] <tree-ish>
+git ls-tree      [-d] [-r] [-t] [-l] [-z] [--name-only] [--abbrev=<n>]
+                 <tree-ish> [<path>...]
 git rev-list     [--count] [-n <number>] [--objects] [--all] <commit>...
 git var          (GIT_AUTHOR_IDENT | GIT_COMMITTER_IDENT)
 git check-ignore [-v] [--non-matching] [<pathname>...]
@@ -167,6 +169,32 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+`git ls-files` answers with what the index holds, and with `-m`, `-d` and
+`-o` what has changed, gone, or was never taken in — the last of those
+listed one file at a time, or one directory at a time with `--directory`,
+and filtered through the ignore rules only when `--exclude-standard` says
+to. `-i` narrows any of them to what those rules cover, and is refused
+without `-o` or `-c` to narrow, as git refuses it. `-t` puts git's letter
+in front of each line — `H` held, `C` changed, `R` removed, `?` untracked,
+`M` unmerged — and `-s` writes the index's own record of the path, which
+is also what `-u` writes for each side of a path a merge did not settle.
+
+`git ls-tree` reads one level at a time, going below only where `-r` says
+to or where a path named on the command line leads. A path written with a
+trailing slash names what is inside that tree rather than the tree itself,
+`-d` keeps the trees alone, `-l` adds each blob's size, and `--abbrev=<n>`
+shortens the ids.
+
+An ignore rule decides what `git add` takes in, and has nothing to say
+about what is in already: a tracked path is staged however the rules read,
+which is what git does, and `-f` takes in an ignored one. `git reset`
+takes a path where a revision would go — `git reset <file>` is how a
+staged change is put back — lists what it left between the index and the
+files under "Unstaged changes after reset:", and says where a `--hard`
+landed. Before the first commit HEAD stands for the empty tree, so a reset
+then empties the index rather than complaining that HEAD is not a
+revision.
 
 `git log` writes a date the way `--date=` asks for it: `default`, `raw`,
 `iso`, `iso-strict`, `short`, `unix`, `rfc`, `relative`, and a `format:`

@@ -107,6 +107,22 @@ for mode in default raw iso iso-strict short unix rfc relative local \
             iso-local 'format:%Y-%m-%d %H:%M:%S %z'; do
   git log --date="$mode" --format='%ad|%cd|%ai|%aI|%as|%at|%ar' > /dev/null
 done
+# Every way of asking what is listed, and what a tree holds.
+for flags in -c -m -d -o -t -s --directory '-o --exclude-standard' \
+             '-o -i --exclude-standard' '-c -i --exclude-standard' \
+             '-cdmo --exclude-standard' '-o --directory --exclude-standard' \
+             '-d -s -t'; do
+  git ls-files $flags > /dev/null
+done
+git ls-files -i 2>/dev/null || true          # the error path, quietly
+git ls-tree HEAD > /dev/null
+git ls-tree -r -t HEAD > /dev/null
+git ls-tree -l -r HEAD > /dev/null
+git ls-tree -d HEAD > /dev/null
+git ls-tree HEAD nest > /dev/null
+git ls-tree HEAD nest/ > /dev/null
+git ls-tree -r -t HEAD nest/deeper > /dev/null
+git ls-tree --abbrev=8 HEAD nest > /dev/null
 git log --oneline --decorate
 git log --oneline --decorate=full
 git log --decorate=full -1
@@ -161,6 +177,9 @@ git status --short
 git status
 git status --porcelain=v2
 git ls-files -s
+git ls-files -u
+git ls-files -u -t
+git ls-files -t
 git commit -m 'refused while unmerged' 2>/dev/null || true
 printf 'settled\nshared two\nshared three\n' > merged.txt
 git add merged.txt

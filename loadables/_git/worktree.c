@@ -453,7 +453,7 @@ bgit_index_covers (const bgit_index_entry *index, size_t n, const char *path,
    holding only ignored files, is not mentioned at all. */
 static int
 bgit_dir_has_content (const bgit_repo *repo, const bgit_ignore *ignore,
-                      const char *relative)
+                      const char *relative)   /* IGNORE may be NULL */
 {
     char dir[4096];
     if (snprintf (dir, sizeof dir, "%s/%s", repo->work_tree, relative) >=
@@ -476,11 +476,134 @@ bgit_dir_has_content (const bgit_repo *repo, const bgit_ignore *ignore,
         if (lstat (full, &st) < 0) continue;
         int is_dir = S_ISDIR (st.st_mode);
         const bgit_ignore_rule *rule = NULL;
-        if (bgit_ignore_match (ignore, path, is_dir, &rule)) continue;
+        if (ignore && bgit_ignore_match (ignore, path, is_dir, &rule)) continue;
         found = is_dir ? bgit_dir_has_content (repo, ignore, path) : 1;
     }
     closedir (handle);
     return found;
+}
+
+/* ---- what the index does not hold -------------------------------------- */
+
+struct bgit_others_ctx {
+    const bgit_repo *repo;
+    const bgit_index_entry *index;
+    size_t n_index;
+    int index_sorted;
+    const bgit_ignore *ignore;
+    int directory, exclude, only_ignored;
+    /* The ignored directory being listed from, so that what is under it is
+       known to be ignored too however it is named. */
+    char ignored_root[4096];
+    char **paths;
+    size_t n, cap;
+};
+
+static int
+bgit_others_add (struct bgit_others_ctx *ctx, const char *path, int is_dir)
+{
+    if (ctx->n == ctx->cap) {
+        size_t cap = ctx->cap ? ctx->cap * 2 : 32;
+        char **grown = realloc (ctx->paths, cap * sizeof *grown);
+        if (!grown) return -1;
+        ctx->paths = grown;
+        ctx->cap = cap;
+    }
+    char held[4096];
+    snprintf (held, sizeof held, "%s%s", path, is_dir ? "/" : "");
+    char *copy = strdup (held);
+    if (!copy) return -1;
+    ctx->paths[ctx->n++] = copy;
+    return 0;
+}
+
+static int
+bgit_path_under (const char *path, const char *root)
+{
+    size_t len = strlen (root);
+    return len && !strncmp (path, root, len) && path[len] == '/';
+}
+
+static int
+bgit_others_visit (void *vctx, const char *path, int is_dir,
+                   const struct stat *st)
+{
+    struct bgit_others_ctx *ctx = vctx;
+    (void) st;
+    int within = bgit_path_under (path, ctx->ignored_root);
+    if (!within) *ctx->ignored_root = '\0';
+    const bgit_ignore_rule *rule = NULL;
+    int ignored = within || (ctx->exclude &&
+                             bgit_ignore_match (ctx->ignore, path, is_dir,
+                                                &rule));
+    if (is_dir) {
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 0,
+                               ctx->index_sorted))
+            return 1;        /* the index holds it whole: a submodule */
+        if (ignored) {
+            if (!ctx->only_ignored) return 1;
+            if (ctx->directory)
+                return bgit_others_add (ctx, path, 1) < 0 ? -1 : 1;
+            if (!within)
+                snprintf (ctx->ignored_root, sizeof ctx->ignored_root, "%s",
+                          path);
+            return 0;        /* everything below it is ignored as well */
+        }
+        if (bgit_index_covers (ctx->index, ctx->n_index, path, 1,
+                               ctx->index_sorted))
+            return 0;        /* tracked files inside: look further down */
+        if (ctx->only_ignored) return 0;   /* ignored ones may still be below */
+        if (!ctx->directory) return 0;
+        if (!bgit_dir_has_content (ctx->repo, ctx->exclude ? ctx->ignore : NULL,
+                                   path))
+            return 1;
+        return bgit_others_add (ctx, path, 1) < 0 ? -1 : 1;
+    }
+    if (bgit_index_covers (ctx->index, ctx->n_index, path, 0, ctx->index_sorted))
+        return 0;
+    if (ctx->only_ignored ? !ignored : ignored) return 0;
+    return bgit_others_add (ctx, path, 0) < 0 ? -1 : 0;
+}
+
+int
+bgit_worktree_others (const bgit_repo *repo, const bgit_config *cfg,
+                      const bgit_index_entry *index, size_t n_index,
+                      int directory, int exclude, int only_ignored,
+                      char ***out, size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    bgit_ignore ignore;
+    if (bgit_ignore_load (&ignore, repo, cfg) < 0) return -1;
+    struct bgit_others_ctx ctx;
+    memset (&ctx, 0, sizeof ctx);
+    ctx.repo = repo;
+    ctx.index = index;
+    ctx.n_index = n_index;
+    ctx.index_sorted = bgit_entries_sorted (index, n_index);
+    ctx.ignore = &ignore;
+    ctx.directory = directory;
+    ctx.exclude = exclude;
+    ctx.only_ignored = only_ignored;
+    int rc = bgit_worktree_walk (repo, bgit_others_visit, &ctx);
+    bgit_ignore_release (&ignore);
+    if (rc < 0) {
+        bgit_others_free (ctx.paths, ctx.n);
+        return -1;
+    }
+    /* git lists them in path order, which is not the order a walk that
+       sorts each directory's own names arrives at them in. */
+    if (ctx.n > 1) qsort (ctx.paths, ctx.n, sizeof *ctx.paths, bgit_name_cmp);
+    *out = ctx.paths;
+    *n_out = ctx.n;
+    return 0;
+}
+
+void
+bgit_others_free (char **paths, size_t n)
+{
+    for (size_t i = 0; i < n; i++) free (paths[i]);
+    free (paths);
 }
 
 static int
