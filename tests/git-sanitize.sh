@@ -102,6 +102,16 @@ git rev-list --count '^topic~1' topic
 git log --oneline nosuchrev 2>/dev/null || true   # the error path, quietly
 git log --graph --oneline
 git log --graph -p -1
+# Every date mode, and the decorations, over the same walk.
+for mode in default raw iso iso-strict short unix rfc relative local \
+            iso-local 'format:%Y-%m-%d %H:%M:%S %z'; do
+  git log --date="$mode" --format='%ad|%cd|%ai|%aI|%as|%at|%ar' > /dev/null
+done
+git log --oneline --decorate
+git log --oneline --decorate=full
+git log --decorate=full -1
+git log --format='%h%d%D' > /dev/null
+git log --date=nonsense -1 2>/dev/null || true    # the error path, quietly
 git merge-base topic main
 git merge-base --is-ancestor main topic || true
 git merge-base --independent topic main

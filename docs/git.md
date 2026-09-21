@@ -25,9 +25,11 @@ git diff         [-p] [--stat] [--numstat] [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [<commit> [<commit>]] [-- <path>...]
 git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
-                 [-n <number>] [--reverse] [--first-parent] [--date=raw]
+                 [-n <number>] [--reverse] [--first-parent]
+                 [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<revision>...]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
+                 [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
 git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
                  | (-m | -M) <old> <new>
@@ -165,6 +167,23 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+`git log` writes a date the way `--date=` asks for it: `default`, `raw`,
+`iso`, `iso-strict`, `short`, `unix`, `rfc`, `relative`, and a `format:`
+pattern of the caller's own, each of them also with a `-local` suffix that
+reads the time off the clock in front of the reader instead of the one the
+commit recorded. `%ad` and `%cd` follow that option, while `%at`, `%ai`,
+`%aI`, `%as` and `%ar` each name a mode of their own. The two modes that
+count from the moment of the run are `relative`, which is written, and
+`human`, which is not.
+
+The names that point at a commit go where git puts them: `--decorate`
+after the id, `--decorate=full` with every ref written out whole, and with
+neither option a terminal is decorated and a pipe is not, which is what
+`auto` means. `%d` and `%D` carry the names whatever `--decorate` says,
+since a format that asks for them has asked already. What HEAD stands on
+comes first, as `HEAD -> <branch>`, and the rest follow in git's own
+order.
 
 `git merge` fast-forwards when it can, merges three ways when it cannot,
 and says what it did in git's words — `Already up to date.`, `Updating

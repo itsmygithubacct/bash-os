@@ -3609,30 +3609,246 @@ git_commit_read (git_context *ctx, const char *id, struct git_commit *commit)
     return 0;
 }
 
-/* git's default date: "Sun Jun 15 12:26:40 2025 +0000", in the commit's own
-   zone, which is what the raw "<seconds> <zone>" pair records. */
+/* The ways git can write a date, as --date= names them. */
+enum {
+    GIT_DATE_DEFAULT, GIT_DATE_RAW, GIT_DATE_ISO, GIT_DATE_ISO_STRICT,
+    GIT_DATE_SHORT, GIT_DATE_RELATIVE, GIT_DATE_UNIX, GIT_DATE_RFC2822,
+    GIT_DATE_STRFTIME
+};
+
+/* A --date= option in full: the mode, the strftime pattern a "format:"
+   mode carries, and whether the reader's own zone stands in for the one
+   the commit recorded, which is what the "-local" suffix asks for. */
+struct git_date_format {
+    int mode;
+    const char *pattern;
+    int local;
+};
+
 static void
-git_format_date (const char *raw, int keep_raw, char *out, size_t outsz)
+git_date_format_init (struct git_date_format *how)
 {
+    how->mode = GIT_DATE_DEFAULT;
+    how->pattern = NULL;
+    how->local = 0;
+}
+
+/* One --date= name, as far as its first `len` bytes. */
+static int
+git_date_named (const char *name, size_t len, const char *word)
+{
+    return strlen (word) == len && !strncmp (name, word, len);
+}
+
+/* Read what a --date= option names into `how`, or -1 for a name this
+   build does not write. */
+static int
+git_date_format_set (struct git_date_format *how, const char *name)
+{
+    git_date_format_init (how);
+    if (!strncmp (name, "format:", 7) || !strncmp (name, "format-local:", 13)) {
+        how->local = name[6] == '-';
+        how->pattern = strchr (name, ':') + 1;
+        how->mode = GIT_DATE_STRFTIME;
+        return 0;
+    }
+    size_t len = strlen (name);
+    if (!strcmp (name, "local")) { how->local = 1; return 0; }
+    if (len > 6 && !strcmp (name + len - 6, "-local")) {
+        how->local = 1;
+        len -= 6;
+    }
+    if (git_date_named (name, len, "default")) how->mode = GIT_DATE_DEFAULT;
+    else if (git_date_named (name, len, "raw")) how->mode = GIT_DATE_RAW;
+    else if (git_date_named (name, len, "iso") ||
+             git_date_named (name, len, "iso8601")) how->mode = GIT_DATE_ISO;
+    else if (git_date_named (name, len, "iso-strict") ||
+             git_date_named (name, len, "iso8601-strict"))
+        how->mode = GIT_DATE_ISO_STRICT;
+    else if (git_date_named (name, len, "short")) how->mode = GIT_DATE_SHORT;
+    else if (git_date_named (name, len, "relative"))
+        how->mode = GIT_DATE_RELATIVE;
+    else if (git_date_named (name, len, "unix")) how->mode = GIT_DATE_UNIX;
+    else if (git_date_named (name, len, "rfc") ||
+             git_date_named (name, len, "rfc2822")) how->mode = GIT_DATE_RFC2822;
+    else return -1;
+    return 0;
+}
+
+/* Read a --date= option, or say what is wrong with it: 0, or the status
+   the complaint carries. */
+static int
+git_date_format_read (struct git_date_format *how, const char *name)
+{
+    if (!strcmp (name, "human") || !strncmp (name, "auto:", 5))
+        return git_fatal ("this build's git has no --date=%s yet", name);
+    if (git_date_format_set (how, name) < 0)
+        return git_fatal ("unknown date format %s", name);
+    return 0;
+}
+
+/* git's default date: "Sun Jun 15 12:26:40 2025 +0000", in the commit's own
+   zone, which is what the raw "<seconds> <zone>" pair records — or in the
+   reader's own, for the modes that end in -local. */
+static void
+git_format_date_as (const char *raw, const struct git_date_format *how,
+                    char *out, size_t outsz)
+{
+    int mode = how->mode;
     long long seconds = 0;
     char zone[8] = "+0000";
     sscanf (raw, "%lld %7s", &seconds, zone);
-    if (keep_raw) {
+    if (mode == GIT_DATE_RAW && !how->local) {
         snprintf (out, outsz, "%lld %s", seconds, zone);
         return;
     }
-    int sign = zone[0] == '-' ? -1 : 1;
-    int hours = (zone[1] - '0') * 10 + (zone[2] - '0');
-    int minutes = (zone[3] - '0') * 10 + (zone[4] - '0');
-    time_t shifted = (time_t) (seconds + sign * (hours * 3600 + minutes * 60));
+    if (mode == GIT_DATE_UNIX) {
+        snprintf (out, outsz, "%lld", seconds);
+        return;
+    }
+    if (mode == GIT_DATE_RELATIVE) {
+        /* How long ago, in the units git chooses for the distance. */
+        long long now = (long long) time (NULL);
+        long long diff = now > seconds ? now - seconds : 0;
+        if (diff < 90) {
+            snprintf (out, outsz, "%lld second%s ago", diff,
+                      diff == 1 ? "" : "s");
+            return;
+        }
+        diff = (diff + 30) / 60;
+        if (diff < 90) {
+            snprintf (out, outsz, "%lld minute%s ago", diff,
+                      diff == 1 ? "" : "s");
+            return;
+        }
+        diff = (diff + 30) / 60;
+        if (diff < 36) {
+            snprintf (out, outsz, "%lld hour%s ago", diff, diff == 1 ? "" : "s");
+            return;
+        }
+        diff = (diff + 12) / 24;
+        if (diff < 14) {
+            snprintf (out, outsz, "%lld day%s ago", diff, diff == 1 ? "" : "s");
+            return;
+        }
+        if (diff < 70) {
+            long long weeks = (diff + 3) / 7;
+            snprintf (out, outsz, "%lld week%s ago", weeks,
+                      weeks == 1 ? "" : "s");
+            return;
+        }
+        if (diff < 365) {
+            long long months = (diff + 15) / 30;
+            snprintf (out, outsz, "%lld month%s ago", months,
+                      months == 1 ? "" : "s");
+            return;
+        }
+        if (diff < 1825) {
+            long long total = (diff * 12 * 2 + 365) / (365 * 2);
+            long long years = total / 12, months = total % 12;
+            if (months)
+                snprintf (out, outsz, "%lld year%s, %lld month%s ago", years,
+                          years == 1 ? "" : "s", months,
+                          months == 1 ? "" : "s");
+            else
+                snprintf (out, outsz, "%lld year%s ago", years,
+                          years == 1 ? "" : "s");
+            return;
+        }
+        long long years = (diff + 183) / 365;
+        snprintf (out, outsz, "%lld year%s ago", years, years == 1 ? "" : "s");
+        return;
+    }
+
+    /* The clock the date is read off: the commit's own zone, or the
+       reader's when the mode ends in -local. */
     struct tm tm;
-    if (!gmtime_r (&shifted, &tm)) { snprintf (out, outsz, "%s", raw); return; }
+    if (how->local) {
+        time_t when = (time_t) seconds;
+        /* This builtin outlives any one command, and TZ may have been set
+           for this one alone, so the zone is read afresh here. */
+        tzset ();
+        if (!localtime_r (&when, &tm)) { snprintf (out, outsz, "%s", raw); return; }
+        long off = tm.tm_gmtoff, away = off < 0 ? -off : off;
+        snprintf (zone, sizeof zone, "%c%02ld%02ld", off < 0 ? '-' : '+',
+                  away / 3600, (away / 60) % 60);
+    } else {
+        int sign = zone[0] == '-' ? -1 : 1;
+        int hours = (zone[1] - '0') * 10 + (zone[2] - '0');
+        int minutes = (zone[3] - '0') * 10 + (zone[4] - '0');
+        time_t shifted = (time_t) (seconds + sign * (hours * 3600 + minutes * 60));
+        if (!gmtime_r (&shifted, &tm)) { snprintf (out, outsz, "%s", raw); return; }
+        /* The commit's own offset, for a pattern that asks for it, and no
+           zone name at all, which is what git leaves out here. */
+        tm.tm_gmtoff = sign * (hours * 3600 + minutes * 60);
+        tm.tm_zone = "";
+    }
     static const char *const days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
     static const char *const months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-    snprintf (out, outsz, "%s %s %2d %02d:%02d:%02d %d %s",
+    if (mode == GIT_DATE_RAW) {
+        snprintf (out, outsz, "%lld %s", seconds, zone);
+        return;
+    }
+    if (mode == GIT_DATE_STRFTIME) {
+        if (!strftime (out, outsz, how->pattern, &tm)) *out = '\0';
+        return;
+    }
+    if (mode == GIT_DATE_RFC2822) {
+        snprintf (out, outsz, "%s, %d %s %d %02d:%02d:%02d %s",
+                  days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon],
+                  tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, zone);
+        return;
+    }
+    if (mode == GIT_DATE_ISO) {
+        snprintf (out, outsz, "%d-%02d-%02d %02d:%02d:%02d %s",
+                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+                  tm.tm_min, tm.tm_sec, zone);
+        return;
+    }
+    if (mode == GIT_DATE_ISO_STRICT) {
+        int offset = ((zone[1] - '0') * 10 + (zone[2] - '0')) * 60 +
+                     (zone[3] - '0') * 10 + (zone[4] - '0');
+        if (!offset)
+            snprintf (out, outsz, "%d-%02d-%02dT%02d:%02d:%02dZ",
+                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+                      tm.tm_min, tm.tm_sec);
+        else
+            snprintf (out, outsz, "%d-%02d-%02dT%02d:%02d:%02d%c%c%c:%c%c",
+                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+                      tm.tm_min, tm.tm_sec, zone[0], zone[1], zone[2], zone[3],
+                      zone[4]);
+        return;
+    }
+    if (mode == GIT_DATE_SHORT) {
+        snprintf (out, outsz, "%d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1,
+                  tm.tm_mday);
+        return;
+    }
+    /* The day of the month is not padded, and a date read off the
+       reader's own clock carries no zone at all. */
+    snprintf (out, outsz, "%s %s %d %02d:%02d:%02d %d%s%s",
               days[tm.tm_wday], months[tm.tm_mon], tm.tm_mday, tm.tm_hour,
-              tm.tm_min, tm.tm_sec, tm.tm_year + 1900, zone);
+              tm.tm_min, tm.tm_sec, tm.tm_year + 1900,
+              how->local ? "" : " ", how->local ? "" : zone);
+}
+
+/* One fixed mode, as the %at, %ai, %aI, %as and %ar placeholders each
+   name one of their own. */
+static void
+git_format_date_mode (const char *raw, int mode, char *out, size_t outsz)
+{
+    struct git_date_format how;
+    git_date_format_init (&how);
+    how.mode = mode;
+    git_format_date_as (raw, &how, out, outsz);
+}
+
+static void
+git_format_date (const char *raw, int keep_raw, char *out, size_t outsz)
+{
+    git_format_date_mode (raw, keep_raw ? GIT_DATE_RAW : GIT_DATE_DEFAULT, out,
+                          outsz);
 }
 
 /* The subject is the message's first line. */
@@ -3646,9 +3862,72 @@ git_subject (const struct git_commit *commit, char *out, size_t outsz)
     out[len] = '\0';
 }
 
+/* How much of a ref's name a decoration carries. */
+enum { GIT_DECORATE_NO, GIT_DECORATE_SHORT, GIT_DECORATE_FULL };
+
+/* The names that point at a commit, in the order git lists them: what
+   HEAD stands on first, then every other ref in the reverse of the order
+   they are read in, which is the order git's own list ends up in. With
+   `full`, each name is written out whole, as --decorate=full asks. */
+static void
+git_decorations (git_context *ctx, const char *id, int full, char *out,
+                 size_t outsz)
+{
+    *out = '\0';
+    size_t at = 0;
+    char head[41];
+    char *symref = NULL;
+    int detached = 0;
+    if (bgit_ref_resolve (&ctx->repo, "HEAD", head, &symref) == 0 &&
+        !strcmp (head, id)) {
+        if (symref && !strncmp (symref, "refs/heads/", 11))
+            at += (size_t) snprintf (out + at, outsz - at, "HEAD -> %s",
+                                     full ? symref : symref + 11);
+        else {
+            at += (size_t) snprintf (out + at, outsz - at, "HEAD");
+            detached = 1;
+        }
+    }
+    const char *shown = symref && !strncmp (symref, "refs/heads/", 11)
+                        ? symref : NULL;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    if (bgit_refs_list (&ctx->repo, "refs/", &refs, &n_refs) == 0) {
+        for (size_t i = n_refs; i-- > 0 && at + 2 < outsz;) {
+            const char *name = refs[i].name;
+            /* A tag decorates the commit it names, however many tag
+               objects stand between. */
+            char pointed[41];
+            if (!strcmp (refs[i].sha, id)) ;
+            else if (!strncmp (name, "refs/tags/", 10) &&
+                     bgit_peel_to_type (&ctx->odb, refs[i].sha, BGIT_COMMIT,
+                                        pointed) == 0 &&
+                     !strcmp (pointed, id)) ;
+            else continue;
+            if (shown && !strcmp (name, shown)) continue;
+            const char *label = name;
+            char held[4096];
+            if (full) ;
+            else if (!strncmp (name, "refs/heads/", 11)) label = name + 11;
+            else if (!strncmp (name, "refs/remotes/", 13)) label = name + 13;
+            if (!strncmp (name, "refs/tags/", 10)) {
+                snprintf (held, sizeof held, "tag: %s",
+                          full ? name : name + 10);
+                label = held;
+            }
+            at += (size_t) snprintf (out + at, outsz - at, "%s%s",
+                                     at ? ", " : "", label);
+        }
+        bgit_refs_free (refs, n_refs);
+    }
+    (void) detached;
+    free (symref);
+}
+
 static void
 git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
-                   const char *format, int raw_date)
+                   const char *format, const struct git_date_format *date,
+                   int full)
 {
     char buffer[4096];
     for (const char *p = format; *p; p++) {
@@ -3676,29 +3955,40 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             }
             break;
         case 'a':
+        case 'c': {
+            const char *who = *p == 'a' ? commit->author_date
+                                        : commit->committer_date;
+            const char *name = *p == 'a' ? commit->author_name
+                                         : commit->committer_name;
+            const char *mail = *p == 'a' ? commit->author_email
+                                         : commit->committer_email;
             p++;
-            if (*p == 'n') fputs (commit->author_name, out);
-            else if (*p == 'e') fputs (commit->author_email, out);
+            if (*p == 'n') fputs (name, out);
+            else if (*p == 'e') fputs (mail, out);
             else if (*p == 'd') {
-                git_format_date (commit->author_date, raw_date, buffer, sizeof buffer);
+                git_format_date_as (who, date, buffer, sizeof buffer);
                 fputs (buffer, out);
             } else if (*p == 't') {
-                git_format_date (commit->author_date, 1, buffer, sizeof buffer);
-                fputs (strtok (buffer, " "), out);
-            }
-            break;
-        case 'c':
-            p++;
-            if (*p == 'n') fputs (commit->committer_name, out);
-            else if (*p == 'e') fputs (commit->committer_email, out);
-            else if (*p == 'd') {
-                git_format_date (commit->committer_date, raw_date, buffer, sizeof buffer);
+                git_format_date_mode (who, GIT_DATE_UNIX, buffer, sizeof buffer);
                 fputs (buffer, out);
-            } else if (*p == 't') {
-                git_format_date (commit->committer_date, 1, buffer, sizeof buffer);
-                fputs (strtok (buffer, " "), out);
+            } else if (*p == 'i') {
+                git_format_date_mode (who, GIT_DATE_ISO, buffer, sizeof buffer);
+                fputs (buffer, out);
+            } else if (*p == 'I') {
+                git_format_date_mode (who, GIT_DATE_ISO_STRICT, buffer,
+                                      sizeof buffer);
+                fputs (buffer, out);
+            } else if (*p == 's') {
+                git_format_date_mode (who, GIT_DATE_SHORT, buffer,
+                                      sizeof buffer);
+                fputs (buffer, out);
+            } else if (*p == 'r') {
+                git_format_date_mode (who, GIT_DATE_RELATIVE, buffer,
+                                      sizeof buffer);
+                fputs (buffer, out);
             }
             break;
+        }
         case 's': {
             git_subject (commit, buffer, sizeof buffer);
             fputs (buffer, out);
@@ -3710,6 +4000,17 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             const char *body = nl ? nl + 1 : "";
             if (*body == '\n') body++;
             fputs (body, out);
+            break;
+        }
+        case 'd':
+        case 'D': {
+            /* What names point here, the way git decorates a log line. */
+            char decoration[4096];
+            git_decorations (ctx, commit->id, full, decoration,
+                             sizeof decoration);
+            if (!*decoration) break;
+            if (*p == 'd') fprintf (out, " (%s)", decoration);
+            else fputs (decoration, out);
             break;
         }
         case 'n': fputc ('\n', out); break;
@@ -4087,21 +4388,33 @@ git_show_commit_signature (git_context *ctx, FILE *out, const char *id)
    indented by four spaces, then whatever diff was asked for. */
 static void
 git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
-                  int oneline, const char *format, int raw_date,
+                  int oneline, const char *format,
+                  const struct git_date_format *date, int decorate,
                   int show_signature, const struct git_diff_format *diff,
                   const char *const *paths, int n_paths)
 {
+    /* What the commit is decorated with, where the format does not say
+       for itself: the one-line summary and the header line both carry it. */
+    char decoration[4096] = "";
+    if (decorate != GIT_DECORATE_NO && !format)
+        git_decorations (ctx, commit->id, decorate == GIT_DECORATE_FULL,
+                         decoration, sizeof decoration);
     if (oneline) {
         char abbreviated[41], subject[4096];
         git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
         git_subject (commit, subject, sizeof subject);
-        fprintf (out, "%s %s\n", abbreviated, subject);
+        if (*decoration)
+            fprintf (out, "%s (%s) %s\n", abbreviated, decoration, subject);
+        else fprintf (out, "%s %s\n", abbreviated, subject);
     } else if (format) {
-        git_format_commit (ctx, out, commit, format, raw_date);
+        git_format_commit (ctx, out, commit, format, date,
+                           decorate == GIT_DECORATE_FULL);
     } else {
-        char date[128];
-        git_format_date (commit->author_date, raw_date, date, sizeof date);
-        fprintf (out, "commit %s\n", commit->id);
+        char shown[128];
+        git_format_date_as (commit->author_date, date, shown, sizeof shown);
+        if (*decoration)
+            fprintf (out, "commit %s (%s)\n", commit->id, decoration);
+        else fprintf (out, "commit %s\n", commit->id);
         if (show_signature) git_show_commit_signature (ctx, out, commit->id);
         if (commit->n_parents > 1) {
             fprintf (out, "Merge:");
@@ -4115,7 +4428,7 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
         }
         fprintf (out, "Author: %s <%s>\n", commit->author_name,
                  commit->author_email);
-        fprintf (out, "Date:   %s\n\n", date);
+        fprintf (out, "Date:   %s\n\n", shown);
         /* Every line is indented by four spaces, a blank one included. */
         const char *line = commit->message;
         while (*line) {
@@ -4157,11 +4470,14 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git log [--oneline] [--format=<format>] "
                         "[-p] [--stat] [--graph] [-n <number>] [--reverse] "
-                        "[--first-parent] [--date=raw] [--show-signature] "
+                        "[--first-parent] [--date=<format>] "
+                        "[--decorate[=short|full|auto|no]] [--show-signature] "
                         "[<revision>...]";
     const char *format = NULL;
-    int oneline = 0, reverse = 0, first_parent = 0, raw_date = 0, graph = 0;
-    int show_signature = 0;
+    int oneline = 0, reverse = 0, first_parent = 0, graph = 0;
+    int show_signature = 0, decorate = -1;
+    struct git_date_format date;
+    git_date_format_init (&date);
     long limit = -1;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
@@ -4183,7 +4499,22 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
         else if (!strcmp (w, "--reverse")) reverse = 1;
         else if (!strcmp (w, "--first-parent")) first_parent = 1;
-        else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (!strncmp (w, "--date=", 7) ||
+                 (!strcmp (w, "--date") && p->next)) {
+            const char *name = w[6] == '=' ? w + 7 : (p = p->next)->word->word;
+            int bad = git_date_format_read (&date, name);
+            if (bad) return bad;
+        }
+        else if (!strcmp (w, "--decorate")) decorate = GIT_DECORATE_SHORT;
+        else if (!strcmp (w, "--no-decorate")) decorate = GIT_DECORATE_NO;
+        else if (!strncmp (w, "--decorate=", 11)) {
+            const char *which = w + 11;
+            if (!strcmp (which, "short")) decorate = GIT_DECORATE_SHORT;
+            else if (!strcmp (which, "full")) decorate = GIT_DECORATE_FULL;
+            else if (!strcmp (which, "no")) decorate = GIT_DECORATE_NO;
+            else if (!strcmp (which, "auto")) decorate = -1;
+            else return git_fatal ("invalid --decorate option: %s", which);
+        }
         else if (!strcmp (w, "--show-signature")) show_signature = 1;
         else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
@@ -4233,6 +4564,8 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else return git_fatal ("too many revisions");
     }
     if (format && !strcmp (format, "oneline")) { oneline = 1; format = NULL; }
+    if (decorate < 0)
+        decorate = isatty (STDOUT_FILENO) ? GIT_DECORATE_SHORT : GIT_DECORATE_NO;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     /* --all means every ref; otherwise HEAD, unless revisions were named. */
@@ -4316,14 +4649,14 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             size_t size = 0;
             FILE *capture = open_memstream (&block, &size);
             if (!capture) { git_commit_release (&commit); free (ordered); return GIT_EXIT_FATAL; }
-            git_print_commit (ctx, capture, &commit, oneline, format, raw_date,
-                              show_signature, &diff, paths, n_paths);
+            git_print_commit (ctx, capture, &commit, oneline, format, &date,
+                              decorate, show_signature, &diff, paths, n_paths);
             fclose (capture);
             git_print_graph (block);
             free (block);
         } else
-            git_print_commit (ctx, stdout, &commit, oneline, format, raw_date,
-                              show_signature, &diff, paths, n_paths);
+            git_print_commit (ctx, stdout, &commit, oneline, format, &date,
+                              decorate, show_signature, &diff, paths, n_paths);
         first = 0;
         shown++;
         git_commit_release (&commit);
@@ -4545,9 +4878,10 @@ git_show_tree_entry (void *context, const char *mode, const char *type,
 /* The header `git show` prints for an annotated tag, then its message.
    TAGGED comes back holding the id of the object the tag points at. */
 static void
-git_show_tag (const unsigned char *data, size_t len, char *tagged, int raw_date)
+git_show_tag (const unsigned char *data, size_t len, char *tagged,
+              const struct git_date_format *date)
 {
-    char name[256] = "", tagger[512] = "", date[128] = "";
+    char name[256] = "", tagger[512] = "", stamp[128] = "";
     const char *body = (const char *) data;
     size_t left = len;
     tagged[0] = '\0';
@@ -4562,7 +4896,7 @@ git_show_tag (const unsigned char *data, size_t len, char *tagged, int raw_date)
         else if (!strncmp (body, "tagger ", 7)) {
             char who[256] = "", email[256] = "";
             git_split_ident (body + 7, line_len - 7, who, sizeof who,
-                             email, sizeof email, date, sizeof date);
+                             email, sizeof email, stamp, sizeof stamp);
             snprintf (tagger, sizeof tagger, "%s <%s>", who, email);
         }
         if (!nl) { left = 0; break; }
@@ -4573,7 +4907,7 @@ git_show_tag (const unsigned char *data, size_t len, char *tagged, int raw_date)
     printf ("tag %s\n", name);
     if (*tagger) {
         char shown[128];
-        git_format_date (date, raw_date, shown, sizeof shown);
+        git_format_date_as (stamp, date, shown, sizeof shown);
         printf ("Tagger: %s\n", tagger);
         printf ("Date:   %s\n", shown);
     }
@@ -4586,11 +4920,15 @@ static int
 git_cmd_show (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git show [-p | -s | --stat] [--oneline] "
-                        "[--format=<format>] [--show-signature] [<object>...]";
+                        "[--format=<format>] [--date=<format>] "
+                        "[--decorate[=short|full|auto|no]] [--show-signature] "
+                        "[<object>...]";
     struct git_diff_format diff;
     git_diff_format_init (&diff);
     const char *format = NULL;
-    int oneline = 0, raw_date = 0, show_signature = 0;
+    int oneline = 0, show_signature = 0, decorate = -1;
+    struct git_date_format date;
+    git_date_format_init (&date);
     const char *objects[16];
     int n_objects = 0;
 
@@ -4599,7 +4937,22 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
         if (!strcmp (w, "--oneline")) oneline = 1;
         else if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strncmp (w, "--pretty=", 9)) format = w + 9;
-        else if (!strcmp (w, "--date=raw")) raw_date = 1;
+        else if (!strncmp (w, "--date=", 7) ||
+                 (!strcmp (w, "--date") && p->next)) {
+            const char *name = w[6] == '=' ? w + 7 : (p = p->next)->word->word;
+            int bad = git_date_format_read (&date, name);
+            if (bad) return bad;
+        }
+        else if (!strcmp (w, "--decorate")) decorate = GIT_DECORATE_SHORT;
+        else if (!strcmp (w, "--no-decorate")) decorate = GIT_DECORATE_NO;
+        else if (!strncmp (w, "--decorate=", 11)) {
+            const char *which = w + 11;
+            if (!strcmp (which, "short")) decorate = GIT_DECORATE_SHORT;
+            else if (!strcmp (which, "full")) decorate = GIT_DECORATE_FULL;
+            else if (!strcmp (which, "no")) decorate = GIT_DECORATE_NO;
+            else if (!strcmp (which, "auto")) decorate = -1;
+            else return git_fatal ("invalid --decorate option: %s", which);
+        }
         else if (!strcmp (w, "--show-signature")) show_signature = 1;
         else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
         else if (git_diff_format_option (&diff, w)) ;
@@ -4610,6 +4963,8 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
     }
     if (format && !strcmp (format, "oneline")) { oneline = 1; format = NULL; }
     if (!n_objects) objects[n_objects++] = "HEAD";
+    if (decorate < 0)
+        decorate = isatty (STDOUT_FILENO) ? GIT_DECORATE_SHORT : GIT_DECORATE_NO;
     /* A patch is what show is for, unless another form was named. */
     if (!git_diff_wanted (&diff) && !diff.no_patch) diff.patch = 1;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
@@ -4626,7 +4981,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
                 return git_fatal ("bad object %s", objects[i]);
             if (type == BGIT_TAG) {
                 char tagged[41] = "";
-                git_show_tag (data, len, tagged, raw_date);
+                git_show_tag (data, len, tagged, &date);
                 free (data);
                 if (!tagged[0]) break;
                 memcpy (id, tagged, 41);
@@ -4650,7 +5005,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
             if (git_commit_read (ctx, id, &commit) < 0)
                 return git_fatal ("unable to read %s", id);
             git_print_commit (ctx, stdout, &commit, oneline, format,
-                              raw_date, show_signature, &diff, NULL, 0);
+                              &date, decorate, show_signature, &diff, NULL, 0);
             git_commit_release (&commit);
             break;
         }
@@ -4734,19 +5089,16 @@ git_cmd_verify_tag (git_context *ctx, WORD_LIST *args)
 
 /* ---- branches, switching, restoring, resetting and tags ----------------- */
 
-/* What HEAD names now, for a reflog message. */
+/* Where HEAD stands now, for the reflog line that says it moved: the
+   branch it is on, or else the commit id whole, which is what git writes
+   when HEAD stands on no branch. */
 static void
-git_head_label (git_context *ctx, struct git_state *state, char *out, size_t outsz)
+git_head_label (struct git_state *state, char *out, size_t outsz)
 {
     if (state->branch && !strncmp (state->branch, "refs/heads/", 11))
         snprintf (out, outsz, "%s", state->branch + 11);
-    else if (state->have_head) {
-        char abbreviated[41];
-        git_abbrev (ctx, state->head, 7, abbreviated, sizeof abbreviated);
-        snprintf (out, outsz, "%s", abbreviated);
-    } else {
-        snprintf (out, outsz, "(no branch)");
-    }
+    else if (state->have_head) snprintf (out, outsz, "%s", state->head);
+    else snprintf (out, outsz, "(no branch)");
 }
 
 static int
@@ -4862,16 +5214,19 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             status = git_fatal ("not a valid object name: '%s'.", start);
             goto done;
         }
-        /* git records the name the start point resolved through, and
-           says whether the branch was made or moved. */
-        char label[256];
-        git_head_label (ctx, &state, label, sizeof label);
+        /* git records the start point as it was written; with none given,
+           the branch HEAD stands on, or HEAD itself when it stands on no
+           branch. It says too whether the branch was made or moved. */
+        const char *from = names[1] ? names[1]
+                         : (state.branch &&
+                            !strncmp (state.branch, "refs/heads/", 11)
+                            ? state.branch + 11 : "HEAD");
         char already[41];
         char message[1200];
         snprintf (message, sizeof message, "branch: %s %s",
                   bgit_ref_read (&ctx->repo, ref, already) == 0 ? "Reset to"
                                                                 : "Created from",
-                  strcmp (start, "HEAD") ? start : label);
+                  from);
         if (bgit_ref_update (&ctx->repo, ref, id, NULL, message) < 0)
             status = GIT_EXIT_FATAL;
         goto done;
@@ -5029,9 +5384,9 @@ git_switch_to (git_context *ctx, struct git_state *state, const char *target,
         return GIT_EXIT_FATAL;
 
     char from[128], message[1200];
-    git_head_label (ctx, state, from, sizeof from);
+    git_head_label (state, from, sizeof from);
     snprintf (message, sizeof message, "checkout: moving from %s to %s", from,
-              is_branch && !detach ? target : commit);
+              target);
     if (is_branch && !detach) {
         if (bgit_symref_write (&ctx->repo, "HEAD", ref, NULL) < 0)
             return GIT_EXIT_FATAL;
