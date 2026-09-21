@@ -17009,13 +17009,78 @@ git_cmd_check_ignore (git_context *ctx, WORD_LIST *args)
 
 /* ---- config ------------------------------------------------------------ */
 
+/* A configured value as the type asked for writes it: git's truth words
+   for a bool, a plain number for an int (with the k, m and g it allows),
+   and the value itself otherwise. */
+static int
+git_config_shown (git_context *ctx, const char *type, const char *key,
+                  const char *value, char *out, size_t outsz)
+{
+    (void) ctx;
+    if (!type || !strcmp (type, "string")) {
+        snprintf (out, outsz, "%s", value);
+        return 0;
+    }
+    if (!strcmp (type, "bool") || !strcmp (type, "bool-or-int")) {
+        static const char *const yes[] = { "true", "yes", "on", "1", NULL };
+        static const char *const no[] = { "false", "no", "off", "0", "", NULL };
+        for (int i = 0; yes[i]; i++)
+            if (!strcasecmp (value, yes[i])) {
+                snprintf (out, outsz, "true");
+                return 0;
+            }
+        for (int i = 0; no[i]; i++)
+            if (!strcasecmp (value, no[i])) {
+                snprintf (out, outsz, "false");
+                return 0;
+            }
+        if (!strcmp (type, "bool"))
+            return git_fatal ("bad boolean config value '%s' for '%s'", value,
+                              key) ? -1 : -1;
+    }
+    if (!strcmp (type, "int") || !strcmp (type, "bool-or-int")) {
+        char *end = NULL;
+        long long number = strtoll (value, &end, 10);
+        long long scale = 1;
+        if (end && *end) {
+            if (!end[1] && (*end == 'k' || *end == 'K')) scale = 1024;
+            else if (!end[1] && (*end == 'm' || *end == 'M')) scale = 1024 * 1024;
+            else if (!end[1] && (*end == 'g' || *end == 'G'))
+                scale = 1024 * 1024 * 1024;
+            else {
+                git_fatal ("bad numeric config value '%s' for '%s': invalid "
+                           "unit", value, key);
+                return -1;
+            }
+        }
+        snprintf (out, outsz, "%lld", number * scale);
+        return 0;
+    }
+    if (!strcmp (type, "path")) {
+        char home[4096];
+        if (value[0] == '~' && value[1] == '/' &&
+            bgit_env ("HOME", home, sizeof home))
+            snprintf (out, outsz, "%s/%s", home, value + 2);
+        else snprintf (out, outsz, "%s", value);
+        return 0;
+    }
+    git_fatal ("unrecognized --type argument, %s", type);
+    return -1;
+}
+
 static int
 git_cmd_config (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git config [--global | --local | --file <file>] [-z] "
-                        "(--list | --get <key> | --get-all <key> | "
-                        "--unset <key> | --add <key> <value> | <key> [<value>])";
+                        "[--name-only] [--type=<type> | --bool | --int] "
+                        "[--default <value>] (--list | --get <key> | "
+                        "--get-all <key> | --get-regexp <pattern> | "
+                        "--unset <key> | --unset-all <key> | "
+                        "--remove-section <name> | --add <key> <value> | "
+                        "<key> [<value>])";
     int list = 0, get = 0, get_all = 0, unset = 0, add = 0, zero = 0;
+    int get_regexp = 0, remove_section = 0, name_only = 0;
+    const char *type = NULL, *fallback = NULL;
     int global = 0, local = 0;
     const char *file = NULL;
     const char *positional[2] = { NULL, NULL };
@@ -17028,6 +17093,17 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--get")) get = 1;
         else if (!strcmp (w, "--get-all")) get_all = 1;
         else if (!strcmp (w, "--unset")) unset = 1;
+        else if (!strcmp (w, "--unset-all")) unset = 1;
+        else if (!strcmp (w, "--get-regexp")) get_regexp = 1;
+        else if (!strcmp (w, "--remove-section")) remove_section = 1;
+        else if (!strcmp (w, "--name-only")) name_only = 1;
+        else if (!strcmp (w, "--bool")) type = "bool";
+        else if (!strcmp (w, "--int")) type = "int";
+        else if (!strcmp (w, "--path")) type = "path";
+        else if (!strncmp (w, "--type=", 7)) type = w + 7;
+        else if (!strcmp (w, "--default") && p->next)
+            fallback = (p = p->next)->word->word;
+        else if (!strncmp (w, "--default=", 10)) fallback = w + 10;
         else if (!strcmp (w, "--add")) add = 1;
         else if (!strcmp (w, "-z") || !strcmp (w, "--null")) zero = 1;
         else if (!strcmp (w, "--global")) global = 1;
@@ -17038,7 +17114,8 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
         else if (n < 2) positional[n++] = w;
         else return git_usage (usage);
     }
-    if (list + get + get_all + unset + add > 1) return git_usage (usage);
+    if (list + get + get_all + unset + add + get_regexp + remove_section > 1)
+        return git_usage (usage);
     if (!list && !positional[0]) return git_usage (usage);
 
     bgit_repo repo;
@@ -17051,7 +17128,8 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
     }
 
     int status = 0;
-    int writing = add || unset || (!list && !get && !get_all && positional[1]);
+    int writing = add || unset || remove_section ||
+                  (!list && !get && !get_all && !get_regexp && positional[1]);
     if (writing) {
         char path[4096];
         if (file) {
@@ -17068,7 +17146,17 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
             }
             bgit_config_repo_file (&repo, path, sizeof path);
         }
-        if (unset)
+        if (remove_section) {
+            int rc = bgit_config_remove_section_file (path, positional[0]);
+            /* git says nothing of a section that was not there, and
+               leaves with the status it keeps for that. */
+            status = rc < 0 ? GIT_EXIT_FATAL : rc ? 128 : 0;
+            if (rc > 0) {
+                fflush (stdout);
+                fprintf (stderr, "fatal: no such section: %s\n", positional[0]);
+            }
+        }
+        else if (unset)
             status = bgit_config_get (&cfg, positional[0]) == NULL ? 5
                    : (bgit_config_unset_file (path, positional[0]) < 0
                       ? GIT_EXIT_FATAL : 0);
@@ -17084,26 +17172,67 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < cfg.n; i++) {
             /* A key with no value is listed on its own, as git lists it. */
             const char *key = cfg.entries[i].key, *value = cfg.entries[i].value;
-            if (zero)
+            if (name_only)
+                printf (zero ? "%s%c" : "%s\n", key, '\0');
+            else if (zero)
                 printf (value ? "%s\n%s%c" : "%s%.0s%c", key, value ? value : "", '\0');
             else
                 printf (value ? "%s=%s\n" : "%s%.0s\n", key, value ? value : "");
         }
         goto done;
     }
+    if (get_regexp) {
+        /* The keys a pattern picks out, each with its value beside it. */
+        regex_t compiled;
+        if (regcomp (&compiled, positional[0], 0) != 0) {
+            status = git_fatal ("invalid pattern: %s", positional[0]);
+            goto done;
+        }
+        int found = 0;
+        for (size_t i = 0; i < cfg.n; i++) {
+            const char *key = cfg.entries[i].key, *value = cfg.entries[i].value;
+            if (regexec (&compiled, key, 0, NULL, 0) != 0) continue;
+            found = 1;
+            if (name_only) printf (zero ? "%s%c" : "%s\n", key, '\0');
+            else if (zero)
+                printf (value ? "%s\n%s%c" : "%s%.0s%c", key,
+                        value ? value : "", '\0');
+            else
+                printf (value ? "%s %s\n" : "%s%.0s\n", key,
+                        value ? value : "");
+        }
+        regfree (&compiled);
+        status = found ? 0 : 1;
+        goto done;
+    }
     if (get_all) {
         const char **values = NULL;
         size_t count = bgit_config_get_all (&cfg, positional[0], &values);
-        for (size_t i = 0; i < count; i++)
-            printf (zero ? "%s%c" : "%s\n", values[i], '\0');
+        for (size_t i = 0; i < count; i++) {
+            char shown[4096];
+            if (git_config_shown (ctx, type, positional[0], values[i], shown,
+                                  sizeof shown) < 0) {
+                free (values);
+                status = GIT_EXIT_FATAL;
+                goto done;
+            }
+            printf (zero ? "%s%c" : "%s\n", shown, '\0');
+        }
         free (values);
         status = count ? 0 : 1;
         goto done;
     }
     /* --get, or a bare key, both read the last value. */
     const char *value = bgit_config_get (&cfg, positional[0]);
+    if (!value) value = fallback;
     if (!value) { status = 1; goto done; }
-    printf (zero ? "%s%c" : "%s\n", value, '\0');
+    char shown[4096];
+    if (git_config_shown (ctx, type, positional[0], value, shown,
+                          sizeof shown) < 0) {
+        status = GIT_EXIT_FATAL;
+        goto done;
+    }
+    printf (zero ? "%s%c" : "%s\n", shown, '\0');
 
 done:
     bgit_config_release (&cfg);

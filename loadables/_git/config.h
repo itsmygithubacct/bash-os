@@ -62,6 +62,10 @@ int bgit_config_set_file (const char *path, const char *key, const char *value,
                           int multiple);
 int bgit_config_unset_file (const char *path, const char *key);
 
+/* Take a whole section out of one file, header and all. Returns 0, or 1
+   when the file has no such section. */
+int bgit_config_remove_section_file (const char *path, const char *section);
+
 /* Where `git config` writes without --file: the repository's config. */
 int bgit_config_repo_file (const bgit_repo *repo, char *out, size_t outsz);
 /* And with --global: GIT_CONFIG_GLOBAL, or ~/.gitconfig. */

@@ -100,8 +100,12 @@ git symbolic-ref [-m <reason>] [-q] [--short] <name> [<ref>]
 git show-ref     [--head] [--heads] [--tags] [-q] [--verify] [<pattern>...]
 git for-each-ref [--count=<n>] [--format=<format>] [<pattern>...]
 git reflog       [show] [<ref>]
-git config       [--global | --local | --file <file>] [-z]
-                 (--list | --get <key> | --get-all <key> | --unset <key>
+git config       [--global | --local | --file <file>] [-z] [--name-only]
+                 [--type=<type> | --bool | --int | --path]
+                 [--default <value>]
+                 (--list | --get <key> | --get-all <key>
+                  | --get-regexp <pattern> | --unset <key>
+                  | --unset-all <key> | --remove-section <name>
                   | --add <key> <value> | <key> [<value>])
 git update-index [--add] [--remove] [--cacheinfo <mode>,<object>,<path>]
                  [--index-info] [--] [<file>...]
@@ -188,6 +192,15 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+`git config` reads and writes the files git reads and writes: `--list`,
+`--get`, `--get-all` and `--get-regexp`, with `--name-only` for the keys
+alone, `--type=<type>` (or `--bool`, `--int`, `--path`) for a value read
+as git reads it, and `--default` for a key that is not set; `--add`,
+`--unset`, `--unset-all` and `--remove-section` for changing one file,
+which is the repository's unless `--global` or `--file` says otherwise.
+The one difference left is the wording of the complaint about a value
+that is not a number: git names the file it came from and this does not.
 
 `git branch` and `git tag` list what they have, and the same four tests
 narrow either listing: `--merged` and `--no-merged` for what a commit

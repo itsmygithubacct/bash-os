@@ -69,3 +69,33 @@ git config --get 'section.sub section.key' || echo "a subsection is exact: $?"
 printf '[http]\n\textraHeader = X-One: 1\n\textraHeader = X-Two: 2\n' >> .git/config
 git config --get-all http.extraHeader
 git config --get-all HTTP.EXTRAHEADER
+
+# The keys a pattern picks out, the types a value can be read as, and
+# taking a key or a whole section back out again.
+git config alias.co checkout
+git config alias.st status
+git config num.count 42
+git config size.big 2k
+git config yes.flag On
+git config --get-regexp alias
+git config --get-regexp '^num'
+git config --get-regexp nomatch || echo "no match: $?"
+git config --name-only --get-regexp alias
+git config --name-only --list
+git config --bool yes.flag
+git config --bool core.bare
+git config --int num.count
+git config --int size.big
+git config --type=bool yes.flag
+git config --type=int size.big
+git config --default fallback --get nothing.here
+git config --get nothing.here || echo "nothing there: $?"
+git config --add many.things one
+git config --add many.things two
+git config --get-all many.things
+git config --unset-all many.things
+git config --get-all many.things || echo "gone: $?"
+git config --remove-section alias
+git config --get-regexp alias || echo "section gone: $?"
+git config --remove-section nosuch || echo "no such section: $?"
+git config --list

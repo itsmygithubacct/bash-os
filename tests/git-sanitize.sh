@@ -153,6 +153,14 @@ GIT_AUTHOR_NAME='Prefix Author' GIT_AUTHOR_EMAIL='prefix@bash-os.test' \
 GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000000 +0000' \
   git commit -q --allow-empty -m 'made with a name given for this command alone'
 git log -1 --format='%an <%ae> %ad'
+git config --get-regexp '^core' || true
+git config --name-only --list
+git config --bool core.bare 2>/dev/null || true
+git config --add many.things one
+git config --add many.things two
+git config --get-all many.things
+git config --unset-all many.things
+git config --remove-section many 2>/dev/null || true
 git branch -v
 git branch -vv
 git branch -a -v

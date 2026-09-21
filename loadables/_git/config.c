@@ -637,6 +637,71 @@ bgit_config_unset_file (const char *path, const char *key)
 }
 
 int
+bgit_config_remove_section_file (const char *path, const char *name)
+{
+    /* The section's name may carry a subsection: "remote.origin" is
+       [remote "origin"], as git reads it here. */
+    char section[256], subsection[512];
+    snprintf (section, sizeof section, "%s", name);
+    *subsection = '\0';
+    char *dot = strchr (section, '.');
+    if (dot) {
+        *dot = '\0';
+        snprintf (subsection, sizeof subsection, "%s", dot + 1);
+    }
+    for (char *at = section; *at; at++) *at = (char) tolower ((unsigned char) *at);
+
+    FILE *f = fopen (path, "r");
+    if (!f) return 1;
+    char **lines = NULL;
+    size_t n = 0, cap = 0;
+    char buf[8192];
+    while (fgets (buf, sizeof buf, f)) {
+        if (n == cap) {
+            size_t next = cap ? cap * 2 : 64;
+            char **grown = realloc (lines, next * sizeof *grown);
+            if (!grown) { fclose (f); goto oom; }
+            lines = grown;
+            cap = next;
+        }
+        lines[n] = strdup (buf);
+        if (!lines[n]) { fclose (f); goto oom; }
+        n++;
+    }
+    fclose (f);
+
+    int inside = 0, found = 0;
+    size_t kept = 0;
+    for (size_t i = 0; i < n; i++) {
+        const char *at = lines[i];
+        while (*at == ' ' || *at == '\t') at++;
+        if (*at == '[') {
+            inside = bgit_config_is_section (lines[i], section, subsection);
+            if (inside) found = 1;
+        }
+        if (inside) { free (lines[i]); continue; }
+        lines[kept++] = lines[i];
+    }
+    n = kept;
+    int rc = 0;
+    if (found) {
+        FILE *out = fopen (path, "w");
+        if (!out) rc = -1;
+        else {
+            for (size_t i = 0; i < n; i++) fputs (lines[i], out);
+            if (fclose (out) != 0) rc = -1;
+        }
+    }
+    for (size_t i = 0; i < n; i++) free (lines[i]);
+    free (lines);
+    return rc < 0 ? -1 : (found ? 0 : 1);
+oom:
+    for (size_t i = 0; i < n; i++) free (lines[i]);
+    free (lines);
+    return -1;
+}
+
+int
 bgit_ident (const bgit_config *cfg, int committer, char *out, size_t outsz)
 {
     char held_name[512], held_email[512], held_date[64];
