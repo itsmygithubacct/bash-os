@@ -4,7 +4,7 @@
 # those in the order of its own object table, which is not reproduced here,
 # so every listing is sorted before it is compared.
 # Run through tests/git-parity.py, never on its own.
-# requires: init add commit tag rm hash-object commit-tree fsck rev-parse
+# requires: init add commit tag rm hash-object commit-tree fsck rev-parse grep
 set -e
 
 said () { if "$@" > /dev/null 2>&1; then echo 'said: 0'; else echo "said: $?"; fi; }
@@ -48,7 +48,9 @@ git fsck --tags 2>&1 | sort
 echo '=== walking out from what is named instead ==='
 git fsck HEAD 2>&1 | sort
 git fsck "$(git rev-parse HEAD)" 2>&1 | sort
-git fsck nosuchthing 2>&1 | sort
+# git 2.55 answers a name it cannot resolve by falling back to the default
+# heads and saying so, where 2.47 does not; the line is left out either way.
+git fsck nosuchthing 2>&1 | grep -v '^notice: No default references$' | sort
 said git fsck nosuchthing
 
 echo '=== a link it cannot follow ==='

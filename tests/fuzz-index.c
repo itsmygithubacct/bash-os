@@ -43,6 +43,17 @@ bgit_hex_to_sha (const char *hex, unsigned char *sha)
     return 0;
 }
 
+void
+bgit_sha_to_hex (const unsigned char *sha, char *out)
+{
+    static const char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 20; i++) {
+        out[i * 2] = hex[sha[i] >> 4];
+        out[i * 2 + 1] = hex[sha[i] & 15];
+    }
+    out[40] = '\0';
+}
+
 int
 LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)
 {
@@ -76,6 +87,23 @@ LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)
     if (bgit_index_read (path, &entries, &n) == 0) {
         for (size_t i = 0; i < n; i++) (void) bgit_index_racy (&entries[i]);
         bgit_index_free_entries (entries, n);
+    }
+
+    /* The extensions past the entries, which fsck and prune read as heads:
+       a conflict's kept sides and the trees already worked out. */
+    char (*ids)[41] = NULL;
+    n = 0;
+    if (bgit_index_resolve_undo (path, &ids, &n) == 0) {
+        for (size_t i = 0; i < n; i++)
+            if (ids[i][40] != '\0') __builtin_trap ();
+        free (ids);
+    }
+    ids = NULL;
+    n = 0;
+    if (bgit_index_cache_tree (path, &ids, &n) == 0) {
+        for (size_t i = 0; i < n; i++)
+            if (ids[i][40] != '\0') __builtin_trap ();
+        free (ids);
     }
     return 0;
 }
