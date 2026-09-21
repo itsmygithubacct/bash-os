@@ -581,6 +581,14 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# What is known about a remote, which asks the far end and reads the refs
+# it left here.
+git remote > /dev/null
+git remote -v > /dev/null
+git remote show -n bare > /dev/null 2>&1 || true
+git remote show bare > /dev/null 2>&1 || true
+git remote prune -n bare > /dev/null 2>&1 || true
+
 # Moving HEAD about, which says where it was and how the branch stands.
 git checkout topic
 git checkout main

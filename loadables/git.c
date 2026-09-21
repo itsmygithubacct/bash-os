@@ -144,6 +144,38 @@ typedef struct {
     int open;
 } git_context;
 
+/* A conversation with a far end. Over a path it is a child with a pipe
+   each way, the way git starts its own; over HTTP it is a URL, where
+   each request is a POST of its own and the answer comes back whole. */
+struct git_conn {
+    bgit_proto_io io;
+    bgit_pkt_reader reader;
+    git_context *ctx;            /* whose configuration to ask */
+    int over_http;
+    /* a child at the far end */
+    pid_t child;
+    int to_far, from_far;
+    /* or a URL, and what is being built to send to it */
+    char url[4096];
+    const char *service;
+    char secret[1024];           /* a name and secret, once one is needed */
+    const char **headers;        /* what http.extraHeader adds */
+    size_t n_headers;
+    int follow;                  /* whether this request may be redirected */
+    unsigned char *request;
+    size_t request_len, request_cap;
+    unsigned char *response;
+    size_t response_len;
+};
+typedef struct git_conn git_conn;
+
+/* Opening and closing one is written out beside the fetching and pushing
+   that make one; `remote show` asks the far end too. */
+static int git_far_end_open (git_conn *conn, git_context *ctx, const char *url,
+                             const char *program, int for_fetch);
+static int git_far_end_gone (void);
+static int git_conn_close (git_conn *conn);
+
 /* Both written out beside git notes, which is what keeps them. */
 static int git_note_text (git_context *ctx, const char *ref,
                           const char *object, char **out, size_t *len);
@@ -846,7 +878,20 @@ git_cmd_update_ref (git_context *ctx, WORD_LIST *args)
                 return git_fatal ("%s: not a valid SHA1", positional[2]);
             } else old = old_id;
         }
+        char before[41] = "";
+        int had_it = bgit_ref_read (&ctx->repo, refname, before) == 0;
         rc = bgit_ref_update (&ctx->repo, refname, new_id, old, message);
+        /* A branch HEAD stands on has moved, so HEAD has moved with it:
+           git writes both logs, with the same message. */
+        if (rc == 0 && (!had_it || strcmp (before, new_id))) {
+            char *head_target = NULL;
+            if (bgit_symref_read (&ctx->repo, "HEAD", &head_target) == 0 &&
+                head_target && !strcmp (head_target, refname))
+                bgit_reflog_append (&ctx->repo, "HEAD",
+                                    had_it ? before : NULL, new_id,
+                                    message ? message : "");
+            free (head_target);
+        }
     }
     free (target);
     return rc < 0 ? GIT_EXIT_FATAL : 0;
@@ -15369,13 +15414,20 @@ static int
 git_cmd_remote (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git remote [-v] | add <name> <url> | remove <name> "
-                        "| set-url <name> <url> | get-url <name>";
+                        "| set-url <name> <url> | get-url <name> "
+                        "| show [-n] <name> | prune [-n] <name>";
     const char *verb = NULL, *name = NULL, *url = NULL;
-    int verbose = 0;
+    int verbose = 0, no_query = 0, dry_run = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        /* -n means one thing to show and another to prune, which is how
+           git reads it in each place. */
+        else if (!strcmp (w, "-n") || !strcmp (w, "--dry-run")) {
+            no_query = 1;
+            dry_run = 1;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!verb) verb = w;
         else if (!name) name = w;
@@ -15439,6 +15491,240 @@ git_cmd_remote (git_context *ctx, WORD_LIST *args)
         const char *where = git_remote_url (ctx, name);
         if (!where) return git_fatal ("No such remote '%s'", name);
         printf ("%s\n", where);
+        return 0;
+    }
+    if (!strcmp (verb, "show")) {
+        if (!name) return git_usage (usage);
+        const char *where = git_remote_url (ctx, name);
+        if (!where) return git_fatal ("No such remote '%s'", name);
+        char key[4096];
+        snprintf (key, sizeof key, "remote.%s.pushurl", name);
+        const char *push_url = bgit_config_get (&ctx->cfg, key);
+        printf ("* remote %s\n", name);
+        printf ("  Fetch URL: %s\n", where);
+        printf ("  Push  URL: %s\n", push_url ? push_url : where);
+
+        /* What the far end has, unless -n says not to ask. */
+        bgit_proto_ref *theirs = NULL;
+        size_t n_theirs = 0;
+        char head_branch[4096] = "";
+        if (!no_query) {
+            git_conn conn;
+            if (git_far_end_open (&conn, ctx, where, NULL, 1) < 0)
+                return GIT_EXIT_FATAL;
+            const char *prefixes[2] = { "refs/heads/", "HEAD" };
+            if (bgit_proto_ls_refs (&conn.io, prefixes, 2, 1, 0, &theirs,
+                                    &n_theirs) < 0) {
+                git_far_end_gone ();
+                git_conn_close (&conn);
+                return GIT_EXIT_FATAL;
+            }
+            git_conn_close (&conn);
+            for (size_t i = 0; i < n_theirs; i++)
+                if (!strcmp (theirs[i].name, "HEAD") && theirs[i].symref &&
+                    !strncmp (theirs[i].symref, "refs/heads/", 11))
+                    snprintf (head_branch, sizeof head_branch, "%s",
+                              theirs[i].symref + 11);
+            printf ("  HEAD branch: %s\n", *head_branch ? head_branch : "(unknown)");
+        } else printf ("  HEAD branch: (not queried)\n");
+
+        /* The branches: theirs, ours, and the ones only one side has. */
+        char prefix[4096];
+        snprintf (prefix, sizeof prefix, "refs/remotes/%s/", name);
+        bgit_ref *mine = NULL;
+        size_t n_mine = 0;
+        bgit_refs_list (&ctx->repo, prefix, &mine, &n_mine);
+        struct { char shown[4096]; const char *state; } listed[256];
+        size_t n_listed = 0;
+        for (size_t i = 0; i < n_theirs && n_listed < 256; i++) {
+            if (strncmp (theirs[i].name, "refs/heads/", 11)) continue;
+            const char *short_name = theirs[i].name + 11;
+            int tracked = 0;
+            for (size_t j = 0; j < n_mine; j++)
+                if (!strcmp (mine[j].name + strlen (prefix), short_name))
+                    tracked = 1;
+            snprintf (listed[n_listed].shown, sizeof listed[n_listed].shown,
+                      "%s", short_name);
+            listed[n_listed].state = tracked ? "tracked"
+                : "new (next fetch will store in remotes/" ;
+            n_listed++;
+        }
+        /* One we have that they no longer do is stale, and shows under the
+           whole name of the ref that holds it. */
+        for (size_t j = 0; j < n_mine && n_listed < 256; j++) {
+            const char *short_name = mine[j].name + strlen (prefix);
+            if (!strcmp (short_name, "HEAD")) continue;
+            int still_there = no_query;
+            for (size_t i = 0; i < n_theirs && !still_there; i++)
+                if (!strncmp (theirs[i].name, "refs/heads/", 11) &&
+                    !strcmp (theirs[i].name + 11, short_name))
+                    still_there = 1;
+            if (still_there) {
+                if (no_query) {
+                    snprintf (listed[n_listed].shown,
+                              sizeof listed[n_listed].shown, "%s", short_name);
+                    listed[n_listed].state = "";
+                    n_listed++;
+                }
+                continue;
+            }
+            snprintf (listed[n_listed].shown, sizeof listed[n_listed].shown,
+                      "%s", mine[j].name);
+            listed[n_listed].state = "stale (use 'git remote prune' to remove)";
+            n_listed++;
+        }
+        /* git lists them by the name it shows, and lines the states up. */
+        for (size_t i = 0; i + 1 < n_listed; i++)
+            for (size_t j = 0; j + 1 < n_listed - i; j++)
+                if (strcmp (listed[j].shown, listed[j + 1].shown) > 0) {
+                    char held[4096];
+                    const char *state = listed[j].state;
+                    snprintf (held, sizeof held, "%s", listed[j].shown);
+                    snprintf (listed[j].shown, sizeof listed[j].shown, "%s",
+                              listed[j + 1].shown);
+                    listed[j].state = listed[j + 1].state;
+                    snprintf (listed[j + 1].shown, sizeof listed[j + 1].shown,
+                              "%s", held);
+                    listed[j + 1].state = state;
+                }
+        size_t width = 0;
+        for (size_t i = 0; i < n_listed; i++) {
+            size_t len = strlen (listed[i].shown);
+            if (*listed[i].state && len > width) width = len;
+        }
+        printf ("  Remote branches:%s\n", no_query ? " (status not queried)" : "");
+        for (size_t i = 0; i < n_listed; i++) {
+            if (!*listed[i].state) { printf ("    %s\n", listed[i].shown); continue; }
+            if (!strncmp (listed[i].state, "new (next", 9))
+                printf ("    %-*s new (next fetch will store in remotes/%s)\n",
+                        (int) width, listed[i].shown, name);
+            else printf ("    %-*s %s\n", (int) width, listed[i].shown,
+                         listed[i].state);
+        }
+        bgit_refs_free (mine, n_mine);
+        bgit_proto_refs_release (theirs, n_theirs);
+
+        /* Which of our branches follow one of theirs, and which push where. */
+        bgit_ref *branches = NULL;
+        size_t n_branches = 0;
+        bgit_refs_list (&ctx->repo, "refs/heads/", &branches, &n_branches);
+        struct { char local[4096]; char remote[4096]; } pulls[256];
+        size_t n_pulls = 0;
+        for (size_t i = 0; i < n_branches && n_pulls < 256; i++) {
+            const char *short_name = branches[i].name + strlen ("refs/heads/");
+            snprintf (key, sizeof key, "branch.%s.remote", short_name);
+            const char *its_remote = bgit_config_get (&ctx->cfg, key);
+            snprintf (key, sizeof key, "branch.%s.merge", short_name);
+            const char *merge = bgit_config_get (&ctx->cfg, key);
+            if (!its_remote || !merge || strcmp (its_remote, name)) continue;
+            snprintf (pulls[n_pulls].local, sizeof pulls[n_pulls].local, "%s",
+                      short_name);
+            snprintf (pulls[n_pulls].remote, sizeof pulls[n_pulls].remote, "%s",
+                      !strncmp (merge, "refs/heads/", 11) ? merge + 11 : merge);
+            n_pulls++;
+        }
+        if (n_pulls) {
+            size_t pull_width = 0;
+            for (size_t i = 0; i < n_pulls; i++)
+                if (strlen (pulls[i].local) > pull_width)
+                    pull_width = strlen (pulls[i].local);
+            printf ("  Local branch%s configured for 'git pull':\n",
+                    n_pulls == 1 ? "" : "es");
+            for (size_t i = 0; i < n_pulls; i++)
+                printf ("    %-*s merges with remote %s\n", (int) pull_width,
+                        pulls[i].local, pulls[i].remote);
+        }
+        if (n_pulls) {
+            /* Without asking the far end there is one line to write,
+               whatever the branches are, so git says "ref" and not
+               "refs". */
+            printf ("  Local ref%s configured for 'git push'%s:\n",
+                    (no_query || n_pulls == 1) ? "" : "s",
+                    no_query ? " (status not queried)" : "");
+            if (no_query) printf ("    (matching) pushes to (matching)\n");
+            else {
+                size_t push_width = 0, to_width = 0;
+                for (size_t i = 0; i < n_pulls; i++) {
+                    if (strlen (pulls[i].local) > push_width)
+                        push_width = strlen (pulls[i].local);
+                    if (strlen (pulls[i].remote) > to_width)
+                        to_width = strlen (pulls[i].remote);
+                }
+                for (size_t i = 0; i < n_pulls; i++) {
+                    /* Where the two stand, which is what git says in the
+                       brackets. */
+                    char local_id[41] = "", remote_id[41] = "";
+                    char local_ref[4096], remote_ref[4096];
+                    snprintf (local_ref, sizeof local_ref, "refs/heads/%s",
+                              pulls[i].local);
+                    snprintf (remote_ref, sizeof remote_ref, "%s%s", prefix,
+                              pulls[i].remote);
+                    bgit_ref_read (&ctx->repo, local_ref, local_id);
+                    bgit_ref_read (&ctx->repo, remote_ref, remote_id);
+                    const char *state = "";
+                    if (!*remote_id) state = "create";
+                    else if (!strcmp (local_id, remote_id)) state = "up to date";
+                    else if (bgit_is_ancestor (&ctx->odb, remote_id,
+                                               local_id) > 0)
+                        state = "fast-forwardable";
+                    else
+                        /* Behind, or gone off on its own: either way the
+                           push would not go, which is what git says. */
+                        state = "local out of date";
+                    printf ("    %-*s pushes to %-*s (%s)\n", (int) push_width,
+                            pulls[i].local, (int) to_width, pulls[i].remote,
+                            state);
+                }
+            }
+        }
+        bgit_refs_free (branches, n_branches);
+        return 0;
+    }
+    if (!strcmp (verb, "prune")) {
+        if (!name) return git_usage (usage);
+        const char *where = git_remote_url (ctx, name);
+        if (!where) return git_fatal ("No such remote '%s'", name);
+        git_conn conn;
+        if (git_far_end_open (&conn, ctx, where, NULL, 1) < 0)
+            return GIT_EXIT_FATAL;
+        bgit_proto_ref *theirs = NULL;
+        size_t n_theirs = 0;
+        const char *prefixes[1] = { "refs/heads/" };
+        if (bgit_proto_ls_refs (&conn.io, prefixes, 1, 0, 0, &theirs,
+                                &n_theirs) < 0) {
+            git_far_end_gone ();
+            git_conn_close (&conn);
+            return GIT_EXIT_FATAL;
+        }
+        git_conn_close (&conn);
+        char prefix[4096];
+        snprintf (prefix, sizeof prefix, "refs/remotes/%s/", name);
+        bgit_ref *mine = NULL;
+        size_t n_mine = 0;
+        bgit_refs_list (&ctx->repo, prefix, &mine, &n_mine);
+        int said = 0;
+        for (size_t j = 0; j < n_mine; j++) {
+            const char *short_name = mine[j].name + strlen (prefix);
+            if (!strcmp (short_name, "HEAD")) continue;
+            int still_there = 0;
+            for (size_t i = 0; i < n_theirs && !still_there; i++)
+                if (!strncmp (theirs[i].name, "refs/heads/", 11) &&
+                    !strcmp (theirs[i].name + 11, short_name))
+                    still_there = 1;
+            if (still_there) continue;
+            if (!said) {
+                printf ("Pruning %s\n", name);
+                printf ("URL: %s\n", where);
+                said = 1;
+            }
+            /* git names it the way a person would: the remote and the
+               branch, not the whole ref. */
+            printf (" * [%s] %s/%s\n", dry_run ? "would prune" : "pruned",
+                    name, short_name);
+            if (!dry_run) bgit_ref_delete (&ctx->repo, mine[j].name, NULL, NULL);
+        }
+        bgit_refs_free (mine, n_mine);
+        bgit_proto_refs_release (theirs, n_theirs);
         return 0;
     }
     if (!strcmp (verb, "remove") || !strcmp (verb, "rm")) {
@@ -15814,29 +16100,7 @@ git_cmd_upload_pack (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
-/* A conversation with a far end. Over a path it is a child with a pipe
-   each way, the way git starts its own; over HTTP it is a URL, where
-   each request is a POST of its own and the answer comes back whole. */
-typedef struct {
-    bgit_proto_io io;
-    bgit_pkt_reader reader;
-    git_context *ctx;            /* whose configuration to ask */
-    int over_http;
-    /* a child at the far end */
-    pid_t child;
-    int to_far, from_far;
-    /* or a URL, and what is being built to send to it */
-    char url[4096];
-    const char *service;
-    char secret[1024];           /* a name and secret, once one is needed */
-    const char **headers;        /* what http.extraHeader adds */
-    size_t n_headers;
-    int follow;                  /* whether this request may be redirected */
-    unsigned char *request;
-    size_t request_len, request_cap;
-    unsigned char *response;
-    size_t response_len;
-} git_conn;
+
 
 /* The scheme and host part of a URL, which is what a stored credential
    is matched on. */
@@ -17407,10 +17671,19 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
         int len = (int) strlen (want->unmade ? "(none)" : git_ref_short (want->src));
         if (len > width) width = len;
     }
+    /* git records the command as it was given, so a reflog says which
+       fetch it was. */
+    char action[4096];
+    size_t action_len = (size_t) snprintf (action, sizeof action, "fetch");
+    for (WORD_LIST *p = args; p && action_len < sizeof action; p = p->next)
+        action_len += (size_t) snprintf (action + action_len,
+                                        sizeof action - action_len, " %s",
+                                        p->word->word);
     for (size_t i = 0; !status && i < n_wants; i++) {
         if (!wants[i].updated) continue;
-        const char *message = wants[i].is_new ? "fetch: storing head"
-                                              : "fetch: fast-forward";
+        char message[4200];
+        snprintf (message, sizeof message, "%s: %s", action,
+                  wants[i].is_new ? "storing head" : "fast-forward");
         if (bgit_ref_update (&ctx->repo, wants[i].dst, wants[i].id, NULL,
                              message) < 0)
             status = GIT_EXIT_FATAL;

@@ -100,7 +100,8 @@ git rebase       [-i] [-r | --rebase-merges[=(no-)rebase-cousins]]
                  | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
-git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
+git remote       [-v] | show [-n] <name> | prune [-n] <name>
+                 | add <name> <url> | remove <name> | set-url <name>
                  <url> | get-url <name>
 git clone        [-q] [--bare] [-n|--no-checkout] [-b|--branch <name>]
                  [-o|--origin <name>] <path> | <http url> [<directory>]
@@ -328,6 +329,15 @@ the awkward names in it.
 
 Only tar is written. `--format=zip`, `tgz` and `tar.gz` say so rather than
 writing something else, and `--list` names the one format this build has.
+
+`git remote show <name>` says what is known about a remote: where it is,
+which branch its HEAD is on, which of its branches are tracked here and
+which are new or stale, which of ours follow one of its, and what a push
+would do to each — up to date, fast-forwardable, or with the local out of
+date. `-n` answers from what is already here without asking the far end,
+and says so where it would otherwise have looked. `git remote prune`
+takes away the tracking refs whose branches over there are gone, and with
+`-n` says which it would take.
 
 `git checkout` and `git switch` say what they did, as git says it: the
 branch they landed on, or that HEAD was already there, or that the branch
@@ -1168,8 +1178,7 @@ am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
 fsck, prune, repack, gc, notes, bisect, archive and bundle.
 
 What is not here yet, in the order it would be missed: cloning straight
-from a bundle; `remote show`; `diff --word-diff`; `describe --contains`
-and `--all`.
+from a bundle; `diff --word-diff`; `describe --contains` and `--all`.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent
