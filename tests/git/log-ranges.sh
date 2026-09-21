@@ -133,3 +133,13 @@ git log --oneline --until=@1750000300 -2
 git log --oneline --since=@1750000300 --until=@1750000500
 git log --oneline --since='2025-06-15 15:10:00' 
 git checkout -q main
+
+# Who wrote what, gathered by author.
+git shortlog HEAD
+git shortlog -s HEAD
+git shortlog -sn HEAD
+git shortlog -sne HEAD
+git shortlog -e HEAD
+git shortlog -s --no-merges HEAD
+git shortlog 'HEAD~2..HEAD'
+git log | git shortlog -sn

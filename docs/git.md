@@ -39,6 +39,7 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git shortlog     [-n] [-s] [-e] [--no-merges] [<revision range>]
 git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
                  [--match <pattern>] [--candidates=<n>] [--dirty[=<mark>]]
                  [<commit-ish>...]
@@ -212,6 +213,13 @@ follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
 the tag says beside it — the annotation for an annotated tag, and the
 commit's own message for a light one — a line at a time, the first beside
 the name and the rest indented.
+
+`git shortlog` gathers the commits by who wrote them: every subject under
+its author, oldest first, or just the counts with `-s`, ordered by name
+or by count with `-n`, and with the address as well under `-e`. Named a
+range it walks the history itself; named nothing, with something feeding
+it, it reads git's own log from there, which is how it is usually
+reached — `git log | git shortlog -sn`.
 
 `git describe` calls a commit by the nearest tag behind it, how far back
 that tag is and the commit's own short id — `<tag>-<n>-g<id>`, or the tag

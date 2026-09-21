@@ -6975,6 +6975,240 @@ git_tag_note (git_context *ctx, const char *sha)
     return note;
 }
 
+/* ---- shortlog ---------------------------------------------------------- */
+
+/* Who wrote what, gathered by author. */
+struct git_shortlog_author {
+    char who[1024];              /* "Name", or "Name <mail>" with -e */
+    char **subjects;
+    size_t n, cap;
+};
+
+struct git_shortlog {
+    struct git_shortlog_author *authors;
+    size_t n, cap;
+};
+
+static int
+git_shortlog_add (struct git_shortlog *log, const char *who,
+                  const char *subject)
+{
+    struct git_shortlog_author *at = NULL;
+    for (size_t i = 0; i < log->n; i++)
+        if (!strcmp (log->authors[i].who, who)) { at = &log->authors[i]; break; }
+    if (!at) {
+        if (log->n == log->cap) {
+            size_t next = log->cap ? log->cap * 2 : 16;
+            struct git_shortlog_author *grown = realloc (log->authors,
+                                                         next * sizeof *grown);
+            if (!grown) return -1;
+            log->authors = grown;
+            log->cap = next;
+        }
+        at = &log->authors[log->n++];
+        memset (at, 0, sizeof *at);
+        snprintf (at->who, sizeof at->who, "%s", who);
+    }
+    if (at->n == at->cap) {
+        size_t next = at->cap ? at->cap * 2 : 8;
+        char **grown = realloc (at->subjects, next * sizeof *grown);
+        if (!grown) return -1;
+        at->subjects = grown;
+        at->cap = next;
+    }
+    at->subjects[at->n] = strdup (subject);
+    if (!at->subjects[at->n]) return -1;
+    at->n++;
+    return 0;
+}
+
+static void
+git_shortlog_release (struct git_shortlog *log)
+{
+    for (size_t i = 0; i < log->n; i++) {
+        for (size_t j = 0; j < log->authors[i].n; j++)
+            free (log->authors[i].subjects[j]);
+        free (log->authors[i].subjects);
+    }
+    free (log->authors);
+}
+
+static int
+git_shortlog_by_name (const void *a, const void *b)
+{
+    return strcmp (((const struct git_shortlog_author *) a)->who,
+                   ((const struct git_shortlog_author *) b)->who);
+}
+
+static int
+git_shortlog_by_count (const void *a, const void *b)
+{
+    const struct git_shortlog_author *x = a, *y = b;
+    if (x->n != y->n) return x->n < y->n ? 1 : -1;
+    return strcmp (x->who, y->who);
+}
+
+/* git's own log, read back: what it wrote about who wrote each commit. */
+static int
+git_shortlog_read (struct git_shortlog *log, int email)
+{
+    char line[65536];
+    char who[1024] = "";
+    int want_subject = 0;
+    char subject[4096] = "";
+    while (fgets (line, sizeof line, stdin)) {
+        size_t len = strlen (line);
+        while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+            line[--len] = '\0';
+        if (!strncmp (line, "Author: ", 8)) {
+            snprintf (who, sizeof who, "%s", line + 8);
+            if (!email) {
+                char *bracket = strrchr (who, '<');
+                if (bracket) {
+                    while (bracket > who && bracket[-1] == ' ') bracket--;
+                    *bracket = '\0';
+                }
+            }
+            want_subject = 1;
+            *subject = '\0';
+            continue;
+        }
+        if (!want_subject || !*who) continue;
+        if (line[0] == ' ' && line[1] == ' ' && line[2] == ' ' &&
+            line[3] == ' ') {
+            const char *text = line + 4;
+            if (!*text) {
+                /* The blank line after the subject ends it. */
+                if (*subject) {
+                    if (git_shortlog_add (log, who, subject) < 0) return -1;
+                    want_subject = 0;
+                }
+                continue;
+            }
+            /* git folds the subject's lines into one, as it does elsewhere. */
+            size_t at = strlen (subject);
+            snprintf (subject + at, sizeof subject - at, "%s%s",
+                      at ? " " : "", text);
+            continue;
+        }
+        if (*subject) {
+            if (git_shortlog_add (log, who, subject) < 0) return -1;
+            want_subject = 0;
+            *subject = '\0';
+        }
+    }
+    if (*subject && *who && git_shortlog_add (log, who, subject) < 0) return -1;
+    return 0;
+}
+
+static int
+git_cmd_shortlog (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git shortlog [-n] [-s] [-e] [--no-merges] "
+                        "[<revision range>]";
+    int summary = 0, numbered = 0, email = 0;
+    struct git_log_filter filter;
+    git_log_filter_init (&filter);
+    const char *revs[16], *excludes[16];
+    int n_revs = 0, n_excludes = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        const char *taken = p->next ? p->next->word->word : NULL;
+        if (w[0] == '-' && w[1] && w[1] != '-' && !git_all_digits (w + 1) &&
+            strcmp (w, "-S") && strcmp (w, "-G") && strncmp (w, "-S", 2) &&
+            strncmp (w, "-G", 2)) {
+            /* git takes these run together, as -sne. */
+            int known = 1;
+            for (const char *flag = w + 1; *flag && known; flag++)
+                switch (*flag) {
+                case 's': summary = 1; break;
+                case 'n': numbered = 1; break;
+                case 'e': email = 1; break;
+                default: known = 0; break;
+                }
+            if (known) continue;
+        }
+        if (!strcmp (w, "--summary")) summary = 1;
+        else if (!strcmp (w, "--numbered")) numbered = 1;
+        else if (!strcmp (w, "--email")) email = 1;
+        else if (git_log_filter_option (&filter, w, &taken)) {
+            if (!taken && p->next) p = p->next;
+        }
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (strstr (w, "..") && !strstr (w, "...")) {
+            char *range = strdup (w);
+            if (!range) return GIT_EXIT_FATAL;
+            char *dots = strstr (range, "..");
+            *dots = '\0';
+            if (n_excludes >= (int) (sizeof excludes / sizeof *excludes) ||
+                n_revs >= (int) (sizeof revs / sizeof *revs)) {
+                free (range);
+                return git_fatal ("too many revisions");
+            }
+            excludes[n_excludes++] = *range ? range : "HEAD";
+            revs[n_revs++] = dots[2] ? dots + 2 : "HEAD";
+        }
+        else if (n_revs < (int) (sizeof revs / sizeof *revs)) revs[n_revs++] = w;
+        else return git_fatal ("too many revisions");
+    }
+
+    struct git_shortlog log;
+    memset (&log, 0, sizeof log);
+    int status = 0;
+    if (!n_revs && !isatty (STDIN_FILENO)) {
+        /* With nothing named and something to read, git reads its own log
+           from whatever is feeding it. */
+        if (git_shortlog_read (&log, email) < 0) {
+            git_shortlog_release (&log);
+            return GIT_EXIT_FATAL;
+        }
+    } else {
+        if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+        if (!n_revs) revs[n_revs++] = "HEAD";
+        char (*walk)[41] = NULL;
+        size_t n_walk = 0;
+        if (git_collect_commits (ctx, revs, n_revs, excludes, n_excludes, 0, -1,
+                                 &walk, &n_walk) < 0)
+            return git_fatal ("cannot read the history");
+        for (size_t i = 0; i < n_walk; i++) {
+            struct git_commit commit;
+            if (git_commit_read (ctx, walk[i], &commit) < 0) continue;
+            if (git_log_keeps (&filter, &commit)) {
+                char who[1024], subject[4096];
+                if (email)
+                    snprintf (who, sizeof who, "%s <%s>", commit.author_name,
+                              commit.author_email);
+                else snprintf (who, sizeof who, "%s", commit.author_name);
+                git_subject (&commit, subject, sizeof subject);
+                if (git_shortlog_add (&log, who, subject) < 0) status = GIT_EXIT_FATAL;
+            }
+            git_commit_release (&commit);
+            if (status) break;
+        }
+        free (walk);
+    }
+
+    if (!status) {
+        qsort (log.authors, log.n, sizeof *log.authors,
+               numbered ? git_shortlog_by_count : git_shortlog_by_name);
+        for (size_t i = 0; i < log.n; i++) {
+            struct git_shortlog_author *who = &log.authors[i];
+            if (summary) {
+                printf ("%6zu\t%s\n", who->n, who->who);
+                continue;
+            }
+            printf ("%s (%zu):\n", who->who, who->n);
+            /* Oldest first, which is the other way round from the walk. */
+            for (size_t j = who->n; j-- > 0;)
+                printf ("      %s\n", who->subjects[j]);
+            printf ("\n");
+        }
+    }
+    git_shortlog_release (&log);
+    return status;
+}
+
 static int
 git_cmd_tag (git_context *ctx, WORD_LIST *args)
 {
@@ -17455,6 +17689,7 @@ static const struct {
     { "rev-parse",    git_cmd_rev_parse },
     { "revert",       git_cmd_revert },
     { "rm",           git_cmd_rm },
+    { "shortlog",     git_cmd_shortlog },
     { "show",         git_cmd_show },
     { "show-ref",     git_cmd_show_ref },
     { "stash",        git_cmd_stash },
