@@ -22,6 +22,8 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -124,10 +126,27 @@ def main():
         archive = download/spec['url'].rsplit('/', 1)[1]
         if not archive.exists():
             print(f'python: downloading {spec["version"]}', flush=True)
-            with urllib.request.urlopen(spec['url'], timeout=300) as response:
-                data = response.read()
-            if hashlib.sha256(data).hexdigest() != spec['sha256']:
-                raise RuntimeError('CPython download checksum mismatch')
+            # The far end is a public mirror that answers 504 under load, and
+            # a download that arrives truncated fails the checksum; neither is
+            # a bad pin, so ask again before giving up on it.
+            data = None
+            for attempt in (1, 2, 3):
+                try:
+                    with urllib.request.urlopen(spec['url'], timeout=300) as response:
+                        data = response.read()
+                except (urllib.error.URLError, TimeoutError) as failure:
+                    if attempt == 3:
+                        raise
+                    print(f'python: {failure}, asking again', flush=True)
+                    time.sleep(attempt * 5)
+                    continue
+                if hashlib.sha256(data).hexdigest() == spec['sha256']:
+                    break
+                if attempt == 3:
+                    raise RuntimeError('CPython download checksum mismatch')
+                print('python: the archive arrived damaged, asking again',
+                      flush=True)
+                time.sleep(attempt * 5)
             temporary = archive.with_suffix('.part')
             temporary.write_bytes(data)
             temporary.replace(archive)
