@@ -3417,6 +3417,11 @@ static void git_find_renames (git_context *ctx,
                               bgit_diff_entry **entries, size_t *n,
                               int from_worktree);
 
+/* What a path was called in the parent, when the change that made this
+   commit renamed it — which is what --follow follows. */
+static char *git_blame_renamed_from (git_context *ctx, const char *parent,
+                                     const char *commit, const char *path);
+
 /* ---- commit ------------------------------------------------------------ */
 
 /* The key a signature is made with: gpg.format says which kind of key,
@@ -5301,7 +5306,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
                         "[--pickaxe-regex] [<revision>...]";
     const char *format = NULL;
     int oneline = 0, reverse = 0, first_parent = 0, graph = 0;
-    int show_signature = 0, decorate = -1;
+    int show_signature = 0, decorate = -1, follow = 0;
     struct git_date_format date;
     git_date_format_init (&date);
     struct git_log_filter filter;
@@ -5351,6 +5356,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         }
         else if (!strcmp (w, "--show-signature")) show_signature = 1;
         else if (!strcmp (w, "--no-show-signature")) show_signature = 0;
+        else if (!strcmp (w, "--follow")) follow = 1;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
@@ -5401,6 +5407,29 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     if (decorate < 0)
         decorate = isatty (STDOUT_FILENO) ? GIT_DECORATE_SHORT : GIT_DECORATE_NO;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* A word that is not a revision but names a file is a path, which is
+       how git reads `git log <file>`. */
+    for (int i = 0; i < n_revs;) {
+        char probe[41];
+        if (!strcmp (revs[i], "--all") ||
+            git_resolve (ctx, revs[i], probe, NULL) == 0) { i++; continue; }
+        char full[4096];
+        struct stat st;
+        if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                               ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                               revs[i]) >= sizeof full ||
+            lstat (full, &st) != 0 ||
+            n_paths >= (int) (sizeof paths / sizeof *paths)) { i++; continue; }
+        paths[n_paths++] = revs[i];
+        for (int j = i; j + 1 < n_revs; j++) {
+            revs[j] = revs[j + 1];
+            rev_words[j] = rev_words[j + 1];
+        }
+        n_revs--;
+    }
+    if (follow && n_paths != 1)
+        return git_fatal ("--follow requires exactly one pathspec");
 
     /* --all means every ref; otherwise HEAD, unless revisions were named. */
     const char *starts[64], *start_words[64];
@@ -5464,12 +5493,43 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
 
     long shown = 0;
     int first = 1;
+    /* With --follow the path is what the file was called at that point,
+       which changes as the walk passes the commit that renamed it. */
+    char followed[4096] = "";
+    const char *follow_paths[1];
+    if (follow) {
+        snprintf (followed, sizeof followed, "%s", paths[0]);
+        follow_paths[0] = followed;
+    }
     for (size_t k = 0; k < n; k++) {
         size_t i = reverse ? n - 1 - k : k;
         struct git_commit commit;
         if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
-        if (n_paths && !git_commit_touches (ctx, &commit, paths, n_paths)) {
+        const char *const *against = follow ? follow_paths : paths;
+        int n_against = n_paths;
+        /* A rename cannot be followed through two parents at once, so
+           --follow passes a merge by, as git passes it by. */
+        if (follow && commit.n_parents > 1) {
             git_commit_release (&commit);
+            continue;
+        }
+        char *renamed = NULL;
+        const char *follow_pair[2];
+        if (follow && commit.n_parents) {
+            renamed = git_blame_renamed_from (ctx, commit.parents[0],
+                                              commit.id, followed);
+            if (renamed) {
+                /* Both names, so that the change reads as the rename it
+                   is rather than as a file appearing from nowhere. */
+                follow_pair[0] = followed;
+                follow_pair[1] = renamed;
+                against = follow_pair;
+                n_against = 2;
+            }
+        }
+        if (n_paths && !git_commit_touches (ctx, &commit, against, n_against)) {
+            git_commit_release (&commit);
+            free (renamed);
             continue;
         }
         if (!git_log_keeps (&filter, &commit)) {
@@ -5496,15 +5556,21 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             FILE *capture = open_memstream (&block, &size);
             if (!capture) { git_commit_release (&commit); free (ordered); return GIT_EXIT_FATAL; }
             git_print_commit (ctx, capture, &commit, oneline, format, &date,
-                              decorate, show_signature, &diff, paths, n_paths);
+                              decorate, show_signature, &diff, against,
+                              n_against);
             fclose (capture);
             git_print_graph (block);
             free (block);
         } else
             git_print_commit (ctx, stdout, &commit, oneline, format, &date,
-                              decorate, show_signature, &diff, paths, n_paths);
+                              decorate, show_signature, &diff, against,
+                              n_against);
         first = 0;
         shown++;
+        if (renamed) {
+            snprintf (followed, sizeof followed, "%s", renamed);
+            free (renamed);
+        }
         git_commit_release (&commit);
     }
     free (ordered);

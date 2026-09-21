@@ -54,3 +54,10 @@ GIT_AUTHOR_DATE='1750001000 +0000' GIT_COMMITTER_DATE='1750001000 +0000' \
     git commit -q -m 'a file of its own'
 git blame later.txt
 git blame nosuchfile.txt || echo "said no: $?"
+
+echo '=== and the history of the file, past the rename ==='
+git log --oneline --follow g.txt
+git log --oneline --follow -- g.txt
+git log --follow --stat -1 g.txt
+git log --oneline g.txt
+git log --oneline -- g.txt

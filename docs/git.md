@@ -36,7 +36,8 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [--all-match] [--merges | --no-merges]
                  [--min-parents=<n>] [--max-parents=<n>]
                  [--since=<date>] [--until=<date>] [-S<string>]
-                 [-G<pattern>] [--pickaxe-regex] [<revision>...]
+                 [-G<pattern>] [--pickaxe-regex] [--follow]
+                 [<revision>...] [[--] <path>...]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
@@ -251,6 +252,14 @@ those letters off. `git reflog` takes a `--format=` of its own, where
 placeholders stand beside them. `git count-objects` counts what the store
 holds: the loose objects and what they take up on disk, and with `-v` the
 packs beside them.
+
+`git log --follow <file>` carries the history past the commit that
+renamed it: the path it asks about changes as the walk goes back, and
+that commit reads as the rename it is rather than as a file appearing
+from nowhere. A merge is passed by there, as git passes it by — a rename
+cannot be followed through two parents at once. A word that is not a
+revision but names a file is taken for a path, which is how
+`git log <file>` works at all.
 
 `git blame` holds each line of a file against the commits that could have
 changed it, newest first: a line the commit before had in the same shape
