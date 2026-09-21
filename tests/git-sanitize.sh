@@ -581,6 +581,15 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# A bundle, which is the refs and a pack of what they reach in one file.
+git bundle create "$HOME/all.bundle" --all > /dev/null 2>&1 || true
+git bundle list-heads "$HOME/all.bundle" > /dev/null 2>&1 || true
+git bundle verify "$HOME/all.bundle" > /dev/null 2>&1 || true
+git bundle create "$HOME/since.bundle" HEAD~1..HEAD > /dev/null 2>&1 || true
+git bundle verify "$HOME/since.bundle" > /dev/null 2>&1 || true
+git bundle unbundle "$HOME/all.bundle" > /dev/null 2>&1 || true
+git bundle verify "$HOME/pack-ids" > /dev/null 2>&1 || true   # not a bundle
+
 # An archive of the tree, which walks every object and writes every byte.
 git archive HEAD > /dev/null
 git archive --prefix=pre/ HEAD > /dev/null

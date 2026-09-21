@@ -53,6 +53,8 @@ git repack       [-a] [-d] [-q] [-l] [-f] [--window=<n>] [--depth=<n>]
 git gc           [-q] [--auto] [--aggressive] [--prune=<date> | --no-prune]
 git archive      [--format=tar] [--prefix=<prefix>] [-o <file>] [-l]
                  <tree-ish> [<path>...]
+git bundle       (create <file> (--all | <rev>... | <since>..<tip>)
+                 | verify <file> | list-heads <file> | unbundle <file>)
 git bisect       (start [--term-new=<t>] [--term-old=<t>] [<bad> [<good>...]]
                  | bad [<rev>] | good [<rev>] | skip [<rev>...] | terms
                  | log | replay <file> | run <cmd>... | reset [<commit>])
@@ -326,6 +328,22 @@ the awkward names in it.
 
 Only tar is written. `--format=zip`, `tgz` and `tar.gz` say so rather than
 writing something else, and `--list` names the one format this build has.
+
+`git bundle` puts the refs and the objects behind them into one file, to
+be carried somewhere there is no network: the header names what it holds
+and what it takes for granted, and the rest of the file is a pack.
+`create --all` takes every ref and HEAD, named revisions take those, and
+`<since>..<tip>` takes what is new since that commit and records the
+commit itself as a prerequisite. `verify` says what a bundle holds and
+what it needs, `list-heads` lists the refs, and `unbundle` puts the
+objects into the repository and prints the refs for the caller to make,
+which is where git leaves it too.
+
+A bundle written here is read by git — verified, listed and cloned from —
+and one written by git is read here. What is not the same is the file:
+the pack inside it is this build's own, and slightly larger. Cloning or
+fetching straight from a bundle file is not here yet; unbundling it into
+a repository and making the refs is.
 
 `git bisect` halves a history to find where it went wrong. The verdicts
 are refs — `refs/bisect/bad`, one `refs/bisect/good-<id>` for each good
@@ -1129,10 +1147,11 @@ HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
-fsck, prune, repack, gc, notes, bisect and archive.
+fsck, prune, repack, gc, notes, bisect, archive and bundle.
 
-What is not here yet, in the order it would be missed: `bundle`; `remote show`; `diff --word-diff`;
-`describe --contains` and `--all`; and `--date=human`.
+What is not here yet, in the order it would be missed: cloning straight
+from a bundle; `remote show`; `diff --word-diff`; `describe --contains`
+and `--all`; and `--date=human`.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent

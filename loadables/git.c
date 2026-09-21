@@ -10883,6 +10883,357 @@ git_cmd_bisect (git_context *ctx, WORD_LIST *args)
     return GIT_EXIT_USAGE;
 }
 
+/* ---- bundle ------------------------------------------------------------- */
+
+/* Both written out further down, beside the pack reading and writing that
+   a fetch does; a bundle is the same pack in a file. */
+static int git_pack_build_deltas (bgit_odb *odb, char (*ids)[41], size_t n,
+                                  int ofs_ok, unsigned char **out,
+                                  size_t *out_len,
+                                  struct bgit_pack_idx_entry **entries_out,
+                                  unsigned char checksum[20], char hex[41]);
+static int git_store_pack (git_context *ctx, unsigned char *pack, size_t len);
+
+/* A bundle is a header and a pack in one file: a line saying what it is,
+   then a line for each commit it takes for granted, then a line for each
+   ref it carries, then a blank line, then the pack. */
+#define GIT_BUNDLE_SIGNATURE "# v2 git bundle\n"
+
+struct git_bundle {
+    char (*ids)[41];
+    char **names;               /* NULL for a prerequisite */
+    size_t n;
+    size_t n_prerequisites;
+    unsigned char *pack;
+    size_t pack_len;
+    unsigned char *raw;
+};
+
+static void
+git_bundle_release (struct git_bundle *bundle)
+{
+    for (size_t i = 0; i < bundle->n; i++) free (bundle->names[i]);
+    free (bundle->names);
+    free (bundle->ids);
+    free (bundle->raw);
+    memset (bundle, 0, sizeof *bundle);
+}
+
+/* Read one, header and all. The pack is left pointing into the file's own
+   bytes, which the caller frees with the rest. */
+static int
+git_bundle_read (const char *path, struct git_bundle *bundle)
+{
+    memset (bundle, 0, sizeof *bundle);
+    int fd = open (path, O_RDONLY);
+    unsigned char *raw = NULL;
+    size_t len = 0;
+    if (fd < 0 || bgit_slurp_fd (fd, &raw, &len) < 0) {
+        if (fd >= 0) close (fd);
+        fflush (stdout);
+        fprintf (stderr, "error: could not open '%s'\n", path);
+        return -1;
+    }
+    close (fd);
+    bundle->raw = raw;
+    size_t signature = strlen (GIT_BUNDLE_SIGNATURE);
+    int version = 0;
+    if (len >= signature &&
+        !memcmp (raw, GIT_BUNDLE_SIGNATURE, signature)) version = 2;
+    else if (len >= signature && !memcmp (raw, "# v3 git bundle\n", signature))
+        version = 3;
+    if (!version) {
+        fflush (stdout);
+        fprintf (stderr, "error: '%s' does not look like a v2 or v3 bundle "
+                         "file\n", path);
+        git_bundle_release (bundle);
+        return -1;
+    }
+    size_t at = signature;
+    /* A v3 bundle says what it needs before it says what it holds. Only
+       one of those is understood here. */
+    while (version == 3 && at < len && raw[at] == '@') {
+        size_t end = at;
+        while (end < len && raw[end] != '\n') end++;
+        char capability[256];
+        size_t take = end - at - 1 < sizeof capability - 1 ? end - at - 1
+                                                           : sizeof capability - 1;
+        memcpy (capability, raw + at + 1, take);
+        capability[take] = '\0';
+        if (strcmp (capability, "object-format=sha1")) {
+            fflush (stdout);
+            fprintf (stderr, "error: unknown capability '%s'\n", capability);
+            git_bundle_release (bundle);
+            return -1;
+        }
+        at = end + 1;
+    }
+    while (at < len) {
+        size_t end = at;
+        while (end < len && raw[end] != '\n') end++;
+        size_t line = end - at;
+        if (!line) { at = end + 1; break; }     /* the blank line ends it */
+        const char *text = (const char *) raw + at;
+        int prerequisite = text[0] == '-';
+        const char *id = prerequisite ? text + 1 : text;
+        if (line < 40u + (size_t) prerequisite) break;
+        char (*grown)[41] = realloc (bundle->ids, (bundle->n + 1) * sizeof *grown);
+        if (!grown) { git_bundle_release (bundle); return -1; }
+        bundle->ids = grown;
+        char **names = realloc (bundle->names, (bundle->n + 1) * sizeof *names);
+        if (!names) { git_bundle_release (bundle); return -1; }
+        bundle->names = names;
+        memcpy (bundle->ids[bundle->n], id, 40);
+        bundle->ids[bundle->n][40] = '\0';
+        const char *rest = id + 40;
+        size_t rest_len = (size_t) (text + line - rest);
+        if (rest_len && *rest == ' ') { rest++; rest_len--; }
+        bundle->names[bundle->n] = NULL;
+        if (!prerequisite) {
+            bundle->names[bundle->n] = strndup (rest, rest_len);
+            if (!bundle->names[bundle->n]) {
+                git_bundle_release (bundle);
+                return -1;
+            }
+        } else bundle->n_prerequisites++;
+        bundle->n++;
+        at = end + 1;
+    }
+    bundle->pack = raw + at;
+    bundle->pack_len = len > at ? len - at : 0;
+    return 0;
+}
+
+/* The refs a bundle carries, printed as git prints them. */
+static void
+git_bundle_heads (const struct git_bundle *bundle)
+{
+    for (size_t i = 0; i < bundle->n; i++)
+        if (bundle->names[i])
+            printf ("%s %s\n", bundle->ids[i], bundle->names[i]);
+}
+
+static int
+git_cmd_bundle (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git bundle (create <file> <rev>... | verify <file> | "
+                        "list-heads <file> | unbundle <file>)";
+    if (!args) return git_usage (usage);
+    const char *verb = args->word->word;
+    WORD_LIST *rest = args->next;
+    const char *file = NULL;
+    const char *revs[64];
+    size_t n_revs = 0;
+    int all = 0;
+    for (WORD_LIST *p = rest; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet") ||
+            !strcmp (w, "--progress") || !strcmp (w, "--no-progress") ||
+            !strcmp (w, "--version=2") || !strcmp (w, "--all-progress") ||
+            !strcmp (w, "--all-progress-implied"))
+            continue;
+        if (!strcmp (w, "--all")) { all = 1; continue; }
+        if (w[0] == '-' && w[1] && strcmp (w, "--")) return git_usage (usage);
+        if (!file) file = w;
+        else if (n_revs < sizeof revs / sizeof revs[0]) revs[n_revs++] = w;
+    }
+    if (!file) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    if (!strcmp (verb, "list-heads") || !strcmp (verb, "verify") ||
+        !strcmp (verb, "unbundle")) {
+        struct git_bundle bundle;
+        /* A file that cannot be read or is not a bundle is answered for
+           with a 1, as git answers for it. */
+        if (git_bundle_read (file, &bundle) < 0) return 1;
+        int rc = 0;
+        if (!strcmp (verb, "list-heads")) git_bundle_heads (&bundle);
+        else if (!strcmp (verb, "verify")) {
+            size_t n_refs = bundle.n - bundle.n_prerequisites;
+            fflush (stdout);
+            fprintf (stderr, "%s is okay\n", file);
+            fflush (stderr);
+            if (n_refs == 1) printf ("The bundle contains this ref:\n");
+            else printf ("The bundle contains these %zu refs:\n", n_refs);
+            git_bundle_heads (&bundle);
+            if (!bundle.n_prerequisites)
+                printf ("The bundle records a complete history.\n");
+            else {
+                if (bundle.n_prerequisites == 1)
+                    printf ("The bundle requires this ref:\n");
+                else printf ("The bundle requires these %zu refs:\n",
+                             bundle.n_prerequisites);
+                for (size_t i = 0; i < bundle.n; i++)
+                    if (!bundle.names[i]) printf ("%s \n", bundle.ids[i]);
+            }
+            printf ("The bundle uses this hash algorithm: sha1\n");
+        } else {
+            /* unbundle: the objects go in, the refs are the caller's to
+               make, which is what git leaves to whoever asked. */
+            if (bundle.pack_len &&
+                git_store_pack (ctx, bundle.pack, bundle.pack_len) < 0)
+                rc = GIT_EXIT_FATAL;
+            if (!rc) git_bundle_heads (&bundle);
+        }
+        git_bundle_release (&bundle);
+        return rc;
+    }
+
+    if (strcmp (verb, "create")) return git_usage (usage);
+    if (!all && !n_revs) {
+        fflush (stdout);
+        fprintf (stderr, "fatal: Refusing to create empty bundle.\n");
+        return GIT_EXIT_FATAL;
+    }
+
+    /* What the bundle carries, and what it takes for granted. */
+    char (*tips)[41] = NULL;
+    char **names = NULL;
+    size_t n_tips = 0;
+    char (*stops)[41] = NULL;
+    char **stop_names = NULL;
+    size_t n_stops = 0;
+    int rc = 0;
+
+#define GIT_BUNDLE_ADD(list, list_names, count, id, name) do { \
+    char (*grown)[41] = realloc ((list), ((count) + 1) * sizeof *grown); \
+    char **grown_names = realloc ((list_names), ((count) + 1) * sizeof *grown_names); \
+    if (grown) (list) = grown; \
+    if (grown_names) (list_names) = grown_names; \
+    if (!grown || !grown_names) { rc = GIT_EXIT_FATAL; break; } \
+    memcpy ((list)[(count)], (id), 41); \
+    (list_names)[(count)] = (name) ? strdup (name) : NULL; \
+    (count)++; \
+} while (0)
+
+    if (all) {
+        bgit_ref *refs = NULL;
+        size_t n = 0;
+        if (bgit_refs_list (&ctx->repo, "", &refs, &n) == 0) {
+            for (size_t i = 0; i < n && !rc; i++)
+                GIT_BUNDLE_ADD (tips, names, n_tips, refs[i].sha, refs[i].name);
+            bgit_refs_free (refs, n);
+        }
+        char head[41];
+        if (!rc && bgit_ref_resolve (&ctx->repo, "HEAD", head, NULL) == 0 &&
+            bgit_all_hex (head))
+            GIT_BUNDLE_ADD (tips, names, n_tips, head, "HEAD");
+    }
+    for (size_t i = 0; i < n_revs && !rc; i++) {
+        const char *range = strstr (revs[i], "..");
+        if (range) {
+            char older[512];
+            size_t take = (size_t) (range - revs[i]);
+            if (take >= sizeof older) { rc = GIT_EXIT_FATAL; break; }
+            memcpy (older, revs[i], take);
+            older[take] = '\0';
+            char from[41], to[41];
+            if (git_resolve (ctx, older, from, NULL) < 0 ||
+                git_resolve (ctx, range + 2, to, NULL) < 0) {
+                rc = git_fatal ("bad revision '%s'", revs[i]);
+                break;
+            }
+            /* A commit the far end must already have is named with a
+               summary of it, as git names one. */
+            char subject[4096] = "";
+            git_bisect_subject (ctx, from, subject, sizeof subject);
+            GIT_BUNDLE_ADD (stops, stop_names, n_stops, from, subject);
+            char full[4096] = "";
+            char peeled[41];
+            if (bgit_ref_read (&ctx->repo, range + 2, peeled) == 0)
+                snprintf (full, sizeof full, "%s", range + 2);
+            else {
+                char ref[4096];
+                snprintf (ref, sizeof ref, "refs/heads/%s", range + 2);
+                if (bgit_ref_read (&ctx->repo, ref, peeled) == 0)
+                    snprintf (full, sizeof full, "%s", ref);
+            }
+            GIT_BUNDLE_ADD (tips, names, n_tips, to, *full ? full : "HEAD");
+        } else {
+            char id[41], full[4096] = "";
+            char peeled[41];
+            if (git_resolve (ctx, revs[i], id, NULL) < 0) {
+                rc = git_fatal ("bad revision '%s'", revs[i]);
+                break;
+            }
+            if (bgit_ref_read (&ctx->repo, revs[i], peeled) == 0)
+                snprintf (full, sizeof full, "%s", revs[i]);
+            else {
+                static const char *const places[] = { "refs/heads/%s",
+                                                      "refs/tags/%s",
+                                                      "refs/remotes/%s" };
+                for (size_t k = 0; k < sizeof places / sizeof places[0]; k++) {
+                    char ref[4096];
+                    snprintf (ref, sizeof ref, places[k], revs[i]);
+                    if (bgit_ref_read (&ctx->repo, ref, peeled) == 0) {
+                        snprintf (full, sizeof full, "%s", ref);
+                        break;
+                    }
+                }
+            }
+            GIT_BUNDLE_ADD (tips, names, n_tips, id, *full ? full : "HEAD");
+        }
+    }
+#undef GIT_BUNDLE_ADD
+
+    if (!rc && !n_tips) {
+        fflush (stdout);
+        fprintf (stderr, "fatal: Refusing to create empty bundle.\n");
+        rc = GIT_EXIT_FATAL;
+    }
+
+    unsigned char *pack = NULL;
+    size_t pack_len = 0;
+    if (!rc) {
+        const char **roots = calloc (n_tips ? n_tips : 1, sizeof *roots);
+        const char **stop = calloc (n_stops ? n_stops : 1, sizeof *stop);
+        char (*send)[41] = NULL;
+        size_t n_send = 0;
+        if (!roots || !stop) rc = GIT_EXIT_FATAL;
+        for (size_t i = 0; !rc && i < n_tips; i++) roots[i] = tips[i];
+        for (size_t i = 0; !rc && i < n_stops; i++) stop[i] = stops[i];
+        if (!rc && bgit_reachable_objects (&ctx->odb, roots, n_tips, stop,
+                                           n_stops, &send, &n_send) < 0)
+            rc = GIT_EXIT_FATAL;
+        struct bgit_pack_idx_entry *entries = NULL;
+        unsigned char checksum[20];
+        char checksum_hex[41] = "";
+        if (!rc && git_pack_build_deltas (&ctx->odb, send, n_send, 1, &pack,
+                                          &pack_len, &entries, checksum,
+                                          checksum_hex) < 0)
+            rc = GIT_EXIT_FATAL;
+        free (entries);
+        free (send);
+        free (roots);
+        free (stop);
+    }
+
+    if (!rc) {
+        FILE *out = fopen (file, "w");
+        if (!out) rc = git_fatal ("cannot create '%s'", file);
+        else {
+            fputs (GIT_BUNDLE_SIGNATURE, out);
+            for (size_t i = 0; i < n_stops; i++)
+                fprintf (out, "-%s %s\n", stops[i],
+                         stop_names[i] ? stop_names[i] : "");
+            for (size_t i = 0; i < n_tips; i++)
+                fprintf (out, "%s %s\n", tips[i], names[i] ? names[i] : "HEAD");
+            fputc ('\n', out);
+            if (pack_len && fwrite (pack, 1, pack_len, out) != pack_len)
+                rc = git_fatal ("cannot write '%s'", file);
+            if (fclose (out) != 0) rc = git_fatal ("cannot write '%s'", file);
+        }
+    }
+    free (pack);
+    for (size_t i = 0; i < n_tips; i++) free (names[i]);
+    for (size_t i = 0; i < n_stops; i++) free (stop_names[i]);
+    free (tips);
+    free (names);
+    free (stops);
+    free (stop_names);
+    return rc;
+}
+
 /* ---- notes -------------------------------------------------------------- */
 
 /* A note is a blob in a tree under refs/notes/commits, named by the id of
@@ -23114,6 +23465,7 @@ static const struct {
     { "bisect",       git_cmd_bisect },
     { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
+    { "bundle",       git_cmd_bundle },
     { "cat-file",     git_cmd_cat_file },
     { "check-ignore", git_cmd_check_ignore },
     { "checkout",     git_cmd_checkout },
