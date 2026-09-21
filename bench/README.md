@@ -35,8 +35,10 @@ measurement: a repository of a few thousand files and a few thousand
 commits, built from sha1 and zlib alone, with every command run through
 both implementations for wall time and peak resident memory. A clone runs
 over the protocol on both sides, since the local clone git is allowed to
-hardlink measures nothing. It writes a few hundred megabytes into a
-temporary directory, which is why it is a benchmark and not a test.
+hardlink measures nothing; the pack each side writes is reported with it,
+which is where delta compression shows. It writes a few hundred megabytes
+into a temporary directory, which is why it is a benchmark and not a
+test.
 
 ```sh
 python3 bench/loadables.py --output /tmp/loadables.json

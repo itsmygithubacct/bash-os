@@ -381,8 +381,17 @@ git says it — `Cloning into bare repository '<name>'...`.
 Packfiles can be made, indexed, checked and taken apart again.
 `git pack-objects` reads the ids to pack from its input — `git rev-list
 --objects --all` names them — and writes `<base>-<sha>.pack` beside its
-`.idx`, each object whole: nothing is deltified, so the pack is larger
-than git's would be, but it is a pack git reads. `git index-pack` builds
+`.idx`. An object that is nearly the same as one already written goes in
+as the difference between them rather than whole. Which objects those
+are is a matter of order: like with like, then by the path each was
+found at hashed the way git hashes it, then the larger first, and within
+all that the order the history was walked in — so one revision of a file
+or a tree sits next to the one before it. Each object is then held
+against the ten written before it, and the smallest difference wins, so
+long as it is under half the object and the chain it joins is under
+fifty long. A pack written here names a delta's base by how far back it
+is; a pack sent over the wire names it by id, which needs nothing agreed
+between the two ends. `git index-pack` builds
 an index from a pack alone, which means resolving every delta in it, both
 the kind that names its base by offset and the kind that names it by id.
 An index is a function of its pack, so the two implementations must write
@@ -583,12 +592,12 @@ places, a file with no trailing newline, a binary file, a path that has to
 be quoted, and every command that reads the working tree.
 
 `tests/git-packs.py` checks the pack commands against a pack real git
-made, which is the only way to reach the delta reader: this build's own
-packs carry no deltas. git repacks a history into one pack, and bash-os
-must index it to git's index byte for byte, list it the way `verify-pack
--v` lists it — depth and base id and all — and unpack it into the same
-objects. The other direction is checked too: git must index, verify and
-unpack what `git pack-objects` writes here.
+made: git repacks a history into one pack, and bash-os must index it to
+git's index byte for byte, list it the way `verify-pack -v` lists it —
+depth and base id and all — and unpack it into the same objects. The
+other direction is checked too, deltas included: git must index, verify
+and unpack what `git pack-objects` writes here, and its index of it must
+be the one this build wrote.
 
 `tests/git-proto.py` crosses the two implementations over the wire: git
 clones and fetches through this build's upload-pack, this build fetches
@@ -637,10 +646,11 @@ is the wrong kind of object or nothing at all.
 `bench/git-scale.py` builds a repository of a few thousand files and a
 few thousand commits and runs each command through both implementations.
 On four thousand files and twenty thousand commits this build's `log
---oneline` is 1.3 times git's time, `rev-list --count` 1.2, `diff` 1.7,
+--oneline` is 1.2 times git's time, `rev-list --count` 1.1, `diff` 2.3,
 `status` and `add` about 3, and the peak memory is git's to the megabyte.
-A clone over the protocol is 1.4 times git's time and writes a pack six
-times the size, since nothing here is deltified.
+A clone over the protocol writes a pack within a megabyte of git's — 12
+against 11 — in 1.35 times git's time, most of which is the window of
+ten that finds the deltas.
 
 `tests/git-refs.py` checks refs from both sides: git packs its refs away
 with `pack-refs`, and bash-os still resolves, lists and deletes them;

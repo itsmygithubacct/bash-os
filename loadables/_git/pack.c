@@ -133,9 +133,14 @@ bgit_pack_remember_verified (const unsigned char *pack, size_t plen)
     errno = saved_errno;
 }
 
+/* The objects kept from delta chains, thrown away with the rest. */
+static void bgit_pack_objects_forget (void);
+
 void
 bgit_pack_cache_release (void)
 {
+    bgit_pack_objects_forget ();
+
     free (bgit_verified_pack);
     bgit_verified_pack = NULL;
     bgit_verified_pack_len = 0;
@@ -356,6 +361,230 @@ bgit_pack_read_varint (const unsigned char *p, size_t n, size_t *off)
     return v;
 }
 
+/* How much of the base a block covers, and how far the rolling hash
+   reaches: git's own delta encoder works in sixteens, and so does this. */
+#define BGIT_DELTA_BLOCK 16
+/* 33 to the fifteenth, so a byte can be taken off the front of the rolling
+   hash by subtracting what it contributed. */
+#define BGIT_DELTA_POW 0x0c3525e1u
+
+struct bgit_delta_index {
+    const unsigned char *base;
+    size_t baselen;
+    uint32_t mask;          /* one less than the table size */
+    uint32_t *heads;        /* slot -> block number plus one, 0 when empty */
+    uint32_t *nexts;        /* block number -> the next in its slot, plus one */
+    uint32_t *offs;         /* block number -> where it starts in the base */
+    size_t n_blocks;
+};
+
+static uint32_t
+bgit_delta_hash (const unsigned char *p)
+{
+    uint32_t hash = 0;
+    for (int i = 0; i < BGIT_DELTA_BLOCK; i++)
+        hash = hash * 33 + p[i];
+    return hash;
+}
+
+static uint32_t
+bgit_delta_slot (uint32_t hash, uint32_t mask)
+{
+    return (hash ^ (hash >> 15)) & mask;
+}
+
+bgit_delta_index *
+bgit_delta_index_create (const unsigned char *base, size_t baselen)
+{
+    if (baselen < BGIT_DELTA_BLOCK) return NULL;
+    size_t n_blocks = baselen / BGIT_DELTA_BLOCK;
+    size_t table = 1;
+    while (table < n_blocks * 2) table <<= 1;
+    if (table > (size_t) 1 << 24) table = (size_t) 1 << 24;
+    bgit_delta_index *index = calloc (1, sizeof *index);
+    if (!index) return NULL;
+    index->base = base;
+    index->baselen = baselen;
+    index->mask = (uint32_t) (table - 1);
+    index->n_blocks = n_blocks;
+    index->heads = calloc (table, sizeof *index->heads);
+    index->nexts = calloc (n_blocks, sizeof *index->nexts);
+    index->offs = calloc (n_blocks, sizeof *index->offs);
+    if (!index->heads || !index->nexts || !index->offs) {
+        bgit_delta_index_free (index);
+        return NULL;
+    }
+    /* Indexed from the end backwards, so the chain in each slot comes out
+       with the earliest block first: a match found early in the base
+       encodes into fewer bytes. */
+    for (size_t b = n_blocks; b-- > 0; ) {
+        size_t off = b * BGIT_DELTA_BLOCK;
+        uint32_t slot = bgit_delta_slot (bgit_delta_hash (base + off),
+                                         index->mask);
+        index->offs[b] = (uint32_t) off;
+        index->nexts[b] = index->heads[slot];
+        index->heads[slot] = (uint32_t) b + 1;
+    }
+    return index;
+}
+
+void
+bgit_delta_index_free (bgit_delta_index *index)
+{
+    if (!index) return;
+    free (index->heads);
+    free (index->nexts);
+    free (index->offs);
+    free (index);
+}
+
+/* A size, seven bits to a byte, low bits first, as a delta writes one. */
+static int
+bgit_delta_size (unsigned char **out, size_t *len, size_t *cap, size_t size)
+{
+    unsigned char bytes[16];
+    size_t n = 0;
+    do {
+        unsigned char byte = (unsigned char) (size & 0x7f);
+        size >>= 7;
+        if (size) byte |= 0x80;
+        bytes[n++] = byte;
+    } while (size && n < sizeof bytes);
+    return bgit_pack_buf_append (out, len, cap, bytes, n);
+}
+
+/* The bytes that were not found in the base, written out as they are, in
+   runs of no more than a hundred and twenty-seven. */
+static int
+bgit_delta_literals (unsigned char **out, size_t *len, size_t *cap,
+                     const unsigned char *from, size_t n)
+{
+    while (n) {
+        unsigned char run = (unsigned char) (n > 127 ? 127 : n);
+        if (bgit_pack_buf_append (out, len, cap, &run, 1) < 0 ||
+            bgit_pack_buf_append (out, len, cap, from, run) < 0)
+            return -1;
+        from += run;
+        n -= run;
+    }
+    return 0;
+}
+
+/* A run the base already holds, named by where it is and how long it is. */
+static int
+bgit_delta_copy (unsigned char **out, size_t *len, size_t *cap, size_t off,
+                 size_t size)
+{
+    unsigned char command[8];
+    size_t n = 1;
+    command[0] = 0x80;
+    for (int i = 0; i < 4; i++)
+        if ((off >> (i * 8)) & 0xff) {
+            command[n++] = (unsigned char) ((off >> (i * 8)) & 0xff);
+            command[0] |= (unsigned char) (1 << i);
+        }
+    /* A size of nothing at all is what sixty-five thousand five hundred
+       and thirty-six is written as. */
+    if (size != 0x10000)
+        for (int i = 0; i < 3; i++)
+            if ((size >> (i * 8)) & 0xff) {
+                command[n++] = (unsigned char) ((size >> (i * 8)) & 0xff);
+                command[0] |= (unsigned char) (1 << (4 + i));
+            }
+    return bgit_pack_buf_append (out, len, cap, command, n);
+}
+
+int
+bgit_delta_create (const bgit_delta_index *index, const unsigned char *target,
+                   size_t targetlen, size_t max, unsigned char **out,
+                   size_t *out_len)
+{
+    if (!index || !target) return -1;
+    unsigned char *delta = NULL;
+    size_t len = 0, cap = 0;
+    if (bgit_delta_size (&delta, &len, &cap, index->baselen) < 0 ||
+        bgit_delta_size (&delta, &len, &cap, targetlen) < 0) {
+        free (delta);
+        return -1;
+    }
+
+    const unsigned char *base = index->base;
+    size_t at = 0, pending = 0;
+    uint32_t hash = 0;
+    int rolling = 0;
+    while (at < targetlen) {
+        size_t best_off = 0, best_len = 0;
+        if (at + BGIT_DELTA_BLOCK <= targetlen) {
+            if (!rolling) {
+                hash = bgit_delta_hash (target + at);
+                rolling = 1;
+            }
+            uint32_t slot = bgit_delta_slot (hash, index->mask);
+            int looked = 0;
+            for (uint32_t b = index->heads[slot]; b && looked < 64;
+                 b = index->nexts[b - 1], looked++) {
+                size_t off = index->offs[b - 1];
+                if (memcmp (base + off, target + at, BGIT_DELTA_BLOCK))
+                    continue;
+                size_t run = BGIT_DELTA_BLOCK;
+                while (off + run < index->baselen && at + run < targetlen &&
+                       run < 0x10000 && base[off + run] == target[at + run])
+                    run++;
+                if (run > best_len) {
+                    best_len = run;
+                    best_off = off;
+                    if (run >= 0x10000) break;
+                }
+            }
+        }
+
+        if (best_len < BGIT_DELTA_BLOCK) {
+            pending++;
+            if (at + BGIT_DELTA_BLOCK < targetlen) {
+                /* One byte off the front, one on the end. */
+                hash = (hash - target[at] * BGIT_DELTA_POW) * 33 +
+                       target[at + BGIT_DELTA_BLOCK];
+            } else
+                rolling = 0;
+            at++;
+            /* Nothing is written until a run ends, so the length is
+               checked with what is waiting counted in. */
+            if (len + pending > max) {
+                free (delta);
+                return -1;
+            }
+            continue;
+        }
+
+        if (bgit_delta_literals (&delta, &len, &cap, target + at - pending,
+                                 pending) < 0 ||
+            bgit_delta_copy (&delta, &len, &cap, best_off, best_len) < 0) {
+            free (delta);
+            return -1;
+        }
+        pending = 0;
+        at += best_len;
+        rolling = 0;
+        if (len > max) {
+            free (delta);
+            return -1;
+        }
+    }
+
+    if (bgit_delta_literals (&delta, &len, &cap, target + at - pending,
+                             pending) < 0) {
+        free (delta);
+        return -1;
+    }
+    if (len > max) {
+        free (delta);
+        return -1;
+    }
+    *out = delta;
+    *out_len = len;
+    return 0;
+}
+
 int
 bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
                        const unsigned char *delta, size_t deltan,
@@ -434,6 +663,119 @@ bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
     return 0;
 }
 
+int bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
+                              const unsigned char *idx, size_t ilen,
+                              const char *repo, uint64_t off, int *type_out,
+                              unsigned char **out, size_t *out_len, int depth);
+
+/* The objects a chain of deltas leans on, kept for a moment. Resolving a
+   pack asks for the same base over and over — every object in a chain of
+   fifty asks for the ones under it — so an object just built is kept
+   until the room is wanted for another. Bounded in both count and bytes,
+   and thrown away with the rest of the pack caches. */
+#define BGIT_PACK_CACHE_SLOTS 256
+#define BGIT_PACK_CACHE_BYTES (8u * 1024u * 1024u)
+
+static struct bgit_pack_cached {
+    const unsigned char *pack;
+    size_t plen;
+    uint64_t off;
+    int type;
+    unsigned char *data;
+    size_t len;
+    unsigned long used;
+} bgit_pack_cache[BGIT_PACK_CACHE_SLOTS];
+static size_t bgit_pack_cache_bytes;
+static unsigned long bgit_pack_cache_clock;
+
+static int
+bgit_pack_cache_take (const unsigned char *pack, size_t plen, uint64_t off,
+                      int *type, unsigned char **out, size_t *len)
+{
+    for (size_t i = 0; i < BGIT_PACK_CACHE_SLOTS; i++) {
+        struct bgit_pack_cached *slot = &bgit_pack_cache[i];
+        if (!slot->data || slot->pack != pack || slot->plen != plen ||
+            slot->off != off)
+            continue;
+        unsigned char *copy = malloc (slot->len ? slot->len : 1);
+        if (!copy) return 0;
+        memcpy (copy, slot->data, slot->len);
+        slot->used = ++bgit_pack_cache_clock;
+        *type = slot->type;
+        *out = copy;
+        *len = slot->len;
+        return 1;
+    }
+    return 0;
+}
+
+static void
+bgit_pack_cache_drop (struct bgit_pack_cached *slot)
+{
+    bgit_pack_cache_bytes -= slot->len;
+    free (slot->data);
+    memset (slot, 0, sizeof *slot);
+}
+
+static void
+bgit_pack_cache_keep (const unsigned char *pack, size_t plen, uint64_t off,
+                      int type, const unsigned char *data, size_t len)
+{
+    if (len > BGIT_PACK_CACHE_BYTES / 4) return;
+    struct bgit_pack_cached *slot = NULL;
+    for (size_t i = 0; i < BGIT_PACK_CACHE_SLOTS; i++) {
+        struct bgit_pack_cached *held = &bgit_pack_cache[i];
+        if (!held->data) { slot = held; break; }
+        if (!slot || held->used < slot->used) slot = held;
+    }
+    if (!slot) return;
+    if (slot->data) bgit_pack_cache_drop (slot);
+    slot->data = malloc (len ? len : 1);
+    if (!slot->data) return;
+    memcpy (slot->data, data, len);
+    slot->pack = pack;
+    slot->plen = plen;
+    slot->off = off;
+    slot->type = type;
+    slot->len = len;
+    slot->used = ++bgit_pack_cache_clock;
+    bgit_pack_cache_bytes += len;
+    /* Room made by throwing away whatever was asked for longest ago. */
+    while (bgit_pack_cache_bytes > BGIT_PACK_CACHE_BYTES) {
+        struct bgit_pack_cached *oldest = NULL;
+        for (size_t i = 0; i < BGIT_PACK_CACHE_SLOTS; i++) {
+            struct bgit_pack_cached *held = &bgit_pack_cache[i];
+            if (held->data && held != slot &&
+                (!oldest || held->used < oldest->used))
+                oldest = held;
+        }
+        if (!oldest) break;
+        bgit_pack_cache_drop (oldest);
+    }
+}
+
+static void
+bgit_pack_objects_forget (void)
+{
+    for (size_t i = 0; i < BGIT_PACK_CACHE_SLOTS; i++)
+        if (bgit_pack_cache[i].data) bgit_pack_cache_drop (&bgit_pack_cache[i]);
+}
+
+/* Read the base an object leans on, from what is kept if it is there. */
+static int
+bgit_pack_read_base (const unsigned char *pack, size_t plen,
+                     const unsigned char *idx, size_t ilen, const char *repo,
+                     uint64_t off, int *type, unsigned char **out, size_t *len,
+                     int depth)
+{
+    if (bgit_pack_cache_take (pack, plen, off, type, out, len)) return 0;
+    if (bgit_pack_read_object_at (pack, plen, idx, ilen, repo, off, type, out,
+                                  len, depth) < 0)
+        return -1;
+    bgit_pack_cache_keep (pack, plen, off, *type, *out, *len);
+    return 0;
+}
+
 int
 bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
                           const unsigned char *idx, size_t ilen,
@@ -498,9 +840,8 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         int base_type;
         unsigned char *base;
         size_t base_len;
-        if (bgit_pack_read_object_at (pack, plen, idx, ilen, repo, base_off,
-                                      &base_type, &base, &base_len,
-                                      depth + 1) < 0) {
+        if (bgit_pack_read_base (pack, plen, idx, ilen, repo, base_off,
+                                 &base_type, &base, &base_len, depth + 1) < 0) {
             free (delta); return -1;
         }
         int rc = bgit_pack_apply_delta (base, base_len, delta, dlen, out, out_len);
@@ -524,9 +865,9 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         uint64_t base_off = bgit_pack_lookup_offset (idx, ilen, base_sha);
         unsigned char *base; size_t base_len; int base_type;
         if (base_off != (uint64_t) -1) {
-            if (bgit_pack_read_object_at (pack, plen, idx, ilen, repo, base_off,
-                                          &base_type, &base, &base_len,
-                                          depth + 1) < 0) {
+            if (bgit_pack_read_base (pack, plen, idx, ilen, repo, base_off,
+                                     &base_type, &base, &base_len,
+                                     depth + 1) < 0) {
                 free (delta); return -1;
             }
         } else {

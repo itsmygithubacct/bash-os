@@ -89,6 +89,24 @@ int bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
                            const unsigned char *delta, size_t deltan,
                            unsigned char **out, size_t *out_len);
 
+/* A delta turns one object into another by copying runs from it and
+   writing the rest out. Making one asks the same question over and over —
+   where in the base does this run appear — so what the base offers is
+   worked out once, kept in an index, and asked of every target after
+   that. The index borrows BASE, which must outlive it. */
+typedef struct bgit_delta_index bgit_delta_index;
+
+bgit_delta_index *bgit_delta_index_create (const unsigned char *base,
+                                          size_t baselen);
+void bgit_delta_index_free (bgit_delta_index *index);
+
+/* A git delta that turns the index's base into TARGET. Gives up, with -1
+   and nothing allocated, when what it has written already passes MAX —
+   a delta no smaller than that is not worth keeping. Caller frees *out. */
+int bgit_delta_create (const bgit_delta_index *index,
+                       const unsigned char *target, size_t targetlen,
+                       size_t max, unsigned char **out, size_t *out_len);
+
 /* Read the object at OFF, resolving OFS_DELTA within the pack and REF_DELTA
    against the pack or a loose base under REPO. DEPTH bounds the delta chain.
    Caller frees *out. Silent. */

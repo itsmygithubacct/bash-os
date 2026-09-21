@@ -6194,62 +6194,290 @@ git_pack_content (const unsigned char *pack, size_t plen,
     return 0;
 }
 
-/* Name every object in the pack, deltas last, until nothing is left. */
+/* What leans on an object whose id is not known until it is settled: a
+   delta that names its base by id waits under that id until the base
+   comes out of the pack. */
+struct git_pack_waiting {
+    unsigned char sha[20];
+    size_t head;                 /* the first waiting entry, plus one */
+};
+
+static struct git_pack_waiting *
+git_pack_waiting_at (struct git_pack_waiting *table, size_t mask,
+                     const unsigned char sha[20])
+{
+    size_t slot = 0;
+    for (int i = 0; i < 8; i++) slot = (slot << 8) | sha[i];
+    slot &= mask;
+    while (table[slot].head && memcmp (table[slot].sha, sha, 20))
+        slot = (slot + 1) & mask;
+    return &table[slot];
+}
+
+/* Name one object, write it out, and settle everything that leans on it
+   while it is still in hand — which is what makes this linear: an object
+   is built once, however many deltas stand on it. */
+static int
+git_pack_settle (const unsigned char *pack, size_t plen,
+                 struct git_pack_entry *entries, size_t n, size_t at,
+                 int type, const unsigned char *content, size_t len,
+                 size_t *first, size_t *sibling,
+                 struct git_pack_waiting *table, size_t mask, int depth)
+{
+    char hex[41];
+    if (bgit_write_object (NULL, bgit_pack_type_name (type), content, len, 0,
+                           hex) < 0)
+        return -1;
+    bgit_hex_to_sha (hex, entries[at].sha);
+    entries[at].real_type = type;
+    entries[at].resolved = 1;
+    if (depth >= BGIT_PACK_MAX_DELTA_DEPTH) return 0;
+
+    size_t lists[2] = { first[at], 0 };
+    if (mask) {
+        struct git_pack_waiting *waiting = git_pack_waiting_at (table, mask,
+                                                                entries[at].sha);
+        if (waiting->head) lists[1] = waiting->head;
+    }
+    for (int which = 0; which < 2; which++)
+        for (size_t child = lists[which]; child; child = sibling[child - 1]) {
+            struct git_pack_entry *entry = &entries[child - 1];
+            if (entry->resolved) continue;
+            unsigned char *delta = NULL;
+            size_t delta_len = 0, used = 0;
+            if (bgit_pack_inflate (pack + entry->data_offset,
+                                   (size_t) (plen - 20 - entry->data_offset),
+                                   (size_t) entry->size, &delta, &delta_len,
+                                   &used) < 0)
+                return -1;
+            unsigned char *applied = NULL;
+            size_t applied_len = 0;
+            int rc = bgit_pack_apply_delta (content, len, delta, delta_len,
+                                            &applied, &applied_len);
+            free (delta);
+            if (rc < 0) return -1;
+            rc = git_pack_settle (pack, plen, entries, n, child - 1, type,
+                                  applied, applied_len, first, sibling, table,
+                                  mask, depth + 1);
+            free (applied);
+            if (rc < 0) return -1;
+        }
+    return 0;
+}
+
+/* Name every object in the pack, from the ones that lean on nothing
+   outwards. */
 static int
 git_pack_resolve (const unsigned char *pack, size_t plen,
                   struct git_pack_entry *entries, size_t n, bgit_odb *odb,
                   int *thin)
 {
-    size_t left = n;
-    while (left) {
-        size_t settled = 0;
-        for (size_t i = 0; i < n; i++) {
+    size_t *first = calloc (n ? n : 1, sizeof *first);
+    size_t *sibling = calloc (n ? n : 1, sizeof *sibling);
+    size_t mask = 0, n_waiting = 0;
+    for (size_t i = 0; i < n; i++)
+        if (entries[i].type == BGIT_PACK_REF_DELTA) n_waiting++;
+    if (n_waiting) {
+        mask = 4;
+        while (mask < n_waiting * 2) mask <<= 1;
+        mask -= 1;
+    }
+    struct git_pack_waiting *table = mask
+        ? calloc (mask + 1, sizeof *table) : NULL;
+    if (!first || !sibling || (mask && !table)) {
+        free (first); free (sibling); free (table);
+        return -1;
+    }
+
+    /* Every delta hung under the object it leans on, by position for the
+       kind that names an offset and by id for the kind that names one. */
+    for (size_t i = n; i-- > 0; ) {
+        struct git_pack_entry *entry = &entries[i];
+        if (entry->type == BGIT_PACK_OFS_DELTA) {
+            struct git_pack_entry *base = git_pack_at (entries, n,
+                                                       entry->base_offset);
+            if (!base) continue;
+            size_t at = (size_t) (base - entries);
+            sibling[i] = first[at];
+            first[at] = i + 1;
+        } else if (entry->type == BGIT_PACK_REF_DELTA && table) {
+            struct git_pack_waiting *waiting =
+                git_pack_waiting_at (table, mask, entry->base_sha);
+            if (!waiting->head) memcpy (waiting->sha, entry->base_sha, 20);
+            sibling[i] = waiting->head;
+            waiting->head = i + 1;
+        }
+    }
+
+    int failed = 0;
+    for (size_t i = 0; i < n && !failed; i++) {
+        struct git_pack_entry *entry = &entries[i];
+        if (entry->resolved || entry->type == BGIT_PACK_OFS_DELTA ||
+            entry->type == BGIT_PACK_REF_DELTA)
+            continue;
+        unsigned char *content = NULL;
+        size_t len = 0, used = 0;
+        if (bgit_pack_inflate (pack + entry->data_offset,
+                               (size_t) (plen - 20 - entry->data_offset),
+                               (size_t) entry->size, &content, &len, &used) < 0) {
+            failed = 1;
+            break;
+        }
+        if (git_pack_settle (pack, plen, entries, n, i, entry->type, content,
+                             len, first, sibling, table, mask, 0) < 0)
+            failed = 1;
+        free (content);
+    }
+
+    /* What is left leans on something this pack does not carry, which only
+       what is already here can answer: a thin pack, completed from it. */
+    int more = !failed;
+    while (more) {
+        more = 0;
+        for (size_t i = 0; i < n && !failed; i++) {
             if (entries[i].resolved) continue;
             int type = 0;
             unsigned char *content = NULL;
             size_t len = 0;
             if (git_pack_content (pack, plen, entries, n, entries[i].offset,
                                   &type, &content, &len, 0, odb, thin) < 0)
-                continue;             /* its base is not named yet */
-            char hex[41];
-            int rc = bgit_write_object (NULL, bgit_pack_type_name (type),
-                                        content, len, 0, hex);
+                continue;
+            if (git_pack_settle (pack, plen, entries, n, i, type, content, len,
+                                 first, sibling, table, mask, 0) < 0)
+                failed = 1;
             free (content);
-            if (rc < 0) return -1;
-            bgit_hex_to_sha (hex, entries[i].sha);
-            entries[i].real_type = type;
-            entries[i].resolved = 1;
-            settled++;
-            left--;
-        }
-        if (!settled) {
-            git_fatal ("the pack has deltas whose bases it does not carry");
-            return -1;
+            more = 1;
         }
     }
-    return 0;
+    for (size_t i = 0; i < n && !failed; i++)
+        if (!entries[i].resolved) {
+            git_fatal ("the pack has deltas whose bases it does not carry");
+            failed = 1;
+        }
+
+    free (first);
+    free (sibling);
+    free (table);
+    return failed ? -1 : 0;
 }
 
-/* Build a pack holding exactly the objects named, each in full: no
-   deltas, which any reader accepts. Gives back the bytes, the entries an
-   index is made from, and the pack's own checksum. Returns 0, or -1 with
-   git's message already said. */
+/* How many of the objects written before it a new one is held against,
+   and how long a chain of deltas may grow: git's own defaults. */
+#define GIT_PACK_WINDOW 10
+#define GIT_PACK_DEPTH 50
+
+/* One object on its way into a pack. */
+struct git_pack_item {
+    char id[41];
+    int type;                 /* as the pack numbers the four kinds */
+    size_t size;
+    size_t at;                /* which index entry is this object's */
+    uint32_t named;           /* the path it was found at, hashed */
+    size_t parent;            /* the tree that named it, or none */
+    char name[64];            /* what that tree called it */
+};
+
+/* The path an object was found at, as git hashes one for packing: the last
+   characters count most, so things whose names end alike sort together —
+   which is what puts one revision of a file next to another. */
+static uint32_t
+git_pack_name_hash (const char *name)
+{
+    uint32_t hash = 0;
+    for (; *name; name++) {
+        unsigned char ch = (unsigned char) *name;
+        if (isspace (ch)) continue;
+        hash = (hash >> 2) + ((uint32_t) ch << 24);
+    }
+    return hash;
+}
+
+/* One of the objects already written, kept to hold the next ones against.
+   The index over its bytes is made once and asked many times. */
+struct git_pack_held {
+    unsigned char sha[20];
+    unsigned char *content;
+    size_t len;
+    uint64_t off;
+    int type;
+    int depth;
+    bgit_delta_index *index;
+};
+
+/* Like with like, then by name, then the larger first: two objects of a
+   kind that are nearly the same are then near each other, which is what
+   gives a window of ten anything to find. git orders a pack this way for
+   the same reason. */
 static int
-git_pack_build (bgit_odb *odb, char (*ids)[41], size_t n, unsigned char **out,
-                size_t *out_len, struct bgit_pack_idx_entry **entries_out,
-                unsigned char checksum[20], char hex[41])
+git_pack_order (const void *one, const void *two)
+{
+    const struct git_pack_item *a = one, *b = two;
+    if (a->type != b->type) return a->type > b->type ? -1 : 1;
+    if (a->named != b->named) return a->named > b->named ? -1 : 1;
+    if (a->size != b->size) return a->size > b->size ? -1 : 1;
+    /* Everything else equal, the order they were gathered in, which walks
+       a history from its tip: one revision of a tree then the one before
+       it, which is where the good deltas are. */
+    return a->at < b->at ? -1 : 1;
+}
+
+static void
+git_pack_held_release (struct git_pack_held *held, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        free (held[i].content);
+        bgit_delta_index_free (held[i].index);
+    }
+}
+
+/* Build a pack holding exactly the objects named. Each one goes in whole
+   or as a delta against one of the ten written before it, whichever is
+   smaller, which is how git packs. With OFS_OK a delta names its base by
+   how far back it is, which is shorter and what git writes into a pack of
+   its own; without it the base is named by its id, which every reader
+   takes however the two ends agreed to talk. Gives back the bytes, the
+   entries an index is made from, and the pack's own checksum. Returns 0,
+   or -1 with git's message already said. */
+static int
+git_pack_build_deltas (bgit_odb *odb, char (*ids)[41], size_t n, int ofs_ok,
+                       unsigned char **out, size_t *out_len,
+                       struct bgit_pack_idx_entry **entries_out,
+                       unsigned char checksum[20], char hex[41])
 {
     unsigned char *body = NULL;
     size_t body_len = 0, body_cap = 0;
     struct bgit_pack_idx_entry *entries = calloc (n ? n : 1, sizeof *entries);
-    if (!entries) return -1;
-    unsigned char header[12] = { 'P', 'A', 'C', 'K', 0, 0, 0, 2 };
-    header[8] = (unsigned char) ((n >> 24) & 0xff);
-    header[9] = (unsigned char) ((n >> 16) & 0xff);
-    header[10] = (unsigned char) ((n >> 8) & 0xff);
-    header[11] = (unsigned char) (n & 0xff);
-    int failed = bgit_pack_buf_append (&body, &body_len, &body_cap, header, 12) < 0;
+    struct git_pack_item *items = calloc (n ? n : 1, sizeof *items);
+    if (!entries || !items) {
+        free (entries);
+        free (items);
+        return -1;
+    }
 
+    /* Where each object is in this list, so that a tree can say what its
+       entries are called. */
+    size_t table = 4;
+    while (table < n * 2) table <<= 1;
+    size_t *slots = calloc (table, sizeof *slots);
+    if (!slots) {
+        free (entries);
+        free (items);
+        return -1;
+    }
+    for (size_t i = 0; i < n; i++) {
+        items[i].parent = SIZE_MAX;
+        snprintf (items[i].id, sizeof items[i].id, "%s", ids[i]);
+        size_t slot = (size_t) (git_sha_hash (ids[i]) & (table - 1));
+        while (slots[slot] && strcmp (items[slots[slot] - 1].id, ids[i]))
+            slot = (slot + 1) & (table - 1);
+        if (!slots[slot]) slots[slot] = i + 1;
+    }
+
+    /* What each object is and how big, so that like can be put with like,
+       and what the trees call the objects under them. The content is read
+       again when its turn comes: holding all of it at once would cost as
+       much memory as the repository. */
+    int failed = 0;
     for (size_t i = 0; i < n && !failed; i++) {
         enum bgit_type type;
         unsigned char *content = NULL;
@@ -6259,33 +6487,187 @@ git_pack_build (bgit_odb *odb, char (*ids)[41], size_t n, unsigned char **out,
             failed = 1;
             break;
         }
-        uint64_t offset = body_len;
-        unsigned char object_header[16];
-        size_t header_len = 0;
-        int packed_type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
-                        : type == BGIT_TREE ? BGIT_PACK_TREE
-                        : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
-        bgit_pack_encode_obj_header (packed_type, len, object_header, &header_len);
-        unsigned char *deflated = NULL;
-        size_t deflated_len = 0;
-        if (bgit_pack_buf_append (&body, &body_len, &body_cap, object_header,
-                                  header_len) < 0 ||
-            bgit_deflate (content, len, &deflated, &deflated_len) < 0) {
-            free (content);
+        items[i].type = type == BGIT_COMMIT ? BGIT_PACK_COMMIT
+                      : type == BGIT_TREE ? BGIT_PACK_TREE
+                      : type == BGIT_BLOB ? BGIT_PACK_BLOB : BGIT_PACK_TAG;
+        items[i].size = len;
+        items[i].at = i;
+
+        if (type == BGIT_TREE) {
+            const unsigned char *at = content, *end = content + len;
+            while (at < end) {
+                const unsigned char *space = memchr (at, ' ', (size_t) (end - at));
+                if (!space) break;
+                const unsigned char *nul = memchr (space, '\0',
+                                                  (size_t) (end - space));
+                if (!nul || end - nul < 21) break;
+                char child[41];
+                bgit_sha_to_hex (nul + 1, child);
+                size_t slot = (size_t) (git_sha_hash (child) & (table - 1));
+                while (slots[slot] && strcmp (items[slots[slot] - 1].id, child))
+                    slot = (slot + 1) & (table - 1);
+                if (slots[slot]) {
+                    struct git_pack_item *held = &items[slots[slot] - 1];
+                    if (held->parent == SIZE_MAX && !*held->name) {
+                        held->parent = i;
+                        snprintf (held->name, sizeof held->name, "%.*s",
+                                  (int) (nul - space - 1),
+                                  (const char *) space + 1);
+                    }
+                }
+                at = nul + 21;
+            }
+        }
+        free (content);
+    }
+    free (slots);
+
+    /* The whole path, put back together from the trees above it, is what
+       git hashes to decide what sits next to what. */
+    for (size_t i = 0; i < n && !failed; i++) {
+        const char *parts[64];
+        size_t n_parts = 0, cursor = i;
+        while (cursor != SIZE_MAX && n_parts < 64 && *items[cursor].name) {
+            parts[n_parts++] = items[cursor].name;
+            cursor = items[cursor].parent;
+        }
+        char path[4096];
+        size_t at = 0;
+        path[0] = '\0';
+        for (size_t part = n_parts; part-- > 0 && at < sizeof path; )
+            at += (size_t) snprintf (path + at, sizeof path - at, "%s%s",
+                                     at ? "/" : "", parts[part]);
+        items[i].named = git_pack_name_hash (path);
+    }
+    if (!failed) qsort (items, n, sizeof *items, git_pack_order);
+
+    unsigned char header[12] = { 'P', 'A', 'C', 'K', 0, 0, 0, 2 };
+    header[8] = (unsigned char) ((n >> 24) & 0xff);
+    header[9] = (unsigned char) ((n >> 16) & 0xff);
+    header[10] = (unsigned char) ((n >> 8) & 0xff);
+    header[11] = (unsigned char) (n & 0xff);
+    if (!failed)
+        failed = bgit_pack_buf_append (&body, &body_len, &body_cap, header,
+                                       12) < 0;
+
+    struct git_pack_held window[GIT_PACK_WINDOW];
+    memset (window, 0, sizeof window);
+    size_t n_window = 0;
+
+    for (size_t i = 0; i < n && !failed; i++) {
+        struct git_pack_item *item = &items[i];
+        enum bgit_type type;
+        unsigned char *content = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (odb, item->id, &type, &content, &len) < 0) {
+            git_fatal ("cannot read %s", item->id);
             failed = 1;
             break;
         }
-        free (content);
-        if (bgit_pack_buf_append (&body, &body_len, &body_cap, deflated,
-                                  deflated_len) < 0)
+
+        /* Held against the ones written before it, newest first, keeping
+           whichever delta comes out smallest. A delta has to be half the
+           object or better to be worth the base it drags along. */
+        unsigned char *delta = NULL;
+        size_t delta_len = 0;
+        size_t against = 0;
+        for (size_t j = n_window; j-- > 0; ) {
+            if (window[j].type != item->type || !window[j].index ||
+                window[j].depth >= GIT_PACK_DEPTH)
+                continue;
+            /* What a delta has to beat: half the object, less the twenty
+               bytes a base costs to name, and less again for a base that
+               already stands deep in a chain — which is how git keeps the
+               chains from growing without end. A base far smaller than
+               the object cannot get there, and is not tried. */
+            size_t max = delta ? delta_len - 1 : (len > 20 ? len / 2 - 20 : 0);
+            max = max * (size_t) (GIT_PACK_DEPTH - window[j].depth) /
+                  GIT_PACK_DEPTH;
+            if (!max) continue;
+            if (window[j].len < len && len - window[j].len >= max) continue;
+            unsigned char *tried = NULL;
+            size_t tried_len = 0;
+            if (bgit_delta_create (window[j].index, content, len, max, &tried,
+                                   &tried_len) < 0)
+                continue;
+            free (delta);
+            delta = tried;
+            delta_len = tried_len;
+            against = j;
+        }
+
+        uint64_t offset = body_len;
+        unsigned char object_header[16];
+        size_t header_len = 0;
+        bgit_pack_encode_obj_header (delta ? (ofs_ok ? BGIT_PACK_OFS_DELTA
+                                                    : BGIT_PACK_REF_DELTA)
+                                           : item->type,
+                                     delta ? delta_len : len, object_header,
+                                     &header_len);
+        if (bgit_pack_buf_append (&body, &body_len, &body_cap, object_header,
+                                  header_len) < 0)
+            failed = 1;
+        if (!failed && delta && ofs_ok) {
+            /* How far back the base is, seven bits to a byte, high bits
+               first, each byte after the first standing for one more. */
+            unsigned char back[16];
+            size_t at = sizeof back - 1;
+            uint64_t distance = offset - window[against].off;
+            back[at] = (unsigned char) (distance & 127);
+            while ((distance >>= 7))
+                back[--at] = (unsigned char) (128 | (--distance & 127));
+            if (bgit_pack_buf_append (&body, &body_len, &body_cap, back + at,
+                                      sizeof back - at) < 0)
+                failed = 1;
+        } else if (!failed && delta &&
+                   bgit_pack_buf_append (&body, &body_len, &body_cap,
+                                         window[against].sha, 20) < 0)
+            failed = 1;
+
+        unsigned char *deflated = NULL;
+        size_t deflated_len = 0;
+        if (!failed && bgit_deflate (delta ? delta : content,
+                                     delta ? delta_len : len, &deflated,
+                                     &deflated_len) < 0)
+            failed = 1;
+        if (!failed && bgit_pack_buf_append (&body, &body_len, &body_cap,
+                                            deflated, deflated_len) < 0)
             failed = 1;
         free (deflated);
-        if (failed) break;
-        bgit_hex_to_sha (ids[i], entries[i].sha);
-        entries[i].off = offset;
-        entries[i].crc = bgit_pack_crc32 (body + offset,
-                                          (size_t) (body_len - offset));
+        if (failed) {
+            free (delta);
+            free (content);
+            break;
+        }
+
+        struct bgit_pack_idx_entry *entry = &entries[item->at];
+        bgit_hex_to_sha (item->id, entry->sha);
+        entry->off = offset;
+        entry->crc = bgit_pack_crc32 (body + offset,
+                                      (size_t) (body_len - offset));
+
+        /* This object now stands as a base for the next ones. */
+        int depth = delta ? window[against].depth + 1 : 0;
+        free (delta);
+        if (n_window == GIT_PACK_WINDOW) {
+            free (window[0].content);
+            bgit_delta_index_free (window[0].index);
+            memmove (window, window + 1, (GIT_PACK_WINDOW - 1) * sizeof *window);
+            n_window--;
+        }
+        struct git_pack_held *held = &window[n_window++];
+        memset (held, 0, sizeof *held);
+        memcpy (held->sha, entry->sha, 20);
+        held->content = content;
+        held->len = len;
+        held->off = offset;
+        held->type = item->type;
+        held->depth = depth;
+        held->index = bgit_delta_index_create (content, len);
     }
+
+    git_pack_held_release (window, n_window);
+    free (items);
 
     if (!failed) {
         bgit_sha1 (body, body_len, checksum);
@@ -6302,6 +6684,17 @@ git_pack_build (bgit_odb *odb, char (*ids)[41], size_t n, unsigned char **out,
     *out_len = body_len;
     *entries_out = entries;
     return 0;
+}
+
+/* A pack for the far end of a connection, where the two sides have not
+   said whether a delta may name its base by position. */
+static int
+git_pack_build (bgit_odb *odb, char (*ids)[41], size_t n, unsigned char **out,
+                size_t *out_len, struct bgit_pack_idx_entry **entries_out,
+                unsigned char checksum[20], char hex[41])
+{
+    return git_pack_build_deltas (odb, ids, n, 0, out, out_len, entries_out,
+                                  checksum, hex);
 }
 
 /* git pack-objects: the ids arrive on the input, and the pack is written
@@ -6352,8 +6745,9 @@ git_cmd_pack_objects (git_context *ctx, WORD_LIST *args)
     struct bgit_pack_idx_entry *entries = NULL;
     unsigned char checksum[20];
     char checksum_hex[41] = "";
-    int status = git_pack_build (&ctx->odb, ids, n, &body, &body_len, &entries,
-                                 checksum, checksum_hex) < 0 ? GIT_EXIT_FATAL : 0;
+    int status = git_pack_build_deltas (&ctx->odb, ids, n, 1, &body, &body_len,
+                                        &entries, checksum,
+                                        checksum_hex) < 0 ? GIT_EXIT_FATAL : 0;
     char pack_path[4096], idx_path[4096];
     if (!status) {
         snprintf (pack_path, sizeof pack_path, "%s-%s.pack", base, checksum_hex);

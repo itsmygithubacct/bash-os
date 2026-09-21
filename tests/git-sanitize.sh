@@ -347,6 +347,24 @@ git add pushed.txt
 git commit -q -m 'something to push'
 git push bare
 git remote remove bare
+
+# Packing by hand, where objects that are nearly the same go in as deltas
+# against one another rather than whole: a file changed a line at a time,
+# then every object written into a pack and read back out of it.
+cd "$HOME/repo"
+for round in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  printf 'line %s\n' one two three four five six seven eight nine ten > deltas.txt
+  printf 'changed %s\n' "$round" >> deltas.txt
+  git add deltas.txt
+  git commit -q -m "delta round $round"
+done
+git rev-list --objects HEAD | cut -d' ' -f1 > "$HOME/pack-ids"
+git pack-objects "$HOME/by-hand" < "$HOME/pack-ids"
+git verify-pack -v "$HOME"/by-hand-*.idx | tail -4
+git verify-pack -s "$HOME"/by-hand-*.idx
+git index-pack -o "$HOME/by-hand-again.idx" "$HOME"/by-hand-*.pack
+git cat-file -p HEAD:deltas.txt | tail -1
+cd "$HOME"
 # Asking the far end over the protocol, which is pkt-lines all the way.
 git ls-remote "$HOME/repo"
 git ls-remote --symref --tags "$HOME/repo"

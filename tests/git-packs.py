@@ -5,12 +5,10 @@
 Usage: python3 tests/git-packs.py [BINARY]
 
 `tests/git/packs.sh` compares the two implementations on a pack this build
-wrote, which carries no deltas. Real git's packs do, so the delta reader
-needs a pack from git to be checked at all: this builds one with `git
-repack`, then asks bash-os to index it, verify it and unpack it, and
-compares each answer with git's own. The other direction is checked too —
-what `git pack-objects` writes here, real git must index, verify and
-unpack.
+wrote. This goes further, in both directions: a pack git wrote with `git
+repack` is indexed, verified and unpacked here and every answer compared
+with git's own, and a pack written here — deltas and all — must be one
+git can index to the same bytes, verify and unpack.
 """
 
 import os
@@ -90,7 +88,7 @@ with tempfile.TemporaryDirectory(prefix='git-packs-') as name:
     # git's own listing of the pack, which says how many deltas are in it.
     listing = git(repo, 'verify-pack', '-v', reference_idx).stdout.decode()
     chains = [line for line in listing.splitlines() if line.startswith('chain length')]
-    check(chains, 'the reference pack carries no deltas', listing[-400:])
+    check(chains, 'the reference pack carries deltas', listing[-400:])
 
     # Indexing git's pack must give git's index, byte for byte. Resolving
     # every delta in it is the only way to know the ids it is built from.
@@ -157,6 +155,23 @@ with tempfile.TemporaryDirectory(prefix='git-packs-') as name:
           'git indexes the pack this build wrote')
     check((made/'again.idx').read_bytes() == (made/f'out-{name_of}.idx').read_bytes(),
           "git's index of it is the index this build wrote")
+
+    # Objects that are nearly the same go in as the difference between
+    # them, which is what makes a pack worth the name. git's own listing
+    # says how long the delta chains are and what each delta stands on.
+    listing = git(made, 'verify-pack', '-v',
+                  made/f'out-{name_of}.idx').stdout.decode()
+    rows = [line.split() for line in listing.splitlines()]
+    deltas = [row for row in rows if len(row) >= 7 and len(row[0]) == 40]
+    check(any(line.startswith('chain length') for line in listing.splitlines()),
+          'the pack this build wrote carries deltas', listing[-300:])
+    check(deltas, 'git can see which objects are deltas')
+    check(all(row[6] in ids for row in deltas),
+          'every delta stands on a base the pack itself holds')
+    whole = sum(int(row[2]) for row in rows if len(row) >= 3 and len(row[0]) == 40)
+    packed = mine_pack.stat().st_size
+    check(packed < whole, 'the pack is smaller than what it holds',
+          packed, whole)
 
     back = tmp/'back'
     back.mkdir()
