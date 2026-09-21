@@ -581,6 +581,15 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Putting the store into one pack and taking the loose copies away, which
+# walks every object twice: once to choose what goes in, once to delta it.
+git repack > /dev/null
+git repack -d > /dev/null
+git repack -a -d > /dev/null
+git repack -a -d > /dev/null
+git count-objects -v > /dev/null
+git log --oneline > /dev/null
+git cat-file --batch-all-objects --batch-check > /dev/null
 # Last, because it takes objects away: the same walk fsck does, and then
 # every loose object nothing reaches.
 git prune -n > /dev/null

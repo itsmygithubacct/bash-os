@@ -519,6 +519,19 @@ bgit_odb_list (bgit_odb *odb, char (**out)[41], size_t *n_out)
 }
 
 int
+bgit_odb_packed (bgit_odb *odb, const char *sha)
+{
+    unsigned char raw[20];
+    if (bgit_hex_to_sha (sha, raw) < 0) return 0;
+    bgit_odb_scan_packs (odb);
+    for (size_t i = 0; i < odb->n_packs; i++)
+        if (bgit_pack_lookup_offset (odb->packs[i].idx, odb->packs[i].idx_len,
+                                     raw) != (uint64_t) -1)
+            return 1;
+    return 0;
+}
+
+int
 bgit_odb_loose_path (bgit_odb *odb, const char *sha, char *out, size_t outsz)
 {
     if (!sha || strlen (sha) != 40) return -1;

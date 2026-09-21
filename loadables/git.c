@@ -8827,6 +8827,7 @@ git_cmd_count_objects (git_context *ctx, WORD_LIST *args)
     /* The loose objects, in the store this repository writes to. */
     const char *objects = ctx->odb.n_object_dirs ? ctx->odb.object_dirs[0] : NULL;
     unsigned long long count = 0, size = 0, garbage = 0, garbage_size = 0;
+    unsigned long long packable = 0;
     if (objects) {
         DIR *top = opendir (objects);
         if (top) {
@@ -8856,8 +8857,18 @@ git_cmd_count_objects (git_context *ctx, WORD_LIST *args)
                     int named = strlen (one->d_name) == 38;
                     for (const char *c = one->d_name; named && *c; c++)
                         if (!isxdigit ((unsigned char) *c)) named = 0;
-                    if (named) { count++; size += kb; }
-                    else { garbage++; garbage_size += kb; }
+                    if (named) {
+                        count++;
+                        size += kb;
+                        char sha[41];
+                        sha[0] = entry->d_name[0];
+                        sha[1] = entry->d_name[1];
+                        memcpy (sha + 2, one->d_name, 38);
+                        sha[40] = '\0';
+                        /* A loose object a pack already holds is one prune
+                           could take away without losing anything. */
+                        if (bgit_odb_packed (&ctx->odb, sha)) packable++;
+                    } else { garbage++; garbage_size += kb; }
                 }
                 closedir (inner);
             }
@@ -8923,7 +8934,7 @@ git_cmd_count_objects (git_context *ctx, WORD_LIST *args)
     printf ("packs: %llu\n", packs);
     if (human) printf ("size-pack: %s\n", pack_shown);
     else printf ("size-pack: %llu\n", pack_size / 1024);
-    printf ("prune-packable: 0\n");
+    printf ("prune-packable: %llu\n", packable);
     printf ("garbage: %llu\n", garbage);
     if (human) printf ("size-garbage: %s\n", garbage_shown);
     else printf ("size-garbage: %llu\n", garbage_size / 1024);
@@ -12231,6 +12242,216 @@ git_cmd_pack_objects (git_context *ctx, WORD_LIST *args)
     if (!status) printf ("%s\n", checksum_hex);
     free (body);
     free (entries);
+    free (ids);
+    return status;
+}
+
+/* ---- repack ------------------------------------------------------------- */
+
+/* Every object a repack should hold: what the refs, the index and the
+   reflogs reach. UNPACKED_ONLY leaves out what a pack already holds, which
+   is what an incremental repack packs. Caller frees *out. */
+static int
+git_repack_objects (git_context *ctx, int unpacked_only, char (**out)[41],
+                    size_t *n_out)
+{
+    *out = NULL;
+    *n_out = 0;
+    struct git_fsck state;
+    memset (&state, 0, sizeof state);
+    state.ctx = ctx;
+    if (git_fsck_collect (&state) < 0) return -1;
+    for (size_t i = 0; i < state.n; i++) state.objects[i].present = 1;
+
+    struct git_fsck_walk walk;
+    memset (&walk, 0, sizeof walk);
+    git_fsck_heads (&state, &walk, 1, 1, 0);
+    git_fsck_reach (&state, &walk);
+    free (walk.pending);
+
+    char (*ids)[41] = malloc ((state.n ? state.n : 1) * sizeof *ids);
+    size_t n = 0;
+    if (!ids) {
+        free (state.objects);
+        free (state.absent);
+        return -1;
+    }
+    for (size_t i = 0; i < state.n; i++) {
+        if (!state.objects[i].reachable) continue;
+        if (unpacked_only && bgit_odb_packed (&ctx->odb, state.objects[i].sha))
+            continue;
+        memcpy (ids[n++], state.objects[i].sha, 41);
+    }
+    free (state.objects);
+    free (state.absent);
+    *out = ids;
+    *n_out = n;
+    return 0;
+}
+
+/* Put what is reachable into one pack, and with -d take away what that
+   makes redundant: the packs it replaces and the loose copies it holds. */
+static int
+git_cmd_repack (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git repack [-a] [-d] [-q] [-l] [-f] "
+                        "[--window=<n>] [--depth=<n>]";
+    int all = 0, remove_redundant = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-a") || !strcmp (w, "-A")) all = 1;
+        else if (!strcmp (w, "-d")) remove_redundant = 1;
+        else if (!strcmp (w, "-ad") || !strcmp (w, "-da")) { all = 1; remove_redundant = 1; }
+        /* Accepted and no more than that: this build packs from scratch
+           every time, in one thread, without bitmaps or a cruft pack. */
+        else if (!strcmp (w, "-q") || !strcmp (w, "--quiet") ||
+                 !strcmp (w, "-l") || !strcmp (w, "--local") ||
+                 !strcmp (w, "-f") || !strcmp (w, "-F") ||
+                 !strcmp (w, "-n") || !strcmp (w, "--no-update-server-info") ||
+                 !strcmp (w, "--honor-pack-keep") ||
+                 !strcmp (w, "--write-bitmap-index") ||
+                 !strcmp (w, "--no-write-bitmap-index") ||
+                 !strncmp (w, "--window=", 9) || !strncmp (w, "--depth=", 8) ||
+                 !strncmp (w, "--threads=", 10) ||
+                 !strncmp (w, "--max-pack-size=", 16) ||
+                 !strncmp (w, "--unpack-unreachable=", 21) ||
+                 !strcmp (w, "--keep-unreachable") || !strcmp (w, "--cruft"))
+            ;
+        else return git_usage (usage);
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    if (!ctx->odb.n_object_dirs) return git_fatal ("no object directory");
+    const char *objects = ctx->odb.object_dirs[0];
+
+    char (*ids)[41] = NULL;
+    size_t n = 0;
+    if (git_repack_objects (ctx, !all, &ids, &n) < 0)
+        return git_fatal ("out of memory");
+    int packed_now = n > 0;
+    if (!packed_now && !all) printf ("Nothing new to pack.\n");
+
+    unsigned char *body = NULL;
+    size_t body_len = 0;
+    struct bgit_pack_idx_entry *entries = NULL;
+    unsigned char checksum[20];
+    char checksum_hex[41] = "";
+    if (packed_now &&
+        git_pack_build_deltas (&ctx->odb, ids, n, 1, &body, &body_len, &entries,
+                               checksum, checksum_hex) < 0) {
+        free (ids);
+        return GIT_EXIT_FATAL;
+    }
+
+    char pack_dir[4096], pack_path[4096], idx_path[4096], base[4096];
+    int status = 0;
+    if ((size_t) snprintf (pack_dir, sizeof pack_dir, "%s/pack",
+                           objects) >= sizeof pack_dir)
+        status = git_fatal ("path too long");
+    if (!status && packed_now) {
+        mkdir (pack_dir, 0777);   /* objects/ is already there */
+        snprintf (base, sizeof base, "%s/pack-%s", pack_dir, checksum_hex);
+        snprintf (pack_path, sizeof pack_path, "%s.pack", base);
+        snprintf (idx_path, sizeof idx_path, "%s.idx", base);
+        /* Written beside its final name and moved onto it, so a reader
+           never sees half a pack. */
+        char temp[4096];
+        snprintf (temp, sizeof temp, "%s.tmp-%ld", base, (long) getpid ());
+        FILE *out = fopen (temp, "w");
+        if (!out || fwrite (body, 1, body_len, out) != body_len ||
+            fclose (out) != 0) {
+            if (out) fclose (out);
+            unlink (temp);
+            status = git_fatal ("cannot write %s", pack_path);
+        } else if (rename (temp, pack_path) != 0) {
+            unlink (temp);
+            status = git_fatal ("cannot write %s", pack_path);
+        }
+    }
+    if (!status && packed_now &&
+        bgit_pack_write_idx_v2 (idx_path, entries, n, checksum) < 0)
+        status = GIT_EXIT_FATAL;
+    free (body);
+    free (entries);
+
+    if (!status && remove_redundant) {
+        /* The packs this one replaces. A pack someone asked to keep stays,
+           and so does everything in it. */
+        if (all && packed_now) {
+            DIR *handle = opendir (pack_dir);
+            if (handle) {
+                struct dirent *entry;
+                while ((entry = readdir (handle))) {
+                    size_t len = strlen (entry->d_name);
+                    if (len < 6 || strncmp (entry->d_name, "pack-", 5)) continue;
+                    const char *dot = strrchr (entry->d_name, '.');
+                    if (!dot) continue;
+                    if (strcmp (dot, ".pack") && strcmp (dot, ".idx") &&
+                        strcmp (dot, ".rev") && strcmp (dot, ".bitmap") &&
+                        strcmp (dot, ".mtimes"))
+                        continue;
+                    char stem[4096];
+                    snprintf (stem, sizeof stem, "%.*s",
+                              (int) (dot - entry->d_name), entry->d_name);
+                    if (!strcmp (stem + 5, checksum_hex)) continue;
+                    char keep[4096];
+                    if ((size_t) snprintf (keep, sizeof keep, "%s/%s.keep",
+                                           pack_dir, stem) >= sizeof keep)
+                        continue;
+                    struct stat st;
+                    if (stat (keep, &st) == 0) continue;
+                    char path[4096];
+                    if ((size_t) snprintf (path, sizeof path, "%s/%s", pack_dir,
+                                           entry->d_name) >= sizeof path)
+                        continue;
+                    unlink (path);
+                }
+                closedir (handle);
+            }
+        }
+        /* And every loose object a pack holds, the new one or an older
+           one: keeping both copies is what -d is there to stop. */
+        for (size_t i = 0; i < n; i++) {
+            char path[4096];
+            if (bgit_odb_loose_path (&ctx->odb, ids[i], path, sizeof path) == 0)
+                unlink (path);
+        }
+        DIR *top = opendir (objects);
+        if (top) {
+            struct dirent *entry;
+            while ((entry = readdir (top))) {
+                if (strlen (entry->d_name) != 2 ||
+                    !isxdigit ((unsigned char) entry->d_name[0]) ||
+                    !isxdigit ((unsigned char) entry->d_name[1]))
+                    continue;
+                char dir[4096];
+                if ((size_t) snprintf (dir, sizeof dir, "%s/%s", objects,
+                                       entry->d_name) >= sizeof dir)
+                    continue;
+                DIR *inner = opendir (dir);
+                if (inner) {
+                    struct dirent *one;
+                    while ((one = readdir (inner))) {
+                        if (strlen (one->d_name) != 38) continue;
+                        char sha[41];
+                        sha[0] = entry->d_name[0];
+                        sha[1] = entry->d_name[1];
+                        memcpy (sha + 2, one->d_name, 38);
+                        sha[40] = '\0';
+                        if (!bgit_all_hex (sha)) continue;
+                        if (!bgit_odb_packed (&ctx->odb, sha)) continue;
+                        char path[4096];
+                        if ((size_t) snprintf (path, sizeof path, "%s/%s", dir,
+                                               one->d_name) >= sizeof path)
+                            continue;
+                        unlink (path);
+                    }
+                    closedir (inner);
+                }
+                rmdir (dir);            /* only when it is empty */
+            }
+            closedir (top);
+        }
+    }
     free (ids);
     return status;
 }
@@ -20889,6 +21110,7 @@ static const struct {
     { "read-tree",    git_cmd_read_tree },
     { "rebase",       git_cmd_rebase },
     { "receive-pack", git_cmd_receive_pack },
+    { "repack",       git_cmd_repack },
     { "reflog",       git_cmd_reflog },
     { "remote",       git_cmd_remote },
     { "reset",        git_cmd_reset },
