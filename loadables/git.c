@@ -2694,7 +2694,8 @@ git_message_body (const char *path, size_t *out_len)
    since none of it is part of the message. */
 static void
 git_commit_template (git_context *ctx, FILE *out, struct git_state *state,
-                     const char *author, const char *committer, int amend)
+                     const char *author, const char *committer, int amend,
+                     int editing)
 {
     const char *branch = state->branch;
     if (branch && !strncmp (branch, "refs/heads/", 11)) branch += 11;
@@ -2720,9 +2721,42 @@ git_commit_template (git_context *ctx, FILE *out, struct git_state *state,
         said = 1;
     }
     if (said) fprintf (out, "#\n");
-    if (branch) fprintf (out, "# On branch %s\n", branch);
-    /* A repository with no commit yet says so, set apart. */
-    if (!state->have_head) fprintf (out, "#\n# Initial commit\n#\n");
+    if (git_rebase_in_progress (ctx)) {
+        /* In the middle of a rebase the note says where that is, which is
+           what status says about it too. */
+        char onto[41] = "", head_name[4096] = "", abbreviated[41] = "";
+        git_rebase_read (ctx, "onto", onto, sizeof onto);
+        git_rebase_read (ctx, "head-name", head_name, sizeof head_name);
+        if (*onto) git_abbrev (ctx, onto, 7, abbreviated, sizeof abbreviated);
+        fprintf (out, "# interactive rebase in progress; onto %s\n",
+                 abbreviated);
+        char lines[64][1200];
+        int n = git_rebase_list (ctx, "done", lines, 64);
+        if (!n) fprintf (out, "# No commands done.\n");
+        else {
+            fprintf (out, "# Last command%s done (%d command%s done):\n",
+                     n == 1 ? "" : "s", n, n == 1 ? "" : "s");
+            for (int i = n > 2 ? n - 2 : 0; i < n; i++)
+                fprintf (out, "#    %s\n", lines[i]);
+        }
+        n = git_rebase_list (ctx, "git-rebase-todo", lines, 64);
+        if (!n) fprintf (out, "# No commands remaining.\n");
+        else {
+            fprintf (out, "# Next command%s to do (%d remaining command%s):\n",
+                     n == 1 ? "" : "s", n, n == 1 ? "" : "s");
+            for (int i = 0; i < 2 && i < n; i++)
+                fprintf (out, "#    %s\n", lines[i]);
+        }
+        const char *shown = head_name;
+        if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
+        fprintf (out, "# You are currently %srebasing branch '%s' on '%s'.\n"
+                      "#\n", editing ? "editing a commit while " : "", shown,
+                 abbreviated);
+    } else {
+        if (branch) fprintf (out, "# On branch %s\n", branch);
+        /* A repository with no commit yet says so, set apart. */
+        if (!state->have_head) fprintf (out, "#\n# Initial commit\n#\n");
+    }
 
     /* What the commit will hold: against HEAD normally, and against what
        HEAD stands on when the commit is being amended, since the one
@@ -2982,7 +3016,7 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
                 free (data);
             }
         }
-        git_commit_template (ctx, out, &state, author, committer, amend);
+        git_commit_template (ctx, out, &state, author, committer, amend, 0);
         fclose (out);
         if (git_edit_file (ctx, editmsg, 0) < 0) {
             git_state_release (&state);
@@ -4705,8 +4739,13 @@ git_cmd_switch (git_context *ctx, WORD_LIST *args)
         }
         /* switch -c writes the start point as it was typed, so an
            implicit one stays "HEAD"; git branch names the branch instead. */
+        /* A branch that was already there is being put back, and git's
+           log says so in its own words. */
+        char was[41];
+        int had_it = bgit_ref_read (&ctx->repo, ref, was) == 0;
         char message[1200];
-        snprintf (message, sizeof message, "branch: Created from %s", start);
+        snprintf (message, sizeof message, "branch: %s %s",
+                  had_it ? "Reset to" : "Created from", start);
         if (bgit_ref_update (&ctx->repo, ref, commit, NULL, message) < 0) {
             status = GIT_EXIT_FATAL;
             goto done;
@@ -9726,7 +9765,8 @@ git_rebase_clear (git_context *ctx)
 {
     static const char *const names[] = {
         "head-name", "onto", "orig-head", "msgnum", "end", "done",
-        "git-rebase-todo", "interactive", "message", "stopped-sha", NULL
+        "git-rebase-todo", "interactive", "message", "stopped-sha", "amend",
+        NULL
     };
     char path[4096];
     for (int i = 0; names[i]; i++)
@@ -9734,6 +9774,274 @@ git_rebase_clear (git_context *ctx)
             unlink (path);
     if (git_rebase_path (ctx, "", path, sizeof path) == 0) rmdir (path);
     git_remove_state_file (ctx, "REBASE_HEAD");
+}
+
+/* Write a message for a commit a rebase is making: the one it has to
+   start from, and with COMBINING the message of what is being melded into
+   it, under git's note about the two. Returns the message the editor left,
+   for the caller to free, or NULL when it came back empty. */
+static char *
+git_rebase_message_edit (git_context *ctx, struct git_state *state,
+                         const char *first, const char *second, int combining,
+                         const char *author)
+{
+    char path[4096];
+    if (snprintf (path, sizeof path, "%s/COMMIT_EDITMSG", ctx->repo.git_dir) >=
+        (int) sizeof path)
+        return NULL;
+    FILE *out = fopen (path, "w");
+    if (!out) return NULL;
+    if (combining) {
+        fprintf (out, "# This is a combination of 2 commits.\n"
+                      "# This is the 1st commit message:\n\n%s", first);
+        if (*first && first[strlen (first) - 1] != '\n') fprintf (out, "\n");
+        fprintf (out, "\n# This is the commit message #2:\n\n%s", second);
+        if (*second && second[strlen (second) - 1] != '\n') fprintf (out, "\n");
+    } else {
+        fprintf (out, "%s", first);
+        if (*first && first[strlen (first) - 1] != '\n') fprintf (out, "\n");
+    }
+    char committer[1024] = "";
+    bgit_ident (&ctx->cfg, 1, committer, sizeof committer);
+    git_commit_template (ctx, out, state, author, committer, 1, !combining);
+    fclose (out);
+    if (git_edit_file (ctx, path, 0) < 0) return NULL;
+    size_t len = 0;
+    char *written = git_message_body (path, &len);
+    if (!written || !len) {
+        free (written);
+        return NULL;
+    }
+    return written;
+}
+
+/* Put the commit HEAD points at back with a different message, or with a
+   different parent, which is what reword and a melded commit both end in.
+   The tree is whatever the index holds now. Returns 0, or -1. */
+static int
+git_rebase_replace_head (git_context *ctx, struct git_state *state,
+                         const char *parent, const char *author,
+                         const char *message, const char *reflog, int quiet)
+{
+    char tree[41];
+    if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0], state->index,
+                         state->n_index, tree) < 0)
+        return -1;
+    char committer[1024];
+    if (bgit_ident (&ctx->cfg, 1, committer, sizeof committer) < 0)
+        return -1;
+    char *body = NULL;
+    size_t body_len = 0;
+    FILE *builder = open_memstream (&body, &body_len);
+    if (!builder) return -1;
+    fprintf (builder, "tree %s\n", tree);
+    if (parent && *parent) fprintf (builder, "parent %s\n", parent);
+    fprintf (builder, "author %s\n", author);
+    fprintf (builder, "committer %s\n", committer);
+    fprintf (builder, "\n%s", message);
+    size_t message_len = strlen (message);
+    if (!message_len || message[message_len - 1] != '\n')
+        fprintf (builder, "\n");
+    fclose (builder);
+    char written[41];
+    int rc = bgit_write_object (ctx->odb.object_dirs[0], "commit",
+                                (const unsigned char *) body, body_len, 1,
+                                written);
+    free (body);
+    if (rc < 0) return -1;
+
+    char subject[1024] = "";
+    const char *nl = strchr (message, '\n');
+    snprintf (subject, nl ? (size_t) (nl - message) + 1 : sizeof subject, "%s",
+              message);
+    char before[41] = "";
+    if (parent && *parent) bgit_commit_tree (&ctx->odb, parent, before);
+    if (git_head_detach (ctx, state, written, reflog) < 0) return -1;
+    memcpy (state->head, written, 41);
+    memcpy (state->head_tree, tree, 41);
+    if (!quiet) {
+        char abbreviated[41];
+        git_abbrev (ctx, written, 7, abbreviated, sizeof abbreviated);
+        printf ("[detached HEAD %s] %s\n", abbreviated, subject);
+        char author_who[1024], committer_who[1024];
+        git_ident_who (author, author_who, sizeof author_who);
+        git_ident_who (committer, committer_who, sizeof committer_who);
+        if (strcmp (author_who, committer_who))
+            printf (" Author: %s\n", author_who);
+        const char *stamp = strrchr (author, '>');
+        if (stamp) {
+            char shown[128];
+            git_format_date (stamp + 2, 0, shown, sizeof shown);
+            printf (" Date: %s\n", shown);
+        }
+        struct git_diff_format format;
+        git_diff_format_init (&format);
+        format.shortstat = 1;
+        format.summary = 1;
+        bgit_diff_entry *entries = NULL;
+        size_t n_entries = 0;
+        if (bgit_diff_trees (&ctx->odb, *before ? before : NULL, tree,
+                             &entries, &n_entries) == 0) {
+            git_diff_emit (ctx, stdout, &format, entries, n_entries, 0, "");
+            bgit_diff_free (entries, n_entries);
+        }
+    }
+    return 0;
+}
+
+/* What has been done and what is left, written down after every command,
+   so that a rebase which stops can be taken up where it left off. */
+static void
+git_rebase_record (git_context *ctx, char done_lines[][1200], int *done_count,
+                   char todo[][1200], int n_todo, int at_command,
+                   char *content, size_t size)
+{
+    size_t at = 0;
+    content[0] = '\0';
+    for (int j = 0; j < *done_count && at < size; j++)
+        at += (size_t) snprintf (content + at, size - at, "%s\n", done_lines[j]);
+    at += (size_t) snprintf (content + at, size - at, "%s\n", todo[at_command]);
+    git_rebase_write (ctx, "done", content);
+    if (*done_count < 64)
+        snprintf (done_lines[(*done_count)++], 1200, "%s", todo[at_command]);
+    at = 0;
+    content[0] = '\0';
+    for (int j = at_command + 1; j < n_todo && at < size; j++)
+        at += (size_t) snprintf (content + at, size - at, "%s\n", todo[j]);
+    git_rebase_write (ctx, "git-rebase-todo", content);
+}
+
+/* Where the rebase is going and how far along it is: what --continue and
+   status read to find their way back. */
+static void
+git_rebase_state_files (git_context *ctx, const char *head_name,
+                        const char *onto, const char *orig, int done_count,
+                        int total, char *content, size_t size)
+{
+    snprintf (content, size, "%s\n", head_name);
+    git_rebase_write (ctx, "head-name", content);
+    snprintf (content, size, "%s\n", onto);
+    git_rebase_write (ctx, "onto", content);
+    snprintf (content, size, "%s\n", orig);
+    git_rebase_write (ctx, "orig-head", content);
+    snprintf (content, size, "%d\n", done_count);
+    git_rebase_write (ctx, "msgnum", content);
+    snprintf (content, size, "%d\n", total);
+    git_rebase_write (ctx, "end", content);
+}
+
+/* Run a command the way a todo list's `exec` asks for: through this
+   build's own shell, so a machine with no other one can still rebase.
+   Returns the command's status, or -1. */
+static int
+git_run_shell (const char *command)
+{
+    fflush (stdout);
+    fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) return -1;
+    if (!child) {
+        array_needs_making = 1;
+        maybe_make_export_env ();
+        const char *argv[6];
+        int at = 0;
+        argv[at++] = "bash";
+        argv[at++] = "--noprofile";
+        argv[at++] = "--norc";
+        argv[at++] = "-c";
+        argv[at++] = command;
+        argv[at] = NULL;
+        execve ("/proc/self/exe", (char *const *) argv, export_env);
+        _exit (127);
+    }
+    int status = 0;
+    while (waitpid (child, &status, 0) < 0 && errno == EINTR) ;
+    return WIFEXITED (status) ? WEXITSTATUS (status) : -1;
+}
+
+/* The note git leaves under an interactive rebase's todo list. It is
+   written out in full, since somebody is about to read it. */
+static void
+git_rebase_todo_note (FILE *out, git_context *ctx, const char *orig,
+                      const char *last, const char *onto, int n_commands)
+{
+    char from[41], to[41], base[41];
+    git_abbrev (ctx, orig, 7, from, sizeof from);
+    git_abbrev (ctx, last, 7, to, sizeof to);
+    git_abbrev (ctx, onto, 7, base, sizeof base);
+    fprintf (out,
+      "\n# Rebase %s..%s onto %s (%d command%s)\n"
+      "#\n"
+      "# Commands:\n"
+      "# p, pick <commit> = use commit\n"
+      "# r, reword <commit> = use commit, but edit the commit message\n"
+      "# e, edit <commit> = use commit, but stop for amending\n"
+      "# s, squash <commit> = use commit, but meld into previous commit\n"
+      "# f, fixup [-C | -c] <commit> = like \"squash\" but keep only the previous\n"
+      "#                    commit's log message, unless -C is used, in which case\n"
+      "#                    keep only this commit's message; -c is same as -C but\n"
+      "#                    opens the editor\n"
+      "# x, exec <command> = run command (the rest of the line) using shell\n"
+      "# b, break = stop here (continue rebase later with 'git rebase --continue')\n"
+      "# d, drop <commit> = remove commit\n"
+      "# l, label <label> = label current HEAD with a name\n"
+      "# t, reset <label> = reset HEAD to a label\n"
+      "# m, merge [-C <commit> | -c <commit>] <label> [# <oneline>]\n"
+      "#         create a merge commit using the original merge commit's\n"
+      "#         message (or the oneline, if no original merge commit was\n"
+      "#         specified); use -c <commit> to reword the commit message\n"
+      "# u, update-ref <ref> = track a placeholder for the <ref> to be updated\n"
+      "#                       to this position in the new commits. The <ref> is\n"
+      "#                       updated at the end of the rebase\n"
+      "#\n"
+      "# These lines can be re-ordered; they are executed from top to bottom.\n"
+      "#\n"
+      "# If you remove a line here THAT COMMIT WILL BE LOST.\n"
+      "#\n"
+      "# However, if you remove everything, the rebase will be aborted.\n"
+      "#\n",
+      from, to, base, n_commands, n_commands == 1 ? "" : "s");
+}
+
+/* What a todo line says: the command, the commit it names, and whatever
+   else is on the line. Returns 0 for a line with nothing on it. */
+static int
+git_rebase_todo_parse (const char *line, char *command, size_t command_size,
+                       char *name, size_t name_size, const char **rest)
+{
+    *command = '\0';
+    *name = '\0';
+    *rest = "";
+    while (*line == ' ' || *line == '\t') line++;
+    if (!*line || *line == '#') return 0;
+    size_t len = strcspn (line, " \t");
+    if (len >= command_size) len = command_size - 1;
+    memcpy (command, line, len);
+    command[len] = '\0';
+    const char *after = line + strcspn (line, " \t");
+    while (*after == ' ' || *after == '\t') after++;
+    *rest = after;
+    len = strcspn (after, " \t");
+    if (len && len < name_size) {
+        memcpy (name, after, len);
+        name[len] = '\0';
+    }
+    return 1;
+}
+
+/* The full name of a todo command, whichever way it was written. */
+static const char *
+git_rebase_command (const char *word)
+{
+    static const char *const names[][2] = {
+        { "p", "pick" }, { "r", "reword" }, { "e", "edit" },
+        { "s", "squash" }, { "f", "fixup" }, { "x", "exec" },
+        { "b", "break" }, { "d", "drop" }, { NULL, NULL }
+    };
+    for (int i = 0; names[i][0]; i++)
+        if (!strcmp (word, names[i][0]) || !strcmp (word, names[i][1]))
+            return names[i][1];
+    return NULL;
 }
 
 /* The line a rebase's todo list holds for one commit. */
@@ -9751,10 +10059,12 @@ git_rebase_line (git_context *ctx, const char *commit, char *out, size_t outsz)
 }
 
 /* Apply one commit onto HEAD, the way cherry-pick does. Returns 0 when it
-   settled, 1 when it did not, -1 on failure. */
+   settled, 1 when it did not, -1 on failure. With SILENT the step leaves
+   no line in the reflog: a commit about to be melded into the one before
+   it was never really there, and git's log does not say it was. */
 static int
 git_rebase_apply (git_context *ctx, struct git_state *state, const char *commit,
-                  int *empty)
+                  int *empty, int silent)
 {
     *empty = 0;
     struct git_commit picked;
@@ -9859,7 +10169,7 @@ git_rebase_apply (git_context *ctx, struct git_state *state, const char *commit,
     free (body);
     git_commit_release (&picked);
     if (rc < 0) return -1;
-    if (git_head_detach (ctx, state, written, reflog) < 0) return -1;
+    if (git_head_detach (ctx, state, written, silent ? NULL : reflog) < 0) return -1;
     /* HEAD has moved, so the state follows it. */
     memcpy (state->head, written, 41);
     memcpy (state->head_tree, tree, 41);
@@ -9877,8 +10187,13 @@ git_rebase_finish (git_context *ctx, struct git_state *state,
               head_name);
     snprintf (branch_message, sizeof branch_message, "rebase (finish): %s onto %s",
               head_name, onto);
-    if (bgit_ref_update (&ctx->repo, head_name, state->head, NULL,
-                         branch_message) < 0 ||
+    /* A branch that ends where it started has not moved, and git's log
+       does not say it has. */
+    char was[41];
+    int moved = bgit_ref_read (&ctx->repo, head_name, was) < 0 ||
+                strcmp (was, state->head);
+    if ((moved && bgit_ref_update (&ctx->repo, head_name, state->head, NULL,
+                                   branch_message) < 0) ||
         bgit_symref_write (&ctx->repo, "HEAD", head_name, NULL) < 0)
         return GIT_EXIT_FATAL;
     bgit_reflog_append (&ctx->repo, "HEAD", state->head, state->head, message);
@@ -9893,10 +10208,10 @@ git_rebase_finish (git_context *ctx, struct git_state *state,
 static int
 git_cmd_rebase (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git rebase <upstream> [<branch>] | --continue "
+    const char *usage = "git rebase [-i] <upstream> [<branch>] | --continue "
                         "| --abort | --skip";
     const char *upstream = NULL, *branch = NULL;
-    int continue_it = 0, abort_it = 0, skip_it = 0, quiet = 0;
+    int continue_it = 0, abort_it = 0, skip_it = 0, quiet = 0, interactive = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -9904,6 +10219,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--abort")) abort_it = 1;
         else if (!strcmp (w, "--skip")) skip_it = 1;
         else if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) quiet = 1;
+        else if (!strcmp (w, "-i") || !strcmp (w, "--interactive"))
+            interactive = 1;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (!upstream) upstream = w;
         else if (!branch) branch = w;
@@ -9954,7 +10271,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
     }
 
     char todo[64][1200];
-    int n_todo = 0, done_count = 0;
+    int n_todo = 0, done_count = 0, leading = 0;
+    char start_at[41] = "";
     char head_name[4096] = "", onto[41] = "", orig[41] = "";
     char done_lines[64][1200];
 
@@ -9979,6 +10297,73 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                                  "conflict.\n");
                 return 1;
             }
+        /* A stop for amending leaves the commit already made: what was
+           staged since goes into it, which is what git does when a rebase
+           told to edit is taken up again. */
+        char amend_marker[64];
+        if (!skip_it && git_rebase_read (ctx, "stopped-sha", amend_marker,
+                                         sizeof amend_marker) < 0 &&
+            git_rebase_read (ctx, "amend", amend_marker,
+                             sizeof amend_marker) == 0 && state.have_head) {
+            char tree[41];
+            if (bgit_write_tree (&ctx->odb, ctx->odb.object_dirs[0],
+                                 state.index, state.n_index, tree) < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            if (strcmp (tree, state.head_tree)) {
+                struct git_commit editing;
+                if (git_commit_read (ctx, state.head, &editing) < 0) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+                char author[1024], parent[41] = "", subject[1024];
+                snprintf (author, sizeof author, "%s <%s> %s",
+                          editing.author_name, editing.author_email,
+                          editing.author_date);
+                if (editing.n_parents) memcpy (parent, editing.parents[0], 41);
+                git_subject (&editing, subject, sizeof subject);
+                char *message = strdup (editing.message);
+                git_commit_release (&editing);
+                if (!message) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+                /* git asks for the message again here, as it does for any
+                   amendment; an editor that leaves the file alone keeps
+                   what was there. */
+                char *written = git_rebase_message_edit (ctx, &state, message,
+                                                         NULL, 0, author);
+                free (message);
+                if (!written) {
+                    git_state_release (&state);
+                    fflush (stdout);
+                    fprintf (stderr, "Aborting commit due to empty commit "
+                                     "message.\n");
+                    fprintf (stderr, "error: could not commit staged "
+                                     "changes.\n");
+                    return 1;
+                }
+                const char *nl = strchr (written, '\n');
+                snprintf (subject, nl ? (size_t) (nl - written) + 1
+                                      : sizeof subject, "%s", written);
+                char reflog[1200];
+                snprintf (reflog, sizeof reflog, "rebase (continue): %s",
+                          subject);
+                int replaced = git_rebase_replace_head (ctx, &state, parent,
+                                                        author, written,
+                                                        reflog, quiet);
+                free (written);
+                if (replaced < 0) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+            }
+            char path[4096];
+            if (git_rebase_path (ctx, "amend", path, sizeof path) == 0)
+                unlink (path);
+        }
+
         /* Finish the commit that stopped, unless it is being skipped. */
         char stopped[41];
         if (!skip_it && git_rebase_read (ctx, "stopped-sha", stopped,
@@ -10133,8 +10518,10 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                              sizeof todo[0]);
         free (ordered);
 
-        /* A branch already sitting on its upstream has nothing to replay. */
-        if (bgit_is_ancestor (&ctx->odb, onto, state.head) > 0) {
+        /* A branch already sitting on its upstream has nothing to replay —
+           unless the point is to go over what it has, which is what -i is
+           for. */
+        if (!interactive && bgit_is_ancestor (&ctx->odb, onto, state.head) > 0) {
             const char *shown = head_name;
             if (!strncmp (shown, "refs/heads/", 11)) shown += 11;
             printf ("Current branch %s is up to date.\n", shown);
@@ -10163,9 +10550,87 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
             return status;
         }
 
-        /* Start from the upstream, with HEAD detached, as git does. */
+        /* With -i the list is written down and handed to an editor, and
+           what comes back is what will be replayed. */
+        if (interactive) {
+            char path[4096];
+            if (git_rebase_path (ctx, "", path, sizeof path) < 0 ||
+                (mkdir (path, 0777) < 0 && errno != EEXIST) ||
+                git_rebase_path (ctx, "git-rebase-todo", path,
+                                 sizeof path) < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            FILE *out = fopen (path, "w");
+            if (!out) {
+                git_state_release (&state);
+                return git_fatal ("could not write '%s'", path);
+            }
+            for (int i = 0; i < n_todo; i++) fprintf (out, "%s\n", todo[i]);
+            git_rebase_todo_note (out, ctx, onto, state.head, onto, n_todo);
+            fclose (out);
+            if (git_edit_file (ctx, path, 1) < 0) {
+                git_rebase_clear (ctx);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            n_todo = 0;
+            FILE *file = fopen (path, "r");
+            if (file) {
+                char line[1200];
+                while (n_todo < 64 && fgets (line, sizeof line, file)) {
+                    size_t len = strlen (line);
+                    while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+                        line[--len] = '\0';
+                    const char *at = line;
+                    while (*at == ' ' || *at == '\t') at++;
+                    if (!*at || *at == '#') continue;
+                    snprintf (todo[n_todo++], sizeof todo[0], "%s", line);
+                }
+                fclose (file);
+            }
+            if (!n_todo) {
+                /* Everything struck out means the rebase is called off, and
+                   nothing has been touched yet. */
+                git_rebase_clear (ctx);
+                git_state_release (&state);
+                fflush (stdout);
+                fprintf (stderr, "error: nothing to do\n");
+                return 1;
+            }
+        }
+
+        /* The leading run of picks that are already standing where they
+           would land is stepped over in one go: git's start checkout goes
+           to the last of them and says nothing more about them. A commit
+           about to be melded into another is not one of them. */
+        {
+            char at[41];
+            memcpy (at, onto, 41);
+            while (leading < n_todo) {
+                char command[32], name[64], id[41];
+                const char *rest = "";
+                if (!git_rebase_todo_parse (todo[leading], command,
+                                            sizeof command, name, sizeof name,
+                                            &rest))
+                    break;
+                const char *verb = git_rebase_command (command);
+                if (!verb || strcmp (verb, "pick") || !*name) break;
+                char parents[BGIT_MAX_PARENTS][41];
+                if (git_resolve (ctx, name, id, NULL) < 0) break;
+                int n_parents = bgit_commit_parents (&ctx->odb, id, parents,
+                                                     BGIT_MAX_PARENTS);
+                if (n_parents != 1 || strcmp (parents[0], at)) break;
+                memcpy (at, id, 41);
+                leading++;
+            }
+            memcpy (start_at, at, 41);
+        }
+
+        /* Start from the upstream — or from the end of that run — with
+           HEAD detached, as git does. */
         char tree[41];
-        if (bgit_commit_tree (&ctx->odb, onto, tree) < 0) {
+        if (bgit_commit_tree (&ctx->odb, start_at, tree) < 0) {
             git_state_release (&state);
             return GIT_EXIT_FATAL;
         }
@@ -10184,11 +10649,11 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
         snprintf (start_message, sizeof start_message, "rebase (start): checkout %s",
                   upstream);
         if (git_index_store (ctx, state.index, state.n_index) < 0 ||
-            git_head_detach (ctx, &state, onto, start_message) < 0) {
+            git_head_detach (ctx, &state, start_at, start_message) < 0) {
             git_state_release (&state);
             return GIT_EXIT_FATAL;
         }
-        memcpy (state.head, onto, 41);
+        memcpy (state.head, start_at, 41);
         memcpy (state.head_tree, tree, 41);
 
         char path[4096];
@@ -10197,53 +10662,246 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
             git_state_release (&state);
             return GIT_EXIT_FATAL;
         }
-        git_rebase_write (ctx, "head-name", "");
+        /* Where this rebase is going, written down before it starts, so
+           that anything asking — status, or an editor's note — can say. */
+        {
+            char state_content[8192];
+            git_rebase_state_files (ctx, head_name, onto, orig, 0,
+                                    n_todo, state_content,
+                                    sizeof state_content);
+        }
         git_rebase_write (ctx, "interactive", "");
+        /* What was stepped over is written down as done, so that the
+           numbering and a later --continue both count it. */
+        {
+            char stepped[8192];
+            for (int i = 0; i < leading; i++)
+                git_rebase_record (ctx, done_lines, &done_count, todo, n_todo,
+                                   i, stepped, sizeof stepped);
+        }
     }
 
     /* Replay what is left, stopping at the first thing that does not settle. */
     char content[8192];
-    int started_with = done_count;
-    int total = done_count + n_todo;
-    for (int i = 0; i < n_todo; i++) {
-        char id[41];
-        const char *space = strchr (todo[i], ' ');
-        const char *second = space ? strchr (space + 1, ' ') : NULL;
-        char name[64] = "";
-        if (space && second && second - space - 1 < (int) sizeof name) {
-            memcpy (name, space + 1, (size_t) (second - space - 1));
-            name[second - space - 1] = '\0';
+    int started_with = done_count - leading;
+    int total = started_with + n_todo;
+
+    for (int i = leading; i < n_todo; i++) {
+        char id[41], command[32], name[64];
+        const char *rest = "";
+        if (!git_rebase_todo_parse (todo[i], command, sizeof command, name,
+                                    sizeof name, &rest))
+            continue;                     /* a comment, or nothing at all */
+        const char *verb = git_rebase_command (command);
+        if (!verb) {
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "error: invalid command '%s'\n", command);
+            return GIT_EXIT_FATAL;
         }
+
+        fflush (stdout);
+        fprintf (stderr, "Rebasing (%d/%d)\r", started_with + i + 1, total);
+
+        /* A commit already standing on HEAD is moved to rather than
+           replayed, which is what git does. What is about to be melded
+           into another is never moved to: it has to be made as part of
+           that. */
+        int melding = !strcmp (verb, "squash") || !strcmp (verb, "fixup");
+        int moved_to = 0;
+        if (!melding && strcmp (verb, "exec") && strcmp (verb, "break") &&
+            strcmp (verb, "drop") && *name &&
+            git_resolve (ctx, name, id, NULL) == 0) {
+            char parents[BGIT_MAX_PARENTS][41], tree[41];
+            int n_parents = bgit_commit_parents (&ctx->odb, id, parents,
+                                                 BGIT_MAX_PARENTS);
+            if (n_parents == 1 && !strcmp (parents[0], state.head) &&
+                bgit_commit_tree (&ctx->odb, id, tree) == 0) {
+                if (bgit_checkout_tree (&ctx->repo, &ctx->odb, tree,
+                                        &state.index, &state.n_index, 0,
+                                        NULL) < 0 ||
+                    git_index_store (ctx, state.index, state.n_index) < 0 ||
+                    git_head_detach (ctx, &state, id,
+                                     "rebase: fast-forward") < 0) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+                memcpy (state.head, id, 41);
+                memcpy (state.head_tree, tree, 41);
+                moved_to = 1;
+                if (!strcmp (verb, "pick")) {
+                    git_rebase_record (ctx, done_lines, &done_count, todo,
+                                       n_todo, i, content, sizeof content);
+                    continue;
+                }
+            }
+        }
+
+        /* The commands that do not replay a commit are answered here, and
+           each one writes down what has been done before it acts, so that
+           what stops can be taken up again. */
+        if (!strcmp (verb, "exec") || !strcmp (verb, "break") ||
+            !strcmp (verb, "drop")) {
+            git_rebase_record (ctx, done_lines, &done_count, todo, n_todo, i,
+                               content, sizeof content);
+            if (!strcmp (verb, "drop")) continue;
+            if (!strcmp (verb, "exec")) {
+                fflush (stdout);
+                fprintf (stderr, "Executing: %s\n", rest);
+                int ran = git_run_shell (rest);
+                if (ran == 0) continue;
+                git_rebase_state_files (ctx, head_name, onto, orig, done_count,
+                                        total, content, sizeof content);
+                git_state_release (&state);
+                fflush (stdout);
+                fprintf (stderr, "warning: execution failed: %s\n", rest);
+                fprintf (stderr, "You can fix the problem, and then run\n\n"
+                                 "  git rebase --continue\n\n\n");
+                return 1;
+            }
+            /* break: stop where this leaves off, and say where that is. */
+            git_rebase_state_files (ctx, head_name, onto, orig, done_count,
+                                    total, content, sizeof content);
+            char short_id[41], subject[1024] = "";
+            git_abbrev (ctx, state.head, 7, short_id, sizeof short_id);
+            struct git_commit stopped_at;
+            if (git_commit_read (ctx, state.head, &stopped_at) == 0) {
+                git_subject (&stopped_at, subject, sizeof subject);
+                git_commit_release (&stopped_at);
+            }
+            git_state_release (&state);
+            fflush (stdout);
+            fprintf (stderr, "Stopped at %s (%s)\n", short_id, subject);
+            return 0;
+        }
+
         if (!*name || git_resolve (ctx, name, id, NULL) < 0) {
             git_state_release (&state);
             return git_fatal ("cannot read the rebase todo list");
         }
 
-        fflush (stdout);
-        fprintf (stderr, "Rebasing (%d/%d)\r", started_with + i + 1, total);
         int empty = 0;
-        int rc = git_rebase_apply (ctx, &state, id, &empty);
+        int rc = moved_to ? 0 : git_rebase_apply (ctx, &state, id, &empty,
+                                                  melding);
         if (rc < 0) {
             git_state_release (&state);
             return GIT_EXIT_FATAL;
         }
 
         /* Whatever happened, this command is done. */
-        size_t at = 0;
-        content[0] = '\0';
-        for (int j = 0; j < done_count && at < sizeof content; j++)
-            at += (size_t) snprintf (content + at, sizeof content - at, "%s\n",
-                                     done_lines[j]);
-        at += (size_t) snprintf (content + at, sizeof content - at, "%s\n", todo[i]);
-        git_rebase_write (ctx, "done", content);
-        if (done_count < 64)
-            snprintf (done_lines[done_count++], sizeof done_lines[0], "%s", todo[i]);
-        at = 0;
-        content[0] = '\0';
-        for (int j = i + 1; j < n_todo && at < sizeof content; j++)
-            at += (size_t) snprintf (content + at, sizeof content - at, "%s\n",
-                                     todo[j]);
-        git_rebase_write (ctx, "git-rebase-todo", content);
+        git_rebase_record (ctx, done_lines, &done_count, todo, n_todo, i,
+                           content, sizeof content);
+
+        /* A commit that went in cleanly may still have something asked of
+           it: a message to write, a stop for amending, or being melded
+           into the one before it. */
+        if (!rc && strcmp (verb, "pick")) {
+            char short_id[41], subject[1024] = "";
+            git_abbrev (ctx, id, 7, short_id, sizeof short_id);
+            struct git_commit applied;
+            if (git_commit_read (ctx, state.head, &applied) < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            git_subject (&applied, subject, sizeof subject);
+            char author[1024];
+            snprintf (author, sizeof author, "%s <%s> %s", applied.author_name,
+                      applied.author_email, applied.author_date);
+            char parent[41] = "";
+            if (applied.n_parents) memcpy (parent, applied.parents[0], 41);
+            char *message = strdup (applied.message);
+            git_commit_release (&applied);
+            if (!message) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+
+            if (!strcmp (verb, "edit")) {
+                git_rebase_state_files (ctx, head_name, onto, orig, done_count,
+                                        total, content, sizeof content);
+                snprintf (content, sizeof content, "%s\n", state.head);
+                git_rebase_write (ctx, "amend", content);
+                free (message);
+                git_state_release (&state);
+                fflush (stdout);
+                fprintf (stderr, "Stopped at %s...  %s\n", short_id, subject);
+                fprintf (stderr, "You can amend the commit now, with\n\n"
+                                 "  git commit --amend \n\n"
+                                 "Once you are satisfied with your changes, "
+                                 "run\n\n  git rebase --continue\n");
+                return 0;
+            }
+
+            if (!strcmp (verb, "reword")) {
+                char *written = git_rebase_message_edit (ctx, &state, message,
+                                                         NULL, 0, author);
+                free (message);
+                if (!written) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+                char reflog[1200];
+                snprintf (reflog, sizeof reflog, "rebase (reword): %.200s",
+                          written);
+                int replaced = git_rebase_replace_head (ctx, &state, parent,
+                                                        author, written,
+                                                        reflog, quiet);
+                free (written);
+                if (replaced < 0) {
+                    git_state_release (&state);
+                    return GIT_EXIT_FATAL;
+                }
+                continue;
+            }
+
+            /* squash and fixup: the commit just applied goes into the one
+               before it, and the two become one. */
+            struct git_commit before;
+            char base[41] = "", base_author[1024] = "";
+            char *kept = NULL;
+            if (!*parent || git_commit_read (ctx, parent, &before) < 0) {
+                free (message);
+                git_state_release (&state);
+                return git_fatal ("cannot %s without a commit to meld into",
+                                  verb);
+            }
+            if (before.n_parents) memcpy (base, before.parents[0], 41);
+            snprintf (base_author, sizeof base_author, "%s <%s> %s",
+                      before.author_name, before.author_email,
+                      before.author_date);
+            kept = strdup (before.message);
+            git_commit_release (&before);
+            if (!kept) {
+                free (message);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            char *written = NULL;
+            if (!strcmp (verb, "fixup"))
+                written = strdup (kept);
+            else
+                written = git_rebase_message_edit (ctx, &state, kept, message,
+                                                   1, base_author);
+            free (kept);
+            free (message);
+            if (!written) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            char reflog[1200];
+            snprintf (reflog, sizeof reflog, "rebase (%s): %.200s", verb,
+                      written);
+            int replaced = git_rebase_replace_head (ctx, &state, base,
+                                                    base_author, written,
+                                                    reflog,
+                                                    quiet || !strcmp (verb, "fixup"));
+            free (written);
+            if (replaced < 0) {
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
+            continue;
+        }
 
         if (rc == 1) {
             char short_id[41], subject[1024] = "";
@@ -10258,16 +10916,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
             snprintf (content, sizeof content, "%s\n", id);
             git_rebase_write (ctx, "stopped-sha", content);
             git_write_state_file (ctx, "REBASE_HEAD", content);
-            snprintf (content, sizeof content, "%s\n", head_name);
-            git_rebase_write (ctx, "head-name", content);
-            snprintf (content, sizeof content, "%s\n", onto);
-            git_rebase_write (ctx, "onto", content);
-            snprintf (content, sizeof content, "%s\n", orig);
-            git_rebase_write (ctx, "orig-head", content);
-            snprintf (content, sizeof content, "%d\n", done_count);
-            git_rebase_write (ctx, "msgnum", content);
-            snprintf (content, sizeof content, "%d\n", total);
-            git_rebase_write (ctx, "end", content);
+            git_rebase_state_files (ctx, head_name, onto, orig, done_count,
+                                    total, content, sizeof content);
             git_state_release (&state);
             fflush (stdout);
             fprintf (stderr, "error: could not apply %s... %s\n", short_id,

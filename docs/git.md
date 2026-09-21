@@ -48,7 +48,8 @@ git submodule    [status [--cached]] | init | update [--init] [-q]
                  [<path>...]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
-git rebase       <upstream> [<branch>] | --continue | --abort | --skip
+git rebase       [-i] <upstream> [<branch>] | --continue | --abort
+                 | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
@@ -215,6 +216,27 @@ untracked files in it; the long form spells the same out after the name
 submodule the way git shows one, as the `Subproject commit` line
 changing. A submodule that was never cloned has nothing to say, which is
 also git's answer.
+
+`git rebase -i` writes the list of what it is about to replay, hands it
+to the sequence editor — `GIT_SEQUENCE_EDITOR`, then `sequence.editor`,
+then the ordinary editor — and does what comes back. The list is git's,
+down to the note under it, and the commands are `pick`, `reword`,
+`edit`, `squash`, `fixup`, `exec`, `break` and `drop`, in full or by
+their first letter. A line struck out drops that commit; lines moved
+about are replayed in the order they are in; a list with nothing left in
+it is `error: nothing to do` and the branch is untouched. `reword` and
+`squash` ask for the message in the editor, over git's note about what
+is being combined and where the rebase stands. `edit` stops with git's
+words about amending, and `git rebase --continue` then folds whatever
+was staged into that commit, asking for the message as git asks. `exec`
+runs its line through this build's own shell — a machine with no other
+one can still rebase — and a failure stops the rebase with git's
+warning.
+
+A commit that already stands where it would land is moved to rather than
+replayed, as git does: the run of them at the start is stepped over in
+one go, which is why a rebase that changes nothing says nothing at all,
+and each one after that is a `rebase: fast-forward` in the log.
 
 `git submodule` covers the three verbs a checkout needs. `status` says
 where each one stands: a minus for one with nothing checked out, a plus
@@ -585,8 +607,8 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: interactive rebase, renames between the index
-and the working tree, and a merge with more than one base. `git
-submodule add`, `deinit` and `foreach` are not there either: what this
-build has is the three verbs a checkout needs. The plan, including what each phase must match, is in the
+Left over from Phase 2: renames between the index and the working tree,
+a merge with more than one base, and `--rebase-merges`. `git submodule
+add`, `deinit` and `foreach` are not there either: what this build has
+is the three verbs a checkout needs. The plan, including what each phase must match, is in the
 implementation document for the port.
