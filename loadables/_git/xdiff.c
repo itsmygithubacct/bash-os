@@ -409,10 +409,14 @@ bgit_compact (const bgit_xdiff_file *file, char *changed,
         do {
             size = g.end - g.start;
             matching_other = -1;
-            while (!bgit_group_slide_up (file, changed, &g))
+            /* Every position the run passes on the way up is a place it
+               could sit beside a run in the other file, and the last one
+               seen is the one git lines it up with. */
+            while (!bgit_group_slide_up (file, changed, &g)) {
                 if (bgit_group_previous (other_changed, &go)) break;
+                if (go.end > go.start) matching_other = g.end;
+            }
             earliest_end = g.end;
-            if (go.end > go.start) matching_other = g.end;
             for (;;) {
                 if (bgit_group_slide_down (file, changed, &g)) break;
                 if (bgit_group_next (other_changed, (long) other->n, &go)) break;

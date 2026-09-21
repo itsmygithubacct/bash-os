@@ -31,6 +31,13 @@ git rev-list --count 'HEAD~2..HEAD'
 git rev-list 'HEAD~1..HEAD'
 git rev-list --count '^HEAD~1' HEAD
 
+echo '=== and the objects a range brings with it ==='
+# What the far side of the range already holds is not named again, which
+# is what makes this the list of what a pack for the range would carry.
+git rev-list --objects HEAD | sort
+git rev-list --objects 'HEAD~2..HEAD' | sort
+git rev-list --objects '^HEAD~1' HEAD | sort
+
 echo '=== ranges across branches ==='
 git switch -q -c topic
 printf 'topic\n' > t.txt
