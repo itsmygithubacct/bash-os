@@ -9,7 +9,7 @@ seconds=${FUZZ_SECONDS:-30}
 [[ -f "$BT/config.h" ]] || { echo 'Build Bash before running parser fuzzing' >&2; exit 1; }
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 mkdir -p "$d/helpers/builtins" "$d/helpers/examples/loadables" out/fuzz
-python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" ldap crypto >/dev/null
+python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" ldap crypto git >/dev/null
 flags=(-O1 -g -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer
        -ffunction-sections -fdata-sections -Wl,--gc-sections)
 "$CC" "${flags[@]}" -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
@@ -17,10 +17,12 @@ flags=(-O1 -g -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer
 "$CC" "${flags[@]}" tests/fuzz-image.c -lm -o out/fuzz/image
 "$CC" "${flags[@]}" tests/fuzz-toml.c loadables/_tomlc17/tomlc17.c -lm -o out/fuzz/toml
 "$CC" "${flags[@]}" -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
-  -I"$BT/examples/loadables" -Iloadables/common tests/fuzz-pack.c \
+  -I"$BT/examples/loadables" -I"$d/helpers/builtins" -Iloadables/common \
+  tests/fuzz-pack.c \
   loadables/_sha1dc/sha1.c loadables/_sha1dc/ubc_check.c -lz -o out/fuzz/pack
 "$CC" "${flags[@]}" -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
-  -I"$BT/examples/loadables" -Iloadables/common tests/fuzz-index.c \
+  -I"$BT/examples/loadables" -I"$d/helpers/builtins" -Iloadables/common \
+  tests/fuzz-index.c \
   loadables/_sha1dc/sha1.c loadables/_sha1dc/ubc_check.c -o out/fuzz/index
 python3 - <<'PY'
 from pathlib import Path
