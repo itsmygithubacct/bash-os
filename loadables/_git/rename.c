@@ -16,9 +16,12 @@
 
 #include "loadables.h"
 
+#include <sys/stat.h>
+
 #include "diff.h"
 #include "odb.h"
 #include "rename.h"
+#include "repo.h"
 
 /* One run of bytes as git cuts them: up to a newline, or 64 bytes. */
 struct bgit_chunk {
@@ -107,15 +110,46 @@ bgit_read_blob (bgit_odb *odb, const char *sha, unsigned char **data, size_t *le
     return bgit_odb_read (odb, sha, &type, data, len);
 }
 
-int
-bgit_similarity (bgit_odb *odb, const char *old_sha, const char *new_sha)
+/* The same, for a comparison that ends at the working tree: what is there
+   has been hashed but not written down, so it is read from the file when
+   the object store has not got it. */
+static int
+bgit_read_side (bgit_odb *odb, const bgit_repo *repo, const char *sha,
+                const char *path, unsigned char **data, size_t *len)
 {
-    if (old_sha && new_sha && !strcmp (old_sha, new_sha))
+    if (bgit_read_blob (odb, sha, data, len) == 0) return 0;
+    if (!repo || !repo->work_tree || !path) return -1;
+    char full[4096];
+    if (snprintf (full, sizeof full, "%s/%s", repo->work_tree, path) >=
+        (int) sizeof full)
+        return -1;
+    struct stat st;
+    if (lstat (full, &st) < 0) return -1;
+    if (S_ISLNK (st.st_mode)) {
+        char target[4096];
+        ssize_t got = readlink (full, target, sizeof target);
+        if (got < 0) return -1;
+        *data = malloc ((size_t) got ? (size_t) got : 1);
+        if (!*data) return -1;
+        memcpy (*data, target, (size_t) got);
+        *len = (size_t) got;
+        return 0;
+    }
+    return bgit_slurp_file (full, data, len);
+}
+
+static int
+bgit_score_sides (bgit_odb *odb, const bgit_repo *repo,
+                  const char *old_sha, const char *old_path,
+                  const char *new_sha, const char *new_path)
+{
+    if (old_sha && new_sha && *old_sha && *new_sha && !strcmp (old_sha, new_sha))
         return BGIT_RENAME_MAX_SCORE;
     unsigned char *old_data = NULL, *new_data = NULL;
     size_t old_len = 0, new_len = 0;
-    if (bgit_read_blob (odb, old_sha, &old_data, &old_len) < 0) return 0;
-    if (bgit_read_blob (odb, new_sha, &new_data, &new_len) < 0) {
+    if (bgit_read_side (odb, repo, old_sha, old_path, &old_data, &old_len) < 0)
+        return 0;
+    if (bgit_read_side (odb, repo, new_sha, new_path, &new_data, &new_len) < 0) {
         free (old_data);
         return 0;
     }
@@ -145,6 +179,12 @@ bgit_similarity (bgit_odb *odb, const char *old_sha, const char *new_sha)
     return score;
 }
 
+int
+bgit_similarity (bgit_odb *odb, const char *old_sha, const char *new_sha)
+{
+    return bgit_score_sides (odb, NULL, old_sha, NULL, new_sha, NULL);
+}
+
 /* One possible pairing, while the best ones are being chosen. */
 struct bgit_pair {
     size_t deleted, added;
@@ -162,7 +202,8 @@ bgit_pair_cmp (const void *a, const void *b)
 }
 
 int
-bgit_detect_renames (bgit_odb *odb, bgit_diff_entry **entries, size_t *n)
+bgit_detect_renames_in (bgit_odb *odb, const bgit_repo *repo,
+                        bgit_diff_entry **entries, size_t *n)
 {
     size_t count = *n;
     bgit_diff_entry *list = *entries;
@@ -195,8 +236,11 @@ bgit_detect_renames (bgit_odb *odb, bgit_diff_entry **entries, size_t *n)
         if (list[gone].status != 'D' || paired[gone]) continue;
         for (size_t added = 0; added < count; added++) {
             if (list[added].status != 'A' || paired[added]) continue;
-            int score = bgit_similarity (odb, list[gone].old_sha,
-                                         list[added].new_sha);
+            int score = bgit_score_sides (odb, repo, list[gone].old_sha,
+                                          list[gone].from ? list[gone].from
+                                                          : list[gone].path,
+                                          list[added].new_sha,
+                                          list[added].path);
             if (score < BGIT_RENAME_THRESHOLD) continue;
             if (n_pairs == cap) {
                 size_t next = cap ? cap * 2 : 32;
@@ -240,4 +284,10 @@ bgit_detect_renames (bgit_odb *odb, bgit_diff_entry **entries, size_t *n)
     *n = kept;
     free (paired);
     return 0;
+}
+
+int
+bgit_detect_renames (bgit_odb *odb, bgit_diff_entry **entries, size_t *n)
+{
+    return bgit_detect_renames_in (odb, NULL, entries, n);
 }

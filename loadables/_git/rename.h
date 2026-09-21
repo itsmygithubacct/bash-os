@@ -33,4 +33,9 @@ int bgit_similarity (bgit_odb *odb, const char *old_sha, const char *new_sha);
    from. Entries stay sorted by their new path, as git sorts them. */
 int bgit_detect_renames (bgit_odb *odb, bgit_diff_entry **entries, size_t *n);
 
+/* The same, for a comparison that ends at the working tree: what is there
+   has been hashed but not written down, so REPO says where to read it. */
+int bgit_detect_renames_in (bgit_odb *odb, const bgit_repo *repo,
+                            bgit_diff_entry **entries, size_t *n);
+
 #endif /* BASH_OS_GIT_RENAME_H */

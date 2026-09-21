@@ -280,8 +280,10 @@ is the threshold, and the same number out of a hundred is the `similarity
 index` a patch shows. Over a hundred and twenty randomly edited renames
 the score matches git's every time. `git diff`, `git log`, `git show` and
 `git status` all report renames, `--no-renames` turns it off, and a
-comparison that ends at the working tree does not look for them, having
-no recorded ids to compare.
+comparison that ends at the working tree looks for them too — what is
+there has been hashed but not written down, so the files themselves are
+read to weigh a pairing. A path renamed in the index and edited since is
+`RM`, as git writes it.
 
 Clone, fetch and pull go over the protocol, the way git goes over it even
 when both repositories are directories on this machine: `upload-pack` is
@@ -607,8 +609,8 @@ phase after.
 `git fetch` still wants the name of a remote where git also takes a
 path, which needs `FETCH_HEAD` to mean anything.
 
-Left over from Phase 2: renames between the index and the working tree,
-a merge with more than one base, and `--rebase-merges`. `git submodule
+Left over from Phase 2: a merge with more than one base, and
+`--rebase-merges`. `git submodule
 add`, `deinit` and `foreach` are not there either: what this build has
 is the three verbs a checkout needs. The plan, including what each phase must match, is in the
 implementation document for the port.

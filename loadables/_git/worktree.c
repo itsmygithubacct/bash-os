@@ -296,6 +296,15 @@ bgit_status_place (struct bgit_status_build *build, size_t at)
     build->slots[slot] = at + 1;
 }
 
+/* Put every entry back in the table, for when they have moved. */
+static void
+bgit_status_reindex (struct bgit_status_build *build)
+{
+    if (!build->slots) return;
+    memset (build->slots, 0, build->n_slots * sizeof *build->slots);
+    for (size_t i = 0; i < build->n; i++) bgit_status_place (build, i);
+}
+
 /* Keep the table at least twice the size of what it holds. Returns -1 only
    when there is no memory, and then the caller falls back to a walk. */
 static int
@@ -647,6 +656,9 @@ bgit_status (const bgit_repo *repo, bgit_odb *odb, const bgit_config *cfg,
                      (build.n - i - 1) * sizeof *build.entries);
             build.n--;
             i--;
+            /* Everything after the gap has moved, so where each path sits
+               has to be said again. */
+            bgit_status_reindex (&build);
         }
 
     /* The index against the working tree: what is not staged. An unmerged

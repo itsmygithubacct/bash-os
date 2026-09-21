@@ -3472,8 +3472,12 @@ static void
 git_find_renames (git_context *ctx, const struct git_diff_format *format,
                   bgit_diff_entry **entries, size_t *n, int from_worktree)
 {
-    if (format->no_renames || from_worktree) return;
-    bgit_detect_renames (&ctx->odb, entries, n);
+    if (format->no_renames) return;
+    /* A comparison that ends at the working tree has the new side hashed
+       but not written down, so the files themselves are where its content
+       is read from. */
+    bgit_detect_renames_in (&ctx->odb, from_worktree ? &ctx->repo : NULL,
+                            entries, n);
 }
 
 /* Was any form of diff asked for? */

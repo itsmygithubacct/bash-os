@@ -61,3 +61,27 @@ git mv two.txt four.txt
 git status --short
 git diff --cached --stat
 git diff --cached --summary
+
+echo '=== a rename that goes on being edited ==='
+git commit -q -m 'the swap'
+printf 'a file\nwith several lines\nso that a rename\nhas something to weigh\nand a fifth line\n' > carried.txt
+git add carried.txt
+git commit -q -m 'something to carry'
+mv carried.txt carried-elsewhere.txt
+git add -A
+printf 'and a sixth line\n' >> carried-elsewhere.txt
+git status --short
+git status --porcelain=v2
+git diff HEAD --stat
+git diff HEAD
+git diff --stat
+
+echo '=== and one that is only in the working tree ==='
+git add -A
+git commit -q -m 'carried'
+mv carried-elsewhere.txt carried-again.txt
+git status --short
+git diff --stat
+git add -A
+git status --short
+git diff HEAD --stat
