@@ -2824,6 +2824,29 @@ static int git_collect_commits (git_context *ctx, const char *const *revs,
                                 int n_excludes, int first_parent, long limit,
                                 char (**out)[41], size_t *n_out);
 
+/* Is this ref one the listing was narrowed to? */
+static int
+git_ref_listed (git_context *ctx, const char *sha, const char *merged,
+                const char *not_merged, const char *contains,
+                const char *points_at)
+{
+    char commit[41];
+    if (*points_at && strcmp (sha, points_at)) {
+        char peeled[41];
+        if (bgit_peel_to_type (&ctx->odb, sha, BGIT_COMMIT, peeled) < 0 ||
+            strcmp (peeled, points_at))
+            return 0;
+    }
+    if (!*merged && !*not_merged && !*contains) return 1;
+    if (bgit_peel_to_type (&ctx->odb, sha, BGIT_COMMIT, commit) < 0) return 0;
+    if (*merged && bgit_is_ancestor (&ctx->odb, commit, merged) <= 0) return 0;
+    if (*not_merged && bgit_is_ancestor (&ctx->odb, commit, not_merged) > 0)
+        return 0;
+    if (*contains && bgit_is_ancestor (&ctx->odb, contains, commit) <= 0)
+        return 0;
+    return 1;
+}
+
 /* The branch this one follows, and how far apart the two have got.
    Returns 0 when there is no upstream, 1 when there is, and 2 when the
    configuration names one that is not here any more. */
@@ -5717,18 +5740,47 @@ git_head_label (struct git_state *state, char *out, size_t outsz)
 static int
 git_cmd_branch (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git branch [-v] [-a | -r] [--show-current] "
+    const char *usage = "git branch [-v | -vv] [-a | -r] [--show-current] "
+                        "[--merged [<commit>]] [--no-merged [<commit>]] "
+                        "[--contains <commit>] [--points-at <object>] "
                         "[<name> [<start>]] | (-d | -D) <name> "
                         "| (-m | -M) <old> <new>";
     int verbose = 0, show_current = 0, delete_branch = 0, move_branch = 0, force = 0;
     int show_remotes = 0, only_remotes = 0;
+    /* What to leave out of the listing: each is a commit a branch has to
+       reach, or be reached by, or stand on. */
+    const char *merged = NULL, *not_merged = NULL, *contains = NULL;
+    const char *points_at = NULL;
+    int want_merged = 0, want_not_merged = 0;
     const char *names[2] = { NULL, NULL };
     int n_names = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "-vv")) verbose = 2;
         else if (!strcmp (w, "--show-current")) show_current = 1;
+        else if (!strcmp (w, "--merged")) {
+            want_merged = 1;
+            if (p->next && p->next->word->word[0] != '-')
+                merged = (p = p->next)->word->word;
+        }
+        else if (!strncmp (w, "--merged=", 9)) { want_merged = 1; merged = w + 9; }
+        else if (!strcmp (w, "--no-merged")) {
+            want_not_merged = 1;
+            if (p->next && p->next->word->word[0] != '-')
+                not_merged = (p = p->next)->word->word;
+        }
+        else if (!strncmp (w, "--no-merged=", 12)) {
+            want_not_merged = 1;
+            not_merged = w + 12;
+        }
+        else if (!strcmp (w, "--contains") && p->next)
+            contains = (p = p->next)->word->word;
+        else if (!strncmp (w, "--contains=", 11)) contains = w + 11;
+        else if (!strcmp (w, "--points-at") && p->next)
+            points_at = (p = p->next)->word->word;
+        else if (!strncmp (w, "--points-at=", 12)) points_at = w + 12;
         else if (!strcmp (w, "-a") || !strcmp (w, "--all")) show_remotes = 1;
         else if (!strcmp (w, "-r") || !strcmp (w, "--remotes")) {
             show_remotes = 1;
@@ -5845,6 +5897,43 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         goto done;
     }
 
+    /* Each of the three tests, resolved once, and any that cannot be
+       resolved is git's own complaint. */
+    char merged_id[41] = "", not_merged_id[41] = "", contains_id[41] = "";
+    char points_id[41] = "";
+    if (want_merged &&
+        (git_resolve (ctx, merged ? merged : "HEAD", merged_id, NULL) < 0 ||
+         bgit_peel_to_type (&ctx->odb, merged_id, BGIT_COMMIT, merged_id) < 0)) {
+        status = git_fatal ("malformed object name %s", merged ? merged : "HEAD");
+        goto done;
+    }
+    if (want_not_merged &&
+        (git_resolve (ctx, not_merged ? not_merged : "HEAD", not_merged_id,
+                      NULL) < 0 ||
+         bgit_peel_to_type (&ctx->odb, not_merged_id, BGIT_COMMIT,
+                            not_merged_id) < 0)) {
+        status = git_fatal ("malformed object name %s",
+                            not_merged ? not_merged : "HEAD");
+        goto done;
+    }
+    if (contains &&
+        (git_resolve (ctx, contains, contains_id, NULL) < 0 ||
+         bgit_peel_to_type (&ctx->odb, contains_id, BGIT_COMMIT,
+                            contains_id) < 0)) {
+        /* git says this one as an error against the options it was given,
+           and leaves with the status a usage mistake carries. */
+        fflush (stdout);
+        fprintf (stderr, "error: malformed object name %s\n", contains);
+        status = GIT_EXIT_USAGE;
+        goto done;
+    }
+    if (points_at && git_resolve (ctx, points_at, points_id, NULL) < 0) {
+        fflush (stdout);
+        fprintf (stderr, "error: malformed object name '%s'\n", points_at);
+        status = GIT_EXIT_USAGE;
+        goto done;
+    }
+
     /* A branch checked out in another worktree is marked, as git marks it. */
     struct git_worktree *trees = NULL;
     size_t n_trees = 0;
@@ -5859,8 +5948,37 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         status = git_fatal ("cannot read refs");
         goto done;
     }
+    bgit_ref *tracking = NULL;
+    size_t n_tracking = 0;
+    if (show_remotes &&
+        bgit_refs_list (&ctx->repo, "refs/remotes/", &tracking,
+                        &n_tracking) < 0) {
+        bgit_refs_free (refs, n_refs);
+        status = git_fatal ("cannot read refs");
+        goto done;
+    }
+    /* git pads every name in the listing to one width, so that the ids
+       line up down the whole of it. */
+    size_t width = 0;
+    for (size_t j = 0; j < n_refs; j++) {
+        if (!git_ref_listed (ctx, refs[j].sha, merged_id, not_merged_id,
+                             contains_id, points_id))
+            continue;
+        size_t len = strlen (refs[j].name + 11);
+        if (len > width) width = len;
+    }
+    for (size_t j = 0; j < n_tracking; j++) {
+        if (!git_ref_listed (ctx, tracking[j].sha, merged_id, not_merged_id,
+                             contains_id, points_id))
+            continue;
+        size_t len = strlen (tracking[j].name + 13) + (only_remotes ? 0 : 8);
+        if (len > width) width = len;
+    }
     for (size_t i = 0; i < n_refs; i++) {
         const char *name = refs[i].name + 11;
+        if (!git_ref_listed (ctx, refs[i].sha, merged_id, not_merged_id,
+                             contains_id, points_id))
+            continue;
         int current = state.branch && !strcmp (state.branch, refs[i].name);
         int elsewhere = 0;
         for (size_t w = 0; w < n_trees && !elsewhere; w++)
@@ -5878,61 +5996,68 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             git_subject (&commit, subject, sizeof subject);
             git_commit_release (&commit);
         }
-        /* git pads the names so the ids line up. */
-        size_t width = 0;
-        for (size_t j = 0; j < n_refs; j++) {
-            size_t len = strlen (refs[j].name + 11);
-            if (len > width) width = len;
+        /* -v says how far the branch has got from what it follows, and
+           -vv says what that is as well. */
+        char following[512] = "";
+        if (verbose) {
+            char upstream[512];
+            long ahead = 0, behind = 0;
+            int tracks = git_status_upstream (ctx, &state, name, upstream,
+                                              sizeof upstream, &ahead, &behind);
+            char apart[128] = "";
+            if (tracks == 2) snprintf (apart, sizeof apart, "gone");
+            else if (tracks == 1 && ahead && behind)
+                snprintf (apart, sizeof apart, "ahead %ld, behind %ld", ahead,
+                          behind);
+            else if (tracks == 1 && ahead)
+                snprintf (apart, sizeof apart, "ahead %ld", ahead);
+            else if (tracks == 1 && behind)
+                snprintf (apart, sizeof apart, "behind %ld", behind);
+            if (verbose > 1 && tracks && *apart)
+                snprintf (following, sizeof following, "[%s: %s] ", upstream,
+                          apart);
+            else if (verbose > 1 && tracks)
+                snprintf (following, sizeof following, "[%s] ", upstream);
+            else if (*apart)
+                snprintf (following, sizeof following, "[%s] ", apart);
         }
-        printf ("%s %-*s %s %s\n", mark, (int) width, name,
-                abbreviated, subject);
+        printf ("%s %-*s %s %s%s\n", mark, (int) width, name,
+                abbreviated, following, subject);
     }
     bgit_refs_free (refs, n_refs);
 
-    if (show_remotes) {
-        bgit_ref *tracking = NULL;
-        size_t n_tracking = 0;
-        if (bgit_refs_list (&ctx->repo, "refs/remotes/", &tracking,
-                            &n_tracking) == 0) {
-            for (size_t i = 0; i < n_tracking; i++) {
-                const char *name = tracking[i].name + 13;
-                /* A symbolic tracking ref shows what it points at. */
-                char *target = NULL;
-                if (bgit_symref_read (&ctx->repo, tracking[i].name, &target) == 0 &&
-                    target) {
-                    printf ("  %s%s -> %s\n", only_remotes ? "" : "remotes/",
-                            name, target + 13);
-                    free (target);
-                    continue;
-                }
-                free (target);
-                if (!verbose) {
-                    printf ("  %s%s\n", only_remotes ? "" : "remotes/", name);
-                    continue;
-                }
-                struct git_commit commit;
-                char abbreviated[41], subject[4096] = "";
-                git_abbrev (ctx, tracking[i].sha, 7, abbreviated,
-                            sizeof abbreviated);
-                if (git_commit_read (ctx, tracking[i].sha, &commit) == 0) {
-                    git_subject (&commit, subject, sizeof subject);
-                    git_commit_release (&commit);
-                }
-                size_t width = 0;
-                for (size_t j = 0; j < n_tracking; j++) {
-                    size_t len = strlen (tracking[j].name + 13) +
-                                 (only_remotes ? 0 : 8);
-                    if (len > width) width = len;
-                }
-                char shown[4096];
-                snprintf (shown, sizeof shown, "%s%s",
-                          only_remotes ? "" : "remotes/", name);
-                printf ("  %-*s %s %s\n", (int) width, shown, abbreviated,
-                        subject);
-            }
-            bgit_refs_free (tracking, n_tracking);
+    for (size_t i = 0; i < n_tracking; i++) {
+        const char *name = tracking[i].name + 13;
+        if (!git_ref_listed (ctx, tracking[i].sha, merged_id, not_merged_id,
+                             contains_id, points_id))
+            continue;
+        char shown[4096];
+        snprintf (shown, sizeof shown, "%s%s", only_remotes ? "" : "remotes/",
+                  name);
+        /* A symbolic tracking ref shows what it points at. */
+        char *target = NULL;
+        if (bgit_symref_read (&ctx->repo, tracking[i].name, &target) == 0 &&
+            target) {
+            printf ("  %-*s -> %s\n", verbose ? (int) width : 0, shown,
+                    target + 13);
+            free (target);
+            continue;
         }
+        free (target);
+        if (!verbose) {
+            printf ("  %s\n", shown);
+            continue;
+        }
+        struct git_commit commit;
+        char abbreviated[41], subject[4096] = "";
+        git_abbrev (ctx, tracking[i].sha, 7, abbreviated, sizeof abbreviated);
+        if (git_commit_read (ctx, tracking[i].sha, &commit) == 0) {
+            git_subject (&commit, subject, sizeof subject);
+            git_commit_release (&commit);
+        }
+        printf ("  %-*s %s %s\n", (int) width, shown, abbreviated, subject);
     }
+    bgit_refs_free (tracking, n_tracking);
 done:
     git_state_release (&state);
     return status;
@@ -6645,12 +6770,56 @@ git_cmd_describe (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* What -n writes beside a tag: an annotated tag's own message, or the
+   message of the commit a light one names. The caller frees it. */
+static char *
+git_tag_note (git_context *ctx, const char *sha)
+{
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, sha, &type, &data, &len) < 0) return NULL;
+    if (type == BGIT_TAG) {
+        /* The message is what follows the blank line after the headers. */
+        const char *body = (const char *) data;
+        size_t at = 0;
+        while (at < len) {
+            const char *nl = memchr (body + at, '\n', len - at);
+            size_t line = nl ? (size_t) (nl - (body + at)) : len - at;
+            at += line + 1;
+            if (!line) break;
+            if (!nl) { at = len; break; }
+        }
+        char *note = malloc (len - at + 1);
+        if (note) {
+            memcpy (note, body + at, len - at);
+            note[len - at] = '\0';
+        }
+        free (data);
+        return note;
+    }
+    free (data);
+    char commit[41];
+    if (bgit_peel_to_type (&ctx->odb, sha, BGIT_COMMIT, commit) < 0) return NULL;
+    struct git_commit read;
+    if (git_commit_read (ctx, commit, &read) < 0) return NULL;
+    char *note = strdup (read.message);
+    git_commit_release (&read);
+    return note;
+}
+
 static int
 git_cmd_tag (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git tag [-a] [-s] [-u <key>] [-m <message>] [-f] "
-                        "<name> [<commit>] | -d <name>... | -l [<pattern>]";
-    int annotate = 0, delete_tag = 0, list = 0, force = 0, sign = 0;
+                        "<name> [<commit>] | -d <name>... "
+                        "| [-l] [-n[<num>]] [--contains <commit>] "
+                        "[--merged <commit>] [--no-merged <commit>] "
+                        "[--points-at <object>] [<pattern>]";
+    int annotate = 0, delete_tag = 0, list = 0, force = 0, sign = 0, lines = 0;
+    const char *merged = NULL, *not_merged = NULL, *contains = NULL;
+    const char *points_at = NULL;
+    int want_merged = 0, want_not_merged = 0;
     const char *message = NULL, *signing_key = NULL;
     /* Two for making one tag, and as many as are given for deleting. */
     const char *names[64] = { NULL };
@@ -6672,6 +6841,40 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         }
         else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_tag = 1;
         else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
+        else if (!strcmp (w, "-n")) { lines = 1; list = 1; }
+        else if (w[0] == '-' && w[1] == 'n' && git_all_digits (w + 2)) {
+            lines = atoi (w + 2);
+            if (lines < 1) lines = 1;
+            list = 1;
+        }
+        else if (!strcmp (w, "--contains") && p->next) {
+            contains = (p = p->next)->word->word;
+            list = 1;
+        }
+        else if (!strncmp (w, "--contains=", 11)) { contains = w + 11; list = 1; }
+        else if (!strcmp (w, "--points-at") && p->next) {
+            points_at = (p = p->next)->word->word;
+            list = 1;
+        }
+        else if (!strncmp (w, "--points-at=", 12)) { points_at = w + 12; list = 1; }
+        else if (!strcmp (w, "--merged")) {
+            want_merged = list = 1;
+            if (p->next && p->next->word->word[0] != '-')
+                merged = (p = p->next)->word->word;
+        }
+        else if (!strncmp (w, "--merged=", 9)) {
+            want_merged = list = 1;
+            merged = w + 9;
+        }
+        else if (!strcmp (w, "--no-merged")) {
+            want_not_merged = list = 1;
+            if (p->next && p->next->word->word[0] != '-')
+                not_merged = (p = p->next)->word->word;
+        }
+        else if (!strncmp (w, "--no-merged=", 12)) {
+            want_not_merged = list = 1;
+            not_merged = w + 12;
+        }
         else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
         else if (!strcmp (w, "-m") && p->next) {
             message = p->next->word->word; annotate = 1; p = p->next;
@@ -6708,6 +6911,34 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         return status;
     }
     if (list || !n_names) {
+        char merged_id[41] = "", not_merged_id[41] = "", contains_id[41] = "";
+        char points_id[41] = "";
+        if (want_merged &&
+            (git_resolve (ctx, merged ? merged : "HEAD", merged_id, NULL) < 0 ||
+             bgit_peel_to_type (&ctx->odb, merged_id, BGIT_COMMIT,
+                                merged_id) < 0))
+            return git_fatal ("malformed object name %s",
+                              merged ? merged : "HEAD");
+        if (want_not_merged &&
+            (git_resolve (ctx, not_merged ? not_merged : "HEAD", not_merged_id,
+                          NULL) < 0 ||
+             bgit_peel_to_type (&ctx->odb, not_merged_id, BGIT_COMMIT,
+                                not_merged_id) < 0))
+            return git_fatal ("malformed object name %s",
+                              not_merged ? not_merged : "HEAD");
+        if (contains &&
+            (git_resolve (ctx, contains, contains_id, NULL) < 0 ||
+             bgit_peel_to_type (&ctx->odb, contains_id, BGIT_COMMIT,
+                                contains_id) < 0)) {
+            fflush (stdout);
+            fprintf (stderr, "error: malformed object name %s\n", contains);
+            return GIT_EXIT_USAGE;
+        }
+        if (points_at && git_resolve (ctx, points_at, points_id, NULL) < 0) {
+            fflush (stdout);
+            fprintf (stderr, "error: malformed object name '%s'\n", points_at);
+            return GIT_EXIT_USAGE;
+        }
         bgit_ref *refs = NULL;
         size_t n = 0;
         if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n) < 0)
@@ -6715,7 +6946,28 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < n; i++) {
             const char *name = refs[i].name + 10;
             if (names[0] && fnmatch (names[0], name, 0) != 0) continue;
-            printf ("%s\n", name);
+            if (!git_ref_listed (ctx, refs[i].sha, merged_id, not_merged_id,
+                                 contains_id, points_id))
+                continue;
+            if (!lines) {
+                printf ("%s\n", name);
+                continue;
+            }
+            /* -n writes what the tag says, or what the commit it names
+               says when the tag is a light one, a line at a time. */
+            char *message = git_tag_note (ctx, refs[i].sha);
+            const char *at = message ? message : "";
+            for (int shown = 0; shown < lines; shown++) {
+                const char *nl = strchr (at, '\n');
+                size_t len = nl ? (size_t) (nl - at) : strlen (at);
+                if (!len && !nl) break;
+                if (!shown) printf ("%-15s %.*s\n", name, (int) len, at);
+                else printf ("    %.*s\n", (int) len, at);
+                if (!nl) break;
+                at = nl + 1;
+            }
+            if (!*at && !message) printf ("%-15s\n", name);
+            free (message);
         }
         bgit_refs_free (refs, n);
         return 0;

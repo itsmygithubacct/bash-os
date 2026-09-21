@@ -41,7 +41,10 @@ git show         [-p | -s | --stat] [--oneline] [--format=<format>]
 git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
                  [--match <pattern>] [--candidates=<n>] [--dirty[=<mark>]]
                  [<commit-ish>...]
-git branch       [-v] [--show-current] [<name> [<start>]] | (-d | -D) <name>
+git branch       [-v | -vv] [-a | -r] [--show-current]
+                 [--merged [<commit>]] [--no-merged [<commit>]]
+                 [--contains <commit>] [--points-at <object>]
+                 [<name> [<start>]] | (-d | -D) <name>
                  | (-m | -M) <old> <new>
 git switch       [-q] [-c <new>] [--detach] <branch>
 git checkout     [-q] [-b <new>] <branch> | [--] <path>...
@@ -81,7 +84,9 @@ git ls-remote    [--heads] [--tags] [--symref] [--upload-pack=<command>]
                  [<repository>]
 git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a] [-s] [-u <key>] [-m <message>] [-f] [<name>
-                 [<object>]] | (-d | -l) ...
+                 [<object>]] | -d <name>... | [-l] [-n[<num>]]
+                 [--contains <commit>] [--merged <commit>]
+                 [--no-merged <commit>] [--points-at <object>] [<pattern>]
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--is-inside-work-tree] [--is-bare-repository]
@@ -183,6 +188,16 @@ git reads what bash-os writes and the other way round.
 
 A command or option this build does not have exits 129 and says so. It is
 never silently ignored.
+
+`git branch` and `git tag` list what they have, and the same four tests
+narrow either listing: `--merged` and `--no-merged` for what a commit
+reaches, `--contains` for what reaches a commit, and `--points-at` for
+what stands on one — a tag being weighed by what it peels to. `git branch
+-v` adds the id, the subject and how far the branch has got from what it
+follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
+the tag says beside it — the annotation for an annotated tag, and the
+commit's own message for a light one — a line at a time, the first beside
+the name and the rest indented.
 
 `git describe` calls a commit by the nearest tag behind it, how far back
 that tag is and the commit's own short id — `<tag>-<n>-g<id>`, or the tag

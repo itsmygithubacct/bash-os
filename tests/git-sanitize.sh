@@ -153,6 +153,18 @@ GIT_AUTHOR_NAME='Prefix Author' GIT_AUTHOR_EMAIL='prefix@bash-os.test' \
 GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000000 +0000' \
   git commit -q --allow-empty -m 'made with a name given for this command alone'
 git log -1 --format='%an <%ae> %ad'
+git branch -v
+git branch -vv
+git branch -a -v
+git branch --merged
+git branch --no-merged
+git branch --contains HEAD~1
+git branch --points-at HEAD
+git tag -n
+git tag -n3
+git tag --contains HEAD~1
+git tag --points-at HEAD
+git tag --merged HEAD
 git describe --tags
 git describe --tags --long
 git describe --always --abbrev=12
