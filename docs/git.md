@@ -39,6 +39,9 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [<object>...]
+git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
+                 [-e <pattern>] [--cached] [<pattern>] [<tree-ish>]
+                 [-- <path>...]
 git shortlog     [-n] [-s] [-e] [--no-merges] [<revision range>]
 git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
                  [--match <pattern>] [--candidates=<n>] [--dirty[=<mark>]]
@@ -213,6 +216,15 @@ follows; `-vv` names that branch as well. `git tag -n[<num>]` writes what
 the tag says beside it — the annotation for an annotated tag, and the
 commit's own message for a light one — a line at a time, the first beside
 the name and the rest indented.
+
+`git grep` searches what the repository tracks, and nothing else: the
+files in the working tree by default, the index with `--cached`, or a
+tree named on the command line, whose paths are written with it in front.
+`-i`, `-w`, `-v`, `-E` and `-F` decide what counts as a match, and `-n`,
+`-l`, `-c` and `-h` the shape of what is written. A file with a NUL near
+its start is binary, and then git says only that it matches; each run of
+text between the NUL bytes is searched on its own, so an anchored pattern
+holds to the line it is in.
 
 `git shortlog` gathers the commits by who wrote them: every subject under
 its author, oldest first, or just the counts with `-s`, ordered by name

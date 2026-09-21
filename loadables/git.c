@@ -6975,6 +6975,281 @@ git_tag_note (git_context *ctx, const char *sha)
     return note;
 }
 
+/* ---- grep -------------------------------------------------------------- */
+
+struct git_grep {
+    regex_t *patterns;
+    const char **fixed;          /* the same patterns, when they stand for
+                                    themselves */
+    int n_patterns;
+    int ignore_case, line_numbers, names_only, count_only, no_name;
+    int word, invert;
+};
+
+/* Is the match at [start, end) a whole word? */
+static int
+git_grep_word (const char *line, size_t len, size_t start, size_t end)
+{
+    if (start && (isalnum ((unsigned char) line[start - 1]) ||
+                  line[start - 1] == '_'))
+        return 0;
+    if (end < len && (isalnum ((unsigned char) line[end]) ||
+                      line[end] == '_'))
+        return 0;
+    return 1;
+}
+
+/* Does one run of text — a line, or a piece of one between NUL bytes —
+   answer to any of the patterns? */
+static int
+git_grep_piece (const struct git_grep *grep, const char *line, size_t len,
+                int at_start, int at_end)
+{
+    char held[65536];
+    if (len >= sizeof held) len = sizeof held - 1;
+    memcpy (held, line, len);
+    held[len] = '\0';
+    for (int i = 0; i < grep->n_patterns; i++) {
+        if (grep->fixed[i]) {
+            size_t needle = strlen (grep->fixed[i]);
+            if (!needle) return 1;
+            for (size_t at = 0; at + needle <= len; at++) {
+                size_t j = 0;
+                while (j < needle &&
+                       (grep->ignore_case
+                        ? tolower ((unsigned char) held[at + j]) ==
+                          tolower ((unsigned char) grep->fixed[i][j])
+                        : held[at + j] == grep->fixed[i][j]))
+                    j++;
+                if (j < needle) continue;
+                if (!grep->word || git_grep_word (held, len, at, at + needle))
+                    return 1;
+            }
+            continue;
+        }
+        regmatch_t where;
+        size_t from = 0;
+        /* A piece that does not start the line cannot answer to ^, and
+           one that does not end it cannot answer to $. */
+        int edges = (at_end ? 0 : REG_NOTEOL);
+        while (from <= len &&
+               regexec (&grep->patterns[i], held + from, 1, &where,
+                        edges | (from || !at_start ? REG_NOTBOL : 0)) == 0) {
+            size_t start = from + (size_t) where.rm_so;
+            size_t end = from + (size_t) where.rm_eo;
+            if (!grep->word || git_grep_word (held, len, start, end)) return 1;
+            from = end > start ? end : start + 1;
+        }
+    }
+    return 0;
+}
+
+/* A line of a binary file has NUL bytes in it, and a pattern is matched
+   against text, so each run between them is searched on its own. */
+static int
+git_grep_line (const struct git_grep *grep, const char *line, size_t len)
+{
+    size_t at = 0;
+    while (at <= len) {
+        size_t piece = 0;
+        while (at + piece < len && line[at + piece]) piece++;
+        if (piece && git_grep_piece (grep, line + at, piece, at == 0,
+                                     at + piece >= len))
+            return 1;
+        if (at + piece >= len) break;
+        at += piece + 1;
+    }
+    return 0;
+}
+
+/* One file's content, however it was reached. */
+static int
+git_grep_file (const struct git_grep *grep, const char *shown,
+               const char *text, size_t len, int *matched_any)
+{
+    /* git calls a file binary when a NUL turns up near the start of it,
+       and then says so instead of writing its lines out. */
+    int binary = 0;
+    size_t look = len < 8000 ? len : 8000;
+    for (size_t i = 0; i < look && !binary; i++) if (!text[i]) binary = 1;
+
+    size_t hits = 0, line_no = 0;
+    char **lines = NULL;
+    size_t *lengths = NULL;
+    size_t n_lines = 0;
+    /* Walk the lines once, printing as they match unless only counts or
+       names are wanted. */
+    for (size_t at = 0; at <= len;) {
+        if (at == len && len) break;
+        const char *nl = memchr (text + at, '\n', len - at);
+        size_t line_len = nl ? (size_t) (nl - (text + at)) : len - at;
+        if (!nl && !line_len) break;
+        line_no++;
+        int hit = git_grep_line (grep, text + at, line_len);
+        if (grep->invert) hit = !hit;
+        if (hit) {
+            hits++;
+            *matched_any = 1;
+            if (!grep->names_only && !grep->count_only && !binary) {
+                if (grep->no_name) {
+                    if (grep->line_numbers) printf ("%zu:", line_no);
+                } else if (grep->line_numbers)
+                    printf ("%s:%zu:", shown, line_no);
+                else printf ("%s:", shown);
+                printf ("%.*s\n", (int) line_len, text + at);
+            }
+        }
+        if (!nl) break;
+        at += line_len + 1;
+    }
+    free (lines);
+    free (lengths);
+    if (!hits) return 0;
+    if (grep->names_only) printf ("%s\n", shown);
+    else if (grep->count_only) {
+        if (grep->no_name) printf ("%zu\n", hits);
+        else printf ("%s:%zu\n", shown, hits);
+    }
+    else if (binary && !grep->invert) printf ("Binary file %s matches\n", shown);
+    return 0;
+}
+
+static int
+git_cmd_grep (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git grep [-i] [-n] [-l] [-c] [-h] [-w] [-v] "
+                        "[-E | -F] [-e <pattern>] [--cached] [<pattern>] "
+                        "[<tree-ish>] [-- <path>...]";
+    struct git_grep grep;
+    memset (&grep, 0, sizeof grep);
+    int extended = 0, fixed = 0, cached = 0, no_more = 0;
+    const char *patterns[16];
+    int n_patterns = 0;
+    const char *tree_ish = NULL;
+    const char *paths[32];
+    int n_paths = 0;
+
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
+        if (no_more) {
+            if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+            else return git_fatal ("too many paths");
+            continue;
+        }
+        if (!strcmp (w, "-e") && p->next) {
+            if (n_patterns < (int) (sizeof patterns / sizeof *patterns))
+                patterns[n_patterns++] = (p = p->next)->word->word;
+            continue;
+        }
+        if (w[0] == '-' && w[1] && w[1] != '-') {
+            int known = 1;
+            for (const char *flag = w + 1; *flag && known; flag++)
+                switch (*flag) {
+                case 'i': grep.ignore_case = 1; break;
+                case 'n': grep.line_numbers = 1; break;
+                case 'l': grep.names_only = 1; break;
+                case 'c': grep.count_only = 1; break;
+                case 'h': grep.no_name = 1; break;
+                case 'w': grep.word = 1; break;
+                case 'v': grep.invert = 1; break;
+                case 'E': extended = 1; break;
+                case 'F': fixed = 1; break;
+                default: known = 0; break;
+                }
+            if (known) continue;
+            return git_usage (usage);
+        }
+        if (!strcmp (w, "--cached")) { cached = 1; continue; }
+        if (!strcmp (w, "--ignore-case")) { grep.ignore_case = 1; continue; }
+        if (!strcmp (w, "--line-number")) { grep.line_numbers = 1; continue; }
+        if (!strcmp (w, "--files-with-matches") || !strcmp (w, "--name-only")) {
+            grep.names_only = 1;
+            continue;
+        }
+        if (!strcmp (w, "--count")) { grep.count_only = 1; continue; }
+        if (!strcmp (w, "--word-regexp")) { grep.word = 1; continue; }
+        if (!strcmp (w, "--invert-match")) { grep.invert = 1; continue; }
+        if (!strcmp (w, "--extended-regexp")) { extended = 1; continue; }
+        if (!strcmp (w, "--fixed-strings")) { fixed = 1; continue; }
+        if (w[0] == '-' && w[1]) return git_usage (usage);
+        if (!n_patterns) { patterns[n_patterns++] = w; continue; }
+        if (!tree_ish) { tree_ish = w; continue; }
+        if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
+        else return git_fatal ("too many paths");
+    }
+    if (!n_patterns) return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    grep.n_patterns = n_patterns;
+    grep.patterns = calloc ((size_t) n_patterns, sizeof *grep.patterns);
+    grep.fixed = calloc ((size_t) n_patterns, sizeof *grep.fixed);
+    if (!grep.patterns || !grep.fixed) {
+        free (grep.patterns);
+        free (grep.fixed);
+        return GIT_EXIT_FATAL;
+    }
+    for (int i = 0; i < n_patterns; i++) {
+        if (fixed) { grep.fixed[i] = patterns[i]; continue; }
+        int flags = (extended ? REG_EXTENDED : 0) |
+                    (grep.ignore_case ? REG_ICASE : 0);
+        if (regcomp (&grep.patterns[i], patterns[i], flags) != 0) {
+            free (grep.patterns);
+            free (grep.fixed);
+            return git_fatal ("invalid pattern: %s", patterns[i]);
+        }
+    }
+
+    int status = 0, matched = 0;
+    bgit_index_entry *entries = NULL;
+    size_t n = 0;
+    char tree[41];
+    if (tree_ish) {
+        char id[41];
+        if (git_resolve (ctx, tree_ish, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0)
+            status = git_fatal ("bad object %s", tree_ish);
+        else if (bgit_read_tree (&ctx->odb, tree, &entries, &n) < 0)
+            status = git_fatal ("cannot read %s", tree_ish);
+    } else if (git_index_load (ctx, &entries, &n) < 0)
+        status = GIT_EXIT_FATAL;
+
+    for (size_t i = 0; i < n && !status; i++) {
+        if (n_paths && !git_path_named (entries[i].path, paths, n_paths))
+            continue;
+        if (entries[i].mode == 0160000) continue;   /* a repository of its own */
+        char shown[8192];
+        if (tree_ish)
+            snprintf (shown, sizeof shown, "%s:%s", tree_ish, entries[i].path);
+        else snprintf (shown, sizeof shown, "%s", entries[i].path);
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (tree_ish || cached) {
+            char hex[41];
+            enum bgit_type type;
+            bgit_sha_to_hex (entries[i].sha, hex);
+            if (bgit_odb_read (&ctx->odb, hex, &type, &data, &len) < 0) continue;
+        } else {
+            char full[4096];
+            if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                                   ctx->repo.work_tree ? ctx->repo.work_tree : ".",
+                                   entries[i].path) >= sizeof full)
+                continue;
+            struct stat st;
+            if (lstat (full, &st) < 0 || !S_ISREG (st.st_mode)) continue;
+            if (bgit_slurp_file (full, &data, &len) < 0) continue;
+        }
+        git_grep_file (&grep, shown, (const char *) data, len, &matched);
+        free (data);
+    }
+    bgit_index_free_entries (entries, n);
+    if (!fixed)
+        for (int i = 0; i < n_patterns; i++) regfree (&grep.patterns[i]);
+    free (grep.patterns);
+    free (grep.fixed);
+    return status ? status : (matched ? 0 : 1);
+}
+
 /* ---- shortlog ---------------------------------------------------------- */
 
 /* Who wrote what, gathered by author. */
@@ -17666,6 +17941,7 @@ static const struct {
     { "for-each-ref", git_cmd_for_each_ref },
     { "hash-object",  git_cmd_hash_object },
     { "index-pack",   git_cmd_index_pack },
+    { "grep",         git_cmd_grep },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },

@@ -154,6 +154,15 @@ git log --oneline -S line -- long.txt
 git log --oneline -G 'line [0-9]'
 git log --oneline -i --pickaxe-regex -S 'LINE [0-9]+'
 git log --oneline -S nothingatall
+git grep line || true
+git grep -n -i LINE || true
+git grep -l line || true
+git grep -c -w line || true
+git grep -E 'line [0-9]+' || true
+git grep -F 'line 7' || true
+git grep --cached line || true
+git grep line HEAD || true
+git grep -v line || true
 git shortlog HEAD
 git shortlog -sne HEAD
 git log | git shortlog -sn
