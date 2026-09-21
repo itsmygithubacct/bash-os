@@ -4693,11 +4693,15 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             status = git_fatal ("not a valid object name: '%s'.", start);
             goto done;
         }
-        /* git records the name the start point resolved through. */
+        /* git records the name the start point resolved through, and
+           says whether the branch was made or moved. */
         char label[256];
         git_head_label (ctx, &state, label, sizeof label);
+        char already[41];
         char message[1200];
-        snprintf (message, sizeof message, "branch: Created from %s",
+        snprintf (message, sizeof message, "branch: %s %s",
+                  bgit_ref_read (&ctx->repo, ref, already) == 0 ? "Reset to"
+                                                                : "Created from",
                   strcmp (start, "HEAD") ? start : label);
         if (bgit_ref_update (&ctx->repo, ref, id, NULL, message) < 0)
             status = GIT_EXIT_FATAL;
@@ -10501,7 +10505,7 @@ git_rebase_clear (git_context *ctx)
     static const char *const names[] = {
         "head-name", "onto", "orig-head", "msgnum", "end", "done",
         "git-rebase-todo", "interactive", "message", "stopped-sha", "amend",
-        NULL
+        "update-refs", NULL
     };
     char path[4096];
     for (int i = 0; names[i]; i++)
@@ -10924,7 +10928,160 @@ git_rebase_line_render (git_context *ctx, const char *line, int full,
               rest + strlen (name));
 }
 
-/* What has been done and what is left, written down after every command,/* What has been done and what is left, written down after every command,
+/* The branches a rebase is carrying along, written down as it goes: a
+   name, where it was, and where it has got to — nothing until the command
+   for it runs, and applied when the rebase is done. git keeps the same
+   three lines for each in .git/rebase-merge/update-refs. */
+static int
+git_rebase_refs_read (git_context *ctx, char (*names)[4096], char (*was)[41],
+                      char (*now)[41], int max)
+{
+    char path[4096];
+    if (git_rebase_path (ctx, "update-refs", path, sizeof path) < 0) return 0;
+    FILE *file = fopen (path, "r");
+    if (!file) return 0;
+    int n = 0;
+    char line[4096];
+    while (n < max && fgets (line, sizeof line, file)) {
+        size_t len = strlen (line);
+        while (len && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+            line[--len] = '\0';
+        if (!*line) continue;
+        snprintf (names[n], 4096, "%s", line);
+        if (!fgets (line, sizeof line, file)) break;
+        snprintf (was[n], 41, "%.40s", line);
+        if (!fgets (line, sizeof line, file)) break;
+        snprintf (now[n], 41, "%.40s", line);
+        n++;
+    }
+    fclose (file);
+    return n;
+}
+
+static void
+git_rebase_refs_write (git_context *ctx, char (*names)[4096], char (*was)[41],
+                       char (*now)[41], int n)
+{
+    /* By name, which is the order git keeps them in and lists them in. */
+    for (int i = 1; i < n; i++)
+        for (int k = i; k > 0 && strcmp (names[k - 1], names[k]) > 0; k--) {
+            char name[4096], one[41], two[41];
+            memcpy (name, names[k - 1], sizeof name);
+            memcpy (names[k - 1], names[k], sizeof name);
+            memcpy (names[k], name, sizeof name);
+            memcpy (one, was[k - 1], 41);
+            memcpy (was[k - 1], was[k], 41);
+            memcpy (was[k], one, 41);
+            memcpy (two, now[k - 1], 41);
+            memcpy (now[k - 1], now[k], 41);
+            memcpy (now[k], two, 41);
+        }
+    char content[65536];
+    size_t at = 0;
+    content[0] = '\0';
+    for (int i = 0; i < n && at < sizeof content; i++)
+        at += (size_t) snprintf (content + at, sizeof content - at,
+                                 "%s\n%s\n%s\n", names[i], was[i], now[i]);
+    git_rebase_write (ctx, "update-refs", content);
+}
+
+/* Every branch a todo list says to carry along, written down before the
+   rebase starts so that a stop and a later continue still know them. */
+static void
+git_rebase_refs_start (git_context *ctx, char todo[][1200], int n_todo)
+{
+    char (*names)[4096] = calloc (n_todo ? n_todo : 1, sizeof *names);
+    char (*was)[41] = calloc (n_todo ? n_todo : 1, sizeof *was);
+    char (*now)[41] = calloc (n_todo ? n_todo : 1, sizeof *now);
+    if (!names || !was || !now) {
+        free (names); free (was); free (now);
+        return;
+    }
+    int n = 0;
+    for (int i = 0; i < n_todo; i++) {
+        char command[32], name[64];
+        const char *rest = "";
+        if (!git_rebase_todo_parse (todo[i], command, sizeof command, name,
+                                    sizeof name, &rest))
+            continue;
+        const char *verb = git_rebase_command (command);
+        if (!verb || strcmp (verb, "update-ref") || !*name) continue;
+        char full[41];
+        snprintf (names[n], sizeof names[0], "%s", name);
+        snprintf (was[n], 41, "%s",
+                  bgit_ref_read (&ctx->repo, name, full) == 0 ? full : "");
+        if (!*was[n])
+            snprintf (was[n], 41, "%040d", 0);
+        snprintf (now[n], 41, "%040d", 0);
+        n++;
+    }
+    if (n) git_rebase_refs_write (ctx, names, was, now, n);
+    free (names); free (was); free (now);
+}
+
+/* One such branch reaching the place it will end up at. */
+static void
+git_rebase_refs_mark (git_context *ctx, const char *name, const char *id)
+{
+    char (*names)[4096] = calloc (64, sizeof *names);
+    char (*was)[41] = calloc (64, sizeof *was);
+    char (*now)[41] = calloc (64, sizeof *now);
+    if (!names || !was || !now) {
+        free (names); free (was); free (now);
+        return;
+    }
+    int n = git_rebase_refs_read (ctx, names, was, now, 64);
+    int found = 0;
+    for (int i = 0; i < n; i++)
+        if (!strcmp (names[i], name)) {
+            snprintf (now[i], 41, "%s", id);
+            found = 1;
+        }
+    if (!found && n < 64) {
+        snprintf (names[n], sizeof names[0], "%s", name);
+        char full[41];
+        snprintf (was[n], 41, "%s",
+                  bgit_ref_read (&ctx->repo, name, full) == 0 ? full : "");
+        if (!*was[n]) snprintf (was[n], 41, "%040d", 0);
+        snprintf (now[n], 41, "%s", id);
+        n++;
+    }
+    git_rebase_refs_write (ctx, names, was, now, n);
+    free (names); free (was); free (now);
+}
+
+/* And all of them at the end, which is when git moves them. */
+static void
+git_rebase_refs_apply (git_context *ctx, int quiet)
+{
+    char (*names)[4096] = calloc (64, sizeof *names);
+    char (*was)[41] = calloc (64, sizeof *was);
+    char (*now)[41] = calloc (64, sizeof *now);
+    if (!names || !was || !now) {
+        free (names); free (was); free (now);
+        return;
+    }
+    int n = git_rebase_refs_read (ctx, names, was, now, 64);
+    int said = 0;
+    for (int i = 0; i < n; i++) {
+        if (!strcmp (now[i], "0000000000000000000000000000000000000000"))
+            continue;
+        if (bgit_ref_update (&ctx->repo, names[i], now[i], NULL,
+                             "rewritten during rebase") < 0)
+            continue;
+        if (quiet) continue;
+        if (!said) {
+            fflush (stdout);
+            fprintf (stderr, "Updated the following refs with "
+                             "--update-refs:\n");
+            said = 1;
+        }
+        fprintf (stderr, "\t%s\n", names[i]);
+    }
+    free (names); free (was); free (now);
+}
+
+/* What has been done and what is left, written down after every command,/* What has been done and what is left, written down after every command,/* What has been done and what is left, written down after every command,
    so that a rebase which stops can be taken up where it left off. */
 static void
 git_rebase_record (git_context *ctx, char done_lines[][1200], int *done_count,
@@ -11078,6 +11235,8 @@ git_rebase_command (const char *word)
         { "b", "break" }, { "d", "drop" },
         /* What a rebase that keeps the merges is written with. */
         { "l", "label" }, { "t", "reset" }, { "m", "merge" },
+        /* And what one that carries the other branches along is. */
+        { "u", "update-ref" },
         { NULL, NULL }
     };
     for (int i = 0; names[i][0]; i++)
@@ -11185,6 +11344,9 @@ typedef struct {
     char (*forks)[41];      /* where the branch and its new base parted */
     size_t n_forks;
     int cousins;
+    bgit_ref *heads;        /* the branches that may be carried along */
+    size_t n_heads;
+    const char *head_name;  /* the one being rebased, which is not */
 } git_rebase_plan;
 
 /* A name that can be a file, and so a ref: everything that is not a letter
@@ -11410,9 +11572,17 @@ git_plan_section (git_rebase_plan *plan, const char *tip, const char *label)
             return -1;
         }
         if (from && !from->labelled) {
+            /* After whatever already follows that commit: a branch being
+               carried along is written down with it, and git puts the
+               name after all of that. */
+            int at = from->at + 1;
+            while (at < (int) plan->n_lines &&
+                   (!strncmp (plan->lines[at], "update-ref ", 11) ||
+                    !*plan->lines[at]))
+                at++;
             char label_line[1200];
             snprintf (label_line, sizeof label_line, "label %s", name);
-            if (git_plan_write (plan, from->at + 1, label_line) < 0) {
+            if (git_plan_write (plan, at, label_line) < 0) {
                 free (chain);
                 return -1;
             }
@@ -11438,6 +11608,20 @@ git_plan_section (git_rebase_plan *plan, const char *tip, const char *label)
         if (at < 0) goto fail;
         chain[i]->emitted = 1;
         chain[i]->at = at;
+        /* A branch standing where this commit does is carried along with
+           it, which is what --update-refs asks for. */
+        int carried = 0;
+        for (size_t k = 0; k < plan->n_heads; k++) {
+            if (strcmp (plan->heads[k].sha, chain[i]->id) ||
+                (plan->head_name && !strcmp (plan->heads[k].name,
+                                             plan->head_name)))
+                continue;
+            char line[1200];
+            snprintf (line, sizeof line, "update-ref %s", plan->heads[k].name);
+            if (git_plan_write (plan, -1, line) < 0) goto fail;
+            carried = 1;
+        }
+        if (carried && git_plan_write (plan, -1, "") < 0) goto fail;
     }
     if (label) {
         char end[1200];
@@ -11458,13 +11642,17 @@ fail:
    commands in it, or -1. */
 static int
 git_rebase_merges_script (git_context *ctx, const char *head, const char *onto,
-                          int cousins, FILE *out)
+                          int cousins, int update_refs, const char *head_name,
+                          FILE *out)
 {
     git_rebase_plan plan;
     memset (&plan, 0, sizeof plan);
     plan.ctx = ctx;
     plan.cousins = cousins;
+    plan.head_name = head_name;
     memcpy (plan.onto, onto, 41);
+    if (update_refs)
+        bgit_refs_list (&ctx->repo, "refs/heads/", &plan.heads, &plan.n_heads);
 
     const char *starts[1] = { head };
     const char *excludes[1] = { onto };
@@ -11544,6 +11732,7 @@ git_rebase_merges_script (git_context *ctx, const char *head, const char *onto,
     free (plan.labels);
     free (plan.lines);
     free (plan.forks);
+    bgit_refs_free (plan.heads, plan.n_heads);
     return commands;
 
 fail:
@@ -11551,6 +11740,7 @@ fail:
     free (plan.labels);
     free (plan.lines);
     free (plan.forks);
+    bgit_refs_free (plan.heads, plan.n_heads);
     return -1;
 }
 
@@ -11718,22 +11908,23 @@ git_rebase_finish (git_context *ctx, struct git_state *state,
         return GIT_EXIT_FATAL;
     bgit_reflog_append (&ctx->repo, "HEAD", state->head, state->head, message);
     git_rebase_labels_clear (ctx);
-    git_rebase_clear (ctx);
     if (!quiet) {
         fflush (stdout);
         fprintf (stderr, "Successfully rebased and updated %s.\n", head_name);
     }
+    git_rebase_refs_apply (ctx, quiet);
+    git_rebase_clear (ctx);
     return 0;
 }
 
 static int
 git_cmd_rebase (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git rebase [-i] [-r] <upstream> [<branch>] | --continue "
-                        "| --abort | --skip";
+    const char *usage = "git rebase [-i] [-r] [--update-refs] <upstream> "
+                        "[<branch>] | --continue | --abort | --skip";
     const char *upstream = NULL, *branch = NULL;
     int continue_it = 0, abort_it = 0, skip_it = 0, quiet = 0, interactive = 0;
-    int rebase_merges = 0, cousins = 0;
+    int rebase_merges = 0, cousins = 0, update_refs = -1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
@@ -11745,6 +11936,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
             interactive = 1;
         else if (!strcmp (w, "-r") || !strcmp (w, "--rebase-merges"))
             rebase_merges = 1;
+        else if (!strcmp (w, "--update-refs")) update_refs = 1;
+        else if (!strcmp (w, "--no-update-refs")) update_refs = 0;
         else if (!strncmp (w, "--rebase-merges=", 16)) {
             rebase_merges = 1;
             if (!strcmp (w + 16, "rebase-cousins")) cousins = 1;
@@ -11761,6 +11954,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
+    if (update_refs < 0)
+        update_refs = bgit_config_bool (&ctx->cfg, "rebase.updateRefs", 0);
 
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
@@ -12113,6 +12308,24 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                     continue;
             }
             git_rebase_line (ctx, commit, todo[n_todo++], sizeof todo[0]);
+            /* A branch standing where this commit does is carried along
+               with it, which is what --update-refs asks for. */
+            if (update_refs) {
+                bgit_ref *heads = NULL;
+                size_t n_heads = 0;
+                if (bgit_refs_list (&ctx->repo, "refs/heads/", &heads,
+                                    &n_heads) == 0) {
+                    for (size_t k = 0; k < n_heads &&
+                         n_todo < (int) (sizeof todo / sizeof todo[0]); k++) {
+                        if (strcmp (heads[k].sha, commit) ||
+                            !strcmp (heads[k].name, head_name))
+                            continue;
+                        snprintf (todo[n_todo++], sizeof todo[0],
+                                  "update-ref %s", heads[k].name);
+                    }
+                    bgit_refs_free (heads, n_heads);
+                }
+            }
         }
         free (ordered);
 
@@ -12171,7 +12384,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
             int commands = n_todo;
             if (rebase_merges) {
                 commands = git_rebase_merges_script (ctx, state.head, onto,
-                                                     cousins, out);
+                                                     cousins, update_refs,
+                                                     head_name, out);
                 if (commands < 0) {
                     fclose (out);
                     git_rebase_clear (ctx);
@@ -12179,7 +12393,16 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                     return GIT_EXIT_FATAL;
                 }
             } else
-                for (int i = 0; i < n_todo; i++) fprintf (out, "%s\n", todo[i]);
+                for (int i = 0; i < n_todo; i++) {
+                    fprintf (out, "%s\n", todo[i]);
+                    /* git sets a branch it is carrying along apart from
+                       what comes after it. */
+                    if (strncmp (todo[i], "update-ref ", 11)) continue;
+                    if (i + 1 < n_todo &&
+                        !strncmp (todo[i + 1], "update-ref ", 11))
+                        continue;
+                    fprintf (out, "\n");
+                }
             git_rebase_todo_note (out, ctx, onto, state.head, onto, commands);
             fclose (out);
             if (interactive && git_edit_file (ctx, path, 1) < 0) {
@@ -12285,6 +12508,9 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                                     sizeof state_content);
         }
         git_rebase_write (ctx, "interactive", "");
+        /* The branches this list says to carry along, so that a stop and
+           a later continue still know about them. */
+        git_rebase_refs_start (ctx, todo, n_todo);
         /* What was stepped over is written down as done, so that the
            numbering and a later --continue both count it. */
         {
@@ -12335,7 +12561,8 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
         int moved_to = 0;
         if (!melding && strcmp (verb, "exec") && strcmp (verb, "break") &&
             strcmp (verb, "drop") && strcmp (verb, "label") &&
-            strcmp (verb, "reset") && strcmp (verb, "merge") && *name &&
+            strcmp (verb, "reset") && strcmp (verb, "merge") &&
+            strcmp (verb, "update-ref") && *name &&
             git_resolve (ctx, name, id, NULL) == 0) {
             char parents[BGIT_MAX_PARENTS][41], tree[41];
             int n_parents = bgit_commit_parents (&ctx->odb, id, parents,
@@ -12360,6 +12587,15 @@ git_cmd_rebase (git_context *ctx, WORD_LIST *args)
                     continue;
                 }
             }
+        }
+
+        /* A branch carried along reaches its place here; it is moved
+           when the whole rebase is done, as git moves it. */
+        if (!strcmp (verb, "update-ref")) {
+            git_rebase_record (ctx, done_lines, &done_count, todo, n_todo, i,
+                               content, sizeof content);
+            if (*name) git_rebase_refs_mark (ctx, name, state.head);
+            continue;
         }
 
         /* A rebase that keeps its merges works with labels: a name for

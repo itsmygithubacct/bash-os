@@ -50,7 +50,8 @@ git submodule    [status [--cached]] | init | update [--init] [-q]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       [-i] [-r | --rebase-merges[=(no-)rebase-cousins]]
-                 <upstream> [<branch>] | --continue | --abort | --skip
+                 [--update-refs] <upstream> [<branch>]
+                 | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | add <name> <url> | remove <name> | set-url <name>
@@ -260,6 +261,16 @@ further back than this rebase itself keeps where it was, unless
 `--rebase-merges=rebase-cousins` says to move it onto the new base too.
 The labels are refs under `refs/rewritten` while the rebase runs, and go
 when it finishes or is called off.
+
+`--update-refs`, or `rebase.updateRefs`, carries the other branches
+along: every branch standing on a commit about to be replayed gets an
+`update-ref` line after that commit's pick, and each one is moved to
+where its commit ended up. The moves happen when the whole rebase is
+done, not as it goes, so a rebase that stopped and was taken up again
+still knows about them — they are written down in
+`.git/rebase-merge/update-refs`, three lines to a branch, the way git
+writes them. Each branch moved says `rewritten during rebase` in its
+reflog, and at the end the rebase lists what it moved.
 
 The three commands can also be written by hand in any `-i` list. `label`
 names where HEAD stands, `reset` comes back to a name or a commit, and
@@ -698,13 +709,17 @@ message and changes nothing.
 
 ## Still to come
 
-All four phases of the port are in: the everyday commands, history
-editing, remotes over a path and over HTTP, and ssh and signing. What is
-left is the odd corner of each.
+All four phases of the port are in, and so is what each of them named:
+the everyday commands, history editing, remotes over a path and over
+HTTP, and ssh and signing.
 
-The one todo command this build does not answer is `update-ref`, which
-git writes only when it is told to `--update-refs`; a list holding one
-stops with `error: invalid command`. And `git://` is not spoken at all.
+What is left out was left out on purpose. A repository whose objects are
+named by SHA-256 is refused rather than half read. `git://` is not spoken
+at all, and neither is dumb HTTP. Reftable, partial clones, sparse
+checkouts, the split index, attributes and the filters that go with them
+(end-of-line conversion, LFS), `add -p` and GPG signatures — as against
+the ssh signatures this build does make and check — are all outside what
+this port set out to do.
 
 The plan, including what each phase must match, is in the implementation
 document for the port.
