@@ -171,11 +171,11 @@ def state(directory):
             output = b'\n'.join(line for line in output.splitlines()
                                  if not line.startswith(b'dangling '))
         facts[label] = (status, output)
-    facts['reflog'] = (facts['reflog'][0], level_merge_action(facts))
+    facts['reflog'] = (facts['reflog'][0], level_merge_action(directory, facts))
     return facts
 
 
-def level_merge_action(facts):
+def level_merge_action(directory, facts):
     """The reflog action on a merge a rebase made, levelled.
 
     git changed its mind about this between versions: 2.47 leaves whatever
@@ -185,11 +185,14 @@ def level_merge_action(facts):
     everything else about every line, this one included, is compared
     exactly.
     """
+    # Every commit a reflog mentions, whether a ref still reaches it or
+    # not, since a scenario that resets away from a merge leaves one only
+    # the reflog knows about.
     merges = set()
-    for line in facts['log'][1].splitlines():
+    for line in git_out(directory, 'log', '-g', '--all',
+                        '--format=%H %P')[1].splitlines():
         fields = line.split()
-        if (len(fields) > 3 and len(fields[0]) == 40 and len(fields[3]) == 40
-                and all(c in b'0123456789abcdef' for c in fields[3])):
+        if len(fields) > 2 and len(fields[0]) == 40:
             merges.add(fields[0])
     levelled = []
     for line in facts['reflog'][1].splitlines():
