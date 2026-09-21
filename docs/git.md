@@ -48,6 +48,7 @@ git blame        [-s] [-l] [-L <start>[,<end>]] [<rev>] [--] <file>
 git count-objects [-v] [-H]
 git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
                  [--no-reflogs] [--connectivity-only] [<object>...]
+git prune        [-n | --dry-run] [-v] [--expire <time>] [<head>...]
 git apply        [--check] [--stat] [--numstat] [--summary] [-R] [-p<n>]
                  [--index] [--cached] [<patch>...]
 git grep         [-i] [-n] [-l] [-c] [-h] [-w] [-v] [-E | -F]
@@ -276,6 +277,14 @@ for both.
 its type and size, and with `--batch` it prints each one's contents after
 that. `--unordered` is accepted and changes nothing, since the listing is
 in order either way.
+
+`git prune` takes away what that walk does not reach: every loose object
+in this repository's own object directory, the temporary files a write
+left behind, and the fanout directories that end up empty. `--expire`
+keeps anything newer than the time given, `-n` says what would go without
+taking it, and `-v` says it while taking it. Heads named on the command
+line are walked instead of the refs, the index and the reflogs. Objects
+inside a pack are not touched, and neither is an alternate's store.
 
 What a head is, `fsck` takes from git: the refs, HEAD, the index, and the
 reflogs. Two of the index's extensions count as well — the sides of a
@@ -1017,11 +1026,11 @@ the everyday commands, history editing, remotes over a path and over
 HTTP, and ssh and signing — and, since then, what everyday use asked for
 next: the log's dates, decorations and filters, the two that read a diff,
 the listings in full, and describe, shortlog, grep, apply, format-patch,
-am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects
-and fsck.
+am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
+fsck and prune.
 
 What is not here yet, in the order it would be missed: the housekeeping
-that rewrites the store — `gc`, `repack` and `prune`; `notes`, `bisect`,
+that rewrites the store — `gc` and `repack`; `notes`, `bisect`,
 `archive` and `bundle`; `remote show`; `diff --word-diff`;
 `describe --contains` and `--all`;
 `--date=human`; and `%N`.

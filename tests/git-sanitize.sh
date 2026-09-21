@@ -581,6 +581,14 @@ if command -v ssh-keygen > /dev/null; then
 fi
 
 git fsck 2>/dev/null || true
+# Last, because it takes objects away: the same walk fsck does, and then
+# every loose object nothing reaches.
+git prune -n > /dev/null
+git prune -n -v > /dev/null
+git prune --expire=2.weeks.ago -n > /dev/null
+git prune HEAD > /dev/null 2>&1 || true
+git prune -v > /dev/null
+git fsck 2>/dev/null || true
 SCENARIO
 
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \

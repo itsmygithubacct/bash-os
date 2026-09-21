@@ -9400,6 +9400,106 @@ git_fsck_reflog_roots (struct git_fsck *f, struct git_fsck_walk *walk,
     closedir (handle);
 }
 
+/* The store's objects, in a list fsck and prune can look one up in.
+   Returns 0, or -1 with git's wording. */
+static int
+git_fsck_collect (struct git_fsck *f)
+{
+    char (*names)[41] = NULL;
+    size_t n = 0;
+    if (bgit_odb_list (&f->ctx->odb, &names, &n) < 0) {
+        fflush (stdout);
+        fprintf (stderr, "fatal: out of memory\n");
+        return -1;
+    }
+    f->objects = calloc (n ? n : 1, sizeof *f->objects);
+    if (!f->objects) {
+        free (names);
+        fflush (stdout);
+        fprintf (stderr, "fatal: out of memory\n");
+        return -1;
+    }
+    f->n = n;
+    for (size_t i = 0; i < n; i++) {
+        memcpy (f->objects[i].sha, names[i], 41);
+        f->objects[i].type = BGIT_UNKNOWN;
+    }
+    free (names);
+    return 0;
+}
+
+/* The heads a walk starts from: every ref, HEAD, what the index holds, and
+   unless told otherwise the reflogs. WITH_UNDO adds the sides of a conflict
+   the index kept, which fsck counts as held and prune does not. NOTICES
+   lets fsck say what it says about a repository with no commit in it. */
+static void
+git_fsck_heads (struct git_fsck *f, struct git_fsck_walk *walk, int reflogs,
+                int with_undo, int notices)
+{
+    git_context *ctx = f->ctx;
+    bgit_ref *refs = NULL;
+    size_t n_refs = 0;
+    int have_refs = 0;
+    if (bgit_refs_list (&ctx->repo, "", &refs, &n_refs) == 0) {
+        have_refs = n_refs > 0;
+        for (size_t i = 0; i < n_refs; i++)
+            git_fsck_push (f, walk, refs[i].sha);
+        bgit_refs_free (refs, n_refs);
+    }
+    char head[41];
+    if (bgit_ref_resolve (&ctx->repo, "HEAD", head, NULL) == 0 &&
+        bgit_all_hex (head)) {
+        git_fsck_push (f, walk, head);
+        have_refs = 1;
+    } else if (notices) {
+        char *target = NULL;
+        if (bgit_symref_read (&ctx->repo, "HEAD", &target) == 0 && target) {
+            const char *shown = !strncmp (target, "refs/heads/", 11)
+                                    ? target + 11 : target;
+            fprintf (stderr, "notice: HEAD points to an unborn branch (%s)\n",
+                     shown);
+            free (target);
+        }
+    }
+    if (notices && !have_refs) fprintf (stderr, "notice: No default references\n");
+
+    char index_path[4096];
+    struct stat index_st;
+    if (git_index_path (ctx, index_path, sizeof index_path) == 0 &&
+        stat (index_path, &index_st) == 0) {
+        bgit_index_entry *entries = NULL;
+        size_t n_entries = 0;
+        if (bgit_index_read (index_path, &entries, &n_entries) == 0) {
+            for (size_t i = 0; i < n_entries; i++) {
+                char sha[41];
+                bgit_sha_to_hex (entries[i].sha, sha);
+                git_fsck_push (f, walk, sha);
+            }
+            bgit_index_free_entries (entries, n_entries);
+        }
+        char (*held)[41] = NULL;
+        size_t n_held = 0;
+        if (with_undo &&
+            bgit_index_resolve_undo (index_path, &held, &n_held) == 0) {
+            for (size_t i = 0; i < n_held; i++)
+                git_fsck_push (f, walk, held[i]);
+            free (held);
+        }
+        if (bgit_index_cache_tree (index_path, &held, &n_held) == 0) {
+            for (size_t i = 0; i < n_held; i++)
+                git_fsck_push (f, walk, held[i]);
+            free (held);
+        }
+    }
+
+    if (reflogs) {
+        char logs[4096];
+        if ((size_t) snprintf (logs, sizeof logs, "%s/logs",
+                               ctx->repo.common_dir) < sizeof logs)
+            git_fsck_reflog_roots (f, walk, logs);
+    }
+}
+
 static int
 git_cmd_fsck (git_context *ctx, WORD_LIST *args)
 {
@@ -9437,27 +9537,7 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
         else if (n_heads < sizeof heads / sizeof heads[0]) heads[n_heads++] = w;
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
-
-    char (*names)[41] = NULL;
-    size_t n = 0;
-    if (bgit_odb_list (&ctx->odb, &names, &n) < 0) {
-        fflush (stdout);
-        fprintf (stderr, "fatal: out of memory\n");
-        return GIT_EXIT_FATAL;
-    }
-    fsck.objects = calloc (n ? n : 1, sizeof *fsck.objects);
-    if (!fsck.objects) {
-        free (names);
-        fflush (stdout);
-        fprintf (stderr, "fatal: out of memory\n");
-        return GIT_EXIT_FATAL;
-    }
-    fsck.n = n;
-    for (size_t i = 0; i < n; i++) {
-        memcpy (fsck.objects[i].sha, names[i], 41);
-        fsck.objects[i].type = BGIT_UNKNOWN;
-    }
-    free (names);
+    if (git_fsck_collect (&fsck) < 0) return GIT_EXIT_FATAL;
 
     if (fsck.verbose)
         for (size_t i = 0; i < ctx->odb.n_object_dirs; i++)
@@ -9472,66 +9552,52 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
        and the reflogs: git walks out from those and nothing else. */
     int default_heads = n_heads == 0;
     if (fsck.verbose && default_heads) fprintf (stderr, "Checking HEAD link\n");
-    bgit_ref *refs = NULL;
-    size_t n_refs = 0;
-    int have_refs = 0;
-    if (bgit_refs_list (&ctx->repo, "", &refs, &n_refs) == 0) {
-        have_refs = n_refs > 0;
-        for (size_t i = 0; i < n_refs; i++) {
-            if (default_heads) git_fsck_push (&fsck, &walk, refs[i].sha);
-            if (!fsck.show_tags || strncmp (refs[i].name, "refs/tags/", 10))
-                continue;
-            enum bgit_type type = BGIT_UNKNOWN;
-            unsigned char *data = NULL;
-            size_t len = 0;
-            if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data, &len) < 0)
-                continue;
-            if (type == BGIT_TAG) {
-                char target[41] = "";
-                char kind[16] = "";
-                size_t at = 0;
-                while (at < len) {
-                    size_t end = at;
-                    while (end < len && data[end] != '\n') end++;
-                    if (end == at) break;
-                    if (end - at == 47 &&
-                        !strncmp ((const char *) data + at, "object ", 7)) {
-                        memcpy (target, data + at + 7, 40);
-                        target[40] = '\0';
-                    } else if (end - at > 5 &&
-                               !strncmp ((const char *) data + at, "type ", 5)) {
-                        size_t take = end - at - 5;
-                        if (take >= sizeof kind) take = sizeof kind - 1;
-                        memcpy (kind, data + at + 5, take);
-                        kind[take] = '\0';
+    if (default_heads) git_fsck_heads (&fsck, &walk, reflogs, 1, 1);
+
+    /* --tags says what each annotated tag points at, whether or not the
+       refs are what the walk started from. */
+    if (fsck.show_tags) {
+        bgit_ref *refs = NULL;
+        size_t n_refs = 0;
+        if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n_refs) == 0) {
+            for (size_t i = 0; i < n_refs; i++) {
+                enum bgit_type type = BGIT_UNKNOWN;
+                unsigned char *data = NULL;
+                size_t len = 0;
+                if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data,
+                                   &len) < 0)
+                    continue;
+                if (type == BGIT_TAG) {
+                    char target[41] = "";
+                    char kind[16] = "";
+                    size_t at = 0;
+                    while (at < len) {
+                        size_t stop = at;
+                        while (stop < len && data[stop] != '\n') stop++;
+                        if (stop == at) break;
+                        if (stop - at == 47 &&
+                            !strncmp ((const char *) data + at, "object ", 7)) {
+                            memcpy (target, data + at + 7, 40);
+                            target[40] = '\0';
+                        } else if (stop - at > 5 &&
+                                   !strncmp ((const char *) data + at,
+                                             "type ", 5)) {
+                            size_t take = stop - at - 5;
+                            if (take >= sizeof kind) take = sizeof kind - 1;
+                            memcpy (kind, data + at + 5, take);
+                            kind[take] = '\0';
+                        }
+                        at = stop + 1;
                     }
-                    at = end + 1;
+                    if (*target)
+                        printf ("tagged %s %s (%s) in %s\n",
+                                *kind ? kind : "commit", target,
+                                refs[i].name + 10, refs[i].sha);
                 }
-                if (*target)
-                    printf ("tagged %s %s (%s) in %s\n", *kind ? kind : "commit",
-                            target, refs[i].name + 10, refs[i].sha);
+                free (data);
             }
-            free (data);
+            bgit_refs_free (refs, n_refs);
         }
-    }
-    char head[41];
-    if (default_heads) {
-        if (bgit_ref_resolve (&ctx->repo, "HEAD", head, NULL) == 0 &&
-            bgit_all_hex (head)) {
-            git_fsck_push (&fsck, &walk, head);
-            have_refs = 1;
-        } else {
-            char *target = NULL;
-            if (bgit_symref_read (&ctx->repo, "HEAD", &target) == 0 && target) {
-                const char *shown = !strncmp (target, "refs/heads/", 11)
-                                        ? target + 11 : target;
-                fprintf (stderr,
-                         "notice: HEAD points to an unborn branch (%s)\n",
-                         shown);
-                free (target);
-            }
-        }
-        if (!have_refs) fprintf (stderr, "notice: No default references\n");
     }
 
     for (size_t i = 0; i < n_heads; i++) {
@@ -9544,46 +9610,6 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
                              "'%s'\n", heads[i]);
             fsck.errors |= 1;
         }
-    }
-
-    /* What the index holds is a head too, so a staged file is not lost. */
-    char index_path[4096];
-    struct stat index_st;
-    if (default_heads &&
-        git_index_path (ctx, index_path, sizeof index_path) == 0 &&
-        stat (index_path, &index_st) == 0) {
-        bgit_index_entry *entries = NULL;
-        size_t n_entries = 0;
-        if (bgit_index_read (index_path, &entries, &n_entries) == 0) {
-            for (size_t i = 0; i < n_entries; i++) {
-                char sha[41];
-                bgit_sha_to_hex (entries[i].sha, sha);
-                git_fsck_push (&fsck, &walk, sha);
-            }
-            bgit_index_free_entries (entries, n_entries);
-        }
-        /* The sides of a conflict that was resolved are held too, so that
-           `git checkout -m` can bring them back, and so are the trees the
-           index has already worked out for what it holds. */
-        char (*held)[41] = NULL;
-        size_t n_held = 0;
-        if (bgit_index_resolve_undo (index_path, &held, &n_held) == 0) {
-            for (size_t i = 0; i < n_held; i++)
-                git_fsck_push (&fsck, &walk, held[i]);
-            free (held);
-        }
-        if (bgit_index_cache_tree (index_path, &held, &n_held) == 0) {
-            for (size_t i = 0; i < n_held; i++)
-                git_fsck_push (&fsck, &walk, held[i]);
-            free (held);
-        }
-    }
-
-    if (reflogs && default_heads) {
-        char logs[4096];
-        if ((size_t) snprintf (logs, sizeof logs, "%s/logs",
-                               ctx->repo.common_dir) < sizeof logs)
-            git_fsck_reflog_roots (&fsck, &walk, logs);
     }
 
     git_fsck_reach (&fsck, &walk);
@@ -9600,11 +9626,144 @@ git_cmd_fsck (git_context *ctx, WORD_LIST *args)
             printf ("dangling %s %s\n", bgit_type_name (o->type), o->sha);
     }
 
-    bgit_refs_free (refs, n_refs);
     free (walk.pending);
     free (fsck.objects);
     free (fsck.absent);
     return fsck.errors;
+}
+
+/* ---- prune -------------------------------------------------------------- */
+
+/* A loose object file older than EXPIRE and reached by nothing goes; the
+   fanout directory goes with it once it is empty, and so does a temporary
+   file left behind by a write that did not finish. */
+static int
+git_cmd_prune (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git prune [-n | --dry-run] [-v | --verbose] "
+                        "[--expire <time>] [--] [<head>...]";
+    int dry_run = 0, verbose = 0;
+    time_t expire = (time_t) -1;        /* -1: whatever its age */
+    const char *heads[64];
+    size_t n_heads = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-n") || !strcmp (w, "--dry-run")) dry_run = 1;
+        else if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "--progress") || !strcmp (w, "--no-progress")) ;
+        else if (!strcmp (w, "--expire")) {
+            if (!p->next) return git_usage (usage);
+            p = p->next;
+            expire = (time_t) git_approxidate (p->word->word);
+        } else if (!strncmp (w, "--expire=", 9)) {
+            expire = (time_t) git_approxidate (w + 9);
+        } else if (!strcmp (w, "--")) ;
+        else if (w[0] == '-' && w[1]) return git_usage (usage);
+        else if (n_heads < sizeof heads / sizeof heads[0]) heads[n_heads++] = w;
+    }
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    struct git_fsck walk_state;
+    memset (&walk_state, 0, sizeof walk_state);
+    walk_state.ctx = ctx;
+    if (git_fsck_collect (&walk_state) < 0) return GIT_EXIT_FATAL;
+    /* Nothing is read for its own sake here: the walk reads what it reaches
+       and the rest is only asked what it is on the way out. */
+    for (size_t i = 0; i < walk_state.n; i++) walk_state.objects[i].present = 1;
+
+    struct git_fsck_walk walk;
+    memset (&walk, 0, sizeof walk);
+    git_fsck_heads (&walk_state, &walk, 1, 0, 0);
+    for (size_t i = 0; i < n_heads; i++) {
+        char full[41];
+        if (git_resolve (ctx, heads[i], full, NULL) == 0)
+            git_fsck_push (&walk_state, &walk, full);
+        else {
+            free (walk.pending);
+            free (walk_state.objects);
+            free (walk_state.absent);
+            return git_fatal ("bad object %s", heads[i]);
+        }
+    }
+    git_fsck_reach (&walk_state, &walk);
+
+    /* Only the objects this repository writes, loose and in its own
+       directory: an alternate's are not ours to remove, and a packed object
+       is not removed one at a time. */
+    const char *objects = ctx->odb.n_object_dirs ? ctx->odb.object_dirs[0] : NULL;
+    int rc = 0;
+    if (objects) {
+        DIR *top = opendir (objects);
+        if (top) {
+            struct dirent *entry;
+            while ((entry = readdir (top))) {
+                char path[4096];
+                if (!strncmp (entry->d_name, "tmp_obj_", 8)) {
+                    if ((size_t) snprintf (path, sizeof path, "%s/%s", objects,
+                                           entry->d_name) >= sizeof path)
+                        continue;
+                    struct stat st;
+                    if (lstat (path, &st) < 0 || !S_ISREG (st.st_mode)) continue;
+                    if (expire != (time_t) -1 && st.st_mtime > expire) continue;
+                    if (dry_run || verbose)
+                        printf ("Removing stale temporary file %s\n",
+                                git_fsck_shown_path (&walk_state, path));
+                    if (!dry_run) unlink (path);
+                    continue;
+                }
+                if (strlen (entry->d_name) != 2 ||
+                    !isxdigit ((unsigned char) entry->d_name[0]) ||
+                    !isxdigit ((unsigned char) entry->d_name[1]))
+                    continue;
+                char dir[4096];
+                if ((size_t) snprintf (dir, sizeof dir, "%s/%s", objects,
+                                       entry->d_name) >= sizeof dir)
+                    continue;
+                DIR *inner = opendir (dir);
+                if (!inner) continue;
+                struct dirent *one;
+                while ((one = readdir (inner))) {
+                    if (strlen (one->d_name) != 38) continue;
+                    char sha[41];
+                    sha[0] = entry->d_name[0];
+                    sha[1] = entry->d_name[1];
+                    memcpy (sha + 2, one->d_name, 38);
+                    sha[40] = '\0';
+                    if (!bgit_all_hex (sha)) continue;
+                    long at = git_fsck_find (&walk_state, sha);
+                    if (at >= 0 && walk_state.objects[at].reachable) continue;
+                    if ((size_t) snprintf (path, sizeof path, "%s/%s", dir,
+                                           one->d_name) >= sizeof path)
+                        continue;
+                    struct stat st;
+                    if (lstat (path, &st) < 0 || !S_ISREG (st.st_mode)) continue;
+                    if (expire != (time_t) -1 && st.st_mtime > expire) continue;
+                    if (dry_run || verbose) {
+                        enum bgit_type type = BGIT_UNKNOWN;
+                        unsigned char *data = NULL;
+                        size_t len = 0;
+                        if (bgit_odb_read (&ctx->odb, sha, &type, &data,
+                                           &len) == 0)
+                            free (data);
+                        printf ("%s %s\n", sha, bgit_type_name (type));
+                    }
+                    if (!dry_run && unlink (path) < 0) {
+                        fflush (stdout);
+                        fprintf (stderr, "error: unable to unlink %s: %s\n",
+                                 path, strerror (errno));
+                        rc = 1;
+                    }
+                }
+                closedir (inner);
+                if (!dry_run) rmdir (dir);   /* only when it is empty */
+            }
+            closedir (top);
+        }
+    }
+    free (walk.pending);
+    free (walk_state.objects);
+    free (walk_state.absent);
+    return rc;
 }
 
 /* ---- format-patch ------------------------------------------------------ */
@@ -20724,6 +20883,7 @@ static const struct {
     { "merge-file",   git_cmd_merge_file },
     { "mv",           git_cmd_mv },
     { "pack-objects", git_cmd_pack_objects },
+    { "prune",        git_cmd_prune },
     { "pull",         git_cmd_pull },
     { "push",         git_cmd_push },
     { "read-tree",    git_cmd_read_tree },
