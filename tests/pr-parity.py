@@ -43,6 +43,9 @@ def reference(args, data=b'', cwd=None):
                           capture_output=True, env=host, cwd=cwd, timeout=60)
 
 
+ATTEMPTS = 5
+
+
 def clock_race(first, second):
     """The header of a standard-input page carries the current minute in both
     implementations, so two runs either side of a minute boundary differ only
@@ -52,13 +55,15 @@ def clock_race(first, second):
 
 def compare(args, data=b'', cwd=None, label=None):
     global checks
-    for attempt in (1, 2):
+    # A loaded machine can land the two runs either side of the same minute
+    # several times over, so the race is given a few tries before it counts.
+    for attempt in range(1, ATTEMPTS + 1):
         actual = builtin(args, data, cwd)
         expected = reference(args, data, cwd)
         if (actual.returncode, actual.stdout) == (expected.returncode, expected.stdout):
             checks += 1
             return
-        if attempt == 1 and clock_race(actual.stdout, expected.stdout):
+        if attempt < ATTEMPTS and clock_race(actual.stdout, expected.stdout):
             continue
         raise AssertionError(
             f'pr {label or args}: status {actual.returncode} vs {expected.returncode}\n'
