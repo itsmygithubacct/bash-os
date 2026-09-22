@@ -94,6 +94,73 @@ bgit_xdiff_result_release (bgit_xdiff_result *result)
     memset (result, 0, sizeof *result);
 }
 
+/* ------------------------------------------- overlooking whitespace */
+
+/* The form of a line that a comparison overlooking whitespace compares
+   instead of the line: under -w nothing of the whitespace at all, under -b
+   each run of it inside the line down to one space and none of what trails
+   the line, and under the two narrower rules only what trails — a whole run
+   of whitespace, or one carriage return on a line that had a newline of its
+   own to end. Writes to OUT, which needs room for LEN bytes, and returns
+   how much it wrote. */
+static size_t
+bgit_line_canonical (const char *line, size_t len, int complete, int flags,
+                     char *out)
+{
+    size_t n = 0;
+    if (flags & BGIT_XDIFF_IGNORE_WS) {
+        for (size_t i = 0; i < len; i++)
+            if (!isspace ((unsigned char) line[i])) out[n++] = line[i];
+        return n;
+    }
+    if (flags & BGIT_XDIFF_IGNORE_WS_CHANGE) {
+        for (size_t i = 0; i < len; ) {
+            if (!isspace ((unsigned char) line[i])) {
+                out[n++] = line[i++];
+                continue;
+            }
+            size_t run = i;
+            while (run < len && isspace ((unsigned char) line[run])) run++;
+            if (run < len) out[n++] = ' ';
+            i = run;
+        }
+        return n;
+    }
+    n = len;
+    if (flags & BGIT_XDIFF_IGNORE_WS_AT_EOL) {
+        while (n && isspace ((unsigned char) line[n - 1])) n--;
+    } else if (complete && n && line[n - 1] == '\r') {
+        n--;
+    }
+    memcpy (out, line, n);
+    return n;
+}
+
+/* A file of canonical lines, one for each of FILE's, to compare in its
+   place. *TEXT is the buffer the caller frees once the file is released. */
+static int
+bgit_canonical_file (const bgit_xdiff_file *file, int flags,
+                     bgit_xdiff_file *out, char **text)
+{
+    char *buffer = malloc (file->len + file->n + 2);
+    if (!buffer) return -1;
+    size_t at = 0;
+    for (size_t i = 0; i < file->n; i++) {
+        int complete = !(i + 1 == file->n && file->missing_newline);
+        at += bgit_line_canonical (file->lines[i], file->lengths[i], complete,
+                                   flags, buffer + at);
+        buffer[at++] = '\n';
+    }
+    if (bgit_xdiff_load (out, buffer, at) < 0 || out->binary ||
+        out->n != file->n) {
+        bgit_xdiff_release (out);
+        free (buffer);
+        return -1;
+    }
+    *text = buffer;
+    return 0;
+}
+
 /* --------------------------------------------- reducing the problem */
 
 #define BGIT_MAX_EQLIMIT 1024
@@ -650,13 +717,16 @@ bgit_group_slide_down (const bgit_xdiff_file *file, long n, char *changed,
 }
 
 /* Move each run of changes in FILE to where it reads best, keeping the runs
-   in the other file in step so the two descriptions stay paired. Only when
+   in the other file in step so the two descriptions stay paired. A run
+   moves where FILE says two lines are the same; how far it should move is
+   read off TEXT, which is the same file as it really is where FILE is a
+   file of lines with their whitespace taken out. Only when
    INDENT_HEURISTIC does indentation get a say; git leaves it out of a diff
    of words, where indentation means nothing. */
 static void
-bgit_compact (const bgit_xdiff_file *file, long n, char *changed,
-              const bgit_xdiff_file *other, long other_n, char *other_changed,
-              int indent_heuristic)
+bgit_compact (const bgit_xdiff_file *file, const bgit_xdiff_file *text, long n,
+              char *changed, const bgit_xdiff_file *other, long other_n,
+              char *other_changed, int indent_heuristic)
 {
     bgit_group g, go;
     bgit_group_init (changed, &g);
@@ -707,9 +777,9 @@ bgit_compact (const bgit_xdiff_file *file, long n, char *changed,
             for (; shift <= g.end; shift++) {
                 bgit_split_measure m;
                 bgit_split_score score = {0, 0};
-                bgit_measure_split (file, n, shift, &m);
+                bgit_measure_split (text, n, shift, &m);
                 bgit_score_add_split (&m, &score);
-                bgit_measure_split (file, n, shift - size, &m);
+                bgit_measure_split (text, n, shift - size, &m);
                 bgit_score_add_split (&m, &score);
                 if (best_shift == -1 || bgit_score_cmp (&score, &best) <= 0) {
                     best = score;
@@ -792,20 +862,40 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
         }
     }
 
+    /* Where whitespace is to be overlooked, what gets compared is a file of
+       lines with theirs taken out; the files themselves are still what the
+       patch shows, and still what indentation is read from. */
+    const bgit_xdiff_file *key_old = old, *key_new = new_file;
+    bgit_xdiff_file canon_old, canon_new;
+    char *canon_old_text = NULL, *canon_new_text = NULL;
+    memset (&canon_old, 0, sizeof canon_old);
+    memset (&canon_new, 0, sizeof canon_new);
+    if ((flags & BGIT_XDIFF_WS_MASK) &&
+        bgit_canonical_file (old, flags, &canon_old, &canon_old_text) == 0 &&
+        bgit_canonical_file (new_file, flags, &canon_new, &canon_new_text) == 0) {
+        key_old = &canon_old;
+        key_new = &canon_new;
+    }
+
     long *count_in_new = NULL, *count_in_old = NULL;
-    if (bgit_match_counts (old, n_old, new_file, n_new,
+    if (bgit_match_counts (key_old, n_old, key_new, n_new,
                            &count_in_new, &count_in_old) < 0) {
+        bgit_xdiff_release (&canon_old);
+        bgit_xdiff_release (&canon_new);
+        free (canon_old_text);
+        free (canon_new_text);
         bgit_xdiff_result_release (out);
         return -1;
     }
     long shared = (long) (n_old < n_new ? n_old : n_new);
     long dstart = 0;
-    while (dstart < shared && bgit_line_same (old, dstart, new_file, dstart))
+    while (dstart < shared &&
+           bgit_line_same (key_old, dstart, key_new, dstart))
         dstart++;
     long tail = 0;
     while (tail < shared - dstart &&
-           bgit_line_same (old, (long) n_old - 1 - tail,
-                           new_file, (long) n_new - 1 - tail))
+           bgit_line_same (key_old, (long) n_old - 1 - tail,
+                           key_new, (long) n_new - 1 - tail))
         tail++;
     long dend_old = (long) n_old - tail - 1;
     long dend_new = (long) n_new - tail - 1;
@@ -817,6 +907,10 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
     if (!dis_old || !dis_new || !ia || !ib) {
         free (count_in_new); free (count_in_old);
         free (dis_old); free (dis_new); free (ia); free (ib);
+        bgit_xdiff_release (&canon_old);
+        bgit_xdiff_release (&canon_new);
+        free (canon_old_text);
+        free (canon_new_text);
         bgit_xdiff_result_release (out);
         return -1;
     }
@@ -861,13 +955,17 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
     long *vb = calloc ((size_t) ndiags, sizeof *vb);
     if (!vf || !vb) {
         free (vf); free (vb); free (ia); free (ib);
+        bgit_xdiff_release (&canon_old);
+        bgit_xdiff_release (&canon_new);
+        free (canon_old_text);
+        free (canon_new_text);
         bgit_xdiff_result_release (out);
         return -1;
     }
     long mxcost = bgit_bogosqrt (ndiags);
     if (mxcost < BGIT_MAX_COST_MIN) mxcost = BGIT_MAX_COST_MIN;
 
-    bgit_xd x = {old, new_file, ia, ib, out->old_changed, out->new_changed,
+    bgit_xd x = {key_old, key_new, ia, ib, out->old_changed, out->new_changed,
                  vf + nb + 1, vb + nb + 1, mxcost};
     bgit_xd_compare (&x, 0, (long) na, 0, (long) nb, 0);
     free (vf);
@@ -875,10 +973,14 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
     free (ia);
     free (ib);
 
-    bgit_compact (old, (long) n_old, out->old_changed,
-                  new_file, (long) n_new, out->new_changed, indent_heuristic);
-    bgit_compact (new_file, (long) n_new, out->new_changed,
-                  old, (long) n_old, out->old_changed, indent_heuristic);
+    bgit_compact (key_old, old, (long) n_old, out->old_changed,
+                  key_new, (long) n_new, out->new_changed, indent_heuristic);
+    bgit_compact (key_new, new_file, (long) n_new, out->new_changed,
+                  key_old, (long) n_old, out->old_changed, indent_heuristic);
+    bgit_xdiff_release (&canon_old);
+    bgit_xdiff_release (&canon_new);
+    free (canon_old_text);
+    free (canon_new_text);
 
     for (size_t i = 0; i < old->n; i++) out->removed += !!out->old_changed[i];
     for (size_t j = 0; j < new_file->n; j++) out->added += !!out->new_changed[j];

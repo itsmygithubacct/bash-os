@@ -25,7 +25,8 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
-                 [-R] [--no-prefix]
+                 [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
+                 [--ignore-cr-at-eol]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -45,7 +46,8 @@ git show         [-p | -s | --stat] [--oneline] [--format=<format>]
 git am           [-q] [--continue | --skip | --abort] [<mbox>...]
 git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
-git blame        [-s] [-l] [-c] [-L <start>[,<end>]] [<rev>] [--] <file>
+git blame        [-s] [-l] [-c] [-w] [-L <start>[,<end>]] [<rev>]
+                 [--] <file>
 git annotate     [-l] [-L <start>[,<end>]] [<rev>] [--] <file>
 git whatchanged  [<log options>]
 git count-objects [-v] [-H]
@@ -234,14 +236,35 @@ no say there, having nothing to say about words.
 Measured over the last two hundred commits of this project's own history,
 `git diff`, `git diff -U0`, `git diff -U8`, `git diff --word-diff` and
 `git diff --word-diff=porcelain` are byte for byte what git writes, in
-every one of the thousand comparisons. So are `git blame` over forty of
-its files, `--stat`, `--numstat` and `--shortstat` over twenty-five
-commits, and `log -G` and `log -S` over seven patterns.
+every one of the thousand comparisons. Over sixty commits the same holds for
+`-w`, `-b`, `--ignore-space-at-eol` and `--ignore-cr-at-eol`, alone and with
+`--stat`, `-U0` and `--word-diff`: four hundred and eighty of four hundred
+and eighty. So are `git blame` and `git blame -w` over fifty-eight of its
+files, `--stat`, `--numstat` and `--shortstat` over twenty-five commits, and
+`log -G` and `log -S` over seven patterns.
 
-What is not here is the diff that overlooks things: `-w`, `-b` and
-`--ignore-blank-lines` are refused rather than quietly ignored, and so are
-`--function-context` and the other algorithms, `--patience`, `--histogram`,
-`--minimal` and `--diff-algorithm`.
+Whitespace can be overlooked, in each of git's four degrees: `-w` (or
+`--ignore-all-space`) pays it no attention at all, `-b`
+(`--ignore-space-change`) only to how much of it there is inside a line,
+`--ignore-space-at-eol` only to what trails one, and `--ignore-cr-at-eol` to
+a single carriage return before the end of a line that has an end of its own.
+Name several and the widest wins, as in git. What gets compared is each line
+with its whitespace taken out, but what a hunk shows is the lines themselves,
+and indentation is read off those — so a run of changes still slides to where
+it reads best in the file as written. A line that matches only because
+whitespace was overlooked is shown as the new side has it, git's choice.
+`git blame -w` follows a line back past a change of spacing; it is the only
+one of the four git's blame takes.
+
+Overlooking enough can leave a path with nothing to say, and then git says
+nothing about it: no `diff --git` line, no place in `--stat`, `--numstat` or
+`--shortstat`, and no count in their summary — though `--name-only` and
+`--raw` still list it, which is also git. A path that was added, deleted,
+renamed or given a new mode always has its header, empty diff or not.
+
+What is not here is `--ignore-blank-lines` and `--function-context`, or a
+diff by another algorithm — `--patience`, `--histogram`, `--minimal` and
+`--diff-algorithm`. Each is refused rather than quietly ignored.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),

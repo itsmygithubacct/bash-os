@@ -330,6 +330,16 @@ bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
     fputc ('\n', out);
 }
 
+/* Put out a header that was waiting for something to go under it. */
+static void
+bgit_patch_held (FILE *out, char **held, size_t len)
+{
+    if (!*held) return;
+    fwrite (*held, 1, len, out);
+    free (*held);
+    *held = NULL;
+}
+
 static void
 bgit_patch_range (FILE *out, size_t start, size_t count)
 {
@@ -467,8 +477,19 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
 
     int identical = (entry->status == 'M' || entry->status == 'R') &&
                     !strcmp (entry->old_sha, entry->new_sha);
-    bgit_patch_header (out, entry, options, identical);
+    /* A path that was added, deleted, renamed or given a new mode has
+       something to say whatever its diff comes to, so its header goes out
+       now. Any other header waits until there is a line to put under it:
+       overlook enough whitespace and there may be none, and then git says
+       nothing about the path at all. */
+    int must_show = entry->status != 'M' || entry->old_mode != entry->new_mode;
+    char *held = NULL;
+    size_t held_len = 0;
+    FILE *holder = must_show ? NULL : open_memstream (&held, &held_len);
+    bgit_patch_header (holder ? holder : out, entry, options, identical);
+    if (holder) fclose (holder);
     if (identical) {
+        free (held);
         free (old_data);
         free (new_data);
         return 0;
@@ -478,6 +499,7 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     if (bgit_xdiff_load (&old_file, old_data, old_len) < 0 ||
         bgit_xdiff_load (&new_file, new_data, new_len) < 0) {
         bgit_xdiff_release (&old_file);
+        free (held);
         free (old_data);
         free (new_data);
         return -1;
@@ -486,6 +508,7 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     if (old_file.binary || new_file.binary) {
         char quoted[8192];
         const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
+        bgit_patch_held (out, &held, held_len);
         fprintf (out, "%sBinary files %s%s and %s%s differ\n", lp,
                  entry->status == 'A' ? "" : options->prefix_old,
                  entry->status == 'A' ? "/dev/null" : name,
@@ -499,15 +522,20 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     }
 
     bgit_xdiff_result result;
-    if (bgit_xdiff (&old_file, &new_file, options->context, &result) < 0) {
+    int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
+                     (options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
+    if (bgit_xdiff_opts (&old_file, &new_file, options->context, diff_flags,
+                         &result) < 0) {
         bgit_xdiff_release (&old_file);
         bgit_xdiff_release (&new_file);
+        free (held);
         free (old_data);
         free (new_data);
         return -1;
     }
 
     if (result.n_hunks) {
+        bgit_patch_held (out, &held, held_len);
         char quoted[8192], from_quoted[8192];
         const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
         /* A rename's old side is named where it used to live. */
@@ -556,18 +584,20 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
                 int changed = (i < end_old && result.old_changed[i]) ||
                               (j < end_new && result.new_changed[j]);
                 if (!changed) {
-                    /* A line nothing happened to stands as it is. In the
-                       porcelain it keeps the leading space even when there
-                       is nothing after it, unlike a word that comes out
-                       empty. */
+                    /* A line nothing happened to stands as it is, as the new
+                       side has it — which is the side git shows, and only
+                       tells the two apart where whitespace is overlooked. In
+                       the porcelain it keeps the leading space even when
+                       there is nothing after it, unlike a word that comes
+                       out empty. */
                     if (porcelain) {
                         fprintf (out, "%s ", lp);
-                        fwrite (old_file.lines[i], 1, old_file.lengths[i], out);
+                        fwrite (new_file.lines[j], 1, new_file.lengths[j], out);
                         fprintf (out, "\n%s~\n", lp);
                         at_line_start = 1;
                     } else {
                         bgit_word_write (out, lp, porcelain, ' ',
-                                         old_file.lines[i], old_file.lengths[i],
+                                         new_file.lines[j], new_file.lengths[j],
                                          &at_line_start);
                         bgit_word_write (out, lp, porcelain, ' ', "\n", 1,
                                          &at_line_start);
@@ -591,7 +621,10 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
             int changed = (i < end_old && result.old_changed[i]) ||
                           (j < end_new && result.new_changed[j]);
             if (!changed) {
-                bgit_patch_line (out, lp, ' ', &old_file, i);
+                /* The new side's copy of a line nothing happened to: with
+                   whitespace overlooked the two can differ, and git shows
+                   this one. */
+                bgit_patch_line (out, lp, ' ', &new_file, j);
                 i++;
                 j++;
                 continue;
@@ -606,6 +639,7 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     bgit_xdiff_result_release (&result);
     bgit_xdiff_release (&old_file);
     bgit_xdiff_release (&new_file);
+    free (held);
     free (old_data);
     free (new_data);
     return 0;
@@ -640,12 +674,16 @@ bgit_patch_write (FILE *out, bgit_odb *odb, const bgit_repo *repo,
 int
 bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
                const bgit_diff_entry *entries, size_t n,
-               const bgit_patch_options *options, bgit_diffstat_entry **out)
+               const bgit_patch_options *options, bgit_diffstat_entry **out,
+               size_t *n_out)
 {
     bgit_diffstat_entry *stats = calloc (n ? n : 1, sizeof *stats);
     if (!stats) return -1;
+    size_t kept = 0;
     for (size_t i = 0; i < n; i++) {
-        stats[i].entry = &entries[i];
+        bgit_diffstat_entry *stat = &stats[kept++];
+        memset (stat, 0, sizeof *stat);
+        stat->entry = &entries[i];
         if (entries[i].status == 'M' &&
             !strcmp (entries[i].old_sha, entries[i].new_sha))
             continue;                       /* a mode change counts as nothing */
@@ -663,17 +701,26 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
         bgit_xdiff_load (&old_file, old_data, old_len);
         bgit_xdiff_load (&new_file, new_data, new_len);
         if (old_file.binary || new_file.binary) {
-            stats[i].binary = 1;
-            stats[i].removed = old_len;
-            stats[i].added = new_len;
+            stat->binary = 1;
+            stat->removed = old_len;
+            stat->added = new_len;
         } else {
             bgit_xdiff_result result;
-            if (bgit_xdiff (&old_file, &new_file, options->context,
-                            &result) == 0) {
-                stats[i].added = result.added;
-                stats[i].removed = result.removed;
+            int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
+                             (options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
+            if (bgit_xdiff_opts (&old_file, &new_file, options->context,
+                                 diff_flags, &result) == 0) {
+                stat->added = result.added;
+                stat->removed = result.removed;
                 bgit_xdiff_result_release (&result);
             }
+            /* A path git calls modified whose diff says nothing after all —
+               which is what overlooking whitespace can leave — is not in
+               the stat at all. An added, deleted or renamed path is, and so
+               is a mode change, empty though its diff may be. */
+            if (entries[i].status == 'M' && !stat->added && !stat->removed &&
+                entries[i].old_mode == entries[i].new_mode)
+                kept--;
         }
         bgit_xdiff_release (&old_file);
         bgit_xdiff_release (&new_file);
@@ -681,6 +728,7 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
         free (new_data);
     }
     *out = stats;
+    *n_out = kept;
     return 0;
 }
 

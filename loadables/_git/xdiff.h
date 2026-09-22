@@ -79,7 +79,18 @@ int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
    It is also why the same diff can come out differently with -U0. */
 #define BGIT_XDIFF_TRIM_TAIL 2
 
-/* The same comparison, saying which of those two to do. */
+/* Whitespace a comparison may overlook, in git's order of precedence: each
+   of these matches everything the one below it matches, and only the first
+   one given has any say. */
+#define BGIT_XDIFF_IGNORE_WS 4          /* -w: all of it, anywhere */
+#define BGIT_XDIFF_IGNORE_WS_CHANGE 8   /* -b: how much of it there is */
+#define BGIT_XDIFF_IGNORE_WS_AT_EOL 16  /* whatever trails a line */
+#define BGIT_XDIFF_IGNORE_CR_AT_EOL 32  /* a carriage return before the end */
+#define BGIT_XDIFF_WS_MASK (BGIT_XDIFF_IGNORE_WS | BGIT_XDIFF_IGNORE_WS_CHANGE \
+                            | BGIT_XDIFF_IGNORE_WS_AT_EOL \
+                            | BGIT_XDIFF_IGNORE_CR_AT_EOL)
+
+/* The same comparison, saying which of those to do. */
 int bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                      int context, int flags, bgit_xdiff_result *out);
 void bgit_xdiff_result_release (bgit_xdiff_result *result);

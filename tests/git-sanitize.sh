@@ -266,6 +266,17 @@ git diff -U0 --word-diff=porcelain HEAD~1 HEAD > /dev/null
 git diff --unified=1 HEAD~1 HEAD > /dev/null
 git diff -U20 HEAD~1 HEAD > /dev/null
 git log -p -U0 -2 > /dev/null
+# Whitespace overlooked, which compares lines with theirs taken out.
+git diff -w HEAD~1 HEAD > /dev/null
+git diff -b HEAD~1 HEAD > /dev/null
+git diff --ignore-space-at-eol HEAD~1 HEAD > /dev/null
+git diff --ignore-cr-at-eol HEAD~1 HEAD > /dev/null
+git diff -w --stat HEAD~1 HEAD > /dev/null
+git diff -w --numstat HEAD~1 HEAD > /dev/null
+git diff -w -U0 HEAD~1 HEAD > /dev/null
+git diff -w --word-diff HEAD~1 HEAD > /dev/null
+git log -p -w -2 > /dev/null
+git blame -w long.txt > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

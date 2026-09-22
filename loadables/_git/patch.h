@@ -25,6 +25,7 @@ typedef struct {
     const char *prefix_old, *prefix_new;   /* "a/" and "b/" */
     const char *line_prefix;               /* what log -p indents with */
     int word_diff;        /* 0 by lines, 1 [-word-]{+by word+}, 2 porcelain */
+    int ignore_ws;        /* which whitespace to overlook: see xdiff.h */
 } bgit_patch_options;
 
 void bgit_patch_options_init (bgit_patch_options *options);
@@ -49,10 +50,13 @@ typedef struct {
     int binary;
 } bgit_diffstat_entry;
 
+/* *N_OUT can come back smaller than N: a modified path whose diff turns out
+   to say nothing — which whitespace overlooked can do — is left out of the
+   stat altogether, as git leaves it out. */
 int bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
                    const bgit_diff_entry *entries, size_t n,
                    const bgit_patch_options *options,
-                   bgit_diffstat_entry **out);
+                   bgit_diffstat_entry **out, size_t *n_out);
 
 /* The forms git prints from those counts.
 

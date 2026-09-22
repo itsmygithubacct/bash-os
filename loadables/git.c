@@ -3628,6 +3628,7 @@ struct git_diff_format {
     int reverse;                        /* -R: the two sides change places */
     int word_diff;                      /* 0 by lines, 1 plain, 2 porcelain */
     int no_prefix;                      /* the paths stand without a/ and b/ */
+    int ignore_ws;                      /* whitespace to overlook: xdiff.h */
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
@@ -6004,6 +6005,17 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
         format->context = atoi (w + 10);
         format->patch = 1;
     }
+    /* Whitespace a comparison may overlook. git lets several be named and
+       uses the widest; the bits are in that order, so this only gathers
+       them. */
+    else if (!strcmp (w, "-w") || !strcmp (w, "--ignore-all-space"))
+        format->ignore_ws |= BGIT_XDIFF_IGNORE_WS;
+    else if (!strcmp (w, "-b") || !strcmp (w, "--ignore-space-change"))
+        format->ignore_ws |= BGIT_XDIFF_IGNORE_WS_CHANGE;
+    else if (!strcmp (w, "--ignore-space-at-eol"))
+        format->ignore_ws |= BGIT_XDIFF_IGNORE_WS_AT_EOL;
+    else if (!strcmp (w, "--ignore-cr-at-eol"))
+        format->ignore_ws |= BGIT_XDIFF_IGNORE_CR_AT_EOL;
     else if (!strcmp (w, "-R")) format->reverse = 1;
     else if (!strcmp (w, "--no-prefix")) format->no_prefix = 1;
     else if (!strcmp (w, "--no-renames")) format->no_renames = 1;
@@ -6030,6 +6042,7 @@ git_diff_emit (git_context *ctx, FILE *out,
     options.context = format->context;
     options.new_from_worktree = new_from_worktree;
     options.word_diff = format->word_diff;
+    options.ignore_ws = format->ignore_ws;
     options.line_prefix = line_prefix ? line_prefix : "";
     if (format->no_prefix) options.prefix_old = options.prefix_new = "";
     /* -R shows the change as it would be to undo: the sides swap, and so
@@ -6109,16 +6122,17 @@ git_diff_emit (git_context *ctx, FILE *out,
     if (stats || format->summary) {
         bgit_diffstat_entry *counted = NULL;
         if (stats) {
+            size_t n_counted = 0;
             if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &options,
-                               &counted) < 0) {
+                               &counted, &n_counted) < 0) {
                 free (turned);
                 return -1;
             }
-            if (format->numstat) bgit_numstat_write (out, counted, n);
-            if (format->stat) bgit_diffstat_write (out, counted, n,
+            if (format->numstat) bgit_numstat_write (out, counted, n_counted);
+            if (format->stat) bgit_diffstat_write (out, counted, n_counted,
                                                    options.line_prefix,
                                                    &format->stat_layout);
-            if (format->shortstat) bgit_shortstat_write (out, counted, n,
+            if (format->shortstat) bgit_shortstat_write (out, counted, n_counted,
                                                          options.line_prefix);
             free (counted);
         }
@@ -9124,7 +9138,7 @@ git_blame_renamed_from (git_context *ctx, const char *parent,
 static int
 git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
                 const char *commit, const char *path, const char *parent,
-                const struct git_apply_lines *now)
+                const struct git_apply_lines *now, int ignore_ws)
 {
     char *from = NULL;
     struct git_apply_lines before;
@@ -9156,8 +9170,12 @@ git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
     bgit_xdiff_load (&new_file, new_text ? new_text : "", new_len);
     bgit_xdiff_result result;
     long *to_parent = calloc (now->n ? now->n : 1, sizeof *to_parent);
-    int ok = to_parent && bgit_xdiff_opts (&old_file, &new_file, 0,
-                                           BGIT_XDIFF_TRIM_TAIL, &result) == 0;
+    /* git's blame takes the indent heuristic from the diff options, where
+       it is on unless turned off. */
+    int ok = to_parent &&
+             bgit_xdiff_opts (&old_file, &new_file, 0,
+                              BGIT_XDIFF_INDENT_HEURISTIC |
+                              BGIT_XDIFF_TRIM_TAIL | ignore_ws, &result) == 0;
     if (ok) {
         size_t oi = 0;
         for (size_t ni = 0; ni < now->n; ni++) {
@@ -9192,9 +9210,10 @@ git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
 static int
 git_cmd_blame (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git blame [-s] [-l] [-c] [-L <start>[,<end>]] "
-                        "[<rev>] [--] <file>";
+    const char *usage = "git blame [-s] [-l] [-c] [-w] "
+                        "[-L <start>[,<end>]] [<rev>] [--] <file>";
     int short_form = 0, long_ids = 0, no_more = 0, annotating = 0;
+    int ignore_ws = 0;
     long first = 1, last = -1;
     const char *path = NULL, *rev = NULL;
 
@@ -9205,6 +9224,11 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
         else if (!no_more && !strcmp (w, "-l")) long_ids = 1;
         /* -c is the older layout, which is all `git annotate` is. */
         else if (!no_more && !strcmp (w, "-c")) annotating = 1;
+        /* Whose line it is, overlooking whitespace: a line that only had
+           its spacing changed stays with the commit that wrote it. This is
+           the only one of the whitespace options git's blame takes. */
+        else if (!no_more && !strcmp (w, "-w"))
+            ignore_ws |= BGIT_XDIFF_IGNORE_WS;
         else if (!no_more && !strcmp (w, "-L") && p->next) {
             /* Without an end, the range runs to the end of the file. */
             const char *range = (p = p->next)->word->word;
@@ -9278,7 +9302,7 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
                                              BGIT_MAX_PARENTS);
         for (int i = 0; i < n_parents; i++)
             git_blame_pass (ctx, lines, text.n, suspect, held_path,
-                            parents[i], &now);
+                            parents[i], &now, ignore_ws);
         /* Whatever is still held against it, it is answerable for — and a
            commit with nothing before it at all is the one git marks. */
         for (size_t i = 0; i < text.n; i++)
