@@ -798,6 +798,51 @@ bgit_compact (const bgit_xdiff_file *file, const bgit_xdiff_file *text, long n,
     }
 }
 
+/* Does this line look like the start of a definition? git asks only what
+   its first character is, which is what makes a hunk header name the
+   function it sits in. */
+static int
+bgit_is_func_rec (const bgit_xdiff_file *file, long i)
+{
+    if (i < 0 || i >= (long) file->n || !file->lengths[i]) return 0;
+    unsigned char first = (unsigned char) file->lines[i][0];
+    return isalpha (first) || first == '_' || first == '$';
+}
+
+/* Is this line blank? git counts a line as blank when there is nothing on
+   it at all — or, where whitespace is already being overlooked, when there
+   is nothing on it but whitespace. */
+static int
+bgit_blank_line (const bgit_xdiff_file *file, size_t i, int flags)
+{
+    if (i >= file->n) return 1;
+    if (!(flags & BGIT_XDIFF_WS_MASK)) return file->lengths[i] == 0;
+    for (size_t k = 0; k < file->lengths[i]; k++)
+        if (!isspace ((unsigned char) file->lines[i][k])) return 0;
+    return 1;
+}
+
+/* A line with nothing on it but whitespace. */
+static int
+bgit_is_empty_rec (const bgit_xdiff_file *file, long i)
+{
+    if (i < 0 || i >= (long) file->n) return 1;
+    for (size_t k = 0; k < file->lengths[i]; k++)
+        if (!isspace ((unsigned char) file->lines[i][k])) return 0;
+    return 1;
+}
+
+/* The nearest line at or beyond START, looking towards LIMIT, that opens a
+   definition. -1 when there is none that way. */
+static long
+bgit_func_line (const bgit_xdiff_file *file, long start, long limit)
+{
+    long step = start > limit ? -1 : 1;
+    for (long l = start; l != limit && l >= 0 && l < (long) file->n; l += step)
+        if (bgit_is_func_rec (file, l)) return l;
+    return -1;
+}
+
 /* ------------------------------------------------------------- the hunks */
 
 int
@@ -986,44 +1031,174 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
     for (size_t j = 0; j < new_file->n; j++) out->added += !!out->new_changed[j];
     if (!out->added && !out->removed) return 0;
 
-    /* Gather the runs of change, then give each hunk its context, merging
-       two hunks whose context would overlap. */
+    /* Gather the runs of change, then give each hunk its context: two runs
+       no further apart than twice that become one hunk, and where the whole
+       definition is asked for a hunk reaches back to the line that opens the
+       one it sits in and forward to the line that opens the next. */
+    int whole_function = (flags & BGIT_XDIFF_FUNCTION_CONTEXT) != 0;
+    int skip_blank = (flags & BGIT_XDIFF_IGNORE_BLANK_LINES) != 0;
     size_t capacity = 8;
     bgit_xdiff_hunk *hunks = calloc (capacity, sizeof *hunks);
     if (!hunks) { bgit_xdiff_result_release (out); return -1; }
     size_t n_hunks = 0;
-    size_t i = 0, j = 0;
-    while (i < old->n || j < new_file->n) {
-        int changed = (i < old->n && out->old_changed[i]) ||
-                      (j < new_file->n && out->new_changed[j]);
-        if (!changed) { i++; j++; continue; }
-        size_t i0 = i, j0 = j;
-        while (i < old->n && out->old_changed[i]) i++;
-        while (j < new_file->n && out->new_changed[j]) j++;
+    bgit_xdiff_change *runs = NULL;
+    size_t n_runs = 0;
+    if (bgit_xdiff_changes (out, old->n, new_file->n, &runs, &n_runs) < 0) {
+        free (hunks);
+        bgit_xdiff_result_release (out);
+        return -1;
+    }
 
-        size_t s1 = i0 > (size_t) context ? i0 - context : 0;
-        size_t s2 = j0 > (size_t) context ? j0 - context : 0;
-        size_t e1 = i + context < old->n ? i + context : old->n;
-        size_t e2 = j + context < new_file->n ? j + context : new_file->n;
-        if (n_hunks &&
-            s1 <= hunks[n_hunks - 1].old_start + hunks[n_hunks - 1].old_count) {
-            bgit_xdiff_hunk *last = &hunks[n_hunks - 1];
-            last->old_count = e1 - last->old_start;
-            last->new_count = e2 - last->new_start;
-            continue;
+    /* Which runs are nothing but blank lines, when that is to be overlooked.
+       One of them is still shown where it sits among changes that are not:
+       what is skipped is a run standing on its own. */
+    char *skippable = NULL;
+    if (skip_blank && n_runs) {
+        skippable = calloc (n_runs, 1);
+        if (!skippable) {
+            free (runs);
+            free (hunks);
+            bgit_xdiff_result_release (out);
+            return -1;
         }
+        for (size_t k = 0; k < n_runs; k++) {
+            int blank = 1;
+            for (size_t i = 0; blank && i < runs[k].old_count; i++)
+                blank = bgit_blank_line (old, runs[k].old_start + i, flags);
+            for (size_t j = 0; blank && j < runs[k].new_count; j++)
+                blank = bgit_blank_line (new_file, runs[k].new_start + j, flags);
+            skippable[k] = (char) blank;
+        }
+    }
+    long max_ignorable = context;
+    size_t kept_added = 0, kept_removed = 0;
+
+    for (size_t r = 0; r < n_runs; ) {
+        /* A blank run far enough in front of the next change is passed over
+           altogether, along with anything blank before it. */
+        for (size_t k = r; skippable && k < n_runs && skippable[k]; k++) {
+            size_t next = k + 1;
+            if (next >= n_runs ||
+                (long) runs[next].old_start -
+                (long) (runs[k].old_start + runs[k].old_count) >= max_ignorable)
+                r = next;
+        }
+        if (r >= n_runs) break;
+
+        size_t last = r;
+        long ignored = 0;
+        for (size_t prev = r, k = r + 1; k < n_runs; prev = k, k++) {
+            long distance = (long) runs[k].old_start -
+                            (long) (runs[prev].old_start + runs[prev].old_count);
+            if (distance > 2 * context) break;
+            int blank = skippable && skippable[k];
+            if (distance < max_ignorable && (!blank || last == prev)) {
+                last = k;
+                ignored = 0;
+            } else if (distance < max_ignorable && blank) {
+                ignored += (long) runs[k].new_count;
+            } else if (last != prev &&
+                       (long) runs[k].old_start + ignored -
+                       (long) (runs[last].old_start + runs[last].old_count) >
+                       2 * context) {
+                break;
+            } else if (!blank) {
+                last = k;
+                ignored = 0;
+            } else {
+                ignored += (long) runs[k].new_count;
+            }
+        }
+
+        long s1 = (long) runs[r].old_start - context;
+        long s2 = (long) runs[r].new_start - context;
+        if (s1 < 0) s1 = 0;
+        if (s2 < 0) s2 = 0;
+        if (whole_function) {
+            long i1 = (long) runs[r].old_start;
+            int appended = 0;
+            /* A run past the end of the old file has nothing above it to
+               reach back to, and a whole definition added needs nothing. */
+            if (i1 >= (long) old->n) {
+                for (long i2 = (long) runs[r].new_start;
+                     i2 < (long) new_file->n; i2++)
+                    if (bgit_is_func_rec (new_file, i2)) { appended = 1; break; }
+                if (!appended) i1 = (long) old->n - 1;
+            }
+            if (!appended) {
+                long fs1 = bgit_func_line (old, i1, -1);
+                while (fs1 > 0 && !bgit_is_empty_rec (old, fs1 - 1) &&
+                       !bgit_is_func_rec (old, fs1 - 1))
+                    fs1--;
+                if (fs1 < 0) fs1 = 0;
+                if (fs1 < s1) {
+                    s2 -= s1 - fs1;
+                    if (s2 < 0) s2 = 0;
+                    s1 = fs1;
+                }
+            }
+        }
+
+        long e1, e2;
+        for (;;) {
+            long end1 = (long) (runs[last].old_start + runs[last].old_count);
+            long end2 = (long) (runs[last].new_start + runs[last].new_count);
+            long lctx = context;
+            if (lctx > (long) old->n - end1) lctx = (long) old->n - end1;
+            if (lctx > (long) new_file->n - end2) lctx = (long) new_file->n - end2;
+            e1 = end1 + lctx;
+            e2 = end2 + lctx;
+            if (!whole_function) break;
+            long fe1 = bgit_func_line (old, end1, (long) old->n);
+            while (fe1 > 0 && bgit_is_empty_rec (old, fe1 - 1)) fe1--;
+            if (fe1 < 0) fe1 = (long) old->n;
+            if (fe1 > e1) {
+                e2 += fe1 - e1;
+                if (e2 > (long) new_file->n) e2 = (long) new_file->n;
+                e1 = fe1;
+            }
+            /* Does the next run fall inside what this hunk now covers? Then
+               it belongs to it, and the end has to be found again. */
+            if (last + 1 >= n_runs) break;
+            long next = (long) runs[last + 1].old_start;
+            if (next > (long) old->n - 1) next = (long) old->n - 1;
+            if (next - context <= e1 || bgit_func_line (old, next, e1) < 0) {
+                last++;
+                continue;
+            }
+            break;
+        }
+
         if (n_hunks == capacity) {
             capacity *= 2;
             bgit_xdiff_hunk *grown = realloc (hunks, capacity * sizeof *grown);
-            if (!grown) { free (hunks); bgit_xdiff_result_release (out); return -1; }
+            if (!grown) {
+                free (runs);
+                free (hunks);
+                bgit_xdiff_result_release (out);
+                return -1;
+            }
             hunks = grown;
         }
-        hunks[n_hunks].old_start = s1;
-        hunks[n_hunks].old_count = e1 - s1;
-        hunks[n_hunks].new_start = s2;
-        hunks[n_hunks].new_count = e2 - s2;
+        hunks[n_hunks].old_start = (size_t) s1;
+        hunks[n_hunks].old_count = (size_t) (e1 - s1);
+        hunks[n_hunks].new_start = (size_t) s2;
+        hunks[n_hunks].new_count = (size_t) (e2 - s2);
         n_hunks++;
+        for (size_t k = r; k <= last; k++) {
+            kept_removed += runs[k].old_count;
+            kept_added += runs[k].new_count;
+        }
+        r = last + 1;
     }
+    /* What was passed over was not changed as far as anyone is told, and
+       the counts a stat is made of say so. */
+    if (skippable) {
+        out->added = kept_added;
+        out->removed = kept_removed;
+    }
+    free (skippable);
+    free (runs);
     out->hunks = hunks;
     out->n_hunks = n_hunks;
     return 0;

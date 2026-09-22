@@ -3629,6 +3629,8 @@ struct git_diff_format {
     int word_diff;                      /* 0 by lines, 1 plain, 2 porcelain */
     int no_prefix;                      /* the paths stand without a/ and b/ */
     int ignore_ws;                      /* whitespace to overlook: xdiff.h */
+    int function_context;               /* -W: the whole definition */
+    int ignore_blank_lines;             /* blank lines on their own */
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
@@ -6016,6 +6018,13 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
         format->ignore_ws |= BGIT_XDIFF_IGNORE_WS_AT_EOL;
     else if (!strcmp (w, "--ignore-cr-at-eol"))
         format->ignore_ws |= BGIT_XDIFF_IGNORE_CR_AT_EOL;
+    /* The whole of the definition a change sits in, however far it runs. */
+    else if (!strcmp (w, "--ignore-blank-lines"))
+        format->ignore_blank_lines = 1;
+    /* The whole of the definition a change sits in, however far it runs.
+       Unlike a width of context, this does not ask for the patch itself. */
+    else if (!strcmp (w, "-W") || !strcmp (w, "--function-context"))
+        format->function_context = 1;
     else if (!strcmp (w, "-R")) format->reverse = 1;
     else if (!strcmp (w, "--no-prefix")) format->no_prefix = 1;
     else if (!strcmp (w, "--no-renames")) format->no_renames = 1;
@@ -6043,6 +6052,8 @@ git_diff_emit (git_context *ctx, FILE *out,
     options.new_from_worktree = new_from_worktree;
     options.word_diff = format->word_diff;
     options.ignore_ws = format->ignore_ws;
+    options.function_context = format->function_context;
+    options.ignore_blank_lines = format->ignore_blank_lines;
     options.line_prefix = line_prefix ? line_prefix : "";
     if (format->no_prefix) options.prefix_old = options.prefix_new = "";
     /* -R shows the change as it would be to undo: the sides swap, and so

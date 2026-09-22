@@ -283,6 +283,14 @@ git blame long.txt > /dev/null
 git blame -s long.txt > /dev/null
 git blame -c long.txt > /dev/null
 git checkout -- long.txt
+# The whole definition, and blank lines overlooked.
+git diff -W HEAD~1 HEAD > /dev/null
+git diff -W -U0 HEAD~1 HEAD > /dev/null
+git diff -W --stat HEAD~1 HEAD > /dev/null
+git diff --ignore-blank-lines HEAD~1 HEAD > /dev/null
+git diff --ignore-blank-lines -w HEAD~1 HEAD > /dev/null
+git diff --ignore-blank-lines --numstat HEAD~1 HEAD > /dev/null
+git log -p -W -2 > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

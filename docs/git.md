@@ -26,7 +26,7 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
-                 [--ignore-cr-at-eol]
+                 [--ignore-cr-at-eol] [--ignore-blank-lines] [-W]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -245,10 +245,12 @@ no say there, having nothing to say about words.
 Measured over the last two hundred commits of this project's own history,
 `git diff`, `git diff -U0`, `git diff -U8`, `git diff --word-diff` and
 `git diff --word-diff=porcelain` are byte for byte what git writes, in
-every one of the thousand comparisons. Over sixty commits the same holds for
-`-w`, `-b`, `--ignore-space-at-eol` and `--ignore-cr-at-eol`, alone and with
-`--stat`, `-U0` and `--word-diff`: four hundred and eighty of four hundred
-and eighty. So are `git blame` and `git blame -w` over fifty-eight of its
+every one of the thousand comparisons, and so are `-W` and
+`--ignore-blank-lines`. Over sixty commits the same holds for `-w`, `-b`,
+`--ignore-space-at-eol` and `--ignore-cr-at-eol`, alone and with `--stat`,
+`-U0` and `--word-diff`: four hundred and eighty of four hundred and eighty.
+Over thirty commits, four hundred and fifty of four hundred and fifty
+comparisons of the twelve ways these can be asked for together. So are `git blame` and `git blame -w` over fifty-eight of its
 files, `--stat`, `--numstat` and `--shortstat` over twenty-five commits, and
 `log -G` and `log -S` over seven patterns.
 
@@ -271,9 +273,23 @@ nothing about it: no `diff --git` line, no place in `--stat`, `--numstat` or
 `--raw` still list it, which is also git. A path that was added, deleted,
 renamed or given a new mode always has its header, empty diff or not.
 
-What is not here is `--ignore-blank-lines` and `--function-context`, or a
-diff by another algorithm — `--patience`, `--histogram`, `--minimal` and
-`--diff-algorithm`. Each is refused rather than quietly ignored.
+`-W` (`--function-context`) reaches each hunk out to the whole definition the
+change sits in: back to the line that opens it, past blank lines and other
+definitions above, and forward to the line that opens the next one. Where
+that leaves two changes in the same definition they become one hunk, however
+far apart they are. Unlike a width of context it does not ask for the patch
+itself, so `git diff -W --stat` is still only a stat.
+
+`--ignore-blank-lines` passes over a run of changed lines that is nothing but
+blank ones, when it stands at least a hunk's context away from a change that
+is not; one among changes that count is still shown. What is passed over is
+not in the stat either, and where a file's whole diff is blank lines nothing
+is said about it at all. With whitespace already overlooked, a line of
+nothing but spaces counts as blank too, which is git's rule.
+
+What is not here is a diff by another algorithm — `--patience`,
+`--histogram`, `--minimal` and `--diff-algorithm` — or `--inter-hunk-context`.
+Each is refused rather than quietly ignored.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),

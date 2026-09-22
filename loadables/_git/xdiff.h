@@ -90,6 +90,14 @@ int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                             | BGIT_XDIFF_IGNORE_WS_AT_EOL \
                             | BGIT_XDIFF_IGNORE_CR_AT_EOL)
 
+/* Reach each hunk out to the definition it sits in, both ways: git's -W. */
+#define BGIT_XDIFF_FUNCTION_CONTEXT 64
+
+/* Say nothing about a run of changes that is nothing but blank lines, when
+   it stands far enough from a change that is not: git's
+   --ignore-blank-lines. */
+#define BGIT_XDIFF_IGNORE_BLANK_LINES 128
+
 /* The same comparison, saying which of those to do. */
 int bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                      int context, int flags, bgit_xdiff_result *out);

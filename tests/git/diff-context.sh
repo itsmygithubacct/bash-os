@@ -79,3 +79,54 @@ git diff -U0 blanks.txt
 git diff --word-diff blanks.txt
 git diff --word-diff=porcelain blanks.txt
 git diff --word-diff=porcelain -U1 blanks.txt
+
+echo '=== the whole of the definition a change sits in ==='
+{
+    printf 'int first (void)\n{\n    int a = 1;\n    int b = 2;\n    return a + b;\n}\n'
+    printf '\n'
+    printf 'int second (void)\n{\n    int c = 3;\n    int d = 4;\n    int e = 5;\n    return c + d + e;\n}\n'
+    printf '\n'
+    printf 'static void third (void)\n{\n    /* nothing to do */\n}\n'
+} > funcs.c
+git add funcs.c
+git commit -q -m 'three definitions'
+{
+    printf 'int first (void)\n{\n    int a = 1;\n    int b = 2;\n    return a + b;\n}\n'
+    printf '\n'
+    printf 'int second (void)\n{\n    int c = 3;\n    int d = 40;\n    int e = 5;\n    return c + d + e;\n}\n'
+    printf '\n'
+    printf 'static void third (void)\n{\n    /* nothing at all */\n}\n'
+} > funcs.c
+git diff funcs.c
+git diff -W funcs.c
+git diff --function-context funcs.c
+git diff -W -U0 funcs.c
+git diff -W -U8 funcs.c
+git diff -W --stat funcs.c
+git diff -W -w funcs.c
+git diff -W --word-diff funcs.c
+git add funcs.c
+git commit -q -m 'two lines changed inside two definitions'
+git log -1 -p -W
+git show -W
+
+echo '=== blank lines, overlooked and not ==='
+printf 'alpha\nbeta\ngamma\n' > blank.c
+git add blank.c
+git commit -q -m 'three lines'
+printf 'alpha\n\n\nbeta\ngamma\n' > blank.c
+git diff blank.c
+git diff --ignore-blank-lines blank.c
+git diff --ignore-blank-lines --stat blank.c
+git diff --ignore-blank-lines --numstat blank.c
+git diff --ignore-blank-lines --shortstat blank.c
+git diff --ignore-blank-lines -U0 blank.c
+printf 'alpha\n\nBETA\ngamma\n\n' > blank.c
+git diff blank.c
+git diff --ignore-blank-lines blank.c
+git diff --ignore-blank-lines -U1 blank.c
+git diff --ignore-blank-lines --stat blank.c
+printf 'alpha\n   \nbeta\ngamma\n' > blank.c
+git diff --ignore-blank-lines blank.c
+git diff --ignore-blank-lines -b blank.c
+git diff --ignore-blank-lines -w blank.c

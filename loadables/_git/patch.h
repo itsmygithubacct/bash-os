@@ -26,6 +26,8 @@ typedef struct {
     const char *line_prefix;               /* what log -p indents with */
     int word_diff;        /* 0 by lines, 1 [-word-]{+by word+}, 2 porcelain */
     int ignore_ws;        /* which whitespace to overlook: see xdiff.h */
+    int function_context; /* -W: a hunk covers the definition it sits in */
+    int ignore_blank_lines;/* a run of blank lines on its own says nothing */
 } bgit_patch_options;
 
 void bgit_patch_options_init (bgit_patch_options *options);

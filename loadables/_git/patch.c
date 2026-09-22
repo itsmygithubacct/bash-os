@@ -522,8 +522,14 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     }
 
     bgit_xdiff_result result;
+    /* The tail is only set aside where none of it could be shown, and asking
+       for the whole definition can show any of it. */
     int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
-                     (options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
+                     (options->ignore_blank_lines
+                      ? BGIT_XDIFF_IGNORE_BLANK_LINES : 0) |
+                     (options->function_context
+                      ? BGIT_XDIFF_FUNCTION_CONTEXT
+                      : options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
     if (bgit_xdiff_opts (&old_file, &new_file, options->context, diff_flags,
                          &result) < 0) {
         bgit_xdiff_release (&old_file);
@@ -707,7 +713,11 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
         } else {
             bgit_xdiff_result result;
             int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
-                             (options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
+                             (options->ignore_blank_lines
+                              ? BGIT_XDIFF_IGNORE_BLANK_LINES : 0) |
+                             (options->function_context
+                              ? BGIT_XDIFF_FUNCTION_CONTEXT
+                              : options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
             if (bgit_xdiff_opts (&old_file, &new_file, options->context,
                                  diff_flags, &result) == 0) {
                 stat->added = result.added;
