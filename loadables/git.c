@@ -3883,6 +3883,8 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
 struct git_diff_format {
     int patch, stat, numstat, shortstat, summary, name_only, name_status;
     int raw;                            /* the :<modes> <ids> <status> lines */
+    int check;                          /* --check: the whitespace a change brings */
+    int exit_code;                      /* say in the status whether anything changed */
     int no_patch;
     int no_renames;
     int context;
@@ -3895,7 +3897,13 @@ struct git_diff_format {
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
+/* Did --check complain about anything? log and show print their diffs
+   through layers with no status to hand back, and say so here instead. */
+static int git_check_complained;
+
 static void git_diff_format_init (struct git_diff_format *format);
+/* git takes at most one of --name-only, --name-status, --check and -s. */
+static int git_diff_format_done (const struct git_diff_format *format);
 static int git_diff_format_option (struct git_diff_format *format,
                                    const char *word);
 static int git_diff_emit (git_context *ctx, FILE *out,
@@ -5518,7 +5526,7 @@ git_diff_wanted (const struct git_diff_format *format)
 {
     return format->patch || format->stat || format->numstat ||
            format->shortstat || format->summary || format->name_only ||
-           format->name_status || format->raw;
+           format->name_status || format->raw || format->check;
 }
 
 /* What a commit changed, against its first parent — or against nothing, for
@@ -5956,6 +5964,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
     int n_revs = 0, n_excludes = 0, n_paths = 0, no_more = 0;
+    git_check_complained = 0;
     struct git_diff_format diff;
     git_diff_format_init (&diff);
 
@@ -6241,7 +6250,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         git_commit_release (&commit);
     }
     free (ordered);
-    return 0;
+    return git_check_complained ? 2 : 0;
 }
 
 static void
@@ -6252,6 +6261,17 @@ git_diff_format_init (struct git_diff_format *format)
 }
 
 /* Take W if it selects a format, and say whether it did. */
+/* git takes at most one of --name-only, --name-status, --check and -s. */
+static int
+git_diff_format_done (const struct git_diff_format *format)
+{
+    int asked = (format->name_only != 0) + (format->name_status != 0) +
+                (format->check != 0) + (format->no_patch != 0);
+    if (asked < 2) return 0;
+    return git_fatal ("options '--name-only', '--name-status', '--check', "
+                      "and '-s' cannot be used together");
+}
+
 static int
 git_diff_format_option (struct git_diff_format *format, const char *w)
 {
@@ -6304,7 +6324,23 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strcmp (w, "--name-only")) format->name_only = 1;
     else if (!strcmp (w, "--name-status")) format->name_status = 1;
     else if (!strcmp (w, "--raw")) format->raw = 1;
-    else if (!strcmp (w, "-s") || !strcmp (w, "--no-patch")) format->no_patch = 1;
+    else if (!strcmp (w, "--check")) format->check = 1;
+    else if (!strcmp (w, "--exit-code")) format->exit_code = 1;
+    /* --quiet is that and nothing printed at all. */
+    else if (!strcmp (w, "--quiet")) {
+        format->patch = format->stat = format->numstat = format->shortstat = 0;
+        format->summary = format->name_only = format->name_status = 0;
+        format->raw = format->check = 0;
+        format->no_patch = 1;
+        format->exit_code = 1;
+    }
+    /* -s forgets every output form asked for before it, as git's does. */
+    else if (!strcmp (w, "-s") || !strcmp (w, "--no-patch")) {
+        format->patch = format->stat = format->numstat = format->shortstat = 0;
+        format->summary = format->name_only = format->name_status = 0;
+        format->raw = format->check = 0;
+        format->no_patch = 1;
+    }
     /* Asking for a width of context asks for the patch it belongs to. */
     else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9') {
         format->context = atoi (w + 2);
@@ -6385,6 +6421,14 @@ git_diff_emit (git_context *ctx, FILE *out,
             options.prefix_new = "a/";
         }
         options.new_from_worktree = 0;
+    }
+
+    if (format->check) {
+        int found = bgit_patch_check (out, &ctx->odb, &ctx->repo, entries, n,
+                                      &options);
+        free (turned);
+        if (found > 0) git_check_complained = 1;
+        return found < 0 ? -1 : found ? 2 : 0;
     }
 
     int named = format->name_only || format->name_status;
@@ -6500,6 +6544,7 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
         else return git_fatal ("too many paths");
     }
+    if (git_diff_format_done (&format) != 0) return GIT_EXIT_FATAL;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
     /* A word that is not a revision but names a file is a path, which is
@@ -6590,8 +6635,31 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
     /* Only a comparison that ends at the working tree reads files. */
     int from_worktree = !cached && n_revs < 2;
     git_find_renames (ctx, &format, &entries, &n, from_worktree);
-    int status = git_diff_emit (ctx, stdout, &format, entries, n,
-                                from_worktree, "") < 0 ? GIT_EXIT_FATAL : 0;
+    /* --check says 2 when it found something, and that is the status. */
+    int emitted = git_diff_emit (ctx, stdout, &format, entries, n,
+                                 from_worktree, "");
+    int status = emitted < 0 ? GIT_EXIT_FATAL : emitted;
+    /* --exit-code says in the status whether anything changed. Overlooking
+       whitespace can leave a change with nothing to say, and git counts
+       only what is left to say. */
+    if (status != GIT_EXIT_FATAL && format.exit_code) {
+        int changed = n > 0;
+        if (changed && (format.ignore_ws || format.ignore_blank_lines)) {
+            bgit_patch_options probe;
+            bgit_patch_options_init (&probe);
+            probe.context = format.context;
+            probe.new_from_worktree = from_worktree;
+            probe.ignore_ws = format.ignore_ws;
+            probe.ignore_blank_lines = format.ignore_blank_lines;
+            bgit_diffstat_entry *counted = NULL;
+            size_t n_counted = 0;
+            if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &probe,
+                               &counted, &n_counted) == 0)
+                changed = n_counted > 0;
+            free (counted);
+        }
+        if (changed) status |= 1;
+    }
     bgit_diff_free (entries, n);
     git_state_release (&state);
     return status;
@@ -6679,6 +6747,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
                         "[--format=<format>] [--date=<format>] "
                         "[--decorate[=short|full|auto|no]] [--show-signature] "
                         "[<object>...]";
+    git_check_complained = 0;
     struct git_diff_format diff;
     git_diff_format_init (&diff);
     const char *format = NULL;
@@ -6775,7 +6844,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
             break;
         }
     }
-    return 0;
+    return git_check_complained ? 2 : 0;
 }
 
 /* verify-commit and verify-tag are one walk over two kinds of object. */

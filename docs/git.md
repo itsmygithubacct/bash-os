@@ -27,6 +27,7 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
                  [--ignore-cr-at-eol] [--ignore-blank-lines] [-W]
+                 [--check] [--exit-code] [--quiet]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -289,6 +290,21 @@ is not; one among changes that count is still shown. What is passed over is
 not in the stat either, and where a file's whole diff is blank lines nothing
 is said about it at all. With whitespace already overlooked, a line of
 nothing but spaces counts as blank too, which is git's rule.
+
+`--check` says what a change brings in that it should not: whitespace at the
+end of an added line, a space before a tab in its indent, a new blank line at
+the end of the file, and any line that looks like a conflict marker left
+behind. Each is reported where git reports it — `<path>:<line>: <what>.`, the
+line itself under it, and the blank line at the end of a file reported once
+where the run of them begins. It stands in place of every other output, and
+the status is 2 when it found anything, from `git diff`, `git log` and
+`git show` alike.
+
+`--exit-code` says in the status whether anything changed, 1 for yes and 0
+for no, and `--quiet` is that with nothing printed. Where whitespace is being
+overlooked, a change that turns out to say nothing counts as no change, as it
+does in git. `-s` forgets every output form asked for before it, and at most
+one of `--name-only`, `--name-status`, `--check` and `-s` may be given.
 
 What is not here is a diff by another algorithm — `--patience`,
 `--histogram`, `--minimal` and `--diff-algorithm` — or `--inter-hunk-context`.

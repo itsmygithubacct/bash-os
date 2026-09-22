@@ -83,6 +83,13 @@ void bgit_stat_summary (FILE *out, size_t files, size_t added, size_t removed);
 void bgit_diff_summary (FILE *out, const bgit_diff_entry *entries, size_t n,
                         const char *line_prefix);
 
+/* --check: what whitespace a change brings in and anything that looks like a
+   conflict marker left behind, in git's words. Returns 1 when something was
+   found, 0 when nothing was, or -1. */
+int bgit_patch_check (FILE *out, bgit_odb *odb, const bgit_repo *repo,
+                      const bgit_diff_entry *entries, size_t n,
+                      const bgit_patch_options *options);
+
 /* A file in the working tree, with a symlink read as git reads one: its
    content is the path it points at. Caller frees *data. */
 int bgit_read_worktree_file (const bgit_repo *repo, const char *path,

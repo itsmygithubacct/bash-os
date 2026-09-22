@@ -291,6 +291,12 @@ git diff --ignore-blank-lines HEAD~1 HEAD > /dev/null
 git diff --ignore-blank-lines -w HEAD~1 HEAD > /dev/null
 git diff --ignore-blank-lines --numstat HEAD~1 HEAD > /dev/null
 git log -p -W -2 > /dev/null
+# What a change brings in that it should not, and what the status says.
+git diff --check HEAD~1 HEAD > /dev/null || true
+git diff --check > /dev/null || true
+git log --check -2 > /dev/null || true
+git diff --exit-code HEAD~1 HEAD > /dev/null || true
+git diff --quiet HEAD~1 HEAD || true
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

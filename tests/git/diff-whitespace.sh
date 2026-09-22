@@ -69,3 +69,45 @@ git log -p -w -2
 git blame c.c
 git blame -w c.c
 git blame -w -s c.c
+
+echo '=== what a change brings in that it should not ==='
+# --check says 2 when it finds something, so its status is caught rather
+# than left to end the scenario.
+said () { "$@" && echo 'status 0' || echo "status $?"; }
+printf 'a clean line\n' > check.txt
+git add check.txt
+git commit -q -m 'a clean file'
+printf 'a clean line\ntrailing space   \n \twith a space before the tab\n\ta plain tab\nlast\n\n' > check.txt
+said git diff --check
+said git diff --check --stat
+said git diff --check -p
+git add check.txt
+said git diff --cached --check
+git commit -q -m 'the whitespace goes in'
+said git log -1 --check
+said git show --check
+
+echo '=== a marker left behind ==='
+printf 'a clean line\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> other\n' > check.txt
+said git diff --check
+
+echo '=== nothing wrong with it ==='
+printf 'a clean line\nand another\n' > check.txt
+said git diff --check
+
+echo '=== and what the status says on its own ==='
+said git diff --exit-code
+said git diff --quiet
+git add check.txt
+git commit -q -m 'a clean change'
+said git diff --exit-code
+said git diff --quiet
+printf 'a clean line\nand   another\n' > check.txt
+said git diff --quiet -w
+said git diff --quiet
+said git diff --exit-code --check
+
+echo '=== the four that cannot be asked for together ==='
+said git diff --name-only --check
+said git diff -s --name-status
+said git diff --check -s

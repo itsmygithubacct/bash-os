@@ -742,6 +742,155 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
     return 0;
 }
 
+/* --check: what whitespace a change brings in, and anything that looks like
+   a conflict marker left behind. git looks only at the lines a patch adds,
+   with the rules that are on unless told otherwise — whitespace at the end
+   of a line, a space before a tab in the indent, and a new blank line at the
+   end of the file. Returns 1 when something was found, 0 when nothing was,
+   or -1. */
+
+/* The default rules, as bits, so that several can be named at once. */
+#define BGIT_WS_BLANK_AT_EOL 1
+#define BGIT_WS_SPACE_BEFORE_TAB 2
+
+/* Nothing on this line but whitespace. */
+static int
+bgit_ws_blank (const char *line, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+        if (!isspace ((unsigned char) line[i])) return 0;
+    return 1;
+}
+
+/* Which of the whitespace rules this line breaks. */
+static unsigned
+bgit_ws_check (const char *line, size_t len)
+{
+    unsigned found = 0;
+    size_t end = len;
+    while (end && isspace ((unsigned char) line[end - 1])) {
+        end--;
+        found |= BGIT_WS_BLANK_AT_EOL;
+    }
+    /* A tab in the indent with a space anywhere before it. */
+    int had_space = 0;
+    for (size_t i = 0; i < end; i++) {
+        if (line[i] == ' ') { had_space = 1; continue; }
+        if (line[i] != '\t') break;
+        if (had_space) found |= BGIT_WS_SPACE_BEFORE_TAB;
+    }
+    return found;
+}
+
+/* Does this line look like one side of a conflict git left behind? Seven of
+   the same character from <>=| with whitespace, or nothing, after them. */
+static int
+bgit_conflict_marker (const char *line, size_t len)
+{
+    const size_t marker = 7;
+    if (len < marker) return 0;
+    char first = line[0];
+    if (first != '<' && first != '>' && first != '=' && first != '|') return 0;
+    for (size_t i = 1; i < marker; i++)
+        if (line[i] != first) return 0;
+    return len == marker || isspace ((unsigned char) line[marker]);
+}
+
+/* How many blank lines a file ends with. */
+static size_t
+bgit_trailing_blanks (const bgit_xdiff_file *file)
+{
+    size_t blanks = 0;
+    while (blanks < file->n &&
+           bgit_ws_blank (file->lines[file->n - 1 - blanks],
+                          file->lengths[file->n - 1 - blanks]))
+        blanks++;
+    return blanks;
+}
+
+int
+bgit_patch_check (FILE *out, bgit_odb *odb, const bgit_repo *repo,
+                 const bgit_diff_entry *entries, size_t n,
+                 const bgit_patch_options *options)
+{
+    int found = 0;
+    for (size_t i = 0; i < n; i++) {
+        char *old_data = NULL, *new_data = NULL;
+        size_t old_len = 0, new_len = 0;
+        if (bgit_patch_content (odb, repo, &entries[i], 0, options,
+                                &old_data, &old_len) < 0 ||
+            bgit_patch_content (odb, repo, &entries[i], 1, options,
+                                &new_data, &new_len) < 0) {
+            free (old_data);
+            return -1;
+        }
+        bgit_xdiff_file old_file, new_file;
+        bgit_xdiff_load (&old_file, old_data, old_len);
+        bgit_xdiff_load (&new_file, new_data, new_len);
+        char quoted[8192];
+        const char *name = bgit_quote_path (entries[i].path, quoted,
+                                            sizeof quoted);
+        if (old_file.binary || new_file.binary) goto next;
+
+        bgit_xdiff_result result;
+        /* git asks for one line of context here, and the line numbers it
+           reports are the new file's own. */
+        if (bgit_xdiff_opts (&old_file, &new_file, 1,
+                             BGIT_XDIFF_INDENT_HEURISTIC, &result) < 0) {
+            bgit_xdiff_release (&old_file);
+            bgit_xdiff_release (&new_file);
+            free (old_data);
+            free (new_data);
+            return -1;
+        }
+        for (size_t h = 0; h < result.n_hunks; h++) {
+            const bgit_xdiff_hunk *hunk = &result.hunks[h];
+            for (size_t j = hunk->new_start;
+                 j < hunk->new_start + hunk->new_count; j++) {
+                if (!result.new_changed[j]) continue;
+                const char *line = new_file.lines[j];
+                size_t len = new_file.lengths[j];
+                if (bgit_conflict_marker (line, len)) {
+                    fprintf (out, "%s%s:%zu: leftover conflict marker\n",
+                             options->line_prefix, name, j + 1);
+                    found = 1;
+                }
+                unsigned bad = bgit_ws_check (line, len);
+                if (!bad) continue;
+                fprintf (out, "%s%s:%zu: %s%s%s.\n", options->line_prefix, name,
+                         j + 1,
+                         bad & BGIT_WS_BLANK_AT_EOL ? "trailing whitespace" : "",
+                         (bad & BGIT_WS_BLANK_AT_EOL) &&
+                         (bad & BGIT_WS_SPACE_BEFORE_TAB) ? ", " : "",
+                         bad & BGIT_WS_SPACE_BEFORE_TAB
+                         ? "space before tab in indent" : "");
+                fprintf (out, "%s+", options->line_prefix);
+                fwrite (line, 1, len, out);
+                fputc ('\n', out);
+                found = 1;
+            }
+        }
+        bgit_xdiff_result_release (&result);
+
+        /* A blank line at the end of the file is reported once, where the
+           run of them begins, and only when the change made more of them. */
+        size_t before = bgit_trailing_blanks (&old_file);
+        size_t after = bgit_trailing_blanks (&new_file);
+        if (after > before) {
+            fprintf (out, "%s%s:%zu: new blank line at EOF.\n",
+                     options->line_prefix, name, new_file.n - after + 1);
+            found = 1;
+        }
+
+    next:
+        bgit_xdiff_release (&old_file);
+        bgit_xdiff_release (&new_file);
+        free (old_data);
+        free (new_data);
+    }
+    return found;
+}
+
 /* ------------------------------------------------------------ the forms */
 
 static int
