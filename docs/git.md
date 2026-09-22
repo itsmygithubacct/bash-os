@@ -31,7 +31,7 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
 git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
-                 [-n <number>] [--reverse] [--first-parent]
+                 [-n <number>] [--skip=<n>] [--reverse] [--first-parent]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
                  [--show-signature] [--grep=<pattern>] [--author=<pattern>]
                  [--committer=<pattern>] [-i] [-E] [-F] [--invert-grep]
@@ -82,8 +82,8 @@ git describe     [--tags] [--long] [--always] [--abbrev=<n>] [--exact-match]
 git branch       [-v | -vv] [-a | -r] [--show-current]
                  [--merged [<commit>]] [--no-merged [<commit>]]
                  [--contains <commit>] [--points-at <object>]
-                 [<name> [<start>]] | (-d | -D) <name>
-                 | (-m | -M) <old> <new>
+                 [--list [<pattern>...]] [<name> [<start>]]
+                 | (-d | -D) <name> | (-m | -M) <old> <new>
 git switch       [-q] [-c <new>] [--detach] <branch>
 git checkout     [-q] [-b <new>] <branch> | [--] <path>...
 git restore      [--staged] [--worktree] [--source=<tree>] [--] <path>...
@@ -125,7 +125,8 @@ git revert       [--no-edit] [-n] <commit> | --continue | --abort
 git tag          [-a] [-s] [-u <key>] [-m <message>] [-f] [<name>
                  [<object>]] | -d <name>... | [-l] [-n[<num>]]
                  [--contains <commit>] [--merged <commit>]
-                 [--no-merged <commit>] [--points-at <object>] [<pattern>]
+                 [--no-merged <commit>] [--points-at <object>]
+                 [--sort=<key>] [<pattern>]
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
                  [--is-inside-work-tree] [--is-bare-repository]
@@ -138,7 +139,8 @@ git hash-object  [-t <type>] [-w] [--stdin | --stdin-paths] [<file>...]
 git update-ref   [-m <reason>] (-d <ref> [<old>] | <ref> <new> [<old>])
 git symbolic-ref [-m <reason>] [-q] [--short] <name> [<ref>]
 git show-ref     [--head] [--heads] [--tags] [-q] [--verify] [<pattern>...]
-git for-each-ref [--count=<n>] [--format=<format>] [<pattern>...]
+git for-each-ref [--count=<n>] [--format=<format>] [--sort=<key>]
+                 [<pattern>...]
 git reflog       [show] [<ref>]
 git config       [--global | --local | --file <file>] [-z] [--name-only]
                  [--type=<type> | --bool | --int | --path]
@@ -156,7 +158,8 @@ git read-tree    <tree-ish>
 git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
 git ls-tree      [-d] [-r] [-t] [-l] [-z] [--name-only] [--abbrev=<n>]
                  <tree-ish> [<path>...]
-git rev-list     [--count] [-n <number>] [--objects] [--parents] [--all]
+git rev-list     [--count] [-n <number>] [--skip=<n>] [--objects]
+                 [--parents] [--all] [--first-parent]
                  [--grep=<pattern>] [--author=<pattern>] [--merges]
                  [--no-merges] [--since=<date>] [--until=<date>]
                  <commit>...
@@ -636,15 +639,33 @@ does with one it cannot place either.
 Two of the filters read the commit's own diff rather than the commit:
 `-S<string>` keeps the commits that changed how often the string appears
 in a file, and `-G<pattern>` those that added or took away a line the
-pattern matches. `--pickaxe-regex` makes the first read its string as a
-pattern too, and `-i` covers both. A merge answers to neither, as it does
-not for git: the diff git shows for one is empty unless it is asked for
-another.
+pattern matches; either may be written with its argument beside it or after
+it. A pattern is read the extended way, as git reads one, and
+`--pickaxe-regex` makes `-S` read its string as a pattern too; `-i` covers
+both. A merge answers to neither, as it does not for git: the diff git shows
+for one is empty unless it is asked for another.
+
+`--skip=<n>` passes over the first few commits that would have been shown —
+in the order the walk found them, before `--reverse` turns them round and
+before a limit counts them, which is git's order. `--all` starts from every
+ref there is, however many that is.
 
 A subject is the message down to its first blank line, with the breaks
 inside it written as single spaces and the whitespace at each line's end
 dropped, and the body is what follows that blank line: `%s`, `%b` and the
-one-line form all read them that way.
+one-line form all read them that way. `%B` is the message whole, subject and
+body alike, exactly as it was written.
+
+`git branch --list` takes as many patterns as are given and shows the
+branches whose names match any of them, matching the name as git does —
+without the `refs/heads/` or `refs/remotes/` in front. `git tag --sort=<key>`
+and `git for-each-ref --sort=<key>` put a listing in order by `refname`,
+`objectname`, `objecttype`, `committerdate`, `authordate`, `taggerdate`,
+`creatordate` or `version:refname` (`v:refname`), a leading `-` turning the
+comparison round, the last key given mattering most, and the name settling
+whatever the keys leave undecided. The version order is the one git uses,
+where a run of digits counts as a number and a run with a leading zero as a
+fraction. Any other key is refused by name.
 
 An ignore rule that excludes a directory excludes everything under it,
 and nothing below can be brought back: `git check-ignore -v` names that

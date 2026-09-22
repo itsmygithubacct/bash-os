@@ -1113,21 +1113,200 @@ git_format_ref (git_context *ctx, const bgit_ref *ref, const char *format)
     putchar ('\n');
 }
 
+/* ---- ordering a listing of refs ---------------------------------------- */
+
+static long long git_header_date (const char *data, size_t len,
+                                  const char *field);
+static long long git_object_date (git_context *ctx, const char *sha,
+                                  const char *field);
+static long long git_commit_date (git_context *ctx, const char *sha);
+
+/* strverscmp's rules, which is what git's version sort follows: a run of
+   digits compares as a number, a run with a leading zero as a fraction, and
+   anything else byte by byte. */
+static int
+git_version_cmp (const char *s1, const char *s2)
+{
+    enum { S_N = 0, S_I = 3, S_F = 6, S_Z = 9 };
+    enum { CMP = 2, LEN = 3 };
+    static const unsigned char next_state[] = {
+        /* state    x    d    0  */
+        /* S_N */  S_N, S_I, S_Z,
+        /* S_I */  S_N, S_I, S_I,
+        /* S_F */  S_N, S_F, S_F,
+        /* S_Z */  S_N, S_F, S_Z
+    };
+    static const signed char result_type[] = {
+        /* state   x/x  x/d  x/0  d/x  d/d  d/0  0/x  0/d  0/0  */
+        /* S_N */  CMP, CMP, CMP, CMP, LEN, CMP, CMP, CMP, CMP,
+        /* S_I */  CMP,  -1,  -1,  +1, LEN, LEN,  +1, LEN, LEN,
+        /* S_F */  CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP,
+        /* S_Z */  CMP,  +1,  +1,  -1, CMP, CMP,  -1, CMP, CMP
+    };
+    const unsigned char *p1 = (const unsigned char *) s1;
+    const unsigned char *p2 = (const unsigned char *) s2;
+    if (p1 == p2) return 0;
+    unsigned char c1 = *p1++, c2 = *p2++;
+    int state = S_N + ((c1 == '0') + (isdigit (c1) != 0));
+    int diff;
+    while ((diff = c1 - c2) == 0) {
+        if (!c1) return diff;
+        state = next_state[state];
+        c1 = *p1++;
+        c2 = *p2++;
+        state += (c1 == '0') + (isdigit (c1) != 0);
+    }
+    state = result_type[state * 3 + ((c2 == '0') + (isdigit (c2) != 0))];
+    switch (state) {
+    case CMP:
+        return diff;
+    case LEN:
+        while (isdigit (*p1++))
+            if (!isdigit (*p2++)) return 1;
+        return isdigit (*p2) ? -1 : diff;
+    default:
+        return state;
+    }
+}
+
+/* One of git's sort keys. A leading '-' turns the comparison round. */
+struct git_ref_key {
+    const char *name;
+    int reverse;
+};
+
+/* A ref and the dates a sort might ask it for, read once so that the
+   comparison need not read the object again. */
+struct git_ref_order {
+    bgit_ref ref;
+    long long committer, author, tagger;
+    char type[16];
+};
+
+static const struct git_ref_key *git_sort_keys;
+static int git_n_sort_keys;
+
+/* Is this one of the keys this build knows? */
+static int
+git_ref_key_known (const char *name)
+{
+    static const char *const known[] = {
+        "refname", "objectname", "objecttype", "committerdate", "authordate",
+        "taggerdate", "creatordate", "version:refname", "v:refname", NULL
+    };
+    for (int i = 0; known[i]; i++)
+        if (!strcmp (name, known[i])) return 1;
+    return 0;
+}
+
+static long long
+git_ref_key_date (const struct git_ref_order *o, const char *key)
+{
+    if (!strcmp (key, "committerdate")) return o->committer;
+    if (!strcmp (key, "authordate")) return o->author;
+    if (!strcmp (key, "taggerdate")) return o->tagger;
+    /* A tag has a date of its own; anything else is dated by its commit. */
+    if (!strcmp (key, "creatordate"))
+        return o->tagger ? o->tagger : o->committer;
+    return 0;
+}
+
+static int
+git_ref_order_cmp (const void *pa, const void *pb)
+{
+    const struct git_ref_order *a = pa, *b = pb;
+    for (int k = 0; k < git_n_sort_keys; k++) {
+        const char *key = git_sort_keys[k].name;
+        int order = 0;
+        if (!strcmp (key, "refname")) order = strcmp (a->ref.name, b->ref.name);
+        else if (!strcmp (key, "objectname"))
+            order = strcmp (a->ref.sha, b->ref.sha);
+        else if (!strcmp (key, "objecttype")) order = strcmp (a->type, b->type);
+        else if (!strcmp (key, "version:refname") || !strcmp (key, "v:refname"))
+            order = git_version_cmp (a->ref.name, b->ref.name);
+        else {
+            long long da = git_ref_key_date (a, key);
+            long long db = git_ref_key_date (b, key);
+            order = da < db ? -1 : da > db ? 1 : 0;
+        }
+        if (order) return git_sort_keys[k].reverse ? -order : order;
+    }
+    /* Whatever the keys leave undecided, the name settles, as git's does. */
+    return strcmp (a->ref.name, b->ref.name);
+}
+
+/* Put a listing of refs in the order KEYS asks for. The last key given is
+   the one that matters most, which is git's rule; the array is rewritten in
+   place. Returns 0, or -1 with nothing changed. */
+static int
+git_sort_refs (git_context *ctx, bgit_ref *refs, size_t n,
+               const struct git_ref_key *keys, int n_keys)
+{
+    if (!n_keys || n < 2) return 0;
+    struct git_ref_order *order = calloc (n, sizeof *order);
+    if (!order) return -1;
+    for (size_t i = 0; i < n; i++) {
+        order[i].ref = refs[i];
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t len = 0;
+        if (bgit_odb_read (&ctx->odb, refs[i].sha, &type, &data, &len) == 0) {
+            snprintf (order[i].type, sizeof order[i].type, "%s",
+                      type == BGIT_COMMIT ? "commit" : type == BGIT_TREE ? "tree"
+                      : type == BGIT_TAG ? "tag" : "blob");
+            if (type == BGIT_TAG)
+                order[i].tagger = git_header_date ((const char *) data, len,
+                                                   "tagger ");
+            free (data);
+        }
+        char commit[41];
+        if (bgit_peel_to_type (&ctx->odb, refs[i].sha, BGIT_COMMIT, commit) == 0) {
+            order[i].committer = git_commit_date (ctx, commit);
+            order[i].author = git_object_date (ctx, commit, "author ");
+        }
+    }
+    /* The keys are given in order of increasing importance. */
+    struct git_ref_key reversed[8];
+    int n_reversed = 0;
+    for (int k = n_keys - 1; k >= 0 && n_reversed < 8; k--)
+        reversed[n_reversed++] = keys[k];
+    git_sort_keys = reversed;
+    git_n_sort_keys = n_reversed;
+    qsort (order, n, sizeof *order, git_ref_order_cmp);
+    git_sort_keys = NULL;
+    git_n_sort_keys = 0;
+    for (size_t i = 0; i < n; i++) refs[i] = order[i].ref;
+    free (order);
+    return 0;
+}
+
 static int
 git_cmd_for_each_ref (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git for-each-ref [--count=<n>] [--format=<format>] "
-                        "[<pattern>...]";
+                        "[--sort=<key>] [<pattern>...]";
     const char *format = "%(objectname) %(objecttype)\t%(refname)";
     long limit = -1;
     const char *patterns[32];
     int n_patterns = 0;
+    struct git_ref_key keys[8];
+    int n_keys = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strncmp (w, "--format=", 9)) format = w + 9;
         else if (!strcmp (w, "--format") && p->next) { format = p->next->word->word; p = p->next; }
         else if (!strncmp (w, "--count=", 8)) limit = atol (w + 8);
+        else if (!strncmp (w, "--sort=", 7) || (!strcmp (w, "--sort") && p->next)) {
+            const char *key = w[6] == '=' ? w + 7 : (p = p->next)->word->word;
+            if (n_keys >= (int) (sizeof keys / sizeof *keys))
+                return git_fatal ("too many sort keys");
+            keys[n_keys].reverse = *key == '-';
+            if (keys[n_keys].reverse) key++;
+            if (!git_ref_key_known (key))
+                return git_fatal ("unknown field name: %s", key);
+            keys[n_keys++].name = key;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_patterns < (int) (sizeof patterns / sizeof *patterns))
             patterns[n_patterns++] = w;
@@ -1139,6 +1318,10 @@ git_cmd_for_each_ref (git_context *ctx, WORD_LIST *args)
     size_t count = 0;
     if (bgit_refs_list (&ctx->repo, "", &refs, &count) < 0)
         return git_fatal ("cannot read refs");
+    if (git_sort_refs (ctx, refs, count, keys, n_keys) < 0) {
+        bgit_refs_free (refs, count);
+        return GIT_EXIT_FATAL;
+    }
     long printed = 0;
     for (size_t i = 0; i < count; i++) {
         if (n_patterns) {
@@ -2162,7 +2345,8 @@ git_pickaxe_count (const struct git_log_filter *filter, const char *text,
         if (len) memcpy (held, text, len);
         held[len] = '\0';
         regex_t compiled;
-        int flags = REG_NEWLINE | (filter->extended ? REG_EXTENDED : 0) |
+        /* --pickaxe-regex, like -G, is read the extended way. */
+        int flags = REG_NEWLINE | REG_EXTENDED |
                     (filter->ignore_case ? REG_ICASE : 0);
         if (regcomp (&compiled, needle, flags) != 0) { free (held); return 0; }
         const char *at = held;
@@ -2218,6 +2402,41 @@ git_sha_hash (const char *sha)
         hash *= 1099511628211UL;
     }
     return hash;
+}
+
+static long long
+git_header_date (const char *data, size_t len, const char *field)
+{
+    size_t flen = strlen (field);
+    long long when = 0;
+    const char *p = data, *end = data + len;
+    while (p < end) {
+        const char *nl = memchr (p, '\n', (size_t) (end - p));
+        size_t line = nl ? (size_t) (nl - p) : (size_t) (end - p);
+        if (!line) break;
+        if (line > flen && !memcmp (p, field, flen)) {
+            /* "<field> Name <email> <seconds> <zone>" */
+            const char *gt = memchr (p, '>', line);
+            if (gt) when = strtoll (gt + 1, NULL, 10);
+            break;
+        }
+        if (!nl) break;
+        p = nl + 1;
+    }
+    return when;
+}
+
+/* The date on one of an object's header lines: 0 when it has none. */
+static long long
+git_object_date (git_context *ctx, const char *sha, const char *field)
+{
+    enum bgit_type type;
+    unsigned char *data = NULL;
+    size_t len = 0;
+    if (bgit_odb_read (&ctx->odb, sha, &type, &data, &len) < 0) return 0;
+    long long when = git_header_date ((const char *) data, len, field);
+    free (data);
+    return when;
 }
 
 static long long
@@ -2398,14 +2617,19 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git rev-list [--count] [--objects] [--parents] "
                         "[-n <number> | --max-count=<number>] "
+                        "[--skip=<number>] [--first-parent] "
                         "[--grep=<pattern>] [--author=<pattern>] "
                         "[--merges | --no-merges] [--since=<date>] "
                         "<commit>... [^<commit>]";
-    int count_only = 0, with_objects = 0, with_parents = 0;
+    int count_only = 0, with_objects = 0, with_parents = 0, first_parent = 0;
     struct git_log_filter filter;
     git_log_filter_init (&filter);
-    long limit = -1;
-    const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
+    long limit = -1, skip = 0, skipped = 0;
+    const char *revs_named[16], *rev_words_named[16];
+    const char *excludes[16], *exclude_words[16];
+    /* --all can name more revisions than a command line ever would, so the
+       list grows onto the heap when it does. */
+    const char **revs = revs_named, **rev_words = rev_words_named;
     int n_revs = 0, n_excludes = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
@@ -2416,6 +2640,8 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (!strcmp (w, "--count")) count_only = 1;
         else if (!strcmp (w, "--objects")) with_objects = 1;
         else if (!strcmp (w, "--parents")) with_parents = 1;
+        else if (!strcmp (w, "--first-parent")) first_parent = 1;
+        else if (!strncmp (w, "--skip=", 7)) skip = atol (w + 7);
         else if (git_log_filter_option (&filter, w, &taken)) {
             if (!taken && p->next) p = p->next;
         }
@@ -2456,18 +2682,35 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     if (!n_revs) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
-    /* --all stands for every ref there is. */
+    /* --all stands for every ref there is, however many that is. */
     bgit_ref *all_refs = NULL;
     size_t n_all = 0;
     for (int i = 0; i < n_revs; i++) {
         if (strcmp (revs[i], "--all")) continue;
         if (bgit_refs_list (&ctx->repo, "refs/", &all_refs, &n_all) < 0)
             return git_fatal ("cannot read refs");
-        revs[i] = NULL;
-        for (size_t j = 0; j < n_all && n_revs < (int) (sizeof revs / sizeof *revs); j++) {
-            rev_words[n_revs] = all_refs[j].name;
-            revs[n_revs++] = all_refs[j].name;
+        const char **grown = malloc ((n_all + (size_t) n_revs) * sizeof *grown);
+        const char **grown_words =
+            malloc ((n_all + (size_t) n_revs) * sizeof *grown_words);
+        if (!grown || !grown_words) {
+            free (grown);
+            free (grown_words);
+            bgit_refs_free (all_refs, n_all);
+            return GIT_EXIT_FATAL;
         }
+        int kept = 0;
+        for (int k = 0; k < n_revs; k++)
+            if (strcmp (revs[k], "--all")) {
+                grown_words[kept] = rev_words[k];
+                grown[kept++] = revs[k];
+            }
+        for (size_t j = 0; j < n_all; j++) {
+            grown_words[kept] = all_refs[j].name;
+            grown[kept++] = all_refs[j].name;
+        }
+        revs = grown;
+        rev_words = grown_words;
+        n_revs = kept;
         break;
     }
 
@@ -2538,8 +2781,21 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         if (limit >= 0 && emitted >= limit) break;
         char parents[BGIT_MAX_PARENTS][41];
         int n = bgit_commit_parents (&ctx->odb, current, parents, BGIT_MAX_PARENTS);
+        /* --first-parent keeps to the line of descent it started on. */
+        if (first_parent && n > 1) n = 1;
         /* A commit the filters leave out is still walked through. */
         if (!git_log_keeps_id (ctx, &filter, current)) {
+            for (int i = 0; i < n; i++)
+                if (git_walk_push (ctx, &walk, parents[i]) < 0) {
+                    status = GIT_EXIT_FATAL;
+                    goto done;
+                }
+            continue;
+        }
+        /* --skip passes over the first few that would have been named, and
+           their parents are still walked. */
+        if (skipped < skip) {
+            skipped++;
             for (int i = 0; i < n; i++)
                 if (git_walk_push (ctx, &walk, parents[i]) < 0) {
                     status = GIT_EXIT_FATAL;
@@ -2591,6 +2847,11 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
     free (seen.ids);
     free (left_out.ids);
 done:
+    if (revs != revs_named) {
+        free ((void *) revs);
+        free ((void *) rev_words);
+    }
+    bgit_refs_free (all_refs, n_all);
     free (walk.seen); free (walk.slots);
     free (walk.pending);
     return status;
@@ -4788,7 +5049,8 @@ git_pickaxe_keeps (git_context *ctx, const struct git_log_filter *filter,
     regex_t compiled;
     int have_regex = 0;
     if (filter->diff_grep) {
-        int flags = REG_NEWLINE | (filter->extended ? REG_EXTENDED : 0) |
+        /* -G is always a pattern, and git reads one the extended way. */
+        int flags = REG_NEWLINE | REG_EXTENDED |
                     (filter->ignore_case ? REG_ICASE : 0);
         have_regex = regcomp (&compiled, filter->diff_grep, flags) == 0;
         if (!have_regex) { bgit_diff_free (entries, n); return 0; }
@@ -5078,6 +5340,8 @@ git_format_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
             break;
         }
         case 'b': fputs (git_body (commit), out); break;
+        /* The whole message, subject and body alike, as it was written. */
+        case 'B': fputs (git_message_start (commit->message), out); break;
         case 'd':
         case 'D': {
             /* What names point here, the way git decorates a log line. */
@@ -5634,6 +5898,37 @@ git_print_graph (const char *block)
     }
 }
 
+/* Nothing could be walked: say which of the revisions named is to blame,
+   in the words it was written in — a range is reported whole, as git
+   reports it. */
+static int
+git_log_start_trouble (git_context *ctx, const char *const *starts,
+                       const char *const *start_words, int n_starts,
+                       const char *const *excludes,
+                       const char *const *exclude_words, int n_excludes)
+{
+    char id[41];
+    for (int i = 0; i < n_excludes; i++)
+        if (git_resolve (ctx, excludes[i], id, NULL) < 0)
+            return exclude_words[i][0] == '^'
+                   ? git_fatal ("bad revision '%s'", exclude_words[i])
+                   : git_fatal_ambiguous (exclude_words[i]);
+    for (int i = 0; i < n_starts; i++)
+        if (strcmp (starts[i], "HEAD") &&
+            git_resolve (ctx, starts[i], id, NULL) < 0)
+            return git_fatal_ambiguous (start_words[i]);
+    char *branch = NULL;
+    if (bgit_symref_read (&ctx->repo, "HEAD", &branch) == 0 && branch) {
+        const char *name = !strncmp (branch, "refs/heads/", 11) ? branch + 11
+                                                                : branch;
+        int fatal = git_fatal ("your current branch '%s' does not have any "
+                               "commits yet", name);
+        free (branch);
+        return fatal;
+    }
+    return git_fatal_ambiguous ("HEAD");
+}
+
 static int
 git_cmd_log (git_context *ctx, WORD_LIST *args)
 {
@@ -5657,7 +5952,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     git_date_format_init (&date);
     struct git_log_filter filter;
     git_log_filter_init (&filter);
-    long limit = -1;
+    long limit = -1, skip = 0;
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
     int n_revs = 0, n_excludes = 0, n_paths = 0, no_more = 0;
@@ -5708,6 +6003,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--follow")) follow = 1;
         else if (!strcmp (w, "-n") && p->next) { limit = atol (p->next->word->word); p = p->next; }
         else if (!strncmp (w, "--max-count=", 12)) limit = atol (w + 12);
+        else if (!strncmp (w, "--skip=", 7)) skip = atol (w + 7);
         else if (w[0] == '-' && git_all_digits (w + 1)) limit = atol (w + 1);
         else if (!strcmp (w, "--all")) {
             rev_words[n_revs] = w;
@@ -5784,24 +6080,31 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     if (follow && n_paths != 1)
         return git_fatal ("--follow requires exactly one pathspec");
 
-    /* --all means every ref; otherwise HEAD, unless revisions were named. */
-    const char *starts[64], *start_words[64];
-    int n_starts = 0;
+    /* --all means every ref there is, however many that is; otherwise HEAD,
+       unless revisions were named. */
     int want_all = 0;
     for (int i = 0; i < n_revs; i++)
         if (!strcmp (revs[i], "--all")) want_all = 1;
     bgit_ref *refs = NULL;
     size_t n_refs = 0;
-    if (want_all) {
-        if (bgit_refs_list (&ctx->repo, "refs/", &refs, &n_refs) < 0)
-            return git_fatal ("cannot read refs");
-        for (size_t i = 0; i < n_refs && n_starts < (int) (sizeof starts / sizeof *starts); i++) {
-            start_words[n_starts] = refs[i].name;
-            starts[n_starts++] = refs[i].name;
-        }
+    if (want_all && bgit_refs_list (&ctx->repo, "refs/", &refs, &n_refs) < 0)
+        return git_fatal ("cannot read refs");
+    const char **starts = malloc ((n_refs + (size_t) n_revs + 1) * sizeof *starts);
+    const char **start_words =
+        malloc ((n_refs + (size_t) n_revs + 1) * sizeof *start_words);
+    if (!starts || !start_words) {
+        free (starts);
+        free (start_words);
+        bgit_refs_free (refs, n_refs);
+        return GIT_EXIT_FATAL;
+    }
+    int n_starts = 0;
+    for (size_t i = 0; i < n_refs; i++) {
+        start_words[n_starts] = refs[i].name;
+        starts[n_starts++] = refs[i].name;
     }
     for (int i = 0; i < n_revs; i++)
-        if (strcmp (revs[i], "--all") && n_starts < (int) (sizeof starts / sizeof *starts)) {
+        if (strcmp (revs[i], "--all")) {
             start_words[n_starts] = rev_words[i];
             starts[n_starts++] = revs[i];
         }
@@ -5816,35 +6119,24 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     /* With anything to sift through, the limit counts what is shown. */
     int sifting = n_paths || git_log_filtering (&filter) ||
                   git_log_pickaxing (&filter);
+    /* What is skipped still has to be walked, so the walk's own limit makes
+       room for it. */
+    long walk_limit = sifting || limit < 0 ? -1 : limit + skip;
     int rc = git_collect_commits (ctx, starts, n_starts, excludes, n_excludes,
-                                  first_parent, sifting ? -1 : limit,
-                                  &ordered, &n);
-    bgit_refs_free (refs, n_refs);
+                                  first_parent, walk_limit, &ordered, &n);
     if (rc < 0) {
-        /* Name what could not be resolved, in the words it was written in:
-           a range is reported whole, as git reports it. */
-        char id[41];
-        for (int i = 0; i < n_excludes; i++)
-            if (git_resolve (ctx, excludes[i], id, NULL) < 0)
-                return exclude_words[i][0] == '^'
-                       ? git_fatal ("bad revision '%s'", exclude_words[i])
-                       : git_fatal_ambiguous (exclude_words[i]);
-        for (int i = 0; i < n_starts; i++)
-            if (strcmp (starts[i], "HEAD") && git_resolve (ctx, starts[i], id, NULL) < 0)
-                return git_fatal_ambiguous (start_words[i]);
-        char *branch = NULL;
-        if (bgit_symref_read (&ctx->repo, "HEAD", &branch) == 0 && branch) {
-            const char *name = !strncmp (branch, "refs/heads/", 11) ? branch + 11
-                                                                    : branch;
-            int fatal = git_fatal ("your current branch '%s' does not have any "
-                                   "commits yet", name);
-            free (branch);
-            return fatal;
-        }
-        return git_fatal_ambiguous ("HEAD");
+        int fatal = git_log_start_trouble (ctx, starts, start_words, n_starts,
+                                           excludes, exclude_words, n_excludes);
+        free (starts);
+        free (start_words);
+        bgit_refs_free (refs, n_refs);
+        return fatal;
     }
+    free (starts);
+    free (start_words);
+    bgit_refs_free (refs, n_refs);
 
-    long shown = 0;
+    long shown = 0, skipped = 0;
     int first = 1;
     /* With --follow the path is what the file was called at that point,
        which changes as the walk passes the commit that renamed it. */
@@ -5854,8 +6146,17 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         snprintf (followed, sizeof followed, "%s", paths[0]);
         follow_paths[0] = followed;
     }
-    for (size_t k = 0; k < n; k++) {
-        size_t i = reverse ? n - 1 - k : k;
+    /* What --skip passes over, it passes over in the order the walk found
+       it, before anything is turned round. Where there is something to sift
+       through, only the commits that get through can be counted, so the
+       skipping waits for the loop. */
+    size_t from = 0;
+    if (!sifting) {
+        from = (size_t) skip < n ? (size_t) skip : n;
+        skip = 0;
+    }
+    for (size_t k = 0; k + from < n; k++) {
+        size_t i = reverse ? n - 1 - k : from + k;
         struct git_commit commit;
         if (git_commit_read (ctx, ordered[i], &commit) < 0) continue;
         const char *const *against = follow ? follow_paths : paths;
@@ -5898,6 +6199,12 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
            under it. */
         if (git_headers_need_a_diff &&
             !git_commit_touches (ctx, &commit, paths, n_paths)) {
+            git_commit_release (&commit);
+            continue;
+        }
+        /* --skip passes over the first few of what would have been shown. */
+        if (skipped < skip) {
+            skipped++;
             git_commit_release (&commit);
             continue;
         }
@@ -6559,27 +6866,42 @@ git_head_label (struct git_state *state, char *out, size_t outsz)
     else snprintf (out, outsz, "(no branch)");
 }
 
+/* Does this name match any of the patterns given? No patterns means every
+   name does, which is what a listing with none asked for shows. */
+static int
+git_name_globbed (const char *name, const char *const *patterns, int n)
+{
+    if (!n) return 1;
+    for (int i = 0; i < n; i++)
+        if (patterns[i] && fnmatch (patterns[i], name, 0) == 0) return 1;
+    return 0;
+}
+
 static int
 git_cmd_branch (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git branch [-v | -vv] [-a | -r] [--show-current] "
                         "[--merged [<commit>]] [--no-merged [<commit>]] "
                         "[--contains <commit>] [--points-at <object>] "
-                        "[<name> [<start>]] | (-d | -D) <name> "
-                        "| (-m | -M) <old> <new>";
+                        "[--list [<pattern>...]] [<name> [<start>]] "
+                        "| (-d | -D) <name> | (-m | -M) <old> <new>";
     int verbose = 0, show_current = 0, delete_branch = 0, move_branch = 0, force = 0;
+    int list = 0;
     int show_remotes = 0, only_remotes = 0;
     /* What to leave out of the listing: each is a commit a branch has to
        reach, or be reached by, or stand on. */
     const char *merged = NULL, *not_merged = NULL, *contains = NULL;
     const char *points_at = NULL;
     int want_merged = 0, want_not_merged = 0;
-    const char *names[2] = { NULL, NULL };
+    /* Listing takes as many patterns as are given; making or moving a
+       branch takes at most two names. */
+    const char *names[16] = { NULL };
     int n_names = 0;
 
     for (WORD_LIST *p = args; p; p = p->next) {
         const char *w = p->word->word;
         if (!strcmp (w, "-v") || !strcmp (w, "--verbose")) verbose = 1;
+        else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
         else if (!strcmp (w, "-vv")) verbose = 2;
         else if (!strcmp (w, "--show-current")) show_current = 1;
         else if (!strcmp (w, "--merged")) {
@@ -6614,9 +6936,13 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-M")) { move_branch = 1; force = 1; }
         else if (!strcmp (w, "-f") || !strcmp (w, "--force")) force = 1;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
-        else if (n_names < 2) names[n_names++] = w;
+        else if (n_names < (int) (sizeof names / sizeof *names))
+            names[n_names++] = w;
         else return git_usage (usage);
     }
+    /* Without --list, a name is a branch to make and a second is where to
+       start it; there is no third. */
+    if (!list && n_names > 2) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
@@ -6681,7 +7007,9 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
         goto done;
     }
-    if (n_names) {
+    /* With --list, whatever was named is a pattern for the listing rather
+       than a branch to make. */
+    if (n_names && !list) {
         /* Create a branch at a starting point, HEAD by default. */
         char ref[4096], id[41];
         snprintf (ref, sizeof ref, "refs/heads/%s", names[0]);
@@ -6761,6 +7089,8 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     size_t n_trees = 0;
     git_worktrees (ctx, &trees, &n_trees);
 
+    /* With --list the names given are patterns the branch has to match. */
+    int n_glob = list ? n_names : 0;
     /* No arguments: list the branches, and with -a or -r the tracking refs
        that stand for branches at the far end. */
     bgit_ref *refs = NULL;
@@ -6784,14 +7114,16 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     size_t width = 0;
     for (size_t j = 0; j < n_refs; j++) {
         if (!git_ref_listed (ctx, refs[j].sha, merged_id, not_merged_id,
-                             contains_id, points_id))
+                             contains_id, points_id) ||
+            !git_name_globbed (refs[j].name + 11, names, n_glob))
             continue;
         size_t len = strlen (refs[j].name + 11);
         if (len > width) width = len;
     }
     for (size_t j = 0; j < n_tracking; j++) {
         if (!git_ref_listed (ctx, tracking[j].sha, merged_id, not_merged_id,
-                             contains_id, points_id))
+                             contains_id, points_id) ||
+            !git_name_globbed (tracking[j].name + 13, names, n_glob))
             continue;
         size_t len = strlen (tracking[j].name + 13) + (only_remotes ? 0 : 8);
         if (len > width) width = len;
@@ -6799,7 +7131,8 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     for (size_t i = 0; i < n_refs; i++) {
         const char *name = refs[i].name + 11;
         if (!git_ref_listed (ctx, refs[i].sha, merged_id, not_merged_id,
-                             contains_id, points_id))
+                             contains_id, points_id) ||
+            !git_name_globbed (name, names, n_glob))
             continue;
         int current = state.branch && !strcmp (state.branch, refs[i].name);
         int elsewhere = 0;
@@ -6864,7 +7197,8 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
     for (size_t i = 0; i < n_tracking; i++) {
         const char *name = tracking[i].name + 13;
         if (!git_ref_listed (ctx, tracking[i].sha, merged_id, not_merged_id,
-                             contains_id, points_id))
+                             contains_id, points_id) ||
+            !git_name_globbed (name, names, n_glob))
             continue;
         char shown[4096];
         snprintf (shown, sizeof shown, "%s%s", only_remotes ? "" : "remotes/",
@@ -13531,6 +13865,8 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
                         "[--merged <commit>] [--no-merged <commit>] "
                         "[--points-at <object>] [<pattern>]";
     int annotate = 0, delete_tag = 0, list = 0, force = 0, sign = 0, lines = 0;
+    struct git_ref_key keys[8];
+    int n_keys = 0;
     const char *merged = NULL, *not_merged = NULL, *contains = NULL;
     const char *points_at = NULL;
     int want_merged = 0, want_not_merged = 0;
@@ -13555,6 +13891,17 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         }
         else if (!strcmp (w, "-d") || !strcmp (w, "--delete")) delete_tag = 1;
         else if (!strcmp (w, "-l") || !strcmp (w, "--list")) list = 1;
+        else if (!strncmp (w, "--sort=", 7) || (!strcmp (w, "--sort") && p->next)) {
+            const char *key = w[6] == '=' ? w + 7 : (p = p->next)->word->word;
+            if (n_keys >= (int) (sizeof keys / sizeof *keys))
+                return git_fatal ("too many sort keys");
+            keys[n_keys].reverse = *key == '-';
+            if (keys[n_keys].reverse) key++;
+            if (!git_ref_key_known (key))
+                return git_fatal ("unknown field name: %s", key);
+            keys[n_keys++].name = key;
+            list = 1;
+        }
         else if (!strcmp (w, "-n")) { lines = 1; list = 1; }
         else if (w[0] == '-' && w[1] == 'n' && git_all_digits (w + 2)) {
             lines = atoi (w + 2);
@@ -13657,6 +14004,10 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         size_t n = 0;
         if (bgit_refs_list (&ctx->repo, "refs/tags/", &refs, &n) < 0)
             return git_fatal ("cannot read refs");
+        if (git_sort_refs (ctx, refs, n, keys, n_keys) < 0) {
+            bgit_refs_free (refs, n);
+            return GIT_EXIT_FATAL;
+        }
         for (size_t i = 0; i < n; i++) {
             const char *name = refs[i].name + 10;
             if (names[0] && fnmatch (names[0], name, 0) != 0) continue;

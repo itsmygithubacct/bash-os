@@ -57,3 +57,9 @@ git log --oneline -S delta -1
 git log --oneline -S delta --stat
 git log --oneline -S delta --grep=drop
 git log --oneline -S delta --author=Parity
+
+echo '=== a pattern is read the extended way ==='
+git log --oneline -G 'alpha|beta'
+git log --oneline -G 'l[a-z]+a'
+git log --oneline --pickaxe-regex -S 'l[a-z]+a'
+git log --oneline -i -G 'ALPHA|BETA'

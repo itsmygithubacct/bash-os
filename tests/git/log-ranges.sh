@@ -151,3 +151,26 @@ git reflog --format='%gd|%gs' -3
 git reflog --format='%h%x20%gs' -3
 git reflog --format='%H%n%gs' -1
 git reflog --format='%gd %s' -2
+
+echo '=== what to pass over, and which line of descent to keep to ==='
+git log --oneline --skip=1
+git log --oneline --skip=2 -2
+git log --oneline --skip=0 -3
+git log --oneline --skip=99
+git log --format='%s' --skip=1 -1
+git log --oneline --skip=1 --reverse -2
+git rev-list --count --skip=1 HEAD
+git rev-list --skip=2 --max-count=2 HEAD
+git rev-list --first-parent --count HEAD
+git rev-list --first-parent --max-count=3 HEAD
+git log --oneline --first-parent --skip=1 -2
+
+echo '=== every ref as a starting point ==='
+git log --all --oneline
+git rev-list --all --count
+git log --all --format='%s' --skip=2 -2
+
+echo '=== the whole message, as it was written ==='
+git log -1 --format='[%B]'
+git log -2 --format='%B'
+git log -1 --format='%s|%b|%B'

@@ -76,3 +76,30 @@ git tag --merged HEAD
 git tag --no-merged HEAD
 git tag -n1 --merged HEAD
 git tag --contains nosuchrev || echo "said no: $?"
+
+echo '=== a listing narrowed by a pattern, and put in order ==='
+git branch release-1
+git branch release-2
+git branch other
+git tag v1.9
+git tag v1.10
+git tag v1.2
+git branch --list 'release-*'
+git branch -l 'other'
+git branch --list 'no-such-*'
+git branch --list 'release-1' 'other'
+git branch -v --list 'release-*'
+git branch -a --list '*release*'
+git tag --sort=refname
+git tag --sort=-refname
+git tag --sort=v:refname
+git tag --sort=version:refname
+git tag -l 'v1.*' --sort=v:refname
+git for-each-ref --sort=refname --format='%(refname)'
+git for-each-ref --sort=-refname --format='%(refname)'
+git for-each-ref --sort=objecttype --format='%(objecttype) %(refname)'
+git for-each-ref --sort=refname refs/tags --format='%(refname:short)'
+git for-each-ref --sort=v:refname refs/tags --format='%(refname:short)'
+git for-each-ref --sort=-committerdate --count=3 --format='%(refname)' refs/heads
+git for-each-ref --sort=creatordate --format='%(refname)' refs/tags
+git for-each-ref --sort=nonesuch 2>&1 || true
