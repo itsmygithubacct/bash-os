@@ -3,7 +3,7 @@
 # Phase 1 everyday commands: add, commit, status, diff, log, branch, switch,
 # restore, reset and tag. Run through tests/git-parity.py, never on its own.
 # requires: init add status commit log diff branch switch tag ls-files
-# requires: restore reset rev-parse reflog cat-file
+# requires: restore reset rev-parse reflog cat-file checkout
 # requires-feature: diff-patch
 set -e
 
@@ -79,6 +79,25 @@ git reset
 git reset --hard
 git status --short
 git reset nosuchthing || echo "said no: $?"
+
+# A path the index holds that HEAD does not: reset takes it back out of the
+# index rather than complaining, and so does restore --staged. A pathspec
+# that names nothing is quietly nothing to reset, and an error to restore.
+printf 'fresh\n' > fresh.txt
+git add fresh.txt
+git status --short
+git reset fresh.txt
+git status --short
+git reset -- nosuchpath.txt || echo "reset said no: $?"
+git add fresh.txt
+git restore --staged fresh.txt
+git status --short
+git add fresh.txt
+git restore --staged --worktree fresh.txt
+git status --short
+[ -e fresh.txt ] && echo 'fresh.txt is here' || echo 'fresh.txt is gone'
+git restore --staged nosuchpath.txt || echo "restore said no: $?"
+git checkout HEAD -- nosuchpath.txt || echo "checkout said no: $?"
 
 # And before the first commit, where HEAD stands for the empty tree.
 mkdir -p unborn

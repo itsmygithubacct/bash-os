@@ -28,6 +28,7 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
                  [--ignore-cr-at-eol] [--ignore-blank-lines] [-W]
                  [--check] [--exit-code] [--quiet] [-z]
+                 [--relative[=<path>] | --no-relative]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -132,6 +133,7 @@ git tag          [-a] [-s] [-u <key>] [-m <message>] [-f] [<name>
                  [--sort=<key>] [<pattern>]
 git init         [-q] [--bare] [-b <branch>] [<directory>]
 git rev-parse    [--git-dir] [--absolute-git-dir] [--show-toplevel]
+                 [--show-prefix]
                  [--is-inside-work-tree] [--is-bare-repository]
                  [--abbrev-ref] [--short[=N]] [--symbolic-full-name]
                  [--all] [--branches] [--tags] [--remotes]
@@ -155,12 +157,13 @@ git config       [--global | --local | --file <file>] [-z] [--name-only]
 git update-index [--add] [--remove] [--cacheinfo <mode>,<object>,<path>]
                  [--index-info] [--] [<file>...]
 git ls-files     [-c] [-d] [-m] [-o] [-i] [-u] [-t] [-s] [-z]
-                 [--directory] [--exclude-standard] [--] [<file>...]
+                 [--directory] [--exclude-standard] [--full-name]
+                 [--] [<file>...]
 git write-tree
 git read-tree    <tree-ish>
 git commit-tree  <tree> [(-p <parent>)...] [(-m <message>)...] [-F <file>]
 git ls-tree      [-d] [-r] [-t] [-l] [-z] [--name-only] [--abbrev=<n>]
-                 <tree-ish> [<path>...]
+                 [--full-name] <tree-ish> [<path>...]
 git rev-list     [--count] [-n <number>] [--skip=<n>] [--objects]
                  [--parents] [--all] [--first-parent]
                  [--grep=<pattern>] [--author=<pattern>] [--merges]
@@ -1244,6 +1247,26 @@ to git's. Where a file holds many identical lines — blank lines, repeated
 boilerplate — several shortest answers exist, and bash-os may pick a
 different one from git's; both describe the same edit in the same number
 of lines.
+
+Run from a directory inside the working tree, every command works from
+there. A path written on the command line is read from where the command
+was run, and a path printed comes back relative to it — `git status`
+names a changed file above the current directory with the `../` in
+front, as git does. `git rev-parse --show-prefix` says where in the tree
+the command is and `--show-toplevel` where the working tree starts. The
+listings show what is under the current directory and nothing above it:
+`ls-files`, `ls-tree`, `grep`, `status` and `status --short` all cut
+back to it, and `--full-name` asks for the whole path from the top
+instead. A diff names its paths from the top of the tree, which is also
+git's rule, and `--relative` cuts them back to the current directory —
+`--relative=<dir>` to another one — leaving out whatever lies outside.
+
+`git reset <path>` and `git restore --staged <path>` put the index back
+to what the commit holds, and a path the commit does not hold leaves the
+index altogether: that is how a file that was only just added is taken
+back out. A pathspec that names nothing is quietly nothing to reset,
+where `restore` and `checkout -- <path>` say `error: pathspec '<path>'
+did not match any file(s) known to git` and leave with 1.
 
 ## Statuses and messages
 

@@ -85,6 +85,41 @@ git show v1 > /dev/null
 git rm -q --cached ragged.txt
 git status --short
 
+# A path the index holds and no commit does, taken back out of the index by
+# each of the commands that do it, and pathspecs that name nothing.
+printf 'only in the index\n' > staged-only.txt
+git add staged-only.txt
+git reset staged-only.txt
+git add staged-only.txt
+git restore --staged staged-only.txt
+git add staged-only.txt
+git restore --staged --worktree staged-only.txt
+git reset -- nosuchpath
+git restore --staged nosuchpath 2>/dev/null || true
+git checkout HEAD -- nosuchpath 2>/dev/null || true
+rm -f staged-only.txt
+
+# Run from a directory inside the working tree, where a path is written
+# from there and what is listed is what is under it.
+cd nest
+git status --short > /dev/null
+git status --porcelain=v2 > /dev/null
+git rev-parse --show-prefix > /dev/null
+git ls-files > /dev/null
+git ls-files --full-name > /dev/null
+git ls-files ../blob.bin > /dev/null
+git ls-tree -r HEAD > /dev/null
+git diff --relative > /dev/null
+git diff --relative --stat > /dev/null
+git grep -n nested > /dev/null || true
+git log --oneline -- deeper > /dev/null
+printf 'from inside\n' > inside.txt
+git add inside.txt
+git reset inside.txt > /dev/null
+git checkout -- deeper/file.txt
+rm -f inside.txt
+cd ..
+
 # Moving tracked paths and sweeping untracked ones.
 git mv long.txt renamed-long.txt
 git mv -n renamed-long.txt nest/

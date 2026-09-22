@@ -203,11 +203,25 @@ bgit_checkout_tree (const bgit_repo *repo, bgit_odb *odb, const char *tree,
     return 0;
 }
 
-int
-bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
-                     bgit_index_entry **index, size_t *n,
-                     const char *const *paths, size_t n_paths,
-                     int to_index, int to_worktree)
+/* Does a pathspec name this path — the path itself, or a directory it is
+   under? "." and "" name everything, as they do everywhere else in git. */
+static int
+bgit_spec_names (const char *path, const char *spec)
+{
+    size_t len = strlen (spec);
+    if (!*spec || !strcmp (spec, ".")) return 1;
+    return !strcmp (path, spec) ||
+           (!strncmp (path, spec, len) && path[len] == '/');
+}
+
+/* The work behind bgit_checkout_paths. With MATCHED, a pathspec that names
+   nothing is recorded there instead of being an error: the caller is
+   looking somewhere else for it as well. */
+static int
+bgit_checkout_core (const bgit_repo *repo, bgit_odb *odb, const char *tree,
+                    bgit_index_entry **index, size_t *n,
+                    const char *const *paths, size_t n_paths,
+                    int to_index, int to_worktree, char *matched)
 {
     bgit_index_entry *source = NULL;
     size_t n_source = 0;
@@ -216,16 +230,11 @@ bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
     size_t n_from = tree ? n_source : *n;
 
     for (size_t p = 0; p < n_paths; p++) {
-        size_t len = strlen (paths[p]);
-        /* "." and "" name everything, as they do everywhere else in git. */
-        int everything = !*paths[p] || !strcmp (paths[p], ".");
-        int matched = 0;
+        int found = 0;
         for (size_t i = 0; i < n_from; i++) {
             const char *path = from[i].path;
-            if (!everything && strcmp (path, paths[p]) &&
-                !(!strncmp (path, paths[p], len) && path[len] == '/'))
-                continue;
-            matched = 1;
+            if (!bgit_spec_names (path, paths[p])) continue;
+            found = 1;
             char full[4096], sha[41];
             snprintf (full, sizeof full, "%s/%s", repo->work_tree, path);
             bgit_sha_to_hex (from[i].sha, sha);
@@ -274,14 +283,80 @@ bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
                         bgit_checkout_stat (repo, &(*index)[j]);
             }
         }
-        if (!matched) {
-            builtin_error ("pathspec '%s' did not match any file(s) known to git",
-                           paths[p]);
+        if (found && matched) matched[p] = 1;
+        else if (!found && !matched) {
+            fprintf (stderr, "error: pathspec '%s' did not match any file(s) "
+                     "known to git\n", paths[p]);
             bgit_index_free_entries (source, n_source);
-            return -1;
+            return -2;
         }
     }
     if (*n > 1) qsort (*index, *n, sizeof **index, bgit_index_path_cmp);
     bgit_index_free_entries (source, n_source);
     return 0;
+}
+
+int
+bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
+                     bgit_index_entry **index, size_t *n,
+                     const char *const *paths, size_t n_paths,
+                     int to_index, int to_worktree)
+{
+    return bgit_checkout_core (repo, odb, tree, index, n, paths, n_paths,
+                               to_index, to_worktree, NULL);
+}
+
+int
+bgit_reset_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
+                  bgit_index_entry **index, size_t *n,
+                  const char *const *paths, size_t n_paths,
+                  int to_worktree, int must_match)
+{
+    char *matched = calloc (n_paths ? n_paths : 1, 1);
+    if (!matched) return -1;
+    bgit_index_entry *source = NULL;
+    size_t n_source = 0;
+    if (tree && bgit_read_tree (odb, tree, &source, &n_source) < 0) {
+        free (matched);
+        return -1;
+    }
+
+    int rc = 0;
+    /* A path the index holds and the tree does not is dropped: that is how
+       a file that was only just added is taken back out of the index. */
+    for (size_t p = 0; p < n_paths && !rc; p++) {
+        for (size_t j = 0; j < *n;) {
+            const char *path = (*index)[j].path;
+            if (!bgit_spec_names (path, paths[p]) ||
+                bgit_entry_for (source, n_source, path)) {
+                j++;
+                continue;
+            }
+            matched[p] = 1;
+            char *gone = strdup (path);
+            if (!gone) { rc = -1; break; }
+            if (to_worktree) {
+                char full[4096];
+                if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                                       repo->work_tree, gone) < sizeof full)
+                    unlink (full);
+            }
+            bgit_index_remove_path (index, n, gone);
+            free (gone);
+        }
+    }
+    bgit_index_free_entries (source, n_source);
+
+    /* What the tree holds comes back. */
+    if (!rc)
+        rc = bgit_checkout_core (repo, odb, tree, index, n, paths, n_paths,
+                                 1, to_worktree, matched);
+    for (size_t p = 0; must_match && !rc && p < n_paths; p++)
+        if (!matched[p]) {
+            fprintf (stderr, "error: pathspec '%s' did not match any file(s) "
+                     "known to git\n", paths[p]);
+            rc = -2;
+        }
+    free (matched);
+    return rc;
 }

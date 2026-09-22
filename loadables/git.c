@@ -146,7 +146,37 @@ typedef struct {
     bgit_odb odb;
     bgit_config cfg;
     int open;
+    /* Where the command was run, under the top of the working tree, with a
+       slash at the end; empty at the top and in a bare repository. git shows
+       a path from here and takes one from here. */
+    char prefix[4096];
 } git_context;
+
+/* A path of the repository's, written from where the command was run: the
+   same path where that is the top, and with as many ../ as it takes
+   otherwise. Returns BUF, or PATH where nothing had to change. */
+static const char *
+git_path_from_here (const git_context *ctx, const char *path, char *buf,
+                    size_t size)
+{
+    const char *prefix = ctx->prefix;
+    if (!*prefix) return path;
+    /* However much of the two agree, component by component. */
+    size_t shared = 0, at = 0;
+    while (prefix[at] && path[at] && prefix[at] == path[at]) {
+        if (path[at] == '/') shared = at + 1;
+        at++;
+    }
+    if (!prefix[at] && path[at]) shared = at;   /* the whole prefix matched */
+    size_t used = 0;
+    for (const char *rest = prefix + shared; *rest; rest++)
+        if (*rest == '/' && used + 3 < size) {
+            memcpy (buf + used, "../", 3);
+            used += 3;
+        }
+    snprintf (buf + used, size - used, "%s", path + shared);
+    return buf;
+}
 
 /* A conversation with a far end. Over a path it is a child with a pipe
    each way, the way git starts its own; over HTTP it is a URL, where
@@ -265,6 +295,10 @@ static int git_cmd_rebase (git_context *ctx, WORD_LIST *args);
 /* The summary of what this build has, which the help command and --help
    both print, and the command that prints it. */
 static void git_help_summary (void);
+/* Pathspecs are read from where the command was run; the commands that take
+   them are written out above the code that does it. */
+static int git_paths_from_here (const git_context *ctx, const char **paths,
+                                int n);
 static int git_cmd_help (git_context *ctx, WORD_LIST *args);
 /* An identity for a new object, or git's complaint about the date in the
    environment: the commands that write objects want both before the code
@@ -297,6 +331,17 @@ git_context_open (git_context *ctx)
     /* Every message here is git's, so the store stays quiet. */
     ctx->odb.quiet = 1;
     ctx->open = 1;
+    /* Where the command was run, under the top of the working tree. */
+    ctx->prefix[0] = '\0';
+    char here[4096];
+    if (ctx->repo.work_tree && getcwd (here, sizeof here)) {
+        size_t top = strlen (ctx->repo.work_tree);
+        if (!strncmp (here, ctx->repo.work_tree, top)) {
+            const char *rest = here + top;
+            while (*rest == '/') rest++;
+            if (*rest) snprintf (ctx->prefix, sizeof ctx->prefix, "%s/", rest);
+        }
+    }
     bgit_config_load (&ctx->cfg, &ctx->repo, git_overrides, git_n_overrides);
     /* Whether a byte outside ASCII is written as an escape in a path. */
     bgit_quote_path_fully = bgit_config_bool (&ctx->cfg, "core.quotePath", 1);
@@ -511,6 +556,7 @@ static int
 git_cmd_rev_parse (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git rev-parse [--git-dir] [--show-toplevel] "
+                        "[--show-prefix] "
                         "[--is-inside-work-tree] [--is-bare-repository] "
                         "[--abbrev-ref] [--short[=N]] [--symbolic-full-name] "
                         "[--verify] [-q] <rev>...";
@@ -536,6 +582,10 @@ git_cmd_rev_parse (git_context *ctx, WORD_LIST *args)
             printed = 1;
         } else if (!strcmp (w, "--absolute-git-dir")) {
             printf ("%s\n", ctx->repo.git_dir);
+            printed = 1;
+        } else if (!strcmp (w, "--show-prefix")) {
+            /* Where the command was run, under the top of the tree. */
+            printf ("%s\n", ctx->prefix);
             printed = 1;
         } else if (!strcmp (w, "--show-toplevel")) {
             if (ctx->repo.work_tree) printf ("%s\n", ctx->repo.work_tree);
@@ -1695,16 +1745,19 @@ git_path_named (const char *path, const char *const *patterns, int n)
 /* One of ls-files' lines: the path, with the index's record of it when a
    stage listing was asked for, behind the letter that says what it is. */
 static void
-git_ls_line (const bgit_index_entry *entry, const char *tag, int stage,
-             char end)
+git_ls_line (const git_context *ctx, const bgit_index_entry *entry,
+             const char *tag, int stage, char end, int full_name)
 {
+    char here[8192];
+    const char *path = full_name ? entry->path
+        : git_path_from_here (ctx, entry->path, here, sizeof here);
     char hex[41];
     bgit_sha_to_hex (entry->sha, hex);
     /* A name is quoted where it needs it, unless the lines end in NUL and
        there is nothing to be confused with. */
     char quoted[8192];
-    const char *shown = end == '\0' ? entry->path
-        : bgit_quote_path (entry->path, quoted, sizeof quoted);
+    const char *shown = end == '\0' ? path
+        : bgit_quote_path (path, quoted, sizeof quoted);
     if (stage)
         printf ("%s%o %s %d\t%s%c", tag, entry->mode, hex,
                 (entry->flags >> 12) & 0x3, shown, end);
@@ -1712,13 +1765,67 @@ git_ls_line (const bgit_index_entry *entry, const char *tag, int stage,
         printf ("%s%s%c", tag, shown, end);
 }
 
+/* A pathspec as it was written from where the command was run, turned into
+   one the repository would know: the place in front of it, and any . or ..
+   in it worked out. Returns 0 and fills OUT, or -1. */
+static int
+git_path_join_prefix (const char *prefix, const char *spec, char *out,
+                      size_t size)
+{
+    char joined[8192];
+    if ((size_t) snprintf (joined, sizeof joined, "%s%s", prefix, spec) >=
+        sizeof joined)
+        return -1;
+    char *parts[256];
+    int n = 0;
+    for (char *at = joined; *at; ) {
+        char *slash = strchr (at, '/');
+        if (slash) *slash = '\0';
+        if (!strcmp (at, "..")) {
+            if (n) n--;
+        } else if (*at && strcmp (at, ".")) {
+            if (n == (int) (sizeof parts / sizeof *parts)) return -1;
+            parts[n++] = at;
+        }
+        if (!slash) break;
+        at = slash + 1;
+    }
+    size_t used = 0;
+    out[0] = '\0';
+    for (int i = 0; i < n; i++) {
+        int wrote = snprintf (out + used, size - used, "%s%s",
+                              i ? "/" : "", parts[i]);
+        if (wrote < 0 || (size_t) wrote >= size - used) return -1;
+        used += (size_t) wrote;
+    }
+    return 0;
+}
+
+/* Every pathspec a command was given, read from where the command was run.
+   The rewritten ones live here, since a command reads its paths once. */
+static char git_here_specs[64][4096];
+
+static int
+git_paths_from_here (const git_context *ctx, const char **paths, int n)
+{
+    if (!*ctx->prefix) return 0;
+    if (n > (int) (sizeof git_here_specs / sizeof git_here_specs[0])) return -1;
+    for (int i = 0; i < n; i++) {
+        if (git_path_join_prefix (ctx->prefix, paths[i], git_here_specs[i],
+                                  sizeof git_here_specs[i]) < 0)
+            return -1;
+        paths[i] = git_here_specs[i];
+    }
+    return 0;
+}
+
 static int
 git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git ls-files [-c] [-d] [-m] [-o] [-i] [-u] [-t] "
                         "[-s | --stage] [--directory] [--exclude-standard] "
-                        "[-z] [--] [<file>...]";
-    int stage = 0, zero = 0, no_more_options = 0;
+                        "[-z] [--full-name] [--] [<file>...]";
+    int stage = 0, zero = 0, no_more_options = 0, full_name = 0;
     int cached = 0, deleted = 0, modified = 0, others = 0, only_ignored = 0;
     int unmerged = 0, tags = 0, directory = 0, exclude = 0;
     const char *patterns[32];
@@ -1753,6 +1860,7 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
         else if (!no_more_options && !strcmp (w, "--stage")) stage = 1;
         else if (!no_more_options && !strcmp (w, "--directory")) directory = 1;
         else if (!no_more_options && !strcmp (w, "--exclude-standard")) exclude = 1;
+        else if (!no_more_options && !strcmp (w, "--full-name")) full_name = 1;
         else if (!no_more_options && w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_patterns < (int) (sizeof patterns / sizeof *patterns))
             patterns[n_patterns++] = w;
@@ -1772,6 +1880,22 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
     if (!cached && !deleted && !modified && !others && !unmerged) cached = 1;
     int stage_form = stage || unmerged;
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* Run under a directory of the working tree, git lists what is there
+       and names it from there: the place stands for a pathspec of its own,
+       and a pathspec that was named is read from there too. --full-name
+       names everything from the top instead. */
+    char held[32][4096];
+    for (int i = 0; i < n_patterns && *ctx->prefix; i++)
+        if (git_path_join_prefix (ctx->prefix, patterns[i], held[i],
+                                  sizeof held[i]) == 0)
+            patterns[i] = held[i];
+    char under[4096] = "";
+    if (*ctx->prefix && !n_patterns) {
+        snprintf (under, sizeof under, "%s", ctx->prefix);
+        under[strlen (under) - 1] = '\0';     /* without the slash */
+        patterns[n_patterns++] = under;
+    }
+
 
     bgit_index_entry *entries = NULL;
     size_t n = 0;
@@ -1790,9 +1914,11 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
         }
         for (size_t i = 0; i < n_others; i++)
             if (git_path_named (paths[i], patterns, n_patterns)) {
-                char quoted[8192];
-                const char *shown = end == '\0' ? paths[i]
-                    : bgit_quote_path (paths[i], quoted, sizeof quoted);
+                char quoted[8192], here[8192];
+                const char *path = full_name ? paths[i]
+                    : git_path_from_here (ctx, paths[i], here, sizeof here);
+                const char *shown = end == '\0' ? path
+                    : bgit_quote_path (path, quoted, sizeof quoted);
                 printf ("%s%s%c", tags ? "? " : "", shown, end);
             }
         bgit_others_free (paths, n_others);
@@ -1816,8 +1942,9 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
         /* What the path is, then what has happened to it since: git writes
            the index's own line first, then removal, then change. */
         if (cached || unmerged)
-            git_ls_line (&entries[i], tags ? (entry_stage ? "M " : "H ") : "",
-                         stage_form, end);
+            git_ls_line (ctx, &entries[i],
+                         tags ? (entry_stage ? "M " : "H ") : "", stage_form,
+                         end, full_name);
         if (!deleted && !modified) continue;
         char full[4096];
         if ((size_t) snprintf (full, sizeof full, "%s/%s",
@@ -1827,10 +1954,12 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
         struct stat st;
         int gone = lstat (full, &st) < 0;
         if (deleted && gone)
-            git_ls_line (&entries[i], tags ? "R " : "", stage_form, end);
+            git_ls_line (ctx, &entries[i], tags ? "R " : "", stage_form, end,
+                         full_name);
         if (modified &&
             (gone || !bgit_worktree_matches (&ctx->odb, full, &entries[i], &st)))
-            git_ls_line (&entries[i], tags ? "C " : "", stage_form, end);
+            git_ls_line (ctx, &entries[i], tags ? "C " : "", stage_form, end,
+                         full_name);
     }
     if (have_ignore) bgit_ignore_release (&ignore);
     bgit_index_free_entries (entries, n);
@@ -2002,6 +2131,8 @@ git_cmd_commit_tree (git_context *ctx, WORD_LIST *args)
 struct git_ls_tree {
     git_context *ctx;
     int recursive, show_trees, dirs_only, name_only, zero, long_form, abbrev;
+    int full_name;                /* name everything from the top of the tree */
+    const char *shown_prefix;     /* what to put back in front of a name */
     struct { const char *name; int slashed; } specs[32];
     int n_specs;
 };
@@ -2039,7 +2170,11 @@ git_ls_tree_show (struct git_ls_tree *ls, const char *mode, const char *type,
                   const char *sha, const char *path)
 {
     char end = ls->zero ? '\0' : '\n';
-    char quoted[8192];
+    char quoted[8192], whole[8192];
+    if (ls->shown_prefix && *ls->shown_prefix) {
+        snprintf (whole, sizeof whole, "%s%s", ls->shown_prefix, path);
+        path = whole;
+    }
     const char *shown = ls->zero ? path
         : bgit_quote_path (path, quoted, sizeof quoted);
     if (ls->name_only) { printf ("%s%c", shown, end); return; }
@@ -2100,7 +2235,7 @@ static int
 git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git ls-tree [-d] [-r] [-t] [-l] [-z] [--name-only] "
-                        "[--abbrev=<n>] <tree-ish> [<path>...]";
+                        "[--full-name] [--abbrev=<n>] <tree-ish> [<path>...]";
     struct git_ls_tree ls;
     memset (&ls, 0, sizeof ls);
     ls.ctx = ctx;
@@ -2119,6 +2254,7 @@ git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
         else if (!no_more && (!strcmp (w, "--name-only") ||
                               !strcmp (w, "--name-status")))
             ls.name_only = 1;
+        else if (!no_more && !strcmp (w, "--full-name")) ls.full_name = 1;
         else if (!no_more && !strncmp (w, "--abbrev=", 9)) {
             ls.abbrev = atoi (w + 9);
             if (ls.abbrev < 4) ls.abbrev = 4;
@@ -2147,6 +2283,18 @@ git_cmd_ls_tree (git_context *ctx, WORD_LIST *args)
     if (git_resolve (ctx, name, id, NULL) < 0 ||
         bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0)
         return git_fatal ("not a tree object");
+    /* Run under a directory of the working tree, git lists that part of the
+       tree and names what it finds from there — unless --full-name asks for
+       the name from the top, which it then puts back in front. */
+    if (*ctx->prefix) {
+        char spec[8192], inside[41];
+        snprintf (spec, sizeof spec, "%s:%.*s", name,
+                  (int) (strlen (ctx->prefix) - 1), ctx->prefix);
+        if (git_resolve (ctx, spec, inside, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, inside, BGIT_TREE, tree) < 0)
+            return 0;                    /* nothing of it is in this tree */
+        ls.shown_prefix = ls.full_name ? ctx->prefix : "";
+    }
     if (bgit_tree_walk (&ctx->odb, tree, "", 0, 1, git_ls_tree_entry, &ls) < 0)
         return git_fatal ("cannot read tree %s", tree);
     return 0;
@@ -2639,6 +2787,15 @@ git_objects_visit (void *context, const char *mode, const char *type,
     return 0;
 }
 
+/* Is there a file of this name where the command was run? Deciding whether
+   a word is a path is the one thing that needs to know. */
+static int
+git_path_exists (const char *path)
+{
+    struct stat st;
+    return lstat (path, &st) == 0;
+}
+
 static int
 git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
 {
@@ -2685,7 +2842,9 @@ git_cmd_rev_list (git_context *ctx, WORD_LIST *args)
         }
         else if (strstr (w, "...")) return git_fatal ("this build's git rev-list "
                                                       "has no A...B range yet");
-        else if (strstr (w, "..")) {
+        /* Two dots make a range — unless there is a file of that name,
+           which is how `git log ../file` reads. */
+        else if (strstr (w, "..") && !git_path_exists (w)) {
             char *range = strdup (w);
             if (!range) return GIT_EXIT_FATAL;
             char *dots = strstr (range, "..");
@@ -3182,6 +3341,9 @@ git_cmd_add (git_context *ctx, WORD_LIST *args)
     }
     if (!n_specs && !all && !update_only) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, specs, n_specs) < 0)
+        return git_fatal ("too many paths");
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
 
@@ -3531,7 +3693,7 @@ git_status_long (git_context *ctx, struct git_state *state,
                  const bgit_status_entry *entries, size_t n,
                  const char *branch_name, int untracked_mode, int want_ignored)
 {
-    char quoted[8192];
+    char quoted[8192], here[8192], here_from[8192];
     /* A rebase in progress speaks for itself, in place of the branch. */
     int rebasing = git_rebase_in_progress (ctx);
     if (rebasing) ;
@@ -3650,14 +3812,21 @@ git_status_long (git_context *ctx, struct git_state *state,
                 char from[8192];
                 printf ("\t%-12s%s -> %s\n",
                         git_status_label (entries[i].staged),
-                        bgit_quote_path (entries[i].renamed_from, from,
-                                         sizeof from),
-                        bgit_quote_path (entries[i].path, quoted,
-                                         sizeof quoted));
+                        bgit_quote_path (git_path_from_here (ctx,
+                                                         entries[i].renamed_from,
+                                                         here_from,
+                                                         sizeof here_from),
+                                     from, sizeof from),
+                        bgit_quote_path (git_path_from_here (ctx,
+                                                             entries[i].path,
+                                                             here, sizeof here),
+                                         quoted, sizeof quoted));
                 continue;
             }
             printf ("\t%-12s%s\n", git_status_label (entries[i].staged),
-                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+                    bgit_quote_path (git_path_from_here (ctx, entries[i].path,
+                                                        here, sizeof here),
+                                     quoted, sizeof quoted));
         }
         printf ("\n");
     }
@@ -3671,7 +3840,9 @@ git_status_long (git_context *ctx, struct git_state *state,
         for (size_t i = 0; i < n; i++) {
             if (!entries[i].unmerged) continue;
             printf ("\t%-17s%s\n", git_unmerged_label (entries[i].unmerged),
-                    bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+                    bgit_quote_path (git_path_from_here (ctx, entries[i].path,
+                                                        here, sizeof here),
+                                     quoted, sizeof quoted));
         }
         printf ("\n");
     }
@@ -3701,7 +3872,9 @@ git_status_long (git_context *ctx, struct git_state *state,
                 continue;
             char note[128];
             printf ("\t%-12s%s%s\n", git_status_label (entries[i].unstaged),
-                    bgit_quote_path (entries[i].path, quoted, sizeof quoted),
+                    bgit_quote_path (git_path_from_here (ctx, entries[i].path,
+                                                        here, sizeof here),
+                                     quoted, sizeof quoted),
                     git_submodule_note (ctx, &entries[i], note, sizeof note));
         }
         printf ("\n");
@@ -3712,7 +3885,9 @@ git_status_long (git_context *ctx, struct git_state *state,
         for (size_t i = 0; i < n; i++)
             if (entries[i].untracked)
                 printf ("\t%s\n",
-                        bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+                        bgit_quote_path (git_path_from_here (ctx, entries[i].path,
+                                                        here, sizeof here),
+                                     quoted, sizeof quoted));
         printf ("\n");
     }
     if (want_ignored && ignored) {
@@ -3721,7 +3896,9 @@ git_status_long (git_context *ctx, struct git_state *state,
         for (size_t i = 0; i < n; i++)
             if (entries[i].ignored)
                 printf ("\t%s\n",
-                        bgit_quote_path (entries[i].path, quoted, sizeof quoted));
+                        bgit_quote_path (git_path_from_here (ctx, entries[i].path,
+                                                        here, sizeof here),
+                                     quoted, sizeof quoted));
         printf ("\n");
     }
 
@@ -3835,20 +4012,30 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
        one with a space in it as well, so that its columns can be told
        apart — which is what git does with each. */
     int quote_spaces = !(version == 2 && porcelain);
+    /* The first porcelain names a path from the top of the tree, so that a
+       script reading it need not know where it was run; every other form
+       names it from here, as git does. */
+    int from_here = !(porcelain && version == 1);
     for (size_t i = 0; i < n; i++) {
         const bgit_status_entry *entry = &entries[i];
-        char shown_buf[8192], from_buf[8192];
-        const char *shown = zero ? entry->path
+        char shown_buf[8192], from_buf[8192], here_buf[8192], here_from[8192];
+        const char *path = from_here
+            ? git_path_from_here (ctx, entry->path, here_buf, sizeof here_buf)
+            : entry->path;
+        const char *older = entry->renamed_from && *entry->renamed_from
+            ? (from_here ? git_path_from_here (ctx, entry->renamed_from,
+                                               here_from, sizeof here_from)
+                         : entry->renamed_from)
+            : NULL;
+        const char *shown = zero ? path
             : quote_spaces
-            ? bgit_quote_path_sp (entry->path, shown_buf, sizeof shown_buf)
-            : bgit_quote_path (entry->path, shown_buf, sizeof shown_buf);
-        const char *came_from = entry->renamed_from && *entry->renamed_from
-            ? (zero ? entry->renamed_from
+            ? bgit_quote_path_sp (path, shown_buf, sizeof shown_buf)
+            : bgit_quote_path (path, shown_buf, sizeof shown_buf);
+        const char *came_from = older
+            ? (zero ? older
                : quote_spaces
-               ? bgit_quote_path_sp (entry->renamed_from, from_buf,
-                                     sizeof from_buf)
-               : bgit_quote_path (entry->renamed_from, from_buf,
-                                  sizeof from_buf))
+               ? bgit_quote_path_sp (older, from_buf, sizeof from_buf)
+               : bgit_quote_path (older, from_buf, sizeof from_buf))
             : NULL;
         if (entry->ignored) {
             if (version == 2 && porcelain) printf ("! %s%c", shown, record_end);
@@ -3941,6 +4128,8 @@ struct git_diff_format {
     int check;                          /* --check: the whitespace a change brings */
     int exit_code;                      /* say in the status whether anything changed */
     int zero;                           /* -z: names whole, records NUL-ended */
+    int relative;                       /* only what is here, named from here */
+    const char *relative_to;            /* --relative=<path>, where given */
     int no_patch;
     int no_renames;
     int context;
@@ -6096,7 +6285,9 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         else if (strstr (w, "...")) {
             return git_fatal ("this build's git log has no A...B range yet");
         }
-        else if (strstr (w, "..")) {
+        /* Two dots make a range — unless there is a file of that name,
+           which is how `git log ../file` reads. */
+        else if (strstr (w, "..") && !git_path_exists (w)) {
             /* A..B: what B has and A does not. Either side may be left out,
                and then means HEAD. */
             char *range = strdup (w);
@@ -6134,17 +6325,14 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
                        sizeof git_notes_showing);
 
     /* A word that is not a revision but names a file is a path, which is
-       how git reads `git log <file>`. */
+       how git reads `git log <file>`. The file is looked for from where the
+       command was run, as git looks for it. */
     for (int i = 0; i < n_revs;) {
         char probe[41];
         if (!strcmp (revs[i], "--all") ||
             git_resolve (ctx, revs[i], probe, NULL) == 0) { i++; continue; }
-        char full[4096];
         struct stat st;
-        if ((size_t) snprintf (full, sizeof full, "%s/%s",
-                               ctx->repo.work_tree ? ctx->repo.work_tree : ".",
-                               revs[i]) >= sizeof full ||
-            lstat (full, &st) != 0 ||
+        if (lstat (revs[i], &st) != 0 ||
             n_paths >= (int) (sizeof paths / sizeof *paths)) { i++; continue; }
         paths[n_paths++] = revs[i];
         for (int j = i; j + 1 < n_revs; j++) {
@@ -6153,6 +6341,9 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
         }
         n_revs--;
     }
+    /* Every path, however it was given, is read from where it was written. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     if (follow && n_paths != 1)
         return git_fatal ("--follow requires exactly one pathspec");
 
@@ -6395,6 +6586,16 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strcmp (w, "--exit-code")) format->exit_code = 1;
     /* -z ends each record with NUL and writes the names as they are. */
     else if (!strcmp (w, "-z")) format->zero = 1;
+    /* --relative keeps to what is under here and names it from here. */
+    else if (!strcmp (w, "--relative")) format->relative = 1;
+    else if (!strncmp (w, "--relative=", 11)) {
+        format->relative = 1;
+        format->relative_to = w + 11;
+    }
+    else if (!strcmp (w, "--no-relative")) {
+        format->relative = 0;
+        format->relative_to = NULL;
+    }
     /* --quiet is that and nothing printed at all. */
     else if (!strcmp (w, "--quiet")) {
         format->patch = format->stat = format->numstat = format->shortstat = 0;
@@ -6461,6 +6662,31 @@ git_diff_emit (git_context *ctx, FILE *out,
     bgit_patch_options options;
     bgit_patch_options_init (&options);
     options.context = format->context;
+    /* --relative leaves out what is not under the place it names, and names
+       the rest from there. */
+    char relative[4200] = "";
+    bgit_relative_to = NULL;
+    bgit_diff_entry *kept = NULL;
+    if (format->relative) {
+        if (format->relative_to && *format->relative_to)
+            snprintf (relative, sizeof relative, "%s%s%s", ctx->prefix,
+                      format->relative_to,
+                      format->relative_to[strlen (format->relative_to) - 1] == '/'
+                      ? "" : "/");
+        else snprintf (relative, sizeof relative, "%s", ctx->prefix);
+        if (*relative) {
+            bgit_relative_to = relative;
+            kept = calloc (n ? n : 1, sizeof *kept);
+            if (!kept) return -1;
+            size_t left = 0;
+            size_t under = strlen (relative);
+            for (size_t i = 0; i < n; i++)
+                if (!strncmp (entries[i].path, relative, under))
+                    kept[left++] = entries[i];
+            entries = kept;
+            n = left;
+        }
+    }
     options.new_from_worktree = new_from_worktree;
     options.word_diff = format->word_diff;
     options.ignore_ws = format->ignore_ws;
@@ -6496,6 +6722,7 @@ git_diff_emit (git_context *ctx, FILE *out,
         int found = bgit_patch_check (out, &ctx->odb, &ctx->repo, entries, n,
                                       &options);
         free (turned);
+        free (kept);
         if (found > 0) git_check_complained = 1;
         return found < 0 ? -1 : found ? 2 : 0;
     }
@@ -6513,8 +6740,13 @@ git_diff_emit (git_context *ctx, FILE *out,
            ids as far as they are abbreviated, and what happened. */
         for (size_t i = 0; i < n; i++) {
             char quoted[8192], old_id[41], new_id[41];
-            const char *name = format->zero ? entries[i].path
-                : bgit_quote_path (entries[i].path, quoted, sizeof quoted);
+            const char *shown_path = entries[i].path;
+            if (bgit_relative_to &&
+                !strncmp (shown_path, bgit_relative_to,
+                          strlen (bgit_relative_to)))
+                shown_path += strlen (bgit_relative_to);
+            const char *name = format->zero ? shown_path
+                : bgit_quote_path (shown_path, quoted, sizeof quoted);
             git_abbrev (ctx, entries[i].old_sha, options.abbrev, old_id,
                         sizeof old_id);
             git_abbrev (ctx, entries[i].new_sha, options.abbrev, new_id,
@@ -6542,8 +6774,13 @@ git_diff_emit (git_context *ctx, FILE *out,
     if (named) {
         for (size_t i = 0; i < n; i++) {
             char quoted[8192];
-            const char *name = format->zero ? entries[i].path
-                : bgit_quote_path (entries[i].path, quoted, sizeof quoted);
+            const char *shown_path = entries[i].path;
+            if (bgit_relative_to &&
+                !strncmp (shown_path, bgit_relative_to,
+                          strlen (bgit_relative_to)))
+                shown_path += strlen (bgit_relative_to);
+            const char *name = format->zero ? shown_path
+                : bgit_quote_path (shown_path, quoted, sizeof quoted);
             if (format->name_status && entries[i].status == 'R') {
                 char from_quoted[8192];
                 const char *from = format->zero ? entries[i].from
@@ -6567,6 +6804,7 @@ git_diff_emit (git_context *ctx, FILE *out,
             if (bgit_diffstat (&ctx->odb, &ctx->repo, entries, n, &options,
                                &counted, &n_counted) < 0) {
                 free (turned);
+        free (kept);
                 return -1;
             }
             if (format->numstat) bgit_numstat_write (out, counted, n_counted);
@@ -6594,9 +6832,11 @@ git_diff_emit (git_context *ctx, FILE *out,
     if (patch &&
         bgit_patch_write (out, &ctx->odb, &ctx->repo, entries, n, &options) < 0) {
         free (turned);
+        free (kept);
         return -1;
     }
     free (turned);
+    free (kept);
     return 0;
 }
 
@@ -6641,6 +6881,9 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         for (int k = i; k + 1 < n_revs; k++) revs[k] = revs[k + 1];
         n_revs--;
     }
+    /* Every path, however it was given, is read from where it was written. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
 
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
@@ -7633,6 +7876,9 @@ git_cmd_checkout (git_context *ctx, WORD_LIST *args)
         else return git_fatal ("too many paths");
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
     int status = 0;
@@ -7650,11 +7896,12 @@ git_cmd_checkout (git_context *ctx, WORD_LIST *args)
             }
             have_tree = 1;
         }
-        if (bgit_checkout_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
-                                 &state.index, &state.n_index, paths,
-                                 (size_t) n_paths, have_tree, 1) < 0 ||
-            git_index_store (ctx, state.index, state.n_index) < 0)
-            status = GIT_EXIT_FATAL;
+        int rc = bgit_checkout_paths (&ctx->repo, &ctx->odb,
+                                      have_tree ? tree : NULL, &state.index,
+                                      &state.n_index, paths,
+                                      (size_t) n_paths, have_tree, 1);
+        if (rc < 0 || git_index_store (ctx, state.index, state.n_index) < 0)
+            status = rc == -2 ? 1 : GIT_EXIT_FATAL;
         goto done;
     }
     if (create) {
@@ -7726,6 +7973,9 @@ git_cmd_restore (git_context *ctx, WORD_LIST *args)
     if (!n_paths) return git_usage (usage);
     if (!staged && !worktree) worktree = 1;      /* git's default */
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
 
@@ -7742,11 +7992,17 @@ git_cmd_restore (git_context *ctx, WORD_LIST *args)
         }
         have_tree = 1;
     }
-    if (bgit_checkout_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
-                             &state.index, &state.n_index, paths,
-                             (size_t) n_paths, staged, worktree) < 0 ||
-        git_index_store (ctx, state.index, state.n_index) < 0)
-        status = GIT_EXIT_FATAL;
+    /* Staging a path back means the index follows the tree, and a path the
+       tree does not have leaves the index altogether. */
+    int rc = staged
+        ? bgit_reset_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
+                            &state.index, &state.n_index, paths,
+                            (size_t) n_paths, worktree, 1)
+        : bgit_checkout_paths (&ctx->repo, &ctx->odb, have_tree ? tree : NULL,
+                               &state.index, &state.n_index, paths,
+                               (size_t) n_paths, 0, worktree);
+    if (rc < 0 || git_index_store (ctx, state.index, state.n_index) < 0)
+        status = rc == -2 ? 1 : GIT_EXIT_FATAL;
 done:
     git_state_release (&state);
     return status;
@@ -7811,6 +8067,22 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
         else return git_fatal ("too many paths");
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* The word before the paths is a commit, unless it is a file: git reads
+       `git reset <file>` as a path. */
+    if (commit_name) {
+        char probe[41];
+        if (git_resolve (ctx, commit_name, probe, NULL) < 0 &&
+            git_path_exists (commit_name) &&
+            n_paths < (int) (sizeof paths / sizeof *paths)) {
+            for (int k = n_paths; k > 0; k--) paths[k] = paths[k - 1];
+            paths[0] = commit_name;
+            n_paths++;
+            commit_name = NULL;
+        }
+    }
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
 
@@ -7860,9 +8132,10 @@ git_cmd_reset (git_context *ctx, WORD_LIST *args)
     }
 
     if (n_paths) {
-        /* Only the index moves: the files are left alone. */
-        if (bgit_checkout_paths (&ctx->repo, &ctx->odb, tree, &state.index,
-                                 &state.n_index, paths, (size_t) n_paths, 1, 0) < 0 ||
+        /* Only the index moves: the files are left alone. A pathspec that
+           names nothing is not an error here, as it is for restore. */
+        if (bgit_reset_paths (&ctx->repo, &ctx->odb, tree, &state.index,
+                              &state.n_index, paths, (size_t) n_paths, 0, 0) < 0 ||
             git_index_store (ctx, state.index, state.n_index) < 0)
             status = GIT_EXIT_FATAL;
         if (!status && !quiet) git_reset_report (ctx, &state);
@@ -11422,6 +11695,9 @@ git_cmd_archive (git_context *ctx, WORD_LIST *args)
         return git_fatal ("Unknown archive format '%s'", format);
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
 
     char id[41], tree[41];
     if (git_resolve (ctx, name, id, NULL) < 0)
@@ -14022,6 +14298,29 @@ git_cmd_grep (git_context *ctx, WORD_LIST *args)
     }
     if (!n_patterns) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* The word after the pattern is what to search, if it names something
+       that can be searched; otherwise it is a path, as git reads it. */
+    if (tree_ish && !no_more) {
+        char probe[41];
+        if (git_resolve (ctx, tree_ish, probe, NULL) < 0 &&
+            n_paths < (int) (sizeof paths / sizeof *paths)) {
+            for (int k = n_paths; k > 0; k--) paths[k] = paths[k - 1];
+            paths[0] = tree_ish;
+            n_paths++;
+            tree_ish = NULL;
+        }
+    }
+    /* A path was written from where the command was run, and where none was
+       written the place itself stands for one: git looks under the
+       directory it was run in and names what it finds from there. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
+    char under[4096] = "";
+    if (*ctx->prefix && !n_paths) {
+        snprintf (under, sizeof under, "%.*s",
+                  (int) (strlen (ctx->prefix) - 1), ctx->prefix);
+        paths[n_paths++] = under;
+    }
 
     grep.n_patterns = n_patterns;
     grep.patterns = calloc ((size_t) n_patterns, sizeof *grep.patterns);
@@ -14060,10 +14359,12 @@ git_cmd_grep (git_context *ctx, WORD_LIST *args)
         if (n_paths && !git_path_named (entries[i].path, paths, n_paths))
             continue;
         if (entries[i].mode == 0160000) continue;   /* a repository of its own */
-        char shown[8192];
+        char shown[8192], here[8192];
+        const char *named = git_path_from_here (ctx, entries[i].path, here,
+                                                sizeof here);
         if (tree_ish)
-            snprintf (shown, sizeof shown, "%s:%s", tree_ish, entries[i].path);
-        else snprintf (shown, sizeof shown, "%s", entries[i].path);
+            snprintf (shown, sizeof shown, "%s:%s", tree_ish, named);
+        else snprintf (shown, sizeof shown, "%s", named);
         unsigned char *data = NULL;
         size_t len = 0;
         if (tree_ish || cached) {
@@ -14612,6 +14913,9 @@ git_cmd_rm (git_context *ctx, WORD_LIST *args)
     }
     if (!n_paths) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
 
@@ -25172,6 +25476,9 @@ git_cmd_mv (git_context *ctx, WORD_LIST *args)
     }
     if (n_paths < 2) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
 
@@ -25359,6 +25666,9 @@ git_cmd_clean (git_context *ctx, WORD_LIST *args)
         return git_fatal ("clean.requireForce is true and -f not given: "
                           "refusing to clean");
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
 
@@ -25406,11 +25716,18 @@ git_cmd_clean (git_context *ctx, WORD_LIST *args)
                 if (git_path_in_spec (trimmed, paths[j])) named = 1;
             }
             if (!named) continue;
+        } else if (*ctx->prefix &&
+                   strncmp (entry->path, ctx->prefix, strlen (ctx->prefix))) {
+            /* Run under a directory, git clears out what is under it. */
+            continue;
         }
         /* Without -d a directory is left alone, unless it was named. */
         if (is_directory && !directories && !named) continue;
-        if (!quiet)
-            printf ("%s %s\n", dry_run ? "Would remove" : "Removing", entry->path);
+        if (!quiet) {
+            char here[8192];
+            printf ("%s %s\n", dry_run ? "Would remove" : "Removing",
+                    git_path_from_here (ctx, entry->path, here, sizeof here));
+        }
         if (dry_run) continue;
         char full[4096];
         snprintf (full, sizeof full, "%s/%.*s", ctx->repo.work_tree,
@@ -25473,6 +25790,9 @@ git_cmd_check_ignore (git_context *ctx, WORD_LIST *args)
     }
     if (!n_paths) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    /* A path was written from where the command was run. */
+    if (git_paths_from_here (ctx, paths, n_paths) < 0)
+        return git_fatal ("too many paths");
 
     bgit_ignore ignore;
     if (bgit_ignore_load (&ignore, &ctx->repo, &ctx->cfg) < 0)

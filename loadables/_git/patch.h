@@ -99,6 +99,10 @@ int bgit_read_worktree_file (const bgit_repo *repo, const char *path,
    an escape. Set from the configuration; git's default is on. */
 extern int bgit_quote_path_fully;
 
+/* What comes off the front of every path a patch or a stat names, which is
+   what --relative asks for. NULL, or a directory with a slash at the end. */
+extern const char *bgit_relative_to;
+
 /* The same, forcing the quotes where the name holds a space: what the short
    status does, so that its columns can be told apart. */
 const char *bgit_quote_path_sp (const char *path, char *buf, size_t size);

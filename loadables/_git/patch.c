@@ -337,25 +337,41 @@ bgit_patch_content (bgit_odb *odb, const bgit_repo *repo,
     return 0;
 }
 
+const char *bgit_relative_to;
+
+/* A path as a patch names it: with --relative, what is under the place it is
+   relative to is named from there. */
+static const char *
+bgit_shown_path (const char *path)
+{
+    size_t off = bgit_relative_to ? strlen (bgit_relative_to) : 0;
+    if (off && !strncmp (path, bgit_relative_to, off)) return path + off;
+    return path;
+}
+
 /* The header lines every changed path starts with. */
 static void
 bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
                    const bgit_patch_options *options, int identical)
 {
     char quoted[8192];
-    const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
+    const char *name = bgit_quote_path (bgit_shown_path (entry->path),
+                                        quoted, sizeof quoted);
     const char *lp = options->line_prefix;
     char from_quoted[8192];
     const char *from = entry->from
-        ? bgit_quote_path (entry->from, from_quoted, sizeof from_quoted) : name;
+        ? bgit_quote_path (bgit_shown_path (entry->from), from_quoted,
+                           sizeof from_quoted) : name;
     /* The prefix and the name are one name on this line: where either wants
        quoting, git quotes the pair of them together. */
     char old_side[8320], new_side[8320];
     fprintf (out, "%sdiff --git %s %s\n", lp,
              bgit_quote_two (options->prefix_old,
-                             entry->from ? entry->from : entry->path,
+                             bgit_shown_path (entry->from ? entry->from
+                                                          : entry->path),
                              old_side, sizeof old_side),
-             bgit_quote_two (options->prefix_new, entry->path, new_side,
+             bgit_quote_two (options->prefix_new,
+                             bgit_shown_path (entry->path), new_side,
                              sizeof new_side));
 
     if (entry->status == 'R') {
@@ -606,10 +622,12 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
         char old_side[8320], new_side[8320];
         /* A rename's old side is named where it used to live. */
         const char *from = bgit_quote_two (options->prefix_old,
-                                           entry->from ? entry->from
-                                                       : entry->path,
+                                           bgit_shown_path (entry->from
+                                                            ? entry->from
+                                                            : entry->path),
                                            old_side, sizeof old_side);
-        const char *name = bgit_quote_two (options->prefix_new, entry->path,
+        const char *name = bgit_quote_two (options->prefix_new,
+                                           bgit_shown_path (entry->path),
                                            new_side, sizeof new_side);
         if (entry->status == 'A')
             fprintf (out, "%s--- /dev/null\n", lp);
@@ -1001,11 +1019,12 @@ static const char *
 bgit_stat_name (const bgit_diff_entry *entry, char *quoted, size_t quoted_size,
                 char *both, size_t both_size)
 {
-    const char *name = bgit_quote_path (entry->path, quoted, quoted_size);
+    const char *name = bgit_quote_path (bgit_shown_path (entry->path), quoted,
+                                        quoted_size);
     if (!entry->from) return name;
     char from_quoted[8192];
-    const char *from = bgit_quote_path (entry->from, from_quoted,
-                                        sizeof from_quoted);
+    const char *from = bgit_quote_path (bgit_shown_path (entry->from),
+                                        from_quoted, sizeof from_quoted);
     snprintf (both, both_size, "%s => %s", from, name);
     return both;
 }
@@ -1116,7 +1135,8 @@ bgit_numstat_write (FILE *out, const bgit_diffstat_entry *stats, size_t n)
 {
     char quoted[8192];
     for (size_t i = 0; i < n; i++) {
-        const char *name = bgit_quote_path (stats[i].entry->path, quoted,
+        const char *name = bgit_quote_path (bgit_shown_path (stats[i].entry->path),
+                                            quoted,
                                             sizeof quoted);
         if (stats[i].binary) fprintf (out, "-\t-\t%s\n", name);
         else fprintf (out, "%zu\t%zu\t%s\n", stats[i].added, stats[i].removed,

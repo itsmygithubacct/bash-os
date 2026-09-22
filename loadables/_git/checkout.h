@@ -32,10 +32,21 @@ int bgit_checkout_tree (const bgit_repo *repo, bgit_odb *odb, const char *tree,
                         char **lost);
 
 /* Restore single paths from a tree or from the index, as `git restore` and
-   `git checkout -- <path>` do. PATHS are worktree-relative. */
+   `git checkout -- <path>` do. PATHS are worktree-relative. Returns -2,
+   having said so, when a pathspec named nothing: git leaves with 1 there,
+   not with the 128 a real failure gets. */
 int bgit_checkout_paths (const bgit_repo *repo, bgit_odb *odb,
                          const char *tree, bgit_index_entry **index, size_t *n,
                          const char *const *paths, size_t n_paths,
                          int to_index, int to_worktree);
+
+/* `git reset <paths>` and `git restore --staged <paths>`: the index goes
+   back to what TREE holds, and a path TREE does not have is dropped from
+   the index instead. With MUST_MATCH a pathspec that names nothing in
+   either place is an error, as it is for restore but not for reset. */
+int bgit_reset_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
+                      bgit_index_entry **index, size_t *n,
+                      const char *const *paths, size_t n_paths,
+                      int to_worktree, int must_match);
 
 #endif /* BASH_OS_GIT_CHECKOUT_H */
