@@ -99,6 +99,7 @@ git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
                  [-e | --no-edit] [-q] <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
 git cherry       [-v] [--abbrev[=<n>]] [<upstream> [<head> [<limit>]]]
+git help         [-a] [<command>]
 git submodule    [status [--cached]] | init | update [--init] [-q]
                  | add <url> [<path>] | deinit [-f] [--all]
                  | foreach [-q] <command> [<path>...]
@@ -310,6 +311,22 @@ one of `--name-only`, `--name-status`, `--check` and `-s` may be given.
 What is not here is a diff by another algorithm — `--patience`,
 `--histogram`, `--minimal` and `--diff-algorithm` — or `--inter-hunk-context`.
 Each is refused rather than quietly ignored.
+
+`git help` with nothing named prints what `git --help` prints: this build's
+commands, which are not git's and are not grouped as git groups them. Named
+a command, it opens the manual page for it, `git-<command>`, exactly as git
+does — and anything that is not a command it looks for as one of git's
+guides, `git<name>`, which is git's rule too. The page comes from whatever
+this build's `man` can find and show.
+
+An automatic merge that runs into a conflict leaves `AUTO_MERGE` behind in
+git, a ref standing for the tree the merge arrived at by itself, for
+`git diff AUTO_MERGE` to show. Nothing here writes one. Everything else a
+command leaves behind to say it is under way — `MERGE_HEAD`, `MERGE_MSG`,
+`MERGE_MODE`, `SQUASH_MSG`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, the bisect
+files, `REBASE_HEAD` and the rebase directories — is written and cleared
+where git writes and clears it, and the parity harness compares them after
+every scenario.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),

@@ -262,6 +262,10 @@ static int git_write_state_file (git_context *ctx, const char *name,
 static void git_remove_state_file (git_context *ctx, const char *name);
 /* pull ends in one of these, depending on what it was asked for. */
 static int git_cmd_rebase (git_context *ctx, WORD_LIST *args);
+/* The summary of what this build has, which the help command and --help
+   both print, and the command that prints it. */
+static void git_help_summary (void);
+static int git_cmd_help (git_context *ctx, WORD_LIST *args);
 /* An identity for a new object, or git's complaint about the date in the
    environment: the commands that write objects want both before the code
    that reads them is reached. */
@@ -25698,10 +25702,10 @@ static const struct {
 } git_commands[] = {
     { "add",          git_cmd_add },
     { "am",           git_cmd_am },
+    { "annotate",     git_cmd_annotate },
     { "apply",        git_cmd_apply },
     { "archive",      git_cmd_archive },
     { "bisect",       git_cmd_bisect },
-    { "annotate",     git_cmd_annotate },
     { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
     { "bundle",       git_cmd_bundle },
@@ -25720,12 +25724,13 @@ static const struct {
     { "diff",         git_cmd_diff },
     { "fetch",        git_cmd_fetch },
     { "for-each-ref", git_cmd_for_each_ref },
-    { "hash-object",  git_cmd_hash_object },
-    { "index-pack",   git_cmd_index_pack },
     { "format-patch", git_cmd_format_patch },
     { "fsck",         git_cmd_fsck },
     { "gc",           git_cmd_gc },
     { "grep",         git_cmd_grep },
+    { "hash-object",  git_cmd_hash_object },
+    { "help",         git_cmd_help },
+    { "index-pack",   git_cmd_index_pack },
     { "init",         git_cmd_init },
     { "log",          git_cmd_log },
     { "ls-files",     git_cmd_ls_files },
@@ -25744,9 +25749,9 @@ static const struct {
     { "read-tree",    git_cmd_read_tree },
     { "rebase",       git_cmd_rebase },
     { "receive-pack", git_cmd_receive_pack },
-    { "repack",       git_cmd_repack },
     { "reflog",       git_cmd_reflog },
     { "remote",       git_cmd_remote },
+    { "repack",       git_cmd_repack },
     { "reset",        git_cmd_reset },
     { "restore",      git_cmd_restore },
     { "rev-list",     git_cmd_rev_list },
@@ -25757,8 +25762,8 @@ static const struct {
     { "show",         git_cmd_show },
     { "show-ref",     git_cmd_show_ref },
     { "stash",        git_cmd_stash },
-    { "submodule",    git_cmd_submodule },
     { "status",       git_cmd_status },
+    { "submodule",    git_cmd_submodule },
     { "switch",       git_cmd_switch },
     { "symbolic-ref", git_cmd_symbolic_ref },
     { "tag",          git_cmd_tag },
@@ -25768,13 +25773,68 @@ static const struct {
     { "upload-pack",  git_cmd_upload_pack },
     { "var",          git_cmd_var },
     { "verify-commit", git_cmd_verify_commit },
-    { "whatchanged",  git_cmd_whatchanged },
     { "verify-pack",  git_cmd_verify_pack },
     { "verify-tag",   git_cmd_verify_tag },
+    { "whatchanged",  git_cmd_whatchanged },
     { "worktree",     git_cmd_worktree },
     { "write-tree",   git_cmd_write_tree },
     { NULL, NULL }
 };
+
+/* git help: the summary, or the manual page for one command — which is what
+   git opens too, and which is there or not by the same token. */
+static int
+git_cmd_help (git_context *ctx, WORD_LIST *args)
+{
+    (void) ctx;
+    const char *name = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "-a") || !strcmp (w, "--all") ||
+            !strcmp (w, "-g") || !strcmp (w, "--guides") ||
+            !strcmp (w, "--no-external-commands") ||
+            !strcmp (w, "--no-aliases"))
+            continue;
+        if (w[0] == '-' && w[1])
+            return git_usage ("git help [-a] [<command>]");
+        if (!name) name = w;
+        else return git_usage ("git help [-a] [<command>]");
+    }
+    if (!name) {
+        git_help_summary ();
+        return 0;
+    }
+    /* A command has a page of its own; anything else git looks for as one
+       of its guides, which is the name run together. */
+    int known = 0;
+    for (int i = 0; git_commands[i].name && !known; i++)
+        known = !strcmp (git_commands[i].name, name);
+    char page[256];
+    snprintf (page, sizeof page, "git%s%s", known ? "-" : "", name);
+    sh_builtin_func_t *reader = find_shell_builtin ("man");
+    if (!reader) {
+        fflush (stdout);
+        fprintf (stderr, "No manual entry for %s\n", page);
+        return 1;
+    }
+    WORD_LIST *one = make_word_list (make_word (page), NULL);
+    int rc = (*reader) (one);
+    dispose_words (one);
+    return rc;
+}
+
+/* What this build can do, which is not git's list and does not pretend to
+   be: git's own help is grouped by what a command is for and drawn from a
+   table this has no counterpart to. */
+static void
+git_help_summary (void)
+{
+    printf ("usage: git [--version] [-C <path>] [--git-dir=<path>] "
+            "[--work-tree=<path>] <command> [<args>]\n\n"
+            "Commands in this build:\n");
+    for (int i = 0; git_commands[i].name; i++)
+        printf ("   %s\n", git_commands[i].name);
+}
 
 static int
 git_run (WORD_LIST *list)
@@ -25787,11 +25847,7 @@ git_run (WORD_LIST *list)
             return 0;
         }
         if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
-            printf ("usage: git [--version] [-C <path>] [--git-dir=<path>] "
-                    "[--work-tree=<path>] <command> [<args>]\n\n"
-                    "Commands in this build:\n");
-            for (int i = 0; git_commands[i].name; i++)
-                printf ("   %s\n", git_commands[i].name);
+            git_help_summary ();
             return 0;
         }
         if (!strcmp (w, "--list-cmds") || !strncmp (w, "--list-cmds=", 12)) {

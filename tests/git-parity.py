@@ -148,11 +148,36 @@ def worktree(directory):
     return '\n'.join(listing)
 
 
+# What a command leaves behind to say that something is under way. A
+# scenario that ends with one of these still there has left it behind, and
+# the next command will believe it. AUTO_MERGE is not among them: git writes
+# the tree an automatic merge arrived at, for `git diff AUTO_MERGE` to show,
+# and this build does not keep one.
+IN_PROGRESS = (
+    'MERGE_HEAD', 'MERGE_MSG', 'MERGE_MODE', 'SQUASH_MSG', 'CHERRY_PICK_HEAD',
+    'REVERT_HEAD', 'BISECT_LOG', 'BISECT_START', 'BISECT_EXPECTED_REV',
+    'REBASE_HEAD', 'rebase-merge', 'rebase-apply', 'sequencer',
+)
+
+
+def in_progress(directory):
+    """Which of the files that mean "something is under way" are there."""
+    git_dir = directory/'.git'
+    if git_dir.is_file():
+        line = git_dir.read_text().strip()
+        if line.startswith('gitdir: '):
+            git_dir = (directory/line[len('gitdir: '):]).resolve()
+    if not git_dir.is_dir():
+        return ''
+    return '\n'.join(name for name in IN_PROGRESS if (git_dir/name).exists())
+
+
 def state(directory):
     """What the repository holds, read by real git so both sides agree."""
     facts = {'worktree': worktree(directory)}
     if not (directory/'.git').exists():
         return facts
+    facts['in progress'] = in_progress(directory)
     for label, args in (
             ('refs', ('for-each-ref', '--format=%(refname) %(objecttype) %(objectname)')),
             ('head', ('rev-parse', '--symbolic-full-name', 'HEAD')),
