@@ -245,6 +245,13 @@ git fsck > /dev/null 2>&1 || true
 git fsck --connectivity-only > /dev/null 2>&1 || true
 mv gone.object "$gone_path" 2>/dev/null || true
 git diff -R HEAD~1 HEAD > /dev/null
+# The same hunks taken word by word, which cuts each side into words and
+# compares those.
+git diff --word-diff HEAD~1 HEAD > /dev/null
+git diff --word-diff=porcelain HEAD~1 HEAD > /dev/null
+git diff --word-diff=none HEAD~1 HEAD > /dev/null
+git log -p --word-diff -2 > /dev/null
+git show --word-diff > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

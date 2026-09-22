@@ -24,6 +24,7 @@ typedef struct {
     int new_from_worktree;/* the new side is a file on disk, not a blob */
     const char *prefix_old, *prefix_new;   /* "a/" and "b/" */
     const char *line_prefix;               /* what log -p indents with */
+    int word_diff;        /* 0 by lines, 1 [-word-]{+by word+}, 2 porcelain */
 } bgit_patch_options;
 
 void bgit_patch_options_init (bgit_patch_options *options);

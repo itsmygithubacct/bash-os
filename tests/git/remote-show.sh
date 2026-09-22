@@ -23,8 +23,10 @@ git init -q -b main .
 git remote add origin ../upstream
 git fetch -q origin
 # git 2.55 writes refs/remotes/origin/HEAD on a fetch where 2.47 does not;
-# it is taken away here so that both gits leave the same refs behind.
-git update-ref -d refs/remotes/origin/HEAD 2>/dev/null || true
+# the file is taken away here so that both gits leave the same refs behind.
+# It is a symbolic ref, and `update-ref -d` would follow it to the branch it
+# names and delete that instead.
+rm -f .git/refs/remotes/origin/HEAD
 git config branch.main.remote origin
 git config branch.main.merge refs/heads/main
 git update-ref refs/heads/main refs/remotes/origin/main

@@ -21,7 +21,8 @@ git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
                  [-e | --no-edit] [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
                  [--ignored]
-git diff         [-p] [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
+git diff         [-p] [--word-diff[=plain|porcelain|none]]
+                 [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [-R] [--no-prefix]
@@ -185,6 +186,14 @@ closer than twice the context become one hunk, and a file that does not
 end in a newline says so. `--stat` scales its graph the way git does, to
 the same eighty columns.
 
+`--word-diff` takes a hunk word by word rather than line by line: what
+was taken out in `[-brackets-]`, what was put in `{+braces+}`, and the
+rest as it stands. `plain` is that written out, `porcelain` says the same
+one run to a line — `-`, `+` or a space in front, and a `~` where a line
+ends — and `none` turns it off again. A word is any run of what is not
+whitespace, and the space between words comes out with the side it
+belongs to, which is how git writes it.
+
 One difference remains, and only on large changes. git's search gives up
 when it grows expensive — it cuts at the furthest point it has reached
 and carries on from there — so on a big rewrite it settles for a patch
@@ -196,6 +205,12 @@ placed differently, and in five git's is the longer. Nothing about either
 is wrong — both describe the same change — but they are not the same
 bytes, and matching git there means keeping its cost heuristic as well as
 its algorithm.
+
+A word diff is the same difference magnified: a hunk's words offer far
+more ways to line up than its lines do, and of twelve of this project's
+own changes only one comes out rendered exactly as git renders it. Every
+one of the twelve describes the change correctly; they choose different
+runs to bracket.
 
 Checked over this repository's own history — every change to seven files
 across eight commits each — the patches are byte-identical to git's in 37
@@ -1200,7 +1215,8 @@ the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
 fsck, prune, repack, gc, notes, bisect, archive and bundle.
 
-What is not here yet, in the order it would be missed: `diff --word-diff`.
+What is not here yet: the parts of git this build says no to outright,
+which are listed below, and whatever the next use of it turns up.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent

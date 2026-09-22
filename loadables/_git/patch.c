@@ -35,6 +35,129 @@ bgit_patch_options_init (bgit_patch_options *options)
     options->line_prefix = "";
 }
 
+
+/* ---- word diff ---------------------------------------------------------- */
+
+/* One side of a hunk, as words: the text it holds and where each word sits
+   in it. What lies between words is whitespace, which is written out with
+   the side it came from rather than compared. */
+typedef struct {
+    char *text;
+    size_t len, cap;
+    struct { size_t begin, end; } *words;
+    size_t n_words, cap_words;
+} bgit_word_side;
+
+static void
+bgit_word_side_release (bgit_word_side *side)
+{
+    free (side->text);
+    free (side->words);
+    memset (side, 0, sizeof *side);
+}
+
+static int
+bgit_word_side_add (bgit_word_side *side, const char *line, size_t len)
+{
+    if (side->len + len + 1 > side->cap) {
+        size_t next = side->cap ? side->cap : 256;
+        while (next < side->len + len + 1) next *= 2;
+        char *grown = realloc (side->text, next);
+        if (!grown) return -1;
+        side->text = grown;
+        side->cap = next;
+    }
+    memcpy (side->text + side->len, line, len);
+    side->len += len;
+    side->text[side->len] = '\0';
+    return 0;
+}
+
+/* Where the words are: every run of anything that is not whitespace. */
+static int
+bgit_word_side_split (bgit_word_side *side)
+{
+    for (size_t at = 0; at < side->len;) {
+        while (at < side->len && isspace ((unsigned char) side->text[at])) at++;
+        if (at >= side->len) break;
+        size_t begin = at;
+        while (at < side->len && !isspace ((unsigned char) side->text[at])) at++;
+        if (side->n_words == side->cap_words) {
+            size_t next = side->cap_words ? side->cap_words * 2 : 64;
+            void *grown = realloc (side->words, next * sizeof *side->words);
+            if (!grown) return -1;
+            side->words = grown;
+            side->cap_words = next;
+        }
+        side->words[side->n_words].begin = begin;
+        side->words[side->n_words].end = at;
+        side->n_words++;
+    }
+    return 0;
+}
+
+/* The words, one to a line, which is what the line differ can compare. */
+static char *
+bgit_word_side_lines (const bgit_word_side *side, size_t *out_len)
+{
+    size_t len = 0;
+    for (size_t i = 0; i < side->n_words; i++)
+        len += side->words[i].end - side->words[i].begin + 1;
+    char *text = malloc (len + 1);
+    if (!text) return NULL;
+    size_t at = 0;
+    for (size_t i = 0; i < side->n_words; i++) {
+        size_t n = side->words[i].end - side->words[i].begin;
+        memcpy (text + at, side->text + side->words[i].begin, n);
+        at += n;
+        text[at++] = '\n';
+    }
+    text[at] = '\0';
+    *out_len = at;
+    return text;
+}
+
+/* A run of text, marked as git marks it: as it stands, taken away, or put
+   in. Each line of it is written on its own, since a run can cross one. */
+static void
+bgit_word_write (FILE *out, const char *lp, int porcelain, char kind,
+                 const char *text, size_t len, int *at_line_start)
+{
+    static const char *const open[] = { "", "[-", "{+" };
+    static const char *const close[] = { "", "-]", "+}" };
+    int which = kind == '-' ? 1 : kind == '+' ? 2 : 0;
+    size_t at = 0;
+    while (at < len) {
+        const char *nl = memchr (text + at, '\n', len - at);
+        size_t piece = nl ? (size_t) (nl - (text + at)) : len - at;
+        if (porcelain) {
+            if (piece) {
+                fprintf (out, "%s%c", lp, kind);
+                fwrite (text + at, 1, piece, out);
+                fputc ('\n', out);
+            }
+            if (nl) fprintf (out, "%s~\n", lp);
+            *at_line_start = 1;
+        } else {
+            if (piece) {
+                /* Each line carries whatever a log indents with, written
+                   once when the line starts. */
+                if (*at_line_start) { fputs (lp, out); *at_line_start = 0; }
+                fputs (open[which], out);
+                fwrite (text + at, 1, piece, out);
+                fputs (close[which], out);
+            }
+            if (nl) {
+                if (*at_line_start) fputs (lp, out);
+                fputc ('\n', out);
+                *at_line_start = 1;
+            }
+        }
+        if (!nl) break;
+        at += piece + 1;
+    }
+}
+
 const char *
 bgit_quote_path (const char *path, char *buf, size_t size)
 {
@@ -327,6 +450,93 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
 
         size_t i = hunk->old_start, j = hunk->new_start;
         size_t end_old = i + hunk->old_count, end_new = j + hunk->new_count;
+        if (options->word_diff) {
+            /* The hunk word by word: both sides are taken whole, cut into
+               words, and compared as those; what lies between words comes
+               out with the side it belongs to. */
+            bgit_word_side minus, plus;
+            memset (&minus, 0, sizeof minus);
+            memset (&plus, 0, sizeof plus);
+            int ok = 1;
+            for (size_t k = i; ok && k < end_old; k++)
+                if (bgit_word_side_add (&minus, old_file.lines[k],
+                                        old_file.lengths[k]) < 0 ||
+                    bgit_word_side_add (&minus, "\n", 1) < 0)
+                    ok = 0;
+            for (size_t k = j; ok && k < end_new; k++)
+                if (bgit_word_side_add (&plus, new_file.lines[k],
+                                        new_file.lengths[k]) < 0 ||
+                    bgit_word_side_add (&plus, "\n", 1) < 0)
+                    ok = 0;
+            if (ok && (bgit_word_side_split (&minus) < 0 ||
+                       bgit_word_side_split (&plus) < 0))
+                ok = 0;
+            size_t minus_len = 0, plus_len = 0;
+            char *minus_lines = ok ? bgit_word_side_lines (&minus, &minus_len)
+                                   : NULL;
+            char *plus_lines = ok ? bgit_word_side_lines (&plus, &plus_len)
+                                  : NULL;
+            bgit_xdiff_file old_words, new_words;
+            bgit_xdiff_result words;
+            memset (&old_words, 0, sizeof old_words);
+            memset (&new_words, 0, sizeof new_words);
+            memset (&words, 0, sizeof words);
+            bgit_xdiff_change *runs = NULL;
+            size_t n_runs = 0;
+            if (ok && minus_lines && plus_lines &&
+                bgit_xdiff_load (&old_words, minus_lines, minus_len) == 0 &&
+                bgit_xdiff_load (&new_words, plus_lines, plus_len) == 0 &&
+                bgit_xdiff (&old_words, &new_words, 0, &words) == 0)
+                bgit_xdiff_changes (&words, old_words.n, new_words.n, &runs,
+                                    &n_runs);
+            int porcelain = options->word_diff == 2;
+            size_t current = 0;
+            int at_line_start = 1;
+            for (size_t r = 0; r < n_runs; r++) {
+                size_t start;
+                if (runs[r].new_count)
+                    start = plus.words[runs[r].new_start].begin;
+                else if (runs[r].new_start)
+                    start = plus.words[runs[r].new_start - 1].end;
+                else start = 0;
+                if (start > current)
+                    bgit_word_write (out, lp, porcelain, ' ',
+                                     plus.text + current, start - current,
+                                     &at_line_start);
+                if (runs[r].old_count) {
+                    size_t from = minus.words[runs[r].old_start].begin;
+                    size_t to = minus.words[runs[r].old_start +
+                                            runs[r].old_count - 1].end;
+                    bgit_word_write (out, lp, porcelain, '-',
+                                     minus.text + from, to - from,
+                                     &at_line_start);
+                }
+                if (runs[r].new_count) {
+                    size_t from = plus.words[runs[r].new_start].begin;
+                    size_t to = plus.words[runs[r].new_start +
+                                           runs[r].new_count - 1].end;
+                    bgit_word_write (out, lp, porcelain, '+',
+                                     plus.text + from, to - from,
+                                     &at_line_start);
+                    current = to;
+                } else current = start;
+            }
+            if (plus.len > current)
+                bgit_word_write (out, lp, porcelain, ' ', plus.text + current,
+                                 plus.len - current, &at_line_start);
+            /* A hunk ends on a line of its own, even where the last thing
+               written did not end one. */
+            if (!at_line_start) fputc ('\n', out);
+            free (runs);
+            bgit_xdiff_result_release (&words);
+            bgit_xdiff_release (&old_words);
+            bgit_xdiff_release (&new_words);
+            free (minus_lines);
+            free (plus_lines);
+            bgit_word_side_release (&minus);
+            bgit_word_side_release (&plus);
+            continue;
+        }
         while (i < end_old || j < end_new) {
             int changed = (i < end_old && result.old_changed[i]) ||
                           (j < end_new && result.new_changed[j]);

@@ -3621,6 +3621,7 @@ struct git_diff_format {
     int no_renames;
     int context;
     int reverse;                        /* -R: the two sides change places */
+    int word_diff;                      /* 0 by lines, 1 plain, 2 porcelain */
     int no_prefix;                      /* the paths stand without a/ and b/ */
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
@@ -5925,6 +5926,16 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     if (!strcmp (w, "-p") || !strcmp (w, "-u") || !strcmp (w, "--patch"))
         format->patch = 1;
     else if (!strcmp (w, "--stat")) format->stat = 1;
+    else if (!strcmp (w, "--word-diff")) { format->patch = 1; format->word_diff = 1; }
+    else if (!strncmp (w, "--word-diff=", 12)) {
+        const char *mode = w + 12;
+        if (!strcmp (mode, "plain")) { format->patch = 1; format->word_diff = 1; }
+        else if (!strcmp (mode, "porcelain")) {
+            format->patch = 1;
+            format->word_diff = 2;
+        } else if (!strcmp (mode, "none")) format->word_diff = 0;
+        else return 0;
+    }
     else if (!strncmp (w, "--stat=", 7)) {
         /* --stat=<width>[,<name-width>[,<count>]] */
         format->stat = 1;
@@ -5989,6 +6000,7 @@ git_diff_emit (git_context *ctx, FILE *out,
     bgit_patch_options_init (&options);
     options.context = format->context;
     options.new_from_worktree = new_from_worktree;
+    options.word_diff = format->word_diff;
     options.line_prefix = line_prefix ? line_prefix : "";
     if (format->no_prefix) options.prefix_old = options.prefix_new = "";
     /* -R shows the change as it would be to undo: the sides swap, and so
@@ -6100,6 +6112,22 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         else return git_fatal ("too many paths");
     }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+
+    /* A word that is not a revision but names a file is a path, which is
+       how git reads `git diff <file>`. */
+    for (int i = 0; i < n_revs;) {
+        char probe[41];
+        struct stat here;
+        if (git_resolve (ctx, revs[i], probe, NULL) == 0 ||
+            lstat (revs[i], &here) != 0) {
+            i++;
+            continue;
+        }
+        if (n_paths < (int) (sizeof paths / sizeof *paths))
+            paths[n_paths++] = revs[i];
+        for (int k = i; k + 1 < n_revs; k++) revs[k] = revs[k + 1];
+        n_revs--;
+    }
 
     struct git_state state;
     if (git_state_load (ctx, &state) < 0) return GIT_EXIT_FATAL;
