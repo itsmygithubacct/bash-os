@@ -72,9 +72,11 @@ int bgit_config_repo_file (const bgit_repo *repo, char *out, size_t outsz);
 int bgit_config_global_file (char *out, size_t outsz);
 
 /* The identity for an author or committer line: the GIT_* variables, then
-   user.name and user.email, then a plain fallback. WHEN receives git's raw
-   date form, "<seconds> <+hhmm>", from GIT_AUTHOR_DATE / GIT_COMMITTER_DATE
-   when one is set and otherwise from the clock. */
+   user.name and user.email, then a plain fallback. The date comes from
+   GIT_AUTHOR_DATE / GIT_COMMITTER_DATE where one is set and otherwise from
+   the clock, and is written in git's raw form, "<seconds> <+hhmm>". Returns
+   0, -1 when the line will not fit, or -2 when the date in the environment
+   is not one git would take — the caller says so in git's words. */
 int bgit_ident (const bgit_config *cfg, int committer, char *out, size_t outsz);
 
 #endif /* BASH_OS_GIT_CONFIG_H */

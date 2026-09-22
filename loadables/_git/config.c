@@ -701,6 +701,194 @@ oom:
     return -1;
 }
 
+/* One of the zones git writes: "Z", "+hh", "+hhmm" or "+hh:mm". Returns the
+   offset in seconds and how many characters it read, or -1. */
+static int
+bgit_date_zone (const char *text, long *offset, size_t *read)
+{
+    if (*text == 'Z' || *text == 'z') {
+        *offset = 0;
+        *read = 1;
+        return 0;
+    }
+    if (*text != '+' && *text != '-') return -1;
+    int sign = *text == '-' ? -1 : 1;
+    const char *at = text + 1;
+    if (!isdigit ((unsigned char) at[0]) || !isdigit ((unsigned char) at[1]))
+        return -1;
+    long hours = (at[0] - '0') * 10 + (at[1] - '0');
+    at += 2;
+    long minutes = 0;
+    if (*at == ':') at++;
+    if (isdigit ((unsigned char) at[0]) && isdigit ((unsigned char) at[1])) {
+        minutes = (at[0] - '0') * 10 + (at[1] - '0');
+        at += 2;
+    }
+    *offset = sign * (hours * 3600 + minutes * 60);
+    *read = (size_t) (at - text);
+    return 0;
+}
+
+/* The month a name stands for, 1 to 12, or 0. */
+static int
+bgit_date_month (const char *text)
+{
+    static const char *const names[] = { "jan", "feb", "mar", "apr", "may",
+                                         "jun", "jul", "aug", "sep", "oct",
+                                         "nov", "dec" };
+    for (int i = 0; i < 12; i++)
+        if (tolower ((unsigned char) text[0]) == names[i][0] &&
+            tolower ((unsigned char) text[1]) == names[i][1] &&
+            tolower ((unsigned char) text[2]) == names[i][2])
+            return i + 1;
+    return 0;
+}
+
+/* Write a moment the way git writes one in an object: the seconds since the
+   epoch, then the zone it was named in. */
+static void
+bgit_date_written (long long seconds, long offset, char *out, size_t outsz)
+{
+    long away = offset < 0 ? -offset : offset;
+    snprintf (out, outsz, "%lld %c%02ld%02ld", seconds,
+              offset < 0 ? '-' : '+', away / 3600, (away % 3600) / 60);
+}
+
+/* A date and time named exactly, which is all git accepts for an author or
+   committer line: the raw form it writes itself, "@<seconds>", a date and
+   time with -, . or / between the parts of the day and an optional zone, or
+   the RFC 2822 form with the month by name. A day with no time of it, and
+   anything relative, is not a date git takes here. Returns 0 and fills OUT
+   with "<seconds> <+hhmm>", or -1. */
+static int
+bgit_date_raw (const char *text, char *out, size_t outsz)
+{
+    while (*text == ' ' || *text == '\t') text++;
+    if (!*text) return -1;
+
+    /* The raw form, and the one with an @ in front of the seconds. */
+    {
+        const char *at = text;
+        if (*at == '@') at++;
+        if (isdigit ((unsigned char) *at)) {
+            char *end = NULL;
+            long long seconds = strtoll (at, &end, 10);
+            const char *rest = end;
+            while (*rest == ' ') rest++;
+            long offset = 0;
+            size_t read = 0;
+            int has_zone = *rest && bgit_date_zone (rest, &offset, &read) == 0;
+            if (has_zone) rest += read;
+            while (*rest == ' ' || *rest == '\t') rest++;
+            /* A run of digits on its own is only a moment when it could not
+               be a year: "2025-06-15" has to go the other way. */
+            if (!*rest && (at != text || has_zone || end - at > 4)) {
+                bgit_date_written (seconds, offset, out, outsz);
+                return 0;
+            }
+        }
+    }
+
+    int year = 0, month = 0, day = 0, hour = -1, minute = 0, second = 0;
+    const char *at = text;
+    /* RFC 2822 starts with the day of the week, which says nothing. */
+    if (isalpha ((unsigned char) at[0]) && isalpha ((unsigned char) at[1]) &&
+        isalpha ((unsigned char) at[2]) && !bgit_date_month (at)) {
+        while (*at && *at != ' ') at++;
+        while (*at == ' ') at++;
+    }
+    if (isdigit ((unsigned char) at[0]) && isdigit ((unsigned char) at[1]) &&
+        isdigit ((unsigned char) at[2]) && isdigit ((unsigned char) at[3])) {
+        /* A year first: YYYY-MM-DD, with any of -, . or / between. */
+        year = atoi (at);
+        at += 4;
+        if (*at != '-' && *at != '.' && *at != '/') return -1;
+        at++;
+        if (!isdigit ((unsigned char) *at)) return -1;
+        month = atoi (at);
+        while (isdigit ((unsigned char) *at)) at++;
+        if (*at != '-' && *at != '.' && *at != '/') return -1;
+        at++;
+        if (!isdigit ((unsigned char) *at)) return -1;
+        day = atoi (at);
+        while (isdigit ((unsigned char) *at)) at++;
+        /* Where the first of the two cannot be a month, it is the day: git
+           reads the numbers for what they can be. */
+        if (month > 12 && day <= 12) {
+            int held = month;
+            month = day;
+            day = held;
+        }
+    } else if (isdigit ((unsigned char) at[0])) {
+        /* A day first, with the month by name: DD Mon YYYY. */
+        day = atoi (at);
+        while (isdigit ((unsigned char) *at)) at++;
+        while (*at == ' ' || *at == '-') at++;
+        month = bgit_date_month (at);
+        if (!month) return -1;
+        while (isalpha ((unsigned char) *at)) at++;
+        while (*at == ' ' || *at == '-') at++;
+        if (!isdigit ((unsigned char) *at)) return -1;
+        year = atoi (at);
+        while (isdigit ((unsigned char) *at)) at++;
+    } else return -1;
+
+    while (*at == ' ' || *at == 'T' || *at == 't') at++;
+    if (!isdigit ((unsigned char) *at)) return -1;   /* a day is not a date */
+    hour = atoi (at);
+    while (isdigit ((unsigned char) *at)) at++;
+    if (*at != ':') return -1;
+    at++;
+    if (!isdigit ((unsigned char) *at)) return -1;
+    minute = atoi (at);
+    while (isdigit ((unsigned char) *at)) at++;
+    if (*at == ':') {
+        at++;
+        if (!isdigit ((unsigned char) *at)) return -1;
+        second = atoi (at);
+        while (isdigit ((unsigned char) *at)) at++;
+    }
+    while (*at == ' ') at++;
+
+    long offset = 0;
+    int named_zone = 0;
+    if (*at) {
+        size_t read = 0;
+        if (bgit_date_zone (at, &offset, &read) < 0) return -1;
+        named_zone = 1;
+        at += read;
+        while (*at == ' ' || *at == '\t') at++;
+        if (*at) return -1;
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 ||
+        minute > 59 || second > 61)
+        return -1;
+
+    struct tm when;
+    memset (&when, 0, sizeof when);
+    when.tm_year = year - 1900;
+    when.tm_mon = month - 1;
+    when.tm_mday = day;
+    when.tm_hour = hour;
+    when.tm_min = minute;
+    when.tm_sec = second;
+    when.tm_isdst = -1;
+    long long seconds;
+    if (named_zone) {
+        /* The wall clock was that zone's, so the moment is that many
+           seconds the other way. */
+        seconds = (long long) timegm (&when) - offset;
+    } else {
+        time_t local = mktime (&when);
+        if (local == (time_t) -1) return -1;
+        seconds = (long long) local;
+        struct tm here;
+        if (localtime_r (&local, &here)) offset = here.tm_gmtoff;
+    }
+    bgit_date_written (seconds, offset, out, outsz);
+    return 0;
+}
+
 int
 bgit_ident (const bgit_config *cfg, int committer, char *out, size_t outsz)
 {
@@ -721,14 +909,11 @@ bgit_ident (const bgit_config *cfg, int committer, char *out, size_t outsz)
 
     char when[64];
     if (date && *date) {
-        long long seconds;
-        char zone[8];
-        if (sscanf (date, "%lld %5s", &seconds, zone) == 2 &&
-            (zone[0] == '+' || zone[0] == '-')) {
-            snprintf (when, sizeof when, "%lld %s", seconds, zone);
-            return snprintf (out, outsz, "%s <%s> %s", name, email, when) <
-                   (int) outsz ? 0 : -1;
-        }
+        /* git takes a moment named exactly and nothing else, and says so
+           rather than going on with the wrong one. */
+        if (bgit_date_raw (date, when, sizeof when) < 0) return -2;
+        return snprintf (out, outsz, "%s <%s> %s", name, email, when) <
+               (int) outsz ? 0 : -1;
     }
     time_t now = time (NULL);
     struct tm local;

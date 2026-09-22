@@ -98,14 +98,15 @@ git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
                  [-e | --no-edit] [-q] <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
+git cherry       [-v] [--abbrev[=<n>]] [<upstream> [<head> [<limit>]]]
 git submodule    [status [--cached]] | init | update [--init] [-q]
                  | add <url> [<path>] | deinit [-f] [--all]
                  | foreach [-q] <command> [<path>...]
 git stash        [push] [-m <message>] [-u] | list | show [-p] [<stash>]
                  | apply [<stash>] | pop [<stash>] | drop [<stash>] | clear
 git rebase       [-i] [-r | --rebase-merges[=(no-)rebase-cousins]]
-                 [--update-refs] <upstream> [<branch>]
-                 | --continue | --abort | --skip
+                 [--update-refs] [--reapply-cherry-picks]
+                 <upstream> [<branch>] | --continue | --abort | --skip
 git worktree     add [-b <branch>] [--detach] <path> [<commit>] | list
                  [--porcelain] | remove [-f] <path> | prune
 git remote       [-v] | show [-n] <name> | prune [-n] <name>
@@ -328,6 +329,16 @@ identity in a reflog entry comes from `GIT_COMMITTER_*` or `user.name` and
 <bash-os@localhost>` where git guesses a name from the password file and
 an address from the hostname: the guess is what git does, and not putting
 the machine's name into a commit is what this does instead.
+
+`GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` are read the way git reads them,
+which is to say only where they name a moment exactly: the raw form git
+writes itself, `@<seconds>` with an optional zone, and a date and a time
+written with `-`, `.` or `/` between the parts, with or without a `T`, with
+the month by name or by number, and with a zone or without one — in which
+case the zone is this machine's. Where the two numbers after the year
+cannot both be months, the larger is the day, as git reads them. A day with
+no time of it, and anything said in relation to now, is refused in git's
+words: `fatal: invalid date format: <what was said>`.
 
 Reads cover loose objects, every pack, and the alternates named by
 `objects/info/alternates` or `GIT_ALTERNATE_OBJECT_DIRECTORIES`. A
@@ -765,7 +776,24 @@ into HEAD, one forwards and one backwards. A pick keeps the original
 author and message; a revert writes `Revert "<subject>"` and says which
 commit it undoes. Either can conflict, and then leaves `CHERRY_PICK_HEAD`
 or `REVERT_HEAD` behind for `--continue` or `--abort`, with `git status`
-saying which is under way.
+saying which is under way. A commit puts all of that away afterwards, as
+git's does — the merge it concluded, and the pick or revert whose change it
+carries.
+
+`git cherry` says which of one branch's commits another already has, by the
+name of the change rather than the name of the commit: a patch id, which is
+what the change comes to once it is hashed without regard for where in the
+file it landed or what stood around it. A commit whose patch is over there
+already is marked `-`, the rest `+`, oldest first; `-v` adds the subject and
+`--abbrev=<n>` shortens the id, which is written whole by default. Named
+nothing, it asks the branch this one follows, and says so where there is
+none.
+
+That is what a rebase leaves out as well: a commit whose patch the upstream
+already has is passed over with `warning: skipped previously applied commit
+<id>`, and the hint that names `--reapply-cherry-picks` — which brings them
+back, to be dropped one at a time instead as each turns out to do nothing.
+`advice.skippedCherryPicks` turns the hint off.
 
 With no `-m` and no `-F`, the message is written in an editor, which is
 `GIT_EDITOR`, then `core.editor`, then `VISUAL`, then `EDITOR`, and `vi`
