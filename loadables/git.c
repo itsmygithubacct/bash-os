@@ -4820,7 +4820,8 @@ git_pickaxe_keeps (git_context *ctx, const struct git_log_filter *filter,
             bgit_xdiff_load (&new_file, new_data ? (const char *) new_data : "",
                              new_len);
             bgit_xdiff_result result;
-            if (bgit_xdiff (&old_file, &new_file, 0, &result) == 0) {
+            if (bgit_xdiff_opts (&old_file, &new_file, 0,
+                                 BGIT_XDIFF_TRIM_TAIL, &result) == 0) {
                 for (size_t line = 0; line < old_file.n && !hit; line++) {
                     if (!result.old_changed[line]) continue;
                     char held[65536];
@@ -5994,9 +5995,15 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strcmp (w, "--name-status")) format->name_status = 1;
     else if (!strcmp (w, "--raw")) format->raw = 1;
     else if (!strcmp (w, "-s") || !strcmp (w, "--no-patch")) format->no_patch = 1;
-    else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9')
+    /* Asking for a width of context asks for the patch it belongs to. */
+    else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9') {
         format->context = atoi (w + 2);
-    else if (!strncmp (w, "--unified=", 10)) format->context = atoi (w + 10);
+        format->patch = 1;
+    }
+    else if (!strncmp (w, "--unified=", 10)) {
+        format->context = atoi (w + 10);
+        format->patch = 1;
+    }
     else if (!strcmp (w, "-R")) format->reverse = 1;
     else if (!strcmp (w, "--no-prefix")) format->no_prefix = 1;
     else if (!strcmp (w, "--no-renames")) format->no_renames = 1;
@@ -6319,6 +6326,10 @@ git_show_tag (const unsigned char *data, size_t len, char *tagged,
 static int
 git_cmd_whatchanged (git_context *ctx, WORD_LIST *args)
 {
+    /* git 2.50 and later want to hear that the command is still in use
+       before they will run it. Say what you like; it changes nothing. */
+    while (args && !strcmp (args->word->word, "--i-still-use-this"))
+        args = args->next;
     WORD_LIST *with_raw = make_word_list (make_word ("--raw"), args);
     git_headers_need_a_diff = 1;
     int rc = git_cmd_log (ctx, with_raw);
@@ -9145,7 +9156,8 @@ git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
     bgit_xdiff_load (&new_file, new_text ? new_text : "", new_len);
     bgit_xdiff_result result;
     long *to_parent = calloc (now->n ? now->n : 1, sizeof *to_parent);
-    int ok = to_parent && bgit_xdiff (&old_file, &new_file, 0, &result) == 0;
+    int ok = to_parent && bgit_xdiff_opts (&old_file, &new_file, 0,
+                                           BGIT_XDIFF_TRIM_TAIL, &result) == 0;
     if (ok) {
         size_t oi = 0;
         for (size_t ni = 0; ni < now->n; ni++) {

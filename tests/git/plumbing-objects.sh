@@ -71,7 +71,13 @@ git count-objects -v -H
 # What each file was and what it became, which is the raw form of a diff.
 git diff --raw HEAD~1 HEAD
 git log --raw -2 --format='%h'
-git whatchanged --oneline -2
+# git 2.50 and later refuse to run whatchanged until they are told it is
+# still in use; older ones have never heard of saying so.
+whatchanged () {
+    git whatchanged --i-still-use-this "$@" 2>/dev/null ||
+        git whatchanged "$@"
+}
+whatchanged --oneline -2
 git annotate hello.txt
 git blame -c hello.txt
 

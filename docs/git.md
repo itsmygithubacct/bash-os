@@ -179,22 +179,24 @@ B has and A does not, `^A` to exclude — and `log` takes a pathspec after
 --graph` draws the column git draws, for a history without merges; a merge
 in the walk is refused rather than drawn wrongly.
 
-A patch is git's: the same hunks, in the same places. Myers' algorithm
-decides which lines changed, each run of changes is then slid as far down
-as the file allows, and the indent heuristic — git's default since 2.14 —
-picks among the positions it could take, so a hunk starts where a person
-would start it. Hunk headers carry the enclosing definition, two changes
-closer than twice the context become one hunk, and a file that does not
-end in a newline says so. `--stat` scales its graph the way git does, to
-the same eighty columns.
+A patch is git's: the same hunks, in the same places, down to which of
+several equally short descriptions of a change gets written — how that is
+arrived at is further down. Hunk headers carry the enclosing definition,
+two changes closer than twice the context become one hunk, and a file that
+does not end in a newline says so. `-U<n>` and `--unified=<n>` set how many
+lines of context a hunk carries, three by default, and ask for the patch as
+git does — so `git diff -U0 --stat` gives the summary and the patch both.
+`--stat` scales its graph the way git does, to the same eighty columns.
 
 `--raw` writes a line for each file instead of a patch — the two modes,
 the two ids as far as they are abbreviated, and what happened to it, as
 `:100644 100644 <old> <new> M<tab><path>`. `git log --raw` shows that
 under each commit, and `git whatchanged` is that under an older name, with
 the one difference git keeps for it: a commit with nothing to show is not
-shown at all. A commit that changed nothing has no diff and no blank line
-set aside for one, whichever form is asked for.
+shown at all. Recent git will not run `whatchanged` until it is told the
+command is still in use, so `--i-still-use-this` is accepted here too and
+changes nothing. A commit that changed nothing has no diff and no blank
+line set aside for one, whichever form is asked for.
 
 `git annotate` is `git blame -c`: the same work in the older layout, where
 the parts are set apart by tabs, each stands at its own width, and a
@@ -208,29 +210,38 @@ ends — and `none` turns it off again. A word is any run of what is not
 whitespace, and the space between words comes out with the side it
 belongs to, which is how git writes it.
 
-One difference remains, and only on large changes. git's search gives up
-when it grows expensive — it cuts at the furthest point it has reached
-and carries on from there — so on a big rewrite it settles for a patch
-that is a few lines longer than the shortest one. The search here always
-finds the shortest. Over a hundred and twenty commits of this project's
-own history, a hundred and ten patches come out byte for byte the same;
-of the ten that differ, five are the same length with a run of changes
-placed differently, and in five git's is the longer. Nothing about either
-is wrong — both describe the same change — but they are not the same
-bytes, and matching git there means keeping its cost heuristic as well as
-its algorithm.
+The patch is git's, not merely a patch. The whole of git's line diff is
+here: Myers' algorithm in its linear-space form; the reduction that goes
+before it, which sets aside the lines the two files share at top and
+bottom and then every line no line of the other file matches, or that too
+many of them match to mean anything; the two heuristics that give up on an
+exact answer when one costs too much, one taking a path that has run a
+long way clear of the middle once a long enough run of matching lines has
+been seen, the other taking whatever has reached furthest at a ceiling on
+cost; the sliding of each run of changes as far as the file allows; and the
+indent heuristic that then picks where it reads best. Each of these
+changes what comes out, and leaving any one of them out shows.
 
-A word diff is the same difference magnified: a hunk's words offer far
-more ways to line up than its lines do, and of twelve of this project's
-own changes only one comes out rendered exactly as git renders it. Every
-one of the twelve describes the change correctly; they choose different
-runs to bracket.
+Two further pieces of git's behaviour come with them. A diff asked to show
+no context at all first sets aside whatever long tail the two versions
+already share, in whole blocks of a thousand bytes and back to a line
+boundary — which is why `-U0` can describe a change differently from `-U3`,
+in git and here alike. And a diff of words is taken one run of changed
+lines at a time, with the lines between them written out as they stand, so
+a word can never drift across a line nothing happened to; indentation gets
+no say there, having nothing to say about words.
 
-Checked over this repository's own history — every change to seven files
-across eight commits each — the patches are byte-identical to git's in 37
-of 38 cases. The one difference is a tie: two equally short ways to
-describe the same swap, and git keeps a different one of the two lines as
-context. Both patches apply.
+Measured over the last two hundred commits of this project's own history,
+`git diff`, `git diff -U0`, `git diff -U8`, `git diff --word-diff` and
+`git diff --word-diff=porcelain` are byte for byte what git writes, in
+every one of the thousand comparisons. So are `git blame` over forty of
+its files, `--stat`, `--numstat` and `--shortstat` over twenty-five
+commits, and `log -G` and `log -S` over seven patterns.
+
+What is not here is the diff that overlooks things: `-w`, `-b` and
+`--ignore-blank-lines` are refused rather than quietly ignored, and so are
+`--function-context` and the other algorithms, `--patience`, `--histogram`,
+`--minimal` and `--diff-algorithm`.
 
 Global options: `-C <path>`, `-c <key>=<value>`, `--git-dir=<path>`,
 `--work-tree=<path>`, `--no-pager` (accepted, nothing paginates),

@@ -545,7 +545,8 @@ bgit_write_conflict (struct bgit_text *text, const bgit_xdiff_file *our_file,
     if (ours.n && theirs.n) {
         bgit_xdiff_result refined;
         memset (&refined, 0, sizeof refined);
-        if (bgit_xdiff (&ours, &theirs, 0, &refined) == 0) {
+        if (bgit_xdiff_opts (&ours, &theirs, 0,
+                         BGIT_XDIFF_INDENT_HEURISTIC, &refined) == 0) {
             if (bgit_xdiff_changes (&refined, ours.n, theirs.n, &changes,
                                     &n_changes) < 0)
                 n_changes = 0;
@@ -639,8 +640,10 @@ bgit_merge_content (const char *base, size_t base_len,
     }
     memset (&ours_diff, 0, sizeof ours_diff);
     memset (&theirs_diff, 0, sizeof theirs_diff);
-    if (bgit_xdiff (&base_file, &our_file, 0, &ours_diff) < 0 ||
-        bgit_xdiff (&base_file, &their_file, 0, &theirs_diff) < 0 ||
+    if (bgit_xdiff_opts (&base_file, &our_file, 0,
+                         BGIT_XDIFF_INDENT_HEURISTIC, &ours_diff) < 0 ||
+        bgit_xdiff_opts (&base_file, &their_file, 0,
+                         BGIT_XDIFF_INDENT_HEURISTIC, &theirs_diff) < 0 ||
         bgit_xdiff_changes (&ours_diff, base_file.n, our_file.n,
                             &ours_changes, &n_ours) < 0 ||
         bgit_xdiff_changes (&theirs_diff, base_file.n, their_file.n,

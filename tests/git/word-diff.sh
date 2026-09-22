@@ -39,6 +39,30 @@ echo '=== only the spacing changed ==='
 printf 'alpha  beta gamma delta\n' > g.txt
 git diff --word-diff g.txt
 
+echo '=== a line put in beside one that begins the same way ==='
+# The words of the added line could sit a word later, beside the line below
+# it; a diff word by word takes one run of changed lines at a time, so they
+# cannot drift across a line nothing happened to.
+printf 'git count-objects [-v]\n' > h.txt
+git add h.txt
+git commit -q -m 'one usage line'
+printf 'git annotate [-l] <file>\ngit count-objects [-v]\n' > h.txt
+git diff --word-diff h.txt
+git diff --word-diff=porcelain h.txt
+printf 'git count-objects [-v]\ngit annotate [-l] <file>\n' > h.txt
+git diff --word-diff h.txt
+
+echo '=== blank lines around a change ==='
+printf 'first\n\nsecond\n\nthird\n' > i.txt
+git add i.txt
+git commit -q -m 'a file with blank lines'
+printf 'first word\n\nsecond\n\nthird word\n' > i.txt
+git diff --word-diff i.txt
+git diff --word-diff=porcelain i.txt
+printf 'first\n\n\nsecond\n\nthird\n' > i.txt
+git diff --word-diff i.txt
+git diff --word-diff=porcelain i.txt
+
 echo '=== and through a commit ==='
 git add -A
 git commit -q -m 'the second commit'

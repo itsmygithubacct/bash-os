@@ -257,6 +257,15 @@ git diff --word-diff=porcelain HEAD~1 HEAD > /dev/null
 git diff --word-diff=none HEAD~1 HEAD > /dev/null
 git log -p --word-diff -2 > /dev/null
 git show --word-diff > /dev/null
+# No context at all, which sets the long tail the two versions share aside
+# before comparing what is left.
+git diff -U0 HEAD~1 HEAD > /dev/null
+git diff -U0 --stat HEAD~1 HEAD > /dev/null
+git diff -U0 --word-diff HEAD~1 HEAD > /dev/null
+git diff -U0 --word-diff=porcelain HEAD~1 HEAD > /dev/null
+git diff --unified=1 HEAD~1 HEAD > /dev/null
+git diff -U20 HEAD~1 HEAD > /dev/null
+git log -p -U0 -2 > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

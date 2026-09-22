@@ -2,12 +2,14 @@
 /* _git/xdiff.h — the line diff behind a patch.
  *
  * Myers' algorithm over lines, in the linear-space divide and conquer form,
- * then the two adjustments git's output depends on: a run of changed lines
- * is slid as far down as it can go while still describing the same edit, and
- * the indent heuristic then picks the position that reads best, which is what
- * git has done by default since 2.14. Hunks carry three lines of context
- * unless asked otherwise, and two changes closer than twice the context
- * become one hunk.
+ * with everything git does around it: the problem is cut down first, so the
+ * search never sees a line that cannot be part of a match; the search gives
+ * up on an exact answer where one would cost too much, as git's does; and
+ * afterwards a run of changed lines is slid as far down as it can go while
+ * still describing the same edit, with the indent heuristic picking the
+ * position that reads best, which is what git has done by default since
+ * 2.14. Hunks carry three lines of context unless asked otherwise, and two
+ * changes closer than twice the context become one hunk.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -64,6 +66,22 @@ int bgit_xdiff_changes (const bgit_xdiff_result *result, size_t n_old,
    with bgit_xdiff_result_release. */
 int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                 int context, bgit_xdiff_result *out);
+
+/* Let indentation choose where a run of changes that could sit in more than
+   one place ends up. git asks for this in a diff of lines, and not in a diff
+   of words, where there is no indentation to speak of, nor in a blame or a
+   merge. */
+#define BGIT_XDIFF_INDENT_HEURISTIC 1
+
+/* Set aside a long tail the two sides already share before comparing them.
+   git does this whenever it wants a diff it will show without context: none
+   of the tail could appear anyway, and the search is the smaller for it.
+   It is also why the same diff can come out differently with -U0. */
+#define BGIT_XDIFF_TRIM_TAIL 2
+
+/* The same comparison, saying which of those two to do. */
+int bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
+                     int context, int flags, bgit_xdiff_result *out);
 void bgit_xdiff_result_release (bgit_xdiff_result *result);
 
 /* The text a hunk header shows after the @@ pair: the nearest line at or

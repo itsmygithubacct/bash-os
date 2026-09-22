@@ -1,14 +1,19 @@
 /* SPDX-License-Identifier: MIT */
 /* _git/xdiff.c — the line diff behind a patch. See xdiff.h.
  *
- * Three stages, in git's order. First Myers' algorithm decides which lines
+ * Four stages, in git's order. First the problem is cut down: the lines the
+ * two files share at top and bottom are set aside, and so is every line
+ * between that no line of the other file matches, or that too many of them
+ * match to mean anything. Then Myers' algorithm decides which of the rest
  * changed, in the linear-space form so a long file costs memory in the
- * number of lines rather than its square. Then each run of changed lines is
- * slid as far down as the file allows — sliding is possible whenever the
- * line above a run matches its last line — and the indent heuristic scores
- * every position it could have taken, preferring the one whose edges sit at
- * the shallower indentation, which is how a diff comes to start at the line
- * that opens a block rather than the one that closes the block before it.
+ * number of lines rather than its square, and with git's two heuristics for
+ * giving up on an exact answer when one costs too much. Then each run of
+ * changed lines is slid as far down as the file allows — sliding is possible
+ * whenever the line above a run matches its last line — and the indent
+ * heuristic scores every position it could have taken, preferring the one
+ * whose edges sit at the shallower indentation, which is how a diff comes to
+ * start at the line that opens a block rather than the one that closes the
+ * block before it.
  * Finally the runs are gathered into hunks: each takes its context, and two
  * runs closer than twice the context become one.
  *
@@ -25,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 
 #include "xdiff.h"
 
@@ -88,137 +94,388 @@ bgit_xdiff_result_release (bgit_xdiff_result *result)
     memset (result, 0, sizeof *result);
 }
 
+/* --------------------------------------------- reducing the problem */
+
+#define BGIT_MAX_EQLIMIT 1024
+#define BGIT_KPDIS_RUN 4
+#define BGIT_SIMSCAN_WINDOW 100
+
+/* git's integer square root: a power of two at or above the root. Two of
+   its heuristics are scaled by this, so the approximation is part of the
+   answer rather than a detail of it. */
+static long
+bgit_bogosqrt (long n)
+{
+    long i;
+    for (i = 1; n > 0; n >>= 2) i <<= 1;
+    return i;
+}
+
+/* Is line I of A the same line as line J of B? */
+static int
+bgit_line_same (const bgit_xdiff_file *a, long i,
+                const bgit_xdiff_file *b, long j)
+{
+    return a->hashes[i] == b->hashes[j] && a->lengths[i] == b->lengths[j] &&
+           !memcmp (a->lines[i], b->lines[j], a->lengths[i]);
+}
+
+/* A line of one of the two files, so both files' lines can be sorted
+   together and the equal ones counted. */
+typedef struct {
+    const bgit_xdiff_file *file;
+    size_t index;
+    int side;
+} bgit_line_ref;
+
+static int
+bgit_line_ref_cmp (const void *pa, const void *pb)
+{
+    const bgit_line_ref *a = pa, *b = pb;
+    unsigned long ha = a->file->hashes[a->index];
+    unsigned long hb = b->file->hashes[b->index];
+    if (ha != hb) return ha < hb ? -1 : 1;
+    size_t la = a->file->lengths[a->index], lb = b->file->lengths[b->index];
+    size_t shorter = la < lb ? la : lb;
+    int order = shorter ? memcmp (a->file->lines[a->index],
+                                  b->file->lines[b->index], shorter) : 0;
+    if (order) return order;
+    return (la > lb) - (la < lb);
+}
+
+/* How many lines of the other file each line is equal to, over the first NA
+   lines of A and NB of B: *OUT_A gets one count per line of A, counted in B,
+   and *OUT_B the other way about. Caller frees both. */
+static int
+bgit_match_counts (const bgit_xdiff_file *a, size_t na,
+                   const bgit_xdiff_file *b, size_t nb,
+                   long **out_a, long **out_b)
+{
+    size_t total = na + nb;
+    bgit_line_ref *refs = malloc ((total + 1) * sizeof *refs);
+    long *ca = calloc (na + 1, sizeof *ca);
+    long *cb = calloc (nb + 1, sizeof *cb);
+    if (!refs || !ca || !cb) {
+        free (refs);
+        free (ca);
+        free (cb);
+        return -1;
+    }
+
+    size_t k = 0;
+    for (size_t i = 0; i < na; i++) {
+        refs[k].file = a;
+        refs[k].index = i;
+        refs[k].side = 0;
+        k++;
+    }
+    for (size_t j = 0; j < nb; j++) {
+        refs[k].file = b;
+        refs[k].index = j;
+        refs[k].side = 1;
+        k++;
+    }
+    qsort (refs, total, sizeof *refs, bgit_line_ref_cmp);
+
+    for (size_t start = 0; start < total; ) {
+        size_t end = start + 1;
+        while (end < total && !bgit_line_ref_cmp (&refs[start], &refs[end]))
+            end++;
+        long in_a = 0, in_b = 0;
+        for (size_t t = start; t < end; t++) {
+            if (refs[t].side) in_b++;
+            else in_a++;
+        }
+        for (size_t t = start; t < end; t++) {
+            if (refs[t].side) cb[refs[t].index] = in_a;
+            else ca[refs[t].index] = in_b;
+        }
+        start = end;
+    }
+    free (refs);
+    *out_a = ca;
+    *out_b = cb;
+    return 0;
+}
+
+/* How many of a file's lines start before BYTES. */
+static size_t
+bgit_lines_within (const bgit_xdiff_file *file, size_t bytes)
+{
+    size_t n = 0;
+    while (n < file->n && (size_t) (file->lines[n] - file->text) < bytes) n++;
+    return n;
+}
+
+/* DIS says of each line whether it matches nothing in the other file (0), a
+   few lines (1), or so many that a match would mean little (2). A line of
+   the third kind is worth searching for only if it has company: when the
+   lines around it match nothing either, matching this one somewhere is more
+   likely to line up noise than anything real, and git leaves it out. */
+static int
+bgit_clean_mmatch (const char *dis, long i, long s, long e)
+{
+    long r, rdis0, rpdis0, rdis1, rpdis1;
+
+    /* Look no further than a hundred lines either way: without the limit a
+       long run of unmatched lines in a big file costs far too much. */
+    if (i - s > BGIT_SIMSCAN_WINDOW) s = i - BGIT_SIMSCAN_WINDOW;
+    if (e - i > BGIT_SIMSCAN_WINDOW) e = i + BGIT_SIMSCAN_WINDOW;
+
+    for (r = 1, rdis0 = 0, rpdis0 = 1; (i - r) >= s; r++) {
+        if (!dis[i - r]) rdis0++;
+        else if (dis[i - r] == 2) rpdis0++;
+        else break;
+    }
+    /* Nothing unmatched above: the line is in good company, so keep it. */
+    if (rdis0 == 0) return 0;
+    for (r = 1, rdis1 = 0, rpdis1 = 1; (i + r) <= e; r++) {
+        if (!dis[i + r]) rdis1++;
+        else if (dis[i + r] == 2) rpdis1++;
+        else break;
+    }
+    if (rdis1 == 0) return 0;
+    rdis1 += rdis0;
+    rpdis1 += rpdis0;
+
+    return rpdis1 * BGIT_KPDIS_RUN < (rpdis1 + rdis1);
+}
+
 /* ---------------------------------------------------------------- Myers */
 
-static int
-bgit_hash_cmp (const void *a, const void *b)
-{
-    unsigned long left = *(const unsigned long *) a;
-    unsigned long right = *(const unsigned long *) b;
-    return (left > right) - (left < right);
-}
-
-/* Does any line of the other file hash to this? A collision only keeps a
-   line in the search, which costs a little work and no correctness. */
-static int
-bgit_hash_present (const unsigned long *sorted, size_t n, unsigned long hash)
-{
-    size_t low = 0, high = n;
-    while (low < high) {
-        size_t mid = low + (high - low) / 2;
-        if (sorted[mid] < hash) low = mid + 1;
-        else high = mid;
-    }
-    return low < n && sorted[low] == hash;
-}
+#define BGIT_SNAKE_CNT 20
+#define BGIT_HEUR_MIN_COST 256
+#define BGIT_MAX_COST_MIN 256
+#define BGIT_K_HEUR 4
 
 typedef struct {
     const bgit_xdiff_file *a, *b;
     const size_t *ia, *ib;      /* the lines still in the search, by index */
     char *ca, *cb;              /* changed flags, with a zero either side */
     long *vf, *vb;              /* the furthest-reaching paths, both ways */
-    long offset;
+    long mxcost;                /* the cost at which the search gives up */
 } bgit_xd;
 
+/* Where a box was split, and whether each half must be searched exactly. */
+typedef struct {
+    long i1, i2;
+    int min_lo, min_hi;
+} bgit_xd_split;
+
 static int
-bgit_xd_eq (const bgit_xd *x, size_t i, size_t j)
+bgit_xd_eq (const bgit_xd *x, long i, long j)
 {
-    size_t u = x->ia[i], v = x->ib[j];
-    return x->a->hashes[u] == x->b->hashes[v] &&
-           x->a->lengths[u] == x->b->lengths[v] &&
-           !memcmp (x->a->lines[u], x->b->lines[v], x->a->lengths[u]);
+    return bgit_line_same (x->a, (long) x->ia[i], x->b, (long) x->ib[j]);
 }
 
-/* The middle of an optimal edit path between the two ranges: the point where
-   the search from the front and the search from the back meet. */
-static void
-bgit_xd_middle (bgit_xd *x, size_t a0, size_t a1, size_t b0, size_t b1,
-                size_t *px, size_t *py)
+/* Where an edit path crosses the middle of the box: the search from the
+   front and the search from the back are each carried one step further
+   until they meet. Left alone that is exact but can cost the square of the
+   file's length, so unless NEED_MIN forbids it two of git's heuristics cut
+   it short — the first takes a path that has run a long way clear of the
+   middle diagonal once a long enough run of matching lines has been seen,
+   the second gives up at a ceiling on cost and takes whichever path has
+   reached furthest. Either way the half the heuristic guessed at is
+   searched exactly next time round. Returns the cost paid. */
+static long
+bgit_xd_find_split (bgit_xd *x, long off1, long lim1, long off2, long lim2,
+                    int need_min, bgit_xd_split *spl)
 {
-    long n = (long) (a1 - a0), m = (long) (b1 - b0);
-    long delta = n - m;
-    int odd = (delta & 1) != 0;
-    long *vf = x->vf + x->offset, *vb = x->vb + x->offset;
-    long dmax = (n + m + 1) / 2 + 1;
+    long dmin = off1 - lim2, dmax = lim1 - off2;
+    long fmid = off1 - off2, bmid = lim1 - lim2;
+    long odd = (fmid - bmid) & 1;
+    long fmin = fmid, fmax = fmid, bmin = bmid, bmax = bmid;
+    long *vf = x->vf, *vb = x->vb;
+    long ec, d, i1, i2, prev1, best, dd, v, k;
 
-    vf[1] = 0;
-    vb[1] = 0;
-    for (long d = 0; d <= dmax; d++) {
-        for (long k = -d; k <= d; k += 2) {
-            long fx = (k == -d || (k != d && vf[k - 1] < vf[k + 1]))
-                      ? vf[k + 1] : vf[k - 1] + 1;
-            long fy = fx - k;
-            while (fx < n && fy < m && bgit_xd_eq (x, a0 + fx, b0 + fy)) {
-                fx++;
-                fy++;
+    vf[fmid] = off1;
+    vb[bmid] = lim1;
+
+    for (ec = 1;; ec++) {
+        int got_snake = 0;
+
+        /* Widen the band of diagonals by one. Where that would leave the
+           box, narrow it at the other end instead, which keeps the width
+           even. The diagonal just outside the band is given a value that
+           always loses, so the loop below needs no bounds test. */
+        if (fmin > dmin) vf[--fmin - 1] = -1;
+        else ++fmin;
+        if (fmax < dmax) vf[++fmax + 1] = -1;
+        else --fmax;
+
+        for (d = fmax; d >= fmin; d -= 2) {
+            i1 = vf[d - 1] >= vf[d + 1] ? vf[d - 1] + 1 : vf[d + 1];
+            prev1 = i1;
+            i2 = i1 - d;
+            while (i1 < lim1 && i2 < lim2 && bgit_xd_eq (x, i1, i2)) {
+                i1++;
+                i2++;
             }
-            vf[k] = fx;
-            if (odd && k - delta >= -(d - 1) && k - delta <= d - 1 &&
-                fx + vb[delta - k] >= n) {
-                *px = a0 + (size_t) fx;
-                *py = b0 + (size_t) fy;
-                return;
+            if (i1 - prev1 > BGIT_SNAKE_CNT) got_snake = 1;
+            vf[d] = i1;
+            if (odd && bmin <= d && d <= bmax && vb[d] <= i1) {
+                spl->i1 = i1;
+                spl->i2 = i2;
+                spl->min_lo = spl->min_hi = 1;
+                return ec;
             }
         }
-        for (long k = -d; k <= d; k += 2) {
-            long bx = (k == -d || (k != d && vb[k - 1] < vb[k + 1]))
-                      ? vb[k + 1] : vb[k - 1] + 1;
-            long by = bx - k;
-            while (bx < n && by < m &&
-                   bgit_xd_eq (x, a1 - 1 - (size_t) bx, b1 - 1 - (size_t) by)) {
-                bx++;
-                by++;
+
+        if (bmin > dmin) vb[--bmin - 1] = LONG_MAX;
+        else ++bmin;
+        if (bmax < dmax) vb[++bmax + 1] = LONG_MAX;
+        else --bmax;
+
+        for (d = bmax; d >= bmin; d -= 2) {
+            i1 = vb[d - 1] < vb[d + 1] ? vb[d - 1] : vb[d + 1] - 1;
+            prev1 = i1;
+            i2 = i1 - d;
+            while (i1 > off1 && i2 > off2 && bgit_xd_eq (x, i1 - 1, i2 - 1)) {
+                i1--;
+                i2--;
             }
-            vb[k] = bx;
-            if (!odd && delta - k >= -d && delta - k <= d &&
-                bx + vf[delta - k] >= n) {
-                *px = a1 - (size_t) bx;
-                *py = b1 - (size_t) by;
-                return;
+            if (prev1 - i1 > BGIT_SNAKE_CNT) got_snake = 1;
+            vb[d] = i1;
+            if (!odd && fmin <= d && d <= fmax && i1 <= vf[d]) {
+                spl->i1 = i1;
+                spl->i2 = i2;
+                spl->min_lo = spl->min_hi = 1;
+                return ec;
             }
+        }
+
+        if (need_min) continue;
+
+        /* The first heuristic. How far a diagonal has got from the corner
+           it started at, less a penalty for sitting far from the middle
+           diagonal, measures how promising it is; a diagonal that has done
+           better than the cost so far times a constant, and whose last
+           twenty lines all match, is taken as the answer. */
+        if (got_snake && ec > BGIT_HEUR_MIN_COST) {
+            for (best = 0, d = fmax; d >= fmin; d -= 2) {
+                dd = d > fmid ? d - fmid : fmid - d;
+                i1 = vf[d];
+                i2 = i1 - d;
+                v = (i1 - off1) + (i2 - off2) - dd;
+                if (v > BGIT_K_HEUR * ec && v > best &&
+                    off1 + BGIT_SNAKE_CNT <= i1 && i1 < lim1 &&
+                    off2 + BGIT_SNAKE_CNT <= i2 && i2 < lim2) {
+                    for (k = 1; bgit_xd_eq (x, i1 - k, i2 - k); k++)
+                        if (k == BGIT_SNAKE_CNT) {
+                            best = v;
+                            spl->i1 = i1;
+                            spl->i2 = i2;
+                            break;
+                        }
+                }
+            }
+            if (best > 0) {
+                spl->min_lo = 1;
+                spl->min_hi = 0;
+                return ec;
+            }
+
+            for (best = 0, d = bmax; d >= bmin; d -= 2) {
+                dd = d > bmid ? d - bmid : bmid - d;
+                i1 = vb[d];
+                i2 = i1 - d;
+                v = (lim1 - i1) + (lim2 - i2) - dd;
+                if (v > BGIT_K_HEUR * ec && v > best &&
+                    off1 < i1 && i1 <= lim1 - BGIT_SNAKE_CNT &&
+                    off2 < i2 && i2 <= lim2 - BGIT_SNAKE_CNT) {
+                    for (k = 0; bgit_xd_eq (x, i1 + k, i2 + k); k++)
+                        if (k == BGIT_SNAKE_CNT - 1) {
+                            best = v;
+                            spl->i1 = i1;
+                            spl->i2 = i2;
+                            break;
+                        }
+                }
+            }
+            if (best > 0) {
+                spl->min_lo = 0;
+                spl->min_hi = 1;
+                return ec;
+            }
+        }
+
+        /* Enough is enough: take the furthest-reaching path there is, from
+           whichever end of the box has got further. */
+        if (ec >= x->mxcost) {
+            long fbest = -1, fbest1 = -1;
+            long bbest = LONG_MAX, bbest1 = LONG_MAX;
+
+            for (d = fmax; d >= fmin; d -= 2) {
+                i1 = vf[d] < lim1 ? vf[d] : lim1;
+                i2 = i1 - d;
+                if (lim2 < i2) { i1 = lim2 + d; i2 = lim2; }
+                if (fbest < i1 + i2) {
+                    fbest = i1 + i2;
+                    fbest1 = i1;
+                }
+            }
+            for (d = bmax; d >= bmin; d -= 2) {
+                i1 = vb[d] > off1 ? vb[d] : off1;
+                i2 = i1 - d;
+                if (i2 < off2) { i1 = off2 + d; i2 = off2; }
+                if (i1 + i2 < bbest) {
+                    bbest = i1 + i2;
+                    bbest1 = i1;
+                }
+            }
+
+            if ((lim1 + lim2) - bbest < fbest - (off1 + off2)) {
+                spl->i1 = fbest1;
+                spl->i2 = fbest - fbest1;
+                spl->min_lo = 1;
+                spl->min_hi = 0;
+            } else {
+                spl->i1 = bbest1;
+                spl->i2 = bbest - bbest1;
+                spl->min_lo = 0;
+                spl->min_hi = 1;
+            }
+            return ec;
         }
     }
-    /* Unreachable: the two searches always meet by dmax. Split anyway so a
-       surprise cannot turn into an endless recursion. */
-    *px = a0 + (size_t) (n / 2);
-    *py = b0 + (size_t) (m / 2);
 }
 
+/* Divide and conquer: split the box, then describe each half the same way.
+   Marking lines changed is the work of the two cases where a side of the
+   box has emptied. */
 static void
-bgit_xd_compare (bgit_xd *x, size_t a0, size_t a1, size_t b0, size_t b1)
+bgit_xd_compare (bgit_xd *x, long a0, long a1, long b0, long b1, int need_min)
 {
     while (a0 < a1 && b0 < b1 && bgit_xd_eq (x, a0, b0)) { a0++; b0++; }
     while (a0 < a1 && b0 < b1 && bgit_xd_eq (x, a1 - 1, b1 - 1)) { a1--; b1--; }
     if (a0 == a1) {
-        for (size_t j = b0; j < b1; j++) x->cb[x->ib[j]] = 1;
+        for (long j = b0; j < b1; j++) x->cb[x->ib[j]] = 1;
         return;
     }
     if (b0 == b1) {
-        for (size_t i = a0; i < a1; i++) x->ca[x->ia[i]] = 1;
+        for (long i = a0; i < a1; i++) x->ca[x->ia[i]] = 1;
         return;
     }
-    if (a1 - a0 == 1 && b1 - b0 == 1) {
-        x->ca[x->ia[a0]] = 1;
-        x->cb[x->ib[b0]] = 1;
+
+    bgit_xd_split spl = {0, 0, 0, 0};
+    bgit_xd_find_split (x, a0, a1, b0, b1, need_min, &spl);
+    if ((spl.i1 == a0 && spl.i2 == b0) || (spl.i1 == a1 && spl.i2 == b1)) {
+        /* No progress: rather than recur for ever, take the whole box as
+           changed. The search does not do this, but a split that moved
+           nothing would cost the stack everything. */
+        for (long i = a0; i < a1; i++) x->ca[x->ia[i]] = 1;
+        for (long j = b0; j < b1; j++) x->cb[x->ib[j]] = 1;
         return;
     }
-    size_t mx, my;
-    bgit_xd_middle (x, a0, a1, b0, b1, &mx, &my);
-    if ((mx == a0 && my == b0) || (mx == a1 && my == b1)) {
-        /* No progress: describe the range as wholly changed rather than
-           recurse for ever. */
-        for (size_t i = a0; i < a1; i++) x->ca[x->ia[i]] = 1;
-        for (size_t j = b0; j < b1; j++) x->cb[x->ib[j]] = 1;
-        return;
-    }
-    bgit_xd_compare (x, a0, mx, b0, my);
-    bgit_xd_compare (x, mx, a1, my, b1);
+    bgit_xd_compare (x, a0, spl.i1, b0, spl.i2, spl.min_lo);
+    bgit_xd_compare (x, spl.i1, a1, spl.i2, b1, spl.min_hi);
 }
 
 /* ---------------------------------------------------- git's compaction */
 
 #define BGIT_MAX_INDENT 200
 #define BGIT_MAX_BLANKS 20
+#define BGIT_INDENT_MAX_SLIDING 100
 #define BGIT_INDENT_WEIGHT 60
 #define BGIT_START_OF_FILE_PENALTY 1
 #define BGIT_END_OF_FILE_PENALTY 21
@@ -260,11 +517,11 @@ typedef struct {
 } bgit_split_score;
 
 static void
-bgit_measure_split (const bgit_xdiff_file *file, long split,
+bgit_measure_split (const bgit_xdiff_file *file, long n, long split,
                     bgit_split_measure *m)
 {
     memset (m, 0, sizeof *m);
-    if (split >= (long) file->n) {
+    if (split >= n) {
         m->end_of_file = 1;
         m->indent = -1;
     } else {
@@ -280,7 +537,7 @@ bgit_measure_split (const bgit_xdiff_file *file, long split,
     }
 
     m->post_indent = -1;
-    for (long i = split + 1; i < (long) file->n; i++) {
+    for (long i = split + 1; i < n; i++) {
         m->post_indent = bgit_indent_of (file->lines[i], file->lengths[i]);
         if (m->post_indent != -1) break;
         m->post_blank += 1;
@@ -380,10 +637,10 @@ bgit_group_slide_up (const bgit_xdiff_file *file, char *changed, bgit_group *g)
 }
 
 static int
-bgit_group_slide_down (const bgit_xdiff_file *file, char *changed,
+bgit_group_slide_down (const bgit_xdiff_file *file, long n, char *changed,
                        bgit_group *g)
 {
-    if (g->end < (long) file->n && bgit_lines_match (file, g->start, g->end)) {
+    if (g->end < n && bgit_lines_match (file, g->start, g->end)) {
         changed[g->start++] = 0;
         changed[g->end++] = 1;
         while (changed[g->end]) g->end++;
@@ -393,10 +650,13 @@ bgit_group_slide_down (const bgit_xdiff_file *file, char *changed,
 }
 
 /* Move each run of changes in FILE to where it reads best, keeping the runs
-   in the other file in step so the two descriptions stay paired. */
+   in the other file in step so the two descriptions stay paired. Only when
+   INDENT_HEURISTIC does indentation get a say; git leaves it out of a diff
+   of words, where indentation means nothing. */
 static void
-bgit_compact (const bgit_xdiff_file *file, char *changed,
-              const bgit_xdiff_file *other, char *other_changed)
+bgit_compact (const bgit_xdiff_file *file, long n, char *changed,
+              const bgit_xdiff_file *other, long other_n, char *other_changed,
+              int indent_heuristic)
 {
     bgit_group g, go;
     bgit_group_init (changed, &g);
@@ -409,17 +669,17 @@ bgit_compact (const bgit_xdiff_file *file, char *changed,
         do {
             size = g.end - g.start;
             matching_other = -1;
-            /* Every position the run passes on the way up is a place it
-               could sit beside a run in the other file, and the last one
-               seen is the one git lines it up with. */
-            while (!bgit_group_slide_up (file, changed, &g)) {
+            while (!bgit_group_slide_up (file, changed, &g))
                 if (bgit_group_previous (other_changed, &go)) break;
-                if (go.end > go.start) matching_other = g.end;
-            }
+            /* This is as high as the run will go. From here down, every
+               position at which a run of the other file stands beside it is
+               one it could be lined up with, and the last such position is
+               the one git settles on. */
             earliest_end = g.end;
+            if (go.end > go.start) matching_other = g.end;
             for (;;) {
-                if (bgit_group_slide_down (file, changed, &g)) break;
-                if (bgit_group_next (other_changed, (long) other->n, &go)) break;
+                if (bgit_group_slide_down (file, n, changed, &g)) break;
+                if (bgit_group_next (other_changed, other_n, &go)) break;
                 if (go.end > go.start) matching_other = g.end;
             }
         } while (size != g.end - g.start);
@@ -434,15 +694,22 @@ bgit_compact (const bgit_xdiff_file *file, char *changed,
                 if (bgit_group_slide_up (file, changed, &g)) break;
                 if (bgit_group_previous (other_changed, &go)) break;
             }
-        } else {
+        } else if (indent_heuristic) {
+            /* The run sits as far down as it will go, so every position it
+               could take is at or above this one — but no further up than
+               its own length, and never more than a hundred lines. */
+            long shift = earliest_end;
+            if (g.end - size - 1 > shift) shift = g.end - size - 1;
+            if (g.end - BGIT_INDENT_MAX_SLIDING > shift)
+                shift = g.end - BGIT_INDENT_MAX_SLIDING;
             long best_shift = -1;
             bgit_split_score best = {0, 0};
-            for (long shift = earliest_end; shift <= g.end; shift++) {
+            for (; shift <= g.end; shift++) {
                 bgit_split_measure m;
                 bgit_split_score score = {0, 0};
-                bgit_measure_split (file, shift, &m);
+                bgit_measure_split (file, n, shift, &m);
                 bgit_score_add_split (&m, &score);
-                bgit_measure_split (file, shift - size, &m);
+                bgit_measure_split (file, n, shift - size, &m);
                 bgit_score_add_split (&m, &score);
                 if (best_shift == -1 || bgit_score_cmp (&score, &best) <= 0) {
                     best = score;
@@ -456,8 +723,8 @@ bgit_compact (const bgit_xdiff_file *file, char *changed,
         }
 
     next:
-        if (bgit_group_next (changed, (long) file->n, &g)) break;
-        if (bgit_group_next (other_changed, (long) other->n, &go)) break;
+        if (bgit_group_next (changed, n, &g)) break;
+        if (bgit_group_next (other_changed, other_n, &go)) break;
     }
 }
 
@@ -467,66 +734,151 @@ int
 bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
             int context, bgit_xdiff_result *out)
 {
+    return bgit_xdiff_opts (old, new_file, context,
+                            BGIT_XDIFF_INDENT_HEURISTIC |
+                            (context ? 0 : BGIT_XDIFF_TRIM_TAIL), out);
+}
+
+/* How much of a shared tail git sets aside at a time. */
+#define BGIT_TRIM_BLOCK 1024
+
+int
+bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
+                 int context, int flags, bgit_xdiff_result *out)
+{
+    int indent_heuristic = (flags & BGIT_XDIFF_INDENT_HEURISTIC) != 0;
     memset (out, 0, sizeof *out);
     if (context < 0) context = 0;
 
     /* One spare byte at each end, so a scan may look just past either. */
     char *ca = calloc (old->n + 2, 1);
     char *cb = calloc (new_file->n + 2, 1);
-    long *vf = calloc (2 * (old->n + new_file->n) + 4, sizeof *vf);
-    long *vb = calloc (2 * (old->n + new_file->n) + 4, sizeof *vb);
-    if (!ca || !cb || !vf || !vb) {
-        free (ca); free (cb); free (vf); free (vb);
+    if (!ca || !cb) {
+        free (ca);
+        free (cb);
         return -1;
     }
     out->old_changed = ca + 1;
     out->new_changed = cb + 1;
 
-    /* A line that appears nowhere in the other file can be in no match, so
-       it is marked changed here and left out of the search — git reduces
-       the problem the same way before running the algorithm, and it is what
-       makes two equally short answers come out the same way round. */
-    size_t *ia = malloc ((old->n + 1) * sizeof *ia);
-    size_t *ib = malloc ((new_file->n + 1) * sizeof *ib);
-    unsigned long *sorted_a = malloc ((old->n + 1) * sizeof *sorted_a);
-    unsigned long *sorted_b = malloc ((new_file->n + 1) * sizeof *sorted_b);
-    if (!ia || !ib || !sorted_a || !sorted_b) {
-        free (ia); free (ib); free (sorted_a); free (sorted_b);
-        free (vf); free (vb);
+    /* Reduce the problem before searching it, as git does. First trim the
+       lines the two files already share at top and bottom. Then leave out
+       of the search every line between that matches nothing in the other
+       file — it can be part of no match, so it is changed and that is that
+       — and every line matching so many that a match would mean little,
+       when the lines around it match nothing either. Leaving these out is
+       most of what makes two equally short answers come out the same way
+       round as git's. */
+    size_t n_old = old->n, n_new = new_file->n;
+    if (flags & BGIT_XDIFF_TRIM_TAIL) {
+        size_t trimmed = 0, recovered = 0;
+        size_t smaller = old->len < new_file->len ? old->len : new_file->len;
+        const char *tail_old = old->text + old->len;
+        const char *tail_new = new_file->text + new_file->len;
+        while (BGIT_TRIM_BLOCK + trimmed <= smaller &&
+               !memcmp (tail_old - BGIT_TRIM_BLOCK, tail_new - BGIT_TRIM_BLOCK,
+                        BGIT_TRIM_BLOCK)) {
+            trimmed += BGIT_TRIM_BLOCK;
+            tail_old -= BGIT_TRIM_BLOCK;
+            tail_new -= BGIT_TRIM_BLOCK;
+        }
+        /* Give back enough of the tail to start on a line. */
+        while (recovered < trimmed)
+            if (tail_old[recovered++] == '\n') break;
+        size_t cut = trimmed - recovered;
+        if (cut) {
+            n_old = bgit_lines_within (old, old->len - cut);
+            n_new = bgit_lines_within (new_file, new_file->len - cut);
+        }
+    }
+
+    long *count_in_new = NULL, *count_in_old = NULL;
+    if (bgit_match_counts (old, n_old, new_file, n_new,
+                           &count_in_new, &count_in_old) < 0) {
         bgit_xdiff_result_release (out);
         return -1;
     }
-    /* A side with no lines at all has nothing to copy, and copying from
-       where it would have been is not allowed even for no bytes. */
-    if (old->n) memcpy (sorted_a, old->hashes, old->n * sizeof *sorted_a);
-    if (new_file->n)
-        memcpy (sorted_b, new_file->hashes, new_file->n * sizeof *sorted_b);
-    qsort (sorted_a, old->n, sizeof *sorted_a, bgit_hash_cmp);
-    qsort (sorted_b, new_file->n, sizeof *sorted_b, bgit_hash_cmp);
+    long shared = (long) (n_old < n_new ? n_old : n_new);
+    long dstart = 0;
+    while (dstart < shared && bgit_line_same (old, dstart, new_file, dstart))
+        dstart++;
+    long tail = 0;
+    while (tail < shared - dstart &&
+           bgit_line_same (old, (long) n_old - 1 - tail,
+                           new_file, (long) n_new - 1 - tail))
+        tail++;
+    long dend_old = (long) n_old - tail - 1;
+    long dend_new = (long) n_new - tail - 1;
+
+    char *dis_old = calloc (n_old + 1, 1);
+    char *dis_new = calloc (n_new + 1, 1);
+    size_t *ia = malloc ((n_old + 1) * sizeof *ia);
+    size_t *ib = malloc ((n_new + 1) * sizeof *ib);
+    if (!dis_old || !dis_new || !ia || !ib) {
+        free (count_in_new); free (count_in_old);
+        free (dis_old); free (dis_new); free (ia); free (ib);
+        bgit_xdiff_result_release (out);
+        return -1;
+    }
+
+    long limit = bgit_bogosqrt ((long) n_old);
+    if (limit > BGIT_MAX_EQLIMIT) limit = BGIT_MAX_EQLIMIT;
+    for (long i = dstart; i <= dend_old; i++) {
+        long matches = count_in_new[i];
+        dis_old[i] = matches == 0 ? 0 : matches >= limit ? 2 : 1;
+    }
+    limit = bgit_bogosqrt ((long) n_new);
+    if (limit > BGIT_MAX_EQLIMIT) limit = BGIT_MAX_EQLIMIT;
+    for (long j = dstart; j <= dend_new; j++) {
+        long matches = count_in_old[j];
+        dis_new[j] = matches == 0 ? 0 : matches >= limit ? 2 : 1;
+    }
+    free (count_in_new);
+    free (count_in_old);
+
     size_t na = 0, nb = 0;
-    for (size_t i = 0; i < old->n; i++) {
-        if (bgit_hash_present (sorted_b, new_file->n, old->hashes[i]))
-            ia[na++] = i;
+    for (long i = dstart; i <= dend_old; i++) {
+        if (dis_old[i] == 1 ||
+            (dis_old[i] == 2 &&
+             !bgit_clean_mmatch (dis_old, i, dstart, dend_old)))
+            ia[na++] = (size_t) i;
         else out->old_changed[i] = 1;
     }
-    for (size_t j = 0; j < new_file->n; j++) {
-        if (bgit_hash_present (sorted_a, old->n, new_file->hashes[j]))
-            ib[nb++] = j;
+    for (long j = dstart; j <= dend_new; j++) {
+        if (dis_new[j] == 1 ||
+            (dis_new[j] == 2 &&
+             !bgit_clean_mmatch (dis_new, j, dstart, dend_new)))
+            ib[nb++] = (size_t) j;
         else out->new_changed[j] = 1;
     }
-    free (sorted_a);
-    free (sorted_b);
+    free (dis_old);
+    free (dis_new);
+
+    /* One diagonal either side of every one the box can hold, and the
+       middle of the array is the diagonal through the origin. */
+    long ndiags = (long) (na + nb) + 3;
+    long *vf = calloc ((size_t) ndiags, sizeof *vf);
+    long *vb = calloc ((size_t) ndiags, sizeof *vb);
+    if (!vf || !vb) {
+        free (vf); free (vb); free (ia); free (ib);
+        bgit_xdiff_result_release (out);
+        return -1;
+    }
+    long mxcost = bgit_bogosqrt (ndiags);
+    if (mxcost < BGIT_MAX_COST_MIN) mxcost = BGIT_MAX_COST_MIN;
 
     bgit_xd x = {old, new_file, ia, ib, out->old_changed, out->new_changed,
-                 vf, vb, (long) (old->n + new_file->n) + 1};
-    bgit_xd_compare (&x, 0, na, 0, nb);
+                 vf + nb + 1, vb + nb + 1, mxcost};
+    bgit_xd_compare (&x, 0, (long) na, 0, (long) nb, 0);
     free (vf);
     free (vb);
     free (ia);
     free (ib);
 
-    bgit_compact (old, out->old_changed, new_file, out->new_changed);
-    bgit_compact (new_file, out->new_changed, old, out->old_changed);
+    bgit_compact (old, (long) n_old, out->old_changed,
+                  new_file, (long) n_new, out->new_changed, indent_heuristic);
+    bgit_compact (new_file, (long) n_new, out->new_changed,
+                  old, (long) n_old, out->old_changed, indent_heuristic);
 
     for (size_t i = 0; i < old->n; i++) out->removed += !!out->old_changed[i];
     for (size_t j = 0; j < new_file->n; j++) out->added += !!out->new_changed[j];
