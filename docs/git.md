@@ -27,6 +27,7 @@ git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
                  [--ignore-cr-at-eol] [--ignore-blank-lines] [-W]
+                 [--inter-hunk-context=<n>]
                  [--check] [--exit-code] [--quiet] [-z]
                  [--relative[=<path>] | --no-relative]
                  [--stat-width=<n>] [--stat-name-width=<n>]
@@ -41,10 +42,11 @@ git log          [--oneline] [--format=<format>] [-p] [--stat] [-<n>]
                  [--min-parents=<n>] [--max-parents=<n>]
                  [--since=<date>] [--until=<date>] [-S<string>]
                  [-G<pattern>] [--pickaxe-regex] [--follow]
+                 [--inter-hunk-context=<n>]
                  [<revision>...] [[--] <path>...]
 git show         [-p | -s | --stat] [--oneline] [--format=<format>]
                  [--date=<format>] [--decorate[=short|full|auto|no]]
-                 [--show-signature] [<object>...]
+                 [--show-signature] [--inter-hunk-context=<n>] [<object>...]
 git am           [-q] [--continue | --skip | --abort] [<mbox>...]
 git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
@@ -311,9 +313,15 @@ overlooked, a change that turns out to say nothing counts as no change, as it
 does in git. `-s` forgets every output form asked for before it, and at most
 one of `--name-only`, `--name-status`, `--check` and `-s` may be given.
 
+`--inter-hunk-context=<n>` joins two hunks when no more than that many
+unchanged lines remain between the context they already show. The value may
+also be the next word, and `diff.interHunkContext` supplies it when the command
+line does not. An explicit zero turns a configured value off. It reaches
+`diff`, `log` and `show`, and does not itself ask for a patch.
+
 What is not here is a diff by another algorithm — `--patience`,
-`--histogram`, `--minimal` and `--diff-algorithm` — or `--inter-hunk-context`.
-Each is refused rather than quietly ignored.
+`--histogram`, `--minimal` and `--diff-algorithm`. Each is refused rather than
+quietly ignored.
 
 `git help` with nothing named prints what `git --help` prints: this build's
 commands, which are not git's and are not grouped as git groups them. Named

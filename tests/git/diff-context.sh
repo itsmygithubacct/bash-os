@@ -130,3 +130,31 @@ printf 'alpha\n   \nbeta\ngamma\n' > blank.c
 git diff --ignore-blank-lines blank.c
 git diff --ignore-blank-lines -b blank.c
 git diff --ignore-blank-lines -w blank.c
+
+echo '=== nearby hunks joined by the distance between them ==='
+{
+    i=1
+    while [ $i -le 40 ]; do printf 'line %d\n' "$i"; i=$((i + 1)); done
+} > nearby.txt
+git add nearby.txt
+git commit -q -m 'forty nearby lines'
+{
+    i=1
+    while [ $i -le 40 ]; do
+        case $i in 5|9|14|21|30) printf 'LINE %d\n' "$i" ;;
+            *) printf 'line %d\n' "$i" ;;
+        esac
+        i=$((i + 1))
+    done
+} > nearby.txt
+git diff -U1 nearby.txt
+git diff -U1 --inter-hunk-context=1 nearby.txt
+git diff -U1 --inter-hunk-context 2 nearby.txt
+git -c diff.interHunkContext=3 diff -U1 nearby.txt
+git -c diff.interHunkContext=6 diff -U1 --inter-hunk-context=0 nearby.txt
+git diff -U0 --inter-hunk-context=2 nearby.txt
+git diff -U1 --inter-hunk-context=6 --stat nearby.txt
+git add nearby.txt
+git commit -q -m 'five nearby changes'
+git show -U1 --inter-hunk-context=2
+git log -1 -p -U1 --inter-hunk-context 6

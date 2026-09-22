@@ -101,6 +101,13 @@ int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
 /* The same comparison, saying which of those to do. */
 int bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                      int context, int flags, bgit_xdiff_result *out);
+
+/* And the same again with INTER_CONTEXT: how many further lines two
+   changes may have between them and still be shown as one hunk, over the
+   context they each print. git's --inter-hunk-context. */
+int bgit_xdiff_full (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
+                     int context, int inter_context, int flags,
+                     bgit_xdiff_result *out);
 void bgit_xdiff_result_release (bgit_xdiff_result *result);
 
 /* The text a hunk header shows after the @@ pair: the nearest line at or

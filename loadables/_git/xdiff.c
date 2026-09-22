@@ -861,6 +861,14 @@ int
 bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                  int context, int flags, bgit_xdiff_result *out)
 {
+    return bgit_xdiff_full (old, new_file, context, 0, flags, out);
+}
+
+int
+bgit_xdiff_full (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
+                 int context, int inter_context, int flags,
+                 bgit_xdiff_result *out)
+{
     int indent_heuristic = (flags & BGIT_XDIFF_INDENT_HEURISTIC) != 0;
     memset (out, 0, sizeof *out);
     if (context < 0) context = 0;
@@ -1071,6 +1079,9 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
         }
     }
     long max_ignorable = context;
+    /* How far apart two runs may be and still be shown as one hunk: the
+       context each would print, and what --inter-hunk-context adds. */
+    long max_common = 2 * context + (inter_context > 0 ? inter_context : 0);
     size_t kept_added = 0, kept_removed = 0;
 
     for (size_t r = 0; r < n_runs; ) {
@@ -1090,7 +1101,7 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
         for (size_t prev = r, k = r + 1; k < n_runs; prev = k, k++) {
             long distance = (long) runs[k].old_start -
                             (long) (runs[prev].old_start + runs[prev].old_count);
-            if (distance > 2 * context) break;
+            if (distance > max_common) break;
             int blank = skippable && skippable[k];
             if (distance < max_ignorable && (!blank || last == prev)) {
                 last = k;
@@ -1100,7 +1111,7 @@ bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
             } else if (last != prev &&
                        (long) runs[k].old_start + ignored -
                        (long) (runs[last].old_start + runs[last].old_count) >
-                       2 * context) {
+                       max_common) {
                 break;
             } else if (!blank) {
                 last = k;

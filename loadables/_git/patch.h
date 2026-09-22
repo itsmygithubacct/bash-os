@@ -20,6 +20,7 @@
 
 typedef struct {
     int context;          /* lines of context; git's default is 3 */
+    int inter_context;    /* extra unchanged lines that may join two hunks */
     int abbrev;           /* how much of an id the index line shows */
     int new_from_worktree;/* the new side is a file on disk, not a blob */
     const char *prefix_old, *prefix_new;   /* "a/" and "b/" */

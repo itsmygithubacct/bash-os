@@ -604,8 +604,8 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
                      (options->function_context
                       ? BGIT_XDIFF_FUNCTION_CONTEXT
                       : options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
-    if (bgit_xdiff_opts (&old_file, &new_file, options->context, diff_flags,
-                         &result) < 0) {
+    if (bgit_xdiff_full (&old_file, &new_file, options->context,
+                         options->inter_context, diff_flags, &result) < 0) {
         bgit_xdiff_release (&old_file);
         bgit_xdiff_release (&new_file);
         free (held);
@@ -801,8 +801,9 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
                              (options->function_context
                               ? BGIT_XDIFF_FUNCTION_CONTEXT
                               : options->context ? 0 : BGIT_XDIFF_TRIM_TAIL);
-            if (bgit_xdiff_opts (&old_file, &new_file, options->context,
-                                 diff_flags, &result) == 0) {
+            if (bgit_xdiff_full (&old_file, &new_file, options->context,
+                                 options->inter_context, diff_flags,
+                                 &result) == 0) {
                 stat->added = result.added;
                 stat->removed = result.removed;
                 bgit_xdiff_result_release (&result);

@@ -39,6 +39,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <fnmatch.h>
+#include <limits.h>
 #include <regex.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -4133,6 +4134,8 @@ struct git_diff_format {
     int no_patch;
     int no_renames;
     int context;
+    int inter_context;                  /* --inter-hunk-context */
+    int inter_context_set;              /* command line overrides config */
     int reverse;                        /* -R: the two sides change places */
     int word_diff;                      /* 0 by lines, 1 plain, 2 porcelain */
     int no_prefix;                      /* the paths stand without a/ and b/ */
@@ -4150,7 +4153,7 @@ static void git_diff_format_init (struct git_diff_format *format);
 /* git takes at most one of --name-only, --name-status, --check and -s. */
 static int git_diff_format_done (const struct git_diff_format *format);
 static int git_diff_format_option (struct git_diff_format *format,
-                                   const char *word);
+                                   const char *word, const char *next);
 static int git_diff_emit (git_context *ctx, FILE *out,
                           const struct git_diff_format *format,
                           const bgit_diff_entry *entries, size_t n,
@@ -6220,6 +6223,7 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
     const char *revs[16], *rev_words[16], *excludes[16], *exclude_words[16];
     const char *paths[32];
     int n_revs = 0, n_excludes = 0, n_paths = 0, no_more = 0;
+    int option_words = 0;
     git_check_complained = 0;
     struct git_diff_format diff;
     git_diff_format_init (&diff);
@@ -6236,7 +6240,9 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
            by letting go of it. */
         const char *taken = p->next ? p->next->word->word : NULL;
         if (!strcmp (w, "--oneline")) oneline = 1;
-        else if (git_diff_format_option (&diff, w)) ;
+        else if ((option_words = git_diff_format_option (&diff, w, taken))) {
+            if (option_words == 2) p = p->next;
+        }
         else if (git_log_filter_option (&filter, w, &taken)) {
             if (!taken && p->next) p = p->next;
         }
@@ -6531,7 +6537,8 @@ git_diff_format_done (const struct git_diff_format *format)
 }
 
 static int
-git_diff_format_option (struct git_diff_format *format, const char *w)
+git_diff_format_option (struct git_diff_format *format, const char *w,
+                        const char *next)
 {
     if (!strcmp (w, "-p") || !strcmp (w, "-u") || !strcmp (w, "--patch"))
         format->patch = 1;
@@ -6620,6 +6627,23 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
         format->context = atoi (w + 10);
         format->patch = 1;
     }
+    /* How much further two nearby hunks may reach to become one. It does
+       not itself ask for a patch, and git accepts the value as either the
+       next word or the right side of an equals sign. */
+    else if (!strncmp (w, "--inter-hunk-context=", 21)) {
+        const char *value = w + 21;
+        const char *digits = *value == '-' ? value + 1 : value;
+        if (!git_all_digits (digits)) return 0;
+        format->inter_context = atoi (value);
+        format->inter_context_set = 1;
+    }
+    else if (!strcmp (w, "--inter-hunk-context")) {
+        const char *digits = next && *next == '-' ? next + 1 : next;
+        if (!digits || !git_all_digits (digits)) return 0;
+        format->inter_context = atoi (next);
+        format->inter_context_set = 1;
+        return 2;
+    }
     /* Whitespace a comparison may overlook. git lets several be named and
        uses the widest; the bits are in that order, so this only gathers
        them. */
@@ -6650,6 +6674,53 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     return 1;
 }
 
+/* The command line wins over diff.interHunkContext. The configuration uses
+   git's scaled integer spelling, so k, m and g are powers of 1024. */
+static int
+git_diff_inter_context (git_context *ctx,
+                        const struct git_diff_format *format, int *result)
+{
+    *result = format->inter_context;
+    if (format->inter_context_set) return 0;
+    const char *value = bgit_config_get (&ctx->cfg, "diff.interHunkContext");
+    if (!value) return 0;
+
+    char *end = NULL;
+    errno = 0;
+    long amount = strtol (value, &end, 10);
+    long multiplier = 1;
+    if (end == value) {
+        git_fatal ("bad numeric config value '%s' for "
+                   "'diff.interhunkcontext': invalid unit", value);
+        return -1;
+    }
+    if (end && *end) {
+        if ((end[0] == 'k' || end[0] == 'K') && !end[1])
+            multiplier = 1024;
+        else if ((end[0] == 'm' || end[0] == 'M') && !end[1])
+            multiplier = 1024L * 1024L;
+        else if ((end[0] == 'g' || end[0] == 'G') && !end[1])
+            multiplier = 1024L * 1024L * 1024L;
+        else {
+            git_fatal ("bad numeric config value '%s' for "
+                       "'diff.interhunkcontext': invalid unit", value);
+            return -1;
+        }
+    }
+    if (amount < 0) {
+        git_fatal ("unable to parse 'diff.interhunkcontext' from "
+                   "command-line config");
+        return -1;
+    }
+    if (errno == ERANGE || amount > INT_MAX / multiplier) {
+        git_fatal ("bad numeric config value '%s' for "
+                   "'diff.interhunkcontext': out of range", value);
+        return -1;
+    }
+    *result = (int) (amount * multiplier);
+    return 0;
+}
+
 /* Show a list of changed paths in whichever forms were asked for. The new
    side comes from the working tree when NEW_FROM_WORKTREE, so `git diff`
    reads files rather than blobs that were never written. */
@@ -6662,6 +6733,8 @@ git_diff_emit (git_context *ctx, FILE *out,
     bgit_patch_options options;
     bgit_patch_options_init (&options);
     options.context = format->context;
+    if (git_diff_inter_context (ctx, format, &options.inter_context) < 0)
+        return -1;
     /* --relative leaves out what is not under the place it names, and names
        the rest from there. */
     char relative[4200] = "";
@@ -6847,7 +6920,7 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
                         "[--cached] [<commit> [<commit>]] [-- <path>...]";
     struct git_diff_format format;
     git_diff_format_init (&format);
-    int cached = 0, no_more = 0;
+    int cached = 0, no_more = 0, option_words = 0;
     const char *revs[2] = { NULL, NULL };
     int n_revs = 0;
     const char *paths[32];
@@ -6857,7 +6930,12 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
         const char *w = p->word->word;
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
         if (!no_more && (!strcmp (w, "--cached") || !strcmp (w, "--staged"))) cached = 1;
-        else if (!no_more && git_diff_format_option (&format, w)) ;
+        else if (!no_more &&
+                 (option_words = git_diff_format_option
+                                  (&format, w,
+                                   p->next ? p->next->word->word : NULL))) {
+            if (option_words == 2) p = p->next;
+        }
         else if (!no_more && w[0] == '-' && w[1]) return git_usage (usage);
         else if (!no_more && n_revs < 2) revs[n_revs++] = w;
         else if (n_paths < (int) (sizeof paths / sizeof *paths)) paths[n_paths++] = w;
@@ -6970,6 +7048,12 @@ git_cmd_diff (git_context *ctx, WORD_LIST *args)
             bgit_patch_options probe;
             bgit_patch_options_init (&probe);
             probe.context = format.context;
+            if (git_diff_inter_context (ctx, &format,
+                                        &probe.inter_context) < 0) {
+                bgit_diff_free (entries, n);
+                git_state_release (&state);
+                return GIT_EXIT_FATAL;
+            }
             probe.new_from_worktree = from_worktree;
             probe.ignore_ws = format.ignore_ws;
             probe.ignore_blank_lines = format.ignore_blank_lines;
@@ -7073,7 +7157,7 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
     struct git_diff_format diff;
     git_diff_format_init (&diff);
     const char *format = NULL;
-    int oneline = 0, show_signature = 0, decorate = -1;
+    int oneline = 0, show_signature = 0, decorate = -1, option_words = 0;
     int show_notes = 1;
     const char *notes_ref = NULL;
     struct git_date_format date;
@@ -7107,7 +7191,11 @@ git_cmd_show (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "--no-notes")) show_notes = 0;
         else if (!strcmp (w, "--notes")) { show_notes = 1; notes_ref = NULL; }
         else if (!strncmp (w, "--notes=", 8)) { show_notes = 1; notes_ref = w + 8; }
-        else if (git_diff_format_option (&diff, w)) ;
+        else if ((option_words = git_diff_format_option
+                                  (&diff, w,
+                                   p->next ? p->next->word->word : NULL))) {
+            if (option_words == 2) p = p->next;
+        }
         else if (w[0] == '-' && w[1]) return git_usage (usage);
         else if (n_objects < (int) (sizeof objects / sizeof *objects))
             objects[n_objects++] = w;

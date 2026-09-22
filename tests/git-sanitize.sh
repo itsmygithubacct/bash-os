@@ -300,6 +300,9 @@ git diff -U0 --word-diff HEAD~1 HEAD > /dev/null
 git diff -U0 --word-diff=porcelain HEAD~1 HEAD > /dev/null
 git diff --unified=1 HEAD~1 HEAD > /dev/null
 git diff -U20 HEAD~1 HEAD > /dev/null
+git diff -U0 --inter-hunk-context=2 HEAD~1 HEAD > /dev/null
+git diff -U1 --inter-hunk-context 4 HEAD~1 HEAD > /dev/null
+git -c diff.interHunkContext=3 diff -U1 HEAD~1 HEAD > /dev/null
 git log -p -U0 -2 > /dev/null
 # Whitespace overlooked, which compares lines with theirs taken out.
 git diff -w HEAD~1 HEAD > /dev/null
