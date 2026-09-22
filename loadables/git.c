@@ -123,6 +123,10 @@ git_fatal_ambiguous (const char *name)
 
 #define GIT_NOTES_REF "refs/notes/commits"
 
+/* `git whatchanged` shows a commit only where there is a diff to show under
+   it, which is the one way it differs from `git log --raw`. */
+static int git_headers_need_a_diff;
+
 /* The notes a walk is showing, which `log` and `show` set for as long as
    they run: git puts them under the message of every commit that has one,
    and answers %N with the text. Empty means none are being shown. */
@@ -3617,6 +3621,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
    the first of them; the code is written out below, beside git diff. */
 struct git_diff_format {
     int patch, stat, numstat, shortstat, summary, name_only, name_status;
+    int raw;                            /* the :<modes> <ids> <status> lines */
     int no_patch;
     int no_renames;
     int context;
@@ -5245,7 +5250,7 @@ git_diff_wanted (const struct git_diff_format *format)
 {
     return format->patch || format->stat || format->numstat ||
            format->shortstat || format->summary || format->name_only ||
-           format->name_status;
+           format->name_status || format->raw;
 }
 
 /* What a commit changed, against its first parent — or against nothing, for
@@ -5284,7 +5289,7 @@ git_commit_changes (git_context *ctx, const struct git_commit *commit,
 static int
 git_commit_diff (git_context *ctx, FILE *out, const struct git_commit *commit,
                  const struct git_diff_format *format,
-                 const char *const *paths, int n_paths)
+                 const char *const *paths, int n_paths, const char *separator)
 {
     if (commit->n_parents > 1) return 0;
     bgit_diff_entry *entries = NULL;
@@ -5292,9 +5297,16 @@ git_commit_diff (git_context *ctx, FILE *out, const struct git_commit *commit,
     if (git_commit_changes (ctx, commit, paths, n_paths, &entries, &n) < 0)
         return -1;
     git_find_renames (ctx, format, &entries, &n, 0);
+    /* A commit that changed nothing gets no diff and no line set aside for
+       one, which is what git leaves out. */
+    if (!n) {
+        bgit_diff_free (entries, n);
+        return 0;
+    }
+    if (separator) fputs (separator, out);
     int rc = git_diff_emit (ctx, out, format, entries, n, 0, "");
     bgit_diff_free (entries, n);
-    return rc;
+    return rc < 0 ? rc : 1;
 }
 
 /* Did this commit change anything the pathspec names? That is what decides
@@ -5592,10 +5604,12 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
     if (diff && git_diff_wanted (diff)) {
         /* The long format keeps a blank line between message and diff; the
            one-line format runs straight into it. With a count and a patch
-           both asked for, git puts a line of dashes there instead. */
-        if (!oneline && diff->patch && diff->stat) fputs ("---\n", out);
-        else if (!oneline) fputc ('\n', out);
-        git_commit_diff (ctx, out, commit, diff, paths, n_paths);
+           both asked for, git puts a line of dashes there instead. Either
+           way the line belongs to the diff, and a commit that changed
+           nothing has neither. */
+        const char *separator = oneline ? NULL
+                              : (diff->patch && diff->stat) ? "---\n" : "\n";
+        git_commit_diff (ctx, out, commit, diff, paths, n_paths, separator);
     }
 }
 
@@ -5876,6 +5890,13 @@ git_cmd_log (git_context *ctx, WORD_LIST *args)
             git_commit_release (&commit);
             continue;
         }
+        /* whatchanged shows a commit only where there is something to show
+           under it. */
+        if (git_headers_need_a_diff &&
+            !git_commit_touches (ctx, &commit, paths, n_paths)) {
+            git_commit_release (&commit);
+            continue;
+        }
         if (limit >= 0 && shown >= limit) { git_commit_release (&commit); break; }
         if (graph && commit.n_parents > 1) {
             git_commit_release (&commit);
@@ -5971,6 +5992,7 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strcmp (w, "--summary")) format->summary = 1;
     else if (!strcmp (w, "--name-only")) format->name_only = 1;
     else if (!strcmp (w, "--name-status")) format->name_status = 1;
+    else if (!strcmp (w, "--raw")) format->raw = 1;
     else if (!strcmp (w, "-s") || !strcmp (w, "--no-patch")) format->no_patch = 1;
     else if (!strncmp (w, "-U", 2) && w[2] >= '0' && w[2] <= '9')
         format->context = atoi (w + 2);
@@ -6030,8 +6052,36 @@ git_diff_emit (git_context *ctx, FILE *out,
     int named = format->name_only || format->name_status;
     int stats = format->stat || format->numstat || format->shortstat;
     int patch = format->patch || (!named && !stats && !format->summary &&
-                                  !format->no_patch);
+                                  !format->raw && !format->no_patch);
 
+    if (format->raw) {
+        /* What each file was and what it became: the two modes, the two
+           ids as far as they are abbreviated, and what happened. */
+        for (size_t i = 0; i < n; i++) {
+            char quoted[8192], old_id[41], new_id[41];
+            const char *name = bgit_quote_path (entries[i].path, quoted,
+                                                sizeof quoted);
+            git_abbrev (ctx, entries[i].old_sha, options.abbrev, old_id,
+                        sizeof old_id);
+            git_abbrev (ctx, entries[i].new_sha, options.abbrev, new_id,
+                        sizeof new_id);
+            if (entries[i].status == 'A')
+                snprintf (old_id, sizeof old_id, "%.*s", options.abbrev,
+                          "0000000000000000000000000000000000000000");
+            if (entries[i].status == 'D')
+                snprintf (new_id, sizeof new_id, "%.*s", options.abbrev,
+                          "0000000000000000000000000000000000000000");
+            fprintf (out, "%s:%06o %06o %s %s ", options.line_prefix,
+                     entries[i].old_mode, entries[i].new_mode, old_id, new_id);
+            if (entries[i].status == 'R') {
+                char from_quoted[8192];
+                fprintf (out, "R%d\t%s\t%s\n",
+                         entries[i].score * 100 / 60000,
+                         bgit_quote_path (entries[i].from, from_quoted,
+                                          sizeof from_quoted), name);
+            } else fprintf (out, "%c\t%s\n", entries[i].status, name);
+        }
+    }
     if (named) {
         for (size_t i = 0; i < n; i++) {
             char quoted[8192];
@@ -6261,6 +6311,22 @@ git_show_tag (const unsigned char *data, size_t len, char *tagged,
     printf ("\n");
     fwrite (body, 1, left, stdout);
     printf ("\n");
+}
+
+/* `git whatchanged` is `git log --raw` under an older name, which git
+   keeps for the fingers that still type it. The one difference is that a
+   commit with nothing to show is not shown. */
+static int
+git_cmd_whatchanged (git_context *ctx, WORD_LIST *args)
+{
+    WORD_LIST *with_raw = make_word_list (make_word ("--raw"), args);
+    git_headers_need_a_diff = 1;
+    int rc = git_cmd_log (ctx, with_raw);
+    git_headers_need_a_diff = 0;
+    /* The list's own cell goes; the words after it belong to the caller. */
+    with_raw->next = NULL;
+    dispose_words (with_raw);
+    return rc;
 }
 
 static int
@@ -6701,9 +6767,12 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             continue;
         int current = state.branch && !strcmp (state.branch, refs[i].name);
         int elsewhere = 0;
+        const char *checked_out_at = NULL;
         for (size_t w = 0; w < n_trees && !elsewhere; w++)
-            if (!current && !strcmp (trees[w].branch, refs[i].name))
+            if (!current && !strcmp (trees[w].branch, refs[i].name)) {
                 elsewhere = 1;
+                checked_out_at = trees[w].path;
+            }
         const char *mark = current ? "*" : elsewhere ? "+" : " ";
         if (!verbose) {
             printf ("%s %s\n", mark, name);
@@ -6722,7 +6791,12 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
         if (verbose) {
             char upstream[512];
             long ahead = 0, behind = 0;
-            int tracks = git_status_upstream (ctx, &state, name, upstream,
+            /* How far this branch has got, not how far HEAD has: the
+                comparison is made from the branch's own tip. */
+            struct git_state at_branch = state;
+            at_branch.have_head = 1;
+            memcpy (at_branch.head, refs[i].sha, 41);
+            int tracks = git_status_upstream (ctx, &at_branch, name, upstream,
                                               sizeof upstream, &ahead, &behind);
             char apart[128] = "";
             if (tracks == 2) snprintf (apart, sizeof apart, "gone");
@@ -6741,8 +6815,13 @@ git_cmd_branch (git_context *ctx, WORD_LIST *args)
             else if (*apart)
                 snprintf (following, sizeof following, "[%s] ", apart);
         }
-        printf ("%s %-*s %s %s%s\n", mark, (int) width, name,
-                abbreviated, following, subject);
+        /* A branch another worktree has checked out says where that is,
+           which -vv shows between the id and what it follows. */
+        char where[4200] = "";
+        if (verbose > 1 && checked_out_at && *checked_out_at)
+            snprintf (where, sizeof where, "(%s) ", checked_out_at);
+        printf ("%s %-*s %s %s%s%s\n", mark, (int) width, name,
+                abbreviated, where, following, subject);
     }
     bgit_refs_free (refs, n_refs);
 
@@ -9101,9 +9180,9 @@ git_blame_pass (git_context *ctx, struct git_blame_line *lines, size_t n_lines,
 static int
 git_cmd_blame (git_context *ctx, WORD_LIST *args)
 {
-    const char *usage = "git blame [-s] [-l] [-L <start>[,<end>]] "
+    const char *usage = "git blame [-s] [-l] [-c] [-L <start>[,<end>]] "
                         "[<rev>] [--] <file>";
-    int short_form = 0, long_ids = 0, no_more = 0;
+    int short_form = 0, long_ids = 0, no_more = 0, annotating = 0;
     long first = 1, last = -1;
     const char *path = NULL, *rev = NULL;
 
@@ -9112,6 +9191,8 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
         if (!no_more && !strcmp (w, "--")) { no_more = 1; continue; }
         if (!no_more && !strcmp (w, "-s")) short_form = 1;
         else if (!no_more && !strcmp (w, "-l")) long_ids = 1;
+        /* -c is the older layout, which is all `git annotate` is. */
+        else if (!no_more && !strcmp (w, "-c")) annotating = 1;
         else if (!no_more && !strcmp (w, "-L") && p->next) {
             /* Without an end, the range runs to the end of the file. */
             const char *range = (p = p->next)->word->word;
@@ -9247,6 +9328,23 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
                                   sizeof when);
             git_commit_release (&commit);
         }
+        /* The older layout sets the parts apart with tabs, lets each stand
+           at its own width, and writes a boundary commit's id whole rather
+           than marking it with a caret. */
+        if (annotating) {
+            if (line->boundary) {
+                char abbreviated[41];
+                git_abbrev (ctx, line->commit, long_ids ? 40 : 8, abbreviated,
+                            sizeof abbreviated);
+                snprintf (id, sizeof id, "%s", abbreviated);
+            }
+            if (show_path)
+                printf ("%s\t(%s\t%s\t%s\t%ld)%s\n", id, who, when,
+                        line->path, i, text.line[i - 1]);
+            else printf ("%s\t(%s\t%s\t%ld)%s\n", id, who, when, i,
+                         text.line[i - 1]);
+            continue;
+        }
         /* Where the file has been called something else, git says so
            between the id and the author. */
         if (show_path)
@@ -9301,6 +9399,17 @@ git_count_pack_objects (const char *path)
     fclose (f);
     return ((unsigned long) fanout[0] << 24) | ((unsigned long) fanout[1] << 16) |
            ((unsigned long) fanout[2] << 8) | fanout[3];
+}
+
+/* `git annotate` is `git blame -c`: the same work in the older layout. */
+static int
+git_cmd_annotate (git_context *ctx, WORD_LIST *args)
+{
+    WORD_LIST *older = make_word_list (make_word ("-c"), args);
+    int rc = git_cmd_blame (ctx, older);
+    older->next = NULL;
+    dispose_words (older);
+    return rc;
 }
 
 static int
@@ -12764,7 +12873,7 @@ git_cmd_format_patch (git_context *ctx, WORD_LIST *args)
         diff.stat = 1;
         diff.summary = 1;
         diff.patch = 1;
-        git_commit_diff (ctx, out, &commit, &diff, NULL, 0);
+        git_commit_diff (ctx, out, &commit, &diff, NULL, 0, NULL);
         fprintf (out, "-- \n%s\n\n", GIT_VERSION_STRING + strlen ("git version "));
         if (out != stdout) {
             fclose (out);
@@ -15780,6 +15889,10 @@ git_cmd_verify_pack (git_context *ctx, WORD_LIST *args)
         free (idx);
         fprintf (stderr, "fatal: Cannot open existing pack file '%s'\n",
                  idx_path);
+        /* And then the verdict on the pack itself, which is what a caller
+           reading the output is looking for. */
+        fflush (stderr);
+        printf ("%s: bad\n", pack_path);
         return 1;
     }
     int status = 0;
@@ -16082,7 +16195,8 @@ git_cmd_remote (git_context *ctx, WORD_LIST *args)
             size_t len = strlen (listed[i].shown);
             if (*listed[i].state && len > width) width = len;
         }
-        printf ("  Remote branches:%s\n", no_query ? " (status not queried)" : "");
+        printf ("  Remote branch%s:%s\n", n_listed == 1 ? "" : "es",
+                no_query ? " (status not queried)" : "");
         for (size_t i = 0; i < n_listed; i++) {
             if (!*listed[i].state) { printf ("    %s\n", listed[i].shown); continue; }
             if (!strncmp (listed[i].state, "new (next", 9))
@@ -24450,7 +24564,7 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
     int list = 0, get = 0, get_all = 0, unset = 0, add = 0, zero = 0;
     int get_regexp = 0, remove_section = 0, name_only = 0;
     const char *type = NULL, *fallback = NULL;
-    int global = 0, local = 0;
+    int global = 0, local = 0, system_scope = 0;
     const char *file = NULL;
     const char *positional[2] = { NULL, NULL };
     int n = 0;
@@ -24477,6 +24591,7 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-z") || !strcmp (w, "--null")) zero = 1;
         else if (!strcmp (w, "--global")) global = 1;
         else if (!strcmp (w, "--local")) local = 1;
+        else if (!strcmp (w, "--system")) system_scope = 1;
         else if (!strcmp (w, "--file") && p->next) { file = p->next->word->word; p = p->next; }
         else if (!strncmp (w, "--file=", 7)) file = w + 7;
         else if (w[0] == '-' && w[1]) return git_usage (usage);
@@ -24538,7 +24653,11 @@ git_cmd_config (git_context *ctx, WORD_LIST *args)
     }
 
     if (list) {
+        /* --system, --global and --local each keep to the file they name,
+           which is what makes `--list --local` the repository's own. */
+        int only = system_scope ? 0 : global ? 1 : local ? 2 : -1;
         for (size_t i = 0; i < cfg.n; i++) {
+            if (only >= 0 && cfg.entries[i].level != only) continue;
             /* A key with no value is listed on its own, as git lists it. */
             const char *key = cfg.entries[i].key, *value = cfg.entries[i].value;
             if (name_only)
@@ -24622,6 +24741,7 @@ static const struct {
     { "apply",        git_cmd_apply },
     { "archive",      git_cmd_archive },
     { "bisect",       git_cmd_bisect },
+    { "annotate",     git_cmd_annotate },
     { "blame",        git_cmd_blame },
     { "branch",       git_cmd_branch },
     { "bundle",       git_cmd_bundle },
@@ -24687,6 +24807,7 @@ static const struct {
     { "upload-pack",  git_cmd_upload_pack },
     { "var",          git_cmd_var },
     { "verify-commit", git_cmd_verify_commit },
+    { "whatchanged",  git_cmd_whatchanged },
     { "verify-pack",  git_cmd_verify_pack },
     { "verify-tag",   git_cmd_verify_tag },
     { "worktree",     git_cmd_worktree },

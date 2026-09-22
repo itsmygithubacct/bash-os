@@ -248,6 +248,11 @@ git diff -R HEAD~1 HEAD > /dev/null
 # The same hunks taken word by word, which cuts each side into words and
 # compares those.
 git diff --word-diff HEAD~1 HEAD > /dev/null
+git diff --raw HEAD~1 HEAD > /dev/null
+git log --raw -2 > /dev/null
+git whatchanged --oneline -2 > /dev/null
+git annotate long.txt > /dev/null 2>&1 || true
+git blame -c long.txt > /dev/null 2>&1 || true
 git diff --word-diff=porcelain HEAD~1 HEAD > /dev/null
 git diff --word-diff=none HEAD~1 HEAD > /dev/null
 git log -p --word-diff -2 > /dev/null

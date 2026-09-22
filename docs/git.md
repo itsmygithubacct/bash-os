@@ -21,7 +21,7 @@ git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
                  [-e | --no-edit] [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
                  [--ignored]
-git diff         [-p] [--word-diff[=plain|porcelain|none]]
+git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
@@ -45,7 +45,9 @@ git show         [-p | -s | --stat] [--oneline] [--format=<format>]
 git am           [-q] [--continue | --skip | --abort] [<mbox>...]
 git format-patch [--stdout] [-o <dir>] [-<n>] [--numbered | --no-numbered]
                  [<since> | <range>]
-git blame        [-s] [-l] [-L <start>[,<end>]] [<rev>] [--] <file>
+git blame        [-s] [-l] [-c] [-L <start>[,<end>]] [<rev>] [--] <file>
+git annotate     [-l] [-L <start>[,<end>]] [<rev>] [--] <file>
+git whatchanged  [<log options>]
 git count-objects [-v] [-H]
 git fsck         [--unreachable] [--[no-]dangling] [--root] [--tags]
                  [--no-reflogs] [--connectivity-only] [<object>...]
@@ -185,6 +187,18 @@ would start it. Hunk headers carry the enclosing definition, two changes
 closer than twice the context become one hunk, and a file that does not
 end in a newline says so. `--stat` scales its graph the way git does, to
 the same eighty columns.
+
+`--raw` writes a line for each file instead of a patch — the two modes,
+the two ids as far as they are abbreviated, and what happened to it, as
+`:100644 100644 <old> <new> M<tab><path>`. `git log --raw` shows that
+under each commit, and `git whatchanged` is that under an older name, with
+the one difference git keeps for it: a commit with nothing to show is not
+shown at all. A commit that changed nothing has no diff and no blank line
+set aside for one, whichever form is asked for.
+
+`git annotate` is `git blame -c`: the same work in the older layout, where
+the parts are set apart by tabs, each stands at its own width, and a
+boundary commit's id is written whole rather than marked with a caret.
 
 `--word-diff` takes a hunk word by word rather than line by line: what
 was taken out in `[-brackets-]`, what was put in `{+braces+}`, and the

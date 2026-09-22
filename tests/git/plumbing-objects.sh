@@ -6,6 +6,7 @@
 # requires: init hash-object cat-file update-index ls-files write-tree ls-tree
 # requires: commit-tree update-ref symbolic-ref rev-parse rev-list show-ref
 # requires: for-each-ref tag check-ignore status config var
+# requires: whatchanged annotate blame diff log
 set -e
 
 git init -q -b main .
@@ -66,6 +67,13 @@ git count-objects
 git count-objects -v
 git count-objects -H
 git count-objects -v -H
+
+# What each file was and what it became, which is the raw form of a diff.
+git diff --raw HEAD~1 HEAD
+git log --raw -2 --format='%h'
+git whatchanged --oneline -2
+git annotate hello.txt
+git blame -c hello.txt
 
 # Every object the store holds, in id order, without being asked for one at
 # a time.
