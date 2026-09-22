@@ -102,6 +102,7 @@ git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
                  [-e | --no-edit] [-q] <commit> | --abort
 git cherry-pick  [-n] <commit> | --continue | --abort
 git cherry       [-v] [--abbrev[=<n>]] [<upstream> [<head> [<limit>]]]
+git patch-id     [--stable | --unstable | --verbatim]
 git help         [-a] [<command>]
 git submodule    [status [--cached]] | init | update [--init] [-q]
                  | add <url> [<path>] | deinit [-f] [--all]
@@ -832,6 +833,14 @@ already is marked `-`, the rest `+`, oldest first; `-v` adds the subject and
 `--abbrev=<n>` shortens the id, which is written whole by default. Named
 nothing, it asks the branch this one follows, and says so where there is
 none.
+
+`git patch-id` reads patches from standard input and writes each patch id
+beside the commit id carried by the stream, or forty zeroes when there is no
+id. Its default, `--unstable`, preserves the historical result and depends
+on file order. `--stable` gives the same result when files are reordered;
+`--verbatim` also keeps whitespace that the other forms discard. The
+`patchid.stable` and `patchid.verbatim` settings choose those forms when no
+option does.
 
 That is what a rebase leaves out as well: a commit whose patch the upstream
 already has is passed over with `warning: skipped previously applied commit

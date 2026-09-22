@@ -10119,6 +10119,280 @@ git_commit_patch_id (git_context *ctx, const char *id, char out[41])
     return 0;
 }
 
+/* `git patch-id` names patches arriving on standard input. The unstable
+   form hashes every file as one stream; the stable form hashes one file at
+   a time and adds the twenty-byte values, so file order no longer matters. */
+struct git_patch_id_stream {
+    unsigned char *text;
+    size_t len, cap;
+    unsigned char sum[20];
+    size_t patch_len;
+    int before, after, binary;
+    char pre[65], post[65];
+};
+
+static void
+git_patch_id_stream_init (struct git_patch_id_stream *stream)
+{
+    memset (stream, 0, sizeof *stream);
+    stream->before = stream->after = -1;
+}
+
+static int
+git_patch_id_append (struct git_patch_id_stream *stream, const char *line,
+                     size_t len, int verbatim, int counts)
+{
+    size_t add = 0;
+    if (verbatim) add = len;
+    else
+        for (size_t i = 0; i < len; i++)
+            if (!isspace ((unsigned char) line[i])) add++;
+    if (stream->len + add > stream->cap) {
+        size_t next = stream->cap ? stream->cap * 2 : 4096;
+        while (next < stream->len + add) next *= 2;
+        unsigned char *grown = realloc (stream->text, next);
+        if (!grown) return -1;
+        stream->text = grown;
+        stream->cap = next;
+    }
+    if (verbatim) {
+        memcpy (stream->text + stream->len, line, len);
+        stream->len += len;
+    } else {
+        for (size_t i = 0; i < len; i++)
+            if (!isspace ((unsigned char) line[i]))
+                stream->text[stream->len++] = (unsigned char) line[i];
+    }
+    if (counts) stream->patch_len += add;
+    return 0;
+}
+
+static int
+git_patch_id_finish_file (struct git_patch_id_stream *stream)
+{
+    unsigned char digest[20];
+    if (bgit_sha1 (stream->text, stream->len, digest) < 0) return -1;
+    unsigned int carry = 0;
+    for (int i = 0; i < 20; i++) {
+        carry += stream->sum[i] + digest[i];
+        stream->sum[i] = (unsigned char) carry;
+        carry >>= 8;
+    }
+    stream->len = 0;
+    return 0;
+}
+
+static int
+git_patch_id_hunk (const char *line, int *before, int *after)
+{
+    if (strncmp (line, "@@ -", 4)) return 0;
+    char *end = NULL;
+    (void) strtol (line + 4, &end, 10);
+    if (end == line + 4) return 0;
+    *before = 1;
+    if (*end == ',') {
+        long count = strtol (end + 1, &end, 10);
+        if (count < 0) return 0;
+        *before = (int) count;
+    }
+    if (end[0] != ' ' || end[1] != '+') return 0;
+    const char *new_start = end + 2;
+    (void) strtol (new_start, &end, 10);
+    if (end == new_start) return 0;
+    *after = 1;
+    if (*end == ',') {
+        long count = strtol (end + 1, &end, 10);
+        if (count < 0) return 0;
+        *after = (int) count;
+    }
+    return 1;
+}
+
+static int
+git_patch_id_boundary (const char *line, char id[41])
+{
+    const char *hex = !strncmp (line, "commit ", 7) ? line + 7
+                    : !strncmp (line, "From ", 5) ? line + 5 : line;
+    if (strlen (hex) < 40) return 0;
+    char candidate[41];
+    memcpy (candidate, hex, 40);
+    candidate[40] = '\0';
+    unsigned char raw[20];
+    if (bgit_hex_to_sha (candidate, raw) < 0) return 0;
+    bgit_sha_to_hex (raw, id);
+    return 1;
+}
+
+static void
+git_patch_id_print (struct git_patch_id_stream *stream, const char id[41])
+{
+    if (!stream->patch_len) return;
+    char result[41];
+    bgit_sha_to_hex (stream->sum, result);
+    printf ("%s %s\n", result, id);
+}
+
+/* These two settings are booleans in git's command-specific parser.  Unlike
+   the general config reader, it rejects a word that is not a boolean. */
+static int
+git_patch_id_config_bool (const bgit_config *cfg, const char *key,
+                          int fallback, int *out)
+{
+    const char *value = bgit_config_get (cfg, key);
+    if (!value) {
+        *out = fallback;
+        return 0;
+    }
+    static const char *const yes[] = { "true", "yes", "on", "1", NULL };
+    static const char *const no[] = { "false", "no", "off", "0", "", NULL };
+    for (int i = 0; yes[i]; i++)
+        if (!strcasecmp (value, yes[i])) { *out = 1; return 0; }
+    for (int i = 0; no[i]; i++)
+        if (!strcasecmp (value, no[i])) { *out = 0; return 0; }
+    git_fatal ("bad boolean config value '%s' for '%s'", value, key);
+    return -1;
+}
+
+static int
+git_cmd_patch_id (git_context *ctx, WORD_LIST *args)
+{
+    (void) ctx;
+    const char *usage = "git patch-id [--stable | --unstable | --verbatim]";
+    int mode = 0;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!strcmp (w, "--unstable")) mode = 1;
+        else if (!strcmp (w, "--stable")) mode = 2;
+        else if (!strcmp (w, "--verbatim")) mode = 3;
+        else return git_usage (usage);
+    }
+
+    bgit_repo repo;
+    int have_repo = bgit_repo_discover (".", &repo) == 0;
+    bgit_config cfg;
+    bgit_config_load (&cfg, have_repo ? &repo : NULL,
+                      git_overrides, git_n_overrides);
+    int configured_verbatim, configured_stable;
+    if (git_patch_id_config_bool (&cfg, "patchid.verbatim", 0,
+                                  &configured_verbatim) < 0 ||
+        git_patch_id_config_bool (&cfg, "patchid.stable", 0,
+                                  &configured_stable) < 0) {
+        bgit_config_release (&cfg);
+        if (have_repo) bgit_repo_release (&repo);
+        return GIT_EXIT_FATAL;
+    }
+    int stable = mode ? mode > 1
+                      : configured_verbatim || configured_stable;
+    int verbatim = mode ? mode == 3 : configured_verbatim;
+
+    static const char zero_id[] = "0000000000000000000000000000000000000000";
+    char id[41], next_id[41];
+    memcpy (id, zero_id, 41);
+    struct git_patch_id_stream stream;
+    git_patch_id_stream_init (&stream);
+    char *line = NULL;
+    size_t capacity = 0;
+    ssize_t got;
+    int status = 0;
+    clearerr (stdin);
+    while ((got = getline (&line, &capacity, stdin)) >= 0) {
+        size_t len = (size_t) got;
+        if ((!strncmp (line, "commit ", 7) || !strncmp (line, "From ", 5) ||
+             strncmp (line, "\\ ", 2)) &&
+            git_patch_id_boundary (line, next_id)) {
+            if (git_patch_id_finish_file (&stream) < 0) { status = 1; break; }
+            git_patch_id_print (&stream, id);
+            free (stream.text);
+            git_patch_id_stream_init (&stream);
+            memcpy (id, next_id, 41);
+            continue;
+        }
+        if (!strncmp (line, "\\ ", 2) && len > 12) {
+            if (verbatim && git_patch_id_append (&stream, line, len, 1, 0) < 0)
+                { status = 1; break; }
+            continue;
+        }
+        if (!stream.patch_len && strncmp (line, "diff ", 5)) continue;
+
+        if (stream.before == -1) {
+            if (!strncmp (line, "GIT binary patch", 16) ||
+                !strncmp (line, "Binary files", 12)) {
+                stream.binary = 1;
+                stream.before = 0;
+                if (git_patch_id_append (&stream, stream.pre,
+                                         strlen (stream.pre), 1, 0) < 0 ||
+                    git_patch_id_append (&stream, stream.post,
+                                         strlen (stream.post), 1, 0) < 0 ||
+                    (stable && git_patch_id_finish_file (&stream) < 0))
+                    { status = 1; break; }
+                continue;
+            }
+            if (!strncmp (line, "index ", 6)) {
+                char *between = strstr (line + 6, "..");
+                char *after = between ? strchr (between + 2, ' ') : NULL;
+                if (!after && len) after = line + len - 1;
+                if (between && after) {
+                    size_t first = (size_t) (between - (line + 6));
+                    size_t second = (size_t) (after - (between + 2));
+                    if (first > 64) first = 64;
+                    if (second > 64) second = 64;
+                    memcpy (stream.pre, line + 6, first); stream.pre[first] = '\0';
+                    memcpy (stream.post, between + 2, second);
+                    stream.post[second] = '\0';
+                }
+                continue;
+            }
+            if (!strncmp (line, "--- ", 4)) stream.before = stream.after = 1;
+            else if (!isalpha ((unsigned char) line[0])) {
+                if (git_patch_id_finish_file (&stream) < 0)
+                    { status = 1; break; }
+                git_patch_id_print (&stream, id);
+                free (stream.text);
+                git_patch_id_stream_init (&stream);
+                memcpy (id, zero_id, 41);
+                continue;
+            }
+        }
+        if (stream.binary) {
+            if (!strncmp (line, "diff ", 5)) {
+                stream.binary = 0;
+                stream.before = stream.after = -1;
+            }
+            continue;
+        }
+        if (stream.before == 0 && stream.after == 0) {
+            if (git_patch_id_hunk (line, &stream.before, &stream.after))
+                continue;
+            if (strncmp (line, "diff ", 5)) {
+                if (git_patch_id_finish_file (&stream) < 0)
+                    { status = 1; break; }
+                git_patch_id_print (&stream, id);
+                free (stream.text);
+                git_patch_id_stream_init (&stream);
+                memcpy (id, zero_id, 41);
+                continue;
+            }
+            if (stable && git_patch_id_finish_file (&stream) < 0)
+                { status = 1; break; }
+            stream.before = stream.after = -1;
+        }
+        if (line[0] == '-' || line[0] == ' ') stream.before--;
+        if (line[0] == '+' || line[0] == ' ') stream.after--;
+        if (git_patch_id_append (&stream, line, len, verbatim, 1) < 0)
+            { status = 1; break; }
+    }
+    if (!status && ferror (stdin)) status = git_fatal ("cannot read standard input");
+    if (!status) {
+        if (git_patch_id_finish_file (&stream) < 0) status = 1;
+        else git_patch_id_print (&stream, id);
+    }
+    free (stream.text);
+    free (line);
+    bgit_config_release (&cfg);
+    if (have_repo) bgit_repo_release (&repo);
+    return status;
+}
+
 /* ---- cherry ------------------------------------------------------------ */
 
 /* Which of this side's commits the other side already has, by the name of
@@ -26206,6 +26480,7 @@ static const struct {
     { "name-rev",     git_cmd_name_rev },
     { "notes",        git_cmd_notes },
     { "pack-objects", git_cmd_pack_objects },
+    { "patch-id",     git_cmd_patch_id },
     { "prune",        git_cmd_prune },
     { "pull",         git_cmd_pull },
     { "push",         git_cmd_push },

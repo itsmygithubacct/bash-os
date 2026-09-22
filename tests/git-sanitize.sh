@@ -284,6 +284,9 @@ git diff -R HEAD~1 HEAD > /dev/null
 # compares those.
 git diff --word-diff HEAD~1 HEAD > /dev/null
 git diff --raw HEAD~1 HEAD > /dev/null
+git log -p -2 | git patch-id > /dev/null
+git show -p | git patch-id --stable > /dev/null
+git diff HEAD~1 HEAD | git patch-id --verbatim > /dev/null
 git log --raw -2 > /dev/null
 git whatchanged --oneline -2 > /dev/null
 git annotate long.txt > /dev/null 2>&1 || true
