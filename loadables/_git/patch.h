@@ -81,6 +81,11 @@ void bgit_stat_summary (FILE *out, size_t files, size_t added, size_t removed);
 void bgit_diff_summary (FILE *out, const bgit_diff_entry *entries, size_t n,
                         const char *line_prefix);
 
+/* A file in the working tree, with a symlink read as git reads one: its
+   content is the path it points at. Caller frees *data. */
+int bgit_read_worktree_file (const bgit_repo *repo, const char *path,
+                            char **data, size_t *len);
+
 /* A path as git shows it, quoted when it holds anything unusual. Returns a
    pointer to BUF or to PATH itself. */
 const char *bgit_quote_path (const char *path, char *buf, size_t size);

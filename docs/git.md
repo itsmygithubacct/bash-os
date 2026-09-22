@@ -200,9 +200,18 @@ command is still in use, so `--i-still-use-this` is accepted here too and
 changes nothing. A commit that changed nothing has no diff and no blank
 line set aside for one, whichever form is asked for.
 
+`git blame` with no revision named blames the file in the working tree, as
+git does: a line no commit holds is written against an id of nothing but
+zeros, with `Not Committed Yet` where the author would be and the present
+moment for its date. The path has to be one git has heard of — in `HEAD` or
+in the index — and there has to be a file there; the two complaints come in
+that order, as git's do. Name a revision and the working tree is left out
+of it.
+
 `git annotate` is `git blame -c`: the same work in the older layout, where
-the parts are set apart by tabs, each stands at its own width, and a
-boundary commit's id is written whole rather than marked with a caret.
+the parts are set apart by tabs, the author and the date each take ten
+columns and overrun them rather than be cut short, and a boundary commit's
+id is written whole rather than marked with a caret.
 
 `--word-diff` takes a hunk word by word rather than line by line: what
 was taken out in `[-brackets-]`, what was put in `{+braces+}`, and the

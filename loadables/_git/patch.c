@@ -201,7 +201,7 @@ bgit_quote_path (const char *path, char *buf, size_t size)
 
 /* Read a file in the working tree, following git's view of a symlink: its
    content is the path it points at. */
-static int
+int
 bgit_read_worktree_file (const bgit_repo *repo, const char *path,
                          char **data, size_t *len)
 {

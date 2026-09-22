@@ -277,6 +277,12 @@ git diff -w -U0 HEAD~1 HEAD > /dev/null
 git diff -w --word-diff HEAD~1 HEAD > /dev/null
 git log -p -w -2 > /dev/null
 git blame -w long.txt > /dev/null
+# What the working tree holds and no commit does.
+printf 'a line nobody committed\n' >> long.txt
+git blame long.txt > /dev/null
+git blame -s long.txt > /dev/null
+git blame -c long.txt > /dev/null
+git checkout -- long.txt
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

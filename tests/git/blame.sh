@@ -61,3 +61,23 @@ git log --oneline --follow -- g.txt
 git log --follow --stat -1 g.txt
 git log --oneline g.txt
 git log --oneline -- g.txt
+
+echo '=== what is not committed yet ==='
+# With no revision named, git blames the file in the working tree: the lines
+# that no commit holds are held against no commit, an id of nothing but
+# zeros. The time it prints for those is now, so only -s can be compared.
+printf 'first line\nsecond line\nthird line\n' > work.txt
+git add work.txt
+git commit -q -m 'a file to edit'
+printf 'first line\nsecond changed\nthird line\nfourth added\n' > work.txt
+git blame -s work.txt
+git blame -s HEAD -- work.txt
+git add work.txt
+git blame -s work.txt
+printf 'brand new\n' > fresh.txt
+git blame fresh.txt 2>&1 || true
+git add fresh.txt
+git blame -s fresh.txt
+git blame -s nosuchfile.txt 2>&1 || true
+rm work.txt
+git blame -s work.txt 2>&1 || true

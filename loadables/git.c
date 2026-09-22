@@ -9083,12 +9083,46 @@ struct git_blame_line {
     int boundary;        /* and had nothing before it, as git's ^ says */
 };
 
-/* The blob a path held in one commit, split into lines. Returns 0, or -1
-   when the commit has no such path. */
+/* The id git shows for a line that is in the working tree and in no commit,
+   and the name it puts where an author would go. */
+#define GIT_BLAME_WORKTREE "0000000000000000000000000000000000000000"
+#define GIT_BLAME_NOT_YET "Not Committed Yet"
+
+/* Is this path in the commit, or at least in the index? git will blame the
+   working tree's copy of it if either. */
+static int
+git_blame_known (git_context *ctx, const char *commit, const char *path)
+{
+    char spec[8192], id[41];
+    if ((size_t) snprintf (spec, sizeof spec, "%s:%s", commit, path) <
+        sizeof spec &&
+        bgit_rev_parse (&ctx->repo, &ctx->odb, spec, id, NULL) == 0)
+        return 1;
+    struct git_state state;
+    if (git_state_load (ctx, &state) < 0) return 0;
+    int found = 0;
+    for (size_t i = 0; i < state.n_index && !found; i++)
+        found = state.index[i].path && !strcmp (state.index[i].path, path);
+    git_state_release (&state);
+    return found;
+}
+
+/* The copy of a path one commit holds, split into lines — or the working
+   tree's own copy, which is where a blame with no revision named begins.
+   Returns 0, or -1 when there is no such path. */
 static int
 git_blame_content (git_context *ctx, const char *commit, const char *path,
                    struct git_apply_lines *out)
 {
+    if (!strcmp (commit, GIT_BLAME_WORKTREE)) {
+        char *data = NULL;
+        size_t len = 0;
+        if (bgit_read_worktree_file (&ctx->repo, path, &data, &len) < 0)
+            return -1;
+        int rc = git_apply_split (data, len, out);
+        free (data);
+        return rc;
+    }
     char spec[8192];
     if ((size_t) snprintf (spec, sizeof spec, "%s:%s", commit, path) >=
         sizeof spec)
@@ -9249,10 +9283,28 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
     if (!path) return git_usage (usage);
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
 
-    char start[41];
-    if (git_resolve (ctx, rev ? rev : "HEAD", start, NULL) < 0 ||
-        bgit_peel_to_type (&ctx->odb, start, BGIT_COMMIT, start) < 0)
-        return git_fatal_ambiguous (rev ? rev : "HEAD");
+    char start[41], head[41] = "";
+    if (git_resolve (ctx, rev ? rev : "HEAD", head, NULL) < 0 ||
+        bgit_peel_to_type (&ctx->odb, head, BGIT_COMMIT, head) < 0)
+        return rev ? git_fatal_ambiguous (rev)
+                   : git_fatal ("no such ref: HEAD");
+    memcpy (start, head, 41);
+
+    /* With no revision named, the file to blame is the one in the working
+       tree, and the lines of it that are in no commit are held against no
+       commit — which is what the id of nothing but zeros means. */
+    if (!rev && ctx->repo.work_tree) {
+        /* git asks whether it has ever heard of the path before it asks
+           whether there is a file there. */
+        if (!git_blame_known (ctx, head, path))
+            return git_fatal ("no such path '%s' in HEAD", path);
+        char full[4096];
+        struct stat st;
+        if (snprintf (full, sizeof full, "%s/%s", ctx->repo.work_tree, path) >=
+            (int) sizeof full || lstat (full, &st) < 0)
+            return git_fatal ("Cannot lstat '%s': %s", path, strerror (errno));
+        memcpy (start, GIT_BLAME_WORKTREE, 41);
+    }
 
     struct git_apply_lines text;
     if (git_blame_content (ctx, start, path, &text) < 0)
@@ -9280,7 +9332,9 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
         const char *suspect_path = NULL;
         for (size_t i = 0; i < text.n; i++) {
             if (lines[i].settled) continue;
-            long long when = git_commit_date (ctx, lines[i].commit);
+            long long when =
+                !strcmp (lines[i].commit, GIT_BLAME_WORKTREE)
+                ? ((long long) 1 << 62) : git_commit_date (ctx, lines[i].commit);
             if (when > newest) {
                 newest = when;
                 memcpy (suspect, lines[i].commit, 41);
@@ -9298,7 +9352,12 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
             continue;
         }
         char parents[BGIT_MAX_PARENTS][41];
-        int n_parents = bgit_commit_parents (&ctx->odb, suspect, parents,
+        int n_parents;
+        if (!strcmp (suspect, GIT_BLAME_WORKTREE)) {
+            memcpy (parents[0], head, 41);
+            n_parents = 1;
+        } else
+            n_parents = bgit_commit_parents (&ctx->odb, suspect, parents,
                                              BGIT_MAX_PARENTS);
         for (int i = 0; i < n_parents; i++)
             git_blame_pass (ctx, lines, text.n, suspect, held_path,
@@ -9321,7 +9380,10 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
     int show_path = 0;
     for (long i = first; i <= last; i++) {
         struct git_commit commit;
-        if (git_commit_read (ctx, lines[i - 1].commit, &commit) == 0) {
+        if (!strcmp (lines[i - 1].commit, GIT_BLAME_WORKTREE)) {
+            size_t len = strlen (GIT_BLAME_NOT_YET);
+            if (len > name_width) name_width = len;
+        } else if (git_commit_read (ctx, lines[i - 1].commit, &commit) == 0) {
             size_t len = strlen (commit.author_name);
             if (len > name_width) name_width = len;
             git_commit_release (&commit);
@@ -9335,6 +9397,7 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
     }
     for (long i = first; i <= last; i++) {
         struct git_blame_line *line = &lines[i - 1];
+        int not_yet = !strcmp (line->commit, GIT_BLAME_WORKTREE);
         char id[64];
         if (long_ids)
             /* The caret takes the place of a digit, so the column stays
@@ -9343,8 +9406,14 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
                       line->boundary ? 39 : 40, line->commit);
         else {
             char abbreviated[41];
-            git_abbrev (ctx, line->commit, line->boundary ? 7 : 8, abbreviated,
-                        sizeof abbreviated);
+            /* Nothing but zeros stands for no commit at all, and there is
+               nothing to look up: it is shortened where it stands. */
+            if (not_yet)
+                snprintf (abbreviated, sizeof abbreviated, "%.*s", 8,
+                          line->commit);
+            else
+                git_abbrev (ctx, line->commit, line->boundary ? 7 : 8,
+                            abbreviated, sizeof abbreviated);
             snprintf (id, sizeof id, "%s%s", line->boundary ? "^" : "",
                       abbreviated);
         }
@@ -9358,7 +9427,19 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
         }
         struct git_commit commit;
         char who[1024] = "", when[128] = "";
-        if (git_commit_read (ctx, line->commit, &commit) == 0) {
+        if (not_yet) {
+            /* No commit wrote it, and the time it says is now. */
+            snprintf (who, sizeof who, "%s", GIT_BLAME_NOT_YET);
+            time_t moment = time (NULL);
+            struct tm local;
+            long offset = 0;
+            if (localtime_r (&moment, &local)) offset = local.tm_gmtoff;
+            long away = offset < 0 ? -offset : offset;
+            char raw[64];
+            snprintf (raw, sizeof raw, "%lld %c%02ld%02ld", (long long) moment,
+                      offset < 0 ? '-' : '+', away / 3600, (away % 3600) / 60);
+            git_format_date_mode (raw, GIT_DATE_ISO, when, sizeof when);
+        } else if (git_commit_read (ctx, line->commit, &commit) == 0) {
             snprintf (who, sizeof who, "%s", commit.author_name);
             git_format_date_mode (commit.author_date, GIT_DATE_ISO, when,
                                   sizeof when);
@@ -9375,9 +9456,9 @@ git_cmd_blame (git_context *ctx, WORD_LIST *args)
                 snprintf (id, sizeof id, "%s", abbreviated);
             }
             if (show_path)
-                printf ("%s\t(%s\t%s\t%s\t%ld)%s\n", id, who, when,
+                printf ("%s\t(%10s\t%10s\t%s\t%ld)%s\n", id, who, when,
                         line->path, i, text.line[i - 1]);
-            else printf ("%s\t(%s\t%s\t%ld)%s\n", id, who, when, i,
+            else printf ("%s\t(%10s\t%10s\t%ld)%s\n", id, who, when, i,
                          text.line[i - 1]);
             continue;
         }
