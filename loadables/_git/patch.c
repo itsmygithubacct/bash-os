@@ -158,19 +158,31 @@ bgit_word_write (FILE *out, const char *lp, int porcelain, char kind,
     }
 }
 
-const char *
-bgit_quote_path (const char *path, char *buf, size_t size)
+/* core.quotePath: with it set, which is git's default, a byte outside ASCII
+   is written as its octal escape rather than passed through. */
+int bgit_quote_path_fully = 1;
+
+/* git quotes a name when a byte of it would not read back as itself: a
+   control character, a quote, a backslash — and, unless core.quotePath says
+   otherwise, anything outside ASCII. A space only forces it where the caller
+   asks, which is what the short status does so that its columns can be told
+   apart. */
+static int
+bgit_quote_needed (const char *path, int spaces)
 {
-    int special = 0;
     for (const char *p = path; *p; p++) {
         unsigned char c = (unsigned char) *p;
-        if (c < 0x20 || c == 0x7f || c >= 0x80 || c == '"' || c == '\\')
-            special = 1;
+        if (c < 0x20 || c == 0x7f || c == '"' || c == '\\') return 1;
+        if (c >= 0x80 && bgit_quote_path_fully) return 1;
+        if (c == ' ' && spaces) return 1;
     }
-    if (!special) return path;
+    return 0;
+}
 
-    size_t at = 0;
-    if (at + 1 < size) buf[at++] = '"';
+/* The bytes of a name inside the quotes. Returns how much was written. */
+static size_t
+bgit_quote_body (const char *path, char *buf, size_t at, size_t size)
+{
     for (const char *p = path; *p && at + 5 < size; p++) {
         unsigned char c = (unsigned char) *p;
         const char *escape = NULL;
@@ -188,12 +200,51 @@ bgit_quote_path (const char *path, char *buf, size_t size)
         }
         if (escape) {
             at += (size_t) snprintf (buf + at, size - at, "%s", escape);
-        } else if (c < 0x20 || c == 0x7f || c >= 0x80) {
+        } else if (c < 0x20 || c == 0x7f ||
+                   (c >= 0x80 && bgit_quote_path_fully)) {
             at += (size_t) snprintf (buf + at, size - at, "\\%03o", c);
         } else {
             buf[at++] = (char) c;
         }
     }
+    return at;
+}
+
+const char *
+bgit_quote_path (const char *path, char *buf, size_t size)
+{
+    if (!bgit_quote_needed (path, 0)) return path;
+    size_t at = 0;
+    if (at + 1 < size) buf[at++] = '"';
+    at = bgit_quote_body (path, buf, at, size);
+    if (at + 2 < size) buf[at++] = '"';
+    buf[at] = '\0';
+    return buf;
+}
+
+const char *
+bgit_quote_path_sp (const char *path, char *buf, size_t size)
+{
+    if (!bgit_quote_needed (path, 1)) return path;
+    size_t at = 0;
+    if (at + 1 < size) buf[at++] = '"';
+    at = bgit_quote_body (path, buf, at, size);
+    if (at + 2 < size) buf[at++] = '"';
+    buf[at] = '\0';
+    return buf;
+}
+
+const char *
+bgit_quote_two (const char *first, const char *second, char *buf, size_t size)
+{
+    if (!bgit_quote_needed (first, 0) && !bgit_quote_needed (second, 0)) {
+        snprintf (buf, size, "%s%s", first, second);
+        return buf;
+    }
+    size_t at = 0;
+    if (at + 1 < size) buf[at++] = '"';
+    at = bgit_quote_body (first, buf, at, size);
+    at = bgit_quote_body (second, buf, at, size);
     if (at + 2 < size) buf[at++] = '"';
     buf[at] = '\0';
     return buf;
@@ -297,8 +348,15 @@ bgit_patch_header (FILE *out, const bgit_diff_entry *entry,
     char from_quoted[8192];
     const char *from = entry->from
         ? bgit_quote_path (entry->from, from_quoted, sizeof from_quoted) : name;
-    fprintf (out, "%sdiff --git %s%s %s%s\n", lp, options->prefix_old, from,
-             options->prefix_new, name);
+    /* The prefix and the name are one name on this line: where either wants
+       quoting, git quotes the pair of them together. */
+    char old_side[8320], new_side[8320];
+    fprintf (out, "%sdiff --git %s %s\n", lp,
+             bgit_quote_two (options->prefix_old,
+                             entry->from ? entry->from : entry->path,
+                             old_side, sizeof old_side),
+             bgit_quote_two (options->prefix_new, entry->path, new_side,
+                             sizeof new_side));
 
     if (entry->status == 'R') {
         /* The percentage is the score out of git's sixty thousand. */
@@ -542,20 +600,27 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
 
     if (result.n_hunks) {
         bgit_patch_held (out, &held, held_len);
-        char quoted[8192], from_quoted[8192];
-        const char *name = bgit_quote_path (entry->path, quoted, sizeof quoted);
+        /* The prefix and the name are quoted together, and a name with a
+           space in it ends in a tab so that the two can be told apart —
+           both of which git does here. */
+        char old_side[8320], new_side[8320];
         /* A rename's old side is named where it used to live. */
-        const char *from = entry->from
-            ? bgit_quote_path (entry->from, from_quoted, sizeof from_quoted)
-            : name;
+        const char *from = bgit_quote_two (options->prefix_old,
+                                           entry->from ? entry->from
+                                                       : entry->path,
+                                           old_side, sizeof old_side);
+        const char *name = bgit_quote_two (options->prefix_new, entry->path,
+                                           new_side, sizeof new_side);
         if (entry->status == 'A')
             fprintf (out, "%s--- /dev/null\n", lp);
         else
-            fprintf (out, "%s--- %s%s\n", lp, options->prefix_old, from);
+            fprintf (out, "%s--- %s%s\n", lp, from,
+                     strchr (from, ' ') ? "\t" : "");
         if (entry->status == 'D')
             fprintf (out, "%s+++ /dev/null\n", lp);
         else
-            fprintf (out, "%s+++ %s%s\n", lp, options->prefix_new, name);
+            fprintf (out, "%s+++ %s%s\n", lp, name,
+                     strchr (name, ' ') ? "\t" : "");
     }
 
     for (size_t h = 0; h < result.n_hunks; h++) {

@@ -297,6 +297,23 @@ git diff --check > /dev/null || true
 git log --check -2 > /dev/null || true
 git diff --exit-code HEAD~1 HEAD > /dev/null || true
 git diff --quiet HEAD~1 HEAD || true
+# A name that has to be quoted, through the forms that quote it.
+printf 'awkward\n' > 'a file with spaces.txt'
+printf 'awkward\n' > 'caf\303\251.txt'
+git add -A
+git status --short > /dev/null
+git status --porcelain=v2 > /dev/null
+git status -z > /dev/null
+git ls-files > /dev/null
+git ls-files -z > /dev/null
+git ls-tree -r HEAD > /dev/null
+git commit -q -m 'two awkward names'
+git ls-tree -r --name-only HEAD > /dev/null
+git diff --name-only HEAD~1 HEAD > /dev/null
+git diff -z --name-status HEAD~1 HEAD > /dev/null
+git diff HEAD~1 HEAD > /dev/null
+git -c core.quotePath=false status --short > /dev/null
+git -c core.quotePath=false ls-files > /dev/null
 git diff --no-prefix HEAD~1 HEAD > /dev/null
 git reflog --format='%gd|%gs' -3
 git branch -v

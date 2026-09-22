@@ -20,14 +20,14 @@ git add          [-A | -u] [-n] [-f] [--] [<pathspec>...]
 git commit       [-a] [-m <message>] [-F <file>] [--amend] [--allow-empty]
                  [-e | --no-edit] [-q] [-S[<key>]] [--no-gpg-sign]
 git status       [-s | --short | --porcelain[=<version>]] [-b] [-u<mode>]
-                 [--ignored]
+                 [--ignored] [-z]
 git diff         [-p] [--raw] [--word-diff[=plain|porcelain|none]]
                  [--stat[=<width>[,<name>[,<count>]]]] [--numstat]
                  [--shortstat] [--summary]
                  [--name-only] [--name-status] [-s] [-U<n>] [--cached]
                  [-R] [--no-prefix] [-w] [-b] [--ignore-space-at-eol]
                  [--ignore-cr-at-eol] [--ignore-blank-lines] [-W]
-                 [--check] [--exit-code] [--quiet]
+                 [--check] [--exit-code] [--quiet] [-z]
                  [--stat-width=<n>] [--stat-name-width=<n>]
                  [--stat-graph-width=<n>] [--stat-count=<n>]
                  [<commit> [<commit>]] [-- <path>...]
@@ -710,6 +710,22 @@ comparison round, the last key given mattering most, and the name settling
 whatever the keys leave undecided. The version order is the one git uses,
 where a run of digits counts as a number and a run with a leading zero as a
 fraction. Any other key is refused by name.
+
+A path is written the way git writes one. Where a name holds a byte that
+would not read back as itself — a control character, a quote, a backslash,
+or, unless `core.quotePath` says otherwise, anything outside ASCII — the
+whole name is put in double quotes with the offending bytes escaped, as C
+would escape them and octal for the rest. The short status and `--porcelain`
+put a name with a space in it in quotes as well, so that their columns can be
+told apart; the second version of the porcelain, the long status, `ls-files`
+and `ls-tree` do not. A `diff --git` line and the `---` and `+++` lines that
+follow it quote the prefix and the name together, as one name, and a name
+with a space in it is followed there by a tab. With `-z` — which `status`,
+`ls-files`, `ls-tree` and the name forms of `diff` all take, and which asks
+`status` for the porcelain where nothing else has — a record ends in NUL and
+a name stands exactly as it is, there being nothing it could be confused
+with; a rename then names the new path first and the old second, where the
+arrow would otherwise be.
 
 An ignore rule that excludes a directory excludes everything under it,
 and nothing below can be brought back: `git check-ignore -v` names that

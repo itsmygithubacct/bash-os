@@ -298,6 +298,8 @@ git_context_open (git_context *ctx)
     ctx->odb.quiet = 1;
     ctx->open = 1;
     bgit_config_load (&ctx->cfg, &ctx->repo, git_overrides, git_n_overrides);
+    /* Whether a byte outside ASCII is written as an escape in a path. */
+    bgit_quote_path_fully = bgit_config_bool (&ctx->cfg, "core.quotePath", 1);
     /* Reflog entries record the configured identity. */
     char ident[1024];
     if (bgit_ident (&ctx->cfg, 1, ident, sizeof ident) == 0)
@@ -1698,11 +1700,16 @@ git_ls_line (const bgit_index_entry *entry, const char *tag, int stage,
 {
     char hex[41];
     bgit_sha_to_hex (entry->sha, hex);
+    /* A name is quoted where it needs it, unless the lines end in NUL and
+       there is nothing to be confused with. */
+    char quoted[8192];
+    const char *shown = end == '\0' ? entry->path
+        : bgit_quote_path (entry->path, quoted, sizeof quoted);
     if (stage)
         printf ("%s%o %s %d\t%s%c", tag, entry->mode, hex,
-                (entry->flags >> 12) & 0x3, entry->path, end);
+                (entry->flags >> 12) & 0x3, shown, end);
     else
-        printf ("%s%s%c", tag, entry->path, end);
+        printf ("%s%s%c", tag, shown, end);
 }
 
 static int
@@ -1782,8 +1789,12 @@ git_cmd_ls_files (git_context *ctx, WORD_LIST *args)
             return git_fatal ("cannot read the working tree");
         }
         for (size_t i = 0; i < n_others; i++)
-            if (git_path_named (paths[i], patterns, n_patterns))
-                printf ("%s%s%c", tags ? "? " : "", paths[i], end);
+            if (git_path_named (paths[i], patterns, n_patterns)) {
+                char quoted[8192];
+                const char *shown = end == '\0' ? paths[i]
+                    : bgit_quote_path (paths[i], quoted, sizeof quoted);
+                printf ("%s%s%c", tags ? "? " : "", shown, end);
+            }
         bgit_others_free (paths, n_others);
     }
 
@@ -2028,7 +2039,10 @@ git_ls_tree_show (struct git_ls_tree *ls, const char *mode, const char *type,
                   const char *sha, const char *path)
 {
     char end = ls->zero ? '\0' : '\n';
-    if (ls->name_only) { printf ("%s%c", path, end); return; }
+    char quoted[8192];
+    const char *shown = ls->zero ? path
+        : bgit_quote_path (path, quoted, sizeof quoted);
+    if (ls->name_only) { printf ("%s%c", shown, end); return; }
     char id[41];
     snprintf (id, sizeof id, "%.*s", ls->abbrev ? ls->abbrev : 40, sha);
     if (ls->long_form) {
@@ -2044,9 +2058,9 @@ git_ls_tree_show (struct git_ls_tree *ls, const char *mode, const char *type,
             }
         }
         printf ("%06lo %s %s %7s\t%s%c", strtoul (mode, NULL, 8), type, id,
-                size, path, end);
+                size, shown, end);
     } else
-        printf ("%06lo %s %s\t%s%c", strtoul (mode, NULL, 8), type, id, path,
+        printf ("%06lo %s %s\t%s%c", strtoul (mode, NULL, 8), type, id, shown,
                 end);
 }
 
@@ -3732,8 +3746,8 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git status [-s | --short | --porcelain[=<version>]] "
                         "[-b | --branch] [-u<mode> | --untracked-files=<mode>] "
-                        "[--ignored]";
-    int short_format = 0, porcelain = 0, version = 1, branch = 0;
+                        "[--ignored] [-z]";
+    int short_format = 0, porcelain = 0, version = 1, branch = 0, zero = 0;
     int untracked_all = 0, want_ignored = 0, find_renames = 1;
 
     for (WORD_LIST *p = args; p; p = p->next) {
@@ -3758,11 +3772,15 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         else if (!strcmp (w, "-b") || !strcmp (w, "--branch")) branch = 1;
         else if (!strcmp (w, "--ignored")) want_ignored = 1;
         else if (!strcmp (w, "--no-renames")) find_renames = 0;
+        /* -z ends each record with NUL and asks for the porcelain where
+           nothing else has, as git's does. */
+        else if (!strcmp (w, "-z")) zero = 1;
         else if (!strcmp (w, "-uall") || !strcmp (w, "--untracked-files=all")) untracked_all = 1;
         else if (!strcmp (w, "-unormal") || !strcmp (w, "--untracked-files=normal")) untracked_all = 0;
         else if (!strcmp (w, "-uno") || !strcmp (w, "--untracked-files=no")) untracked_all = -1;
         else return git_usage (usage);
     }
+    if (zero && !short_format && !porcelain) { porcelain = 1; version = 1; }
     if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
     if (!ctx->repo.work_tree)
         return git_fatal ("this operation must be run in a work tree");
@@ -3794,6 +3812,7 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
     int following = branch ? git_status_upstream (ctx, &state, branch_name,
                                                   upstream, sizeof upstream,
                                                   &ahead, &behind) : 0;
+    char record_end = zero ? '\0' : '\n';
     if (branch && version == 2 && porcelain) {
         printf ("# branch.oid %s\n", state.have_head ? state.head : "(initial)");
         printf ("# branch.head %s\n", branch_name ? branch_name : "(detached)");
@@ -3809,20 +3828,37 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
         else if (ahead && behind) printf (" [ahead %ld, behind %ld]", ahead, behind);
         else if (ahead) printf (" [ahead %ld]", ahead);
         else if (behind) printf (" [behind %ld]", behind);
-        printf ("\n");
+        printf ("%c", record_end);
     }
 
+    /* The second version quotes a name that needs it; the short form quotes
+       one with a space in it as well, so that its columns can be told
+       apart — which is what git does with each. */
+    int quote_spaces = !(version == 2 && porcelain);
     for (size_t i = 0; i < n; i++) {
         const bgit_status_entry *entry = &entries[i];
+        char shown_buf[8192], from_buf[8192];
+        const char *shown = zero ? entry->path
+            : quote_spaces
+            ? bgit_quote_path_sp (entry->path, shown_buf, sizeof shown_buf)
+            : bgit_quote_path (entry->path, shown_buf, sizeof shown_buf);
+        const char *came_from = entry->renamed_from && *entry->renamed_from
+            ? (zero ? entry->renamed_from
+               : quote_spaces
+               ? bgit_quote_path_sp (entry->renamed_from, from_buf,
+                                     sizeof from_buf)
+               : bgit_quote_path (entry->renamed_from, from_buf,
+                                  sizeof from_buf))
+            : NULL;
         if (entry->ignored) {
-            if (version == 2 && porcelain) printf ("! %s\n", entry->path);
-            else printf ("!! %s\n", entry->path);
+            if (version == 2 && porcelain) printf ("! %s%c", shown, record_end);
+            else printf ("!! %s%c", shown, record_end);
             continue;
         }
         if (entry->untracked) {
             if (untracked_all < 0) continue;
-            if (version == 2 && porcelain) printf ("? %s\n", entry->path);
-            else printf ("?? %s\n", entry->path);
+            if (version == 2 && porcelain) printf ("? %s%c", shown, record_end);
+            else printf ("?? %s%c", shown, record_end);
             continue;
         }
         char x, y;
@@ -3832,13 +3868,14 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
             const char *zeros = "0000000000000000000000000000000000000000";
             char kind[5];
             git_status_kind_field (ctx, entry, kind);
-            printf ("u %c%c %s %06o %06o %06o %06o %s %s %s %s\n", x, y, kind,
+            printf ("u %c%c %s %06o %06o %06o %06o %s %s %s %s", x, y, kind,
                     entry->head_mode, entry->index_mode, entry->their_mode,
                     entry->worktree_mode,
                     entry->head_sha[0] ? entry->head_sha : zeros,
                     entry->index_sha[0] ? entry->index_sha : zeros,
                     entry->their_sha[0] ? entry->their_sha : zeros,
-                    entry->path);
+                    shown);
+            printf ("%c", record_end);
             continue;
         }
         if (version == 2 && porcelain && entry->renamed_from &&
@@ -3846,20 +3883,20 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
             git_status_letters (entry, &x, &y, '.');
             char kind[5];
             git_status_kind_field (ctx, entry, kind);
-            printf ("2 %c%c %s %06o %06o %06o %s %s R%d %s\t%s\n", x, y, kind,
+            printf ("2 %c%c %s %06o %06o %06o %s %s R%d %s%c%s%c", x, y, kind,
                     entry->head_mode, entry->index_mode,
                     entry->worktree_mode ? entry->worktree_mode
                                          : entry->index_mode,
                     entry->head_sha, entry->index_sha,
-                    entry->score * 100 / 60000, entry->path,
-                    entry->renamed_from);
+                    entry->score * 100 / 60000, shown,
+                    zero ? '\0' : '\t', came_from, record_end);
             continue;
         }
         if (version == 2 && porcelain) {
             git_status_letters (entry, &x, &y, '.');
             char kind[5];
             git_status_kind_field (ctx, entry, kind);
-            printf ("1 %c%c %s %06o %06o %06o %s %s %s\n", x, y, kind,
+            printf ("1 %c%c %s %06o %06o %06o %s %s %s", x, y, kind,
                     entry->head_mode, entry->index_mode,
                     entry->unstaged == 'D' ? 0 : (entry->worktree_mode
                         ? entry->worktree_mode : entry->index_mode),
@@ -3867,7 +3904,8 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                         : "0000000000000000000000000000000000000000",
                     entry->index_sha[0] ? entry->index_sha
                         : "0000000000000000000000000000000000000000",
-                    entry->path);
+                    shown);
+            printf ("%c", record_end);
         } else {
             git_status_letters (entry, &x, &y, ' ');
             /* A submodule says which kind of change it is: M for a commit
@@ -3879,10 +3917,14 @@ git_cmd_status (git_context *ctx, WORD_LIST *args)
                 if (sub.is_submodule && !sub.moved)
                     y = sub.changed ? 'm' : sub.untracked ? '?' : y;
             }
-            if (entry->renamed_from && *entry->renamed_from)
-                printf ("%c%c %s -> %s\n", x, y, entry->renamed_from,
-                        entry->path);
-            else printf ("%c%c %s\n", x, y, entry->path);
+            /* With NUL between records the new name comes first and the
+               old after it, where the arrow would otherwise stand. */
+            if (came_from && zero)
+                printf ("%c%c %s%c%s%c", x, y, shown, record_end, came_from,
+                        record_end);
+            else if (came_from)
+                printf ("%c%c %s -> %s%c", x, y, came_from, shown, record_end);
+            else printf ("%c%c %s%c", x, y, shown, record_end);
         }
     }
     bgit_status_free (entries, n);
@@ -3898,6 +3940,7 @@ struct git_diff_format {
     int raw;                            /* the :<modes> <ids> <status> lines */
     int check;                          /* --check: the whitespace a change brings */
     int exit_code;                      /* say in the status whether anything changed */
+    int zero;                           /* -z: names whole, records NUL-ended */
     int no_patch;
     int no_renames;
     int context;
@@ -6350,6 +6393,8 @@ git_diff_format_option (struct git_diff_format *format, const char *w)
     else if (!strcmp (w, "--raw")) format->raw = 1;
     else if (!strcmp (w, "--check")) format->check = 1;
     else if (!strcmp (w, "--exit-code")) format->exit_code = 1;
+    /* -z ends each record with NUL and writes the names as they are. */
+    else if (!strcmp (w, "-z")) format->zero = 1;
     /* --quiet is that and nothing printed at all. */
     else if (!strcmp (w, "--quiet")) {
         format->patch = format->stat = format->numstat = format->shortstat = 0;
@@ -6460,13 +6505,16 @@ git_diff_emit (git_context *ctx, FILE *out,
     int patch = format->patch || (!named && !stats && !format->summary &&
                                   !format->raw && !format->no_patch);
 
+    /* With -z a record ends in NUL and a name stands as it is, since there
+       is nothing it could be confused with. */
+    char record_end = format->zero ? '\0' : '\n';
     if (format->raw) {
         /* What each file was and what it became: the two modes, the two
            ids as far as they are abbreviated, and what happened. */
         for (size_t i = 0; i < n; i++) {
             char quoted[8192], old_id[41], new_id[41];
-            const char *name = bgit_quote_path (entries[i].path, quoted,
-                                                sizeof quoted);
+            const char *name = format->zero ? entries[i].path
+                : bgit_quote_path (entries[i].path, quoted, sizeof quoted);
             git_abbrev (ctx, entries[i].old_sha, options.abbrev, old_id,
                         sizeof old_id);
             git_abbrev (ctx, entries[i].new_sha, options.abbrev, new_id,
@@ -6481,28 +6529,35 @@ git_diff_emit (git_context *ctx, FILE *out,
                      entries[i].old_mode, entries[i].new_mode, old_id, new_id);
             if (entries[i].status == 'R') {
                 char from_quoted[8192];
-                fprintf (out, "R%d\t%s\t%s\n",
-                         entries[i].score * 100 / 60000,
-                         bgit_quote_path (entries[i].from, from_quoted,
-                                          sizeof from_quoted), name);
-            } else fprintf (out, "%c\t%s\n", entries[i].status, name);
+                const char *from = format->zero ? entries[i].from
+                    : bgit_quote_path (entries[i].from, from_quoted,
+                                       sizeof from_quoted);
+                fprintf (out, "R%d%c%s%c%s%c",
+                         entries[i].score * 100 / 60000, record_end, from,
+                         record_end, name, record_end);
+            } else fprintf (out, "%c%c%s%c", entries[i].status,
+                            format->zero ? '\0' : '\t', name, record_end);
         }
     }
     if (named) {
         for (size_t i = 0; i < n; i++) {
             char quoted[8192];
-            const char *name = bgit_quote_path (entries[i].path, quoted,
-                                                sizeof quoted);
+            const char *name = format->zero ? entries[i].path
+                : bgit_quote_path (entries[i].path, quoted, sizeof quoted);
             if (format->name_status && entries[i].status == 'R') {
                 char from_quoted[8192];
-                fprintf (out, "%sR%d\t%s\t%s\n", options.line_prefix,
+                const char *from = format->zero ? entries[i].from
+                    : bgit_quote_path (entries[i].from, from_quoted,
+                                       sizeof from_quoted);
+                fprintf (out, "%sR%d%c%s%c%s%c", options.line_prefix,
                          entries[i].score * 100 / 60000,
-                         bgit_quote_path (entries[i].from, from_quoted,
-                                          sizeof from_quoted), name);
+                         format->zero ? '\0' : '\t', from,
+                         format->zero ? '\0' : '\t', name, record_end);
             } else if (format->name_status)
-                fprintf (out, "%s%c\t%s\n", options.line_prefix,
-                         entries[i].status, name);
-            else fprintf (out, "%s%s\n", options.line_prefix, name);
+                fprintf (out, "%s%c%c%s%c", options.line_prefix,
+                         entries[i].status, format->zero ? '\0' : '\t', name,
+                         record_end);
+            else fprintf (out, "%s%s%c", options.line_prefix, name, record_end);
         }
     }
     if (stats || format->summary) {

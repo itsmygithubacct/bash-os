@@ -95,6 +95,19 @@ int bgit_patch_check (FILE *out, bgit_odb *odb, const bgit_repo *repo,
 int bgit_read_worktree_file (const bgit_repo *repo, const char *path,
                             char **data, size_t *len);
 
+/* core.quotePath, which decides whether a byte outside ASCII is written as
+   an escape. Set from the configuration; git's default is on. */
+extern int bgit_quote_path_fully;
+
+/* The same, forcing the quotes where the name holds a space: what the short
+   status does, so that its columns can be told apart. */
+const char *bgit_quote_path_sp (const char *path, char *buf, size_t size);
+
+/* Two pieces written as one name — "a/" and the path, say. Where either
+   wants quoting, the whole is quoted once, as git quotes it. */
+const char *bgit_quote_two (const char *first, const char *second, char *buf,
+                            size_t size);
+
 /* A path as git shows it, quoted when it holds anything unusual. Returns a
    pointer to BUF or to PATH itself. */
 const char *bgit_quote_path (const char *path, char *buf, size_t size);
