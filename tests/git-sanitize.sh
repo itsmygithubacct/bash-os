@@ -618,6 +618,8 @@ git bundle create "$HOME/since.bundle" HEAD~1..HEAD > /dev/null 2>&1 || true
 git bundle verify "$HOME/since.bundle" > /dev/null 2>&1 || true
 git bundle unbundle "$HOME/all.bundle" > /dev/null 2>&1 || true
 git bundle verify "$HOME/pack-ids" > /dev/null 2>&1 || true   # not a bundle
+git clone -q "$HOME/all.bundle" "$HOME/clone-of-bundle" > /dev/null 2>&1 || true
+git clone -q "$HOME/since.bundle" "$HOME/no-clone" > /dev/null 2>&1 || true
 
 # An archive of the tree, which walks every object and writes every byte.
 git archive HEAD > /dev/null

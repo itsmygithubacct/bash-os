@@ -11366,6 +11366,26 @@ git_bundle_read (const char *path, struct git_bundle *bundle)
     return 0;
 }
 
+/* What a bundle takes for granted must already be here, or the pack in it
+   cannot be understood. git says which commits are wanting and refuses. */
+static int
+git_bundle_prerequisites (git_context *ctx, const struct git_bundle *bundle)
+{
+    int missing = 0;
+    for (size_t i = 0; i < bundle->n; i++) {
+        if (bundle->names[i]) continue;
+        if (bgit_odb_has (&ctx->odb, bundle->ids[i])) continue;
+        if (!missing) {
+            fflush (stdout);
+            fprintf (stderr, "error: Repository lacks these prerequisite "
+                             "commits:\n");
+        }
+        fprintf (stderr, "error: %s \n", bundle->ids[i]);
+        missing = 1;
+    }
+    return missing ? -1 : 0;
+}
+
 /* The refs a bundle carries, printed as git prints them. */
 static void
 git_bundle_heads (const struct git_bundle *bundle)
@@ -11432,8 +11452,11 @@ git_cmd_bundle (git_context *ctx, WORD_LIST *args)
         } else {
             /* unbundle: the objects go in, the refs are the caller's to
                make, which is what git leaves to whoever asked. */
-            if (bundle.pack_len &&
-                git_store_pack (ctx, bundle.pack, bundle.pack_len) < 0)
+            /* git answers for a bundle it cannot use with a 1, not a
+               fatal. */
+            if (git_bundle_prerequisites (ctx, &bundle) < 0) rc = 1;
+            else if (bundle.pack_len &&
+                     git_store_pack (ctx, bundle.pack, bundle.pack_len) < 0)
                 rc = GIT_EXIT_FATAL;
             if (!rc) git_bundle_heads (&bundle);
         }
@@ -18200,6 +18223,141 @@ git_cmd_fetch (git_context *ctx, WORD_LIST *args)
     return status;
 }
 
+/* Cloning from a bundle: there is no far end to ask, so the refs come from
+   the header and the objects from the pack behind it. What is made is a
+   clone like any other — tracking refs, a branch to stand on, and the
+   bundle's own path as the remote. */
+static int
+git_clone_bundle (git_context *ctx, const char *absolute, const char *source,
+                  const char *target, const char *remote_name,
+                  const char *wanted, int quiet, int bare, int no_checkout)
+{
+    struct git_bundle bundle;
+    if (git_bundle_read (absolute, &bundle) < 0) return 1;
+    if (!quiet)
+        fprintf (stderr, bare ? "Cloning into bare repository '%s'...\n"
+                              : "Cloning into '%s'...\n", target);
+    /* A bundle that takes something for granted cannot start a clone, since
+       a clone starts with nothing, and nothing is left behind when it will
+       not go. */
+    if (bundle.n_prerequisites) {
+        git_bundle_prerequisites (ctx, &bundle);
+        fprintf (stderr, "fatal: remote transport reported error\n");
+        git_bundle_release (&bundle);
+        return GIT_EXIT_FATAL;
+    }
+
+    WORD_LIST *init = make_word_list (make_word ((char *) target), NULL);
+    if (bare) init = make_word_list (make_word ("--bare"), init);
+    init = make_word_list (make_word ("-q"), init);
+    git_context fresh;
+    memset (&fresh, 0, sizeof fresh);
+    int status = git_cmd_init (&fresh, init);
+    dispose_words (init);
+    if (!status && chdir (target) < 0)
+        status = git_fatal ("cannot enter '%s': %s", target, strerror (errno));
+    bgit_config_release (&ctx->cfg);
+    if (!status && git_context_open (ctx) != 0) status = GIT_EXIT_FATAL;
+    if (status) { git_bundle_release (&bundle); return status; }
+
+    if (bundle.pack_len &&
+        git_store_pack (ctx, bundle.pack, bundle.pack_len) < 0)
+        status = GIT_EXIT_FATAL;
+
+    /* What the bundle says HEAD was, so that the clone stands where the
+       bundle was made. */
+    char head_id[41] = "";
+    for (size_t i = 0; !status && i < bundle.n; i++)
+        if (bundle.names[i] && !strcmp (bundle.names[i], "HEAD"))
+            memcpy (head_id, bundle.ids[i], 41);
+
+    char on_branch[4096] = "";
+    for (size_t i = 0; !status && i < bundle.n; i++) {
+        const char *name = bundle.names[i];
+        if (!name) continue;                       /* a prerequisite */
+        if (!strncmp (name, "refs/heads/", 11)) {
+            const char *branch = name + 11;
+            char local[4096];
+            if (bare) snprintf (local, sizeof local, "%s", name);
+            else snprintf (local, sizeof local, "refs/remotes/%s/%s",
+                           remote_name, branch);
+            if (bgit_ref_set (&ctx->repo, local, bundle.ids[i], NULL) < 0)
+                status = GIT_EXIT_FATAL;
+            /* The branch to stand on: the one asked for, or the one the
+               bundle's HEAD was on. */
+            int take = wanted ? !strcmp (branch, wanted)
+                              : (*head_id && !strcmp (bundle.ids[i], head_id) &&
+                                 !*on_branch);
+            if (take) snprintf (on_branch, sizeof on_branch, "%s", branch);
+        } else if (!strncmp (name, "refs/tags/", 10)) {
+            if (bgit_ref_set (&ctx->repo, name, bundle.ids[i], NULL) < 0)
+                status = GIT_EXIT_FATAL;
+        }
+    }
+    if (!status && wanted && !*on_branch)
+        status = git_fatal ("Remote branch %s not found in upstream %s",
+                            wanted, remote_name);
+
+    if (!status && !bare) {
+        char key[4096];
+        snprintf (key, sizeof key, "remote.%s.url", remote_name);
+        /* Where the bundle is, not how it was named on the command line,
+           which is what a clone from a path records too. */
+        if (git_config_write (ctx, key, absolute) < 0) status = GIT_EXIT_FATAL;
+        char value[4096];
+        snprintf (key, sizeof key, "remote.%s.fetch", remote_name);
+        snprintf (value, sizeof value, "+refs/heads/*:refs/remotes/%s/*",
+                  remote_name);
+        if (!status && git_config_write (ctx, key, value) < 0)
+            status = GIT_EXIT_FATAL;
+    }
+
+    if (!status && *on_branch) {
+        char local[4096], remote_ref[4096], id[41];
+        snprintf (local, sizeof local, "refs/heads/%s", on_branch);
+        if (bare) snprintf (remote_ref, sizeof remote_ref, "%s", local);
+        else snprintf (remote_ref, sizeof remote_ref, "refs/remotes/%s/%s",
+                       remote_name, on_branch);
+        if (bgit_ref_read (&ctx->repo, remote_ref, id) == 0 &&
+            bgit_ref_update (&ctx->repo, local, id, NULL,
+                             "clone: from bundle") < 0)
+            status = GIT_EXIT_FATAL;
+        if (!status && bgit_symref_write (&ctx->repo, "HEAD", local, NULL) < 0)
+            status = GIT_EXIT_FATAL;
+        /* And the remote's own HEAD, which stands for the branch a clone
+           without a name would take. */
+        if (!status && !bare) {
+            char remote_head[4096];
+            snprintf (remote_head, sizeof remote_head, "refs/remotes/%s/HEAD",
+                      remote_name);
+            if (bgit_symref_write (&ctx->repo, remote_head, remote_ref, NULL) < 0)
+                status = GIT_EXIT_FATAL;
+        }
+        if (!status && !bare) {
+            char key[4096], value[4096];
+            snprintf (key, sizeof key, "branch.%s.remote", on_branch);
+            if (git_config_write (ctx, key, remote_name) < 0)
+                status = GIT_EXIT_FATAL;
+            snprintf (key, sizeof key, "branch.%s.merge", on_branch);
+            snprintf (value, sizeof value, "refs/heads/%s", on_branch);
+            if (!status && git_config_write (ctx, key, value) < 0)
+                status = GIT_EXIT_FATAL;
+        }
+        /* And what is in that branch, on disk. */
+        if (!status && !bare && !no_checkout) {
+            struct git_state state;
+            if (git_state_load (ctx, &state) < 0) status = GIT_EXIT_FATAL;
+            else {
+                if (git_switch_to (ctx, &state, on_branch, 0, 1) != 0)
+                    status = GIT_EXIT_FATAL;
+                git_state_release (&state);
+            }
+        }
+    }
+    git_bundle_release (&bundle);
+    return status;
+}
+
 static int
 git_cmd_clone (git_context *ctx, WORD_LIST *args)
 {
@@ -18235,6 +18393,26 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         return git_fatal ("this build's git clone takes a path, an ssh "
                           "address or an http URL; git:// is not done");
 
+    /* A file that is a bundle is cloned from the bundle itself: its header
+       says what refs it carries and the rest of it is the pack. */
+    int from_bundle = 0;
+    {
+        struct stat st;
+        if (stat (source, &st) == 0 && S_ISREG (st.st_mode)) {
+            FILE *probe = fopen (source, "rb");
+            if (probe) {
+                char first[32] = "";
+                size_t got = fread (first, 1, strlen (GIT_BUNDLE_SIGNATURE),
+                                    probe);
+                fclose (probe);
+                if (got == strlen (GIT_BUNDLE_SIGNATURE) &&
+                    (!memcmp (first, GIT_BUNDLE_SIGNATURE, got) ||
+                     !memcmp (first, "# v3 git bundle\n", got)))
+                    from_bundle = 1;
+            }
+        }
+    }
+
     /* Where it lands: the last part of the source, without any .git. */
     char target[4096];
     if (where) snprintf (target, sizeof target, "%s", where);
@@ -18253,6 +18431,12 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
     if (!*target) return git_fatal ("cannot work out a directory name");
 
     char absolute[4096];
+    if (from_bundle) {
+        if (git_absolute (source, absolute, sizeof absolute) < 0)
+            return git_fatal ("cannot work out where '%s' is", source);
+        return git_clone_bundle (ctx, absolute, source, target, remote_name,
+                                 wanted, quiet, bare, no_checkout);
+    }
     if (git_url_is_http (source) || git_url_is_ssh (source))
         snprintf (absolute, sizeof absolute, "%s", source);
     else {

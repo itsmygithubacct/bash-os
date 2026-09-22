@@ -362,11 +362,19 @@ what it needs, `list-heads` lists the refs, and `unbundle` puts the
 objects into the repository and prints the refs for the caller to make,
 which is where git leaves it too.
 
+`git clone <file>` clones straight from a bundle: the refs come out of the
+header, the objects out of the pack, and what is made is a clone like any
+other — tracking refs, the branch the bundle's HEAD was on, that branch
+checked out, and the bundle's own path as the remote. A bundle that takes
+something for granted cannot start a clone, since a clone starts with
+nothing, and neither it nor `unbundle` will use one whose prerequisites
+are missing.
+
 A bundle written here is read by git — verified, listed and cloned from —
-and one written by git is read here. What is not the same is the file:
-the pack inside it is this build's own, and slightly larger. Cloning or
-fetching straight from a bundle file is not here yet; unbundling it into
-a repository and making the refs is.
+and one written by git is read here. What is not the same is the file: the
+pack inside it is this build's own, and slightly larger. One other corner
+differs: where two branches sit on the bundle's HEAD commit, a bare clone
+may take a different one of them than git does.
 
 `git bisect` halves a history to find where it went wrong. The verdicts
 are refs — `refs/bisect/bad`, one `refs/bisect/good-<id>` for each good
@@ -1192,8 +1200,7 @@ the listings in full, and describe, shortlog, grep, apply, format-patch,
 am, blame, `log --follow`, `diff -R`, `reflog --format=`, count-objects,
 fsck, prune, repack, gc, notes, bisect, archive and bundle.
 
-What is not here yet, in the order it would be missed: cloning straight
-from a bundle; `diff --word-diff`; `describe --contains` and `--all`.
+What is not here yet, in the order it would be missed: `diff --word-diff`.
 
 Three things git writes beside a pack are not written here: the reverse
 index (`.rev`), a bitmap index, and the cruft pack git puts recent

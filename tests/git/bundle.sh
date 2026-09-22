@@ -5,6 +5,7 @@
 # what a repository holds after taking one in.
 # Run through tests/git-parity.py, never on its own.
 # requires: init add commit tag bundle update-ref cat-file log fsck rev-parse
+# requires: clone config for-each-ref symbolic-ref status
 set -e
 
 git init -q -b main .
@@ -45,6 +46,26 @@ mkdir ../dest
   git cat-file -p HEAD:f.txt
   git fsck | sort
 )
+
+echo '=== cloned from ==='
+# git's init says which branch name it chose when nothing tells it, and a
+# clone from a bundle starts with an init; naming it here keeps both quiet.
+git config --global init.defaultBranch main
+git clone -q ../all.bundle ../clone-of-all
+git -C ../clone-of-all for-each-ref --format='%(refname) %(objectname)'
+git -C ../clone-of-all symbolic-ref HEAD
+git -C ../clone-of-all log --oneline
+git -C ../clone-of-all status --porcelain=v2 --branch
+git -C ../clone-of-all fsck | sort
+git -C ../clone-of-all config --get remote.origin.fetch
+git clone -q -b side ../all.bundle ../clone-of-side
+git -C ../clone-of-side symbolic-ref HEAD
+git clone -q --bare ../all.bundle ../bare-of-all
+git -C ../bare-of-all for-each-ref --format='%(refname) %(objectname)'
+git -C ../bare-of-all symbolic-ref HEAD
+# One that takes something for granted cannot start a clone.
+git clone -q ../since.bundle ../clone-of-since || echo "said no: $?"
+rm -rf ../clone-of-all ../clone-of-side ../bare-of-all ../clone-of-since
 
 echo '=== what it will not do ==='
 git bundle create ../empty.bundle || echo "said no: $?"
