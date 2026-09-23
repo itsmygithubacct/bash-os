@@ -1020,7 +1020,8 @@ bgit_xdiff_full (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
 
     bgit_xd x = {key_old, key_new, ia, ib, out->old_changed, out->new_changed,
                  vf + nb + 1, vb + nb + 1, mxcost};
-    bgit_xd_compare (&x, 0, (long) na, 0, (long) nb, 0);
+    bgit_xd_compare (&x, 0, (long) na, 0, (long) nb,
+                     (flags & BGIT_XDIFF_MINIMAL) != 0);
     free (vf);
     free (vb);
     free (ia);

@@ -4142,6 +4142,8 @@ struct git_diff_format {
     int ignore_ws;                      /* whitespace to overlook: xdiff.h */
     int function_context;               /* -W: the whole definition */
     int ignore_blank_lines;             /* blank lines on their own */
+    int minimal;                        /* exact line edit search */
+    int algorithm_set;                  /* command line overrides config */
     bgit_diffstat_layout stat_layout;   /* what --stat=<width> asks for */
 };
 
@@ -6670,7 +6672,17 @@ git_diff_format_option (struct git_diff_format *format, const char *w,
     else if (!strcmp (w, "--no-color") || !strcmp (w, "--no-ext-diff") ||
              !strcmp (w, "--no-textconv")) {
         /* Already how this build behaves. */
-    } else return 0;
+    } else if (!strcmp (w, "--minimal") ||
+               !strcmp (w, "--diff-algorithm=minimal")) {
+        format->minimal = 1;
+        format->algorithm_set = 1;
+    }
+    else if (!strcmp (w, "--diff-algorithm=myers") ||
+             !strcmp (w, "--diff-algorithm=default")) {
+        format->minimal = 0;
+        format->algorithm_set = 1;
+    }
+    else return 0;
     return 1;
 }
 
@@ -6735,6 +6747,17 @@ git_diff_emit (git_context *ctx, FILE *out,
     options.context = format->context;
     if (git_diff_inter_context (ctx, format, &options.inter_context) < 0)
         return -1;
+    options.minimal = format->minimal;
+    if (!format->algorithm_set) {
+        const char *algorithm = bgit_config_get (&ctx->cfg, "diff.algorithm");
+        if (algorithm && !strcasecmp (algorithm, "minimal"))
+            options.minimal = 1;
+        else if (algorithm && strcasecmp (algorithm, "default") &&
+                 strcasecmp (algorithm, "myers")) {
+            git_fatal ("unsupported diff.algorithm: %s", algorithm);
+            return -1;
+        }
+    }
     /* --relative leaves out what is not under the place it names, and names
        the rest from there. */
     char relative[4200] = "";

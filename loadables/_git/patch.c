@@ -599,6 +599,7 @@ bgit_patch_single (FILE *out, bgit_odb *odb, const bgit_repo *repo,
     /* The tail is only set aside where none of it could be shown, and asking
        for the whole definition can show any of it. */
     int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
+                     (options->minimal ? BGIT_XDIFF_MINIMAL : 0) |
                      (options->ignore_blank_lines
                       ? BGIT_XDIFF_IGNORE_BLANK_LINES : 0) |
                      (options->function_context
@@ -796,6 +797,7 @@ bgit_diffstat (bgit_odb *odb, const bgit_repo *repo,
         } else {
             bgit_xdiff_result result;
             int diff_flags = BGIT_XDIFF_INDENT_HEURISTIC | options->ignore_ws |
+                             (options->minimal ? BGIT_XDIFF_MINIMAL : 0) |
                              (options->ignore_blank_lines
                               ? BGIT_XDIFF_IGNORE_BLANK_LINES : 0) |
                              (options->function_context

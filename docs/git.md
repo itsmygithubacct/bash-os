@@ -322,9 +322,12 @@ also be the next word, and `diff.interHunkContext` supplies it when the command
 line does not. An explicit zero turns a configured value off. It reaches
 `diff`, `log` and `show`, and does not itself ask for a patch.
 
-What is not here is a diff by another algorithm — `--patience`,
-`--histogram`, `--minimal` and `--diff-algorithm`. Each is refused rather than
-quietly ignored.
+`--minimal` searches every Myers edit box for the shortest edit path, even
+when the default search would stop early. `--diff-algorithm=minimal` asks for
+the same search; `--diff-algorithm=myers` and `=default` restore the default
+search. `diff.algorithm=minimal` supplies the choice when the command line
+does not. It reaches patches and stats from `diff`, `log` and `show`.
+`--patience` and `--histogram` are still refused rather than quietly ignored.
 
 `git check-attr` reports attributes for paths without changing the files.
 It reads `.gitattributes` from the working tree, falling back to the index

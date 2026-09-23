@@ -284,6 +284,8 @@ git diff -R HEAD~1 HEAD > /dev/null
 # compares those.
 git diff --word-diff HEAD~1 HEAD > /dev/null
 git diff --raw HEAD~1 HEAD > /dev/null
+git diff --minimal HEAD~1 HEAD > /dev/null
+git show --diff-algorithm=minimal > /dev/null
 git log -p -2 | git patch-id > /dev/null
 git show -p | git patch-id --stable > /dev/null
 git diff HEAD~1 HEAD | git patch-id --verbatim > /dev/null

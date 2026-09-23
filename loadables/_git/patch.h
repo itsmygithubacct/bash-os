@@ -29,6 +29,7 @@ typedef struct {
     int ignore_ws;        /* which whitespace to overlook: see xdiff.h */
     int function_context; /* -W: a hunk covers the definition it sits in */
     int ignore_blank_lines;/* a run of blank lines on its own says nothing */
+    int minimal;         /* exact Myers search, however costly */
 } bgit_patch_options;
 
 void bgit_patch_options_init (bgit_patch_options *options);
