@@ -36,6 +36,10 @@ typedef struct {
     size_t n, cap;
 } bgit_ignore;
 
+/* Match one gitignore-style pattern against a path. Attributes use the same
+   wildcards, though their rule precedence and directory behavior differ. */
+int bgit_wild (const char *pattern, const char *path);
+
 /* Load the exclude files that apply to REPO: info/exclude, core.excludesFile,
    and the .gitignore at the top of the worktree. Directories deeper down are
    loaded as they are reached, by bgit_ignore_add_dir. */

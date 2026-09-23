@@ -100,8 +100,10 @@ git merge-base   [--all] <commit> <commit>... | --is-ancestor <a> <b>
 git merge-file   [-p] [-L <label>]... <current> <base> <other>
 git merge        [-m <message>] [--no-ff] [--ff-only] [--no-commit]
                  [-e | --no-edit] [-q] <commit> | --abort
-git cherry-pick  [-n] <commit> | --continue | --abort
+git check-attr   [--cached] [--source=<tree-ish>] [-a | --all | <attr>...]
+                 [--] <path>... | --stdin [-z]
 git cherry       [-v] [--abbrev[=<n>]] [<upstream> [<head> [<limit>]]]
+git cherry-pick  [-n] <commit> | --continue | --abort
 git patch-id     [--stable | --unstable | --verbatim]
 git help         [-a] [<command>]
 git submodule    [status [--cached]] | init | update [--init] [-q]
@@ -323,6 +325,15 @@ line does not. An explicit zero turns a configured value off. It reaches
 What is not here is a diff by another algorithm — `--patience`,
 `--histogram`, `--minimal` and `--diff-algorithm`. Each is refused rather than
 quietly ignored.
+
+`git check-attr` reports attributes for paths without changing the files.
+It reads `.gitattributes` from the working tree, falling back to the index
+when a file is missing; `--cached` uses the index alone and `--source` reads
+a named tree. Rules in deeper directories and `.git/info/attributes` take
+precedence, attribute by attribute. It also reads `core.attributesFile`,
+expands the built-in `binary` and named macros, and accepts paths on standard
+input with newline or NUL framing. `--all` prints only attributes with a
+value, and `-z` makes each output field NUL-delimited.
 
 `git help` with nothing named prints what `git --help` prints: this build's
 commands, which are not git's and are not grouped as git groups them. Named
@@ -1438,7 +1449,7 @@ another way, and git rebuilds them when it wants them.
 What is left out was left out on purpose. A repository whose objects are
 named by SHA-256 is refused rather than half read. `git://` is not spoken
 at all, and neither is dumb HTTP. Reftable, partial clones, sparse
-checkouts, the split index, attributes and the filters that go with them
+checkouts, the split index, applying attributes and the filters that go with them
 (end-of-line conversion, LFS), `add -p` and GPG signatures — as against
 the ssh signatures this build does make and check — are all outside what
 this port set out to do.

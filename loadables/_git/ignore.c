@@ -23,7 +23,7 @@
 
 /* gitignore's globbing: '*' and '?' stop at '/', '**' does not, and a
    bracket expression works as in a shell. */
-static int
+int
 bgit_wild (const char *p, const char *s)
 {
     while (*p) {

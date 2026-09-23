@@ -287,6 +287,11 @@ git diff --raw HEAD~1 HEAD > /dev/null
 git log -p -2 | git patch-id > /dev/null
 git show -p | git patch-id --stable > /dev/null
 git diff HEAD~1 HEAD | git patch-id --verbatim > /dev/null
+printf '*.txt sanitize=checked -diff\n' > .git/info/attributes
+git check-attr --all -- long.txt > /dev/null
+git check-attr --cached sanitize -- long.txt > /dev/null
+git check-attr --source HEAD sanitize -- long.txt > /dev/null
+printf 'long.txt\n' | git check-attr --stdin sanitize > /dev/null
 git log --raw -2 > /dev/null
 git whatchanged --oneline -2 > /dev/null
 git annotate long.txt > /dev/null 2>&1 || true

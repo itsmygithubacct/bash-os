@@ -26191,6 +26191,373 @@ git_cmd_check_ignore (git_context *ctx, WORD_LIST *args)
     return any ? 0 : 1;
 }
 
+/* ---- attributes -------------------------------------------------------- */
+
+struct git_attr_rule {
+    char *pattern, *words, *base;
+    int macro;
+};
+
+struct git_attr_state {
+    struct git_attr_rule *rules;
+    size_t n_rules, cap_rules;
+    struct { char *name, *value; } *values;
+    size_t n_values, cap_values;
+};
+
+static void
+git_attr_release (struct git_attr_state *s)
+{
+    for (size_t i = 0; i < s->n_rules; i++) {
+        free (s->rules[i].pattern);
+        free (s->rules[i].words);
+        free (s->rules[i].base);
+    }
+    for (size_t i = 0; i < s->n_values; i++) {
+        free (s->values[i].name);
+        free (s->values[i].value);
+    }
+    free (s->rules);
+    free (s->values);
+}
+
+static int
+git_attr_value (struct git_attr_state *s, const char *name, const char *value)
+{
+    size_t i = 0;
+    while (i < s->n_values && strcmp (s->values[i].name, name)) i++;
+    if (i == s->n_values) {
+        if (s->n_values == s->cap_values) {
+            size_t cap = s->cap_values ? s->cap_values * 2 : 16;
+            void *grown = realloc (s->values, cap * sizeof *s->values);
+            if (!grown) return -1;
+            s->values = grown;
+            s->cap_values = cap;
+        }
+        s->values[i].name = strdup (name);
+        s->values[i].value = NULL;
+        if (!s->values[i].name) return -1;
+        s->n_values++;
+    }
+    char *copy = value ? strdup (value) : NULL;
+    if (value && !copy) return -1;
+    free (s->values[i].value);
+    s->values[i].value = copy;
+    return 0;
+}
+
+/* Keep all rules until every file has been read: a macro may be defined in a
+   stronger file than the rule that uses it. */
+static int
+git_attr_read (struct git_attr_state *s, FILE *f, const char *base)
+{
+    if (!f) return 0;
+    char *line = NULL;
+    size_t cap = 0;
+    int rc = 0;
+    while (getline (&line, &cap, f) >= 0) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p || *p == '#' || *p == '\n') continue;
+        char *end = p;
+        if (*p == '"') {
+            end++;
+            while (*end && *end != '\n') {
+                if (*end == '\\' && end[1]) { end += 2; continue; }
+                if (*end == '"') break;
+                end++;
+            }
+            if (*end != '"') continue;
+            end++;
+        } else
+            while (*end && *end != ' ' && *end != '\t' && *end != '\r' &&
+                   *end != '\n') end++;
+        if (!*end) continue;
+        *end++ = '\0';
+        while (*end == ' ' || *end == '\t') end++;
+        end[strcspn (end, "\r\n")] = '\0';
+        if (!*end) continue;
+        if (*p == '"') {
+            char *read = p + 1, *write = p;
+            while (*read && read < end - 2) {
+                if (*read == '\\' && read + 1 < end - 2) {
+                    read++;
+                    if (*read == 'n') *write++ = '\n';
+                    else if (*read == 't') *write++ = '\t';
+                    else if (*read == 'r') *write++ = '\r';
+                    else if (*read >= '0' && *read <= '7') {
+                        int value = 0, digits = 0;
+                        while (digits < 3 && read < end - 2 &&
+                               *read >= '0' && *read <= '7') {
+                            value = value * 8 + (*read++ - '0');
+                            digits++;
+                        }
+                        *write++ = (char) value;
+                        continue;
+                    } else *write++ = *read;
+                    read++;
+                } else *write++ = *read++;
+            }
+            *write = '\0';
+        }
+        if (s->n_rules == s->cap_rules) {
+            size_t next = s->cap_rules ? s->cap_rules * 2 : 32;
+            void *grown = realloc (s->rules, next * sizeof *s->rules);
+            if (!grown) { rc = -1; break; }
+            s->rules = grown;
+            s->cap_rules = next;
+        }
+        struct git_attr_rule *r = &s->rules[s->n_rules];
+        r->macro = !*base && !strncmp (p, "[attr]", 6);
+        r->pattern = strdup (r->macro ? p + 6 : p);
+        r->words = strdup (end);
+        r->base = strdup (base);
+        if (!r->pattern || !r->words || !r->base) {
+            free (r->pattern); free (r->words); free (r->base);
+            rc = -1; break;
+        }
+        s->n_rules++;
+    }
+    if (ferror (f)) rc = -1;
+    free (line);
+    fclose (f);
+    return rc;
+}
+
+/* --cached uses the index; otherwise a missing worktree file falls back to
+   its index entry. The temporary stream owns a copy of an index blob. */
+static FILE *
+git_attr_open (git_context *ctx, const char *path, int cached,
+               const bgit_index_entry *entries, size_t count)
+{
+    if (!cached && ctx->repo.work_tree) {
+        char full[8192];
+        struct stat st;
+        if ((size_t) snprintf (full, sizeof full, "%s/%s",
+                               ctx->repo.work_tree, path) < sizeof full &&
+            lstat (full, &st) == 0 && S_ISREG (st.st_mode)) {
+            FILE *f = fopen (full, "r");
+            if (f) return f;
+        }
+    }
+    for (size_t i = 0; i < count; i++) {
+        if (strcmp (entries[i].path, path)) continue;
+        char hex[41];
+        enum bgit_type type;
+        unsigned char *data = NULL;
+        size_t n = 0;
+        bgit_sha_to_hex (entries[i].sha, hex);
+        if (bgit_odb_read (&ctx->odb, hex, &type, &data, &n) < 0 ||
+            type != BGIT_BLOB) { free (data); return NULL; }
+        FILE *f = tmpfile ();
+        if (!f || fwrite (data, 1, n, f) != n) {
+            if (f) fclose (f);
+            f = NULL;
+        } else rewind (f);
+        free (data);
+        return f;
+    }
+    return NULL;
+}
+
+static int
+git_attr_match (const struct git_attr_rule *r, const char *path)
+{
+    size_t len = strlen (r->pattern);
+    if (!len || r->macro || r->pattern[0] == '!' ||
+        r->pattern[len - 1] == '/') return 0;
+    const char *relative = path;
+    if (*r->base) {
+        size_t base = strlen (r->base);
+        if (strncmp (path, r->base, base) || path[base] != '/') return 0;
+        relative = path + base + 1;
+    }
+    const char *pattern = r->pattern;
+    if (*pattern == '/') pattern++;
+    if (strchr (pattern, '/')) return bgit_wild (pattern, relative);
+    const char *name = strrchr (relative, '/');
+    return bgit_wild (pattern, name ? name + 1 : relative);
+}
+
+static int
+git_attr_words (struct git_attr_state *s, const char *words, int depth)
+{
+    char *copy = strdup (words);
+    if (!copy) return -1;
+    char *save = NULL;
+    for (char *word = strtok_r (copy, " \t", &save); word;
+         word = strtok_r (NULL, " \t", &save)) {
+        const char *name = word, *value = "set";
+        int bare = 1;
+        if (*name == '-') { name++; value = "unset"; }
+        else if (*name == '!') { name++; value = NULL; }
+        char *eq = strchr (word, '=');
+        if (eq && name == word) {
+            *eq = '\0'; value = eq + 1; bare = 0;
+        }
+        if (!*name) { free (copy); return -1; }
+        if (depth < 8 && bare && name == word) {
+            const char *macro = !strcmp (name, "binary")
+                                ? "-diff -merge -text" : NULL;
+            for (size_t i = 0; i < s->n_rules; i++)
+                if (s->rules[i].macro && !strcmp (s->rules[i].pattern, name))
+                    macro = s->rules[i].words;
+            if (macro && git_attr_words (s, macro, depth + 1) < 0) {
+                free (copy); return -1;
+            }
+        }
+        if (git_attr_value (s, name, value) < 0) {
+            free (copy); return -1;
+        }
+    }
+    free (copy);
+    return 0;
+}
+
+static int
+git_attr_report (git_context *ctx, const char *shown, const char *const *attrs,
+                 int n_attrs, int all, int zero, int cached,
+                 const bgit_index_entry *entries, size_t count)
+{
+    char path[8192], source[8192];
+    if (git_path_join_prefix (ctx->prefix, shown, path, sizeof path) < 0)
+        return git_fatal ("path is too long: %s", shown);
+    struct git_attr_state state = {0};
+    const char *global = bgit_config_get (&ctx->cfg, "core.attributesfile");
+    if (!global) {
+        const char *xdg = getenv ("XDG_CONFIG_HOME");
+        const char *home = getenv ("HOME");
+        if (xdg && *xdg)
+            snprintf (source, sizeof source, "%s/git/attributes", xdg);
+        else
+            snprintf (source, sizeof source, "%s/.config/git/attributes",
+                      home ? home : "");
+        global = source;
+    } else if (global[0] == '~' && global[1] == '/' && getenv ("HOME")) {
+        snprintf (source, sizeof source, "%s/%s", getenv ("HOME"), global + 2);
+        global = source;
+    }
+    if (git_attr_read (&state, fopen (global, "r"), "") < 0) goto failed;
+    if (git_attr_read (&state,
+                       git_attr_open (ctx, ".gitattributes", cached,
+                                      entries, count), "") < 0) goto failed;
+    for (char *slash = strchr (path, '/'); slash;
+         slash = strchr (slash + 1, '/')) {
+        size_t len = (size_t) (slash - path);
+        if (len + 16 >= sizeof source) goto failed;
+        memcpy (source, path, len);
+        source[len] = '\0';
+        char base[8192];
+        memcpy (base, source, len + 1);
+        snprintf (source + len, sizeof source - len, "/.gitattributes");
+        if (git_attr_read (&state, git_attr_open (ctx, source, cached,
+                                                  entries, count), base) < 0)
+            goto failed;
+    }
+    snprintf (source, sizeof source, "%s/info/attributes", ctx->repo.git_dir);
+    if (git_attr_read (&state, fopen (source, "r"), "") < 0) goto failed;
+    for (size_t i = 0; i < state.n_rules; i++)
+        if (git_attr_match (&state.rules[i], path) &&
+            git_attr_words (&state, state.rules[i].words, 0) < 0) goto failed;
+
+    char quoted[8192];
+    const char *display = zero ? shown
+                          : bgit_quote_path (shown, quoted, sizeof quoted);
+    if (all) {
+        for (size_t i = 0; i < state.n_values; i++) {
+            const char *value = state.values[i].value;
+            if (!value) continue;
+            if (zero) printf ("%s%c%s%c%s%c", display, 0,
+                              state.values[i].name, 0, value, 0);
+            else printf ("%s: %s: %s\n", display, state.values[i].name, value);
+        }
+    } else for (int i = 0; i < n_attrs; i++) {
+        const char *value = "unspecified";
+        for (size_t j = 0; j < state.n_values; j++)
+            if (!strcmp (attrs[i], state.values[j].name))
+                value = state.values[j].value ? state.values[j].value
+                                               : "unspecified";
+        if (zero) printf ("%s%c%s%c%s%c", display, 0, attrs[i], 0, value, 0);
+        else printf ("%s: %s: %s\n", display, attrs[i], value);
+    }
+    git_attr_release (&state);
+    return 0;
+failed:
+    git_attr_release (&state);
+    return git_fatal ("cannot read attributes");
+}
+
+static int
+git_cmd_check_attr (git_context *ctx, WORD_LIST *args)
+{
+    const char *usage = "git check-attr [--cached] [--source=<tree-ish>] "
+                        "[-a | --all | <attr>...] [--] <pathname>... | --stdin [-z]";
+    const char *attrs[64], *paths[64];
+    int n_attrs = 0, n_paths = 0, all = 0, cached = 0, input = 0, zero = 0;
+    int after_dashes = 0;
+    const char *source_tree = NULL;
+    for (WORD_LIST *p = args; p; p = p->next) {
+        const char *w = p->word->word;
+        if (!after_dashes && !strcmp (w, "--")) { after_dashes = 1; continue; }
+        if (!after_dashes && (!strcmp (w, "-a") || !strcmp (w, "--all"))) all = 1;
+        else if (!after_dashes && !strcmp (w, "--cached")) cached = 1;
+        else if (!after_dashes && !strncmp (w, "--source=", 9))
+            source_tree = w + 9;
+        else if (!after_dashes && !strcmp (w, "--source") && p->next) {
+            source_tree = p->next->word->word;
+            p = p->next;
+        }
+        else if (!after_dashes && !strcmp (w, "--stdin")) input = 1;
+        else if (!after_dashes && !strcmp (w, "-z")) zero = 1;
+        else if (!after_dashes && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (after_dashes || (all && !input)) {
+            if (n_paths == 64) return git_usage (usage);
+            paths[n_paths++] = w;
+        } else {
+            if (n_attrs == 64) return git_usage (usage);
+            attrs[n_attrs++] = w;
+        }
+    }
+    if (!input && !after_dashes && !all && n_attrs > 1) {
+        for (int i = 1; i < n_attrs; i++) paths[n_paths++] = attrs[i];
+        n_attrs = 1;
+    }
+    if ((!all && !n_attrs) || (!input && !n_paths) || (input && n_paths))
+        return git_usage (usage);
+    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+    bgit_index_entry *entries = NULL;
+    size_t count = 0;
+    if (source_tree) {
+        char id[41], tree[41];
+        if (git_resolve (ctx, source_tree, id, NULL) < 0 ||
+            bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0 ||
+            bgit_read_tree (&ctx->odb, tree, &entries, &count) < 0)
+            return git_fatal ("%s: not a valid tree-ish source", source_tree);
+        cached = 1;
+    } else if (git_index_load (ctx, &entries, &count) < 0)
+        return git_fatal ("cannot read the index");
+    int status = 0;
+    for (int i = 0; i < n_paths && !status; i++)
+        status = git_attr_report (ctx, paths[i], attrs, n_attrs, all, zero,
+                                  cached, entries, count);
+    if (input && !status) {
+        char *line = NULL;
+        size_t cap = 0;
+        ssize_t n;
+        clearerr (stdin);
+        while ((n = getdelim (&line, &cap, zero ? '\0' : '\n', stdin)) >= 0) {
+            if (n && line[n - 1] == (zero ? '\0' : '\n')) line[n - 1] = '\0';
+            status = git_attr_report (ctx, line, attrs, n_attrs, all, zero,
+                                      cached, entries, count);
+            if (status) break;
+        }
+        if (ferror (stdin)) status = git_fatal ("cannot read standard input");
+        free (line);
+    }
+    bgit_index_free_entries (entries, count);
+    return status;
+}
+
 /* ---- config ------------------------------------------------------------ */
 
 /* A configured value as the type asked for writes it: git's truth words
@@ -26447,6 +26814,7 @@ static const struct {
     { "branch",       git_cmd_branch },
     { "bundle",       git_cmd_bundle },
     { "cat-file",     git_cmd_cat_file },
+    { "check-attr",   git_cmd_check_attr },
     { "check-ignore", git_cmd_check_ignore },
     { "checkout",     git_cmd_checkout },
     { "cherry",       git_cmd_cherry },
