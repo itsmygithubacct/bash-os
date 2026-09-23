@@ -18,6 +18,13 @@
 #include "odb.h"
 #include "repo.h"
 
+enum {
+    BGIT_DIFF_ALGORITHM_DEFAULT,
+    BGIT_DIFF_ALGORITHM_MINIMAL,
+    BGIT_DIFF_ALGORITHM_PATIENCE,
+    BGIT_DIFF_ALGORITHM_HISTOGRAM
+};
+
 typedef struct {
     int context;          /* lines of context; git's default is 3 */
     int inter_context;    /* extra unchanged lines that may join two hunks */
@@ -29,7 +36,7 @@ typedef struct {
     int ignore_ws;        /* which whitespace to overlook: see xdiff.h */
     int function_context; /* -W: a hunk covers the definition it sits in */
     int ignore_blank_lines;/* a run of blank lines on its own says nothing */
-    int minimal;         /* exact Myers search, however costly */
+    int algorithm;       /* one of BGIT_DIFF_ALGORITHM_* */
 } bgit_patch_options;
 
 void bgit_patch_options_init (bgit_patch_options *options);

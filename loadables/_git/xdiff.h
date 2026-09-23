@@ -100,6 +100,8 @@ int bgit_xdiff (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
 
 /* Search every Myers box exactly, without its cost-cutting heuristics. */
 #define BGIT_XDIFF_MINIMAL 256
+#define BGIT_XDIFF_PATIENCE 512
+#define BGIT_XDIFF_HISTOGRAM 1024
 
 /* The same comparison, saying which of those to do. */
 int bgit_xdiff_opts (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,

@@ -327,7 +327,12 @@ when the default search would stop early. `--diff-algorithm=minimal` asks for
 the same search; `--diff-algorithm=myers` and `=default` restore the default
 search. `diff.algorithm=minimal` supplies the choice when the command line
 does not. It reaches patches and stats from `diff`, `log` and `show`.
-`--patience` and `--histogram` are still refused rather than quietly ignored.
+`--patience` anchors the diff on lines that occur once on each side, then uses
+Myers in the gaps. `--histogram` prefers common runs with less frequent lines
+and falls back to Myers when it finds no useful run. Both also accept
+`--diff-algorithm=<name>` and `diff.algorithm=<name>`, and reach patches and
+stats from `diff`, `log` and `show`. The command-line choice overrides the
+configured one.
 
 `git check-attr` reports attributes for paths without changing the files.
 It reads `.gitattributes` from the working tree, falling back to the index
