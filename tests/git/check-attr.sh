@@ -23,6 +23,14 @@ git check-attr --all -- root.txt sub/note.txt data.bin
 git check-attr language root.txt
 git check-attr --all -- 'sub/space name.txt'
 
+echo '=== many path arguments ==='
+paths=()
+for n in $(seq 1 70); do paths+=("missing-$n.txt"); done
+many=$(git check-attr language "${paths[@]}")
+printf '%s\n' "$many" | tail -1
+many=$(git check-attr language -- "${paths[@]}")
+printf '%s\n' "$many" | tail -1
+
 echo '=== worktree, index and stronger info rules ==='
 printf '*.txt language=worktree\n' >> .gitattributes
 git check-attr language -- root.txt sub/note.txt

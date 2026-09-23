@@ -26515,7 +26515,13 @@ git_cmd_check_attr (git_context *ctx, WORD_LIST *args)
 {
     const char *usage = "git check-attr [--cached] [--source=<tree-ish>] "
                         "[-a | --all | <attr>...] [--] <pathname>... | --stdin [-z]";
-    const char *attrs[64], *paths[64];
+    size_t n_args = 0;
+    for (WORD_LIST *p = args; p; p = p->next) n_args++;
+    if (n_args > SIZE_MAX / (2 * sizeof (const char *)))
+        return git_fatal ("too many arguments");
+    const char **words = calloc (n_args ? 2 * n_args : 1, sizeof *words);
+    if (!words) return git_fatal ("out of memory");
+    const char **attrs = words, **paths = words + n_args;
     int n_attrs = 0, n_paths = 0, all = 0, cached = 0, input = 0, zero = 0;
     int after_dashes = 0;
     const char *source_tree = NULL;
@@ -26532,12 +26538,10 @@ git_cmd_check_attr (git_context *ctx, WORD_LIST *args)
         }
         else if (!after_dashes && !strcmp (w, "--stdin")) input = 1;
         else if (!after_dashes && !strcmp (w, "-z")) zero = 1;
-        else if (!after_dashes && w[0] == '-' && w[1]) return git_usage (usage);
+        else if (!after_dashes && w[0] == '-' && w[1]) goto usage_error;
         else if (after_dashes || (all && !input)) {
-            if (n_paths == 64) return git_usage (usage);
             paths[n_paths++] = w;
         } else {
-            if (n_attrs == 64) return git_usage (usage);
             attrs[n_attrs++] = w;
         }
     }
@@ -26546,19 +26550,26 @@ git_cmd_check_attr (git_context *ctx, WORD_LIST *args)
         n_attrs = 1;
     }
     if ((!all && !n_attrs) || (!input && !n_paths) || (input && n_paths))
-        return git_usage (usage);
-    if (git_context_open (ctx) != 0) return GIT_EXIT_FATAL;
+        goto usage_error;
+    if (git_context_open (ctx) != 0) {
+        free (words);
+        return GIT_EXIT_FATAL;
+    }
     bgit_index_entry *entries = NULL;
     size_t count = 0;
     if (source_tree) {
         char id[41], tree[41];
         if (git_resolve (ctx, source_tree, id, NULL) < 0 ||
             bgit_peel_to_type (&ctx->odb, id, BGIT_TREE, tree) < 0 ||
-            bgit_read_tree (&ctx->odb, tree, &entries, &count) < 0)
+            bgit_read_tree (&ctx->odb, tree, &entries, &count) < 0) {
+            free (words);
             return git_fatal ("%s: not a valid tree-ish source", source_tree);
+        }
         cached = 1;
-    } else if (git_index_load (ctx, &entries, &count) < 0)
+    } else if (git_index_load (ctx, &entries, &count) < 0) {
+        free (words);
         return git_fatal ("cannot read the index");
+    }
     int status = 0;
     for (int i = 0; i < n_paths && !status; i++)
         status = git_attr_report (ctx, paths[i], attrs, n_attrs, all, zero,
@@ -26578,7 +26589,11 @@ git_cmd_check_attr (git_context *ctx, WORD_LIST *args)
         free (line);
     }
     bgit_index_free_entries (entries, count);
+    free (words);
     return status;
+usage_error:
+    free (words);
+    return git_usage (usage);
 }
 
 /* ---- config ------------------------------------------------------------ */
