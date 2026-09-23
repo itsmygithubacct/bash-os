@@ -61,3 +61,24 @@ git add repeated.txt
 git commit -q -m 'no unique common lines'
 printf 'other\nsame\nother\nsame\n' > repeated.txt
 git diff --patience -U0 repeated.txt
+
+echo '=== histogram counts for lines inside a common run ==='
+printf 'unique-y\nunique-x\nunique-x\n' > histogram-counts.txt
+git add histogram-counts.txt
+git commit -q -m 'histogram counted lines before'
+printf 'unique-x\nunique-x\nunique-y\n' > histogram-counts.txt
+git diff --histogram -U0 histogram-counts.txt
+
+echo '=== patience retains equal ends during anchor search ==='
+printf 'common-1\ncommon-0\ncommon-0\nrepeat-c\ncommon-1\n' > patience-ends.txt
+git add patience-ends.txt
+git commit -q -m 'patience ends before'
+printf 'common-0\ncommon-1\n' > patience-ends.txt
+git diff --patience -U0 patience-ends.txt
+
+echo '=== patience grows matching lines beside an anchor ==='
+printf 'c\n1\n1\nb\nb\na\n' > patience-gap.txt
+git add patience-gap.txt
+git commit -q -m 'patience gap before'
+printf 'c\n1\nb\n' > patience-gap.txt
+git diff --patience -U0 patience-gap.txt

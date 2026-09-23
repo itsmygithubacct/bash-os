@@ -688,12 +688,27 @@ bgit_xd_patience (bgit_xd *x, long a0, long a1, long b0, long b1)
     int status = 0;
     for (size_t i = 0; i < length; i++) {
         bgit_xd_anchor anchor = sequence[i];
-        status = bgit_xd_compare (x, old_at, anchor.a, new_at, anchor.b, 0);
+        long next_a = anchor.a, next_b = anchor.b;
+        while (next_a > old_at && next_b > new_at &&
+               bgit_xd_eq (x, next_a - 1, next_b - 1)) {
+            next_a--; next_b--;
+        }
+        while (old_at < next_a && new_at < next_b &&
+               bgit_xd_eq (x, old_at, new_at)) {
+            old_at++; new_at++;
+        }
+        status = bgit_xd_compare (x, old_at, next_a, new_at, next_b, 0);
         if (status < 0) break;
         old_at = anchor.a + 1;
         new_at = anchor.b + 1;
     }
-    if (!status) status = bgit_xd_compare (x, old_at, a1, new_at, b1, 0);
+    if (!status) {
+        while (old_at < a1 && new_at < b1 &&
+               bgit_xd_eq (x, old_at, new_at)) {
+            old_at++; new_at++;
+        }
+        status = bgit_xd_compare (x, old_at, a1, new_at, b1, 0);
+    }
     free (sequence);
     return status;
 }
@@ -721,8 +736,17 @@ bgit_xd_histogram (bgit_xd *x, long a0, long a1, long b0, long b1,
     long best_a = -1, best_b = -1, best_len = 0;
     size_t best_frequency = 65;
     int has_common = 0;
-    for (size_t k = 0; k < total; k++)
-        if (!refs[k].side) a_counts[refs[k].position - (size_t) a0]++;
+    for (size_t start = 0; start < total; ) {
+        size_t end = start + 1, count = 0;
+        while (end < total && !bgit_line_ref_cmp (&refs[start], &refs[end]))
+            end++;
+        for (size_t k = start; k < end; k++)
+            if (!refs[k].side) count++;
+        for (size_t k = start; k < end; k++)
+            if (!refs[k].side)
+                a_counts[refs[k].position - (size_t) a0] = count;
+        start = end;
+    }
     long b_ptr = b0;
     while (b_ptr < b1) {
         bgit_line_ref key = {x->b, x->ib[b_ptr], (size_t) b_ptr, 1};
@@ -1027,8 +1051,8 @@ bgit_group_slide_down (const bgit_xdiff_file *file, long n, char *changed,
    of words, where indentation means nothing. */
 static int
 bgit_compact (const bgit_xdiff_file *file, const bgit_xdiff_file *text, long n,
-              char *changed, const bgit_xdiff_file *other, long other_n,
-              char *other_changed, int indent_heuristic, bgit_xd *xd)
+              char *changed, long other_n, char *other_changed,
+              int indent_heuristic)
 {
     bgit_group g, go;
     bgit_group_init (changed, &g);
@@ -1036,8 +1060,6 @@ bgit_compact (const bgit_xdiff_file *file, const bgit_xdiff_file *text, long n,
 
     for (;;) {
         if (g.end == g.start) goto next;
-
-        bgit_group original = g;
 
         long size, earliest_end, matching_other;
         do {
@@ -1094,50 +1116,6 @@ bgit_compact (const bgit_xdiff_file *file, const bgit_xdiff_file *text, long n,
                 if (bgit_group_slide_up (file, changed, &g)) break;
                 if (bgit_group_previous (other_changed, &go)) break;
             }
-        }
-
-        /* Histogram may leave equal lines inside two change groups that
-           compaction has just brought together. Re-run Myers over those
-           paired groups so the newly adjacent lines can become matches. */
-        if (go.end > go.start && xd->algorithm == BGIT_XDIFF_HISTOGRAM &&
-            (g.start != original.start || g.end != original.end)) {
-            size_t na = (size_t) (g.end - g.start);
-            size_t nb = (size_t) (go.end - go.start);
-            size_t *ia = malloc ((na ? na : 1) * sizeof *ia);
-            size_t *ib = malloc ((nb ? nb : 1) * sizeof *ib);
-            if (!ia || !ib) { free (ia); free (ib); return -1; }
-            for (size_t i = 0; i < na; i++) {
-                ia[i] = (size_t) g.start + i;
-                changed[ia[i]] = 0;
-            }
-            for (size_t j = 0; j < nb; j++) {
-                ib[j] = (size_t) go.start + j;
-                other_changed[ib[j]] = 0;
-            }
-            long ndiags = (long) (na + nb) + 3;
-            long *vf = calloc ((size_t) ndiags, sizeof *vf);
-            long *vb = calloc ((size_t) ndiags, sizeof *vb);
-            if (!vf || !vb) {
-                free (ia); free (ib); free (vf); free (vb);
-                return -1;
-            }
-            bgit_xd rediff = *xd;
-            rediff.a = file;
-            rediff.b = other;
-            rediff.ia = ia;
-            rediff.ib = ib;
-            rediff.ca = changed;
-            rediff.cb = other_changed;
-            rediff.algorithm = 0;
-            rediff.vf = vf + nb + 1;
-            rediff.vb = vb + nb + 1;
-            rediff.mxcost = bgit_bogosqrt (ndiags);
-            if (rediff.mxcost < BGIT_MAX_COST_MIN)
-                rediff.mxcost = BGIT_MAX_COST_MIN;
-            int status = bgit_xd_compare (&rediff, 0, (long) na,
-                                          0, (long) nb, 0);
-            free (ia); free (ib); free (vf); free (vb);
-            if (status < 0) return status;
         }
 
     next:
@@ -1283,16 +1261,17 @@ bgit_xdiff_full (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
                              BGIT_XDIFF_HISTOGRAM);
     int alternate = (algorithm & (BGIT_XDIFF_PATIENCE |
                                   BGIT_XDIFF_HISTOGRAM)) != 0;
-    long shared = (long) (n_old < n_new ? n_old : n_new);
-    long dstart = 0;
-    while (dstart < shared &&
-           bgit_line_same (key_old, dstart, key_new, dstart))
-        dstart++;
-    long tail = 0;
-    while (tail < shared - dstart &&
-           bgit_line_same (key_old, (long) n_old - 1 - tail,
-                           key_new, (long) n_new - 1 - tail))
-        tail++;
+    long dstart = 0, tail = 0;
+    if (!alternate) {
+        long shared = (long) (n_old < n_new ? n_old : n_new);
+        while (dstart < shared &&
+               bgit_line_same (key_old, dstart, key_new, dstart))
+            dstart++;
+        while (tail < shared - dstart &&
+               bgit_line_same (key_old, (long) n_old - 1 - tail,
+                               key_new, (long) n_new - 1 - tail))
+            tail++;
+    }
     long dend_old = (long) n_old - tail - 1;
     long dend_new = (long) n_new - tail - 1;
 
@@ -1388,18 +1367,12 @@ bgit_xdiff_full (const bgit_xdiff_file *old, const bgit_xdiff_file *new_file,
         return -1;
     }
 
-    bgit_xd reverse = x;
-    reverse.a = x.b; reverse.b = x.a;
-    reverse.ia = x.ib; reverse.ib = x.ia;
-    reverse.ca = x.cb; reverse.cb = x.ca;
-    reverse.dis_a = x.dis_b; reverse.dis_b = x.dis_a;
-    reverse.dend_a = x.dend_b; reverse.dend_b = x.dend_a;
     if (bgit_compact (key_old, old, (long) n_old, out->old_changed,
-                      key_new, (long) n_new, out->new_changed,
-                      indent_heuristic, &x) < 0 ||
+                      (long) n_new, out->new_changed,
+                      indent_heuristic) < 0 ||
         bgit_compact (key_new, new_file, (long) n_new, out->new_changed,
-                      key_old, (long) n_old, out->old_changed,
-                      indent_heuristic, &reverse) < 0) {
+                      (long) n_old, out->old_changed,
+                      indent_heuristic) < 0) {
         free (vf); free (vb); free (ia); free (ib);
         free (dis_old); free (dis_new);
         bgit_xdiff_release (&canon_old);
