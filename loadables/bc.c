@@ -110,12 +110,12 @@ bc_from_int (long long v)
     return n;
 }
 
-/* Read an integer from the digit string (no sign handling). */
+/* Read the integer part, truncating fractional digits (no sign handling). */
 static long long
 bc_to_ll (const bc_num *n)
 {
     long long v = 0;
-    for (int i = 0; i < n->len && i < 18; i++) {
+    for (int i = 0; i < n->len - n->scale && i < 18; i++) {
         v = v * 10 + (n->digits[i] - '0');
     }
     return v;
@@ -340,6 +340,7 @@ bc_add (const bc_num *a, const bc_num *b, int scale)
             r.sign = b->sign;
         }
     }
+    bc_fix_scale (&r, a->scale > b->scale ? a->scale : b->scale);
     return r;
 }
 
@@ -360,6 +361,7 @@ bc_sub (const bc_num *a, const bc_num *b, int scale)
             r.sign = !a->sign;
         }
     }
+    bc_fix_scale (&r, a->scale > b->scale ? a->scale : b->scale);
     return r;
 }
 
@@ -374,6 +376,9 @@ bc_mul (const bc_num *a, const bc_num *b, int scale)
     }
 
     int result_scale = a->scale + b->scale;
+    int kept_scale = a->scale > b->scale ? a->scale : b->scale;
+    if (scale > kept_scale) kept_scale = scale;
+    if (kept_scale > result_scale) kept_scale = result_scale;
     int total = a->len + b->len;
 
     /* temp array for digit-at-a-time multiplication */
@@ -413,19 +418,13 @@ bc_mul (const bc_num *a, const bc_num *b, int scale)
 
     free (prod);
 
-    /* enforce target scale */
-    while (r.scale < scale) {
-        /* pad with trailing zero and append '0' */
-        r.digits = realloc (r.digits, r.len + 2);
-        r.digits[r.len] = '0';
-        r.len++;
-        r.scale++;
-        r.digits[r.len] = '\0';
-    }
-    if (r.scale > scale && scale >= 0)
-        bc_truncate_to_scale (&r, scale);
+    /* GNU bc keeps at least the precision of either operand, even when the
+       global scale is smaller, but never more than their combined scale. */
+    if (r.scale > kept_scale)
+        bc_truncate_to_scale (&r, kept_scale);
 
     bc_normalize (&r);
+    bc_fix_scale (&r, kept_scale);
     return r;
 }
 
@@ -447,6 +446,16 @@ bc_div_internal (const bc_num *a, const bc_num *b, int scale)
         return r;
     }
     if (scale < 0) scale = 0;
+
+    /* Fractional divisors have leading zero digits (for example .25 is
+       stored as 025).  Long division needs the divisor's integer digits
+       without those zeros, otherwise one quotient digit can exceed 9. */
+    const char *divisor = b->digits;
+    int divisor_len = b->len;
+    while (divisor_len > 1 && *divisor == '0') {
+        divisor++;
+        divisor_len--;
+    }
 
     /* Build an extended dividend: a's digits + (scale + b->scale) zeros.
        Adding b->scale extra zeros compensates for the divisor's fractional
@@ -484,13 +493,13 @@ bc_div_internal (const bc_num *a, const bc_num *b, int scale)
         /* how many times does divisor go into remainder? */
         int q = 0;
         while (1) {
-            /* Compare rem (length rem_len) with b->digits (length b->len) */
-            if (rem_len < b->len) break;
-            if (rem_len == b->len) {
+            /* Compare rem with the divisor's significant digits. */
+            if (rem_len < divisor_len) break;
+            if (rem_len == divisor_len) {
                 int gt = 0, lt = 0;
                 for (int k = 0; k < rem_len; k++) {
-                    if (rem[k] > b->digits[k]) { gt = 1; break; }
-                    if (rem[k] < b->digits[k]) { lt = 1; break; }
+                    if (rem[k] > divisor[k]) { gt = 1; break; }
+                    if (rem[k] < divisor[k]) { lt = 1; break; }
                 }
                 if (!gt && !lt) {
                     /* exact match: one more subtraction, then done */
@@ -502,10 +511,10 @@ bc_div_internal (const bc_num *a, const bc_num *b, int scale)
             }
             /* subtract b from rem */
             int borrow = 0;
-            for (int k = b->len - 1; k >= 0; k--) {
-                int rk = rem_len - (b->len - k);
+            for (int k = divisor_len - 1; k >= 0; k--) {
+                int rk = rem_len - (divisor_len - k);
                 int dr = (rk >= 0) ? rem[rk] - '0' : 0;
-                int db = b->digits[k] - '0';
+                int db = divisor[k] - '0';
                 int diff = dr - db - borrow;
                 if (diff < 0) { diff += 10; borrow = 1; }
                 else borrow = 0;
@@ -513,7 +522,7 @@ bc_div_internal (const bc_num *a, const bc_num *b, int scale)
             }
             /* handle borrow on the most significant digit */
             if (borrow) {
-                for (int k = rem_len - b->len - 1; k >= 0; k--) {
+                for (int k = rem_len - divisor_len - 1; k >= 0; k--) {
                     if (rem[k] > '0') { rem[k]--; break; }
                     rem[k] = '9';
                 }
@@ -555,25 +564,22 @@ bc_div (const bc_num *a, const bc_num *b, int scale)
 }
 
 static bc_num
-bc_mod (const bc_num *a, const bc_num *b)
+bc_mod (const bc_num *a, const bc_num *b, int scale)
 {
     if (bc_is_zero (b)) return bc_dup (&_bc_zero);
-    bc_num q = bc_div_internal (a, b, 0);  /* integer quotient */
-    q.sign = 0;
-    bc_num prod = bc_mul (&q, b, 0);
-    prod.sign = b->sign;
-    bc_num r = bc_sub (a, &prod, 0);
+    /* a % b = a - trunc(a / b, scale) * b.  The quotient is truncated
+       toward zero and carries the sign of a / b. */
+    bc_num q = bc_div_internal (a, b, scale);
+    q.sign = a->sign != b->sign && !bc_is_zero (&q);
+    /* Modulo retains the full precision of quotient times divisor before
+       subtraction, even though ordinary multiplication uses global scale. */
+    bc_num prod = bc_mul (&q, b, q.scale + b->scale);
+    bc_num r = bc_sub (a, &prod, scale);
     bc_free (&q);
     bc_free (&prod);
-    if (r.sign) {
-        /* ensure positive remainder */
-        bc_num b_abs = bc_dup (b);
-        b_abs.sign = 0;
-        bc_num tmp = bc_add (&r, &b_abs, 0);
-        bc_free (&r);
-        r = tmp;
-        bc_free (&b_abs);
-    }
+    int result_scale = a->scale;
+    if (scale + b->scale > result_scale) result_scale = scale + b->scale;
+    bc_fix_scale (&r, result_scale);
     return r;
 }
 
@@ -583,12 +589,12 @@ static bc_num
 bc_pow (const bc_num *base, const bc_num *exp, int scale)
 {
     if (bc_is_zero (exp)) return bc_dup (&_bc_one);
-    if (bc_is_zero (base)) return bc_dup (&_bc_zero);
-    if (exp->sign) return bc_dup (&_bc_zero);  /* negative exponent → 0 */
+    int negative = exp->sign;
 
     long long e = bc_to_ll (exp);
     if (e <= 0) return bc_dup (&_bc_one);
-    if (e == 1) { bc_num r = bc_dup (base); return r; }
+    if (bc_is_zero (base)) return bc_dup (&_bc_zero);
+    if (e == 1 && !negative) { bc_num r = bc_dup (base); return r; }
 
     bc_num result = bc_dup (&_bc_one);
     bc_num b = bc_dup (base);
@@ -608,7 +614,21 @@ bc_pow (const bc_num *base, const bc_num *exp, int scale)
         }
     }
     bc_free (&b);
+    if (negative) {
+        bc_num one = bc_dup (&_bc_one);
+        bc_num reciprocal = bc_div (&one, &result, scale);
+        bc_free (&one);
+        bc_free (&result);
+        return reciprocal;
+    }
+    int kept_scale = base->scale;
+    if (scale > kept_scale) kept_scale = scale;
+    int full_scale = base->scale * (int) bc_to_ll (exp);
+    if (kept_scale > full_scale) kept_scale = full_scale;
+    if (result.scale > kept_scale)
+        bc_truncate_to_scale (&result, kept_scale);
     bc_normalize (&result);
+    bc_fix_scale (&result, kept_scale);
     return result;
 }
 
@@ -619,44 +639,46 @@ bc_sqrt (const bc_num *n, int scale)
 {
     if (n->sign) return bc_dup (&_bc_zero);  /* domain error */
     if (bc_is_zero (n)) return bc_dup (&_bc_zero);  /* sqrt(0) prints as "0" */
+    if (bc_cmp (n, &_bc_one) == 0) return bc_dup (&_bc_one);
+    /* GNU sqrt retains whichever precision is larger: input or scale. */
+    if (n->scale > scale) scale = n->scale;
 
-    /* initial guess: use double sqrt for seed */
-    double d = sqrt (bc_to_double (n));
-    char buf[64];
-    snprintf (buf, sizeof buf, "%.15f", d);
-    bc_num x = bc_dup (&_bc_zero);
-    free (x.digits);
-    x.digits = strdup (buf);
-    x.len = strlen (buf);
-    /* find decimal point */
-    char *dot = strchr (buf, '.');
-    x.scale = dot ? (x.len - (dot - buf) - 1) : 0;
-    if (dot) {
-        memmove (x.digits + (dot - buf), x.digits + (dot - buf) + 1,
-                 x.scale + 1);
-        x.len--;
+    /* Start above the root using only decimal magnitude. Converting through
+       double and %.15f rounded small positive seeds to zero (and could
+       overflow for large operands). ceil(digits / 2) gives a power of ten
+       above sqrt(n), including when the first significant digit is fractional. */
+    int first = 0;
+    while (first < n->len && n->digits[first] == '0') first++;
+    int magnitude = n->len - n->scale - first;
+    int exponent = magnitude > 0 ? (magnitude + 1) / 2 : magnitude / 2;
+    int length = (exponent < 0 ? -exponent : exponent) + 1;
+    bc_num x = bc_alloc (length);
+    if (!x.digits) {
+        builtin_error ("out of memory");
+        return bc_dup (&_bc_zero);
     }
-    x.sign = 0;
-    bc_normalize (&x);
+    x.len = length;
+    x.scale = exponent < 0 ? -exponent : 0;
+    x.digits[exponent < 0 ? length - 1 : 0] = '1';
 
     /* Newton iteration: x = (x + n/x) / 2 */
     bc_num two = bc_from_int (2);
     int iter_scale = scale + 5;
-    for (int i = 0; i < 20; i++) {
+    while (1) {
         bc_num q = bc_div (n, &x, iter_scale);
         bc_num s = bc_add (&x, &q, iter_scale);
         bc_num new_x = bc_div (&s, &two, iter_scale);
         bc_free (&q);
         bc_free (&s);
 
-        /* check convergence */
-        bc_num diff = bc_sub (&new_x, &x, iter_scale);
-        if (diff.sign) diff.sign = 0;
-        int converged = (diff.len == 1 && diff.digits[0] == '0');
-        bc_free (&diff);
+        /* Fixed-precision Newton steps decrease from the upper bound to
+           the floor of the root. Stop before a possible rounding cycle. */
+        if (bc_cmp (&new_x, &x) >= 0) {
+            bc_free (&new_x);
+            break;
+        }
         bc_free (&x);
         x = new_x;
-        if (converged) break;
     }
     bc_free (&two);
 
@@ -1013,7 +1035,7 @@ bc_func_s (const bc_num *xin, int scale)
     bc_free (&x); x = nx;
 
     /* if (n%2) x = -x */
-    bc_num nmod = bc_mod (&n, &two);
+    bc_num nmod = bc_mod (&n, &two, 0);
     if (!bc_is_zero (&nmod)) { x.sign = !x.sign; if (bc_is_zero (&x)) x.sign = 0; }
     bc_free (&nmod);
 
@@ -1582,25 +1604,30 @@ bc_parse_atom (bc_parser *p)
                 }
 
                 bc_parser rp = *p;
+                rp.last = bc_dup (&p->last);
                 rp.s = line;
                 rp.err = 0;
                 int was_assign = 0;
                 bc_num r = bc_parse_assign (&rp, &was_assign);
+                /* Parsing can realloc the shared variable table even when
+                   the line is malformed.  Keep the owner in sync on both
+                   paths before it can inspect or free that table. */
+                p->vars = rp.vars;
+                p->nvars = rp.nvars;
+                p->capvars = rp.capvars;
                 if (rp.err || !bc_line_done (&rp)) {
                     p->err = 1;
                     bc_free (&r);
+                    bc_free (&rp.last);
                     free (line);
                     return bc_dup (&_bc_zero);
                 }
                 p->scale = rp.scale;
                 p->ibase = rp.ibase;
                 p->obase = rp.obase;
-                /* propagate any variable-table growth from the read line */
-                p->vars = rp.vars;
-                p->nvars = rp.nvars;
-                p->capvars = rp.capvars;
                 bc_free (&p->last);
                 p->last = bc_dup (&r);
+                bc_free (&rp.last);
                 free (line);
                 return r;
             }
@@ -1659,6 +1686,12 @@ bc_parse_power (bc_parser *p)
         p->s++;
         bc_num right = bc_parse_power (p);
         if (p->err) { bc_free (&right); return left; }
+        if (bc_is_zero (&left) && right.sign && !bc_is_zero (&right)) {
+            builtin_error ("divide by zero");
+            p->err = 1;
+            bc_free (&right);
+            return left;
+        }
         bc_num r = bc_pow (&left, &right, p->scale);
         bc_free (&left);
         bc_free (&right);
@@ -1699,7 +1732,7 @@ bc_parse_factor (bc_parser *p)
                 bc_free (&right);
                 return left;
             }
-            r = bc_mod (&left, &right);
+            r = bc_mod (&left, &right, p->scale);
         }
         bc_free (&left);
         bc_free (&right);
@@ -1881,6 +1914,8 @@ bc_run_print_statement (bc_parser *p, bc_num *result_out)
                 return 0;
             }
             bc_print (&v, p->obase, 0);
+            bc_free (&p->last);
+            p->last = bc_dup (&v);
             bc_free (result_out);
             *result_out = bc_dup (&v);
             bc_free (&v);
@@ -1925,8 +1960,11 @@ bc_run_one_statement (bc_parser *p, int newline, bc_num *result_out)
 
     /* GNU bc prints the value of a non-assignment statement; a bare
        assignment is silent. */
-    if (!was_assign)
+    if (!was_assign) {
         bc_print (&result, p->obase, newline);
+        bc_free (&p->last);
+        p->last = bc_dup (&result);
+    }
     bc_free (result_out);
     *result_out = result;
     return 1;
@@ -2047,9 +2085,8 @@ bc_builtin (WORD_LIST *list)
         }
         free (expr);
 
-        bc_free (&p.last);
-        p.last = bc_dup (&result);
         bc_free (&result);
+        bc_free (&p.last);
         /* bc persists state across invocations... but bash builtins are
            re-entered fresh each time.  Variables persist across the lines of
            this one call (see the stdin loop below). */
@@ -2072,8 +2109,6 @@ bc_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
                 continue;
             }
-            bc_free (&p.last);
-            p.last = bc_dup (&result);
             bc_free (&result);
         }
         free (line);

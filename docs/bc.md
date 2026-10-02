@@ -47,7 +47,7 @@ variables.
 ## What is checked
 
 ```sh
-python3 tests/bc-parity.py out/bash        # 63 checks against GNU bc
+python3 tests/bc-parity.py out/bash        # 119 parity and regression checks
 bash tests/bc-sanitize.sh out/bash         # the same checks under ASan/UBSan
 python3 tests/large-smoke.py out/bash bc   # the arithmetic fixtures
 ```
@@ -61,7 +61,13 @@ thousand, a single expression longer than one read block, lines that end
 exactly on a block boundary and lines that straddle one, a final line with no
 newline, `scale`/`ibase`/variable isolation between invocations, `-l`,
 `read()`, expression arguments, syntax errors, divide by zero, an unreadable
-input, and the shell reading its own input before and after a call.
+input, the shell reading its own input before and after a call, signed and
+scaled remainder, decimal multiplication and division, negative powers,
+`last` within a line, square-root operand precision and tiny positive inputs,
+zero raised to negative powers, and variable-table growth after a failed `read()`.
+Arithmetic comparisons set `BC_LINE_LENGTH=0` to keep long GNU results unwrapped.
+Square roots use a decimal magnitude estimate and converging Newton steps, so
+their initial estimate does not underflow through a floating-point conversion.
 
 ## Measured performance
 

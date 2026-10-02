@@ -18,11 +18,17 @@ head -c 512 /dev/urandom > bin.dat; printf 'text\0with\0nuls\nand a long printab
 # cmp2 LABEL COMMAND — run under both userlands, compare stdout+stderr+status
 cmp2(){ local label=$1 cmd=$2 tool=${2%% *}
   if ! command -v "$tool" >/dev/null; then skip=$((skip+1)); return; fi
-  local a b ra rb
-  a=$(eval "$cmd" 2>&1); ra=$?
-  b=$("$BX" -c "PATH=; $cmd" 2>&1); rb=$?
-  if [[ "$a" == "$b" && "$ra" == "$rb" ]]; then ok "$label"
-  else no "$label (status $ra vs $rb)"; diff <(echo "$a") <(echo "$b") | head -4 | sed 's/^/      /'; fi
+  local ra rb
+  # Keep stdout/stderr separate and retain trailing newlines and NUL bytes.
+  # Command substitution silently discarded those differences.
+  eval "$cmd" > host.out 2> host.err; ra=$?
+  "$BX" -c "PATH=; $cmd" > builtin.out 2> builtin.err; rb=$?
+  if [[ "$ra" == "$rb" ]] && cmp -s host.out builtin.out && cmp -s host.err builtin.err; then ok "$label"
+  else
+    no "$label (status $ra vs $rb)"
+    diff -u host.out builtin.out | head -8 | sed 's/^/      /'
+    diff -u host.err builtin.err | head -8 | sed 's/^/      /'
+  fi
 }
 echo "== byte-compared with the host's tools =="
 cmp2 "expand"            "expand tabs.txt"

@@ -33,7 +33,18 @@
 
 #include "loadables.h"
 
-typedef struct { int fflag, iflag, nflag, Tflag; const char *target_dir; } bmv_opts;
+typedef struct bmv_link {
+    dev_t source_dev, destination_dev;
+    ino_t source_ino, destination_ino;
+    char *path;
+    struct bmv_link *next;
+} bmv_link;
+
+typedef struct {
+    int fflag, iflag, nflag, Tflag;
+    const char *target_dir;
+    bmv_link *links, *written;
+} bmv_opts;
 
 typedef struct {
     const char **v;
@@ -58,7 +69,41 @@ bmv_words_add (bmv_words *words, const char *word)
     return 0;
 }
 
-static int bmv_xdev_move (const char *src, const char *dst);
+static int bmv_xdev_move (const char *src, const char *dst, bmv_opts *o);
+
+static bmv_link *
+bmv_find_link (const bmv_opts *o, const struct stat *src)
+{
+    for (bmv_link *entry = o->links; entry; entry = entry->next) {
+        struct stat dst;
+        if (entry->source_dev == src->st_dev && entry->source_ino == src->st_ino &&
+            lstat (entry->path, &dst) == 0 &&
+            dst.st_dev == entry->destination_dev && dst.st_ino == entry->destination_ino)
+            return entry;
+    }
+    return NULL;
+}
+
+static int
+bmv_remember_link (bmv_link **head, const struct stat *src, const char *dst)
+{
+    struct stat st;
+    if (lstat (dst, &st) < 0) {
+        builtin_error ("stat %s: %s", dst, strerror (errno));
+        return -1;
+    }
+    bmv_link *entry = malloc (sizeof *entry);
+    if (!entry) { builtin_error ("out of memory"); return -1; }
+    entry->path = strdup (dst);
+    if (!entry->path) { free (entry); builtin_error ("out of memory"); return -1; }
+    entry->source_dev = src->st_dev;
+    entry->source_ino = src->st_ino;
+    entry->destination_dev = st.st_dev;
+    entry->destination_ino = st.st_ino;
+    entry->next = *head;
+    *head = entry;
+    return 0;
+}
 
 static int
 bmv_copy_data (int sfd, int dfd)
@@ -100,9 +145,13 @@ bmv_copy_regular (const char *src, const char *dst, const struct stat *sst)
         return -1;
     }
     /* Preserve mode + owner + times across xdev move. */
-    chmod (dst, sst->st_mode & 07777);
     if (chown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
         builtin_error ("chown %s: %s", dst, strerror (errno));
+    }
+    /* chown clears set-ID bits; restore the final mode afterwards. */
+    if (chmod (dst, sst->st_mode & 07777) < 0) {
+        builtin_error ("chmod %s: %s", dst, strerror (errno));
+        return -1;
     }
     struct timespec ts[2] = {
         { .tv_sec = sst->st_atim.tv_sec, .tv_nsec = sst->st_atim.tv_nsec },
@@ -128,27 +177,47 @@ bmv_copy_symlink (const char *src, const char *dst)
 }
 
 static int
-bmv_copy_dir (const char *src, const char *dst, const struct stat *sst)
+bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts *o)
 {
-    if (mkdir (dst, sst->st_mode & 0777) < 0 && errno != EEXIST) {
-        builtin_error ("mkdir %s: %s", dst, strerror (errno));
+    if (mkdir (dst, sst->st_mode & 0777) < 0) {
+        /* Match rename's directory replacement rules: only an empty
+           directory may be replaced. Never merge and delete source entries
+           into an existing tree after rename reports EXDEV. */
+        if (errno != EEXIST || rmdir (dst) < 0 ||
+            mkdir (dst, sst->st_mode & 0777) < 0) {
+            builtin_error ("cannot replace directory %s: %s", dst, strerror (errno));
+            return -1;
+        }
+    }
+    /* The caller's umask may have removed all owner access. Populate the
+       new directory before restoring the source's final permissions. */
+    if (chmod (dst, (sst->st_mode & 0777) | S_IRWXU) < 0) {
+        builtin_error ("chmod %s: %s", dst, strerror (errno));
         return -1;
     }
     DIR *d = opendir (src);
-    if (!d) { builtin_error ("opendir %s: %s", src, strerror (errno)); return -1; }
     int rc = 0;
+    if (!d) {
+        builtin_error ("opendir %s: %s", src, strerror (errno));
+        rc = -1;
+        goto restore_metadata;
+    }
     struct dirent *de;
     while ((de = readdir (d)) != NULL) {
         if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
         char sc[4096], dc[4096];
         snprintf (sc, sizeof sc, "%s/%s", src, de->d_name);
         snprintf (dc, sizeof dc, "%s/%s", dst, de->d_name);
-        if (bmv_xdev_move (sc, dc) < 0) rc = -1;
+        if (bmv_xdev_move (sc, dc, o) < 0) rc = -1;
     }
     closedir (d);
-    chmod (dst, sst->st_mode & 07777);
+restore_metadata:
     if (chown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
         builtin_error ("chown %s: %s", dst, strerror (errno));
+    }
+    if (chmod (dst, sst->st_mode & 07777) < 0) {
+        builtin_error ("chmod %s: %s", dst, strerror (errno));
+        rc = -1;
     }
     struct timespec ts[2] = {
         { .tv_sec = sst->st_atim.tv_sec, .tv_nsec = sst->st_atim.tv_nsec },
@@ -160,7 +229,7 @@ bmv_copy_dir (const char *src, const char *dst, const struct stat *sst)
 
 /* Recursive cross-device move: copy entry, then unlink source. */
 static int
-bmv_xdev_move (const char *src, const char *dst)
+bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
 {
     struct stat sst;
     if (lstat (src, &sst) < 0) {
@@ -168,14 +237,33 @@ bmv_xdev_move (const char *src, const char *dst)
         return -1;
     }
     int rc;
-    if (S_ISLNK (sst.st_mode))      rc = bmv_copy_symlink (src, dst);
-    else if (S_ISDIR (sst.st_mode)) rc = bmv_copy_dir (src, dst, &sst);
+    /* Earlier source names have already been unlinked, so even nlink == 1
+       can be the last member of a group remembered by this invocation. */
+    bmv_link *entry = S_ISDIR (sst.st_mode) ? NULL : bmv_find_link (o, &sst);
+    if (entry) {
+        struct stat ds;
+        if (lstat (dst, &ds) == 0 &&
+            ds.st_dev == entry->destination_dev && ds.st_ino == entry->destination_ino)
+            rc = 0;
+        else {
+            if (unlink (dst) < 0 && errno != ENOENT) {
+                builtin_error ("unlink %s: %s", dst, strerror (errno));
+                return -1;
+            }
+            rc = linkat (AT_FDCWD, entry->path, AT_FDCWD, dst, 0);
+            if (rc < 0) builtin_error ("link %s -> %s: %s", entry->path, dst, strerror (errno));
+        }
+    }
+    else if (S_ISLNK (sst.st_mode)) rc = bmv_copy_symlink (src, dst);
+    else if (S_ISDIR (sst.st_mode)) rc = bmv_copy_dir (src, dst, &sst, o);
     else if (S_ISREG (sst.st_mode)) rc = bmv_copy_regular (src, dst, &sst);
     else {
         builtin_error ("%s: unsupported file type", src);
         return -1;
     }
     if (rc < 0) return -1;
+    if (!entry && !S_ISDIR (sst.st_mode) && sst.st_nlink > 1 &&
+        bmv_remember_link (&o->links, &sst, dst) < 0) return -1;
     /* Remove source. */
     if (S_ISDIR (sst.st_mode)) {
         if (rmdir (src) < 0) {
@@ -192,19 +280,28 @@ bmv_xdev_move (const char *src, const char *dst)
 }
 
 static int
-bmv_one (const char *src, const char *dst, const bmv_opts *o)
+bmv_one (const char *src, const char *dst, bmv_opts *o)
 {
     /* Existence check on dst with -i / -n / -f. */
     struct stat dst_st;
     int dst_exists = (lstat (dst, &dst_st) == 0);
     if (dst_exists) {
-        if (o->nflag) return 0;  /* skip silently */
+        if (o->nflag) return 1;  /* skipped, not a new destination */
         if (o->iflag && !o->fflag) {
             fprintf (stderr, "bashmv: overwrite '%s'? ", dst);
             fflush (stderr);
-            int c = getchar ();
-            if (c != 'y' && c != 'Y') return 0;
+            int c = getchar (), answer = c;
             while (c != EOF && c != '\n') c = getchar ();
+            if (answer != 'y' && answer != 'Y') return 1;
+        }
+        for (bmv_link *entry = o->written; entry; entry = entry->next) {
+            /* GNU mv permits replacing a just-moved empty directory. */
+            if (!S_ISDIR (dst_st.st_mode) && !strcmp (entry->path, dst) &&
+                dst_st.st_dev == entry->destination_dev &&
+                dst_st.st_ino == entry->destination_ino) {
+                builtin_error ("will not overwrite just-moved '%s' with '%s'", dst, src);
+                return -1;
+            }
         }
     }
     {
@@ -222,7 +319,7 @@ bmv_one (const char *src, const char *dst, const bmv_opts *o)
         return -1;
     }
     /* Cross-device — copy + unlink. */
-    return bmv_xdev_move (src, dst);
+    return bmv_xdev_move (src, dst, o);
 }
 
 int
@@ -359,9 +456,35 @@ mv_builtin (WORD_LIST *list)
         } else {
             dst = dest;
         }
-        if (bmv_one (src, dst, &o) < 0) rc = EXECUTION_FAILURE;
+        int moved = bmv_one (src, dst, &o);
+        if (moved < 0) rc = EXECUTION_FAILURE;
+        else if (moved == 0) {
+            struct stat st;
+            if (lstat (dst, &st) < 0) {
+                builtin_error ("stat %s: %s", dst, strerror (errno));
+                rc = EXECUTION_FAILURE;
+                break;
+            }
+            if (bmv_remember_link (&o.written, &st, dst) < 0) {
+                /* Stop rather than continue without collision protection. */
+                rc = EXECUTION_FAILURE;
+                break;
+            }
+        }
     }
     free (positional.v);
+    while (o.links) {
+        bmv_link *next = o.links->next;
+        free (o.links->path);
+        free (o.links);
+        o.links = next;
+    }
+    while (o.written) {
+        bmv_link *next = o.written->next;
+        free (o.written->path);
+        free (o.written);
+        o.written = next;
+    }
     return rc;
 }
 

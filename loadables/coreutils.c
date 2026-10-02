@@ -1450,9 +1450,8 @@ bcu_groups_cmd (WORD_LIST *list)
  *   install -d [-m MODE] DIR...         mkdir -p style
  *   install -D [-m MODE] SRC DST        make parent dirs of DST first
  *
- * Owner/group flags (-o/-g) parse but only attempt the chown when
- * geteuid() == 0; non-root silently keeps the running uid/gid (this
- * matches GNU install behavior on non-root invocations).
+ * Owner/group flags (-o/-g) accept names or numeric IDs. Validate them
+ * before modifying destinations, and report any ownership-change failure.
  * =================================================================== */
 
 /* Whether two paths name one directory entry: the same last component in
@@ -1527,14 +1526,16 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
   struct stat src_st, dst_st;
   if (fstat (rfd, &src_st) < 0)
     { int e = errno; close (rfd); builtin_error ("install: stat %s: %s", src, strerror (e)); return EXECUTION_FAILURE; }
+  if (S_ISDIR (src_st.st_mode))
+    { close (rfd); builtin_error ("install: %s is a directory", src); return EXECUTION_FAILURE; }
   if (bcu_install_same_file (src, dst, &src_st) < 0)
     { close (rfd); return EXECUTION_FAILURE; }
-  /* Truncate before copying, so an interrupted copy leaves a short file and
-     never new data followed by the old tail. Open without O_TRUNC and check
-     the descriptor first, because the path may have become a link to the
-     source since it was examined. Streams and special files are not
-     truncated. The inode, and any other links to the destination, are kept. */
-  int wfd = open (dst, O_WRONLY | O_CREAT, 0600);
+  /* GNU install replaces the directory entry. Other hard links keep their
+     contents, and a destination symlink is replaced rather than followed.
+     Open the source and reject same-file operands before removing anything. */
+  if (unlink (dst) < 0 && errno != ENOENT)
+    { int e = errno; close (rfd); builtin_error ("install: cannot remove %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
+  int wfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, 0600);
   if (wfd < 0)
     { int e = errno; close (rfd); builtin_error ("install: %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
   if (fstat (wfd, &dst_st) < 0)
@@ -1545,9 +1546,7 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
       builtin_error ("install: '%s' and '%s' are the same file", src, dst);
       return EXECUTION_FAILURE;
     }
-  if (S_ISREG (dst_st.st_mode) && ftruncate (wfd, 0) < 0)
-    { int e = errno; close (rfd); close (wfd); builtin_error ("install: truncate %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-  int write_error = 0;
+  int write_error = 0, read_error = 0;
 #if defined (__linux__) && defined (SYS_copy_file_range)
   /* Unsupported filesystems (or a short kernel copy) continue through
      read/write at the descriptors' current offsets. */
@@ -1562,37 +1561,62 @@ bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, 
      Short reads still emit at once. */
   char buf[128 * 1024];
   ssize_t n;
-  while ((n = read (rfd, buf, sizeof buf)) > 0)
+  while (1)
     {
+      n = read (rfd, buf, sizeof buf);
+      if (n < 0 && errno == EINTR) continue;
+      if (n <= 0) { if (n < 0) read_error = errno; break; }
       ssize_t off = 0;
       while (off < n)
         {
           ssize_t w = write (wfd, buf + off, (size_t) (n - off));
+          if (w < 0 && errno == EINTR) continue;
           if (w <= 0) { write_error = w < 0 ? errno : EIO; goto copy_done; }
           off += w;
         }
     }
 copy_done:
   close (rfd);
+  if (read_error)
+    {
+      close (wfd);
+      builtin_error ("install: read %s: %s", src, strerror (read_error));
+      return EXECUTION_FAILURE;
+    }
   if (write_error)
     {
       close (wfd);
       builtin_error ("install: write: %s", strerror (write_error));
       return EXECUTION_FAILURE;
     }
-  if (fchmod (wfd, mode) < 0)
-    { close (wfd); builtin_error ("install: chmod %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
-  if (geteuid () == 0 && (uid != (uid_t) -1 || gid != (gid_t) -1))
+  if (uid != (uid_t) -1 || gid != (gid_t) -1)
     {
       if (fchown (wfd, uid, gid) < 0)
         { close (wfd); builtin_error ("install: chown %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
     }
+  /* Ownership changes may clear set-ID bits. Apply the requested mode last. */
+  if (fchmod (wfd, mode) < 0)
+    { close (wfd); builtin_error ("install: chmod %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
   close (wfd);
   return EXECUTION_SUCCESS;
 }
 
 static int
-bcu_install_mkdir_p (const char *path, mode_t mode)
+bcu_install_mkdir_unmasked (const char *path, mode_t mode)
+{
+  /* mkdir itself preserves inherited setgid/default directory metadata.
+     Creating with the final permissions avoids a chmod that clears setgid. */
+  mode_t mask = umask (0);
+  int rc = mkdir (path, mode);
+  int error = errno;
+  umask (mask);
+  errno = error;
+  return rc;
+}
+
+static int
+bcu_install_mkdir_p (const char *path, mode_t mode, uid_t uid, gid_t gid,
+                     int adjust_existing)
 {
   char *tmp = bcu_strdup (path);
   if (!tmp) return EXECUTION_FAILURE;
@@ -1600,17 +1624,80 @@ bcu_install_mkdir_p (const char *path, mode_t mode)
     if (*p == '/')
       {
         *p = '\0';
-        if (mkdir (tmp, 0755) < 0 && errno != EEXIST)
+        if (bcu_install_mkdir_unmasked (tmp, 0755) < 0 && errno != EEXIST)
           { builtin_error ("install: mkdir %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
         *p = '/';
       }
-  if (mkdir (tmp, mode) < 0 && errno != EEXIST)
-    { builtin_error ("install: mkdir %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
+  int made = adjust_existing ? mkdir (tmp, mode) : bcu_install_mkdir_unmasked (tmp, mode);
+  if (made < 0)
+    {
+      if (errno != EEXIST)
+        { builtin_error ("install: mkdir %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
+      struct stat st;
+      if (stat (tmp, &st) < 0 || !S_ISDIR (st.st_mode))
+        { builtin_error ("install: %s is not a directory", tmp); free (tmp); return EXECUTION_FAILURE; }
+    }
+  /* -D only creates missing parents; -d explicitly sets their mode. */
+  if (!adjust_existing) { free (tmp); return EXECUTION_SUCCESS; }
+  if ((uid != (uid_t) -1 || gid != (gid_t) -1) && chown (tmp, uid, gid) < 0)
+    { builtin_error ("install: chown %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
   /* Make sure the final component honors mode even if it already existed. */
   if (chmod (tmp, mode) < 0)
     { builtin_error ("install: chmod %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
   free (tmp);
   return EXECUTION_SUCCESS;
+}
+
+static int
+bcu_install_id (const char *name, int group, uintmax_t *id)
+{
+#if defined (BASHOS_STATIC) && defined (__GLIBC__)
+  /* Static glibc cannot safely load arbitrary host NSS modules. Restrict
+     named install identities to the local account files in this build. */
+  FILE *accounts = fopen (group ? "/etc/group" : "/etc/passwd", "r");
+  if (accounts)
+    {
+      int found = 0;
+      if (group)
+        {
+          struct group *gr;
+          while ((gr = fgetgrent (accounts)) != NULL)
+            if (!strcmp (gr->gr_name, name)) { *id = gr->gr_gid; found = 1; break; }
+        }
+      else
+        {
+          struct passwd *pw;
+          while ((pw = fgetpwent (accounts)) != NULL)
+            if (!strcmp (pw->pw_name, name)) { *id = pw->pw_uid; found = 1; break; }
+        }
+      fclose (accounts);
+      if (found) return 0;
+    }
+#else
+  if (group)
+    {
+      struct group *gr = getgrnam (name);
+      if (gr) { *id = gr->gr_gid; return 0; }
+    }
+  else
+    {
+      struct passwd *pw = getpwnam (name);
+      if (pw) { *id = pw->pw_uid; return 0; }
+    }
+#endif
+  const char *number = name;
+  while (isspace ((unsigned char) *number)) number++;
+  char *end;
+  errno = 0;
+  uintmax_t value = strtoumax (number, &end, 10);
+  if (*number == '-' || end == number || *end || errno == ERANGE ||
+      (group ? (uintmax_t) (gid_t) value : (uintmax_t) (uid_t) value) != value)
+    {
+      builtin_error ("install: invalid %s '%s'", group ? "group" : "user", name);
+      return -1;
+    }
+  *id = value;
+  return 0;
 }
 
 static int
@@ -1638,10 +1725,16 @@ bcu_install_cmd (WORD_LIST *list)
         }
       if (strcmp (a, "-d") == 0) { dir_only = 1; continue; }
       if (strcmp (a, "-D") == 0) { parents = 1; continue; }
-      if (strcmp (a, "-o") == 0 && w->next)
-        { w = w->next; struct passwd *pw = getpwnam (w->word->word); if (pw) uid = pw->pw_uid; continue; }
-      if (strcmp (a, "-g") == 0 && w->next)
-        { w = w->next; struct group *gr = getgrnam (w->word->word); if (gr) gid = gr->gr_gid; continue; }
+      if ((strcmp (a, "-o") == 0 || strcmp (a, "-g") == 0) && w->next)
+        {
+          int group = a[1] == 'g';
+          uintmax_t id;
+          w = w->next;
+          if (bcu_install_id (w->word->word, group, &id) < 0) return EXECUTION_FAILURE;
+          if (group) gid = (gid_t) id;
+          else uid = (uid_t) id;
+          continue;
+        }
       if (a[0] == '-' && a[1] != '\0') { builtin_error ("install: unknown flag: %s", a); bcu_usage ("install"); return EX_USAGE; }
       WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
       nw->word = w->word;
@@ -1654,7 +1747,7 @@ bcu_install_cmd (WORD_LIST *list)
     {
       if (!pos) { builtin_error ("install: -d requires DIR..."); bcu_usage ("install"); return EX_USAGE; }
       for (WORD_LIST *w = pos; w; w = w->next)
-        if (bcu_install_mkdir_p (w->word->word, mode) != EXECUTION_SUCCESS)
+        if (bcu_install_mkdir_p (w->word->word, mode, uid, gid, 1) != EXECUTION_SUCCESS)
           rc = EXECUTION_FAILURE;
       goto cleanup;
     }
@@ -1675,7 +1768,11 @@ bcu_install_cmd (WORD_LIST *list)
       char *tmp = bcu_strdup (dst);
       char *slash = strrchr (tmp, '/');
       if (slash && slash != tmp)
-        { *slash = '\0'; bcu_install_mkdir_p (tmp, 0755); }
+        {
+          *slash = '\0';
+          if (bcu_install_mkdir_p (tmp, 0755, (uid_t) -1, (gid_t) -1, 0) != EXECUTION_SUCCESS)
+            { free (tmp); return EXECUTION_FAILURE; }
+        }
       free (tmp);
     }
 

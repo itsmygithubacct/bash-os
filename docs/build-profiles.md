@@ -112,6 +112,11 @@ regex, database or TLS development libraries. Other selections may use PCRE2,
 zlib, liblzma, libzstd and bzip2. The build resolves only the libraries needed by
 the selected commands. Static builds require static archives.
 
+For static glibc builds, `coreutils install -o/-g` resolves account names from
+`/etc/passwd` and `/etc/group`, and also accepts numeric IDs. It does not load
+host NSS plugins for these lookups; a missing name produces an error. Dynamic
+builds retain the host's NSS lookup behavior.
+
 `build-deps.sh` builds pinned static archives for all five external libraries.
 It additionally needs CMake and Python 3.12+. URLs and SHA-256 checksums are in
 [`config/dependencies.json`](../config/dependencies.json). It installs headers,

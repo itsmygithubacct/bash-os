@@ -71,7 +71,7 @@ LOAD_CHECK = ('PATH=; enable -f "$1" "$2" || exit 1; '
               '[[ $(type -t "$2") == builtin ]] || exit 1; help -s "$2" > /dev/null')
 # build.sh's fixups for bash's own example loadables, applied only when this
 # repository has no source of the same name.
-PATCHES = {'head': 'head-stdin.patch', 'tee': 'tee-io.patch'}
+PATCHES = json.loads((ROOT/'config/stock-patches.json').read_text())
 REWRITES = {
     'fltexpr': [(r'^static sh_float_t nanval, infval;$',
                  'static sh_float_t nanval = NAN, infval = INFINITY;')],

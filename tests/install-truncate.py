@@ -7,7 +7,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import threading
 
 
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
@@ -42,32 +41,40 @@ def check_directory(root):
         src.write_bytes(data)
         dst.write_bytes(old)
         dst.chmod(0o640)
-        before = dst.stat()
-        run(src, dst)
-        after = dst.stat()
+        with dst.open('rb') as previous:
+            before = os.fstat(previous.fileno())
+            run(src, dst)
+            after = dst.stat()
+            assert after.st_ino != before.st_ino
+            assert previous.read() == old
         assert dst.read_bytes() == data
-        assert (after.st_dev, after.st_ino, after.st_uid, after.st_gid) == (
-            before.st_dev, before.st_ino, before.st_uid, before.st_gid)
+        assert (after.st_dev, after.st_uid, after.st_gid) == (
+            before.st_dev, before.st_uid, before.st_gid)
         assert stat.S_IMODE(after.st_mode) == 0o751
 
-    # Both kinds of destination alias continue to refer to the same inode.
+    # Installing over either kind of alias replaces only that directory entry.
     linked, symbolic = root / 'hardlink', root / 'symlink'
-    os.link(dst, linked)
-    symbolic.symlink_to(dst)
-    for target in [linked, symbolic]:
+    def reset_aliases():
+        linked.unlink(missing_ok=True)
+        symbolic.unlink(missing_ok=True)
         dst.write_bytes(old)
+        os.link(dst, linked)
+        symbolic.symlink_to(dst)
+
+    for target in [linked, symbolic]:
+        reset_aliases()
         src.write_bytes(b'short replacement\0\xff\n')
-        before = dst.stat()
         run(src, target)
-        assert symbolic.is_symlink()
-        assert dst.stat().st_ino == linked.stat().st_ino == before.st_ino
-        assert dst.read_bytes() == linked.read_bytes() == src.read_bytes()
+        assert not target.is_symlink()
+        assert not os.path.samefile(dst, target)
+        assert dst.read_bytes() == old
+        assert target.read_bytes() == src.read_bytes()
 
     # Operands that are one file follow GNU install. The same directory entry,
     # however it is spelled, and a source that is a symbolic link to the
     # destination are refused, and the data survives.
     for source, target in [(dst, dst), (dst, f'{root}/./destination'), (symbolic, dst)]:
-        dst.write_bytes(old)
+        reset_aliases()
         dst.chmod(0o640)
         p = run(source, target, expected_status=1)
         assert b'are the same file' in p.stderr, p.stderr
@@ -77,7 +84,7 @@ def check_directory(root):
     # A destination that is another hard link or a symbolic link to the source
     # is removed and a fresh file takes its name; the source is untouched.
     for alias in [linked, symbolic]:
-        dst.write_bytes(old)
+        reset_aliases()
         dst.chmod(0o640)
         run(dst, alias)
         assert not alias.is_symlink() and alias.stat().st_ino != dst.stat().st_ino
@@ -92,24 +99,12 @@ def check_directory(root):
         assert dst.read_bytes() == data
         assert stat.S_IMODE(dst.stat().st_mode) == 0o751
 
-    # A FIFO destination keeps stream copying and is never length-truncated.
+    # GNU install replaces a FIFO destination with an ordinary file too.
     fifo = root / 'fifo'
     os.mkfifo(fifo)
-    received, errors = [], []
-
-    def receive():
-        try:
-            with fifo.open('rb') as stream:
-                received.append(stream.read())
-        except BaseException as error:
-            errors.append(error)
-
-    reader = threading.Thread(target=receive, daemon=True)
-    reader.start()
     run(src, fifo)
-    reader.join(timeout=2)
-    assert not reader.is_alive() and not errors
-    assert received == [src.read_bytes()] and stat.S_ISFIFO(fifo.stat().st_mode)
+    assert stat.S_ISREG(fifo.stat().st_mode)
+    assert fifo.read_bytes() == src.read_bytes()
 
     # A normal file-size limit makes the copy fail after a successful prefix.
     # The old tail must disappear, and failure must precede chmod/chown.
@@ -119,14 +114,10 @@ def check_directory(root):
         if existing:
             dst.write_bytes(old)
             dst.chmod(0o640)
-            before = dst.stat()
         p = run(src, dst, limit=1024, expected_status=1)
         assert b'install: write:' in p.stderr, p.stderr
         assert dst.read_bytes() == src.read_bytes()[:1024]
-        expected_mode = 0o640 if existing else 0o600
-        assert stat.S_IMODE(dst.stat().st_mode) == expected_mode
-        if existing:
-            assert dst.stat().st_ino == before.st_ino
+        assert stat.S_IMODE(dst.stat().st_mode) == 0o600
 
 # Kernel copying and truncation behave differently across filesystems, and the
 # default temporary directory is often tmpfs. Repeat the checks beside the

@@ -35,7 +35,8 @@ arch = platform.machine()
 # fixups, one registered only through build.sh's builtin table, one that
 # needs libm, one that hung when its regexec lacked a symbol version, and a
 # pair that require each other.
-NAMES = ['seq', 'grep', 'col', 'cksum', 'crypto', 'head', 'mkdir', 'wc', 'awk', 'sudo', 'doas']
+NAMES = ['seq', 'grep', 'col', 'cksum', 'crypto', 'head', 'mkdir', 'wc', 'awk', 'sudo', 'doas',
+         'chmod', 'mktemp']
 CASES = {
     'seq': 'seq -s, 5',
     'grep': "printf 'ab\\nzz\\n' | grep -n '[a-z]$'",
@@ -46,6 +47,12 @@ CASES = {
     'crypto': 'printf abc | crypto sha256',
     'head': "printf '1\\n2\\n3\\n' | head -n 2",
     'mkdir': 'mkdir -p "$1/a/b" && [[ -d $1/a/b ]] && echo made',
+    'mktemp': ('file=$(mktemp -u "$1/missing/file.XXXXXX") && '
+               '[[ $file == "$1/missing/file."?????? && ! -e $1/missing ]] && '
+               'dir=$(mktemp -d -u "$1/missing/dir.XXXXXX") && '
+               '[[ $dir == "$1/missing/dir."?????? && ! -e $1/missing ]] && echo generated'),
+    'chmod': ('umask 077; : > "$1/file"; chmod +x "$1/file" && '
+              '[[ $(/usr/bin/stat -c %a "$1/file") == 700 ]] && echo masked'),
 }
 checks = 0
 

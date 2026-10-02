@@ -29,16 +29,23 @@ with tempfile.TemporaryDirectory(prefix='coreutils-fastpaths-') as tmp:
         src.write_bytes(data)
         for mode in [0o600,0o644,0o755]:
             dst.write_bytes(b'existing destination content')
-            inode=dst.stat().st_ino
-            run(['-m',format(mode,'o'),src,dst])
+            with dst.open('rb') as previous:
+                inode=os.fstat(previous.fileno()).st_ino
+                run(['-m',format(mode,'o'),src,dst])
+                assert dst.stat().st_ino!=inode
+                assert previous.read()==b'existing destination content'
             assert dst.read_bytes()==data
             assert stat.S_IMODE(dst.stat().st_mode)==mode
-            assert dst.stat().st_ino==inode
     src.write_bytes(b'new data\x00\xff\n')
     link=d/'hardlink';os.link(dst,link)
-    run(['-m','600',src,dst]);assert link.read_bytes()==src.read_bytes()
+    old=link.read_bytes()
+    run(['-m','600',src,dst]);assert link.read_bytes()==old
+    assert not os.path.samefile(link,dst)
     symbolic=d/'symlink';symbolic.symlink_to(dst)
-    run(['-m','644',src,symbolic]);assert symbolic.is_symlink() and dst.read_bytes()==src.read_bytes()
+    src.write_bytes(b'new symlink replacement\n')
+    old=dst.read_bytes()
+    run(['-m','644',src,symbolic]);assert not symbolic.is_symlink()
+    assert symbolic.read_bytes()==src.read_bytes() and dst.read_bytes()==old
     run(['-D','-m','755',src,d/'nested/sub/output']);assert (d/'nested/sub/output').read_bytes()==src.read_bytes()
     run(['-d','-m','700',d/'new/deep']);assert stat.S_IMODE((d/'new/deep').stat().st_mode)==0o700
     run(['-m','644',d/'absent',dst],rc=1)

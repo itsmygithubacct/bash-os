@@ -14,8 +14,9 @@ import tempfile
 
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
 external = '/usr/bin/bc'
-environment = dict(os.environ, LC_ALL='C', TZ='UTC', PATH='')
-host_environment = dict(os.environ, LC_ALL='C', TZ='UTC')
+# Compare long arithmetic results without GNU's presentation-only line wraps.
+environment = dict(os.environ, LC_ALL='C', TZ='UTC', PATH='', BC_LINE_LENGTH='0')
+host_environment = dict(os.environ, LC_ALL='C', TZ='UTC', BC_LINE_LENGTH='0')
 # bc-sanitize.sh replaces the compiled-in builtin with an instrumented module.
 prefix = 'if [[ -n ${BC_MODULE:-} ]]; then enable -f "$BC_MODULE" bc; fi\nPATH=\n'
 checks = 0
@@ -73,6 +74,23 @@ PROGRAMS = [
     b'ibase=16\nFF+1\n',
     b'\n\n1+1\n\n\n2+2\n\n',                      # blank lines between statements
     b'x=0\nx=x+7\nx\nx*x\n',
+    b'1.2*1.2\n2.00*2.00\n',                    # operand precision at scale 0
+    b'scale=2; 2^-3\nscale=2; 1.2^-2\n',       # reciprocal powers
+    b'-5%3\n5%-3\n-5%-3\n',                  # remainder sign
+    b'scale=2; 5%3\n5.0%3.0\n',               # scaled remainder
+    b'scale=1; -.25%-1.2\nscale=3; 5.0%-1.2\n',  # divisor precision in modulo
+    b'scale=2; 2/-.25\n1.2/.25\n',             # fractional divisors
+    b'2.00+2.00\n5.0-2\n',                    # addition keeps operand scale
+    b'1;last\nprint 2;last\n',                 # last changes within a line
+    b'2^2.0\n1.20^2.00\n2^2.9\n2^.5\n',     # exponents use their integer part
+    b'scale=2.0; 1/3\nscale=2.9; 1/3\n',
+    b'scale=3; 2^-2.0\nibase=2.0; 10\n',      # negative powers and decimal ibase
+    b'scale=0; sqrt(.0009)\nscale=2; sqrt(2.0000)\nsqrt(1.4400)\n',
+    b'scale=2; sqrt(0.0000)\nsqrt(1.0000)\nsqrt(4.0000)\n',
+    b'scale=6; sqrt(.0009)\n0^0\n0^2\n0^.5\n',
+    b'sqrt(.00000000000000000000000000000001)\n',
+    b'scale=40; sqrt(.00000000000000000000000000000002)\n',
+    b'scale=80; sqrt(2)\nsqrt(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)\n',
 ]
 
 with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
@@ -142,6 +160,12 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     p = bashos('bc -l < "$1"; bc < "$1"', d/'plain')
     assert p.stdout == b'.33333333333333333333\n0\n', (p.stdout, p.stderr)
     checks += 1
+    # A scale below one truncates to zero. Check directly because the host's
+    # GNU bc cannot reliably evaluate this scale assignment.
+    p = bashos('bc <<< "scale=.5; 1/3"')
+    assert (p.returncode, p.stdout, p.stderr) == (0, b'0\n', b''), (
+        p.returncode, p.stdout, p.stderr)
+    checks += 1
 
     # 7. Diagnostics, and the invocation after a failure.
     (d/'broken').write_bytes(b'1+\n2+2\n')
@@ -149,6 +173,14 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
                d/'broken', d/'first')
     assert p.stdout == b'4\nrc=1\n2\nrc=0\n4\nrc=1\n', (p.stdout, p.stderr)
     assert p.stderr.count(b'syntax error') == 2, p.stderr
+    checks += 1
+    # A failed read() assignment can grow the shared variable table.  The
+    # owning parser must still hold the new allocation when it cleans up.
+    (d/'read-growth').write_bytes(
+        b'a=1;b=1;c=1;d=1;e=1;f=1;g=1;h=1\nread()\ni=1@\n')
+    p = bashos('bc < "$1"; echo "rc=$?"; bc < "$2"', d/'read-growth', d/'first')
+    assert (p.returncode, p.stdout) == (0, b'rc=1\n2\n'), (p.returncode, p.stdout, p.stderr)
+    assert b'syntax error' in p.stderr, p.stderr
     checks += 1
     # A message names the offending text and goes to standard error only.
     p = bashos('bc <<< "@" 2>/dev/null; echo "rc=$?"')
@@ -163,6 +195,13 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     assert p.stdout == b'rc=1\n.25\n', (p.stdout, p.stderr)
     assert b'divide by zero' in p.stderr, p.stderr
     checks += 1
+    for exponent in ('-1', '-2', '-.5'):
+        program = f'0^{exponent}\n'.encode()
+        reference, errors, _ = gnu(program)
+        assert reference == b'' and b'divide by zero' in errors, (reference, errors)
+        p = bashos('bc; echo "rc=$?"; bc <<< "2+2"', data=program)
+        assert p.stdout == b'rc=1\n4\n' and b'divide by zero' in p.stderr, (p.stdout, p.stderr)
+        checks += 1
 
     # 8. bc reads its input to the end, so a second call on the same open
     #    descriptor sees none of it — what separate bc processes also do.

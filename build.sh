@@ -123,6 +123,7 @@ STRIPTOOL=strip; [[ "$CC" == *-gcc ]] && STRIPTOOL="${CC%-gcc}-strip"
 CFLAGS="${CFLAGS:--O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2}"
 LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now ${LDFLAGS_EXTRA:-}"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
 CPPFLAGS="${CPPFLAGS:-}"
+[[ $STATIC == 0 ]] || CPPFLAGS="$CPPFLAGS -DBASHOS_STATIC=1"
 if [[ -n $DEPS_PREFIX ]]; then
   [[ $DEPS_PREFIX != *[[:space:]]* ]] || die "--deps-prefix cannot contain whitespace"
   [[ -d $DEPS_PREFIX/include && -d $DEPS_PREFIX/lib ]] || die "dependency prefix needs include/ and lib/"
@@ -167,9 +168,14 @@ CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_
 mkdir -p "$OUTDIR" "$DL" build
 exec {BUILD_LOCK}> "$HERE/build/.lock"
 flock "$BUILD_LOCK"
+PATCHES_TEXT=$(python3 -c 'import json; print("\n".join(name + " " + patch for name, patch in json.load(open("config/stock-patches.json")).items()))')
+declare -A STOCK_PATCHES=()
+while read -r stock_name stock_patch; do
+  STOCK_PATCHES["$stock_name"]=$stock_patch
+done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/publish-binary.py build.sh patches/head-stdin.patch patches/tee-io.patch patches/chmod-umask.patch;
+           cat config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
@@ -239,13 +245,10 @@ for n in "${NAMES[@]}"; do
       -e "s|^static \\(char \\*${n}_doc\\)|\\1|" \
       "$src" > "builtins/$n.c"
   is_stock "$n" || continue
+  if [[ -n ${STOCK_PATCHES[$n]:-} ]]; then
+    patch --batch -s "builtins/$n.c" < "$HERE/patches/${STOCK_PATCHES[$n]}" >>"$LOG" 2>&1 || die "$n fixup did not apply (see $LOG)"
+  fi
   case "$n" in
-    head)
-      patch --batch -s builtins/head.c < "$HERE/patches/head-stdin.patch" >>"$LOG" 2>&1 || die "head fixup did not apply (see $LOG)" ;;
-    tee)
-      patch --batch -s builtins/tee.c < "$HERE/patches/tee-io.patch" >>"$LOG" 2>&1 || die "tee fixup did not apply (see $LOG)" ;;
-    chmod)
-      patch --batch -s builtins/chmod.c < "$HERE/patches/chmod-umask.patch" >>"$LOG" 2>&1 || die "chmod fixup did not apply (see $LOG)" ;;
     fltexpr)
       sed -i 's|^static sh_float_t nanval, infval;$|static sh_float_t nanval = NAN, infval = INFINITY;|' builtins/fltexpr.c
       grep -q 'nanval = NAN' builtins/fltexpr.c || die "fltexpr fixup did not match" ;;

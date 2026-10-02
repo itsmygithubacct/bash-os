@@ -33,6 +33,54 @@ class BuiltinTest(unittest.TestCase):
 
 
 class CopyTests(BuiltinTest):
+    def test_readonly_directories_are_populated_before_final_permissions(self):
+        source = self.root / "source"
+        source.mkdir()
+        nested = source / "nested"
+        nested.mkdir()
+        (nested / "file").write_text("copied contents\n")
+        nested.chmod(0o500)
+        source.chmod(0o555)
+        for option in ("-R", "-Rp", "-a"):
+            for mask in (0o022, 0o077, 0o777):
+                with self.subTest(option=option, mask=oct(mask)):
+                    target = self.root / f"copy-{option}-{mask:o}"
+                    result = self.shell('umask "$1"; cp "$2" source "$3"',
+                                        f"{mask:03o}", option, str(target))
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    expected = 0o555 & ~mask if option == "-R" else 0o555
+                    self.assertEqual(target.stat().st_mode & 0o777, expected)
+                    # Restore access for inspection and temporary-file cleanup.
+                    target.chmod(0o700)
+                    child = target / "nested"
+                    expected = 0o500 & ~mask if option == "-R" else 0o500
+                    self.assertEqual(child.stat().st_mode & 0o777, expected)
+                    child.chmod(0o700)
+                    (child / "file").chmod(0o600)
+                    self.assertEqual((child / "file").read_text(), "copied contents\n")
+
+    def test_failed_recursive_copy_restores_directory_permissions(self):
+        source = self.root / "source"
+        source.mkdir()
+        os.mkfifo(source / "fifo")  # Unsupported by this cp implementation.
+        source.chmod(0o555)
+        result = self.shell('umask 022; cp -R source target')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.root / "target").stat().st_mode & 0o777, 0o555)
+
+    def test_recursive_copy_keeps_existing_directory_permissions(self):
+        source = self.root / "source"
+        source.mkdir()
+        (source / "file").write_text("contents\n")
+        source.chmod(0o555)
+        target = self.root / "target" / "source"
+        target.mkdir(parents=True)
+        target.chmod(0o700)
+        result = self.shell('cp -R source target')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+        self.assertEqual((target / "file").read_text(), "contents\n")
+
     def test_same_file_aliases_preserve_source(self):
         source = self.root / "source"
         source.write_text("keep this data\n")
@@ -68,6 +116,59 @@ class CopyTests(BuiltinTest):
         self.assertEqual(source.read_text(), "keep this data\n")
         self.assertEqual(alias.read_text(), source.read_text())
         self.assertFalse(alias.is_symlink())
+
+
+class CrossDeviceMoveTests(BuiltinTest):
+    def setUp(self):
+        super().setUp()
+        for candidate in ("/dev/shm", "/tmp"):
+            try:
+                directory = tempfile.TemporaryDirectory(prefix="bash-os-move-", dir=candidate)
+            except OSError:
+                continue
+            target = Path(directory.name)
+            if target.stat().st_dev != self.root.stat().st_dev:
+                self.addCleanup(directory.cleanup)
+                self.destination = target
+                break
+            directory.cleanup()
+        else:
+            self.skipTest("no writable second filesystem for cross-device moves")
+
+    def test_nonempty_destination_is_rejected_without_changing_either_tree(self):
+        source = self.root / "source"
+        source.mkdir()
+        (source / "same").write_text("source\n")
+        (source / "new").write_text("new\n")
+        target = self.destination / "source"
+        target.mkdir()
+        (target / "same").write_text("destination\n")
+        (target / "keep").write_text("keep\n")
+        for option in ("--", "-f"):
+            with self.subTest(option=option):
+                result = self.shell('mv "$1" source "$2"', option, str(self.destination))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(sorted(p.name for p in source.iterdir()), ["new", "same"])
+                self.assertEqual(sorted(p.name for p in target.iterdir()), ["keep", "same"])
+                self.assertEqual((source / "same").read_text(), "source\n")
+                self.assertEqual((source / "new").read_text(), "new\n")
+                self.assertEqual((target / "same").read_text(), "destination\n")
+                self.assertEqual((target / "keep").read_text(), "keep\n")
+
+    def test_directory_moves_to_missing_or_empty_destination(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                source = self.root / f"source-{existing}"
+                source.mkdir()
+                (source / "nested").mkdir()
+                (source / "nested" / "file").write_text("contents\n")
+                target = self.destination / source.name
+                if existing:
+                    target.mkdir()
+                result = self.shell('mv "$1" "$2"', str(source), str(self.destination))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(source.exists())
+                self.assertEqual((target / "nested" / "file").read_text(), "contents\n")
 
 
 class NohupTests(BuiltinTest):

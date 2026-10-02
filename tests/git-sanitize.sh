@@ -26,6 +26,30 @@ mkdir -p "$repo"
 cat > "$d/scenario.sh" <<'SCENARIO'
 set -e
 enable -f "$GIT_SO" git
+# Reuse the algorithm parity regressions with the instrumented builtin in
+# a separate repository, leaving the main scenario's history unchanged.
+(
+  mkdir ../diff-algorithms
+  cd ../diff-algorithms
+  . "$GIT_DIFF_SCENARIO"
+
+  # Neither line is unique, and both occur more than the histogram anchor
+  # limit. This reaches the Myers fallback in both algorithms.
+  for i in {1..80}; do printf 'same\nother\n'; done > fallback.txt
+  git add fallback.txt
+  git commit -q -m 'algorithm fallback before'
+  for i in {1..80}; do printf 'other\nsame\n'; done > fallback.txt
+  for algorithm in patience histogram; do
+    git diff --diff-algorithm="$algorithm" -U0 -- fallback.txt
+    git diff --diff-algorithm="$algorithm" -U3 -- fallback.txt
+  done
+  git add fallback.txt
+  git commit -q -m 'algorithm fallback after'
+  for algorithm in patience histogram; do
+    git show --diff-algorithm="$algorithm" HEAD
+    git log -1 -p --diff-algorithm="$algorithm"
+  done
+)
 git init -q -b main .
 
 # A long file, so the diff has real work to do, changed in several places.
@@ -803,6 +827,7 @@ ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
 LD_PRELOAD=$("$CC" -print-file-name=libasan.so) \
 GIT_SO="$d/git.so" \
+GIT_DIFF_SCENARIO="$HERE/tests/git/diff-algorithms.sh" \
 GIT_CONFIG_NOSYSTEM=1 HOME="$d" LC_ALL=C TZ=UTC \
 GIT_AUTHOR_NAME='Sanitize Author' GIT_AUTHOR_EMAIL=author@bash-os.test \
 GIT_AUTHOR_DATE='1750000000 +0000' \

@@ -287,6 +287,8 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
 {
     char buf[8193];   /* kernel CONSOLE_EXT_LOG_MAX + 1 */
     int fixture_file = getenv ("BASHDMESG_DEV_KMSG_FILE") != NULL;
+    char *pending = NULL;
+    size_t pending_len = 0;
     for (;;) {
         ssize_t n = read (fd, buf, sizeof buf - 1);
         if (n < 0) {
@@ -296,23 +298,52 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
             if (errno == EPIPE) continue;
             if (errno == EINTR) continue;
             builtin_error ("read %s: %s", bd_kmsg_path (), strerror (errno));
+            free (pending);
             return EXECUTION_FAILURE;
         }
-        if (n == 0) break;     /* EOF on a fixture */
+        if (n == 0) {
+            if (pending_len) {
+                pending[pending_len] = '\0';
+                *emitted += bd_process_record (pending, kernel_only,
+                                               facility_mask, level_mask,
+                                               raw, no_ts, human_ts,
+                                               boot_epoch, have_since,
+                                               since_us, have_until, until_us);
+            }
+            break;
+        }
         buf[n] = '\0';
 
         if (fixture_file) {
-            char *save = NULL;
-            char *line = strtok_r (buf, "\n", &save);
-            while (line) {
+            size_t need = pending_len + (size_t)n + 1;
+            char *grown = realloc (pending, need);
+            if (!grown) {
+                builtin_error ("out of memory reading %s", bd_kmsg_path ());
+                free (pending);
+                return EXECUTION_FAILURE;
+            }
+            pending = grown;
+            memcpy (pending + pending_len, buf, (size_t)n);
+            pending_len += (size_t)n;
+            pending[pending_len] = '\0';
+
+            char *line = pending;
+            char *nl;
+            while ((nl = memchr (line, '\n',
+                                 pending_len - (size_t)(line - pending))) != NULL) {
+                *nl = '\0';
                 *emitted += bd_process_record (line, kernel_only,
                                                facility_mask, level_mask,
                                                raw, no_ts, human_ts,
                                                boot_epoch, have_since,
                                                since_us, have_until,
                                                until_us);
-                line = strtok_r (NULL, "\n", &save);
+                line = nl + 1;
             }
+            pending_len -= (size_t)(line - pending);
+            if (pending_len)
+                memmove (pending, line, pending_len);
+            pending[pending_len] = '\0';
         } else {
             *emitted += bd_process_record (buf, kernel_only, facility_mask,
                                            level_mask, raw, no_ts, human_ts,
@@ -320,6 +351,7 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
                                            have_until, until_us);
         }
     }
+    free (pending);
     return EXECUTION_SUCCESS;
 }
 

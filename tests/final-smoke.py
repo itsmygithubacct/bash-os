@@ -208,6 +208,10 @@ def accounts(d):
     run('auth', 'policy-fnmatch', '/usr/bin/*', '/tmp/true', rc=1)
     policy = d/'policy'; policy.write_text('fixture ALL = (root) NOPASSWD: /usr/bin/true\n')
     assert b'digest_sha256=' in run('auth', 'policy-parse', policy)
+    caller = pwd.getpwuid(os.getuid()).pw_name
+    policy.write_text(f'{caller} ALL = (root) NOPASSWD: /usr/bin/true\n')
+    listed = run('auth', 'policy-list', policy)
+    assert b'nopasswd=1' in listed and b'commands=/usr/bin/true' in listed, listed
     policy.write_text('invalid policy\n'); run('auth', 'policy-parse', policy, rc=1)
     run('eval', '''auth peruser reset fixture
 auth peruser bump fixture
@@ -219,6 +223,40 @@ auth peruser check fixture
 ''', env={'BASHAUTH_PERUSER_MAX':'2'})
     # Parser rejection happens before any authentication or credential transition.
     for name in ['su','doas','sudo']: run(name, '--invalid-fixture-option', rc=2)
+
+    # Root doas/sudo transitions run in a child. Dropping that child to the
+    # system's unprivileged nobody account must leave this test shell as root.
+    # No account or policy files are modified by these commands.
+    require_transitions = os.environ.get('BASHOS_REQUIRE_ROOT_TRANSITIONS') == '1'
+    if require_transitions:
+        assert os.geteuid() == 0, 'root credential-transition checks require root'
+    if os.geteuid() == 0:
+        try:
+            nobody = pwd.getpwnam('nobody')
+        except KeyError:
+            nobody = None
+        if require_transitions:
+            assert nobody and nobody.pw_uid != 0, 'nobody account required for root transitions'
+        if nobody and nobody.pw_uid != 0:
+            identity = f'/usr/bin/id -u'
+            doas_out = run('eval', f'doas -u nobody -- {identity}\n{identity}')
+            assert doas_out == f'{nobody.pw_uid}\n0\n'.encode(), doas_out
+            sudo_out = run('eval', f'sudo -u nobody -- {identity}\n{identity}')
+            assert sudo_out == f'{nobody.pw_uid}\n0\n'.encode(), sudo_out
+
+            # su requires a live kernel token authority even for root callers.
+            # Exercise its successful credential transition only where that
+            # authority is installed; otherwise report the precise test gate.
+            if Path('/dev/bashos-auth').exists():
+                su_out = run('su', '--no-login', '-c', identity, 'nobody',
+                             env={'PHCLIB_PASSWD':'', 'PHCLIB_SHADOW':''})
+                assert su_out == f'{nobody.pw_uid}\n'.encode(), su_out
+            else:
+                print('SKIP su credential transition: /dev/bashos-auth is unavailable', flush=True)
+        else:
+            print('SKIP root doas/sudo/su transitions: unprivileged nobody account is unavailable', flush=True)
+    else:
+        print('SKIP root doas/sudo/su transitions: final-smoke is not running as root', flush=True)
 
 def network(d):
     assert run('ldap', 'encode-test', 'bind', '', '').strip() == b'300c020101600702010304008000'

@@ -1,0 +1,48 @@
+--- builtins/mktemp.c
++++ builtins/mktemp.c
+@@ -123,7 +123,10 @@
+ 
+       if (dflag)
+ 	{
+-	  filename = sh_mktmpdir (template, mflags);
++	  if (uflag)
++	    filename = sh_mktmpname (template, mflags);
++	  else
++	    filename = sh_mktmpdir (template, mflags);
+ 	  if (filename == 0)
+ 	    {
+ 	      if (qflag == 0)
+@@ -132,14 +135,18 @@
+ 	    }
+ 	  else
+ 	    {
+-	      if (uflag)
+-		rmdir (filename);
+ 	      printf ("%s\n", filename);
+ 	    }
+ 	}
+       else		/* filename */
+ 	{
+-	  fd = sh_mktmpfd (template, mflags, &filename);
++	  if (uflag)
++	    {
++	      filename = sh_mktmpname (template, mflags);
++	      fd = filename ? 0 : -1;
++	    }
++	  else
++	    fd = sh_mktmpfd (template, mflags, &filename);
+ 	  if (fd < 0)
+ 	    {
+ 	      if (qflag == 0)
+@@ -148,9 +155,8 @@
+ 	    }
+ 	  else
+ 	    {
+-	      close (fd);
+-	      if (uflag)
+-		unlink (filename);
++	      if (uflag == 0)
++		close (fd);
+ 	      printf ("%s\n", filename);
+ 	    }
+ 	}

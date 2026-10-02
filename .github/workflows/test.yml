@@ -111,6 +111,8 @@ jobs:
           python3 tests/profile-smoke.py out/bash
           python3 tests/profile-smoke.py out/bash-static
           python3 tests/profile-smoke.py out/bash-pure
+      - name: Check root credential drops
+        run: sudo -n env BASHOS_REQUIRE_ROOT_TRANSITIONS=1 python3 tests/final-smoke.py out/bash accounts
       - name: Preserve logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

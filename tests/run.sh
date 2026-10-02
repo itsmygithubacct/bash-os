@@ -29,11 +29,15 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'Debian command parity' python3 tests/debian-parity.py out/bash
 check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
 check 'tac parity' python3 tests/tac-parity.py out/bash
 for name in head-sed fold expand bc nl pr; do
   check "$name parity" python3 "tests/$name-parity.py" out/bash
 done
+check 'passwd fields' python3 tests/passwd-fields.py out/bash
+check 'mktemp -u' bash tests/mktemp-u-check.sh out/bash
+check 'dmesg split fixture' python3 tests/dmesg-fixture.py out/bash
 for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams core-fastpaths coreutils-fastpaths pack-cache index-cache xargs-spawn pager-interrupts install-truncate; do
   check "$name" python3 "tests/$name.py" out/bash
 done
@@ -70,6 +74,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static Debian command parity' python3 tests/debian-parity.py out/bash-static
 check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 for name in head-sed fold expand bc nl pr; do
   check "static $name parity" python3 "tests/$name-parity.py" out/bash-static
@@ -95,6 +100,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
   check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash
   check 'tac under ASan+UBSan' bash tests/tac-sanitize.sh out/bash
   for name in head-sed fold expand bc nl pr; do

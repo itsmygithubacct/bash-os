@@ -1,0 +1,6 @@
+{
+  "head": "head-stdin.patch",
+  "tee": "tee-io.patch",
+  "chmod": "chmod-umask.patch",
+  "mktemp": "mktemp-u.patch"
+}
