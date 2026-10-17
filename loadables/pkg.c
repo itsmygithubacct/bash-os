@@ -289,31 +289,42 @@ bp_write_file_atomic (const char *path, const void *data, size_t n,
                       mode_t mode)
 {
     char tmp[BPKG_PATH_MAX];
-    if (snprintf (tmp, sizeof tmp, "%s.tmp.%d", path, (int) getpid ()) >=
-        (int) sizeof tmp) return -1;
-    int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode);
+    if (snprintf (tmp, sizeof tmp, "%s.tmp.XXXXXX", path) >=
+        (int) sizeof tmp) { errno = ENAMETOOLONG; return -1; }
+    /* Reserve our own inode. A predictable temporary name can be a symlink
+       or a hard link to a file unrelated to the package. */
+    int fd = mkstemp (tmp);
     if (fd < 0) return -1;
+    mode_t mask = umask (0);
+    umask (mask);
+    if (fcntl (fd, F_SETFD, FD_CLOEXEC) < 0)
+        goto fail;
     const unsigned char *p = data;
     size_t left = n;
     while (left > 0) {
         ssize_t w = write (fd, p, left);
-        if (w < 0) {
-            if (errno == EINTR) continue;
-            close (fd);
-            unlink (tmp);
-            return -1;
+        if (w <= 0) {
+            if (w < 0 && errno == EINTR) continue;
+            if (w == 0) errno = EIO;
+            goto fail;
         }
         p += w; left -= (size_t) w;
     }
-    if (close (fd) < 0) {
-        unlink (tmp);
-        return -1;
-    }
-    if (rename (tmp, path) < 0) {
-        unlink (tmp);
-        return -1;
-    }
+    if (fchmod (fd, mode & ~mask) < 0)
+        goto fail;
+    if (close (fd) < 0) { fd = -1; goto fail; }
+    fd = -1;
+    if (rename (tmp, path) < 0)
+        goto fail;
     return 0;
+fail:
+    {
+        int saved = errno;
+        if (fd >= 0) close (fd);
+        unlink (tmp);
+        errno = saved;
+        return -1;
+    }
 }
 
 /* mkdir -p — accept an absolute or relative path, create every leading
@@ -2164,6 +2175,7 @@ typedef struct {
     char         loadable_name[BPKG_NAME_MAX];
     char         loadable_dest[BPKG_PATH_MAX];
     char         loadable_backup[BPKG_PATH_MAX];
+    int          loadable_dest_active;
     int          loadable_backup_active;
     char         state_dir[BPKG_PATH_MAX];
     char         state_backup[BPKG_PATH_MAX];
@@ -2221,6 +2233,44 @@ bp_remove_tree (const char *path)
 }
 
 static int
+bp_backup_existing (const char *path, char *backup, size_t size)
+{
+    struct stat st;
+    backup[0] = 0;
+    if (lstat (path, &st) < 0)
+        return errno == ENOENT ? 0 : -1;
+    if (snprintf (backup, size, "%s.bak.XXXXXX", path) >= (int) size) {
+        backup[0] = 0;
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    int directory = S_ISDIR (st.st_mode);
+    if (directory) {
+        if (!mkdtemp (backup)) { backup[0] = 0; return -1; }
+    } else {
+        int fd = mkstemp (backup);
+        if (fd < 0) { backup[0] = 0; return -1; }
+        if (close (fd) < 0) {
+            int saved = errno;
+            unlink (backup);
+            backup[0] = 0;
+            errno = saved;
+            return -1;
+        }
+    }
+    /* rename can replace only the empty entry we just reserved. Never
+       overwrite a pre-existing backup or remove it during cleanup. */
+    if (rename (path, backup) < 0) {
+        int saved = errno;
+        if (directory) rmdir (backup); else unlink (backup);
+        backup[0] = 0;
+        errno = saved;
+        return -1;
+    }
+    return 1;
+}
+
+static int
 bp_prepare_state_dir (bp_install_ctx *ctx, const char *dir)
 {
     if (snprintf (ctx->state_dir, sizeof ctx->state_dir, "%s", dir) >=
@@ -2235,17 +2285,13 @@ bp_prepare_state_dir (bp_install_ctx *ctx, const char *dir)
             builtin_error ("state path is not a directory: %s", dir);
             return -1;
         }
-        if (snprintf (ctx->state_backup, sizeof ctx->state_backup,
-                      "%s.bak.%d", dir, (int) getpid ()) >=
-            (int) sizeof ctx->state_backup) {
-            builtin_error ("path too long: %s", dir);
-            return -1;
-        }
-        if (rename (dir, ctx->state_backup) < 0) {
+        int backed = bp_backup_existing (dir, ctx->state_backup,
+                                         sizeof ctx->state_backup);
+        if (backed < 0) {
             builtin_error ("backup state dir %s: %s", dir, strerror (errno));
             return -1;
         }
-        ctx->state_backup_active = 1;
+        ctx->state_backup_active = backed;
     } else if (errno != ENOENT) {
         builtin_error ("stat state dir %s: %s", dir, strerror (errno));
         return -1;
@@ -2259,7 +2305,7 @@ static void
 bp_rollback_install (const char *root, bp_install_ctx *ctx)
 {
     bp_rollback_extracted (root, &ctx->files_list);
-    if (ctx->loadable_dest[0])
+    if (ctx->loadable_dest_active)
         unlink (ctx->loadable_dest);
     if (ctx->loadable_backup_active) {
         if (rename (ctx->loadable_backup, ctx->loadable_dest) == 0)
@@ -2335,19 +2381,17 @@ bp_install_staged_loadable (bp_install_ctx *ctx, const char *root)
 
     snprintf (ctx->loadable_dest, sizeof ctx->loadable_dest, "%s", dest);
     struct stat old_st;
-    if (stat (dest, &old_st) == 0) {
-        if (snprintf (ctx->loadable_backup, sizeof ctx->loadable_backup,
-                      "%s.bak.%d", dest, (int) getpid ()) >=
-            (int) sizeof ctx->loadable_backup) {
-            builtin_error ("path too long: %s", dest);
-            return -1;
-        }
-        if (rename (dest, ctx->loadable_backup) < 0) {
-            builtin_error ("backup %s: %s", dest, strerror (errno));
-            return -1;
-        }
-        ctx->loadable_backup_active = 1;
+    if (lstat (dest, &old_st) == 0 && S_ISDIR (old_st.st_mode)) {
+        builtin_error ("loadable path is a directory: %s", dest);
+        return -1;
     }
+    int backed = bp_backup_existing (dest, ctx->loadable_backup,
+                                     sizeof ctx->loadable_backup);
+    if (backed < 0) {
+        builtin_error ("backup %s: %s", dest, strerror (errno));
+        return -1;
+    }
+    ctx->loadable_backup_active = backed;
 
     mode_t mode = ctx->loadable_mode ? ctx->loadable_mode : 0755;
     if (bp_write_file_atomic (dest, ctx->loadable_body.data,
@@ -2355,6 +2399,7 @@ bp_install_staged_loadable (bp_install_ctx *ctx, const char *root)
         builtin_error ("write %s: %s", dest, strerror (errno));
         return -1;
     }
+    ctx->loadable_dest_active = 1;
     if (chmod (dest, mode) < 0) {
         builtin_error ("chmod %s: %s", dest, strerror (errno));
         return -1;
@@ -2429,25 +2474,31 @@ bp_install_staged_data (bp_install_ctx *ctx, const char *root,
     for (size_t i = 0; i < list.n; i++)
         has[bp_data_kind (list.items[i].path, name, 0)] = 1;
     const char *prefix = root[0] && strcmp (root, "/") ? root : "";
-    int pid = (int) getpid ();
     for (int k = 0; k < 2; k++) {
         if (snprintf (ctx->data_final[k], sizeof ctx->data_final[k],
                       "%s%s/%s/%s", prefix, BPKG_DATA_ROOT, bp_data_kinds[k],
-                      name) >= (int) sizeof ctx->data_final[k] ||
-            snprintf (ctx->data_stage[k], sizeof ctx->data_stage[k],
-                      "%s.new.%d", ctx->data_final[k], pid) >=
-                (int) sizeof ctx->data_stage[k] ||
-            snprintf (ctx->data_backup[k], sizeof ctx->data_backup[k],
-                      "%s.bak.%d", ctx->data_final[k], pid) >=
-                (int) sizeof ctx->data_backup[k]) {
+                      name) >= (int) sizeof ctx->data_final[k]) {
             builtin_error ("path too long: %s", name);
             goto fail;
         }
-        bp_remove_tree (ctx->data_stage[k]);
-        if (!has[k]) {
+        if (!has[k]) continue;
+        char parent[BPKG_PATH_MAX];
+        snprintf (parent, sizeof parent, "%s", ctx->data_final[k]);
+        *strrchr (parent, '/') = 0;
+        if (bp_mkdir_p (parent) < 0) {
+            builtin_error ("mkdir %s: %s", parent, strerror (errno));
+            goto fail;
+        }
+        if (snprintf (ctx->data_stage[k], sizeof ctx->data_stage[k],
+                      "%s.new.XXXXXX", ctx->data_final[k]) >=
+            (int) sizeof ctx->data_stage[k]) {
             ctx->data_stage[k][0] = 0;
-        } else if (bp_mkdir_p (ctx->data_stage[k]) < 0) {
+            builtin_error ("path too long: %s", name);
+            goto fail;
+        }
+        if (!mkdtemp (ctx->data_stage[k])) {
             builtin_error ("mkdir %s: %s", ctx->data_stage[k], strerror (errno));
+            ctx->data_stage[k][0] = 0;
             goto fail;
         }
     }
@@ -2458,15 +2509,21 @@ bp_install_staged_data (bp_install_ctx *ctx, const char *root,
                      bp_data_write_cb, &w) < 0)
         goto fail;
     for (int k = 0; k < 2; k++) {
-        struct stat st;
-        if (lstat (ctx->data_final[k], &st) == 0) {
-            if (rename (ctx->data_final[k], ctx->data_backup[k]) < 0) {
-                builtin_error ("backup %s: %s", ctx->data_final[k],
-                               strerror (errno));
+        if (has[k]) {
+            mode_t mask = umask (0);
+            umask (mask);
+            if (chmod (ctx->data_stage[k], 0755 & ~mask) < 0) {
+                builtin_error ("chmod %s: %s", ctx->data_stage[k], strerror (errno));
                 goto fail;
             }
-            ctx->data_backup_active[k] = 1;
         }
+        int backed = bp_backup_existing (ctx->data_final[k], ctx->data_backup[k],
+                                         sizeof ctx->data_backup[k]);
+        if (backed < 0) {
+            builtin_error ("backup %s: %s", ctx->data_final[k], strerror (errno));
+            goto fail;
+        }
+        ctx->data_backup_active[k] = backed;
         if (has[k]) {
             if (rename (ctx->data_stage[k], ctx->data_final[k]) < 0) {
                 builtin_error ("install %s: %s", ctx->data_final[k],
