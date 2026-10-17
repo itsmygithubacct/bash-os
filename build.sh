@@ -179,7 +179,7 @@ while read -r stock_name stock_patch; do
 done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
+           cat config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
@@ -276,6 +276,15 @@ p = Path("builtins/Makefile.in"); s = p.read_text()
 old = "OFILES = builtins.o \\\n"
 assert s.count(old) == 1, "OFILES anchor not found"
 p.write_text(s.replace(old, "OFILES = builtins.o " + ''.join(n+'.o ' for n in json.loads(os.environ['SELECTION'])['names']) + Path("builtins/.helper-objs").read_text() + "\\\n", 1))
+objects = [n+'.o' for n in json.loads(os.environ['SELECTION'])['names']]
+objects += Path('builtins/.helper-objs').read_text().split()
+if objects:
+    with p.open('a') as output:
+        output.write('\n# Recompile injected objects when their staged headers change.\n'
+                     + ' '.join(objects) + ': $(wildcard *.h *.data)\n')
+    with Path('Makefile.in').open('a') as output:
+        output.write('\n# Descend into builtins for changes outside Bash\'s stock source list.\n'
+                     '$(BUILTINS_LIBRARY): $(wildcard $(DEFDIR)/*.c $(DEFDIR)/*.h $(DEFDIR)/*.data)\n')
 if os.environ.get('PERL_CONFIG'):
     flags = json.loads(os.environ['PERL_CONFIG'])['flags']['cppflags']
     with p.open('a') as output:
@@ -344,6 +353,7 @@ p.with_name(p.name+'.loadables.list').write_text(selection['list'])
 p.with_name(p.name+'.manifest.json').write_text(json.dumps(selection, indent=2)+'\n')
 PYMANIFEST
 # --- 10. swap the finished tree into place under the build lock ------------
+python3 "$HERE/config/relocate-build.py" "$STAGE" "$SRC"
 echo "$STAMP" > "$STAGE/.bash-os-stamp"
 cd "$HERE"; rm -rf "$SRC.old"; [[ -d "$SRC" ]] && mv "$SRC" "$SRC.old"; mv "$STAGE" "$SRC"; rm -rf "$SRC.old"
 echo "$STAMP" > "$STAMPFILE"

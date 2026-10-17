@@ -30,5 +30,11 @@ if EXTRA_LOADABLES="${d#$HERE/}/extra" ./build.sh --list "$d/bash-loadables-tuto
   [[ "$out" == $'hello, you\nbuiltin\nabsent' ]] && ok "greet is a builtin there, ls is not (the list is exact)" || no "static greet: '$out'"
   out=$(out/bash-tutorial -c 'PATH=; mkdir you' 2>&1)
   [[ "$out" == 'hello, you' ]] && ok "relative EXTRA_LOADABLES overrides stock mkdir" || no "stock override: '$out'"
+  touch "$BT/builtins/greet.c"
+  if make -C "$BT" -j"${JOBS:-2}" bash >"$d/rebuild.log" 2>&1 \
+      && [[ "$BT/builtins/greet.o" -nt "$BT/builtins/greet.c" ]]; then
+    out=$("$BT/bash" -c 'PATH=; greet rebuild; mkdir override' 2>&1)
+    [[ "$out" == $'hello, rebuild\nhello, override' ]] && ok "published tree rebuilds injected sources" || no "rebuilt commands: '$out'"
+  else no "published tree incremental rebuild"; cat "$d/rebuild.log"; fi
 else no "build with EXTRA_LOADABLES"; fi
 echo; echo "tutorial: $pass passed, $fail failed"; exit $(( fail>0 ? 1 : 0 ))
