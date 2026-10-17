@@ -33,10 +33,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include "loadables.h"
 
 typedef struct { int uflag, qflag, iflag; } bd_opts;
+typedef struct { unsigned char *data; size_t len; } bd_line;
 
 static int
 bd_is_stdin (const char *path)
@@ -103,14 +106,11 @@ bd_load (const char *path, unsigned char **data, size_t *len)
     return 0;
 }
 
-/* Binary probe: NUL in the first 4096 bytes of an already-loaded buffer. */
+/* Match the usual binary probe; later NULs remain part of text records. */
 static int
 bd_probe_binary (const unsigned char *data, size_t len)
 {
-    size_t n = len < 4096 ? len : 4096;
-    for (size_t i = 0; i < n; i++)
-        if (data[i] == '\0') return 1;
-    return 0;
+    return memchr (data, '\0', len < 4096 ? len : 4096) != NULL;
 }
 
 static int
@@ -121,14 +121,14 @@ bd_files_equal (const unsigned char *a, size_t la, const unsigned char *b, size_
     return memcmp (a, b, la) == 0;
 }
 
-/* Split a loaded buffer into a NULL-terminated array of lines (no trailing
-   newline on each line). Returns NULL on error. *n_out gets line count. */
-static char **
+/* Split a loaded buffer into length-bearing lines without trailing newlines.
+   Returns NULL on error. *n_out gets line count. */
+static bd_line *
 bd_slurp (const unsigned char *data, size_t len, const char *path,
           int *n_out, int *no_newline)
 {
     size_t cap = 256;
-    char **lines = malloc (cap * sizeof (char *));
+    bd_line *lines = malloc (cap * sizeof (*lines));
     if (!lines) {
         builtin_error ("%s: out of memory", path);
         *n_out = 0; *no_newline = 0;
@@ -138,44 +138,69 @@ bd_slurp (const unsigned char *data, size_t len, const char *path,
     int last_had_nl = 0;
     size_t i = 0;
     while (i < len) {
+        if (n == INT_MAX) {
+            builtin_error ("%s: too many lines", path);
+            goto fail;
+        }
         size_t start = i;
         while (i < len && data[i] != '\n') i++;
         int had_nl = (i < len && data[i] == '\n');
         size_t llen = i - start;
         if ((size_t) n >= cap) {
-            char **grown = realloc (lines, cap * 2 * sizeof (char *));
+            if (cap > SIZE_MAX / 2 / sizeof (*lines)) {
+                builtin_error ("%s: too many lines", path);
+                goto fail;
+            }
+            bd_line *grown = realloc (lines, cap * 2 * sizeof (*lines));
             if (!grown) {
                 builtin_error ("%s: out of memory", path);
-                for (int k = 0; k < n; k++) free (lines[k]);
+                for (int k = 0; k < n; k++) free (lines[k].data);
                 free (lines);
                 *n_out = 0; *no_newline = 0;
                 return NULL;
             }
             lines = grown; cap *= 2;
         }
-        char *copy = malloc (llen + 1);
+        unsigned char *copy = malloc (llen + 1);
         if (!copy) {
             builtin_error ("%s: out of memory", path);
-            for (int k = 0; k < n; k++) free (lines[k]);
+            for (int k = 0; k < n; k++) free (lines[k].data);
             free (lines);
             *n_out = 0; *no_newline = 0;
             return NULL;
         }
         if (llen) memcpy (copy, data + start, llen);
         copy[llen] = '\0';
-        lines[n++] = copy;
+        lines[n++] = (bd_line) { copy, llen };
         last_had_nl = had_nl;
         if (had_nl) i++;
     }
     *n_out = n;
     *no_newline = (n > 0 && !last_had_nl);
     return lines;
+fail:
+    for (int k = 0; k < n; k++) free (lines[k].data);
+    free (lines);
+    *n_out = 0; *no_newline = 0;
+    return NULL;
 }
 
 static int
-bd_lineq (const char *a, const char *b, int icase)
+bd_lineq (const bd_line *a, const bd_line *b, int icase)
 {
-    return icase ? strcasecmp (a, b) == 0 : strcmp (a, b) == 0;
+    if (a->len != b->len) return 0;
+    if (!icase) return memcmp (a->data, b->data, a->len) == 0;
+    for (size_t i = 0; i < a->len; i++)
+        if (tolower (a->data[i]) != tolower (b->data[i])) return 0;
+    return 1;
+}
+
+static void
+bd_print_line (const char *prefix, const bd_line *line)
+{
+    fputs (prefix, stdout);
+    fwrite (line->data, 1, line->len, stdout);
+    putchar ('\n');
 }
 
 typedef enum { BDOP_EQ, BDOP_DEL, BDOP_INS } bd_optype;
@@ -184,17 +209,35 @@ typedef struct { bd_optype op; int la; int lb; } bd_op;
 /* Myers O(ND) — build edit-script ops. Returns op array (heap), sets *n_ops.
    Uses V-trace memoization: trace[d][k+max] = best x at diagonal k after d edits. */
 static bd_op *
-bd_myers (char **A, int n, char **B, int m, int icase, int *n_ops_out)
+bd_myers (bd_line *A, int n, bd_line *B, int m, int icase,
+          int no_newline_a, int no_newline_b, int *n_ops_out)
 {
+    *n_ops_out = -1;
+    /* Both the diagonal index arithmetic and allocation products must fit. */
+    if (n > (INT_MAX - 1) / 2 - m) {
+        builtin_error ("too many lines to compare");
+        return NULL;
+    }
     int max = n + m;
     if (max == 0) { *n_ops_out = 0; return NULL; }
     int v_size = 2 * max + 1;
+    if ((size_t) v_size > SIZE_MAX / sizeof (int) ||
+        (size_t) (max + 1) > SIZE_MAX / sizeof (int *) ||
+        (size_t) max > SIZE_MAX / sizeof (bd_op)) {
+        builtin_error ("too many lines to compare");
+        return NULL;
+    }
     int *v = calloc ((size_t) v_size, sizeof (int));
     int **trace = calloc ((size_t) (max + 1), sizeof (int *));
     int d_done = -1;
+    int rows = 0;
+    bd_op *ops = NULL;
+    if (!v || !trace) goto nomem;
 
     for (int d = 0; d <= max; d++) {
         trace[d] = malloc ((size_t) v_size * sizeof (int));
+        if (!trace[d]) goto nomem;
+        rows++;
         for (int k = -d; k <= d; k += 2) {
             int x;
             if (k == -d || (k != d && v[k - 1 + max] < v[k + 1 + max]))
@@ -202,7 +245,10 @@ bd_myers (char **A, int n, char **B, int m, int icase, int *n_ops_out)
             else
                 x = v[k - 1 + max] + 1;      /* deletion */
             int y = x - k;
-            while (x < n && y < m && bd_lineq (A[x], B[y], icase)) { x++; y++; }
+            while (x < n && y < m && bd_lineq (&A[x], &B[y], icase) &&
+                   (x == n - 1 && no_newline_a) == (y == m - 1 && no_newline_b)) {
+                x++; y++;
+            }
             v[k + max] = x;
             if (x >= n && y >= m) { d_done = d; break; }
         }
@@ -210,9 +256,12 @@ bd_myers (char **A, int n, char **B, int m, int icase, int *n_ops_out)
         if (d_done >= 0) break;
     }
     free (v);
+    v = NULL;
 
     /* Backtrack: produce ops in reverse, then reverse. */
-    bd_op *ops = malloc ((size_t) (n + m + d_done + 1) * sizeof (bd_op));
+    /* Every operation consumes at least one input line. */
+    ops = malloc ((size_t) max * sizeof (bd_op));
+    if (!ops) goto nomem;
     int n_ops = 0;
     int x = n, y = m;
     for (int d = d_done; d > 0; d--) {
@@ -257,11 +306,18 @@ bd_myers (char **A, int n, char **B, int m, int icase, int *n_ops_out)
 
     *n_ops_out = n_ops;
     return ops;
+nomem:
+    builtin_error ("out of memory comparing files");
+    free (v);
+    for (int d = 0; d < rows; d++) free (trace[d]);
+    free (trace);
+    free (ops);
+    return NULL;
 }
 
 /* Emit POSIX ed-style diff. Group consecutive ins/del into change-blocks. */
 static void
-bd_emit_ed (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
+bd_emit_ed (bd_line *A, int n, bd_line *B, int m, bd_op *ops, int n_ops,
             int no_newline_a, int no_newline_b)
 {
     (void) n; (void) m;
@@ -297,27 +353,27 @@ bd_emit_ed (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
             else
                 snprintf (tail, sizeof tail, "%d,%d", ins0 + 1, ins1 + 1);
             printf ("%s%s\n", header, tail);
-            for (int k = del0; k <= del1; k++) printf ("< %s\n", A[k]);
+            for (int k = del0; k <= del1; k++) bd_print_line ("< ", &A[k]);
             if (no_newline_a && del1 == n - 1) printf ("\\ No newline at end of file\n");
             printf ("---\n");
-            for (int k = ins0; k <= ins1; k++) printf ("> %s\n", B[k]);
+            for (int k = ins0; k <= ins1; k++) bd_print_line ("> ", &B[k]);
             if (no_newline_b && ins1 == m - 1) printf ("\\ No newline at end of file\n");
         } else if (nd > 0) {
             /* delete from A; ed addressing wants index AFTER which to delete */
-            int after = del0;  /* 0-indexed; print 1-indexed */
+            int after = i > 0 ? ops[i - 1].lb + 1 : 0;
             if (nd == 1)
                 printf ("%dd%d\n", del0 + 1, after);
             else
                 printf ("%d,%dd%d\n", del0 + 1, del1 + 1, after);
-            for (int k = del0; k <= del1; k++) printf ("< %s\n", A[k]);
+            for (int k = del0; k <= del1; k++) bd_print_line ("< ", &A[k]);
             if (no_newline_a && del1 == n - 1) printf ("\\ No newline at end of file\n");
         } else { /* INS only */
-            int after = (ins0 > 0) ? ins0 : 0;  /* 0-indexed */
+            int after = i > 0 ? ops[i - 1].la + 1 : 0;
             if (ni == 1)
                 printf ("%da%d\n", after, ins0 + 1);
             else
                 printf ("%da%d,%d\n", after, ins0 + 1, ins1 + 1);
-            for (int k = ins0; k <= ins1; k++) printf ("> %s\n", B[k]);
+            for (int k = ins0; k <= ins1; k++) bd_print_line ("> ", &B[k]);
             if (no_newline_b && ins1 == m - 1) printf ("\\ No newline at end of file\n");
         }
         i = j;
@@ -328,7 +384,7 @@ bd_emit_ed (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
    6 lines of each other. */
 #define BD_CTX 3
 static void
-bd_emit_unified (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
+bd_emit_unified (bd_line *A, int n, bd_line *B, int m, bd_op *ops, int n_ops,
                  const char *fname1, const char *fname2,
                  int no_newline_a, int no_newline_b)
 {
@@ -364,7 +420,7 @@ bd_emit_unified (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
                 if (run > BD_CTX) j = e0 + BD_CTX;
                 break;
             }
-            if (run >= 2 * BD_CTX) {
+            if (run > 2 * BD_CTX) {
                 /* Big gap — split hunk here. Trim trailing context to BD_CTX. */
                 j = e0 + BD_CTX;
                 break;
@@ -387,18 +443,25 @@ bd_emit_unified (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
         }
         if (a_start < 0) a_start = 0;
         if (b_start < 0) b_start = 0;
-        printf ("@@ -%d,%d +%d,%d @@\n",
-                a_start + 1, a_count, b_start + 1, b_count);
+        printf ("@@ -%d", a_count ? a_start + 1 : a_start);
+        if (a_count != 1) printf (",%d", a_count);
+        printf (" +%d", b_count ? b_start + 1 : b_start);
+        if (b_count != 1) printf (",%d", b_count);
+        printf (" @@\n");
         for (int k = hunk_start; k < hunk_end; k++) {
             switch (ops[k].op) {
-            case BDOP_EQ:  printf (" %s\n", A[ops[k].la]); break;
+            case BDOP_EQ:
+                bd_print_line (" ", &A[ops[k].la]);
+                if (no_newline_a && ops[k].la == n - 1)
+                    printf ("\\ No newline at end of file\n");
+                break;
             case BDOP_DEL:
-                printf ("-%s\n", A[ops[k].la]);
+                bd_print_line ("-", &A[ops[k].la]);
                 if (no_newline_a && ops[k].la == n - 1)
                     printf ("\\ No newline at end of file\n");
                 break;
             case BDOP_INS:
-                printf ("+%s\n", B[ops[k].lb]);
+                bd_print_line ("+", &B[ops[k].lb]);
                 if (no_newline_b && ops[k].lb == m - 1)
                     printf ("\\ No newline at end of file\n");
                 break;
@@ -407,6 +470,17 @@ bd_emit_unified (char **A, int n, char **B, int m, bd_op *ops, int n_ops,
         (void) n;
         i = hunk_end;
     }
+}
+
+static int
+bd_finish_output (int status)
+{
+    if (fflush (stdout) == EOF || ferror (stdout)) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        clearerr (stdout);
+        return 2;
+    }
+    return status;
 }
 
 int
@@ -483,7 +557,7 @@ diff_builtin (WORD_LIST *list)
         return EXECUTION_SUCCESS;
     }
 
-    /* Binary detection: NUL in first 4096 bytes. Binary inputs are compared
+    /* Binary detection: NUL in the first input block. Binary inputs are compared
        bytewise: identical files exit 0 silently; differing files report the
        standard binary-differ diagnostic and exit 1. */
     int bin_a = bd_probe_binary (da, la);
@@ -502,17 +576,17 @@ diff_builtin (WORD_LIST *list)
         }
         free (da);
         if (!same_stdin) free (db);
-        return rc;
+        return bd_finish_output (rc);
     }
 
     int n, m, no_newline_a = 0, no_newline_b = 0;
-    char **A = bd_slurp (da, la, paths[0], &n, &no_newline_a);
+    bd_line *A = bd_slurp (da, la, paths[0], &n, &no_newline_a);
     if (!A) {
         free (da);
         if (!same_stdin) free (db);
         return 2;
     }
-    char **B;
+    bd_line *B;
     int shared_lines = 0;
     if (same_stdin) {
         B = A;
@@ -522,7 +596,7 @@ diff_builtin (WORD_LIST *list)
     } else {
         B = bd_slurp (db, lb, paths[1], &m, &no_newline_b);
         if (!B) {
-            for (int i = 0; i < n; i++) free (A[i]);
+            for (int i = 0; i < n; i++) free (A[i].data);
             free (A);
             free (da);
             free (db);
@@ -533,7 +607,10 @@ diff_builtin (WORD_LIST *list)
     if (!same_stdin) free (db);
 
     int n_ops;
-    bd_op *ops = bd_myers (A, n, B, m, o.iflag, &n_ops);
+    bd_op *ops = bd_myers (A, n, B, m, o.iflag,
+                          no_newline_a, no_newline_b, &n_ops);
+    int rc = 2;
+    if (n_ops < 0) goto cleanup;
 
     /* Detect "differ at all" by scanning for non-EQ. */
     int differ = 0;
@@ -543,7 +620,7 @@ diff_builtin (WORD_LIST *list)
     if (no_newline_a != no_newline_b)
         differ = 1;
 
-    int rc = differ ? 1 : 0;
+    rc = differ ? 1 : 0;
     if (differ && !o.qflag) {
         if (o.uflag) bd_emit_unified (A, n, B, m, ops, n_ops, paths[0], paths[1],
                                        no_newline_a, no_newline_b);
@@ -552,11 +629,13 @@ diff_builtin (WORD_LIST *list)
         printf ("Files %s and %s differ\n", paths[0], paths[1]);
     }
 
+    rc = bd_finish_output (rc);
+cleanup:
     free (ops);
-    for (int i = 0; i < n; i++) free (A[i]);
+    for (int i = 0; i < n; i++) free (A[i].data);
     free (A);
     if (!shared_lines) {
-        for (int i = 0; i < m; i++) free (B[i]);
+        for (int i = 0; i < m; i++) free (B[i].data);
         free (B);
     }
     return rc;
