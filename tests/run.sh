@@ -29,6 +29,9 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+for name in cmp-streams cp-safety split-safety diff-safety dd-safety; do
+  check "$name" python3 "tests/$name.py" out/bash
+done
 check 'Debian command parity' python3 tests/debian-parity.py out/bash
 check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
 check 'tac parity' python3 tests/tac-parity.py out/bash
@@ -74,6 +77,9 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+for name in cmp-streams cp-safety split-safety diff-safety dd-safety; do
+  check "static $name" python3 "tests/$name.py" out/bash-static
+done
 check 'static Debian command parity' python3 tests/debian-parity.py out/bash-static
 check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 for name in head-sed fold expand bc nl pr; do
@@ -100,6 +106,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'core file and stream safety under ASan+UBSan' bash tests/core-io-sanitize.sh out/bash
   check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
   check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash
   check 'tac under ASan+UBSan' bash tests/tac-sanitize.sh out/bash
