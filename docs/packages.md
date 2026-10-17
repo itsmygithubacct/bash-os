@@ -58,8 +58,8 @@ objects at all.
 loadables, Bash's example loadables with the fixups `build.sh` applies, and
 the flattened helpers. It compiles them against the Bash tree the last build
 left behind (`--tree`), which must come from a dynamic build for the same
-target. If `./build.sh --profile shell` reports that it is up to date after a
-different build has replaced the tree, add `--clean`.
+target. `./build.sh --profile shell` restores that tree when it is missing or
+a different build has replaced it.
 
 An object is packed only after two gates:
 

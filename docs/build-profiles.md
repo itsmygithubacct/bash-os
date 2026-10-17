@@ -91,7 +91,9 @@ Each binary has three companion files:
 `python3 tests/profile-smoke.py out/bash-core` checks the binary checksum and
 proves that its injected builtin set matches the manifest, with `PATH` empty.
 The build cache includes the selection, sources, helper metadata, compiler,
-flags and any explicit dependency prefix. Builds in one checkout serialize
+flags and any explicit dependency prefix. A cache hit also checks the binary
+checksum, companion files and the configured tree's build identity; missing
+or mismatched outputs are rebuilt. Builds in one checkout serialize
 through a lock; use separate worktrees for concurrent builds.
 
 `EXTRA_LOADABLES="dir …"` adds your own C sources to the catalog. Use their names

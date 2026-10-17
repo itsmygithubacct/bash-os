@@ -105,6 +105,10 @@ PYINFO
 fi
 NAMES_TEXT=$(python3 -c 'import json,os; print("\n".join(json.loads(os.environ["SELECTION"])["names"]))')
 NAMES=(); [[ -z $NAMES_TEXT ]] || mapfile -t NAMES <<< "$NAMES_TEXT"
+EXTRA_DIRS=()
+for directory in ${EXTRA_LOADABLES:-}; do
+  EXTRA_DIRS+=("$(cd "$directory" && pwd)")
+done
 LISTTAG=$(python3 -c 'import json,os; print(json.loads(os.environ["SELECTION"])["tag"])')
 LIST_DESCRIPTION=$(python3 -c 'import json,os; print(json.loads(os.environ["SELECTION"])["base"])')
 CC="${CC:-cc}"; JOBS="${JOBS:-$(nproc)}"
@@ -175,12 +179,12 @@ while read -r stock_name stock_patch; do
 done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
+           cat config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
-           find loadables ${EXTRA_LOADABLES:-} -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
-if [[ "$CLEAN" != 1 && -f "$OUTBIN" && -f "$STAMPFILE" && "$(cat "$STAMPFILE")" == "$STAMP" ]]; then
+           find -L loadables "${EXTRA_DIRS[@]}" -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
+if [[ "$CLEAN" != 1 ]] && python3 config/build-cache.py "$OUTBIN" "$SRC" "$STAMP"; then
   say "up to date — $OUTBIN (pass --clean to force)"; exit 0
 fi
 : > "$LOG"
@@ -220,8 +224,7 @@ cp "$HERE/loadables"/*.c examples/loadables/
 shopt -s nullglob
 for h in "$HERE"/loadables/common/*.h; do cp "$h" builtins/; cp "$h" examples/loadables/; done
 python3 "$HERE/config/stage-helpers.py" --stage "$HERE" "$STAGE" "${NAMES[@]}" >>"$LOG" 2>&1 || die "helper staging failed (see $LOG)"
-for d in ${EXTRA_LOADABLES:-}; do
-  d=$(cd "$OLDPWD" 2>/dev/null && cd "$HERE" && cd "$d" && pwd) || die "EXTRA_LOADABLES: no such directory: $d"
+for d in "${EXTRA_DIRS[@]}"; do
   for f in "$d"/*.c; do cp "$f" examples/loadables/; done
   for f in "$d"/*.h; do cp "$f" builtins/; cp "$f" examples/loadables/; done
 done
@@ -232,7 +235,7 @@ cp examples/loadables/*.h builtins/ 2>/dev/null || true
 # The per-name fixups below patch bash's OWN example loadables (mkdir,
 # fltexpr). A source this repo or EXTRA_LOADABLES supplies under the same
 # name replaces the stock file whole and must not be patched.
-is_stock() { [[ ! -f "$HERE/loadables/$1.c" ]] || return 1; local d; for d in ${EXTRA_LOADABLES:-}; do [[ -f "$d/$1.c" ]] && return 1; done; return 0; }
+is_stock() { [[ ! -f "$HERE/loadables/$1.c" ]] || return 1; local d; for d in "${EXTRA_DIRS[@]}"; do [[ -f "$d/$1.c" ]] && return 1; done; return 0; }
 say "injecting ${#NAMES[@]} loadables ($NAME, $TARGET)"
 for n in "${NAMES[@]}"; do
   src="examples/loadables/$n.c"; [[ -f "$src" ]] || die "no source for '$n' ($src) — neither loadables/$n.c nor a stock example"
@@ -340,8 +343,8 @@ if os.environ.get('PYTHON_CONFIG'):
 p.with_name(p.name+'.loadables.list').write_text(selection['list'])
 p.with_name(p.name+'.manifest.json').write_text(json.dumps(selection, indent=2)+'\n')
 PYMANIFEST
-echo "$STAMP" > "$STAMPFILE"
-
-# --- 10. swap the finished tree into place: two renames, no gap ------------
+# --- 10. swap the finished tree into place under the build lock ------------
+echo "$STAMP" > "$STAGE/.bash-os-stamp"
 cd "$HERE"; rm -rf "$SRC.old"; [[ -d "$SRC" ]] && mv "$SRC" "$SRC.old"; mv "$STAGE" "$SRC"; rm -rf "$SRC.old"
+echo "$STAMP" > "$STAMPFILE"
 say "done: ${OUTBIN#$HERE/}  ($(wc -c < "$OUTBIN") bytes, ${#NAMES[@]} injected builtins)"

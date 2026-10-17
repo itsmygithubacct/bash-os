@@ -7,7 +7,7 @@ HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"; CC=${CC:-cc}
 pass=0; fail=0; ok(){ echo "  PASS  $*"; pass=$((pass+1)); }; no(){ echo "  FAIL  $*"; fail=$((fail+1)); }
 [[ -f "$BT/config.h" && -x out/bash ]] || { echo "tutorial: build first (./build.sh)"; exit 1; }
-d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
+d=$(mktemp -d "$HERE/out/tutorial.XXXXXX"); trap 'rm -rf "$d"' EXIT
 
 echo "== as a shared object =="
 if "$CC" -fPIC -shared -Wall -Wextra -Wno-unused-parameter -DHAVE_CONFIG_H -I$BT -I$BT/include -I$BT/builtins -I$BT/examples/loadables \
@@ -18,10 +18,17 @@ out=$(out/bash -c "enable -f $d/greet.so greet; greet -n 0 x; echo \$?" 2>/dev/n
 out/bash -c "enable -f $d/greet.so greet; greet --help" 2>/dev/null | grep -q 'Print a greeting' && ok "--help shows the long doc" || no "--help"
 
 echo "== compiled in, through EXTRA_LOADABLES and a list of its own =="
-printf 'greet|Print a greeting\n' > "$d/bash-loadables-tutorial.list"
-if EXTRA_LOADABLES=docs/tutorial ./build.sh --list "$d/bash-loadables-tutorial.list" >/dev/null 2>&1; then
+mkdir "$d/extra"
+cp docs/tutorial/greet.c "$d/extra/greet.c"
+# A relative extra directory must also override a stock command without
+# receiving patches intended for Bash's original example source.
+sed 's/greet/mkdir/g' docs/tutorial/greet.c > "$d/extra/mkdir.c"
+printf 'greet|Print a greeting\nmkdir|A stock-command override\n' > "$d/bash-loadables-tutorial.list"
+if EXTRA_LOADABLES="${d#$HERE/}/extra" ./build.sh --list "$d/bash-loadables-tutorial.list" >/dev/null 2>&1; then
   ok "builds out/bash-tutorial"
   out=$(out/bash-tutorial -c 'PATH=; greet you; type -t greet; type -t ls || echo absent' 2>&1)
   [[ "$out" == $'hello, you\nbuiltin\nabsent' ]] && ok "greet is a builtin there, ls is not (the list is exact)" || no "static greet: '$out'"
+  out=$(out/bash-tutorial -c 'PATH=; mkdir you' 2>&1)
+  [[ "$out" == 'hello, you' ]] && ok "relative EXTRA_LOADABLES overrides stock mkdir" || no "stock override: '$out'"
 else no "build with EXTRA_LOADABLES"; fi
 echo; echo "tutorial: $pass passed, $fail failed"; exit $(( fail>0 ? 1 : 0 ))
