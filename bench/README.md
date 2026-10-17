@@ -1,6 +1,6 @@
 # bench — bash-os against busybox and against bash with the GNU userland
 
-The [loadable status table](../docs/loadables-status.md) covers all 279 loadables
+The [loadable status table](../docs/loadables-status.md) covers all 280 loadables
 and recommends the next work from correctness checks and individual timings.
 Its [CSV](../docs/loadables-status.csv) supports filtering by profile and status.
 The current table uses one integrated full build and seven samples per case.
@@ -79,7 +79,7 @@ intended behaviour.
 failed validation. `bench/publish.py` turns that into the file the catalog is
 allowed to describe. It strips every timing from a result that failed output
 validation, records which comparison tools this host actually has, and refuses
-to merge reports measured on different binaries.
+to merge reports measured on different binaries, environments or fixtures.
 
 ```sh
 flock /home/pleb/research/projects/bash-os/parallel-loadable-bench.lock \
@@ -89,9 +89,10 @@ python3 bench/catalog.py && python3 bench/catalog.py --check
 ```
 
 Add `--merge` to keep cases measured earlier **on the same binary**; a different
-binary is refused, because rows describing two executables cannot be compared
-with each other. `--omit CASE --omit-reason '...'` drops a case that must not be
-published, and records why — an undocumented gap reads as an oversight.
+binary, CPU, kernel, tool version, method or shared fixture is refused, because
+the report must describe one measurement environment.
+`--omit CASE --omit-reason '...'` drops a case, including one from the base report,
+that must not be published, and records why — an undocumented gap reads as an oversight.
 
 ### The iteration loop
 

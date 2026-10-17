@@ -117,11 +117,17 @@ def main():
     }
     if args.omit:
         published['omitted'] = {'cases': sorted(args.omit), 'reason': args.omit_reason}
+    known = {case['id'] for case in raw['cases']}
+    if args.merge:
+        known.update(case['id'] for case in previous.get('cases', []))
+    if set(args.omit) - known:
+        parser.error('--omit names unknown case(s): ' + ', '.join(sorted(set(args.omit) - known)))
+    if len({case['id'] for case in raw['cases']}) != len(raw['cases']):
+        parser.error('the raw report contains duplicate case ids')
 
-    kept, omitted, invalid = [], [], []
+    kept, invalid = [], []
     for case in raw['cases']:
         if case['id'] in args.omit:
-            omitted.append(case['id'])
             continue
         results = case.get('results', {})
         if results.get('bashos', {}).get('status') != 'ok':
@@ -146,11 +152,18 @@ def main():
                          f"{args.base.name} ({raw['binary_sha256'][:12]} vs "
                          f"{previous['binary_sha256'][:12]}). Remeasure the full set instead; "
                          'rows from two binaries are not comparable.')
+        for field in ('kernel', 'architecture', 'cpu_model', 'cpus', 'method', 'versions'):
+            if previous.get(field) != raw.get(field):
+                parser.error(f'--merge refused: {field} differs from {args.base.name}; '
+                             'remeasure the full set in one environment')
+        for name in previous.get('fixtures', {}).keys() & raw['fixtures'].keys():
+            if previous['fixtures'][name] != raw['fixtures'][name]:
+                parser.error(f'--merge refused: fixture {name} differs from {args.base.name}')
         # The published source_commit describes the measured implementation. A
         # docs-only or harness-only HEAD must not relabel it.
         published['source_commit'] = previous['source_commit']
         published['fixtures'] = {**previous.get('fixtures', {}), **raw['fixtures']}
-        merged = {case['id']: case for case in previous['cases']}
+        merged = {case['id']: case for case in previous['cases'] if case['id'] not in args.omit}
         merged.update({case['id']: case for case in kept})
         published['cases'] = [merged[key] for key in sorted(merged)]
     else:
@@ -162,8 +175,8 @@ def main():
     print(f'{args.output}: {len(published["cases"])} cases '
           f'({len({case["loadable"] for case in published["cases"]})} loadables, '
           f'{selftimed} self-timed), catalog {published["catalog_sha256"][:12]}')
-    if omitted:
-        print(f'  omitted: {", ".join(omitted)} — {args.omit_reason}')
+    if args.omit:
+        print(f'  omitted: {", ".join(sorted(args.omit))} — {args.omit_reason}')
     if invalid:
         print(f'  published WITHOUT a builtin timing (validation failed): {", ".join(invalid)}')
         print('  register each of these in docs/loadables-review.json before running catalog.py')
