@@ -11,14 +11,15 @@ choice, not a runtime disable list.
 | 1 | `pure` | 28 | 1,447,520 | Small baseline of POSIX utilities |
 | 2 | `core` | 89 | 2,067,616 | Everyday files, text processing and processes |
 | 3 | `device` | 160 | 2,734,528 | Core plus Linux devices, processes and basic networking |
-| 4 | `server` | 214 | 6,943,104 | Device plus services, TLS, SSH, accounts and data |
+| 4 | `server` | 215 | — | Device plus services, TLS, SSH, accounts and data |
 | 4 | `desktop` | 155 | — | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 279 | 11,169,864 | Every command in the collection |
+| 5 | `full` | 280 | — | Every command in the collection |
 
-Sizes are stripped x86-64 builds with GCC 14.2 and the default flags. See the
+Sizes are historical stripped x86-64 builds with GCC 14.2 and the default flags. See the
 [benchmarks](../bench/README.md) for static sizes, startup and resident memory.
-Desktop size awaits measurement after adding the native PTY broker.
-Those profiles include `ptybroker`; desktop also includes `bashpoll` for
+Desktop size awaits measurement after adding the native PTY broker; server
+and full sizes await measurement of their current command sets.
+Desktop and full include `ptybroker`; desktop also includes `bashpoll` for
 descriptor readiness. `screen` requires its `ptybroker` companion in custom lists.
 
 Levels 0–5 select `shell`, `pure`, `core`, `device`, `server`, and `full`.
@@ -93,7 +94,9 @@ proves that its injected builtin set matches the manifest, with `PATH` empty.
 The build cache includes the selection, sources, helper metadata, compiler,
 flags and any explicit dependency prefix. A cache hit also checks the binary
 checksum, companion files and the configured tree's build identity; missing
-or mismatched outputs are rebuilt. Builds in one checkout serialize
+or mismatched outputs are rebuilt. The published tree's generated Makefiles
+and `config.status` refer to its final location, so it remains usable after
+staging is removed. Builds in one checkout serialize
 through a lock; use separate worktrees for concurrent builds.
 
 `EXTRA_LOADABLES="dir …"` adds your own C sources to the catalog. Use their names
@@ -123,7 +126,9 @@ builds retain the host's NSS lookup behavior.
 It additionally needs CMake and Python 3.12+. URLs and SHA-256 checksums are in
 [`config/dependencies.json`](../config/dependencies.json). It installs headers,
 archives, license notices and a build record into a private prefix, and refuses
-to replace a nonempty prefix it did not create.
+to replace a nonempty prefix it did not create. Builds for the same prefix
+serialize; cache hits verify the recorded installed headers and archives by
+SHA-256 as well as the compiler and archive-tool selection.
 
 ```sh
 # Host libraries, independent of distribution development packages:

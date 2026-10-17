@@ -16,7 +16,7 @@ JOBS=4 ./build.sh --include bashpython --name python
 
 The first build downloads the SHA-256-pinned CPython source and builds a
 private installation under `out/python/TARGET`. It needs make, a native C
-compiler, binutils, Python 3 and network access for the first download, plus
+compiler, binutils, Python 3.12+ and network access for the first download, plus
 the static zlib, bzip2 and xz from `./build-deps.sh`. SQLite comes from the
 copy vendored in `loadables/_sqlite`. It does not install system packages.
 
