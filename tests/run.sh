@@ -20,7 +20,13 @@ check(){
 }
 check licence-check bash tests/licence-check.sh
 check 'atomic executable publication' python3 tests/publish-binary.py
+check 'complete build cache entries' python3 tests/build-cache.py
+check 'configured build tree relocation' python3 tests/build-tree.py
+check 'dependency cache integrity' python3 tests/dependency-cache.py
+check 'package producer input boundaries' python3 tests/package-inputs.py
+check 'uv data publication' python3 tests/fetch-uv.py
 check 'loadable benchmark validation' python3 tests/bench-loadables.py
+check 'benchmark publication integrity' python3 tests/bench-publish.py
 check profiles python3 tests/profiles.py
 if ./build.sh >"$scratch/build.log" 2>&1; then
   echo 'PASS builds out/bash'; pass=$((pass+1))
@@ -98,6 +104,8 @@ check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
 check 'pkg signatures and remote install' python3 tests/pkg-signify.py out/bash
+check 'package publication and rollback safety' python3 tests/pkg-safety.py out/bash
+check 'static package publication and rollback safety' python3 tests/pkg-safety.py out/bash-static
 check tutorial bash tests/tutorial.sh
 if command -v busybox >/dev/null; then
   check 'bench outputs agree across userlands' bash bench/run.sh --quick
@@ -108,6 +116,7 @@ INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/lo
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'core file and stream safety under ASan+UBSan' bash tests/core-io-sanitize.sh out/bash
   check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
+  check 'package publication and rollback under ASan+UBSan' bash tests/pkg-sanitize.sh out/bash
   check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash
   check 'tac under ASan+UBSan' bash tests/tac-sanitize.sh out/bash
   for name in head-sed fold expand bc nl pr; do
@@ -140,7 +149,7 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
     echo 'FAIL grep harness compilation'; fail=$((fail+1))
   fi
 else
-  echo "SKIP C harnesses (need a built tree + $CC)"
+  echo "FAIL C harness prerequisites (need a built tree + $CC)"; fail=$((fail+1))
 fi
 # Last, because the packages compile against the tree this build leaves behind.
 check 'builds out/bash-shell' ./build.sh --profile shell --clean
