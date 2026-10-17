@@ -50,10 +50,17 @@ typedef struct bcp_link {
     struct bcp_link *next;
 } bcp_link;
 
+typedef struct bcp_dir {
+    dev_t source_dev, destination_dev;
+    ino_t source_ino, destination_ino;
+    struct bcp_dir *parent;
+} bcp_dir;
+
 typedef struct {
     int fflag, iflag, pflag, rflag, vflag;
     int Hflag, Lflag, aflag;
     bcp_link *links;
+    bcp_dir *directories;
 } bcp_opts;
 
 typedef struct {
@@ -328,23 +335,36 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
         if (answer != 'y' && answer != 'Y') return -1;
     }
     if (dst_exists) {
-        char tmp_path[4096 + 16];
+        char tmp_path[4096 + 32];
         int wlen = snprintf (tmp_path, sizeof tmp_path,
-                             "%s.bcptmp.%d", dst, (int) getpid ());
-        if (wlen < 0 || (size_t) wlen >= sizeof tmp_path) {
+                             "%s.bcptmp.XXXXXX", dst);
+        if (wlen < 0 || (size_t) wlen + sizeof "/link" > sizeof tmp_path) {
             builtin_error ("symlink %s: dst path too long for atomic replace", dst);
             return -1;
         }
-        (void) unlink (tmp_path);
+        /* Reserve a private directory atomically. A predictable temporary
+           name must never unlink an unrelated entry beside the destination. */
+        if (!mkdtemp (tmp_path)) {
+            builtin_error ("temporary directory for %s: %s", dst, strerror (errno));
+            return -1;
+        }
+        size_t dirlen = strlen (tmp_path);
+        memcpy (tmp_path + dirlen, "/link", sizeof "/link");
+        int failed = 0;
         if (symlink (target, tmp_path) < 0) {
             builtin_error ("symlink %s -> %s: %s", tmp_path, target, strerror (errno));
-            return -1;
-        }
-        if (rename (tmp_path, dst) < 0) {
+            failed = 1;
+        } else if (rename (tmp_path, dst) < 0) {
             builtin_error ("rename %s -> %s: %s", tmp_path, dst, strerror (errno));
             unlink (tmp_path);
-            return -1;
+            failed = 1;
         }
+        tmp_path[dirlen] = '\0';
+        if (rmdir (tmp_path) < 0) {
+            builtin_error ("rmdir %s: %s", tmp_path, strerror (errno));
+            failed = 1;
+        }
+        if (failed) return -1;
     } else if (symlink (target, dst) < 0) {
         builtin_error ("symlink %s -> %s: %s", dst, target, strerror (errno));
         return -1;
@@ -372,12 +392,26 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         builtin_error ("-r not specified; omitting directory '%s'", src);
         return -1;
     }
+    for (const bcp_dir *parent = o->directories; parent; parent = parent->parent) {
+        if (sst->st_dev == parent->source_dev && sst->st_ino == parent->source_ino) {
+            builtin_error ("%s: cyclic directory traversal", src);
+            return -1;
+        }
+        if (sst->st_dev == parent->destination_dev && sst->st_ino == parent->destination_ino) {
+            builtin_error ("cannot copy a directory into itself: %s", src);
+            return -1;
+        }
+    }
     /* mkdir if not present. */
     struct stat ds;
     int created = 0;
     mode_t final_mode = 0;
     int rc = 0;
     if (lstat (dst, &ds) < 0) {
+        if (errno != ENOENT) {
+            builtin_error ("stat %s: %s", dst, strerror (errno));
+            return -1;
+        }
         mode_t mask = umask (0);
         umask (mask);
         final_mode = (sst->st_mode & 0777) & ~mask;
@@ -398,6 +432,14 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
     } else if (!S_ISDIR (ds.st_mode)) {
         builtin_error ("'%s' exists and is not a directory", dst);
         return -1;
+    } else if (ds.st_dev == sst->st_dev && ds.st_ino == sst->st_ino) {
+        builtin_error ("'%s' and '%s' are the same file", src, dst);
+        return -1;
+    }
+    if (created && lstat (dst, &ds) < 0) {
+        builtin_error ("stat %s: %s", dst, strerror (errno));
+        rc = -1;
+        goto restore_mode;
     }
     DIR *dir = opendir (src);
     if (!dir) {
@@ -405,15 +447,45 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         rc = -1;
         goto restore_mode;
     }
+    bcp_dir current = { sst->st_dev, ds.st_dev, sst->st_ino, ds.st_ino,
+                        o->directories };
+    o->directories = &current;
     struct dirent *de;
-    while ((de = readdir (dir)) != NULL) {
+    for (;;) {
+        errno = 0;
+        de = readdir (dir);
+        if (!de) {
+            if (errno) {
+                builtin_error ("readdir %s: %s", src, strerror (errno));
+                rc = -1;
+            }
+            break;
+        }
         if (strcmp (de->d_name, ".") == 0 || strcmp (de->d_name, "..") == 0)
             continue;
-        char src_child[4096], dst_child[4096];
-        snprintf (src_child, sizeof src_child, "%s/%s", src, de->d_name);
-        snprintf (dst_child, sizeof dst_child, "%s/%s", dst, de->d_name);
+        size_t sn = strlen (src) + strlen (de->d_name) + 2;
+        size_t dn = strlen (dst) + strlen (de->d_name) + 2;
+        if (sn > 4096 || dn > 4096) {
+            builtin_error ("path too long while copying %s", de->d_name);
+            rc = -1;
+            continue;
+        }
+        /* Keep long paths off each recursive stack frame. */
+        char *src_child = malloc (sn), *dst_child = malloc (dn);
+        if (!src_child || !dst_child) {
+            builtin_error ("out of memory");
+            free (src_child);
+            free (dst_child);
+            rc = -1;
+            break;
+        }
+        snprintf (src_child, sn, "%s/%s", src, de->d_name);
+        snprintf (dst_child, dn, "%s/%s", dst, de->d_name);
         if (bcp_one (src_child, dst_child, o, 0) < 0) rc = -1;
+        free (src_child);
+        free (dst_child);
     }
+    o->directories = current.parent;
     closedir (dir);
 restore_mode:
     if (created && chmod (dst, final_mode) < 0) {
