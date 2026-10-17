@@ -83,7 +83,9 @@ overrides it. With the same sources, compiler and version, the packages and
 the INDEX are identical byte for byte.
 
 `--data NAME=DIR` adds `DIR/libexec/NAME/` and `DIR/share/NAME/` to NAME's
-package, which is then xz-compressed. Names may also come from
+package, which is then xz-compressed. Data paths cannot contain whitespace or
+control characters, and every directory boundary must be a real directory.
+Names may also come from
 `config/bash-loadables-optional.list`, which the default catalog leaves out.
 
 For another architecture, set `CC` as for `build.sh`, and pass `--runner` with
@@ -99,6 +101,9 @@ executable, pinned by version and SHA-256 in `config/uv.json`:
 python3 config/fetch-uv.py x86_64 --out out/uv/x86_64    # checks the pinned SHA-256
 ./build-packages.sh --data uv=out/uv/x86_64 uv
 ```
+
+The fetcher stages a complete replacement and refuses an output directory
+that contains files outside its uv data tree.
 
 After `pkg install uv` and `pkg load uv`, the builtin runs
 `/usr/lib/bash-os/libexec/uv/uv` as the shell runs an external command: with
@@ -137,11 +142,15 @@ provide.
 Keys are in signify format. The secret key has no passphrase and is written
 with mode 0600, so keep it on the machine that signs, never in a repository or
 a CI secret. `release` checks every package against the SHA-256 in its INDEX,
-then fills a new directory with:
+then prepares a new directory with:
 
 - each package and its signature, `NAME_VERSION_ARCH.pkg.sig`;
 - one `INDEX` covering every architecture, and `INDEX.sig`;
 - `SHA256SUMS`.
+
+The directory is published only after every package and signature succeeds;
+a failure leaves no partial release. Package filenames must agree with their
+INDEX name, version and architecture.
 
 A GitHub release holds at most 1000 assets, and every package for three
 architectures, with signatures, needs about 1700. So bash-os publishes each
@@ -196,7 +205,7 @@ signature.
 
 ## Tests
 
-`tests/packages.py` builds ten packages twice and compares the bytes, checks
+`tests/packages.py` builds thirteen packages twice and compares the bytes, checks
 that the producer and the signer refuse bad input, serves a signed release
 over HTTP, and installs every package with an empty `PATH`. It then runs each
 builtin in `out/bash-shell` and compares the output with the same builtin

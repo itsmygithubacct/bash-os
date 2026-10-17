@@ -26,6 +26,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import tempfile
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -59,7 +60,7 @@ def signify_blob(path, size):
 def keygen(directory, name):
     pub, sec = directory/f'{name}.pub', directory/f'{name}.sec'
     for path in (pub, sec):
-        if path.exists():
+        if path.exists() or path.is_symlink():
             die(f'{path} exists; refusing to replace a key')
     directory.mkdir(parents=True, exist_ok=True)
     private = Ed25519PrivateKey.generate()
@@ -73,7 +74,8 @@ def keygen(directory, name):
             + hashlib.sha512(secret).digest()[:8] + keynum + secret)
     with os.fdopen(os.open(sec, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as handle:
         handle.write(signify_text(f'{name} secret key', blob))
-    pub.write_text(signify_text(f'{name} public key', b'Ed' + keynum + public))
+    with os.fdopen(os.open(pub, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666), 'w') as handle:
+        handle.write(signify_text(f'{name} public key', b'Ed' + keynum + public))
     print(f'keygen: wrote {pub} and {sec} (key number {keynum.hex()})')
 
 
@@ -117,13 +119,7 @@ def parse_record(line, origin):
     return fields
 
 
-def release(key, out, sources, asset_url=None):
-    signer = Signer(key)
-    if asset_url is not None and not re.fullmatch(r'https?://\S+', asset_url):
-        die(f'--asset-url must be an http or https URL: {asset_url!r}')
-    if out.exists() and any(out.iterdir()):
-        die(f'{out} is not empty')
-    out.mkdir(parents=True, exist_ok=True)
+def populate_release(signer, out, sources, asset_url):
     records = {}
     for source in sources:
         index = source/'INDEX'
@@ -135,8 +131,14 @@ def release(key, out, sources, asset_url=None):
             origin = f'{index}:{number}'
             fields = parse_record(line, origin)
             package = fields['package']
-            if not re.fullmatch(r'[A-Za-z0-9_.+-]+\.pkg', package):
-                die(f'{origin}: package {package!r} is not a plain .pkg file name')
+            for field, pattern in (('name', r'[a-z_][a-z0-9_]*'),
+                                   ('version', r'[0-9A-Za-z][0-9A-Za-z.+~-]*'),
+                                   ('arch', r'[0-9A-Za-z][0-9A-Za-z_+.-]*')):
+                if not re.fullmatch(pattern, fields[field]):
+                    die(f'{origin}: invalid {field} {fields[field]!r}')
+            expected = f"{fields['name']}_{fields['version']}_{fields['arch']}.pkg"
+            if package != expected:
+                die(f'{origin}: package must be named {expected}, got {package!r}')
             if fields['sig'] != package + '.sig':
                 die(f'{origin}: sig must name {package}.sig')
             slot = (fields['arch'], fields['name'])
@@ -148,7 +150,7 @@ def release(key, out, sources, asset_url=None):
             directory = out
             if asset_url is not None:
                 release_name = f"{fields['version']}-{fields['arch']}"
-                if not re.fullmatch(r'[A-Za-z0-9_.+-]+', release_name):
+                if not re.fullmatch(r'[A-Za-z0-9_.+~-]+', release_name):
                     die(f'{origin}: {release_name!r} cannot name a directory')
                 directory = out/release_name
                 directory.mkdir(exist_ok=True)
@@ -170,7 +172,26 @@ def release(key, out, sources, asset_url=None):
     (out/'SHA256SUMS').write_text(''.join(
         f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(out).as_posix()}\n'
         for path in sorted(out.rglob('*')) if path.is_file() and path != out/'SHA256SUMS'))
-    print(f'release: signed {len(records)} packages and INDEX in {out} '
+    return len(records)
+
+
+def release(key, out, sources, asset_url=None):
+    signer = Signer(key)
+    if asset_url is not None and not re.fullmatch(r'https?://\S+', asset_url):
+        die(f'--asset-url must be an http or https URL: {asset_url!r}')
+    if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
+        die(f'{out} is not empty or is not a regular directory')
+    out.parent.mkdir(parents=True, exist_ok=True)
+    # The published directory keeps mkdir's umask-derived mode; only the
+    # enclosing scratch directory is private. A failure leaves OUT untouched.
+    with tempfile.TemporaryDirectory(prefix='.release-', dir=out.parent) as scratch:
+        staged = Path(scratch)/'release'
+        staged.mkdir()
+        count = populate_release(signer, staged, sources, asset_url)
+        if out.exists():
+            out.rmdir()
+        staged.rename(out)
+    print(f'release: signed {count} packages and INDEX in {out} '
           f'(key number {signer.keynum.hex()})')
 
 

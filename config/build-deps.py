@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build pinned static dependency libraries without modifying the compiler sysroot."""
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -12,6 +13,21 @@ import tempfile
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def cache_valid(prefix, previous, identity, libraries):
+    """Check the installed headers and archives, not just their filenames."""
+    if {key: value for key, value in previous.items() if key != 'checksums'} != identity:
+        return False
+    checksums = previous.get('checksums')
+    if not checksums or any('lib/'+name not in checksums for name in libraries):
+        return False
+    try:
+        return all((prefix/name).is_file()
+                   and hashlib.sha256((prefix/name).read_bytes()).hexdigest() == digest
+                   for name, digest in checksums.items())
+    except OSError:
+        return False
 
 
 def main():
@@ -28,6 +44,13 @@ def main():
         parser.error('CC is not an executable compiler')
     target = subprocess.check_output([cc, '-dumpmachine'], text=True).strip()
     prefix = (args.prefix or ROOT/'out/deps'/target).resolve()
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    with (prefix.parent/(prefix.name+'.lock')).open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        build(parser, args, cc, target, prefix)
+
+
+def build(parser, args, cc, target, prefix):
     config = ROOT/'config/dependencies.json'
     packages = json.loads(config.read_text())
     marker = prefix/'bash-os-dependencies.json'
@@ -37,19 +60,6 @@ def main():
     names = ['zlib', 'pcre2', 'xz', 'zstd', 'bzip2'] + (['libffi', 'openssl'] if python else [])
     packages = {name: packages[name] for name in names}
     cflags = os.environ.get('CFLAGS', '-O2 -fPIC')
-    identity = dict(packages=packages, target=target, cc=cc, cflags=cflags, python=python,
-                    compiler=subprocess.check_output([cc, '--version'], text=True),
-                    recipe=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
-    libraries = ['libpcre2-8.a', 'libz.a', 'liblzma.a', 'libzstd.a', 'libbz2.a']
-    if python:
-        libraries += ['libffi.a', 'libssl.a', 'libcrypto.a']
-    if previous == identity and all((prefix/'lib'/n).is_file() for n in libraries):
-        print(f'dependencies: up to date: {prefix}')
-        return
-    if prefix.exists() and any(prefix.iterdir()) and not marker.is_file():
-        parser.error(f'refusing to replace a nonempty unmanaged prefix: {prefix}')
-    prefix.parent.mkdir(parents=True, exist_ok=True)
-    download = ROOT/'dl/deps'; download.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env['CC'], env['CFLAGS'] = cc, cflags
     for var, suffix in [('AR','ar'), ('RANLIB','ranlib')]:
@@ -58,6 +68,20 @@ def main():
         if not tool:
             parser.error(f'{var} is not an executable archive tool')
         env[var] = tool
+    identity = dict(packages=packages, target=target, cc=cc, cflags=cflags, python=python,
+                    ar=env['AR'], ranlib=env['RANLIB'],
+                    compiler=subprocess.check_output([cc, '--version'], text=True),
+                    recipe=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
+    libraries = ['libpcre2-8.a', 'libz.a', 'liblzma.a', 'libzstd.a', 'libbz2.a']
+    if python:
+        libraries += ['libffi.a', 'libssl.a', 'libcrypto.a']
+    if cache_valid(prefix, previous, identity, libraries):
+        print(f'dependencies: up to date: {prefix}')
+        return
+    if prefix.exists() and any(prefix.iterdir()) and not marker.is_file():
+        parser.error(f'refusing to replace a nonempty unmanaged prefix: {prefix}')
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    download = ROOT/'dl/deps'; download.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='bash-os-deps-', dir=prefix.parent) as directory:
         work = Path(directory)
         dest = work/'dest'
@@ -152,7 +176,10 @@ def main():
                 raise RuntimeError(f'{name}: no licence notice found')
         if not all((install/'lib'/n).is_file() for n in libraries):
             raise RuntimeError('dependency installation is incomplete')
-        (install/'bash-os-dependencies.json').write_text(json.dumps(identity, indent=2)+'\n')
+        checksums = {path.relative_to(install).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                     for path in sorted(install.rglob('*')) if path.is_file()}
+        (install/'bash-os-dependencies.json').write_text(
+            json.dumps({**identity, 'checksums': checksums}, indent=2)+'\n')
         backup = work/'previous'
         if prefix.exists():
             prefix.rename(backup)

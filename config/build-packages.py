@@ -109,18 +109,23 @@ def sha256(data):
 
 def data_members(name, directory):
     """The files under DIRECTORY/libexec/NAME and DIRECTORY/share/NAME, as package members."""
-    if not directory.is_dir():
-        die(f'--data {directory}: not a directory')
+    if directory.is_symlink() or not directory.is_dir():
+        die(f'--data {directory}: not a regular directory')
     members = []
     for top in sorted(directory.iterdir()):
-        if top.name not in ('libexec', 'share') or [p.name for p in top.iterdir()] != [name]:
+        if (top.is_symlink() or not top.is_dir() or top.name not in ('libexec', 'share')
+                or [p.name for p in top.iterdir()] != [name]
+                or (top/name).is_symlink() or not (top/name).is_dir()):
             die(f'--data {directory}: only libexec/{name}/ and share/{name}/ may be present')
         for path in sorted((top/name).rglob('*')):
             if path.is_symlink() or not (path.is_dir() or path.is_file()):
                 die(f'--data {path}: only regular files and directories can be packaged')
             if path.is_file():
+                relative = path.relative_to(directory).as_posix()
+                if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in relative):
+                    die(f'--data {path}: whitespace and control characters cannot appear in MANIFEST paths')
                 mode = 0o755 if path.stat().st_mode & 0o111 else 0o644
-                members.append((path.relative_to(directory).as_posix(), path.read_bytes(), mode))
+                members.append((relative, path.read_bytes(), mode))
     if not members:
         die(f'--data {directory}: no files')
     return members
@@ -194,7 +199,10 @@ def parse_args():
                         help="add DIR/libexec/NAME and DIR/share/NAME to NAME's package")
     parser.add_argument('--jobs', type=int, default=int(os.environ.get('JOBS') or os.cpu_count() or 2))
     parser.add_argument('names', nargs='*')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error('--jobs must be positive')
+    return args
 
 
 def main():
@@ -218,7 +226,7 @@ def main():
         die(f'{tree} was configured for {machine and machine[1]}, but CC targets {tools.arch}')
     if re.search(r'^LDFLAGS = .*-static\b', makefile, re.M):
         die(f'{tree} was configured for a static executable; run ./build.sh --profile shell '
-            '(with --clean if it reports that it is up to date)')
+            'to restore a dynamic build tree')
     if not bash.is_file():
         die(f'{bash} does not exist; build it with ./build.sh --profile shell')
     interpreter = tools.interpreter(bash)
