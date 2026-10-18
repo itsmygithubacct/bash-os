@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdint.h>
+#include <ctype.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <linux/loop.h>
@@ -34,6 +35,18 @@
 #ifndef LOOP_CTL_GET_FREE
 #  define LOOP_CTL_GET_FREE 0x4C82
 #endif
+
+static int
+parse_bytes (const char *s, uint64_t *out)
+{
+    char *end;
+    if (!*s || *s == '-' || isspace ((unsigned char) *s)) return -1;
+    errno = 0;
+    unsigned long long value = strtoull (s, &end, 0);
+    if (errno || end == s || *end || value > UINT64_MAX) return -1;
+    *out = (uint64_t) value;
+    return 0;
+}
 
 static int
 read_first_line (const char *path, char *buf, size_t n)
@@ -137,8 +150,17 @@ losetup_builtin (WORD_LIST *list)
         if (!strcmp (w, "-d") || !strcmp (w, "--detach")) { do_detach = 1; list = list->next; continue; }
         if (!strcmp (w, "-r") || !strcmp (w, "--read-only")) { readonly = 1; list = list->next; continue; }
         if (!strcmp (w, "-P") || !strcmp (w, "--partscan")) { partscan = 1; list = list->next; continue; }
-        if (!strcmp (w, "-o") || !strcmp (w, "--offset")) { if (!list->next){builtin_error("-o requires an argument");return EX_USAGE;} list=list->next; offset=strtoull(list->word->word,NULL,0); list=list->next; continue; }
-        if (!strcmp (w, "--sizelimit")) { if (!list->next){builtin_error("--sizelimit requires an argument");return EX_USAGE;} list=list->next; sizelimit=strtoull(list->word->word,NULL,0); list=list->next; continue; }
+        if (!strcmp (w, "-o") || !strcmp (w, "--offset") || !strcmp (w, "--sizelimit")) {
+            if (!list->next) { builtin_error ("%s requires an argument", w); return EX_USAGE; }
+            list = list->next;
+            uint64_t *target = !strcmp (w, "--sizelimit") ? &sizelimit : &offset;
+            if (parse_bytes (list->word->word, target) < 0) {
+                builtin_error ("%s: invalid byte count: %s", w, list->word->word);
+                return EX_USAGE;
+            }
+            list = list->next;
+            continue;
+        }
         if (!strcmp (w, "-j") || !strcmp (w, "--associated")) { if (!list->next){builtin_error("-j requires an argument");return EX_USAGE;} list=list->next; j_arg=list->word->word; list=list->next; continue; }
         builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE;
     }
