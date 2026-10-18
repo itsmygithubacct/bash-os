@@ -50,8 +50,11 @@ def peer(handler, count=1):
 
 
 def shell(script, *args, **kwargs):
-    return subprocess.run([BINARY, "-c", "PATH=; " + script, "nc-stream", *map(str, args)],
-                          env=ENV, capture_output=True, timeout=6, **kwargs)
+    result = subprocess.run([BINARY, "-c", "PATH=; " + script, "nc-stream", *map(str, args)],
+                            env=ENV, capture_output=True, timeout=6, **kwargs)
+    if b"runtime error:" in result.stderr or b"ERROR: AddressSanitizer" in result.stderr:
+        raise AssertionError(result.stderr)
+    return result
 
 
 class StreamTests(unittest.TestCase):

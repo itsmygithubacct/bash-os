@@ -33,8 +33,11 @@ class RecordTests(unittest.TestCase):
         self.env = ENV | {"BASHUSERDB_PASSWD": str(self.passwd), "BASHUSERDB_CONF": str(self.config)}
 
     def run_shell(self, script, *args):
-        return subprocess.run([BINARY, "-c", "PATH=; " + script, "userdb-records", *map(str, args)],
-                              env=self.env, capture_output=True, timeout=8)
+        result = subprocess.run([BINARY, "-c", "PATH=; " + script, "userdb-records", *map(str, args)],
+                                env=self.env, capture_output=True, timeout=8)
+        if b"runtime error:" in result.stderr or b"ERROR: AddressSanitizer" in result.stderr:
+            raise AssertionError(result.stderr)
+        return result
 
     def provider(self, name, program):
         provider = self.directory / "provider"

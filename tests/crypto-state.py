@@ -18,8 +18,11 @@ if ENV.get("CRYPTO_STATE_ASAN_LIB"):
 
 
 def shell(script, *args):
-    return subprocess.run([BINARY, "-c", "PATH=; " + script, "crypto-state", *map(str, args)],
-                          env=ENV, capture_output=True, timeout=8)
+    result = subprocess.run([BINARY, "-c", "PATH=; " + script, "crypto-state", *map(str, args)],
+                            env=ENV, capture_output=True, timeout=8)
+    if b"runtime error:" in result.stderr or b"ERROR: AddressSanitizer" in result.stderr:
+        raise AssertionError(result.stderr)
+    return result
 
 
 class StateTests(unittest.TestCase):

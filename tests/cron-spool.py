@@ -38,8 +38,11 @@ class SpoolFixture(unittest.TestCase):
                           "VISUAL": str(self.editor), "EDITOR": str(self.editor)}
 
     def run_shell(self, script, *args):
-        return subprocess.run([BINARY, "-c", "PATH=; " + script, "cron-spool", *map(str, args)],
-                              env=self.env, capture_output=True, timeout=8)
+        result = subprocess.run([BINARY, "-c", "PATH=; " + script, "cron-spool", *map(str, args)],
+                                env=self.env, capture_output=True, timeout=8)
+        if b"runtime error:" in result.stderr or b"ERROR: AddressSanitizer" in result.stderr:
+            raise AssertionError(result.stderr)
+        return result
 
 
 class CrontabTests(SpoolFixture):

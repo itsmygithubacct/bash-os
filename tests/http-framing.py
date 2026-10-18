@@ -19,8 +19,11 @@ if ENV.get("HTTP_ASAN_LIB"):
 
 
 def shell(script, *args):
-    return subprocess.run([BINARY, "-c", "PATH=; " + script, "http-framing", *map(str, args)],
-                          env=ENV, capture_output=True, timeout=5)
+    result = subprocess.run([BINARY, "-c", "PATH=; " + script, "http-framing", *map(str, args)],
+                            env=ENV, capture_output=True, timeout=5)
+    if b"runtime error:" in result.stderr or b"ERROR: AddressSanitizer" in result.stderr:
+        raise AssertionError(result.stderr)
+    return result
 
 
 class FramingTests(unittest.TestCase):
