@@ -84,6 +84,25 @@ bmv_words_add (bmv_words *words, const char *word)
 static int bmv_xdev_copy (const char *src, const char *dst, bmv_opts *o,
                           bmv_removals *removals);
 
+static char *
+bmv_join_path (const char *dir, const char *name, size_t name_length)
+{
+    size_t dir_length = strlen (dir);
+    /* These operations use full pathnames. Reject an unsupported length
+       before it can name a different entry through silent truncation. */
+    if (dir_length > 4094 || name_length > 4094 - dir_length) {
+        builtin_error ("path too long while moving into %s", dir);
+        return NULL;
+    }
+    char *path = malloc (dir_length + name_length + 2);
+    if (!path) { builtin_error ("out of memory"); return NULL; }
+    memcpy (path, dir, dir_length);
+    path[dir_length] = '/';
+    memcpy (path + dir_length + 1, name, name_length);
+    path[dir_length + name_length + 1] = '\0';
+    return path;
+}
+
 static bmv_link *
 bmv_find_link (const bmv_opts *o, const struct stat *src)
 {
@@ -250,13 +269,13 @@ bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts
             break;
         }
         if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
-        char sc[4096], dc[4096];
-        snprintf (sc, sizeof sc, "%s/%s", src, de->d_name);
-        snprintf (dc, sizeof dc, "%s/%s", dst, de->d_name);
-        if (bmv_xdev_copy (sc, dc, o, removals) < 0) {
-            rc = -1;
-            break;
-        }
+        size_t length = strlen (de->d_name);
+        char *sc = bmv_join_path (src, de->d_name, length);
+        char *dc = sc ? bmv_join_path (dst, de->d_name, length) : NULL;
+        if (!sc || !dc || bmv_xdev_copy (sc, dc, o, removals) < 0) rc = -1;
+        free (sc);
+        free (dc);
+        if (rc < 0) break;
     }
     if (closedir (d) < 0) {
         builtin_error ("closedir %s: %s", src, strerror (errno));
@@ -550,12 +569,18 @@ mv_builtin (WORD_LIST *list)
     int rc = EXECUTION_SUCCESS;
     for (int i = 0; i < nsrc; i++) {
         const char *src = positional.v[i];
-        char dst_buf[4096];
+        char *dst_buf = NULL;
         const char *dst;
         if (dst_is_dir) {
-            const char *base = strrchr (src, '/');
-            base = base ? base + 1 : src;
-            snprintf (dst_buf, sizeof dst_buf, "%s/%s", dest, base);
+            const char *end = src + strlen (src);
+            while (end > src && end[-1] == '/') end--;
+            const char *base = end;
+            while (base > src && base[-1] != '/') base--;
+            dst_buf = bmv_join_path (dest, base, (size_t) (end - base));
+            if (!dst_buf) {
+                rc = EXECUTION_FAILURE;
+                continue;
+            }
             dst = dst_buf;
         } else {
             dst = dest;
@@ -567,14 +592,17 @@ mv_builtin (WORD_LIST *list)
             if (lstat (dst, &st) < 0) {
                 builtin_error ("stat %s: %s", dst, strerror (errno));
                 rc = EXECUTION_FAILURE;
+                free (dst_buf);
                 break;
             }
             if (bmv_remember_link (&o.written, &st, dst) < 0) {
                 /* Stop rather than continue without collision protection. */
                 rc = EXECUTION_FAILURE;
+                free (dst_buf);
                 break;
             }
         }
+        free (dst_buf);
     }
     free (positional.v);
     while (o.links) {
