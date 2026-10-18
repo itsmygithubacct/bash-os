@@ -20,3 +20,5 @@ for group in 'buf undo clip nano2' 'fifo escdelay kgetch wgetch wget_wch mouse' 
 done
 TERMINAL_LOAD_ENV="$d/load.sh" TERMINAL_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
   python3 tests/terminal-smoke.py "${1:-out/bash}"
+EXPECT_TEST_LOADABLE="$d/pty.so" EXPECT_TEST_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
+  python3 tests/expect-timeout.py "${1:-out/bash}"
