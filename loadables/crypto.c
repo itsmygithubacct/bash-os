@@ -80,6 +80,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <limits.h>
 #include <termios.h>
 
 #include <sys/types.h>
@@ -321,6 +322,31 @@ bc_emit (const unsigned char *buf, size_t len, int hex_out)
  * `$(…)` fork that command-substitution forces. Hex-only — binding raw
  * bytes to a bash variable is fragile (NUL bytes terminate strings). */
 static int
+bc_text_variable_ok (const char *name)
+{
+  const char *target = name;
+  for (int depth = 0; depth < 64; depth++)
+    {
+      if (!target || !legal_identifier (target)) break;
+      SHELL_VAR *v = find_variable_noref (target);
+      if (v && (readonly_p (v) || noassign_p (v) || integer_p (v) ||
+                array_p (v) || assoc_p (v) || v->dynamic_value || v->assign_func)) break;
+      if (v && nameref_p (v)) { target = nameref_cell (v); continue; }
+      return 1;
+    }
+  builtin_error ("output variable must be a writable text scalar: %s", name);
+  return 0;
+}
+
+static int
+bc_bind_text (const char *name, const char *value)
+{
+  if (!bc_text_variable_ok (name)) return -1;
+  SHELL_VAR *v = builtin_bind_variable ((char *) name, (char *) value, 0);
+  return v && !readonly_p (v) && !noassign_p (v) ? 0 : -1;
+}
+
+static int
 bc_emit_to (const unsigned char *buf, size_t len, int hex_out, const char *var_name)
 {
   if (!var_name) return bc_emit (buf, len, hex_out);
@@ -334,9 +360,9 @@ bc_emit_to (const unsigned char *buf, size_t len, int hex_out, const char *var_n
       hex[i*2+1] = nibble[buf[i] & 0xf];
     }
   hex[len*2] = '\0';
-  builtin_bind_variable ((char *) var_name, hex, 0);
+  int rc = bc_bind_text (var_name, hex);
   free (hex);
-  return 0;
+  return rc;
 }
 
 
@@ -1259,13 +1285,19 @@ bc_secret_cleanup (void)
 static int
 bc_secret_parse_handle (const char *h, int *idx, unsigned int *gen)
 {
+  if (!h || !*h) return -1;
+  const char *p = h;
+  while (*p >= '0' && *p <= '9') p++;
+  if (p == h || *p++ != ':' || !*p) return -1;
+  for (; *p; p++) if (*p < '0' || *p > '9') return -1;
   char *end = NULL;
   long i = strtol (h, &end, 10);
   if (end == h || *end != ':' || i < 0 || i >= BC_SECRET_POOL_MAX)
     return -1;
   char *gend = NULL;
+  errno = 0;
   unsigned long g = strtoul (end + 1, &gend, 10);
-  if (gend == end + 1 || *gend != '\0' || g == 0)
+  if (errno == ERANGE || gend == end + 1 || *gend != '\0' || g == 0 || g > UINT_MAX)
     return -1;
   *idx = (int) i;
   *gen = (unsigned int) g;
@@ -1531,17 +1563,22 @@ bc_secret_read_cmd (WORD_LIST *args)
       builtin_error ("secret-read needs -h VARNAME");
       return EX_USAGE;
     }
+  if (!bc_text_variable_ok (var_name)) return EXECUTION_FAILURE;
 
   unsigned char tmp[BC_SECRET_MAX];
   size_t len = 0;
   if (bc_secret_read_bytes (prompt, no_echo, tmp, &len) < 0)
-    return EXECUTION_FAILURE;
+    { crypto_wipe (tmp, sizeof tmp); return EXECUTION_FAILURE; }
 
   char handle[32];
   int rc = bc_secret_alloc (tmp, len, handle, sizeof handle);
   crypto_wipe (tmp, sizeof tmp);
   if (rc < 0) return EXECUTION_FAILURE;
-  builtin_bind_variable ((char *) var_name, handle, 0);
+  if (bc_bind_text (var_name, handle) < 0)
+    {
+      bc_secret_free_slot (bc_secret_get (handle));
+      return EXECUTION_FAILURE;
+    }
   return EXECUTION_SUCCESS;
 }
 
@@ -1706,6 +1743,7 @@ bc_secret_hkdf_cmd (WORD_LIST *args)
       builtin_error ("secret-hkdf needs HANDLE -h OUT_VAR");
       return EX_USAGE;
     }
+  if (!bc_text_variable_ok (var_name)) return EXECUTION_FAILURE;
   if (out_len == 0 || out_len > BC_SECRET_MAX)
     {
       builtin_error ("secret-hkdf: LEN must be 1..%d", BC_SECRET_MAX);
@@ -1728,14 +1766,18 @@ bc_secret_hkdf_cmd (WORD_LIST *args)
   const bc_mbed_hash_entry *he = bc_find_mbed_hash ("sha256");
   if (!he || bc_hkdf_mbed (he, salt, (size_t) salt_len, s->bytes, s->len,
                            info, (size_t) info_len, out, out_len) != 0)
-    { free (out); builtin_error ("secret-hkdf: derive failed"); return EXECUTION_FAILURE; }
+    { crypto_wipe (out, out_len); free (out); builtin_error ("secret-hkdf: derive failed"); return EXECUTION_FAILURE; }
 
   char new_handle[32];
   int rc = bc_secret_alloc (out, out_len, new_handle, sizeof new_handle);
   crypto_wipe (out, out_len);
   free (out);
   if (rc < 0) return EXECUTION_FAILURE;
-  builtin_bind_variable ((char *) var_name, new_handle, 0);
+  if (bc_bind_text (var_name, new_handle) < 0)
+    {
+      bc_secret_free_slot (bc_secret_get (new_handle));
+      return EXECUTION_FAILURE;
+    }
   return EXECUTION_SUCCESS;
 }
 
