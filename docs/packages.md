@@ -181,6 +181,10 @@ configuration: both are compiled in. It also trusts any `.pub` file in
 `/etc/bashsignify/trusted` (or `$BASHSIGNIFY_TRUSTED_KEYS_DIR`). Key numbers
 listed in `/etc/bashsignify/revoked-keys` are refused, the built-in keys
 included.
+`$BASHSIGNIFY_REVOKED_KEYS` can select another revocation list. A missing list
+is allowed; errors opening or reading an existing list refuse the signature.
+The `-A` option permits an absent signature, but still refuses invalid
+signatures and signature-file lookup errors.
 
 With no `/etc/pkg/sources.list`, pkg uses the bash-os releases,
 `https://github.com/itsmygithubacct/bash-os/releases/download/packages`:
@@ -214,3 +218,5 @@ trust, revocation and dependency checks. `tests/pkg-data.py` installs,
 verifies, upgrades and removes a package with data trees, and checks that
 archives whose data disagrees with MANIFEST are refused. `tests/run.sh` runs
 all three.
+`tests/pkg-trust.py` checks missing, unreadable and invalid trust-file paths,
+including unsigned-install handling and recovery in the same shell.

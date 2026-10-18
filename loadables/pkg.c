@@ -1193,7 +1193,8 @@ bp_signify_trusted_key (const unsigned char *keynum, unsigned char key[32])
 }
 
 /* One 16-hex key number per line; '#' comments and blank lines are ignored.
-   A missing list means no key is revoked. */
+   A missing list means no key is revoked; an unreadable list cannot authorize
+   a signature. Return -1 on I/O failure, 0 if absent, or 1 if revoked. */
 static int
 bp_signify_revoked (const unsigned char *keynum)
 {
@@ -1201,8 +1202,13 @@ bp_signify_revoked (const unsigned char *keynum)
     char id[17], line[256];
     bp_signify_hex (keynum, 8, id);
     FILE *f = fopen (path, "re");
-    if (!f) return 0;
+    if (!f) {
+        if (errno == ENOENT) return 0;
+        builtin_error ("cannot read revocations %s: %s", path, strerror (errno));
+        return -1;
+    }
     int revoked = 0;
+    errno = 0;
     while (!revoked && fgets (line, sizeof line, f)) {
         char entry[sizeof line];
         size_t n = 0;
@@ -1211,7 +1217,13 @@ bp_signify_revoked (const unsigned char *keynum)
         entry[n] = '\0';
         revoked = n && !strcasecmp (entry, id);
     }
-    fclose (f);
+    int read_errno = ferror (f) ? (errno ? errno : EIO) : 0;
+    if (fclose (f) < 0 && !read_errno)
+        read_errno = errno ? errno : EIO;
+    if (read_errno) {
+        builtin_error ("cannot read revocations %s: %s", path, strerror (read_errno));
+        return -1;
+    }
     if (revoked)
         builtin_error ("key id %s has been revoked (per %s)", id, path);
     return revoked;
@@ -1222,8 +1234,10 @@ bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
 {
     struct stat st;
     if (stat (sig, &st) < 0) {
-        /* No sig — caller decides whether to allow. */
-        return 1;
+        /* Only absence permits the caller's explicit unsigned override. */
+        if (errno == ENOENT) return 1;
+        builtin_error ("cannot inspect signature %s: %s", sig, strerror (errno));
+        return -1;
     }
     unsigned char signature[BPKG_SIGNIFY_SIG_LEN], key[32];
     if (bp_signify_read (sig, signature, sizeof signature, 0) < 0 ||
