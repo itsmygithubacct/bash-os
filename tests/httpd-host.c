@@ -181,6 +181,25 @@ main (void)
   snprintf (lfd_s, sizeof lfd_s, "%d", lfd);
   CHECK (run ("listen", "0", (char *) NULL) == EX_USAGE, "listen without -H is a usage error");
 
+  puts ("== numeric bounds preserve the caller's descriptors and listener ==");
+  { char wrapped[48];
+    snprintf (wrapped, sizeof wrapped, "%llu", (unsigned long long) UINT_MAX + 1 + lfd);
+    rc = run ("reply", wrapped, "-f", bodyf, (char *) NULL);
+    CHECK (rc == EX_USAGE && fd_open (lfd), "oversized fd is rejected without closing the wrapped descriptor");
+    if (!fd_open (lfd)) { clear_vars (); rmdir (d); return 1; }
+
+    /* An already queued request keeps a broken timeout conversion from
+       hanging this host harness. Validating -t must leave it for the caller. */
+    const char *req = "GET /bounds HTTP/1.1\r\n\r\n";
+    c = client (port, req, strlen (req), out); clear_vars ();
+    rc = run ("accept", lfd_s, "-H", "CFD", "-m", "METHOD", "-p", "PATH", "-q", "QUERY", "-B", bodyf, "-t", "2147484", (char *) NULL);
+    CHECK (rc == EX_USAGE && nvars == 0, "timeout beyond poll's range is rejected before accept");
+    if (rc == EX_USAGE)
+      rc = run ("accept", lfd_s, "-H", "CFD", "-m", "METHOD", "-p", "PATH", "-q", "QUERY", "-B", bodyf, "-t", "2", (char *) NULL);
+    if (rc == EXECUTION_SUCCESS && var ("CFD")) close (atoi (var ("CFD")));
+    waitpid (c, 0, 0);
+  }
+
   puts ("== GET with a query: parsed into variables, CFD left open ==");
   { const char *req = "GET /api/state?x=1&y=2 HTTP/1.1\r\nHost: t\r\nUser-Agent: x\r\n\r\n";
     c = client (port, req, strlen (req), out); clear_vars ();
@@ -238,6 +257,24 @@ main (void)
     cfd = atoi (var ("CFD")); snprintf (cfd_s, sizeof cfd_s, "%d", cfd);
     { int f = open (replyf, O_WRONLY | O_TRUNC); close (f); }
     run ("reply", cfd_s, "-f", replyf, (char *) NULL); waitpid (c, 0, 0);
+  }
+
+  puts ("== a long Content-Type does not truncate the remaining response headers ==");
+  { char longtype[2001];
+    memset (longtype, 'x', sizeof longtype - 1); longtype[sizeof longtype - 1] = 0;
+    const char *req = "GET /long-type HTTP/1.1\r\n\r\n";
+    c = client (port, req, strlen (req), out); clear_vars ();
+    rc = run ("accept", lfd_s, "-H", "CFD", "-m", "METHOD", "-p", "PATH", "-q", "QUERY", "-B", bodyf, (char *) NULL);
+    CHECK (rc == EXECUTION_SUCCESS, "accept for long-type reply succeeds");
+    cfd = var ("CFD") ? atoi (var ("CFD")) : -1;
+    snprintf (cfd_s, sizeof cfd_s, "%d", cfd);
+    { int f = open (replyf, O_WRONLY | O_TRUNC); if (write (f, "xyz", 3) != 3) _exit (9); close (f); }
+    rc = run ("reply", cfd_s, "-t", longtype, "-f", replyf, (char *) NULL);
+    waitpid (c, 0, 0); rawlen = slurp (out, raw, sizeof raw);
+    CHECK (rc == EXECUTION_SUCCESS && !fd_open (cfd), "long-type reply succeeds and closes CFD");
+    CHECK (strstr (raw, longtype) && strstr (raw, "\r\nContent-Length: 3\r\n") &&
+	   rawlen > 7 && memcmp (raw + rawlen - 7, "\r\n\r\nxyz", 7) == 0,
+	   "complete Content-Type, length, separator and exact body are emitted");
   }
 
   puts ("== refusals: answered and closed by accept, which returns non-zero ==");

@@ -204,8 +204,10 @@ parse_fd (const char *s, const char *what, long *out)
 {
   char *end; long v;
   if (s == 0 || *s == 0) { builtin_error ("%s: fd required", what); return -1; }
+  errno = 0;
   v = strtol (s, &end, 10);
-  if (*end || v < 0) { builtin_error ("%s: bad fd '%s'", what, s); return -1; }
+  if (errno == ERANGE || *end || v < 0 || v > INT_MAX)
+    { builtin_error ("%s: bad fd '%s'", what, s); return -1; }
   *out = v;
   return 0;
 }
@@ -315,8 +317,10 @@ do_accept (WORD_LIST *list)
       case 'c': v_ct = list_optarg; break;
       case 'r': v_rem = list_optarg; break;
       case 't':
+	errno = 0;
 	secs = strtol (list_optarg, &end, 10);
-	if (*list_optarg == 0 || *end || secs < 0) { builtin_error ("accept: bad -t '%s'", list_optarg); return (EX_USAGE); }
+	if (errno == ERANGE || *list_optarg == 0 || *end || secs < 0 || secs > INT_MAX / 1000)
+	  { builtin_error ("accept: -t must be in 0..%d", INT_MAX / 1000); return (EX_USAGE); }
 	break;
       default: builtin_usage (); return (EX_USAGE);
       }
@@ -447,7 +451,7 @@ do_reply (WORD_LIST *list)
   long cfd, status = 200, clen = 0;
   int opt, rc = EXECUTION_SUCCESS, err = 0, ffd = -1;
   char *end, *buf = 0;
-  char hdr[512];
+  char *hdr = NULL;
 
   if (list == 0) { builtin_usage (); return (EX_USAGE); }
   if (parse_fd (list->word->word, "reply", &cfd) != 0) return (EX_USAGE);
@@ -493,9 +497,10 @@ do_reply (WORD_LIST *list)
       clen = (long) len;
     }
 
-  snprintf (hdr, sizeof hdr, "HTTP/1.1 %ld %s\r\nContent-Type: %s\r\nContent-Length: %ld\r\nConnection: close\r\n\r\n",
-	    status, reason ((int) status), ctype, clen);
-  if (send_all ((int) cfd, hdr, strlen (hdr)) != 0) { rc = EXECUTION_FAILURE; err = errno; }
+  int hlen = asprintf (&hdr, "HTTP/1.1 %ld %s\r\nContent-Type: %s\r\nContent-Length: %ld\r\nConnection: close\r\n\r\n",
+		       status, reason ((int) status), ctype, clen);
+  if (hlen < 0) { rc = EXECUTION_FAILURE; err = ENOMEM; }
+  else if (send_all ((int) cfd, hdr, (size_t) hlen) != 0) { rc = EXECUTION_FAILURE; err = errno; }
   else if (file)
     {
       char chunk[CHUNK];
@@ -511,6 +516,7 @@ do_reply (WORD_LIST *list)
   else if (clen > 0 && send_all ((int) cfd, buf, (size_t) clen) != 0) { rc = EXECUTION_FAILURE; err = errno; }
 
   if (ffd >= 0) close (ffd);
+  free (hdr);
   free (buf);
   close ((int) cfd);					/* always: the connection is ours to end */
   if (rc != EXECUTION_SUCCESS) builtin_error ("reply: %s", strerror (err));
