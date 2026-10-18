@@ -23,6 +23,7 @@ check 'atomic executable publication' python3 tests/publish-binary.py
 check 'complete build cache entries' python3 tests/build-cache.py
 check 'configured build tree relocation' python3 tests/build-tree.py
 check 'dependency cache integrity' python3 tests/dependency-cache.py
+check 'optional interpreter cache integrity' python3 tests/interpreter-cache.py
 check 'package producer input boundaries' python3 tests/package-inputs.py
 check 'uv data publication' python3 tests/fetch-uv.py
 check 'loadable benchmark validation' python3 tests/bench-loadables.py
@@ -35,9 +36,10 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
-for name in cmp-streams cp-safety split-safety diff-safety dd-safety; do
+for name in cmp-streams cp-safety mv-safety split-safety diff-safety dd-safety; do
   check "$name" python3 "tests/$name.py" out/bash
 done
+check 'copy/move finalization failures' python3 tests/copy-move-errors.py out/bash
 check 'Debian command parity' python3 tests/debian-parity.py out/bash
 check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
 check 'tac parity' python3 tests/tac-parity.py out/bash
@@ -72,6 +74,7 @@ check network-smoke python3 tests/network-smoke.py out/bash
 check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
+check 'expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
 check ptybroker python3 tests/ptybroker.py --bash out/bash
 check ptybroker-io python3 tests/ptybroker-io.py --bash out/bash
@@ -83,7 +86,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
-for name in cmp-streams cp-safety split-safety diff-safety dd-safety; do
+for name in cmp-streams cp-safety mv-safety split-safety diff-safety dd-safety; do
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
 check 'static Debian command parity' python3 tests/debian-parity.py out/bash-static
@@ -101,6 +104,7 @@ check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check 'static git parity' python3 tests/git-parity.py out/bash-static \
   basic-commit branches log-diff packs
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
+check 'static expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
 check 'pkg signatures and remote install' python3 tests/pkg-signify.py out/bash
