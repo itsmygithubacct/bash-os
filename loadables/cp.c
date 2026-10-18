@@ -190,15 +190,17 @@ bcp_copy_data (int sfd, int dfd, const char *src, const char *dst)
 static int
 bcp_apply_metadata (const char *dst, const struct stat *st)
 {
+    int rc = 0;
     /* chown can clear set-ID bits, so apply the final mode afterwards. */
     if (chown (dst, st->st_uid, st->st_gid) < 0) {
         if (errno != EPERM) {
             builtin_error ("chown %s: %s", dst, strerror (errno));
+            rc = -1;
         }
     }
     if (chmod (dst, st->st_mode & 07777) < 0) {
         builtin_error ("chmod %s: %s", dst, strerror (errno));
-        /* Non-fatal — keep going. */
+        rc = -1;
     }
     struct timespec ts[2];
     ts[0].tv_sec  = st->st_atim.tv_sec;
@@ -208,13 +210,18 @@ bcp_apply_metadata (const char *dst, const struct stat *st)
     /* Regular-file copies follow destination symlinks, just like chown and
        chmod above. Symlink copies use their own metadata path. */
     if (utimensat (AT_FDCWD, dst, ts, 0) < 0) {
-        /* fallback for old kernels */
-        struct timeval tv[2];
-        tv[0].tv_sec = ts[0].tv_sec; tv[0].tv_usec = ts[0].tv_nsec / 1000;
-        tv[1].tv_sec = ts[1].tv_sec; tv[1].tv_usec = ts[1].tv_nsec / 1000;
-        utimes (dst, tv);
+        if (errno == ENOSYS) {
+            /* Fall back only when the kernel lacks utimensat, not on I/O
+               errors from a supported operation. */
+            struct timeval tv[2];
+            tv[0].tv_sec = ts[0].tv_sec; tv[0].tv_usec = ts[0].tv_nsec / 1000;
+            tv[1].tv_sec = ts[1].tv_sec; tv[1].tv_usec = ts[1].tv_nsec / 1000;
+            if (utimes (dst, tv) == 0) return rc;
+        }
+        builtin_error ("preserve times %s: %s", dst, strerror (errno));
+        rc = -1;
     }
-    return 0;
+    return rc;
 }
 
 /* Copy a regular file. dst is a full path — no path-joining here. */
@@ -299,10 +306,16 @@ bcp_copy_regular (const char *src, const char *dst,
         return -1;
     }
     int rc = bcp_copy_data (sfd, dfd, src, dst);
-    close (sfd);
-    close (dfd);
+    if (close (sfd) < 0) {
+        builtin_error ("close %s: %s", src, strerror (errno));
+        rc = -1;
+    }
+    if (close (dfd) < 0) {
+        builtin_error ("close %s: %s", dst, strerror (errno));
+        rc = -1;
+    }
     if (rc < 0) return -1;
-    if (o->pflag && dst_regular) bcp_apply_metadata (dst, sst);
+    if (o->pflag && dst_regular && bcp_apply_metadata (dst, sst) < 0) return -1;
     if (o->vflag)
         printf ("'%s' -> '%s'\n", src, dst);  /* GNU cp -v writes to stdout */
     return 0;
@@ -371,8 +384,10 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
     }
     if (o->pflag) {
         /* lchown for symlink owner. */
-        if (lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM)
+        if (lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
             builtin_error ("lchown %s: %s", dst, strerror (errno));
+            return -1;
+        }
         struct timespec ts[2] = { sst->st_atim, sst->st_mtim };
         if (utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
             builtin_error ("utimensat %s: %s", dst, strerror (errno));
@@ -486,13 +501,16 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         free (dst_child);
     }
     o->directories = current.parent;
-    closedir (dir);
+    if (closedir (dir) < 0) {
+        builtin_error ("closedir %s: %s", src, strerror (errno));
+        rc = -1;
+    }
 restore_mode:
     if (created && chmod (dst, final_mode) < 0) {
         builtin_error ("chmod %s: %s", dst, strerror (errno));
         rc = -1;
     }
-    if (o->pflag) bcp_apply_metadata (dst, sst);
+    if (o->pflag && bcp_apply_metadata (dst, sst) < 0) rc = -1;
     return rc;
 }
 

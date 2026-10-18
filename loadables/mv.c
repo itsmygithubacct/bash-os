@@ -46,6 +46,18 @@ typedef struct {
     bmv_link *links, *written;
 } bmv_opts;
 
+typedef struct bmv_source {
+    dev_t dev;
+    ino_t ino;
+    mode_t type;
+    char *path;
+    struct bmv_source *next;
+} bmv_source;
+
+typedef struct {
+    bmv_source *head, *tail;
+} bmv_removals;
+
 typedef struct {
     const char **v;
     int n;
@@ -69,7 +81,8 @@ bmv_words_add (bmv_words *words, const char *word)
     return 0;
 }
 
-static int bmv_xdev_move (const char *src, const char *dst, bmv_opts *o);
+static int bmv_xdev_copy (const char *src, const char *dst, bmv_opts *o,
+                          bmv_removals *removals);
 
 static bmv_link *
 bmv_find_link (const bmv_opts *o, const struct stat *src)
@@ -138,15 +151,22 @@ bmv_copy_regular (const char *src, const char *dst, const struct stat *sst)
         return -1;
     }
     int rc = bmv_copy_data (sfd, dfd);
-    close (sfd);
-    close (dfd);
     if (rc < 0) {
-        builtin_error ("copy %s -> %s failed", src, dst);
-        return -1;
+        builtin_error ("copy %s -> %s: %s", src, dst, strerror (errno));
     }
+    if (close (sfd) < 0) {
+        builtin_error ("close %s: %s", src, strerror (errno));
+        rc = -1;
+    }
+    if (close (dfd) < 0) {
+        builtin_error ("close %s: %s", dst, strerror (errno));
+        rc = -1;
+    }
+    if (rc < 0) return -1;
     /* Preserve mode + owner + times across xdev move. */
     if (chown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
         builtin_error ("chown %s: %s", dst, strerror (errno));
+        rc = -1;
     }
     /* chown clears set-ID bits; restore the final mode afterwards. */
     if (chmod (dst, sst->st_mode & 07777) < 0) {
@@ -157,27 +177,43 @@ bmv_copy_regular (const char *src, const char *dst, const struct stat *sst)
         { .tv_sec = sst->st_atim.tv_sec, .tv_nsec = sst->st_atim.tv_nsec },
         { .tv_sec = sst->st_mtim.tv_sec, .tv_nsec = sst->st_mtim.tv_nsec }
     };
-    utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW);
-    return 0;
+    if (utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
+        builtin_error ("utimensat %s: %s", dst, strerror (errno));
+        rc = -1;
+    }
+    return rc;
 }
 
 static int
-bmv_copy_symlink (const char *src, const char *dst)
+bmv_copy_symlink (const char *src, const char *dst, const struct stat *sst)
 {
     char target[4096];
     ssize_t n = readlink (src, target, sizeof target - 1);
     if (n < 0) { builtin_error ("readlink %s: %s", src, strerror (errno)); return -1; }
     target[n] = '\0';
-    unlink (dst);
+    if (unlink (dst) < 0 && errno != ENOENT) {
+        builtin_error ("unlink %s: %s", dst, strerror (errno));
+        return -1;
+    }
     if (symlink (target, dst) < 0) {
         builtin_error ("symlink %s: %s", dst, strerror (errno));
+        return -1;
+    }
+    if (lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
+        builtin_error ("lchown %s: %s", dst, strerror (errno));
+        return -1;
+    }
+    struct timespec ts[2] = { sst->st_atim, sst->st_mtim };
+    if (utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
+        builtin_error ("utimensat %s: %s", dst, strerror (errno));
         return -1;
     }
     return 0;
 }
 
 static int
-bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts *o)
+bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts *o,
+              bmv_removals *removals)
 {
     if (mkdir (dst, sst->st_mode & 0777) < 0) {
         /* Match rename's directory replacement rules: only an empty
@@ -203,17 +239,33 @@ bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts
         goto restore_metadata;
     }
     struct dirent *de;
-    while ((de = readdir (d)) != NULL) {
+    for (;;) {
+        errno = 0;
+        de = readdir (d);
+        if (!de) {
+            if (errno) {
+                builtin_error ("readdir %s: %s", src, strerror (errno));
+                rc = -1;
+            }
+            break;
+        }
         if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
         char sc[4096], dc[4096];
         snprintf (sc, sizeof sc, "%s/%s", src, de->d_name);
         snprintf (dc, sizeof dc, "%s/%s", dst, de->d_name);
-        if (bmv_xdev_move (sc, dc, o) < 0) rc = -1;
+        if (bmv_xdev_copy (sc, dc, o, removals) < 0) {
+            rc = -1;
+            break;
+        }
     }
-    closedir (d);
+    if (closedir (d) < 0) {
+        builtin_error ("closedir %s: %s", src, strerror (errno));
+        rc = -1;
+    }
 restore_metadata:
     if (chown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
         builtin_error ("chown %s: %s", dst, strerror (errno));
+        rc = -1;
     }
     if (chmod (dst, sst->st_mode & 07777) < 0) {
         builtin_error ("chmod %s: %s", dst, strerror (errno));
@@ -223,13 +275,18 @@ restore_metadata:
         { .tv_sec = sst->st_atim.tv_sec, .tv_nsec = sst->st_atim.tv_nsec },
         { .tv_sec = sst->st_mtim.tv_sec, .tv_nsec = sst->st_mtim.tv_nsec }
     };
-    utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW);
+    if (utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
+        builtin_error ("utimensat %s: %s", dst, strerror (errno));
+        rc = -1;
+    }
     return rc;
 }
 
-/* Recursive cross-device move: copy entry, then unlink source. */
+/* Record copied sources in postorder. No source is removed until the entire
+   operand, including directory metadata, has been copied successfully. */
 static int
-bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
+bmv_xdev_copy (const char *src, const char *dst, bmv_opts *o,
+               bmv_removals *removals)
 {
     struct stat sst;
     if (lstat (src, &sst) < 0) {
@@ -254,8 +311,8 @@ bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
             if (rc < 0) builtin_error ("link %s -> %s: %s", entry->path, dst, strerror (errno));
         }
     }
-    else if (S_ISLNK (sst.st_mode)) rc = bmv_copy_symlink (src, dst);
-    else if (S_ISDIR (sst.st_mode)) rc = bmv_copy_dir (src, dst, &sst, o);
+    else if (S_ISLNK (sst.st_mode)) rc = bmv_copy_symlink (src, dst, &sst);
+    else if (S_ISDIR (sst.st_mode)) rc = bmv_copy_dir (src, dst, &sst, o, removals);
     else if (S_ISREG (sst.st_mode)) rc = bmv_copy_regular (src, dst, &sst);
     else {
         builtin_error ("%s: unsupported file type", src);
@@ -264,19 +321,66 @@ bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
     if (rc < 0) return -1;
     if (!entry && !S_ISDIR (sst.st_mode) && sst.st_nlink > 1 &&
         bmv_remember_link (&o->links, &sst, dst) < 0) return -1;
-    /* Remove source. */
-    if (S_ISDIR (sst.st_mode)) {
-        if (rmdir (src) < 0) {
-            builtin_error ("rmdir %s: %s", src, strerror (errno));
-            return -1;
+    bmv_source *source = malloc (sizeof *source);
+    if (!source) { builtin_error ("out of memory"); return -1; }
+    source->path = strdup (src);
+    if (!source->path) { free (source); builtin_error ("out of memory"); return -1; }
+    source->dev = sst.st_dev;
+    source->ino = sst.st_ino;
+    source->type = sst.st_mode & S_IFMT;
+    source->next = NULL;
+    if (removals->tail) removals->tail->next = source;
+    else removals->head = source;
+    removals->tail = source;
+    return 0;
+}
+
+static int
+bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
+{
+    bmv_removals removals = {0};
+    bmv_link *old_links = o->links;
+    int rc = bmv_xdev_copy (src, dst, o, &removals);
+    if (rc < 0) {
+        /* A failed copy must not supply hard-link destinations for a later
+           operand, whose source may still need its data or metadata copied. */
+        while (o->links != old_links) {
+            bmv_link *entry = o->links;
+            o->links = entry->next;
+            free (entry->path);
+            free (entry);
         }
     } else {
-        if (unlink (src) < 0) {
-            builtin_error ("unlink %s: %s", src, strerror (errno));
-            return -1;
+        /* Remove only the recorded entries. A fresh recursive traversal could
+           delete newly created files that were never copied. Check identity
+           as well, so a replaced source is not removed in place of the copy. */
+        for (bmv_source *source = removals.head; source; source = source->next) {
+            struct stat st;
+            if (lstat (source->path, &st) < 0) {
+                builtin_error ("stat %s: %s", source->path, strerror (errno));
+                rc = -1;
+                break;
+            }
+            if (st.st_dev != source->dev || st.st_ino != source->ino ||
+                (st.st_mode & S_IFMT) != source->type) {
+                builtin_error ("source changed while moving %s", source->path);
+                rc = -1;
+                break;
+            }
+            if ((S_ISDIR (st.st_mode) ? rmdir (source->path) : unlink (source->path)) < 0) {
+                builtin_error ("remove %s: %s", source->path, strerror (errno));
+                rc = -1;
+                break;
+            }
         }
     }
-    return 0;
+    while (removals.head) {
+        bmv_source *source = removals.head;
+        removals.head = source->next;
+        free (source->path);
+        free (source);
+    }
+    return rc;
 }
 
 static int
