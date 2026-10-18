@@ -352,8 +352,22 @@ main (void)
     rc = run ("part", bodyf, "-b", "OTHER", "-o", partf, (char *) NULL);
     CHECK (rc == 1, "wrong boundary (not multipart): returns 1");
 
+    { const char payload[] = "before\r\n--BND-not-a-delimiter\r\nmid\r\n--BND--still-data\r\nafter";
+      char extracted[256];
+      int size = snprintf (mp, sizeof mp,
+	"preamble--BND\r\nignored\r\n--BND\r\nContent-Disposition: form-data; name=\"data\"\r\n\r\n%s\r\n--BND--\r\n",
+	payload);
+      int f = open (bodyf, O_WRONLY | O_TRUNC);
+      if (write (f, mp, (size_t) size) != size) _exit (9);
+      close (f);
+      rc = run ("part", bodyf, "-b", "BND", "-o", partf, "-n", "data", (char *) NULL);
+      gn = slurp (partf, extracted, sizeof extracted);
+      CHECK (rc == 0 && gn == sizeof payload - 1 && memcmp (extracted, payload, sizeof payload - 1) == 0,
+	     "boundary prefixes in the preamble and body do not truncate multipart data");
+    }
+
     { char bad[PATH_MAX]; snprintf (bad, sizeof bad, "%s/no/such/dir/out", d);
-      rc = run ("part", bodyf, "-b", "BND", "-o", bad, (char *) NULL);
+      rc = run ("part", bodyf, "-b", "BND", "-o", bad, "-n", "data", (char *) NULL);
       CHECK (rc == EXECUTION_FAILURE, "unwritable OUTFILE: EXECUTION_FAILURE"); }
     CHECK (run ("part", bodyf, "-o", partf, (char *) NULL) == EX_USAGE, "part without -b is a usage error");
     unlink (partf);
