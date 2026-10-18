@@ -5,6 +5,9 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import signal
+import time
+import resource
 import unittest
 
 
@@ -32,6 +35,26 @@ class RecordTests(unittest.TestCase):
     def run_shell(self, script, *args):
         return subprocess.run([BINARY, "-c", "PATH=; " + script, "userdb-records", *map(str, args)],
                               env=self.env, capture_output=True, timeout=8)
+
+    def provider(self, name, program):
+        provider = self.directory / "provider"
+        pidfile = self.directory / "provider-pid"
+        provider.write_text(f"#!{sys.executable}\nimport os, sys, time\nfrom pathlib import Path\n"
+                            f"Path({str(pidfile)!r}).write_text(str(os.getpid()))\n" + program)
+        provider.chmod(0o700)
+        self.config.write_text(f"provider {name} {provider}\n")
+
+        def cleanup():
+            # If a regression times out the shell, remove only our fixture.
+            if pidfile.exists():
+                pid = int(pidfile.read_text())
+                try:
+                    if str(provider).encode() in Path(f"/proc/{pid}/cmdline").read_bytes():
+                        os.kill(pid, signal.SIGKILL)
+                except (FileNotFoundError, ProcessLookupError):
+                    pass
+        self.addCleanup(cleanup)
+        return provider, pidfile
 
     def lookup(self):
         return self.run_shell('userdb lookup fixture -V record && printf "%s" "$record"')
@@ -103,6 +126,113 @@ class RecordTests(unittest.TestCase):
                                 'userdb lookup fixture -V record || exit; done; '
                                 'after=(/proc/self/fd/*); [[ ${#before[@]} == ${#after[@]} ]]')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_ldap_password_descriptor_survives_remapping(self):
+        self.provider("ldap", "fd = int(os.environ['BASHUSERDB_VERIFY_FD'])\n"
+                      "data = b''.join(iter(lambda: os.read(fd, 4096), b''))\n"
+                      "sys.exit(0 if fd == 3 and data == b'fixture-password\\n' else 1)\n")
+        for closed in ("", "exec 0<&-; ", "exec 1>&-; ", "exec 2>&-; ", "exec 0<&- 1>&- 2>&-; "):
+            with self.subTest(closed=closed):
+                result = self.run_shell(closed + 'userdb verify fixture fixture-password')
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_provider_streams_drain_while_password_is_sent(self):
+        self.provider("ldap", "os.write(1, b'output\\n' + b'o' * 200000)\n"
+                      "os.write(2, b'diagnostic\\n' + b'e' * 200000)\n"
+                      "data = b''.join(iter(lambda: os.read(3, 4096), b''))\n"
+                      "sys.exit(0 if data == b'x' * 100000 + b'\\n' else 1)\n")
+        result = self.run_shell('userdb verify fixture "$1"', "x" * 100000)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_early_provider_exit_does_not_signal_the_shell(self):
+        self.provider("ldap", "sys.exit(1)\n")
+        result = self.run_shell('userdb verify fixture "$1"; rc=$?; printf "continued=%s\\n" "$rc"',
+                                "x" * 100000)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"continued=1\n")
+
+    def test_password_writer_obeys_provider_deadline(self):
+        _, pidfile = self.provider("ldap", "time.sleep(30)\n")
+        started = time.monotonic()
+        result = self.run_shell('printf -v password "%1048576s" ""; '
+                                'userdb verify fixture "$password"; rc=$?; printf "continued=%s\\n" "$rc"')
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"continued=1\n")
+        self.assertIn(b"timed out", result.stderr)
+        self.assertLess(elapsed, 7.5)
+        self.assertFalse(Path(f"/proc/{int(pidfile.read_text())}").exists(), "provider was not reaped")
+
+    def test_truncated_or_nul_provider_records_are_rejected(self):
+        record_file = self.directory / "record"
+        self.provider("fixture", f"os.write(1, Path({str(record_file)!r}).read_bytes())\n")
+        for record in (b"1234:5678::/fixture:/" + b'x' * 8192,
+                       b"1234:5678::/fixture:/bin/false\0extra\n"):
+            with self.subTest(length=len(record)):
+                record_file.write_bytes(record)
+                result = self.lookup()
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, b"")
+        record_file.write_bytes(b"1234:5678::/fixture:/bin/false\n" + b'x' * 200000)
+        result = self.lookup()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"1234:5678::/fixture:/bin/false")
+
+    def test_provider_calls_preserve_traps_jobs_and_descriptors(self):
+        self.provider("ldap", "data = b''.join(iter(lambda: os.read(3, 4096), b''))\n"
+                      "sys.exit(0 if data == b'fixture-password\\n' else 1)\n")
+        result = self.run_shell('trap : PIPE; trap : CHLD; saved=$(trap -p PIPE CHLD); '
+                                'before=(/proc/self/fd/*); (exit 23) & job=$!; '
+                                'for ((i=0;i<12;i++)); do userdb verify fixture fixture-password || exit; done; '
+                                'wait "$job"; [[ $? == 23 ]] || exit 8; '
+                                'after=(/proc/self/fd/*); '
+                                '[[ ${#before[@]} == ${#after[@]} && $(trap -p PIPE CHLD) == "$saved" ]]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_partial_pipe_setup_does_not_leak_descriptors(self):
+        self.provider("ldap", "sys.exit(1)\n")
+        result = self.run_shell('ulimit -n 8; before=(/proc/self/fd/*); '
+                                'for ((i=0;i<10;i++)); do userdb verify fixture fixture-password && exit 9; done; '
+                                'after=(/proc/self/fd/*); [[ ${#before[@]} == ${#after[@]} ]]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_continuous_output_cannot_hide_the_deadline(self):
+        _, pidfile = self.provider("fixture", "while True:\n os.write(1, b'x' * 4096)\n")
+        started = time.monotonic()
+        result = self.lookup()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(b"timed out", result.stderr)
+        self.assertLess(time.monotonic() - started, 7.5)
+        self.assertFalse(Path(f"/proc/{int(pidfile.read_text())}").exists())
+
+    def test_provider_descriptors_above_fd_setsize(self):
+        if resource.getrlimit(resource.RLIMIT_NOFILE)[0] < 1120:
+            self.skipTest("requires at least 1120 file descriptors")
+        self.provider("fixture", "print('1234:5678::/fixture:/bin/false')\n")
+        filler = self.directory / "filler"
+        filler.write_bytes(b"")
+        result = self.run_shell('exec 3<"$1" 4<"$1" 5<"$1" 6<"$1" 7<"$1" 8<"$1" 9<"$1"; '
+                                'for ((i=0;i<1040;i++)); do exec {f}<"$1" || exit; done; '
+                                '((f > 1024)) || exit 8; userdb lookup fixture -V record && '
+                                '[[ $record == 1234:5678::/fixture:/bin/false ]]', filler)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_builtin_password_provider_uses_private_shadow_only(self):
+        self.passwd.write_text("fixture:x:1234:5678::/fixture:/bin/false\n")
+        shadow, group = self.directory / "shadow", self.directory / "group"
+        shadow.write_text("fixture:!:20000:0:99999:7:::\n")
+        group.write_text("fixture:x:5678:\n")
+        self.env.update(PHCLIB_PASSWD=str(self.passwd), PHCLIB_SHADOW=str(shadow),
+                        PHCLIB_GROUP=str(group), BPW_LOCK_DIR=str(self.directory / "locks"),
+                        BASHPASSWD_KERNEL_SECRETS="0", PHCLIB_M="1024", PHCLIB_T="1")
+        result = self.run_shell('[[ $(type -t passwd) == builtin ]] || exit 8; '
+                                'passwd set-fd fixture 0 <<<fixture-password || exit; '
+                                'userdb verify fixture fixture-password || exit; '
+                                'userdb verify fixture wrong && exit 9; '
+                                'userdb verify fixture "$1"; rc=$?; printf "continued=%s\\n" "$rc"',
+                                "x" * 100000)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"continued=1\n")
 
 
 if __name__ == "__main__":
