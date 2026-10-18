@@ -7,7 +7,7 @@ status. Duration 0 disables the limit and still runs the command.
 
 `SIGCHLD` is blocked while waiting so Bash cannot reap the timeout child,
 but the wait must not dequeue that signal. A pidfd/`ppoll` (or
-`clock_nanosleep` of the remaining time if pidfd is unavailable) wakes
+bounded `clock_nanosleep` polling if pidfd is unavailable) wakes
 without `sigtimedwait`. After the child is collected, the previous mask
 is restored so a leftover `SIGCHLD` still reaches Bash: a background job
 that exited during the wait is reaped, and a `CHLD` trap can run.
@@ -20,3 +20,8 @@ out/bash-timeout -c 'PATH=; timeout 1 true'
 `tests/timeout-check.sh` checks the statuses above, duration 0, and that
 a background `sleep` is reaped while `timeout` still waits for its own
 child.
+
+`tests/process-numeric.py` also checks large and invalid durations, signal
+number bounds, and prompt completion when a private seccomp fixture makes
+`pidfd_open` unavailable. The fallback polls at most every 50 ms; a blocked
+`SIGCHLD` cannot wake a sleep for the entire remaining deadline.

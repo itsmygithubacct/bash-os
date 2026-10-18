@@ -46,6 +46,8 @@
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <limits.h>
+#include <math.h>
 
 #include "loadables.h"
 #include "child-wait.h"
@@ -136,6 +138,20 @@ flock_all_digits (const char *s)
     return 1;
 }
 
+static int
+flock_parse_exit (const char *s, int *out)
+{
+    char *end;
+    errno = 0;
+    long value = strtol (s, &end, 10);
+    if (errno || end == s || *end || value < 0 || value > 255) {
+        builtin_error ("invalid conflict exit code: %s", s);
+        return -1;
+    }
+    *out = (int) value;
+    return 0;
+}
+
 int
 flock_builtin (WORD_LIST *list)
 {
@@ -172,7 +188,7 @@ flock_builtin (WORD_LIST *list)
             list = list->next;
             char *end = NULL; errno = 0;
             timeout = strtod (list->word->word, &end);
-            if (errno || end == list->word->word || *end || timeout < 0) {
+            if (errno || end == list->word->word || *end || timeout < 0 || !isfinite (timeout)) {
                 builtin_error ("invalid timeout value: %s", list->word->word);
                 return EX_USAGE;
             }
@@ -184,7 +200,9 @@ flock_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "--conflict-exit-code")) {
             if (!list->next) { builtin_error ("option '--conflict-exit-code' requires an argument"); return EX_USAGE; }
-            list = list->next; conflict_exit = atoi (list->word->word); list = list->next; continue;
+            list = list->next;
+            if (flock_parse_exit (list->word->word, &conflict_exit) < 0) return EX_USAGE;
+            list = list->next; continue;
         }
         if (w[1] == '-') { builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE; }
 
@@ -214,12 +232,12 @@ flock_builtin (WORD_LIST *list)
                     if (optc == 'w') {
                         char *end = NULL; errno = 0;
                         timeout = strtod (val, &end);
-                        if (errno || end == val || *end || timeout < 0) {
+                        if (errno || end == val || *end || timeout < 0 || !isfinite (timeout)) {
                             builtin_error ("invalid timeout value: %s", val);
                             return EX_USAGE;
                         }
                     } else if (optc == 'E') {
-                        conflict_exit = atoi (val);
+                        if (flock_parse_exit (val, &conflict_exit) < 0) return EX_USAGE;
                     } else { /* 'c' */
                         shell_cmd = (char *) val;
                     }
@@ -262,7 +280,13 @@ flock_builtin (WORD_LIST *list)
     int fd, opened = 0;
 
     if (is_fd) {
-        fd = (int) strtol (operand, NULL, 10);
+        errno = 0;
+        long number = strtol (operand, NULL, 10);
+        if (errno || number > INT_MAX) {
+            builtin_error ("invalid file descriptor: %s", operand);
+            return EX_USAGE;
+        }
+        fd = (int) number;
         if (fcntl (fd, F_GETFD) == -1) {
             builtin_error ("%s: bad file descriptor", operand);
             return EXECUTION_FAILURE;

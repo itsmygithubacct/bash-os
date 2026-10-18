@@ -152,7 +152,7 @@ static int
 bchrt_parse_pid (const char *s, pid_t *out)
 {
   long v;
-  if (bchrt_parse_long (s, 0, LONG_MAX, &v) < 0)
+  if (bchrt_parse_long (s, 0, INT_MAX, &v) < 0)
     return -1;
   *out = (pid_t) v;
   return 0;

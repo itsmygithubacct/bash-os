@@ -90,7 +90,7 @@ static int
 buclamp_parse_pid (const char *s, pid_t *out)
 {
   long v;
-  if (buclamp_parse_long (s, 0, LONG_MAX, &v) < 0)
+  if (buclamp_parse_long (s, 0, INT_MAX, &v) < 0)
     return -1;
   *out = (pid_t) v;
   return 0;

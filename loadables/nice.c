@@ -44,7 +44,9 @@ bnice_parse_adj (const char *s, int *out)
     long v = strtol (s, &end, 10);
     if (errno != 0 || end == s || *end != '\0')
         return -1;
-    *out = (int) v;
+    /* Linux clamps niceness to -20..19. Larger adjustments have the same
+       effect as +/-40, without narrowing or overflowing current + delta. */
+    *out = v > 40 ? 40 : v < -40 ? -40 : (int) v;
     return 0;
 }
 

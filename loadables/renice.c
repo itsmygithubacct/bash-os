@@ -19,10 +19,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
+#include <ctype.h>
 #include <pwd.h>
 #include <sys/resource.h>
 
 #include "loadables.h"
+
+static int
+brenice_priority (const char *s, int *out)
+{
+    char *end;
+    errno = 0;
+    long value = strtol (s, &end, 10);
+    if (errno || end == s || *end || value < INT_MIN || value > INT_MAX) {
+        builtin_error ("invalid priority: %s", s);
+        return -1;
+    }
+    *out = (int) value;
+    return 0;
+}
 
 int
 renice_builtin (WORD_LIST *list)
@@ -41,7 +57,7 @@ renice_builtin (WORD_LIST *list)
         const char *w = p->word->word;
         if (!strcmp (w, "-n") && p->next) {
             p = p->next;
-            prio = atoi (p->word->word);
+            if (brenice_priority (p->word->word, &prio) < 0) return EX_USAGE;
             have_prio = 1;
             continue;
         }
@@ -50,18 +66,25 @@ renice_builtin (WORD_LIST *list)
         if (!strcmp (w, "-u")) { which = PRIO_USER;    continue; }
         if (!have_prio) {
             /* First non-flag argument is the priority. */
-            prio = atoi (w);
+            if (brenice_priority (w, &prio) < 0) return EX_USAGE;
             have_prio = 1;
             continue;
         }
         /* This is a target ID — interpret per the current `which`. */
-        int id = -1;
+        id_t id;
         if (which == PRIO_USER) {
             /* Numeric uid? Else look up by name. */
             char *end;
-            long n = strtol (w, &end, 10);
-            if (*end == '\0') {
-                id = (int) n;
+            errno = 0;
+            unsigned long n = strtoul (w, &end, 10);
+            if (!*w || *w == '-' || isspace ((unsigned char) *w) ||
+                (end != w && !*end && (errno || n >= (id_t) -1))) {
+                builtin_error ("invalid user ID: %s", w);
+                rc = EXECUTION_FAILURE;
+                continue;
+            }
+            if (end != w && *end == '\0') {
+                id = (id_t) n;
             } else {
                 struct passwd *pw = getpwnam (w);
                 if (!pw) {
@@ -69,14 +92,22 @@ renice_builtin (WORD_LIST *list)
                     rc = EXECUTION_FAILURE;
                     continue;
                 }
-                id = (int) pw->pw_uid;
+                id = pw->pw_uid;
             }
         } else {
-            id = atoi (w);
+            char *end;
+            errno = 0;
+            long n = strtol (w, &end, 10);
+            if (errno || end == w || *end || n < 0 || n > INT_MAX) {
+                builtin_error ("invalid process ID: %s", w);
+                rc = EXECUTION_FAILURE;
+                continue;
+            }
+            id = (id_t) n;
         }
         if (setpriority (which, id, prio) < 0) {
-            builtin_error ("setpriority(%d, %d, %d): %s",
-                           which, id, prio, strerror (errno));
+            builtin_error ("setpriority(%d, %lu, %d): %s",
+                           which, (unsigned long) id, prio, strerror (errno));
             rc = EXECUTION_FAILURE;
         }
         target_count++;

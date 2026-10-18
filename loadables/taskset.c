@@ -22,6 +22,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -41,7 +42,7 @@ bts_parse_pid (const char *s, pid_t *out)
   if (!s || !*s) return -1;
   errno = 0;
   v = strtol (s, &end, 10);
-  if (errno || !end || *end != '\0' || v < 0)
+  if (errno || !end || *end != '\0' || v < 0 || v > INT_MAX)
     return -1;
   *out = (pid_t) v;
   return 0;
