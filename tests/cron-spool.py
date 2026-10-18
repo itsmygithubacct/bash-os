@@ -19,7 +19,7 @@ if ENV.get("SPOOL_ASAN_LIB"):
     ENV["UBSAN_OPTIONS"] = "halt_on_error=1"
 
 
-class CrontabTests(unittest.TestCase):
+class SpoolFixture(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -41,6 +41,8 @@ class CrontabTests(unittest.TestCase):
         return subprocess.run([BINARY, "-c", "PATH=; " + script, "cron-spool", *map(str, args)],
                               env=self.env, capture_output=True, timeout=8)
 
+
+class CrontabTests(SpoolFixture):
     def test_predictable_temp_names_cannot_overwrite_or_remove_existing_files(self):
         victim = self.directory / "victim"
         for operation in ("tmp", "edit"):
@@ -132,6 +134,79 @@ class CrontabTests(unittest.TestCase):
                                 'wait "$job"; [[ $? == 23 ]] || exit 8; after=(/proc/self/fd/*); '
                                 '[[ ${#before[@]} == ${#after[@]} && $(trap -p CHLD) == "$saved" ]]')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class AtTests(SpoolFixture):
+    def test_multiple_jobs_from_one_shell_keep_every_script(self):
+        result = self.run_shell('at @2000000000 <<<"echo first" && '
+                                'at @2000000000 <<<"echo second" && '
+                                'at @2000000001 <<<"echo third"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        jobs = sorted((self.spool / "atjobs").glob("*.job"))
+        self.assertEqual(len(jobs), 3)
+        self.assertEqual({job.read_bytes() for job in jobs}, {
+            b"# run_at=2000000000\necho first\n", b"# run_at=2000000000\necho second\n",
+            b"# run_at=2000000001\necho third\n"})
+        self.assertEqual(len(list((self.spool / "atjobs").iterdir())), 3)
+        self.assertEqual(len(result.stdout.splitlines()), 3)
+        for job in jobs:
+            self.assertEqual(stat.S_IMODE(job.stat().st_mode) & 0o077, 0)
+            dumped = self.run_shell('at -c "$1"', job.stem)
+            self.assertEqual(dumped.returncode, 0, dumped.stderr)
+            self.assertEqual(dumped.stdout, job.read_bytes().split(b"\n", 1)[1])
+
+    def test_existing_pid_job_remains_untouched(self):
+        jobs = self.spool / "atjobs"
+        jobs.mkdir()
+        process = subprocess.Popen(
+            [BINARY, "-c", 'PATH=; read -r; at @2000000000 <<<"echo fresh"', "cron-spool"],
+            env=self.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        existing = jobs / f"2000000000.{process.pid}.job"
+        try:
+            existing.write_bytes(b"existing job\n")
+            _, error = process.communicate(b"go\n", timeout=8)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=3)
+        self.assertEqual(process.returncode, 0, error)
+        self.assertEqual(existing.read_bytes(), b"existing job\n")
+        self.assertEqual(len(list(jobs.glob("*.job"))), 2)
+
+    def test_time_overflow_and_partial_numbers_are_rejected(self):
+        for value in ("@99999999999999999999999", "99999999999999999999999",
+                      "+9223372036854775807d", "+9223372036854775807s", "+-1h",
+                      "+1mextra", "4294967296:00", "12:4294967296", "12:00extra"):
+            with self.subTest(value=value):
+                result = self.run_shell('at "$1" <<<"never queued"', value)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(result.stdout, b"")
+        self.assertEqual(list(self.spool.glob("atjobs/*")), [])
+
+    def test_input_error_does_not_poison_the_next_invocation(self):
+        result = self.run_shell('at @2000000000 <"$1" && exit 8; '
+                                'at @2000000001 <<<"echo after-error"', self.directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        jobs = list((self.spool / "atjobs").glob("*.job"))
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].read_bytes(), b"# run_at=2000000001\necho after-error\n")
+
+    def test_dump_is_binary_exact_and_reports_output_errors(self):
+        jobs = self.spool / "atjobs"
+        jobs.mkdir()
+        script = b"echo a\0b\n"
+        (jobs / "fixture.job").write_bytes(b"# run_at=2000000000\n" + script)
+        result = self.run_shell('for ((i=0;i<4;i++)); do at -c fixture >/dev/full && exit 8; done; at -c fixture')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, script)
+
+    def test_schedule_respects_restrictive_umask(self):
+        (self.spool / "atjobs").mkdir()
+        result = self.run_shell('umask 0777; at @2000000000 <<<"echo private"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        jobs = list((self.spool / "atjobs").glob("*.job"))
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(stat.S_IMODE(jobs[0].stat().st_mode), 0)
 
 
 if __name__ == "__main__":
