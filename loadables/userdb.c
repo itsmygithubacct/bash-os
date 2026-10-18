@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,6 +105,21 @@ bud_config_path (void)
 }
 
 static int
+bud_valid_id (const char *s, const char *end, uintmax_t limit)
+{
+  uintmax_t value = 0;
+  if (s == end) return 0;
+  for (; s < end; s++)
+    {
+      if (*s < '0' || *s > '9') return 0;
+      unsigned digit = (unsigned) (*s - '0');
+      if (value > (limit - digit) / 10) return 0;
+      value = value * 10 + digit;
+    }
+  return 1;
+}
+
+static int
 bud_valid_record (const char *s)
 {
   int colons = 0;
@@ -113,7 +129,10 @@ bud_valid_record (const char *s)
       if (*p == '\n' || *p == '\r') return 0;
       if (*p == ':') colons++;
     }
-  return colons == 4;
+  if (colons != 4) return 0;
+  const char *uid_end = strchr (s, ':'), *gid_end = strchr (uid_end + 1, ':');
+  return bud_valid_id (s, uid_end, (uintmax_t) (uid_t) -1 - 1) &&
+         bud_valid_id (uid_end + 1, gid_end, (uintmax_t) (gid_t) -1 - 1);
 }
 
 static int
@@ -128,25 +147,32 @@ bud_passwd_lookup (const char *user, char *out, size_t outsz)
   int rc = 1;
   while ((n = getline (&line, &cap, f)) > 0)
     {
-      if (n && line[n - 1] == '\n') line[n - 1] = '\0';
-      char *save = NULL;
-      char *name = strtok_r (line, ":", &save);
-      char *pw = strtok_r (NULL, ":", &save);
-      char *uid = strtok_r (NULL, ":", &save);
-      char *gid = strtok_r (NULL, ":", &save);
-      char *gecos = strtok_r (NULL, ":", &save);
-      char *home = strtok_r (NULL, ":", &save);
-      char *shell = strtok_r (NULL, ":", &save);
-      (void) pw;
-      if (!name || !uid || !gid || !gecos || !home || !shell) continue;
-      if (strcmp (name, user) != 0) continue;
-      snprintf (out, outsz, "%s:%s:%s:%s:%s", uid, gid, gecos, home, shell);
+      if (memchr (line, '\0', (size_t) n)) continue;
+      if (n && line[n - 1] == '\n') line[--n] = '\0';
+      /* Keep the five record fields intact: empty GECOS, home, shell and
+         password fields must not shift the later fields as strtok does. */
+      char *name_end = strchr (line, ':');
+      if (!name_end) continue;
+      *name_end = '\0';
+      if (strcmp (line, user) != 0) continue;
+      char *record = strchr (name_end + 1, ':');
+      if (!record || !bud_valid_record (++record)) continue;
+      size_t length = strlen (record);
+      if (length >= outsz) continue;
+      memcpy (out, record, length + 1);
       rc = 0;
       break;
     }
   free (line);
   fclose (f);
   return rc;
+}
+
+static int
+bud_bind_record (const char *name, const char *record)
+{
+  SHELL_VAR *v = builtin_bind_variable ((char *) name, (char *) record, 0);
+  return v && !readonly_p (v) && !noassign_p (v) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -500,8 +526,7 @@ bud_lookup_cmd (WORD_LIST *args)
   char rec[BUD_MAX_LINE];
   if (bud_passwd_lookup (user, rec, sizeof rec) == 0)
     {
-      builtin_bind_variable ((char *) var, rec, 0);
-      return EXECUTION_SUCCESS;
+      return bud_bind_record (var, rec);
     }
 
   int tried = 0;
@@ -514,8 +539,7 @@ bud_lookup_cmd (WORD_LIST *args)
         { builtin_error ("provider %s lookup timed out", p->name); continue; }
       if (r.rc == 0 && bud_valid_record (r.out))
         {
-          builtin_bind_variable ((char *) var, r.out, 0);
-          return EXECUTION_SUCCESS;
+          return bud_bind_record (var, r.out);
         }
       if (r.rc == 1)
         continue;             /* expected user-not-found, stay silent */
