@@ -28,6 +28,12 @@ You can prepare or reuse the installation separately:
 ./build.sh --include bashperl --name perl --perl-prefix out/perl/$(cc -dumpmachine)
 ```
 
+Reuse verifies the installed files, including modules, Unicode data, headers,
+archives and notices, against `bash-os-installation.json`. Missing or changed
+files rebuild the private installation; `--flags` refuses a damaged prefix.
+Installations made before this inventory was recorded also need one rebuild.
+Additional user modules are allowed, but the original files must stay intact.
+
 `libperl` has no shared-library dependency at runtime. Perl's library files
 (`.pm`, Unicode tables, and other module data) remain in the private prefix;
 keep that installation when distributing a Perl-enabled binary. Plain Perl
@@ -102,6 +108,7 @@ python3 tests/bashperl.py out/bash-perl-static
 python3 tests/bashperl.py out/bash --module out/bashperl.so
 python3 tests/profile-smoke.py out/bash-perl
 python3 tests/perl-engine.py
+python3 tests/interpreter-cache.py --perl-prefix out/perl/$(cc -dumpmachine)
 bash tests/perl-check.sh
 bash tests/bashperl-sanitize.sh out/bash-shell
 ```

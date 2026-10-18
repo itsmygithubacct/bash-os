@@ -58,6 +58,7 @@ jobs:
             out/bash-full-perl.manifest.*
             out/perl/*.log
             out/perl/*/bash-os-perl.json
+            out/perl/*/bash-os-installation.json
           retention-days: 14
 
   python:
@@ -84,6 +85,7 @@ jobs:
             out/bash-python.manifest.*
             out/python/*.log
             out/python/*/bash-os-python.json
+            out/python/*/bash-os-installation.json
           retention-days: 14
 
   native:

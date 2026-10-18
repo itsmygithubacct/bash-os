@@ -9,7 +9,8 @@ The prefix (out/python/TARGET by default) receives:
   getenv family redirected to the private copies in loadables/_python;
 - data/share/bashpython/lib/python3.X, the trimmed standard library that pkg
   installs at /usr/lib/bash-os/share/bashpython;
-- bash-os-python.json, recording the flags, modules and archive checksums.
+- bash-os-python.json, recording the flags, modules and archive checksums;
+- bash-os-installation.json, the complete installed-file inventory it verifies.
 """
 import argparse
 import fcntl
@@ -25,6 +26,8 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+
+import installation_cache
 
 ROOT = Path(__file__).resolve().parent.parent
 # Bash exports these, operating on shell variables instead of environ.
@@ -69,14 +72,7 @@ def main():
     marker = prefix/'bash-os-python.json'
 
     def installed():
-        if not marker.is_file():
-            return None
-        record = json.loads(marker.read_text())
-        for name, checksum in record['checksums'].items():
-            p = prefix/name
-            if not p.is_file() or digest(p) != checksum:
-                return None
-        return record
+        return installation_cache.read_installation(prefix, marker.name)
 
     if args.flags:
         record = installed()
@@ -109,6 +105,7 @@ def main():
                     build_python=str(args.build_python) if cross else None,
                     compiler=subprocess.check_output([cc, '--version'], text=True),
                     recipe=digest(Path(__file__)), sqlite=digest(sqlite/'sqlite3.c'),
+                    installation_recipe=digest(Path(installation_cache.__file__)),
                     deps={name: digest(deps/'lib'/name) for name in ('libz.a', 'libbz2.a', 'liblzma.a', 'libzstd.a')},
                     host={name: path and digest(path) for name, path in optional.items()})
 
@@ -304,6 +301,7 @@ def main():
             notices = install/'share/licenses/python'
             notices.mkdir(parents=True)
             shutil.copy2(source/'LICENSE', notices/'LICENSE')
+            record['installation'] = installation_cache.write_manifest(install, marker.name)
             (install/'bash-os-python.json').write_text(json.dumps(record, indent=2)+'\n')
             backup = work/'previous'
             if prefix.exists():

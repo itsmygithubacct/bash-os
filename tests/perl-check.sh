@@ -5,6 +5,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 export JOBS=${JOBS:-4}
 ./build.sh --include bashperl --name perl
+python3 tests/interpreter-cache.py --perl-prefix "out/perl/$(cc -dumpmachine)"
 python3 tests/perl-engine.py
 python3 tests/bashperl.py out/bash-perl
 python3 tests/profile-smoke.py out/bash-perl

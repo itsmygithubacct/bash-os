@@ -14,6 +14,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+import installation_cache
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -38,17 +40,11 @@ def main():
     spec = json.loads((ROOT/'config/perl.json').read_text())
     identity = dict(package=spec, target=target, cc=cc,
                     compiler=subprocess.check_output([cc, '--version'], text=True),
-                    recipe=digest(Path(__file__)))
+                    recipe=digest(Path(__file__)),
+                    installation_recipe=digest(Path(installation_cache.__file__)))
 
     def installed():
-        if not marker.is_file():
-            return None
-        record = json.loads(marker.read_text())
-        for name, checksum in record['checksums'].items():
-            p = prefix/name
-            if not p.is_file() or digest(p) != checksum:
-                return None
-        return record
+        return installation_cache.read_installation(prefix, marker.name)
 
     if args.flags:
         record = installed()
@@ -180,6 +176,7 @@ def main():
             notices.mkdir(parents=True)
             for name in ('Copying', 'Artistic', 'README'):
                 shutil.copy2(source/name, notices/name)
+            record['installation'] = installation_cache.write_manifest(install, marker.name)
             (install/'bash-os-perl.json').write_text(json.dumps(record, indent=2)+'\n')
             backup = work/'previous'
             if prefix.exists():

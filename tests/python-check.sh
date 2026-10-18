@@ -6,6 +6,7 @@ HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 export JOBS=${JOBS:-4}
 ./build-deps.sh
 ./build.sh --include bashpython --name python
+python3 tests/interpreter-cache.py --python-prefix "out/python/$(cc -dumpmachine)"
 python3 tests/bashpython.py out/bash-python
 python3 tests/profile-smoke.py out/bash-python
 ./build.sh --profile shell --clean
