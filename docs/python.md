@@ -17,7 +17,7 @@ JOBS=4 ./build.sh --include bashpython --name python
 The first build downloads the SHA-256-pinned CPython source and builds a
 private installation under `out/python/TARGET`. It needs make, a native C
 compiler, binutils, Python 3.12+ and network access for the first download, plus
-the static zlib, bzip2 and xz from `./build-deps.sh`. SQLite comes from the
+the static zlib, bzip2, xz and zstd from `./build-deps.sh`. SQLite comes from the
 copy vendored in `loadables/_sqlite`. It does not install system packages.
 
 You can prepare or reuse the installation separately:
@@ -26,6 +26,8 @@ You can prepare or reuse the installation separately:
 ./build-python.sh --jobs 4
 ./build.sh --include bashpython --name python --python-prefix out/python/$(cc -dumpmachine)
 ```
+
+`--jobs` limits both C compilation and standard-library bytecode compilation.
 
 Reuse verifies the installed files, including both standard-library copies,
 headers, archives and notices, against `bash-os-installation.json`. Missing or

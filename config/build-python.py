@@ -212,7 +212,10 @@ def main():
             run(configure, environment={**env, **variables})
             print('python: compiling interpreter and standard modules', flush=True)
             run(['make', '-j'+str(args.jobs)])
-            run(['make', 'install', 'DESTDIR='+str(dest)])
+            # CPython otherwise uses compileall -j0 (all CPUs) during install,
+            # independently of the limit used for the C build.
+            run(['make', 'install', 'COMPILEALL_OPTS=-j'+str(args.jobs),
+                 'DESTDIR='+str(dest)])
 
             built = source/'python'
             probe = ('import json, sys, sysconfig; '
