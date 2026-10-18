@@ -29,6 +29,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "child-wait.h"
 
 extern char *ionice_doc[];
 
@@ -153,24 +154,30 @@ ionice_builtin (WORD_LIST *list)
     int i = 0; for (WORD_LIST *p = list; p; p = p->next) argv[i++] = p->word->word;
     argv[argc] = NULL;
 
-    struct sigaction chld_dfl, chld_save;
-    memset (&chld_dfl, 0, sizeof chld_dfl);
-    chld_dfl.sa_handler = SIG_DFL; sigemptyset (&chld_dfl.sa_mask);
-    sigaction (SIGCHLD, &chld_dfl, &chld_save);
+    bos_child_wait child_wait;
+    if (bos_child_wait_begin (&child_wait) < 0) {
+        builtin_error ("SIGCHLD setup: %s", strerror (errno));
+        free (argv); return EXECUTION_FAILURE;
+    }
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t pid = fork ();
-    if (pid < 0) { builtin_error ("fork: %s", strerror (errno)); sigaction (SIGCHLD, &chld_save, NULL); free (argv); return EXECUTION_FAILURE; }
+    if (pid < 0) { builtin_error ("fork: %s", strerror (errno)); bos_child_wait_end (&child_wait); free (argv); return EXECUTION_FAILURE; }
     if (pid == 0) {
+        bos_child_wait_child (&child_wait);
         if (ioprio_set_p (0, eff_class, eff_level) < 0 && !ignore_fail)
             fprintf (stderr, "ionice: ioprio_set: %s\n", strerror (errno));
         execvp (argv[0], argv);
-        fprintf (stderr, "ionice: %s: %s\n", argv[0], strerror (errno));
-        _exit (errno == ENOENT ? 127 : 126);
+        int saved = errno;
+        fprintf (stderr, "ionice: %s: %s\n", argv[0], strerror (saved));
+        _exit (saved == ENOENT ? 127 : 126);
     }
     free (argv);
     int wst = 0, status = EXECUTION_SUCCESS; pid_t w;
     while ((w = waitpid (pid, &wst, 0)) < 0 && errno == EINTR) ;
-    sigaction (SIGCHLD, &chld_save, NULL);
+    bos_child_wait_end (&child_wait);
     if (w < 0) { builtin_error ("waitpid: %s", strerror (errno)); return EXECUTION_FAILURE; }
     if (WIFEXITED (wst)) status = WEXITSTATUS (wst);
     else if (WIFSIGNALED (wst)) status = 128 + WTERMSIG (wst);

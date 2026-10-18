@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "child-wait.h"
 #include "command-run.h"
 
 extern char *nice_doc[];
@@ -130,16 +131,11 @@ nice_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next) argv[i++] = p->word->word;
     argv[argc] = NULL;
 
-    struct sigaction chld_dfl, chld_save;
-    memset (&chld_dfl, 0, sizeof chld_dfl);
-    chld_dfl.sa_handler = SIG_DFL;
-    sigemptyset (&chld_dfl.sa_mask);
-    sigaction (SIGCHLD, &chld_dfl, &chld_save);
-
-    sigset_t chld_set, prev_mask;
-    sigemptyset (&chld_set);
-    sigaddset (&chld_set, SIGCHLD);
-    sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
+    bos_child_wait child_wait;
+    if (bos_child_wait_begin (&child_wait) < 0) {
+        builtin_error ("SIGCHLD setup: %s", strerror (errno));
+        free (argv); return EXECUTION_FAILURE;
+    }
 
     /* Fork so we don't poison the calling shell's niceness. */
     maybe_make_export_env ();
@@ -148,15 +144,14 @@ nice_builtin (WORD_LIST *list)
     pid_t pid = fork ();
     if (pid < 0) {
         int e = errno;
-        sigprocmask (SIG_SETMASK, &prev_mask, NULL);
-        sigaction (SIGCHLD, &chld_save, NULL);
+        bos_child_wait_end (&child_wait);
         builtin_error ("fork: %s", strerror (e));
         free (argv);
         return EXECUTION_FAILURE;
     }
     if (pid == 0) {
         bos_prepare_child ();
-        sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+        bos_child_wait_child (&child_wait);
         errno = 0;
         if (setpriority (PRIO_PROCESS, 0, getpriority (PRIO_PROCESS, 0) + incr) < 0) {
             fprintf (stderr, "nice: setpriority(%d): %s\n", incr, strerror (errno));
@@ -174,13 +169,11 @@ nice_builtin (WORD_LIST *list)
     while ((w = waitpid (pid, &status, 0)) < 0 && errno == EINTR) ;
     if (w < 0) {
         int e = errno;
-        sigprocmask (SIG_SETMASK, &prev_mask, NULL);
-        sigaction (SIGCHLD, &chld_save, NULL);
+        bos_child_wait_end (&child_wait);
         builtin_error ("waitpid: %s", strerror (e));
         return EXECUTION_FAILURE;
     }
-    sigprocmask (SIG_SETMASK, &prev_mask, NULL);
-    sigaction (SIGCHLD, &chld_save, NULL);
+    bos_child_wait_end (&child_wait);
     if (WIFEXITED (status))   return WEXITSTATUS (status);
     if (WIFSIGNALED (status)) return 128 + WTERMSIG (status);
     return EXECUTION_FAILURE;

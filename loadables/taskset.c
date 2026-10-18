@@ -31,6 +31,7 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "child-wait.h"
 
 static int
 bts_parse_pid (const char *s, pid_t *out)
@@ -225,30 +226,27 @@ bts_run_command (const cpu_set_t *set, WORD_LIST *cmd)
   if (bts_argv_from_list (cmd, &argv) < 0)
     return EXECUTION_FAILURE;
 
-  struct sigaction chld_dfl, chld_save;
-  memset (&chld_dfl, 0, sizeof chld_dfl);
-  chld_dfl.sa_handler = SIG_DFL;
-  sigemptyset (&chld_dfl.sa_mask);
-  sigaction (SIGCHLD, &chld_dfl, &chld_save);
+  bos_child_wait child_wait;
+  if (bos_child_wait_begin (&child_wait) < 0) {
+      builtin_error ("SIGCHLD setup: %s", strerror (errno));
+      free (argv); return EXECUTION_FAILURE;
+  }
 
-  sigset_t chld_set, prev_mask;
-  sigemptyset (&chld_set);
-  sigaddset (&chld_set, SIGCHLD);
-  sigprocmask (SIG_BLOCK, &chld_set, &prev_mask);
-
+  maybe_make_export_env ();
+  fflush (stdout);
+  fflush (stderr);
   pid_t pid = fork ();
   if (pid < 0)
     {
       int e = errno;
-      sigprocmask (SIG_SETMASK, &prev_mask, NULL);
-      sigaction (SIGCHLD, &chld_save, NULL);
+      bos_child_wait_end (&child_wait);
       free (argv);
       builtin_error ("fork: %s", strerror (e));
       return EXECUTION_FAILURE;
     }
   if (pid == 0)
     {
-      sigprocmask (SIG_SETMASK, &prev_mask, NULL);
+      bos_child_wait_child (&child_wait);
       if (sched_setaffinity (0, sizeof *set, set) < 0)
         {
           fprintf (stderr, "taskset: sched_setaffinity: %s\n", strerror (errno));
@@ -264,8 +262,7 @@ bts_run_command (const cpu_set_t *set, WORD_LIST *cmd)
   int status = 0;
   pid_t w;
   while ((w = waitpid (pid, &status, 0)) < 0 && errno == EINTR) ;
-  sigprocmask (SIG_SETMASK, &prev_mask, NULL);
-  sigaction (SIGCHLD, &chld_save, NULL);
+  bos_child_wait_end (&child_wait);
   if (w < 0)
     {
       builtin_error ("waitpid: %s", strerror (errno));

@@ -372,6 +372,9 @@ timeout_builtin (WORD_LIST *list)
     sigaddset (&chld_set, SIGCHLD);
     sigprocmask (SIG_BLOCK, &chld_set, &prev_set);
 
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
     pid_t child = fork ();
     if (child < 0) {
         free (argv);

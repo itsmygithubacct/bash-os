@@ -48,6 +48,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "child-wait.h"
 
 extern char *flock_doc[];
 
@@ -239,6 +240,10 @@ flock_builtin (WORD_LIST *list)
         builtin_usage ();
         return EX_USAGE;
     }
+    if (no_fork && close_before_exec) {
+        builtin_error ("--no-fork and --close are incompatible");
+        return EX_USAGE;
+    }
 
     char *operand = list->word->word;
     list = list->next;                /* remaining list = command argv (file form) */
@@ -306,38 +311,50 @@ flock_builtin (WORD_LIST *list)
 
     /* File form: run the command while holding the lock, then release. */
     int status = EXECUTION_SUCCESS;
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
 
     if (no_fork) {
         /* Replace this shell — flock(1)'s -F/-n no-fork behaviour. */
-        if (close_before_exec) close (fd);
+        char **argv = NULL;
         if (shell_cmd) {
             execl ("/bin/sh", "sh", "-c", shell_cmd, (char *) NULL);
         } else {
             int argc = 0; for (WORD_LIST *p = list; p; p = p->next) argc++;
-            char **argv = calloc ((size_t) argc + 1, sizeof *argv);
-            if (!argv) { builtin_error ("calloc: %s", strerror (errno)); return EXECUTION_FAILURE; }
+            argv = calloc ((size_t) argc + 1, sizeof *argv);
+            if (!argv) {
+                builtin_error ("calloc: %s", strerror (errno));
+                close (fd);
+                return EXECUTION_FAILURE;
+            }
             int i = 0; for (WORD_LIST *p = list; p; p = p->next) argv[i++] = p->word->word;
             argv[argc] = NULL;
             execvp (argv[0], argv);
         }
-        builtin_error ("exec: %s", strerror (errno));
-        return 126;
+        int saved = errno;
+        free (argv);
+        close (fd);
+        builtin_error ("exec: %s", strerror (saved));
+        return saved == ENOENT ? 127 : 126;
     }
 
-    struct sigaction chld_dfl, chld_save;
-    memset (&chld_dfl, 0, sizeof chld_dfl);
-    chld_dfl.sa_handler = SIG_DFL;
-    sigemptyset (&chld_dfl.sa_mask);
-    sigaction (SIGCHLD, &chld_dfl, &chld_save);
+    bos_child_wait child_wait;
+    if (bos_child_wait_begin (&child_wait) < 0) {
+        builtin_error ("SIGCHLD setup: %s", strerror (errno));
+        if (opened) close (fd);
+        return EXECUTION_FAILURE;
+    }
 
     pid_t pid = fork ();
     if (pid < 0) {
         builtin_error ("fork: %s", strerror (errno));
-        sigaction (SIGCHLD, &chld_save, NULL);
+        bos_child_wait_end (&child_wait);
         if (opened) close (fd);
         return EXECUTION_FAILURE;
     }
     if (pid == 0) {
+        bos_child_wait_child (&child_wait);
         if (close_before_exec) close (fd);
         if (shell_cmd) {
             execl ("/bin/sh", "sh", "-c", shell_cmd, (char *) NULL);
@@ -350,14 +367,15 @@ flock_builtin (WORD_LIST *list)
                 execvp (argv[0], argv);
             }
         }
-        fprintf (stderr, "flock: failed to execute command: %s\n", strerror (errno));
-        _exit (errno == ENOENT ? 127 : 126);
+        int saved = errno;
+        fprintf (stderr, "flock: failed to execute command: %s\n", strerror (saved));
+        _exit (saved == ENOENT ? 127 : 126);
     }
 
     int wstatus = 0;
     pid_t w;
     while ((w = waitpid (pid, &wstatus, 0)) < 0 && errno == EINTR) ;
-    sigaction (SIGCHLD, &chld_save, NULL);
+    bos_child_wait_end (&child_wait);
     if (w < 0) {
         builtin_error ("waitpid: %s", strerror (errno));
         if (opened) close (fd);
