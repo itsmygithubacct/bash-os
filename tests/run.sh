@@ -53,6 +53,8 @@ for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams co
   check "$name" python3 "tests/$name.py" out/bash
 done
 check 'git object store' python3 tests/git-odb.py out/bash
+check 'git untrusted objects and paths' python3 tests/git-integrity.py out/bash
+check 'git apply path preflight' python3 tests/git-apply-paths.py out/bash
 check 'git refs across implementations' python3 tests/git-refs.py out/bash
 check 'git packs across implementations' python3 tests/git-packs.py out/bash
 check 'git protocol across implementations' python3 tests/git-proto.py out/bash
@@ -74,6 +76,7 @@ check network-smoke python3 tests/network-smoke.py out/bash
 check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
+check 'terminal and buffer edges' python3 tests/vt-buf-edges.py out/bash
 check 'expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
 check ptybroker python3 tests/ptybroker.py --bash out/bash
@@ -103,13 +106,22 @@ check 'static final imports' python3 tests/final-smoke.py out/bash-static
 # writes a repository the same way there.
 check 'static git parity' python3 tests/git-parity.py out/bash-static \
   basic-commit branches log-diff packs
+check 'static git untrusted objects and paths' python3 tests/git-integrity.py out/bash-static
+check 'static git apply path preflight' python3 tests/git-apply-paths.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
+check 'static terminal and buffer edges' python3 tests/vt-buf-edges.py out/bash-static
 check 'static expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static
 check runtime-loadables bash tests/runtime-loadables.sh out/bash
 check 'pkg signatures and remote install' python3 tests/pkg-signify.py out/bash
 check 'package publication and rollback safety' python3 tests/pkg-safety.py out/bash
+check 'package trust files' python3 tests/pkg-trust.py out/bash
+for name in process-wrapper-state process-numeric device-fixtures signal-lookup sysctl-readonly nc-stream http-framing userdb-records cron-spool crypto-state; do
+  check "$name" python3 "tests/$name.py" out/bash
+  check "static $name" python3 "tests/$name.py" out/bash-static
+done
 check 'static package publication and rollback safety' python3 tests/pkg-safety.py out/bash-static
+check 'static package trust files' python3 tests/pkg-trust.py out/bash-static
 check tutorial bash tests/tutorial.sh
 if command -v busybox >/dev/null; then
   check 'bench outputs agree across userlands' bash bench/run.sh --quick
@@ -131,8 +143,13 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash
   check 'large modules under ASan+UBSan' bash tests/large-sanitize.sh out/bash
   check 'terminal modules under ASan+UBSan' bash tests/terminal-sanitize.sh out/bash
+  check 'terminal and buffer edges under ASan+UBSan' bash tests/vt-buf-sanitize.sh out/bash
   check 'graphics under ASan+UBSan' bash tests/gpu-sanitize.sh out/bash
   check 'git under ASan+UBSan' bash tests/git-sanitize.sh out/bash
+  check 'process and device modules under ASan+UBSan' bash tests/system-process-sanitize.sh out/bash
+  for name in nc http userdb spool crypto-state; do
+    check "$name under ASan+UBSan" bash "tests/$name-sanitize.sh" out/bash
+  done
   if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then
     check 'account parser contract' "$scratch/privdrop"
   else
