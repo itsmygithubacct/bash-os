@@ -18,6 +18,7 @@ import traceback
 
 INJECT_ENV = {}
 PREFIX = ""
+ALLOCATION_MODULE = None
 
 
 def wait_for(predicate, what, timeout=5):
@@ -446,6 +447,41 @@ def replay_disk_failure(binary):
             d.cleanup()
 
 
+def replay_allocation_failure(binary):
+    global PREFIX
+    saved = PREFIX
+    PREFIX = shlex.join(['enable', '-f', ALLOCATION_MODULE, 'bashsyslogd']) + ' || exit 99; '
+    try:
+        with udp() as (server, target), tempfile.TemporaryDirectory(prefix='bsd-') as directory:
+            root = Path(directory)
+            marker = root/'allocation-blocked'
+            marker.touch()
+            queued = [b'<13>' + bytes([65+i])*7195 for i in range(3)]
+            raw = b''.join(m.hex().encode()+b'\n' for m in queued)
+            (root/'forward.queue').write_bytes(raw)
+            d = Daemon(binary, root, ['--forward', target],
+                       env={'BASHSYSLOGD_TEST_ALLOC_BLOCK': str(marker)}).ready()
+            try:
+                wait_for(lambda: b'queue replay failed' in d.readerr() or not d.queue.exists(),
+                         'allocation replay outcome')
+                assert d.queue.exists() and d.queue.read_bytes() == raw, 'allocation failure lost queued records'
+                assert b'queue replay failed' in d.readerr(), 'allocation failure was not reported'
+                server.settimeout(.1)
+                try:
+                    raise AssertionError(('sent despite allocation failure', server.recv(9000)))
+                except socket.timeout:
+                    pass
+                marker.unlink()
+                server.settimeout(3)
+                assert [server.recv(9000) for _ in queued] == queued
+                wait_for(lambda: not d.queue.exists(), 'allocation recovery cleanup')
+                d.finish(stop=True, expected=1)
+            finally:
+                d.cleanup()
+    finally:
+        PREFIX = saved
+
+
 def stream_overrides(binary):
     with tempfile.TemporaryDirectory(prefix='bsd-') as directory:
         root = Path(directory)
@@ -497,8 +533,9 @@ def main():
     p.add_argument('--fixture')
     p.add_argument('--module')
     p.add_argument('--asan')
+    p.add_argument('--allocation-module')
     args = p.parse_args()
-    global INJECT_ENV, PREFIX
+    global INJECT_ENV, PREFIX, ALLOCATION_MODULE
     if args.fixture:
         assert Path(args.fixture).is_file(), 'missing fixture module'
         INJECT_ENV['LD_PRELOAD'] = str(Path(args.fixture).resolve())
@@ -509,10 +546,15 @@ def main():
     if args.module:
         assert Path(args.module).is_file(), 'missing instrumented module'
         PREFIX = shlex.join(['enable', '-f', str(Path(args.module).resolve()), 'bashsyslogd']) + ' || exit 99; '
+    if args.allocation_module:
+        assert Path(args.allocation_module).is_file(), 'missing allocation fixture module'
+        ALLOCATION_MODULE = str(Path(args.allocation_module).resolve())
     binary = str(Path(args.binary).resolve())
     cases = [routing, once_empty, collisions, invalid_options, config, queue, output_errors, repeated, disabled_queue, cleanup_replacement, invalid_config, stream_overrides, queue_unwritable, idle_shutdown]
     if args.fixture:
         cases.extend([controlled_queue, replay_disk_failure])
+    if args.allocation_module:
+        cases.append(replay_allocation_failure)
     if args.case and args.case not in {case.__name__ for case in cases}:
         p.error('unknown case or fixture required for this case')
     failures = 0

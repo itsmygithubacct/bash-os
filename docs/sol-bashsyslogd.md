@@ -50,6 +50,16 @@ coordinate concurrent writers, or promise delivery after SIGKILL or power loss.
 DNS resolution uses blocking `getaddrinfo`, so network resolver delays may
 extend service or shutdown latency beyond the socket poll interval.
 
+Integration review also found that allocation failure during hex decoding could
+discard a valid queue record as if it were malformed. Such failures now retain
+the original queue and report replay failure. A production-source module with
+a narrow allocation fault verifies exact preservation followed by ordered
+recovery. This error-path correction followed the measurements below; those
+measurements describe the recorded worker source and binary hashes.
+The integration checks passed all 17 case groups with both normal and
+ASan/UBSan production modules. The same allocation regression failed against
+the pre-correction source with an assertion that queued records were lost.
+
 Reproduce the focused checks with a targeted build, then the task fixture and
 sanitizer module. Use the campaign resource gates for every compilation and
 measurement (the commands below omit the campaign-specific gate prefix):

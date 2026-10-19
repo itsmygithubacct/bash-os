@@ -954,6 +954,14 @@
       "status": "Contract",
       "evidence": "tests/sol-blockdev-check.py",
       "scope": "Closed syscall fixtures for every advertised query/setter, unit conversion, ordered multi-device actions, malformed input, ioctl/open/close/output errors and descriptor cleanup; private regular-file ENOTTY probes."
+    },
+    {
+      "names": [
+        "bashsyslogd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-bashsyslogd-check.py",
+      "scope": "Owned AF_UNIX daemon: exact facility routing, append/mode/config/reload, once, collisions, bounded queue forwarding/recovery/drop accounting, malformed input, output failures, signal/FD restoration and socket/temp cleanup; injected queue allocation failure preserves records."
     }
   ],
   "sanitizer_groups": [
@@ -1258,6 +1266,13 @@
       ],
       "evidence": "tests/sol-blockdev-build.sh",
       "scope": "Production loadable compiled behind closed device/ioctl fixtures under ASan/UBSan."
+    },
+    {
+      "names": [
+        "bashsyslogd"
+      ],
+      "evidence": "tests/sol-bashsyslogd-build-fixtures.sh",
+      "scope": "Production daemon modules under ASan/UBSan, including private routing, send/rewrite failures and queue allocation recovery."
     }
   ],
   "fuzz": {
@@ -2067,6 +2082,11 @@
       "note": "All advertised software ioctl paths have closed fixtures and fixed query/request batch measurements on 2026-10-19. Shim time includes shell/module/fixture overhead; no hardware latency or external speedup claim.",
       "evidence": "docs/sol-blockdev.md",
       "next": "Actual device geometry, privileges, driver errors, flush and partition reread effects still need device qualification."
+    },
+    "bashsyslogd": {
+      "note": "Owned-daemon software contract and three fixed loopback/queue workloads measured on 2026-10-19. Timestamp/send shims are labeled; intentional UDP overflow and bounded-spool drops are counted. Allocation-failure preservation was corrected after timing. No external performance ratio.",
+      "evidence": "docs/sol-bashsyslogd.md",
+      "next": "Qualify deployment-specific transport and persistence requirements; UDP forwarding and the single-daemon spool remain best effort without acknowledgements or crash durability."
     }
   },
   "repeat_input_findings": [],

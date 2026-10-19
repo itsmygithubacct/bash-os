@@ -522,14 +522,14 @@ bsd_hex_decode_line (const char *line, ssize_t *out_len)
   char *out;
 
   if (!line || !out_len)
-    return NULL;
+    { errno = EINVAL; return NULL; }
   len = strcspn (line, "\r\n");
   if (len == 0 || len > BSD_RECV_BUFSZ * 2 || (len % 2) != 0
       || line[len] != '\n' || line[len + 1] != '\0')
-    return NULL;
+    { errno = EINVAL; return NULL; }
   out = malloc (len / 2);
   if (!out)
-    return NULL;
+    { errno = ENOMEM; return NULL; }
   for (size_t i = 0; i < len; i += 2)
     {
       int hi = bsd_hex_value ((unsigned char) line[i]);
@@ -537,6 +537,7 @@ bsd_hex_decode_line (const char *line, ssize_t *out_len)
       if (hi < 0 || lo < 0)
         {
           free (out);
+          errno = EINVAL;
           return NULL;
         }
       out[i / 2] = (char) ((hi << 4) | lo);
@@ -658,7 +659,11 @@ bsd_drain_queue (const char *queue_path, int fd,
       char *msg;
       msg = bsd_hex_decode_line (line, &msg_len);
       if (!msg)
-        continue;
+        {
+          if (errno == ENOMEM)
+            { failed = 1; break; }
+          continue;
+        }
       if (blocked || bsd_forward_udp (fd, addr, addrlen, msg, msg_len) < 0)
         {
           blocked = kept = 1;
