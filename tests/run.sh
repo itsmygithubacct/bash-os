@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Build each variant, check utility behavior, and run the sanitizer harnesses.
 # Each producer's exit status is checked directly; a printed summary is not a verdict.
+# Separate resource gates may run BASHOS_TEST_PHASE=build and then =bench.
+# Both phases are required for a complete run; the default runs everything.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 CC=${CC:-cc}
@@ -18,6 +20,22 @@ check(){
     printf 'FAIL %s (exit %s)\n' "$label" "$rc"; fail=$((fail+1))
   fi
 }
+phase=${BASHOS_TEST_PHASE:-all}
+case "$phase" in
+  all|build) ;;
+  bench)
+    check 'loadable benchmark validation' python3 tests/bench-loadables.py
+    if command -v busybox >/dev/null; then
+      check 'bench outputs agree across userlands' bash bench/run.sh --quick
+    else
+      echo 'SKIP bench (no busybox)'
+    fi
+    printf '\nrun bench phase: %s passed, %s failed\n' "$pass" "$fail"
+    [[ $fail == 0 ]]
+    exit
+    ;;
+  *) echo "Unknown BASHOS_TEST_PHASE: $phase" >&2; exit 2 ;;
+esac
 check licence-check bash tests/licence-check.sh
 check 'atomic executable publication' python3 tests/publish-binary.py
 check 'complete build cache entries' python3 tests/build-cache.py
@@ -26,7 +44,11 @@ check 'dependency cache integrity' python3 tests/dependency-cache.py
 check 'optional interpreter cache integrity' python3 tests/interpreter-cache.py
 check 'package producer input boundaries' python3 tests/package-inputs.py
 check 'uv data publication' python3 tests/fetch-uv.py
-check 'loadable benchmark validation' python3 tests/bench-loadables.py
+if [[ $phase == all ]]; then
+  check 'loadable benchmark validation' python3 tests/bench-loadables.py
+else
+  echo 'DEFER benchmark validation to required BASHOS_TEST_PHASE=bench run'
+fi
 check 'benchmark publication integrity' python3 tests/bench-publish.py
 check profiles python3 tests/profiles.py
 if ./build.sh >"$scratch/build.log" 2>&1; then
@@ -129,7 +151,9 @@ done
 check 'static package publication and rollback safety' python3 tests/pkg-safety.py out/bash-static
 check 'static package trust files' python3 tests/pkg-trust.py out/bash-static
 check tutorial bash tests/tutorial.sh
-if command -v busybox >/dev/null; then
+if [[ $phase == build ]]; then
+  echo 'DEFER userland benchmark to required BASHOS_TEST_PHASE=bench run'
+elif command -v busybox >/dev/null; then
   check 'bench outputs agree across userlands' bash bench/run.sh --quick
 else
   echo 'SKIP bench (no busybox)'
