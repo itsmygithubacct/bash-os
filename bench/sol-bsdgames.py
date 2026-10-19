@@ -36,6 +36,10 @@ def main():
     args = ap.parse_args()
     if args.runs < 7:
         ap.error('at least seven samples are required')
+    if args.output.exists():
+        ap.error('output already exists; preserve previous reports')
+    if len(os.sched_getaffinity(0)) != 1:
+        ap.error('run pinned to one CPU through the bench gate')
     before = str(args.before.resolve(strict=True))
     implementations = {'before': (before, ['bsdgames', 'rot13']),
                        'external': (before, ['/usr/bin/tr', 'A-Za-z', 'N-ZA-Mn-za-m'])}
@@ -84,7 +88,7 @@ time { for ((i=0;i<count;i++)); do "$@" < "$input" || exit; done; }'''
             assert p.returncode == 0, (command, p.returncode, p.stderr)
             assert (root/'output').read_bytes() == expected*count, (command, 'invalid timed output')
             inner = float(p.stderr.decode().strip())*1000
-            return {'outer_ms': outer, 'inner_ms': inner, 'exit_code': p.returncode,
+            return {'status': 'ok', 'outer_ms': outer, 'inner_ms': inner, 'exit_code': p.returncode,
                     'validated_passes': count, 'output_sha256': digest(expected*count)}
 
         for identifier, data, count in cases:
@@ -119,7 +123,10 @@ time { for ((i=0;i<count;i++)); do "$@" < "$input" || exit; done; }'''
         transform = args.transform.resolve(strict=True)
         result = subprocess.run([str(transform)], capture_output=True, text=True, check=True, env=env, timeout=60)
         report['transform_only'] = json.loads(result.stdout)
+        assert report['transform_only']['warmups'] == 1
+        assert len(report['transform_only']['runs_ns']) >= 7
         report['transform_only'].update(binary_sha256=digest(transform.read_bytes()),
+            status='ok', exit_code=result.returncode,
             source_sha256=report['source_sha256'], function='bsdg_caesar_transform',
             fixture_sha256=digest(bytes(range(256)) * (8*1024*1024//256)),
             kind='api', includes='in-memory lookup loop and per-call monotonic clock overhead',
