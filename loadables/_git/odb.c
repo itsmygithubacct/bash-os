@@ -20,6 +20,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <stdint.h>
+#include <limits.h>
 #include <zlib.h>
 
 /* sha1dc — collision-detecting SHA-1. Vendored under _sha1dc/, flattened
@@ -125,12 +127,16 @@ bgit_parse_header (const unsigned char *data, size_t len,
     /* Parse size up to NUL. */
     size_t j = i + 1;
     size_t sz = 0;
+    if (j >= len || data[j] < '0' || data[j] > '9') return -1;
+    if (data[j] == '0' && j + 1 < len && data[j + 1] != '\0') return -1;
     while (j < len && data[j] != '\0') {
         if (data[j] < '0' || data[j] > '9') return -1;
-        sz = sz * 10 + (size_t) (data[j] - '0');
+        size_t digit = (size_t) (data[j] - '0');
+        if (sz > (SIZE_MAX - digit) / 10) return -1;
+        sz = sz * 10 + digit;
         j++;
     }
-    if (j >= len) return -1;
+    if (j >= len || j >= LONG_MAX) return -1;
     *payload_size = sz;
     return (long) (j + 1);
 }

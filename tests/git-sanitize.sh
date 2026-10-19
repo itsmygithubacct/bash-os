@@ -17,8 +17,8 @@ python3 config/stage-helpers.py --stage "$HERE" "$d/helpers" git >/dev/null
 HB="$d/helpers/builtins"
 
 "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
-  -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
-  -I"$BT/examples/loadables" -I"$HB" -Iloadables/common \
+  -DHAVE_CONFIG_H -I"$HB" -I"$BT" -I"$BT/include" -I"$BT/builtins" \
+  -I"$BT/examples/loadables" -Iloadables/common \
   loadables/git.c "$HB"/_git_*.c -lz -lm -o "$d/git.so"
 
 repo=$d/repo

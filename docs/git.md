@@ -644,6 +644,14 @@ A patch comes from outside, so what it names is checked before anything
 is written: a path that climbs above the worktree, one that starts at the
 root of the filesystem, and one that leads into `.git` are each refused
 with git's `invalid path`, and nothing is read or written for them.
+Tree and index entries also reject empty, dot, parent, and `.git` path
+components. Checkout and patch application walk parent directories through
+directory descriptors and refuse symlink parents. Checkout and restore may
+replace a symlink at the final path without touching its target; patch
+application refuses a symlink at that path. Worktree paths exceeding the
+4095-byte full-path limit are rejected before patch results are written.
+A patch line is kept whole, however long it is: a path or a hunk line is
+not cut down to fit a fixed buffer.
 
 `git apply` takes a patch back the way it came: the hunks are matched
 against the files, moving up or down where a line has shifted, and a hunk
@@ -654,7 +662,9 @@ is not. Nothing is written until every file's hunks have been placed, so
 `--check` is the same run without the writing, and a patch that fails
 anywhere leaves everything alone. `--stat`, `--numstat` and `--summary`
 say what a patch would do, `-R` turns it around, `-p<n>` says how much of
-each path to drop, and `--index` and `--cached` carry it into the index
+each path to drop (`rename from` and `rename to` have already lost the
+`a/` and `b/` prefix, so they drop one fewer component), and `--index`
+and `--cached` carry it into the index
 as well, or into the index alone.
 
 `git grep` searches what the repository tracks, and nothing else: the
@@ -1315,8 +1325,9 @@ git sees what it expects.
 `git` forks, and the command runs in the child. git reports a fatal
 problem at any depth and stops; in a child that is simply an exit, so
 nothing has to unwind the shell. `-C` can change directory without moving
-the caller, the memory a history walk needs is returned at exit, and an
-interrupt releases held lock files. The cost is one fork per call.
+the caller, and the memory a history walk needs is returned at exit. Held
+lock files are released when the command returns; a process killed before
+cleanup may leave a lock behind. The cost is one fork per call.
 
 `obj`, `index` and `pack` stay in-process, for shell loops that call them
 many times.
@@ -1350,6 +1361,13 @@ start running as soon as their commands land.
 cat-file`: loose objects, packed ones after `git gc`, abbreviations,
 `--batch-check`, a linked worktree, a bare clone, alternates, `GIT_DIR`,
 and that what `obj` writes git can read.
+
+`tests/git-integrity.py` supplies malformed object headers, packs with
+inconsistent sizes or overflowing delta integers, and unsafe tree and index
+paths. It checks that checkout and patch application cannot alter fixture
+files outside the worktree through parent components or symlinks. It also
+checks repository discovery, preservation of another writer's locks, and
+isolation of directory and environment changes in local subprocesses.
 
 `tests/git-sanitize.sh` builds the builtin and its helpers with ASan and
 UBSan and runs a scenario shaped to reach the edges of the code that walks

@@ -371,7 +371,7 @@ bgit_odb_read_loose (bgit_odb *odb, const char *sha, enum bgit_type *type,
             continue;
         size_t payload = 0;
         long off = bgit_parse_header (raw, raw_len, type, &payload);
-        if (off < 0 || (size_t) off > raw_len || payload > raw_len - (size_t) off) {
+        if (off < 0 || (size_t) off > raw_len || payload != raw_len - (size_t) off) {
             free (raw);
             if (!odb->quiet) builtin_error ("malformed object header for %s", sha);
             return -1;

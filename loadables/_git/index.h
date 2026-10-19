@@ -55,6 +55,9 @@ uint16_t bgit_be16 (const unsigned char *buf, size_t off);
 int bgit_index_parse_mode (const char *s, uint32_t *out);
 int bgit_index_parse_stage (const char *s, int *out);
 
+/* A repository-relative path: no empty, dot, parent or .git components. */
+int bgit_index_path_valid (const char *path);
+
 /* Copy ctime, mtime, dev, ino, mode, uid, gid and size from ST. */
 void bgit_index_entry_set_stat (bgit_index_entry *e, const struct stat *st);
 

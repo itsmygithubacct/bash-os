@@ -10,31 +10,9 @@
  */
 #include <stdarg.h>
 #include "../loadables/_git/pack.c"
-#include "../loadables/_sha1dc/sha1.h"
+#include "../loadables/_git/odb.c"
 
 void builtin_error (const char *format, ...) { (void) format; }
-
-/* What pack.c wants from the object store, and no more than that. */
-int
-bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20])
-{
-    SHA1_CTX ctx;
-    SHA1DCInit (&ctx);
-    SHA1DCSetSafeHash (&ctx, 0);
-    SHA1DCUpdate (&ctx, (const char *) data, n);
-    return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
-}
-
-void
-bgit_sha_to_hex (const unsigned char sha[20], char out[41])
-{
-    static const char digits[] = "0123456789abcdef";
-    for (int i = 0; i < 20; i++) {
-        out[i * 2] = digits[sha[i] >> 4];
-        out[i * 2 + 1] = digits[sha[i] & 15];
-    }
-    out[40] = '\0';
-}
 
 int
 LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)

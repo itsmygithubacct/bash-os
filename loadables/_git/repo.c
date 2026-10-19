@@ -125,6 +125,17 @@ bgit_repo_fill (const char *git_dir, const char *work_tree, bgit_repo *out)
     if (!out->git_dir) return -1;
     out->common_dir = bgit_common_dir (out->git_dir);
     if (!out->common_dir) { bgit_repo_release (out); return -1; }
+    /* A directory named .git is not enough. Linked worktrees keep HEAD
+       locally and the object/ref directories under commondir. */
+    char *head = bgit_join (out->git_dir, "HEAD");
+    char *refs = bgit_join (out->common_dir, "refs");
+    char *objects = bgit_join (out->common_dir, "objects");
+    const char *object_override = getenv ("GIT_OBJECT_DIRECTORY");
+    int valid = bgit_is_file (head) && bgit_is_dir (refs) &&
+                bgit_is_dir (object_override && *object_override ?
+                             object_override : objects);
+    free (head); free (refs); free (objects);
+    if (!valid) { bgit_repo_release (out); return -1; }
     const char *env_work = getenv ("GIT_WORK_TREE");
     if (env_work && *env_work) work_tree = env_work;
     if (work_tree && *work_tree) {

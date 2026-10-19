@@ -20,6 +20,14 @@
 #include "odb.h"
 #include "repo.h"
 
+/* Open FULL_PATH's parent by directory fd, refusing symlink ancestors.
+   With CREATE, make missing directories. The caller closes the returned
+   fd; *NAME borrows the final component from FULL_PATH. */
+int bgit_worktree_parent (const char *full_path, int create, const char **name);
+
+/* Unlink a worktree file without following any parent symlink. */
+int bgit_worktree_unlink (const char *full_path);
+
 /* Write one object into the working tree, with the mode a tree records. */
 int bgit_checkout_file (bgit_odb *odb, const char *full_path, const char *sha,
                         uint32_t mode);

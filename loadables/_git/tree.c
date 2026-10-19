@@ -203,6 +203,14 @@ bgit_tree_walk (bgit_odb *odb, const char *tree_sha, const char *prefix,
         while (pos < len && data[pos] != '\0') pos++;
         if (pos >= len) { rc = -1; break; }
         size_t name_len = pos - name_start;
+        /* A tree entry is one component, never an index-style path.
+           Validate before recursion or callbacks can use it on disk. */
+        if (!bgit_index_path_valid ((const char *) data + name_start) ||
+            memchr (data + name_start, '/', name_len)) {
+            builtin_error ("invalid tree entry name '%s'", data + name_start);
+            rc = -1;
+            break;
+        }
         pos++;
         if (pos + 20 > len) { rc = -1; break; }
         char hex[41];

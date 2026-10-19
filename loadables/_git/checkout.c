@@ -27,22 +27,58 @@
 #include "tree.h"
 #include "worktree.h"
 
-/* Create every directory above PATH. */
-static int
-bgit_checkout_mkdirs (const char *path)
+/* Walk through held directory descriptors: checking with lstat and then
+   opening the full pathname would leave a symlink-swap window. */
+int
+bgit_worktree_parent (const char *path, int create, const char **name)
 {
-    char buf[4096];
-    if (snprintf (buf, sizeof buf, "%s", path) >= (int) sizeof buf) return -1;
-    char *slash = strrchr (buf, '/');
-    if (!slash) return 0;
-    *slash = '\0';
-    for (char *p = buf + 1; *p; p++) {
-        if (*p != '/') continue;
-        *p = '\0';
-        if (mkdir (buf, 0777) < 0 && errno != EEXIST) return -1;
-        *p = '/';
+    if (!path || !*path) { errno = EINVAL; return -1; }
+    int fd = open (*path == '/' ? "/" : ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    const char *part = path + (*path == '/');
+    const char *slash;
+    while ((slash = strchr (part, '/')) != NULL) {
+        size_t len = (size_t) (slash - part);
+        if (len == 0 || (len == 1 && part[0] == '.')) {
+            part = slash + 1;
+            continue;
+        }
+        if (len == 2 && !memcmp (part, "..", 2)) {
+            close (fd); errno = EINVAL; return -1;
+        }
+        char *component = strndup (part, len);
+        if (!component) { close (fd); return -1; }
+        int next = openat (fd, component,
+                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (next < 0 && errno == ENOENT && create &&
+            (mkdirat (fd, component, 0777) == 0 || errno == EEXIST))
+            next = openat (fd, component,
+                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        int saved_errno = errno;
+        free (component);
+        close (fd);
+        if (next < 0) { errno = saved_errno; return -1; }
+        fd = next;
+        part = slash + 1;
     }
-    return mkdir (buf, 0777) == 0 || errno == EEXIST ? 0 : -1;
+    if (!*part || !strcmp (part, ".") || !strcmp (part, "..")) {
+        close (fd); errno = EINVAL; return -1;
+    }
+    *name = part;
+    return fd;
+}
+
+int
+bgit_worktree_unlink (const char *path)
+{
+    const char *name;
+    int parent = bgit_worktree_parent (path, 0, &name);
+    if (parent < 0) return -1;
+    int rc = unlinkat (parent, name, 0);
+    int saved_errno = errno;
+    close (parent);
+    errno = saved_errno;
+    return rc;
 }
 
 int
@@ -53,26 +89,36 @@ bgit_checkout_file (bgit_odb *odb, const char *full_path, const char *sha,
     unsigned char *data = NULL;
     size_t len = 0;
     if (bgit_odb_read (odb, sha, &type, &data, &len) < 0) return -1;
-    if (bgit_checkout_mkdirs (full_path) < 0) { free (data); return -1; }
-    unlink (full_path);
+    if (type != BGIT_BLOB) { free (data); return -1; }
+    const char *name;
+    int parent = bgit_worktree_parent (full_path, 1, &name);
+    if (parent < 0) {
+        builtin_error ("cannot write %s: %s", full_path, strerror (errno));
+        free (data);
+        return -1;
+    }
+    if (unlinkat (parent, name, 0) < 0 && errno != ENOENT) {
+        close (parent); free (data); return -1;
+    }
     int rc = 0;
     if (mode == 0120000) {
         char *target = malloc (len + 1);
-        if (!target) { free (data); return -1; }
+        if (!target) { close (parent); free (data); return -1; }
         memcpy (target, data, len);
         target[len] = '\0';
-        rc = symlink (target, full_path) < 0 ? -1 : 0;
+        rc = symlinkat (target, parent, name) < 0 ? -1 : 0;
         free (target);
     } else {
-        int fd = open (full_path, O_WRONLY | O_CREAT | O_TRUNC,
-                       mode == 0100755 ? 0777 : 0666);
+        int fd = openat (parent, name,
+                         O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                         mode == 0100755 ? 0777 : 0666);
         if (fd < 0) rc = -1;
         else {
             size_t off = 0;
             while (off < len) {
                 ssize_t wrote = write (fd, data + off, len - off);
-                if (wrote < 0) {
-                    if (errno == EINTR) continue;
+                if (wrote <= 0) {
+                    if (wrote < 0 && errno == EINTR) continue;
                     rc = -1;
                     break;
                 }
@@ -81,6 +127,9 @@ bgit_checkout_file (bgit_odb *odb, const char *full_path, const char *sha,
             if (close (fd) < 0) rc = -1;
         }
     }
+    int saved_errno = errno;
+    close (parent);
+    errno = saved_errno;
     free (data);
     if (rc < 0)
         builtin_error ("cannot write %s: %s", full_path, strerror (errno));
@@ -95,11 +144,16 @@ bgit_checkout_remove (const bgit_repo *repo, const char *path)
     if (snprintf (full, sizeof full, "%s/%s", repo->work_tree, path) >=
         (int) sizeof full)
         return;
-    if (unlink (full) < 0) return;
+    if (bgit_worktree_unlink (full) < 0) return;
     char *slash = strrchr (full, '/');
     while (slash && (size_t) (slash - full) > strlen (repo->work_tree)) {
         *slash = '\0';
-        if (rmdir (full) < 0) break;
+        const char *name;
+        int parent = bgit_worktree_parent (full, 0, &name);
+        if (parent < 0) break;
+        int rc = unlinkat (parent, name, AT_REMOVEDIR);
+        close (parent);
+        if (rc < 0) break;
         slash = strrchr (full, '/');
     }
 }
@@ -339,7 +393,7 @@ bgit_reset_paths (const bgit_repo *repo, bgit_odb *odb, const char *tree,
                 char full[4096];
                 if ((size_t) snprintf (full, sizeof full, "%s/%s",
                                        repo->work_tree, gone) < sizeof full)
-                    unlink (full);
+                    bgit_worktree_unlink (full);
             }
             bgit_index_remove_path (index, n, gone);
             free (gone);

@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -87,6 +88,22 @@ bgit_index_parse_stage (const char *s, int *out)
         return -1;
     *out = (int) v;
     return 0;
+}
+
+int
+bgit_index_path_valid (const char *path)
+{
+    if (!path || !*path) return 0;
+    for (const char *part = path; ; ) {
+        const char *slash = strchr (part, '/');
+        size_t len = slash ? (size_t) (slash - part) : strlen (part);
+        if (!len || (len == 1 && part[0] == '.') ||
+            (len == 2 && !memcmp (part, "..", 2)) ||
+            (len == 4 && !strncasecmp (part, ".git", 4)))
+            return 0;
+        if (!slash) return 1;
+        part = slash + 1;
+    }
 }
 
 void
@@ -245,6 +262,11 @@ bgit_index_read_views (const char *path, bgit_index_view **out, size_t *n_out,
             return -1;
         }
         e->path = (char *) buf + off;
+        if (!bgit_index_path_valid (e->path)) {
+            builtin_error ("invalid index path '%s'", e->path);
+            free (buf); free (entries);
+            return -1;
+        }
         off += path_len;
         /* Pad to 8-byte boundary. The entry start is 12 bytes into the
            file, so total entry length so far = 62 (+2 if extended) +
@@ -377,6 +399,11 @@ bgit_index_write (const char *path, bgit_index_entry *entries, size_t n)
 
     for (size_t i = 0; i < n; i++) {
         bgit_index_entry *e = &entries[i];
+        if (!bgit_index_path_valid (e->path)) {
+            builtin_error ("invalid index path '%s'", e->path ? e->path : "");
+            free (buf);
+            return -1;
+        }
         size_t path_len = strlen (e->path);
         if (path_len > SIZE_MAX - 70) { free (buf); return -1; }
         size_t entry_len = 62 + path_len;
@@ -489,6 +516,11 @@ bgit_index_line_to_entry (const char *line, const char *working_root,
     if (!out->path) return -1;
     memcpy (out->path, path, pl);
     out->path[pl] = '\0';
+    if (!bgit_index_path_valid (out->path)) {
+        free (out->path);
+        out->path = NULL;
+        return -1;
+    }
 
     /* If working_root + path resolves, populate stat fields. */
     if (working_root) {
@@ -556,7 +588,7 @@ bgit_index_info_line_to_entry (char *line, bgit_index_entry *out,
     while (pl > 0 && (path[pl-1] == '\n' || path[pl-1] == '\r')) {
         path[--pl] = '\0';
     }
-    if (pl == 0)
+    if (!bgit_index_path_valid (path))
         return -1;
 
     for (char *p = strtok_r (line, " ", &save);

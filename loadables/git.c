@@ -8747,16 +8747,25 @@ git_apply_parse (const char *text, size_t len, int strip,
     /* How many lines of each side the hunk still expects: what comes after
        them — a mail's trailer, say — is not part of it. */
     long old_left = 0, new_left = 0;
+    /* One line can be longer than any fixed stack buffer. The patch is
+       already in memory; keep the whole line so a path or hunk is not
+       silently shortened. */
+    char *held = NULL;
+    size_t held_cap = 0;
 
     for (size_t at = 0; at < len;) {
         const char *line = text + at;
         const char *nl = memchr (line, '\n', len - at);
         size_t line_len = nl ? (size_t) (nl - line) : len - at;
         at += line_len + (nl ? 1 : 0);
-        char held[8192];
-        size_t keep = line_len < sizeof held - 1 ? line_len : sizeof held - 1;
-        memcpy (held, line, keep);
-        held[keep] = '\0';
+        if (line_len + 1 > held_cap) {
+            char *grown = realloc (held, line_len + 1);
+            if (!grown) goto oom;
+            held = grown;
+            held_cap = line_len + 1;
+        }
+        memcpy (held, line, line_len);
+        held[line_len] = '\0';
 
         if (!strncmp (held, "diff --git ", 11)) {
             if (n == cap) {
@@ -8791,16 +8800,21 @@ git_apply_parse (const char *text, size_t len, int strip,
             file->new_mode = (unsigned) strtoul (held + 9, NULL, 8);
             continue;
         }
+        /* rename from/to already omit the a/ and b/ prefix that -p counts,
+           so one fewer component is dropped than from ---/+++. -p0 and -p1
+           keep the name as written. */
         if (!strncmp (held, "rename from ", 12)) {
             file->is_rename = 1;
             free (file->old_path);
-            file->old_path = git_apply_strip (held + 12, strip);
+            file->old_path = git_apply_strip (held + 12,
+                                              strip > 0 ? strip - 1 : 0);
             continue;
         }
         if (!strncmp (held, "rename to ", 10)) {
             file->is_rename = 1;
             free (file->new_path);
-            file->new_path = git_apply_strip (held + 10, strip);
+            file->new_path = git_apply_strip (held + 10,
+                                              strip > 0 ? strip - 1 : 0);
             continue;
         }
         if (!strncmp (held, "GIT binary patch", 16)) {
@@ -8868,10 +8882,12 @@ git_apply_parse (const char *text, size_t len, int strip,
         if (held[0] == '+') file->added++;
         else if (held[0] == '-') file->removed++;
     }
+    free (held);
     *out = files;
     *n_out = n;
     return 0;
 oom:
+    free (held);
     git_apply_release (files, n);
     return -1;
 }
@@ -9035,42 +9051,49 @@ git_apply_hunks (const struct git_apply_file *file,
 static int
 git_apply_path_ok (const char *path)
 {
-    if (!path || !*path || *path == '/') return 0;
-    for (const char *at = path; at;) {
-        const char *slash = strchr (at, '/');
-        size_t len = slash ? (size_t) (slash - at) : strlen (at);
-        if (len == 2 && !memcmp (at, "..", 2)) return 0;
-        if (len == 4 && !strncasecmp (at, ".git", 4)) return 0;
-        if (!slash) break;
-        at = slash + 1;
+    return bgit_index_path_valid (path);
+}
+
+static int
+git_apply_full_path (git_context *ctx, const char *path, char *out, size_t size)
+{
+    int len = snprintf (out, size, "%s/%s",
+                         ctx->repo.work_tree ? ctx->repo.work_tree : ".", path);
+    if (len < 0 || (size_t) len >= size) {
+        errno = ENAMETOOLONG;
+        return -1;
     }
-    return 1;
+    return 0;
 }
 
 /* Write the content out, making the directories above it first, since a
    patch may add a file deep in a tree. */
 static int
 git_apply_write (const char *path, const char *content, size_t len,
-                 unsigned mode)
+                 unsigned mode, int change_mode)
 {
-    char held[4096];
-    snprintf (held, sizeof held, "%s", path);
-    for (char *slash = strchr (held + 1, '/'); slash;
-         slash = strchr (slash + 1, '/')) {
-        *slash = '\0';
-        mkdir (held, 0777);
-        *slash = '/';
-    }
-    int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC,
-                   mode == 0100755 ? 0777 : 0666);
+    const char *name;
+    int parent = bgit_worktree_parent (path, 1, &name);
+    if (parent < 0) return -1;
+    int fd = openat (parent, name,
+                     O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                     mode == 0100755 ? 0777 : 0666);
+    int saved_errno = errno;
+    close (parent);
+    errno = saved_errno;
     if (fd < 0) return -1;
     size_t at = 0;
     while (at < len) {
         ssize_t wrote = write (fd, content + at, len - at);
-        if (wrote <= 0) { close (fd); return -1; }
+        if (wrote <= 0) {
+            if (wrote < 0 && errno == EINTR) continue;
+            close (fd); return -1;
+        }
         at += (size_t) wrote;
     }
-    return close (fd) == 0 ? 0 : -1;
+    int rc = change_mode ? fchmod (fd, mode == 0100755 ? 0755 : 0644) : 0;
+    if (close (fd) < 0) rc = -1;
+    return rc;
 }
 
 /* What --stat writes, which is not the shape git's diff writes: the name
@@ -9265,6 +9288,7 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
     for (size_t i = 0; i < n && status != GIT_EXIT_FATAL; i++) {
         struct git_apply_file *file = &files[i];
         const char *target = file->new_path ? file->new_path : file->old_path;
+        const char *from = file->old_path ? file->old_path : target;
         if (file->is_binary) {
             status = git_fatal ("cannot apply binary patch to '%s' without "
                                 "full index line", target);
@@ -9272,23 +9296,41 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
         }
         /* A path that does not start at the repository is refused before
            anything at all is read of it. */
-        if ((file->old_path && *file->old_path == '/') ||
-            (file->new_path && *file->new_path == '/')) {
+        if ((file->old_path && !git_apply_path_ok (file->old_path)) ||
+            (file->new_path && !git_apply_path_ok (file->new_path))) {
             fflush (stdout);
             fprintf (stderr, "error: invalid path '%s'\n",
-                     file->old_path && *file->old_path == '/' ? file->old_path
-                                                              : file->new_path);
+                     file->old_path && !git_apply_path_ok (file->old_path)
+                     ? file->old_path : file->new_path);
             status = GIT_EXIT_FATAL;
             break;
         }
-        char full[4096];
-        snprintf (full, sizeof full, "%s/%s",
-                  ctx->repo.work_tree ? ctx->repo.work_tree : ".",
-                  file->is_delete && file->old_path ? file->old_path : target);
+        char full[4096], source[4096];
+        if (!cached) {
+            if (git_apply_full_path (ctx, target, full, sizeof full) < 0) {
+                status = git_fatal ("path too long: '%s'", target);
+                break;
+            }
+            if (git_apply_full_path (ctx, from, source, sizeof source) < 0) {
+                status = git_fatal ("path too long: '%s'", from);
+                break;
+            }
+            /* A rename has two paths. Check both before reading its source
+               or publishing any earlier file from the patch. */
+            for (int side = 0; side < 2; side++) {
+                const char *name;
+                int parent = bgit_worktree_parent (side ? source : full, 0, &name);
+                if (parent >= 0) close (parent);
+                else if (errno != ENOENT) {
+                    status = git_fatal ("cannot access '%s' safely", side ? from : target);
+                    break;
+                }
+            }
+            if (status == GIT_EXIT_FATAL) break;
+        }
         unsigned char *before = NULL;
         size_t before_len = 0;
         if (!file->is_new) {
-            const char *from = file->old_path ? file->old_path : target;
             if (cached) {
                 bgit_index_entry *entry = git_index_lookup (state.index,
                                                             state.n_index, from);
@@ -9307,9 +9349,6 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
                     break;
                 }
             } else {
-                char source[4096];
-                snprintf (source, sizeof source, "%s/%s",
-                          ctx->repo.work_tree ? ctx->repo.work_tree : ".", from);
                 /* Whether it is there at all is asked first, so that the
                    complaint is git's one and not the reader's too. */
                 struct stat st;
@@ -9328,7 +9367,16 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
                                          "%o\n", from, mode, file->old_mode);
                     }
                 }
-                if (bgit_slurp_file (source, &before, &before_len) < 0) {
+                const char *source_name;
+                int parent = bgit_worktree_parent (source, 0, &source_name);
+                int fd = parent < 0 ? -1 :
+                    openat (parent, source_name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+                if (parent >= 0) close (parent);
+                int read_rc = fd < 0 ? -1 : bgit_slurp_fd (fd, &before, &before_len);
+                if (fd >= 0) close (fd);
+                if (read_rc < 0) {
+                    fprintf (stderr, "error: cannot read '%s' safely\n", from);
+                    free (before);
                     status = 1;
                     continue;
                 }
@@ -9337,14 +9385,11 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
         if (file->is_rename && file->old_path && file->new_path &&
             strcmp (file->old_path, file->new_path)) {
             struct stat st;
-            char onto[4096];
-            snprintf (onto, sizeof onto, "%s/%s",
-                      ctx->repo.work_tree ? ctx->repo.work_tree : ".",
-                      file->new_path);
-            if (!cached && lstat (onto, &st) == 0) {
+            if (!cached && lstat (full, &st) == 0) {
                 fflush (stdout);
                 fprintf (stderr, "error: %s: already exists in working "
                                  "directory\n", file->new_path);
+                free (before);
                 status = 1;
                 continue;
             }
@@ -9355,29 +9400,17 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
                 fflush (stdout);
                 fprintf (stderr, "error: %s: already exists in working "
                                  "directory\n", target);
+                free (before);
                 status = 1;
                 continue;
             }
             if (cached && git_index_lookup (state.index, state.n_index, target)) {
                 fflush (stdout);
                 fprintf (stderr, "error: %s: already exists in index\n", target);
+                free (before);
                 status = 1;
                 continue;
             }
-        }
-        /* Where the patch says to write has to stay inside the
-           repository: a patch comes from outside, and one that climbs
-           above the worktree, or into its administrative directory, is
-           refused as git refuses it. */
-        if ((file->old_path && !git_apply_path_ok (file->old_path)) ||
-            (file->new_path && !git_apply_path_ok (file->new_path))) {
-            fflush (stdout);
-            fprintf (stderr, "error: invalid path '%s'\n",
-                     file->old_path && !git_apply_path_ok (file->old_path)
-                     ? file->old_path : file->new_path);
-            free (before);
-            status = GIT_EXIT_FATAL;
-            break;
         }
         struct git_apply_lines lines;
         if (git_apply_split ((const char *) (before ? before : (unsigned char *) ""),
@@ -9406,31 +9439,34 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
             const char *target = file->new_path ? file->new_path
                                                 : file->old_path;
             const char *from = file->old_path ? file->old_path : target;
-            char full[4096];
-            snprintf (full, sizeof full, "%s/%s",
-                      ctx->repo.work_tree ? ctx->repo.work_tree : ".", target);
+            char full[4096], source[4096];
             if (!cached) {
+                /* These same paths passed the planning checks. Keep every
+                   construction checked as well, so future callers cannot
+                   silently shorten a source, destination or removal. */
+                if (git_apply_full_path (ctx, target, full, sizeof full) < 0 ||
+                    git_apply_full_path (ctx, from, source, sizeof source) < 0) {
+                    status = git_fatal ("path too long while applying '%s'", target);
+                    break;
+                }
                 if (file->is_delete) {
-                    char gone[4096];
-                    snprintf (gone, sizeof gone, "%s/%s",
-                              ctx->repo.work_tree ? ctx->repo.work_tree : ".",
-                              from);
-                    unlink (gone);
+                    if (bgit_worktree_unlink (source) < 0) {
+                        status = git_fatal ("cannot remove '%s'", from);
+                        break;
+                    }
                 } else {
                     if (git_apply_write (full, results[i], result_lens[i],
-                                         file->new_mode) < 0) {
+                                         file->new_mode,
+                                         file->new_mode &&
+                                         file->new_mode != file->old_mode) < 0) {
                         status = git_fatal ("cannot write '%s'", target);
                         break;
                     }
-                    if (file->new_mode && file->new_mode != file->old_mode)
-                        chmod (full, file->new_mode == 0100755 ? 0777 & ~0022
-                                                               : 0666 & ~0022);
                     if (file->is_rename && strcmp (from, target)) {
-                        char gone[4096];
-                        snprintf (gone, sizeof gone, "%s/%s",
-                                  ctx->repo.work_tree ? ctx->repo.work_tree : ".",
-                                  from);
-                        unlink (gone);
+                        if (bgit_worktree_unlink (source) < 0) {
+                            status = git_fatal ("cannot remove '%s'", from);
+                            break;
+                        }
                     }
                 }
             }
@@ -9478,7 +9514,8 @@ git_cmd_apply (git_context *ctx, WORD_LIST *args)
             status = GIT_EXIT_FATAL;
     }
 
-    for (size_t i = 0; i < n; i++) free (results[i]);
+    if (results)
+        for (size_t i = 0; i < n; i++) free (results[i]);
     free (results);
     free (result_lens);
     git_state_release (&state);
@@ -16157,12 +16194,14 @@ git_pack_base_offset (const unsigned char *pack, size_t plen, uint64_t at,
     uint64_t value = 0;
     while (at < plen) {
         unsigned char c = pack[at++];
+        if (value > (UINT64_MAX >> 7)) return -1;
         value = (value << 7) | (c & 0x7f);
         if (!(c & 0x80)) {
             *delta = value;
             *next = at;
             return 0;
         }
+        if (value == UINT64_MAX) return -1;
         value += 1;
     }
     return -1;
@@ -16182,6 +16221,10 @@ git_pack_scan (const unsigned char *pack, size_t plen,
         return -1;
     }
     size_t n = bgit_pack_be32 (pack + 8);
+    if (n > plen - 32) {
+        git_fatal ("impossible object count in packfile");
+        return -1;
+    }
     struct git_pack_entry *entries = calloc (n ? n : 1, sizeof *entries);
     if (!entries) return -1;
 
@@ -16200,10 +16243,15 @@ git_pack_scan (const unsigned char *pack, size_t plen,
         }
         entry->type = type;
         entry->size = size;
+        if (type < BGIT_PACK_COMMIT || type > BGIT_PACK_REF_DELTA || type == 5) {
+            free (entries);
+            git_fatal ("invalid object type at %llu", (unsigned long long) at);
+            return -1;
+        }
         if (type == BGIT_PACK_OFS_DELTA) {
             uint64_t back = 0, after = 0;
             if (git_pack_base_offset (pack, plen - 20, next, &back, &after) < 0 ||
-                back > at) {
+                back == 0 || back > at) {
                 free (entries);
                 git_fatal ("malformed delta offset at %llu",
                            (unsigned long long) at);
@@ -16232,9 +16280,19 @@ git_pack_scan (const unsigned char *pack, size_t plen,
             return -1;
         }
         free (data);
+        if (len != size) {
+            free (entries);
+            git_fatal ("object size mismatch at %llu", (unsigned long long) at);
+            return -1;
+        }
         entry->end = next + used;
         entry->crc = bgit_pack_crc32 (pack + at, (size_t) (entry->end - at));
         at = entry->end;
+    }
+    if (at != plen - 20) {
+        free (entries);
+        git_fatal ("trailing data in packfile");
+        return -1;
     }
     *out = entries;
     *n_out = n;
@@ -18020,16 +18078,18 @@ git_cmd_remote (git_context *ctx, WORD_LIST *args)
     return git_usage (usage);
 }
 
-/* Open the repository at the far end of a local remote. */
+/* Open the repository at the far end of a local remote.
+   The path names that repository. Walking upward from a subdirectory,
+   or from a directory that is not a repository, answered with some
+   other repository's refs — including an empty .git left elsewhere on
+   the machine. "." is the exception: it means the repository that
+   contains the current directory, including from one of its subdirectories. */
 static int
 git_open_remote (const char *url, bgit_repo *repo, bgit_odb *odb)
 {
-    if (bgit_repo_discover (url, repo) < 0) {
-        char inside[4096];
-        snprintf (inside, sizeof inside, "%s/.git", url);
-        if (bgit_repo_open (inside, repo) < 0 && bgit_repo_open (url, repo) < 0)
-            return -1;
-    }
+    int rc = url && !strcmp (url, ".") ? bgit_repo_discover (".", repo)
+                                       : bgit_repo_open (url, repo);
+    if (rc < 0) return -1;
     if (bgit_odb_open (repo, odb) < 0) {
         bgit_repo_release (repo);
         return -1;

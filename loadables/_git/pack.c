@@ -274,6 +274,7 @@ bgit_pack_read_obj_header (const unsigned char *pack, size_t plen, uint64_t off,
         if (off >= plen) return -1;
         if (iters >= 9 || shift >= 64) return -1;
         b = pack[off++];
+        if ((uint64_t) (b & 0x7F) > (UINT64_MAX >> shift)) return -1;
         size |= (uint64_t) (b & 0x7F) << shift;
         shift += 7;
         iters++;
@@ -345,30 +346,20 @@ bgit_pack_inflate (const unsigned char *src, size_t srcn, size_t expected,
     return 0;
 }
 
-/* Read variable-length integer (delta header). LSB first; high bit set
-   continues. Returns value, advances off.
- *
- * A well-formed 64-bit varint is at most 10 bytes (9*7 = 63 bits + the
- * final 7-bit payload at shift=63). A malformed delta with more
- * continuation bytes would shift past the width of uint64_t — UB
- * under the C standard. The cap below stops reading after 10 bytes
- * (the 10th byte's `b & 0x80` is implicitly ignored); the caller
- * detects the malformed value via the downstream src_size/tgt_size
- * sanity checks (mismatch with baselen / oversized malloc fails). */
-static uint64_t
-bgit_pack_read_varint (const unsigned char *p, size_t n, size_t *off)
+/* A delta size must terminate and fit in uint64_t; truncating high bits
+   could make an invalid source size equal a small real base. */
+static int
+bgit_pack_read_varint (const unsigned char *p, size_t n, size_t *off,
+                       uint64_t *out)
 {
     uint64_t v = 0;
-    int shift = 0;
-    int iters = 0;
-    while (*off < n && iters < 10 && shift < 64) {
+    for (int shift = 0; *off < n && shift < 64; shift += 7) {
         unsigned char b = p[(*off)++];
+        if ((uint64_t) (b & 0x7F) > (UINT64_MAX >> shift)) return -1;
         v |= (uint64_t) (b & 0x7F) << shift;
-        if (!(b & 0x80)) return v;
-        shift += 7;
-        iters++;
+        if (!(b & 0x80)) { *out = v; return 0; }
     }
-    return v;
+    return -1;
 }
 
 /* How much of the base a block covers, and how far the rolling hash
@@ -601,8 +592,10 @@ bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
                        unsigned char **out, size_t *out_len)
 {
     size_t off = 0;
-    uint64_t src_size = bgit_pack_read_varint (delta, deltan, &off);
-    uint64_t tgt_size = bgit_pack_read_varint (delta, deltan, &off);
+    uint64_t src_size, tgt_size;
+    if (bgit_pack_read_varint (delta, deltan, &off, &src_size) < 0 ||
+        bgit_pack_read_varint (delta, deltan, &off, &tgt_size) < 0)
+        return -1;
     if (src_size != baselen) return -1;
     /* Defensive size cap on tgt_size:
      * - tgt_size > SIZE_MAX would silently truncate when passed to
@@ -612,13 +605,14 @@ bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
      *   masking the real bounds. The downstream copy/literal checks
      *   stay sound under the SIZE_MAX cap. */
     if (tgt_size > SIZE_MAX) return -1;
-    /* What a delta says it will come to is not to be trusted with a
-       malloc either. Every byte of a delta can ask for at most one copy
-       of sixty-five thousand bytes, so the delta's own length bounds what
-       applying it can possibly produce; a claim past that is a lie, and
-       asking for it is how a fetch is turned into an out-of-memory. */
-    size_t ceiling = deltan > SIZE_MAX / 0x10000 ? SIZE_MAX
-                                                 : deltan * 0x10000;
+    /* A copy's size has three bytes, so it can copy up to 0xffffff bytes,
+       bounded also by the actual base. 0x10000 is only the default when
+       no size bytes are present, not the maximum. Keep impossible size
+       claims away from malloc without rejecting valid large copies. */
+    size_t max_copy = baselen < 0xffffff ? baselen : 0xffffff;
+    if (max_copy < 1) max_copy = 1;  /* literals produce at most one per byte */
+    size_t ceiling = deltan > SIZE_MAX / max_copy ? SIZE_MAX
+                                                  : deltan * max_copy;
     if (tgt_size > ceiling) return -1;
     unsigned char *buf = malloc ((size_t) tgt_size);
     if (!buf && tgt_size > 0) return -1;
@@ -676,6 +670,7 @@ bgit_pack_apply_delta (const unsigned char *base, size_t baselen,
             free (buf); return -1;
         }
     }
+    if (bo != tgt_size) { free (buf); return -1; }
     *out = buf;
     *out_len = bo;
     return 0;
@@ -814,6 +809,7 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         if (bgit_pack_inflate (pack + cur, plen - cur, (size_t) expected, out,
                                out_len, &used) < 0)
             return -1;
+        if (*out_len != expected) { free (*out); *out = NULL; return -1; }
         *type_out = type;
         return 0;
     }
@@ -835,6 +831,7 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         while (b & 0x80) {
             if (cur >= plen) return -1;
             if (iters >= 9) return -1;
+            if (base_off_delta >= (UINT64_MAX >> 7)) return -1;
             base_off_delta = ((base_off_delta + 1) << 7) | (pack[cur] & 0x7F);
             b = pack[cur++];
             iters++;
@@ -855,6 +852,7 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         if (bgit_pack_inflate (pack + cur, plen - cur, (size_t) expected,
                                &delta, &dlen, &used) < 0)
             return -1;
+        if (dlen != expected) { free (delta); return -1; }
         int base_type;
         unsigned char *base;
         size_t base_len;
@@ -879,6 +877,7 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         if (bgit_pack_inflate (pack + cur, plen - cur, (size_t) expected,
                                &delta, &dlen, &used) < 0)
             return -1;
+        if (dlen != expected) { free (delta); return -1; }
         /* Look up base in same pack first. */
         uint64_t base_off = bgit_pack_lookup_offset (idx, ilen, base_sha);
         unsigned char *base; size_t base_len; int base_type;
@@ -891,32 +890,10 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
         } else {
             /* Try loose object. */
             char hex[41]; bgit_sha_to_hex (base_sha, hex);
-            char path[4096];
-            snprintf (path, sizeof path, "%s/.git/objects/%c%c/%s",
-                      repo ? repo : ".", hex[0], hex[1], hex + 2);
-            size_t fn;
-            unsigned char *raw = bgit_pack_slurp (path, &fn);
-            if (!raw) { free (delta); return -1; }
-            unsigned char *infl;
-            size_t inflen, used2;
-            if (bgit_pack_inflate (raw, fn, 0, &infl, &inflen, &used2) < 0) {
-                free (raw); free (delta); return -1;
+            if (bgit_pack_read_loose (repo ? repo : ".", hex, &base_type,
+                                      &base, &base_len) < 0) {
+                free (delta); return -1;
             }
-            free (raw);
-            /* Strip "<type> <size>\0" header. */
-            size_t hi = 0;
-            while (hi < inflen && infl[hi] != '\0') hi++;
-            if (hi >= inflen) { free (infl); free (delta); return -1; }
-            /* Parse type from header */
-            base_type = BGIT_PACK_BLOB;
-            if (memcmp (infl, "commit", 6) == 0) base_type = BGIT_PACK_COMMIT;
-            else if (memcmp (infl, "tree", 4) == 0) base_type = BGIT_PACK_TREE;
-            else if (memcmp (infl, "blob", 4) == 0) base_type = BGIT_PACK_BLOB;
-            else if (memcmp (infl, "tag", 3) == 0) base_type = BGIT_PACK_TAG;
-            base = malloc (inflen - hi - 1);
-            base_len = inflen - hi - 1;
-            memcpy (base, infl + hi + 1, base_len);
-            free (infl);
         }
         int rc = bgit_pack_apply_delta (base, base_len, delta, dlen, out, out_len);
         free (delta); free (base);
@@ -966,21 +943,15 @@ bgit_pack_read_loose (const char *repo, const char *sha_hex, int *type_out,
     free (raw);
     if (rc < 0) return -1;
 
-    /* Parse header: "type SP size NUL ..." */
-    unsigned char *sp = memchr (infl, ' ', inflen);
-    if (!sp) { free (infl); return -1; }
-    *sp = '\0';
-    int type = 0;
-    if      (!strcmp ((char *) infl, "commit")) type = BGIT_PACK_COMMIT;
-    else if (!strcmp ((char *) infl, "tree"))   type = BGIT_PACK_TREE;
-    else if (!strcmp ((char *) infl, "blob"))   type = BGIT_PACK_BLOB;
-    else if (!strcmp ((char *) infl, "tag"))    type = BGIT_PACK_TAG;
-    else { free (infl); return -1; }
-
-    unsigned char *nul = memchr (sp + 1, '\0', inflen - (size_t) (sp + 1 - infl));
-    if (!nul) { free (infl); return -1; }
-    size_t hdr_len = (size_t) (nul - infl) + 1;
-    size_t clen = inflen - hdr_len;
+    enum bgit_type kind;
+    size_t clen;
+    long hdr_len = bgit_parse_header (infl, inflen, &kind, &clen);
+    if (hdr_len < 0 || used != rn || clen != inflen - (size_t) hdr_len) {
+        free (infl); return -1;
+    }
+    int type = kind == BGIT_BLOB ? BGIT_PACK_BLOB
+               : kind == BGIT_TREE ? BGIT_PACK_TREE
+               : kind == BGIT_COMMIT ? BGIT_PACK_COMMIT : BGIT_PACK_TAG;
     unsigned char *content = malloc (clen ? clen : 1);
     if (!content) { free (infl); return -1; }
     if (clen) memcpy (content, infl + hdr_len, clen);
