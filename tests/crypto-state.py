@@ -83,6 +83,40 @@ class StateTests(unittest.TestCase):
                        'crypto secret-read -h fresh <<<fixture && crypto secret-scrub "$fresh"', 'x' * 4096)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_invalid_closed_and_reused_handles_across_consumers(self):
+        result = shell('crypto secret-read -h live <<<fixture || exit; '
+                       'old=$live; crypto secret-scrub "$old" || exit; '
+                       'crypto secret-read -h live <<<fixture || exit; '
+                       'for bad in "" : 0:0 16:1 -1:1 0:-1 0:1x 0:1:1 "$old"; do '
+                       'for op in secret-len secret-scrub; do crypto "$op" "$bad" && exit 8; done; '
+                       'crypto secret-verify "$bad" "$live" && exit 9; '
+                       'crypto secret-verify "$live" "$bad" && exit 10; '
+                       'out=unchanged; crypto secret-hkdf "$bad" -h out && exit 11; '
+                       '[[ $out == unchanged ]] || exit 12; '
+                       'crypto secret-pwhash "$bad" -Q -t 1 -m 8 && exit 13; '
+                       'crypto secret-pwverify "$bad" invalid && exit 14; done; '
+                       'crypto secret-verify "$live" "$live" && crypto secret-scrub "$live"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"")
+
+    def test_repeated_derivation_and_scrub_preserves_source(self):
+        result = shell('crypto secret-read -h source <<<fixture || exit; '
+                       'for ((i=0;i<100;i++)); do '
+                       'crypto secret-hkdf "$source" -L 32 -h derived || exit; '
+                       'crypto secret-scrub "$derived" || exit; '
+                       'crypto secret-len "$derived" && exit 8; done; '
+                       '[[ $(crypto secret-len "$source") == 7 ]] && crypto secret-scrub "$source"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"")
+
+    def test_handle_output_failures_preserve_live_secret(self):
+        result = shell('crypto secret-read -h handle <<<fixture || exit; '
+                       'crypto secret-len "$handle" >/dev/full && exit 8; '
+                       'crypto secret-pwhash "$handle" -Q -t 1 -m 8 -L 16 >/dev/full && exit 9; '
+                       '[[ $(crypto secret-len "$handle") == 7 ]] && crypto secret-scrub "$handle"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"")
+
     def test_derived_text_binding_reports_readonly_failure(self):
         result = shell('readonly output=original; crypto argon2id -Q -p fixture -s 0001020304050607 '
                        '-t 1 -m 8 -l 1 -L 16 -x -o output; rc=$?; [[ $rc == 1 && $output == original ]]')

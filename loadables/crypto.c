@@ -84,6 +84,7 @@
 #include <termios.h>
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/mman.h>      /* mlock/munlock for argon2id work_area */
 #include <sys/time.h>
@@ -215,16 +216,38 @@ bc_unhex (const char *hex, unsigned char *out, size_t outsz)
   return (int) o;
 }
 
-/* Print bytes as hex to stdout, no trailing newline. */
-static void
+/* Print bytes as hex to stdout, no trailing newline. Keep conversion
+ * bounded and avoid a stdio call for each nibble. The temporary may contain
+ * secret-derived text (e.g. HKDF output), so wipe it on every exit. */
+static int
 bc_print_hex (const unsigned char *buf, size_t n)
 {
   static const char d[] = "0123456789abcdef";
-  for (size_t i = 0; i < n; i++)
+  char hex[4096];
+  int rc = 0;
+  while (n)
     {
-      putchar (d[(buf[i] >> 4) & 0xf]);
-      putchar (d[buf[i] & 0xf]);
+      size_t chunk = n < sizeof hex / 2 ? n : sizeof hex / 2;
+      for (size_t i = 0; i < chunk; i++)
+        {
+          hex[2*i] = d[buf[i] >> 4];
+          hex[2*i+1] = d[buf[i] & 0xf];
+        }
+      size_t written = fwrite (hex, 1, chunk * 2, stdout);
+      crypto_wipe (hex, chunk * 2);
+      if (written != chunk * 2) { rc = -1; break; }
+      buf += chunk;
+      n -= chunk;
     }
+  return rc;
+}
+
+static int
+bc_flush_output (void)
+{
+  if (fflush (stdout) != 0 || ferror (stdout))
+    { builtin_error ("write error"); return -1; }
+  return 0;
 }
 
 /* Write all of `buf` to stdout (raw bytes, FD-safe). */
@@ -242,38 +265,67 @@ bc_write_all (const unsigned char *buf, size_t n)
           builtin_error ("write: %s", strerror (errno));
           return -1;
         }
+      if (w == 0) { builtin_error ("write: no progress"); return -1; }
       p += w;
       left -= (size_t) w;
     }
   return 0;
 }
 
-/* Slurp an FD into a malloc'd buffer. *out_len gets the byte count. */
+/* Slurp an FD into an owned buffer. Size regular files from their current
+ * offset, including room for an EOF probe. Pipes and growing files retain
+ * geometric growth; never let realloc release an unwiped plaintext copy. */
 static int
 bc_slurp_fd (int fd, unsigned char **out_buf, size_t *out_len)
 {
   size_t cap = 4096, len = 0;
+  struct stat st;
+  *out_buf = NULL;
+  *out_len = 0;
+  if (fstat (fd, &st) == 0 && S_ISREG (st.st_mode))
+    {
+      off_t offset = lseek (fd, 0, SEEK_CUR);
+      if (offset >= 0 && st.st_size >= offset)
+        {
+          uintmax_t remaining = (uintmax_t) (st.st_size - offset);
+          if (remaining >= cap && remaining < SIZE_MAX)
+            cap = (size_t) remaining + 1;
+        }
+    }
   unsigned char *buf = malloc (cap);
   if (!buf) { builtin_error ("malloc"); return -1; }
   for (;;)
     {
       if (len == cap)
         {
-          cap *= 2;
-          unsigned char *n = realloc (buf, cap);
-          if (!n) { free (buf); builtin_error ("realloc"); return -1; }
-          buf = n;
+          if (cap > SIZE_MAX / 2)
+            { builtin_error ("input too large"); goto fail; }
+          size_t next_cap = cap * 2;
+          unsigned char *next = malloc (next_cap);
+          if (!next) { builtin_error ("malloc"); goto fail; }
+          memcpy (next, buf, len);
+          crypto_wipe (buf, len);
+          free (buf);
+          buf = next;
+          cap = next_cap;
         }
       ssize_t r = read (fd, buf + len, cap - len);
-      if (r < 0) { if (errno == EINTR) continue;
-                   free (buf); builtin_error ("read: %s", strerror (errno));
-                   return -1; }
+      if (r < 0)
+        {
+          if (errno == EINTR) continue;
+          builtin_error ("read: %s", strerror (errno));
+          goto fail;
+        }
       if (r == 0) break;
       len += (size_t) r;
     }
   *out_buf = buf;
   *out_len = len;
   return 0;
+fail:
+  crypto_wipe (buf, len);
+  free (buf);
+  return -1;
 }
 
 /* Fill buf with key-grade CSPRNG bytes via getrandom(2), which BLOCKS until
@@ -304,14 +356,9 @@ bc_emit (const unsigned char *buf, size_t len, int hex_out)
 {
   if (hex_out)
     {
-      bc_print_hex (buf, len);
-      putchar ('\n');
-      if (fflush (stdout) != 0 || ferror (stdout))
-        {
-          builtin_error ("write error");
-          return -1;
-        }
-      return 0;
+      if (bc_print_hex (buf, len) < 0 || putchar ('\n') == EOF)
+        { builtin_error ("write error"); return -1; }
+      return bc_flush_output ();
     }
   if (bc_write_all (buf, len) < 0) return -1;
   return 0;
@@ -351,6 +398,7 @@ bc_emit_to (const unsigned char *buf, size_t len, int hex_out, const char *var_n
 {
   if (!var_name) return bc_emit (buf, len, hex_out);
   if (!hex_out) { builtin_error ("-o VARNAME requires -x (hex output)"); return -1; }
+  if (len > (SIZE_MAX - 1) / 2) { builtin_error ("output too large"); return -1; }
   char *hex = malloc (len * 2 + 1);
   if (!hex) { builtin_error ("malloc: %s", strerror (errno)); return -1; }
   static const char nibble[] = "0123456789abcdef";
@@ -361,6 +409,7 @@ bc_emit_to (const unsigned char *buf, size_t len, int hex_out, const char *var_n
     }
   hex[len*2] = '\0';
   int rc = bc_bind_text (var_name, hex);
+  crypto_wipe (hex, len * 2 + 1);
   free (hex);
   return rc;
 }
@@ -1615,7 +1664,7 @@ bc_secret_len_cmd (WORD_LIST *args)
       return EXECUTION_FAILURE;
     }
   printf ("%lu\n", (unsigned long) s->len);
-  return EXECUTION_SUCCESS;
+  return bc_flush_output () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -1681,7 +1730,7 @@ bc_secret_pwhash_cmd (WORD_LIST *args)
   putchar ('\n');
   crypto_wipe (hash, sizeof hash);
   crypto_wipe (salt, sizeof salt);
-  return EXECUTION_SUCCESS;
+  return bc_flush_output () == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -4018,19 +4067,7 @@ bc_sha256_mbedtls_cmd (WORD_LIST *args)
     int rc = mbedtls_sha256_finish (&ctx, digest);
     mbedtls_sha256_free (&ctx);
     if (rc != 0) { builtin_error ("sha256-mbedtls: finish failed"); return EXECUTION_FAILURE; }
-    if (hex_mode) {
-        char hex[65];
-        for (int i = 0; i < 32; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[64] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 32, stdout);
-    }
-    if (fflush (stdout) != 0 || ferror (stdout)) {
-        builtin_error ("write error");
-        return EXECUTION_FAILURE;
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 32, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* `crypto hmac-sha256-mbedtls -k KEY_HEX [-x] [FILE]` — Stage 19.B
@@ -4113,15 +4150,7 @@ bc_hmac_sha256_mbedtls_cmd (WORD_LIST *args)
     free (key_heap);
     if (rc != 0) { builtin_error ("hmac-sha256-mbedtls: finish failed"); return EXECUTION_FAILURE; }
 
-    if (hex_mode) {
-        char hex[65];
-        for (int i = 0; i < 32; i++) snprintf (hex + i*2, 3, "%02x", tag[i]);
-        hex[64] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (tag, 1, 32, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (tag, 32, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- SHA-512 / HMAC-SHA512 (mbedTLS) -------------------------------- */
@@ -4169,15 +4198,7 @@ bc_sha384_mbedtls_cmd (WORD_LIST *args)
     mbedtls_sha512_free (&ctx);
     if (rc != 0) { builtin_error ("sha384-mbedtls: finish failed"); return EXECUTION_FAILURE; }
 
-    if (hex_mode) {
-        char hex[97];
-        for (int i = 0; i < 48; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[96] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 48, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 48, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -4223,15 +4244,7 @@ bc_sha512_mbedtls_cmd (WORD_LIST *args)
     mbedtls_sha512_free (&ctx);
     if (rc != 0) { builtin_error ("sha512-mbedtls: finish failed"); return EXECUTION_FAILURE; }
 
-    if (hex_mode) {
-        char hex[129];
-        for (int i = 0; i < 64; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[128] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 64, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 64, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -4309,15 +4322,7 @@ bc_hmac_sha512_mbedtls_cmd (WORD_LIST *args)
     free (key_heap);
     if (rc != 0) { builtin_error ("hmac-sha512-mbedtls: finish failed"); return EXECUTION_FAILURE; }
 
-    if (hex_mode) {
-        char hex[129];
-        for (int i = 0; i < 64; i++) snprintf (hex + i*2, 3, "%02x", tag[i]);
-        hex[128] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (tag, 1, 64, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (tag, 64, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- BLAKE2b (monocypher) ------------------------------------------ */
@@ -4353,15 +4358,7 @@ bc_blake2b_cmd (WORD_LIST *args)
 
     unsigned char digest[64];
     crypto_blake2b_final (&ctx, digest);
-    if (hex_mode) {
-        char hex[129];
-        for (int i = 0; i < 64; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[128] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 64, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 64, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- SHA-1 / HMAC-SHA1 (mbedTLS) ----------------------------------- */
@@ -4398,14 +4395,7 @@ bc_sha1_mbedtls_cmd (WORD_LIST *args)
     unsigned char digest[20];
     mbedtls_sha1_finish (&ctx, digest);
     mbedtls_sha1_free (&ctx);
-    if (hex_mode) {
-        char hex[41];
-        for (int i = 0; i < 20; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[40] = 0; printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 20, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 20, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -4459,14 +4449,7 @@ bc_hmac_sha1_mbedtls_cmd (WORD_LIST *args)
     mbedtls_hmac_sha1_finish (&ctx, tag);
     mbedtls_hmac_sha1_free (&ctx);
     free (key_heap);
-    if (hex_mode) {
-        char hex[41];
-        for (int i = 0; i < 20; i++) snprintf (hex + i*2, 3, "%02x", tag[i]);
-        hex[40] = 0; printf ("%s\n", hex);
-    } else {
-        fwrite (tag, 1, 20, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (tag, 20, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- MD5 / HMAC-MD5 (mbedTLS) -------------------------------------- */
@@ -4503,14 +4486,7 @@ bc_md5_mbedtls_cmd (WORD_LIST *args)
     unsigned char digest[16];
     mbedtls_md5_finish (&ctx, digest);
     mbedtls_md5_free (&ctx);
-    if (hex_mode) {
-        char hex[33];
-        for (int i = 0; i < 16; i++) snprintf (hex + i*2, 3, "%02x", digest[i]);
-        hex[32] = 0; printf ("%s\n", hex);
-    } else {
-        fwrite (digest, 1, 16, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (digest, 16, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 static int
@@ -4564,14 +4540,7 @@ bc_hmac_md5_mbedtls_cmd (WORD_LIST *args)
     mbedtls_hmac_md5_finish (&ctx, tag);
     mbedtls_hmac_md5_free (&ctx);
     free (key_heap);
-    if (hex_mode) {
-        char hex[33];
-        for (int i = 0; i < 16; i++) snprintf (hex + i*2, 3, "%02x", tag[i]);
-        hex[32] = 0; printf ("%s\n", hex);
-    } else {
-        fwrite (tag, 1, 16, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (tag, 16, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- X.509 cert parse + self-sig verify (mbedTLS) ------------------ */
@@ -5333,9 +5302,9 @@ bc_chacha20_poly1305_mbedtls_cmd (WORD_LIST *args)
         const char *w = p->word->word;
         if      (!strcmp (w, "-e")) encrypt = 1;
         else if (!strcmp (w, "-d")) encrypt = 0;
-        else if (!strcmp (w, "-k") && p->next) { p = p->next; key_hex   = p->word->word; }
+        else if (!strcmp (w, "-k") && p->next) { p = p->next; key_hex = p->word->word; }
         else if (!strcmp (w, "-n") && p->next) { p = p->next; nonce_hex = p->word->word; }
-        else if (!strcmp (w, "-A") && p->next) { p = p->next; aad_hex   = p->word->word; }
+        else if (!strcmp (w, "-A") && p->next) { p = p->next; aad_hex = p->word->word; }
         else { builtin_error ("chacha20-poly1305-mbedtls: unexpected arg: %s", w); return EX_USAGE; }
     }
     if (encrypt < 0 || !key_hex || !nonce_hex) {
@@ -5343,102 +5312,77 @@ bc_chacha20_poly1305_mbedtls_cmd (WORD_LIST *args)
         return EX_USAGE;
     }
 
-    unsigned char key[32], nonce[12], aad[256];
+    unsigned char key[32] = {0}, nonce[12] = {0}, aad[256] = {0};
+    unsigned char *in = NULL, *out = NULL;
+    size_t inlen = 0, outlen = 0;
+    int rc = EX_USAGE;
     int klen = bc_unhex (key_hex, key, sizeof key);
     int nlen = bc_unhex (nonce_hex, nonce, sizeof nonce);
     int alen = aad_hex ? bc_unhex (aad_hex, aad, sizeof aad) : 0;
-    if (klen != 32)  { builtin_error ("chacha20-poly1305-mbedtls: KEY must be 32 bytes"); return EX_USAGE; }
-    if (nlen != 12)  { builtin_error ("chacha20-poly1305-mbedtls: NONCE must be 12 bytes"); return EX_USAGE; }
-    if (alen < 0)    { builtin_error ("chacha20-poly1305-mbedtls: bad hex in -A AAD"); return EX_USAGE; }
+    if (klen != 32) {
+        builtin_error ("chacha20-poly1305-mbedtls: KEY must be 32 bytes");
+        goto cleanup;
+    }
+    if (nlen != 12) {
+        builtin_error ("chacha20-poly1305-mbedtls: NONCE must be 12 bytes");
+        goto cleanup;
+    }
+    if (alen < 0) { builtin_error ("chacha20-poly1305-mbedtls: bad hex in -A AAD"); goto cleanup; }
 
-    unsigned char *in; size_t inlen;
-    if (bc_slurp_fd (STDIN_FILENO, &in, &inlen) < 0) return EXECUTION_FAILURE;
-
+    rc = EXECUTION_FAILURE;
+    if (bc_slurp_fd (STDIN_FILENO, &in, &inlen) < 0) goto cleanup;
     if (encrypt) {
         if (bc_nonce_guard_enabled ()) {
             int g = bc_nonce_record (key, (size_t) klen, nonce, (size_t) nlen);
-            if (g == -1) {
-                builtin_error ("chacha20-poly1305-mbedtls: BASHCRYPTO_NONCE_GUARD: (key, nonce 0x%02x%02x...) reuse detected — refusing encrypt", nonce[0], nonce[1]);
-                crypto_wipe (in, inlen); free (in);
-                crypto_wipe (key, sizeof key); crypto_wipe (nonce, sizeof nonce); crypto_wipe (aad, sizeof aad);
-                return EXECUTION_FAILURE;
-            }
-            if (g == -2) {
-                builtin_error ("chacha20-poly1305-mbedtls: BASHCRYPTO_NONCE_GUARD: in-process tracker full (%d entries) — refusing encrypt", BC_NONCE_GUARD_MAX);
-                crypto_wipe (in, inlen); free (in);
-                crypto_wipe (key, sizeof key); crypto_wipe (nonce, sizeof nonce); crypto_wipe (aad, sizeof aad);
-                return EXECUTION_FAILURE;
+            if (g != 0) {
+                builtin_error ("chacha20-poly1305-mbedtls: BASHCRYPTO_NONCE_GUARD: %s — refusing encrypt",
+                               g == -1 ? "(key, nonce) reuse detected" : "in-process tracker full");
+                goto cleanup;
             }
         }
-        unsigned char *ct  = malloc (inlen);
-        unsigned char tag[16];
-        if (!ct && inlen > 0) { crypto_wipe (in, inlen); free (in); builtin_error ("oom"); return EXECUTION_FAILURE; }
-        mbedtls_chachapoly_context cp;
-        mbedtls_chachapoly_init (&cp);
-        int rc = mbedtls_chachapoly_setkey (&cp, key);
-        if (rc == 0)
-            rc = mbedtls_chachapoly_encrypt_and_tag (&cp, inlen, nonce,
-                                                     aad, (size_t) alen,
-                                                     in, ct, tag);
-        mbedtls_chachapoly_free (&cp);
-        crypto_wipe (in, inlen);                /* plaintext input → wipe */
-        free (in);
-        if (rc != 0) {
-            free (ct);
-            builtin_error ("chacha20-poly1305-mbedtls: encrypt failed (rc=%d)", rc);
-            crypto_wipe (key, sizeof key);
-            crypto_wipe (nonce, sizeof nonce);
-            crypto_wipe (aad, sizeof aad);
-            return EXECUTION_FAILURE;
-        }
-        if (inlen > 0) bc_write_all (ct, inlen);
-        bc_write_all (tag, 16);
-        free (ct);
-        crypto_wipe (key, sizeof key);
-        crypto_wipe (nonce, sizeof nonce);
-        crypto_wipe (aad, sizeof aad);
-        return EXECUTION_SUCCESS;
+        if (inlen > SIZE_MAX - 16) { builtin_error ("input too large"); goto cleanup; }
+        outlen = inlen + 16;
     } else {
         if (inlen < 16) {
-            free (in);
             builtin_error ("chacha20-poly1305-mbedtls: ciphertext too short (need >= 16 for tag)");
-            crypto_wipe (key, sizeof key);
-            crypto_wipe (nonce, sizeof nonce);
-            crypto_wipe (aad, sizeof aad);
-            return EXECUTION_FAILURE;
+            goto cleanup;
         }
-        size_t ct_len = inlen - 16;
-        unsigned char *pt  = malloc (ct_len ? ct_len : 1);
-        if (!pt) { free (in); builtin_error ("oom"); return EXECUTION_FAILURE; }
-        const unsigned char *ct  = in;
-        const unsigned char *tag = in + ct_len;
-        mbedtls_chachapoly_context cp;
-        mbedtls_chachapoly_init (&cp);
-        int rc = mbedtls_chachapoly_setkey (&cp, key);
-        if (rc == 0)
-            rc = mbedtls_chachapoly_auth_decrypt (&cp, ct_len, nonce,
-                                                  aad, (size_t) alen,
-                                                  tag, ct, pt);
-        mbedtls_chachapoly_free (&cp);
-        if (rc != 0) {
-            /* Wipe any partial plaintext mbedtls may have written before
-               auth failure was detected. */
-            crypto_wipe (pt, ct_len ? ct_len : 1);
-            free (pt); free (in);
-            builtin_error ("chacha20-poly1305-mbedtls: tag mismatch");
-            crypto_wipe (key, sizeof key);
-            crypto_wipe (nonce, sizeof nonce);
-            crypto_wipe (aad, sizeof aad);
-            return EXECUTION_FAILURE;
-        }
-        if (ct_len > 0) bc_write_all (pt, ct_len);
-        crypto_wipe (pt, ct_len ? ct_len : 1);  /* plaintext output → wipe */
-        free (pt); free (in);
-        crypto_wipe (key, sizeof key);
-        crypto_wipe (nonce, sizeof nonce);
-        crypto_wipe (aad, sizeof aad);
-        return EXECUTION_SUCCESS;
+        outlen = inlen - 16;
     }
+    out = malloc (outlen ? outlen : 1);
+    if (!out) { builtin_error ("oom"); goto cleanup; }
+
+    mbedtls_chachapoly_context cp;
+    mbedtls_chachapoly_init (&cp);
+    int grc = mbedtls_chachapoly_setkey (&cp, key);
+    if (grc == 0) {
+        if (encrypt)
+            grc = mbedtls_chachapoly_encrypt_and_tag (&cp, inlen, nonce,
+                                                    aad, (size_t) alen,
+                                                    in, out, out + inlen);
+        else
+            grc = mbedtls_chachapoly_auth_decrypt (&cp, outlen, nonce,
+                                                 aad, (size_t) alen,
+                                                 in + outlen, in, out);
+    }
+    mbedtls_chachapoly_free (&cp);
+    if (grc != 0) {
+        builtin_error ("chacha20-poly1305-mbedtls: %s", encrypt ? "encrypt failed" : "decrypt failed or tag mismatch");
+        goto cleanup;
+    }
+    /* Release plaintext input before a potentially blocking output write. */
+    if (encrypt) { crypto_wipe (in, inlen); free (in); in = NULL; }
+    /* Authentication must succeed before any plaintext reaches stdout. */
+    rc = bc_write_all (out, outlen) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+cleanup:
+    if (in && encrypt) crypto_wipe (in, inlen);
+    if (out && !encrypt) crypto_wipe (out, outlen ? outlen : 1);
+    free (in);
+    free (out);
+    crypto_wipe (key, sizeof key);
+    crypto_wipe (nonce, sizeof nonce);
+    crypto_wipe (aad, sizeof aad);
+    return rc;
 }
 
 /* `crypto hkdf-sha256-mbedtls -s SALT_HEX -k IKM_HEX [-i INFO_HEX]
@@ -5535,112 +5479,83 @@ bc_aes_gcm_mbedtls_cmd (WORD_LIST *args)
         const char *w = p->word->word;
         if      (!strcmp (w, "-e")) encrypt = 1;
         else if (!strcmp (w, "-d")) encrypt = 0;
-        else if (!strcmp (w, "-k") && p->next) { p = p->next; key_hex   = p->word->word; }
+        else if (!strcmp (w, "-k") && p->next) { p = p->next; key_hex = p->word->word; }
         else if (!strcmp (w, "-n") && p->next) { p = p->next; nonce_hex = p->word->word; }
-        else if (!strcmp (w, "-A") && p->next) { p = p->next; aad_hex   = p->word->word; }
+        else if (!strcmp (w, "-A") && p->next) { p = p->next; aad_hex = p->word->word; }
         else { builtin_error ("aes-gcm-mbedtls: unexpected arg: %s", w); return EX_USAGE; }
     }
     if (encrypt < 0 || !key_hex || !nonce_hex) {
-        builtin_error ("aes-gcm-mbedtls needs -e|-d -k KEY_HEX -n NONCE_HEX");
+        builtin_error ("aes-gcm-mbedtls needs -e|-d -k KEY -n NONCE");
         return EX_USAGE;
     }
 
-    unsigned char key[32], nonce[16], aad[256];
-    int klen = bc_unhex (key_hex,   key,   sizeof key);
+    unsigned char key[32] = {0}, nonce[12] = {0}, aad[256] = {0};
+    unsigned char *in = NULL, *out = NULL;
+    size_t inlen = 0, outlen = 0;
+    int rc = EX_USAGE;
+    int klen = bc_unhex (key_hex, key, sizeof key);
     int nlen = bc_unhex (nonce_hex, nonce, sizeof nonce);
     int alen = aad_hex ? bc_unhex (aad_hex, aad, sizeof aad) : 0;
     if (klen != 16 && klen != 32) {
-        builtin_error ("aes-gcm-mbedtls: KEY must be 16 or 32 bytes (AES-128 / AES-256)");
-        return EX_USAGE;
+        builtin_error ("aes-gcm-mbedtls: KEY must be 16 or 32 bytes");
+        goto cleanup;
     }
     if (nlen != 12) {
-        builtin_error ("aes-gcm-mbedtls: NONCE must be 12 bytes (24 hex chars)");
-        return EX_USAGE;
+        builtin_error ("aes-gcm-mbedtls: NONCE must be 12 bytes");
+        goto cleanup;
     }
-    if (alen < 0) { builtin_error ("aes-gcm-mbedtls: bad hex in -A AAD"); return EX_USAGE; }
+    if (alen < 0) { builtin_error ("aes-gcm-mbedtls: bad hex in -A AAD"); goto cleanup; }
 
-    /* Slurp stdin. */
-    unsigned char *in = NULL;
-    size_t inlen = 0;
-    if (bc_slurp_fd (STDIN_FILENO, &in, &inlen) < 0) return EXECUTION_FAILURE;
-
-    int rc;
+    rc = EXECUTION_FAILURE;
+    if (bc_slurp_fd (STDIN_FILENO, &in, &inlen) < 0) goto cleanup;
     if (encrypt) {
         if (bc_nonce_guard_enabled ()) {
             int g = bc_nonce_record (key, (size_t) klen, nonce, (size_t) nlen);
-            if (g == -1) {
-                builtin_error ("aes-gcm-mbedtls: BASHCRYPTO_NONCE_GUARD: (key, nonce 0x%02x%02x...) reuse detected — refusing encrypt", nonce[0], nonce[1]);
-                crypto_wipe (in, inlen); free (in);
-                return EXECUTION_FAILURE;
-            }
-            if (g == -2) {
-                builtin_error ("aes-gcm-mbedtls: BASHCRYPTO_NONCE_GUARD: in-process tracker full (%d entries) — refusing encrypt", BC_NONCE_GUARD_MAX);
-                crypto_wipe (in, inlen); free (in);
-                return EXECUTION_FAILURE;
+            if (g != 0) {
+                builtin_error ("aes-gcm-mbedtls: BASHCRYPTO_NONCE_GUARD: %s — refusing encrypt",
+                               g == -1 ? "(key, nonce) reuse detected" : "in-process tracker full");
+                goto cleanup;
             }
         }
-        /* output: ciphertext (inlen bytes) || 16-byte tag. */
-        unsigned char *out = malloc (inlen + 16);
-        if (!out) { crypto_wipe (in, inlen); free (in); builtin_error ("oom"); return EXECUTION_FAILURE; }
-        mbedtls_gcm_context gcm;
-        mbedtls_gcm_init (&gcm);
-        int grc = mbedtls_gcm_setkey (&gcm, MBEDTLS_CIPHER_ID_AES,
-                                      key, klen * 8u);
-        if (grc == 0)
-            grc = mbedtls_gcm_crypt_and_tag (&gcm, MBEDTLS_GCM_ENCRYPT, inlen,
-                                             nonce, (size_t) nlen,
-                                             aad, (size_t) alen,
-                                             in, out, 16, out + inlen);
-        mbedtls_gcm_free (&gcm);
-        crypto_wipe (in, inlen);                /* plaintext input → wipe */
-        if (grc != 0) {
-            builtin_error ("aes-gcm-mbedtls: encrypt failed");
-            free (in); free (out);
-            return EXECUTION_FAILURE;
-        }
-        rc = (bc_write_all (out, inlen + 16) == 0) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
-        free (out);
+        if (inlen > SIZE_MAX - 16) { builtin_error ("input too large"); goto cleanup; }
+        outlen = inlen + 16;
     } else {
-        /* input is (ciphertext || 16-byte tag); split. */
         if (inlen < 16) {
-            builtin_error ("aes-gcm-mbedtls: input too short to contain tag");
-            free (in);
-            return EXECUTION_FAILURE;
+            builtin_error ("aes-gcm-mbedtls: ciphertext too short (need >= 16 for tag)");
+            goto cleanup;
         }
-        size_t clen = inlen - 16;
-        unsigned char *out = malloc (clen);
-        if (!out) { builtin_error ("oom"); free (in); return EXECUTION_FAILURE; }
-        mbedtls_gcm_context gcm;
-        mbedtls_gcm_init (&gcm);
-        int dec = mbedtls_gcm_setkey (&gcm, MBEDTLS_CIPHER_ID_AES,
-                                      key, klen * 8u);
-        if (dec == 0)
-            dec = mbedtls_gcm_auth_decrypt (&gcm, clen,
-                                            nonce, (size_t) nlen,
-                                            aad, (size_t) alen,
-                                            in + clen, 16, in, out);
-        mbedtls_gcm_free (&gcm);
-        if (dec == MBEDTLS_ERR_GCM_AUTH_FAILED) {
-            /* mbedTLS may have written partial plaintext before tag check
-               failed — wipe before free per the documented contract. */
-            crypto_wipe (out, clen);
-            builtin_error ("aes-gcm-mbedtls: tag mismatch");
-            free (in); free (out);
-            return EXECUTION_FAILURE;
-        }
-        if (dec != 0) {
-            crypto_wipe (out, clen);
-            builtin_error ("aes-gcm-mbedtls: decrypt failed");
-            free (in); free (out);
-            return EXECUTION_FAILURE;
-        }
-        rc = (bc_write_all (out, clen) == 0) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
-        crypto_wipe (out, clen);                /* plaintext output → wipe */
-        free (out);
+        outlen = inlen - 16;
     }
+    out = malloc (outlen ? outlen : 1);
+    if (!out) { builtin_error ("oom"); goto cleanup; }
+
+    mbedtls_gcm_context gcm;
+    mbedtls_gcm_init (&gcm);
+    int grc = mbedtls_gcm_setkey (&gcm, MBEDTLS_CIPHER_ID_AES, key, klen * 8u);
+    if (grc == 0) {
+        if (encrypt)
+            grc = mbedtls_gcm_crypt_and_tag (&gcm, MBEDTLS_GCM_ENCRYPT, inlen,
+                                           nonce, (size_t) nlen, aad, (size_t) alen,
+                                           in, out, 16, out + inlen);
+        else
+            grc = mbedtls_gcm_auth_decrypt (&gcm, outlen,
+                                          nonce, (size_t) nlen, aad, (size_t) alen,
+                                          in + outlen, 16, in, out);
+    }
+    mbedtls_gcm_free (&gcm);
+    if (grc != 0) {
+        builtin_error ("aes-gcm-mbedtls: %s", encrypt ? "encrypt failed" : "decrypt failed or tag mismatch");
+        goto cleanup;
+    }
+    /* Release plaintext input before a potentially blocking output write. */
+    if (encrypt) { crypto_wipe (in, inlen); free (in); in = NULL; }
+    /* Authentication must succeed before any plaintext reaches stdout. */
+    rc = bc_write_all (out, outlen) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+cleanup:
+    if (in && encrypt) crypto_wipe (in, inlen);
+    if (out && !encrypt) crypto_wipe (out, outlen ? outlen : 1);
     free (in);
-    /* sensitive locals on stack — wipe before return so the frame
-       can't be scraped by a subsequent malloc caller. */
+    free (out);
     crypto_wipe (key, sizeof key);
     crypto_wipe (nonce, sizeof nonce);
     crypto_wipe (aad, sizeof aad);
@@ -5681,15 +5596,7 @@ bc_x25519_shared_mbedtls_cmd (WORD_LIST *args)
         builtin_error ("x25519-shared-mbedtls: scalarmult failed");
         return EXECUTION_FAILURE;
     }
-    if (hex_mode) {
-        char hex[65];
-        for (int i = 0; i < 32; i++) snprintf (hex + i*2, 3, "%02x", shared[i]);
-        hex[64] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (shared, 1, 32, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (shared, 32, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* `crypto x25519-pub-mbedtls -k SK_HEX [-x]` — derive the public
@@ -5715,15 +5622,7 @@ bc_x25519_pub_mbedtls_cmd (WORD_LIST *args)
         builtin_error ("x25519-pub-mbedtls: scalarmult failed");
         return EXECUTION_FAILURE;
     }
-    if (hex_mode) {
-        char hex[65];
-        for (int i = 0; i < 32; i++) snprintf (hex + i*2, 3, "%02x", pk[i]);
-        hex[64] = 0;
-        printf ("%s\n", hex);
-    } else {
-        fwrite (pk, 1, 32, stdout);
-    }
-    return EXECUTION_SUCCESS;
+    return bc_emit (pk, 32, hex_mode) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 /* ---- bash builtin entry --------------------------------------------- */
@@ -5733,6 +5632,7 @@ extern char *crypto_doc[];
 int
 crypto_builtin (WORD_LIST *list)
 {
+  clearerr (stdout);
   if (list == 0) { builtin_usage (); return (EX_USAGE); }
   const char *cmd = list->word->word;
   WORD_LIST *args = list->next;
