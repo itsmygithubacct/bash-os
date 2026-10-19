@@ -1,0 +1,6 @@
+{
+  "devices": [
+    {"name": "/fixture/a", "bytes": 5497558142465, "sectors": 10737418247, "ss": 4096, "bsz": 8192, "ro": 0},
+    {"name": "/fixture/b", "bytes": 511, "sectors": 17, "ss": 512, "bsz": 1024, "ro": 7}
+  ]
+}
