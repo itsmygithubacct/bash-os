@@ -114,6 +114,11 @@
         "_bl_key"
       ]
     },
+    "cluster": {
+      "helpers": [
+        "_monocypher"
+      ]
+    },
     "crypto": {
       "helpers": [
         "_mbedtls",
