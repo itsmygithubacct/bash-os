@@ -64,6 +64,7 @@
 
 #include "loadables.h"
 #include "error.h"
+#include "bl-output.h"
 #include <limits.h>
 
 static void *bcu_calloc (size_t n, size_t size)
@@ -222,61 +223,65 @@ bcu_output_append (BCU_OUTPUT *out, const char *bytes, size_t len)
     }
 }
 
+/* Read the descriptor rather than Bash's persistent stdin FILE: its EOF
+   indicator and read-ahead buffer can survive shell redirections. */
+static ssize_t
+bcu_tac_slurp (int fd, char **out)
+{
+  size_t cap = 65536, len = 0;
+  char *buf = xmalloc (cap);
+  for (;;)
+    {
+      if (len == cap)
+        {
+          if (cap > (size_t) SSIZE_MAX / 2)
+            { free (buf); errno = EOVERFLOW; return -1; }
+          cap *= 2;
+          buf = xrealloc (buf, cap);
+        }
+      ssize_t n = read (fd, buf + len, cap - len);
+      if (n < 0 && errno == EINTR) continue;
+      if (n < 0) { int e = errno; free (buf); errno = e; return -1; }
+      if (!n) break;
+      len += (size_t) n;
+    }
+  *out = buf;
+  return (ssize_t) len;
+}
+
 static int
-bcu_tac_stream (FILE *fp, const char *sep)
+bcu_tac_stream (FILE *fp, const char *sep, bl_output *out)
 {
   char *buf = NULL;
-  ssize_t len = bcu_slurp (fp, &buf);
-  if (len < 0) return EXECUTION_FAILURE;
-  if (len == 0) { free (buf); return EXECUTION_SUCCESS; }
-
+  ssize_t len = bcu_tac_slurp (fileno (fp), &buf);
+  if (len < 0)
+    { builtin_error ("tac: read: %s", strerror (errno)); return EXECUTION_FAILURE; }
+  /* GNU selects NUL for an empty separator. Search from the right so
+     overlapping literal separators consume the rightmost match first.
+     Emit each record immediately, avoiding a per-record offset array. */
   size_t seplen = strlen (sep);
-
-  /* Split into records the way GNU tac does: the separator is attached
-   * AFTER the text it follows, so a record runs from one record-start up
-   * to (and including) the next separator. Collect record start offsets,
-   * then emit the records in reverse. A trailing record that is NOT
-   * separator-terminated is emitted first, as-is (no separator is added —
-   * `printf 'a\nb\nc' | tac` => "cb\na\n", not "c\nb\na\n"). */
-  size_t *starts = NULL, n = 0, cap = 0;
-  #define BCU_TAC_PUSH(o) do { \
-      if (n == cap) { cap = cap ? cap * 2 : 64; \
-                      starts = xrealloc (starts, cap * sizeof *starts); \
-                      if (!starts) { free (buf); builtin_error ("tac: oom"); return EXECUTION_FAILURE; } } \
-      starts[n++] = (o); } while (0)
-  BCU_TAC_PUSH (0);
-  if (seplen > 0 && seplen <= (size_t) len)
+  if (!seplen) seplen = 1;
+  size_t search_end = (size_t) len, record_end = (size_t) len;
+  while (search_end >= seplen && !out->error)
     {
-      size_t i = 0, last = (size_t) len - seplen;
-      while (i <= last)
+      size_t limit = search_end - seplen + 1;
+      const char *found = NULL;
+      while (limit)
         {
-          const char *found = memchr (buf + i, (unsigned char) sep[0],
-                                      last - i + 1);
-          if (!found) break;
-          i = (size_t) (found - buf);
-          if (seplen == 1 || memcmp (found, sep, seplen) == 0)
-            {
-              size_t next = i + seplen;
-              if (next < (size_t) len) BCU_TAC_PUSH (next);
-              i = next;
-            }
-          else
-            i++;
+          found = memrchr (buf, (unsigned char) sep[0], limit);
+          if (!found || seplen == 1 || memcmp (found, sep, seplen) == 0) break;
+          limit = (size_t) (found - buf);
+          found = NULL;
         }
+      if (!found) break;
+      size_t start = (size_t) (found - buf), boundary = start + seplen;
+      bl_output_write (out, buf + boundary, record_end - boundary);
+      record_end = boundary;
+      search_end = start;
     }
-  #undef BCU_TAC_PUSH
-  BCU_OUTPUT out;
-  out.used = 0; out.failed = 0;
-  for (ssize_t k = (ssize_t) n - 1; k >= 0; k--)
-    {
-      size_t s = starts[k];
-      size_t e = (k + 1 < (ssize_t) n) ? starts[k + 1] : (size_t) len;
-      bcu_output_append (&out, buf + s, e - s);
-    }
-  bcu_output_flush (&out);
-  free (starts);
+  if (record_end) bl_output_write (out, buf, record_end);
   free (buf);
-  return out.failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  return out->error ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 static int
@@ -295,22 +300,25 @@ bcu_tac_cmd (WORD_LIST *list)
         }
       if (!strncmp (w, "-s", 2))            { sep = w + 2; list = list->next; continue; }
       if (!strncmp (w, "--separator=", 12)) { sep = w + 12; list = list->next; continue; }
-      break;   /* unknown dash-word: treat as a filename operand (e.g. "-") */
+      builtin_error ("tac: unknown option: %s", w);
+      return EX_USAGE;
     }
-  if (!sep[0]) sep = "\n";   /* empty separator: fall back to newline, as GNU */
-
-  if (!list)
-    return bcu_tac_stream (stdin, sep);
-
+  bl_output out;
+  bl_output_init (&out, stdout);
   int rc = EXECUTION_SUCCESS;
-  for (WORD_LIST *w = list; w; w = w->next)
+  if (!list)
+    rc = bcu_tac_stream (stdin, sep, &out);
+  for (WORD_LIST *w = list; w && !out.error; w = w->next)
     {
       FILE *fp = bcu_open_input (w->word->word);
       if (!fp) { rc = EXECUTION_FAILURE; continue; }
-      if (bcu_tac_stream (fp, sep) != EXECUTION_SUCCESS)
+      if (bcu_tac_stream (fp, sep, &out) != EXECUTION_SUCCESS)
         rc = EXECUTION_FAILURE;
       if (fp != stdin) fclose (fp);
     }
+  bl_output_flush (&out);
+  if (out.error)
+    { builtin_error ("tac: write: %s", strerror (out.error)); rc = EXECUTION_FAILURE; }
   return rc;
 }
 
@@ -332,21 +340,24 @@ bcu_tac_cmd (WORD_LIST *list)
  * shuf's intent of "random for human-scale enumeration." */
 static uint64_t bcu_shuf_state = 0;
 
-static void
+static int
 bcu_shuf_seed (const char *source)
 {
   uint64_t s = 0;
   if (source)
     {
       FILE *fp = fopen (source, "rb");
-      if (fp)
-        {
-          unsigned char b[8] = {0};
-          fread (b, 1, 8, fp);
-          fclose (fp);
-          for (int i = 0; i < 8; i++)
-            s = (s << 8) | b[i];
-        }
+      if (!fp)
+        { builtin_error ("shuf: %s: %s", source, strerror (errno)); return 0; }
+      unsigned char b[8] = {0};
+      size_t count = fread (b, 1, sizeof b, fp);
+      int failed = ferror (fp);
+      fclose (fp);
+      if (failed)
+        { builtin_error ("shuf: %s: read error", source); return 0; }
+      for (size_t i = 0; i < count; i++) s = (s << 8) | b[i];
+      bcu_shuf_state = s ? s : 0x9E3779B97F4A7C15ULL;
+      return 1;
     }
   if (s == 0)
     {
@@ -363,6 +374,7 @@ bcu_shuf_seed (const char *source)
   if (s == 0)
     s = ((uint64_t) time (NULL) << 16) ^ (uint64_t) getpid ();
   bcu_shuf_state = s ? s : 0x9E3779B97F4A7C15ULL;
+  return 1;
 }
 
 static uint64_t
@@ -441,7 +453,7 @@ bcu_shuf_cmd (WORD_LIST *list)
       filename = a;
     }
 
-  bcu_shuf_seed (source);
+  if (!bcu_shuf_seed (source)) return EXECUTION_FAILURE;
 
   size_t n = 0, cap = 0;
   char **items = NULL;
@@ -1075,54 +1087,74 @@ bcu_tsort_cmd (WORD_LIST *list)
  * nproc — processors available to this process; --all is every configured one
  * =================================================================== */
 
-/* Processors this process may actually run on. GNU nproc's default counts the
-   affinity mask, not the online CPUs, so under `taskset -c 3` it prints 1 while
-   _SC_NPROCESSORS_ONLN still says 12. Returns 0 when the mask is unavailable so
-   the caller can fall back.
-
-   Scope: GNU also lets OMP_NUM_THREADS and OMP_THREAD_LIMIT override the
-   default. That is deliberately not implemented here -- this is not an OpenMP
-   runtime host -- and is recorded as a scope difference, not parity. */
-static long
+/* Count the current affinity mask; zero requests a sysconf fallback. */
+static unsigned long
 bcu_nproc_available (void)
 {
   cpu_set_t set;
-  if (sched_getaffinity (0, sizeof set, &set) != 0)
-    return 0;
+  if (sched_getaffinity (0, sizeof set, &set) != 0) return 0;
   return CPU_COUNT (&set);
+}
+
+/* OpenMP permits surrounding whitespace and lists of nesting levels.
+   Only the first level affects nproc. Invalid/zero values are ignored;
+   strtoul saturation matches GNU for values larger than ULONG_MAX. */
+static unsigned long
+bcu_nproc_omp (const char *value)
+{
+  if (!value) return 0;
+  while (isspace ((unsigned char) *value)) value++;
+  if (*value < '0' || *value > '9') return 0;
+  char *end;
+  unsigned long n = strtoul (value, &end, 10);
+  while (isspace ((unsigned char) *end)) end++;
+  return !*end || *end == ',' ? n : 0;
 }
 
 static int
 bcu_nproc_cmd (WORD_LIST *list)
 {
-  /* GNU nproc accepts --all and --ignore=N; --all reports every configured
-   * processor, the default reports the ones this process may run on, and
-   * --ignore=N subtracts from the count (floored at 1). */
-  long ignore = 0;
+  unsigned long ignore = 0;
   int use_all = 0;
   for (WORD_LIST *w = list; w; w = w->next)
     {
-      const char *a = w->word->word;
-      if (strcmp (a, "--all") == 0) { use_all = 1; continue; }
-      if (strncmp (a, "--ignore=", 9) == 0)
+      const char *a = w->word->word, *value = NULL;
+      if (!strcmp (a, "--all")) { use_all = 1; continue; }
+      if (!strcmp (a, "--") && !w->next) break;
+      if (!strncmp (a, "--ignore=", 9)) value = a + 9;
+      else if (!strcmp (a, "--ignore") && w->next)
+        { w = w->next; value = w->word->word; }
+      if (value)
         {
-          ignore = strtol (a + 9, NULL, 10);
-          if (ignore < 0) ignore = 0;
-          continue;
+          while (isspace ((unsigned char) *value)) value++;
+          char *end;
+          errno = 0;
+          ignore = strtoul (value, &end, 10);
+          if (*value && *value != '-' && end != value && !*end)
+            continue;
+          builtin_error ("nproc: invalid number: %s", value);
+          return EXECUTION_FAILURE;
         }
       builtin_error ("nproc: unknown flag: %s", a);
       bcu_usage ("nproc");
       return EX_USAGE;
     }
-  long n = 0;
+  unsigned long n = 0, limit = ULONG_MAX;
   if (!use_all)
-    n = bcu_nproc_available ();
-  if (n < 1)
-    n = sysconf (use_all ? _SC_NPROCESSORS_CONF : _SC_NPROCESSORS_ONLN);
-  if (n < 1) n = 1;
-  n -= ignore;
-  if (n < 1) n = 1;
-  printf ("%ld\n", n);
+    {
+      n = bcu_nproc_omp (getenv ("OMP_NUM_THREADS"));
+      unsigned long v = bcu_nproc_omp (getenv ("OMP_THREAD_LIMIT"));
+      if (v) limit = v;
+      if (!n) n = bcu_nproc_available ();
+    }
+  if (!n)
+    {
+      long configured = sysconf (use_all ? _SC_NPROCESSORS_CONF : _SC_NPROCESSORS_ONLN);
+      n = configured > 0 ? (unsigned long) configured : 1;
+    }
+  if (n > limit) n = limit;
+  n = ignore < n ? n - ignore : 1;
+  printf ("%lu\n", n);
   return EXECUTION_SUCCESS;
 }
 
@@ -1308,30 +1340,38 @@ bcu_shred_one (const char *path, int passes, int zero_pass, int unlink_after, lo
   unsigned char *buf = xmalloc (BUFSZ);
   if (!buf) { close (fd); return EXECUTION_FAILURE; }
 
-  FILE *rnd = fopen ("/dev/urandom", "rb");
-  for (int pass = 0; pass < passes + (zero_pass ? 1 : 0); pass++)
+  int error = 0;
+  FILE *rnd = passes ? fopen ("/dev/urandom", "rb") : NULL;
+  if (passes && !rnd) error = errno;
+  for (int pass = 0; !error && pass < passes + (zero_pass ? 1 : 0); pass++)
     {
-      if (lseek (fd, 0, SEEK_SET) < 0) break;
-      int is_zero_pass = (pass == passes); /* zero pass is appended */
+      if (lseek (fd, 0, SEEK_SET) < 0) { error = errno; break; }
+      int is_zero_pass = (pass == passes);
       off_t remaining = sz;
-      while (remaining > 0)
+      while (remaining > 0 && !error)
         {
-          size_t chunk = (remaining < BUFSZ) ? (size_t) remaining : (size_t) BUFSZ;
-          if (is_zero_pass)
-            memset (buf, 0, chunk);
-          else if (rnd)
-            { if (fread (buf, 1, chunk, rnd) != chunk) memset (buf, 0xa5, chunk); }
-          else
-            memset (buf, 0xa5, chunk);
-          ssize_t wn = write (fd, buf, chunk);
-          if (wn < 0) { remaining = -1; break; }
-          remaining -= wn;
+          size_t chunk = remaining < BUFSZ ? (size_t) remaining : (size_t) BUFSZ;
+          if (is_zero_pass) memset (buf, 0, chunk);
+          else if (fread (buf, 1, chunk, rnd) != chunk)
+            { error = errno ? errno : EIO; break; }
+          size_t written = 0;
+          while (written < chunk)
+            {
+              ssize_t n = write (fd, buf + written, chunk - written);
+              if (n < 0 && errno == EINTR) continue;
+              if (n <= 0) { error = n < 0 ? errno : EIO; break; }
+              written += (size_t) n;
+            }
+          remaining -= (off_t) written;
         }
-      fsync (fd);
+      if (!error && fsync (fd) < 0) error = errno;
     }
   if (rnd) fclose (rnd);
   free (buf);
-  close (fd);
+  if (close (fd) < 0 && !error) error = errno;
+  /* Never unlink a file after an unsuccessful overwrite. */
+  if (error)
+    { builtin_error ("shred: %s: %s", path, strerror (error)); return EXECUTION_FAILURE; }
   if (unlink_after && unlink (path) < 0)
     { builtin_error ("shred: unlink %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
   return EXECUTION_SUCCESS;
@@ -1866,8 +1906,8 @@ mknod_out:
  * Bash builtin dispatch.
  * =================================================================== */
 
-int
-coreutils_builtin (WORD_LIST *list)
+static int
+bcu_dispatch (WORD_LIST *list)
 {
   if (!list) { builtin_usage (); return EX_USAGE; }
   const char *verb = list->word->word;
@@ -1887,6 +1927,19 @@ coreutils_builtin (WORD_LIST *list)
   builtin_error ("coreutils: unknown verb: %s", verb);
   builtin_error ("usage: coreutils {tac|shuf|factor|yes|fmt|tsort|nproc|numfmt|shred|groups|install|mknod} ARGS");
   return EX_USAGE;
+}
+
+int
+coreutils_builtin (WORD_LIST *list)
+{
+  int rc = bcu_dispatch (list);
+  if (fflush (stdout) == EOF || ferror (stdout))
+    {
+      builtin_error ("write: %s", strerror (errno ? errno : EIO));
+      clearerr (stdout);
+      rc = EXECUTION_FAILURE;
+    }
+  return rc;
 }
 
 char *coreutils_doc[] = {
