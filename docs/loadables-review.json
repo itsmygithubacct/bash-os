@@ -946,6 +946,14 @@
       "status": "Contract",
       "evidence": "tests/sol-bashlogger-socket.py",
       "scope": "Private AF_UNIX exact-byte priority/tag/PID/message checks; input limits, socket errors, repeated-call descriptor cleanup and intercepted CLOEXEC/exec behavior."
+    },
+    {
+      "names": [
+        "blockdev"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-blockdev-check.py",
+      "scope": "Closed syscall fixtures for every advertised query/setter, unit conversion, ordered multi-device actions, malformed input, ioctl/open/close/output errors and descriptor cleanup; private regular-file ENOTTY probes."
     }
   ],
   "sanitizer_groups": [
@@ -1243,6 +1251,13 @@
       ],
       "evidence": "tests/sol-bashlogger-build-fixtures.sh",
       "scope": "Production sender module under ASan/UBSan with private-socket integration fixtures."
+    },
+    {
+      "names": [
+        "blockdev"
+      ],
+      "evidence": "tests/sol-blockdev-build.sh",
+      "scope": "Production loadable compiled behind closed device/ioctl fixtures under ASan/UBSan."
     }
   ],
   "fuzz": {
@@ -2047,6 +2062,11 @@
       "note": "Private AF_UNIX sender contract and validated 5000-message API workload measured on 2026-10-19. Timing includes shell loop and Python receiver; no external ratio or host daemon/persistence qualification.",
       "evidence": "docs/sol-bashlogger.md",
       "next": "Qualify additional logger CLI or daemon integration behavior when required; current API measurement is separate from the historical catalog timings."
+    },
+    "blockdev": {
+      "note": "All advertised software ioctl paths have closed fixtures and fixed query/request batch measurements on 2026-10-19. Shim time includes shell/module/fixture overhead; no hardware latency or external speedup claim.",
+      "evidence": "docs/sol-blockdev.md",
+      "next": "Actual device geometry, privileges, driver errors, flush and partition reread effects still need device qualification."
     }
   },
   "repeat_input_findings": [],

@@ -138,6 +138,12 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'bashlogger under ASan+UBSan' python3 tests/sol-bashlogger-socket.py out/bash \
     --module "$scratch/bashlogger/bashlogger-sanitize.so" \
     --asan-runtime "$(cat "$scratch/bashlogger/libasan.path")"
+  check 'blockdev fixture build' env BASHOS_TASK_DIR="$scratch/blockdev" bash tests/sol-blockdev-build.sh
+  check 'blockdev ioctl contract' python3 tests/sol-blockdev-check.py --binary out/bash \
+    --module "$scratch/blockdev/artifacts/blockdev.so"
+  check 'blockdev under ASan+UBSan' python3 tests/sol-blockdev-check.py --binary out/bash \
+    --module "$scratch/blockdev/artifacts/blockdev-sanitize.so" \
+    --preload "$(cat "$scratch/blockdev/artifacts/asan-path.txt")"
   check 'core file and stream safety under ASan+UBSan' bash tests/core-io-sanitize.sh out/bash
   check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
   check 'package publication and rollback under ASan+UBSan' bash tests/pkg-sanitize.sh out/bash
