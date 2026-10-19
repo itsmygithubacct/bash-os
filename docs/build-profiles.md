@@ -13,7 +13,7 @@ choice, not a runtime disable list.
 | 3 | `device` | 160 | 2,734,528 | Core plus Linux devices, processes and basic networking |
 | 4 | `server` | 215 | — | Device plus services, TLS, SSH, accounts and data |
 | 4 | `desktop` | 155 | — | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 280 | — | Every command in the collection |
+| 5 | `full` | 280 | — | Standard collection; optional integrations selected separately |
 
 Sizes are historical stripped x86-64 builds with GCC 14.2 and the default flags. See the
 [benchmarks](../bench/README.md) for static sizes, startup and resident memory.

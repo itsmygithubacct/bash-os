@@ -73,8 +73,10 @@ release. See [loadable packages](docs/packages.md).
 See [build profiles](docs/build-profiles.md) for the profile table, list format,
 output naming, dependencies, cross testing and your own `EXTRA_LOADABLES`.
 The [loadable status table](docs/loadables-status.md) and
-[CSV](docs/loadables-status.csv) list every loadable, its profiles, test evidence,
-BusyBox/Linux comparison data and recommended next work.
+[CSV](docs/loadables-status.csv) list the full catalog, profiles, test evidence,
+historical BusyBox/Linux comparison data and recommended next work. The table
+also lists [optional integrations](docs/loadables-status.md#optional-integrations)
+and dates the inventory review separately from the recorded measurements.
 The [head/sed](docs/head-sed.md), [fold](docs/fold.md),
 [expand](docs/expand.md), [bc](docs/bc.md), [nl](docs/nl.md),
 [pr](docs/pr.md) and [tac](docs/tac.md) reports describe the corrected behavior,

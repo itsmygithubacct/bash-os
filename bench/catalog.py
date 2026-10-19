@@ -28,11 +28,10 @@ PROFILE_CODES = {'pure': 'P', 'core': 'C', 'device': 'D', 'server': 'S',
 # until the 2026-09-12 refresh measured the binary that actually carries the
 # wave-6 changes: comm is 0.50x external time and sort-text 0.91x, so the work
 # they described is done and a P2 row asking for it would be wrong.
-# Cases slower than 1.25x external time are surfaced as P3 automatically, with
-# their ratio, so nothing is lost by leaving this empty -- the current
-# candidates, in order, are bsdgames-rot13 (12.56x), pcre (4.22x), sv-log
-# (3.36x), more (3.32x) and buf-text (3.13x). Promote one here when someone
-# takes it on. bench/publish.py imports this list; do not copy it.
+# Historical cases slower than 1.25x external time are surfaced as P3
+# remeasurement candidates. Their ratios do not establish current performance.
+# Promote a case here only after confirming it on the implementation being
+# reviewed. bench/publish.py imports this list; do not copy it.
 PERFORMANCE = []
 
 
@@ -107,9 +106,16 @@ def generate():
         raise ValueError('Unset EXTRA_LOADABLES when generating the repository catalog')
     catalog = config.parse_list(ROOT/'config/bash-loadables.list')
     review = json.loads((ROOT/'docs/loadables-review.json').read_text())
+    inventory_review = review['inventory_review']
+    assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', inventory_review['date'])
+    assert re.fullmatch(r'[0-9a-f]{40}', inventory_review['source_commit'])
+    for field, path in [('catalog_sha256', 'config/bash-loadables.list'),
+                        ('optional_catalog_sha256', 'config/bash-loadables-optional.list')]:
+        assert inventory_review[field] == hashlib.sha256((ROOT/path).read_bytes()).hexdigest(), \
+            'Refresh the inventory review after changing a catalog list'
     data = json.loads((ROOT/review.get('measurement_file', 'docs/data/loadable-benchmarks.json')).read_text())
     assert review['source_commit'] == data['source_commit']
-    assert data['catalog_sha256'] == hashlib.sha256((ROOT/'config/bash-loadables.list').read_bytes()).hexdigest(), 'Refresh the reviewed snapshot after changing the catalog'
+    assert re.fullmatch(r'[0-9a-f]{64}', data['catalog_sha256'])
     profiles = {}
     for name in json.loads((ROOT/'config/profiles.json').read_text()):
         args = argparse.Namespace(profile=name, level=None, list=None, include=[],
@@ -172,6 +178,10 @@ def generate():
         assert not any('ms' in key for result in case['results'].values() for key in result)
     local = {p.stem for p in (ROOT/'loadables').glob('*.c')}
     optional = config.parse_list(ROOT/'config/bash-loadables-optional.list')
+    assert set(review['optional_integrations']) == optional.keys()
+    for name, info in review['optional_integrations'].items():
+        assert (ROOT/f'loadables/{name}.c').is_file()
+        assert all((ROOT/path).is_file() for path in info['evidence'])
     assert local <= catalog.keys() | optional.keys(), 'Source missing from catalogs'
     local &= catalog.keys()
     inventory = data['tool_inventory']
@@ -230,7 +240,8 @@ def generate():
             priority, action = 'P3', note['next']
         elif selected and ratio(selected) is not None and ratio(selected) > 1.25:
             priority = 'P3'
-            action = f"Confirm {selected['id']} ({ratio(selected):.2f}× external time), then profile."
+            action = (f"Remeasure {selected['id']} on the current build "
+                      f"({ratio(selected):.2f}× external time in the historical snapshot).")
         elif name in review['limitations']:
             priority, action = 'P3', 'Decide required option scope; see limitations.'
         elif not cases:
@@ -241,10 +252,10 @@ def generate():
                 action = 'Define an API workload and metric, then measure.'
         elif kind == 'self-timed':
             priority = 'P4'
-            action = ('Self-timed baseline: no external program or applet implements this, '
-                      'so compare a change against this figure rather than a ratio.')
+            action = ('Historical self-timed baseline; rerun the same workload to assess '
+                      'the current implementation. No external ratio applies.')
         else:
-            priority, action = 'P4', 'Extend sizes/options; no selected-case performance priority.'
+            priority, action = 'P4', 'No historical selected-case priority; remeasure current sizes/options.'
         if name in review.get('assignments', {}):
             action += f" Assigned to {review['assignments'][name]}."
         members = [p for p in PROFILE_CODES if name in profiles[p]]
@@ -262,7 +273,10 @@ def generate():
                 bench_text += f'; {len(cases)} cases total'
         rows.append([name_text, ' '.join(PROFILE_CODES[p] for p in members), status_text,
                      applet_text+'; '+program_text, bench_text, priority, action])
-        entry = dict(loadable=name, snapshot_date=data['date'][:10], source_commit=data['source_commit'],
+        entry = dict(loadable=name,
+                     inventory_review_date=inventory_review['date'],
+                     inventory_source_commit=inventory_review['source_commit'],
+                     snapshot_date=data['date'][:10], source_commit=data['source_commit'],
                      profiles=';'.join(members), source=source,
                      status=status, baseline_coverage=base_status, limited=name in review['limitations'],
                      evidence=';'.join(dict.fromkeys([g['evidence'] for g in groups] +
@@ -300,9 +314,14 @@ def generate():
     kinds = {name: metric_kind(cases) for name, cases in benchmarks.items()}
     compared = sum(1 for k in kinds.values() if k == 'compared')
     selftimed = sum(1 for k in kinds.values() if k == 'self-timed')
-    summary = (f"Catalog: **{len(catalog)} loadables** ({len(local)} local sources, {len(catalog)-len(local)} stock Bash sources). "
-               f"Command benchmark: **{len(data['cases'])} cases covering {measured} loadables**; {valid} loadables passed the selected output checks, "
-               f"{measured-valid} have confirmed correctness findings. The other {len(catalog)-measured} have no individual command timings here; "
+    summary = (f"Inventory and coverage references reviewed **{inventory_review['date']}** at "
+               f"`{inventory_review['source_commit']}`.\n\n"
+               f"Full catalog: **{len(catalog)} loadables** ({len(local)} local sources, {len(catalog)-len(local)} stock Bash sources), "
+               f"plus **{len(optional)} [optional integrations](#optional-integrations)** selected explicitly. "
+               f"The CSV contains the {len(catalog)} full-catalog entries.\n\n"
+               f"Historical command benchmark, **{data['date'][:10]}**: **{len(data['cases'])} cases covering {measured} loadables**; "
+               f"{valid} passed the selected output checks and {measured-valid} failed on that measured binary. "
+               f"The other {len(catalog)-measured} full-catalog entries have no individual command timings here; "
                "GPU transport measurements are reported separately.\n\n"
                f"Metric kinds: **{compared} compared** against an external program or a BusyBox applet, "
                f"**{selftimed} self-timed** where no counterpart implements the command and the repeated batch "
@@ -311,7 +330,7 @@ def generate():
     if untimed:
         summary += f"Separate [untimed checks](#additional-correctness-checks) record {len(untimed)} further correctness findings.\n\n"
     summary += table(['Profile','Included loadables'], [[p,len(names)] for p,names in profiles.items()])
-    summary += f"\n\nCommand measurement source: `{data['source_commit']}`. "
+    summary += f"\n\nHistorical command measurement source: `{data['source_commit']}`. "
     validation = review['validation']
     assert validation['source_commit'] == data['source_commit']
     summary += validation['summary'] + '\n\n'
@@ -322,7 +341,32 @@ def generate():
     summary += '(including 48 native test groups). Those older suites did not detect the repeated-input findings. '
     summary += 'Coverage labels describe the mapped fixtures, not a guarantee that every option works.'
     document = replace_section(document,'SUMMARY',summary)
-    queue = []
+    validation_summary = inventory_review['validation_summary'] + '\n\n'
+    validation_rows = []
+    for check in inventory_review['focused_checks']:
+        assert (ROOT/check['evidence']).is_file()
+        validation_rows.append([link(check['evidence'], check['name']), check['result']])
+    validation_summary += table(['Focused check', 'Recorded result'], validation_rows)
+    validation_summary += '\n\n' + inventory_review['validation_limits']
+    document = replace_section(document, 'VALIDATION', validation_summary)
+    optional_rows = []
+    for name in sorted(optional):
+        info = review['optional_integrations'][name]
+        evidence = ', '.join(link(path, path.removeprefix('tests/')) for path in info['evidence'])
+        optional_rows.append([link(f'loadables/{name}.c', f'`{name}`'),
+                              f'`--include {name}`', info['scope'], evidence])
+    document = replace_section(document, 'OPTIONAL', table(
+        ['Loadable', 'Build selection', 'Scope', 'Test references'], optional_rows))
+    findings = review['repeat_input_findings']
+    repeated = (f"The recorded benchmark has {len(findings)} unresolved repeated-input findings: "
+                + ', '.join(f'`{name}`' for name in findings) + '.' if findings else
+                'No unresolved repeated-input failures are recorded in the benchmark snapshot. '
+                'The former colrm, column, strings, od and hexdump findings have dedicated '
+                'regressions; they are not open work items.')
+    document = replace_section(document, 'REPEAT', repeated)
+    queue = [['P3', 'Current performance measurements',
+              f'The broad command timings describe {data["date"][:10]}; later correctness fixes have separate validation.',
+              'Remeasure selected current workloads with the recorded fixtures before assigning a performance regression or speedup.']]
     for name in sorted(set(review['repeat_input_findings']) | untimed.keys()):
         action = review['notes'][name]['next']
         if name in review.get('assignments', {}):
@@ -382,7 +426,7 @@ def generate():
                           case['passes'],timing(case,'bashos'),timing(case,'busybox'),timing(case,'external'),
                           f'{ratio(case):.2f}×' if ratio(case) is not None else '—',case['runs']])
     document = replace_section(document,'CASES',table(['Case','Builtin command','External command','Input','Passes','BOS ms','BB ms','External ms','BOS / external','Samples'],case_rows))
-    method = f"The command measurements use the native dynamic full `out/bash` at the source above, SHA-256 `{data['binary_sha256']}`. "
+    method = f"The historical command measurements use the native dynamic full `out/bash` at the measurement source above, SHA-256 `{data['binary_sha256']}`. "
     method += f"Host: {data['cpu_model']}, {data['architecture']} Linux {data['kernel']}; pinned CPUs: {', '.join(map(str, data['cpus']))}. "
     method += 'Reference versions and fixture hashes are recorded in the measurement JSON. '
     method += 'These are host measurements; no per-command RISC-V or appliance performance is claimed.\n\n'

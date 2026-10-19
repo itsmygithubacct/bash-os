@@ -4,6 +4,281 @@
   "coverage_groups": [
     {
       "names": [
+        "cmp"
+      ],
+      "status": "Parity",
+      "evidence": "tests/cmp-streams.py",
+      "scope": "GNU byte-stream comparisons, repeated input and caller-owned descriptors."
+    },
+    {
+      "names": [
+        "cp"
+      ],
+      "status": "Contract",
+      "evidence": "tests/cp-safety.py",
+      "scope": "Recursive-copy bounds, private path fixtures and source/destination aliases."
+    },
+    {
+      "names": [
+        "mv"
+      ],
+      "status": "Contract",
+      "evidence": "tests/mv-safety.py",
+      "scope": "Long exact paths, cross-filesystem moves and file modes."
+    },
+    {
+      "names": [
+        "split"
+      ],
+      "status": "Contract",
+      "evidence": "tests/split-safety.py",
+      "scope": "Output pieces, input aliases and error handling in private files."
+    },
+    {
+      "names": [
+        "diff"
+      ],
+      "status": "Parity",
+      "evidence": "tests/diff-safety.py",
+      "scope": "Edit addresses and final newlines compared with GNU; allocation-failure handling."
+    },
+    {
+      "names": [
+        "dd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/dd-safety.py",
+      "scope": "Reblocking, seek behavior and caller-owned descriptors."
+    },
+    {
+      "names": [
+        "cp",
+        "mv"
+      ],
+      "status": "Contract",
+      "evidence": "tests/copy-move-errors.py",
+      "scope": "Injected close and metadata failures with private file fixtures."
+    },
+    {
+      "names": [
+        "cp",
+        "mv",
+        "tr",
+        "date",
+        "coreutils"
+      ],
+      "status": "Parity",
+      "evidence": "tests/debian-parity.py",
+      "scope": "Selected GNU comparisons for copy/move metadata, date, tr and install."
+    },
+    {
+      "names": [
+        "mktemp"
+      ],
+      "status": "Contract",
+      "evidence": "tests/mktemp-u-check.sh",
+      "scope": "Name-only -u leaves the filesystem untouched; ordinary creation remains covered."
+    },
+    {
+      "names": [
+        "passwd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/passwd-fields.py",
+      "scope": "Empty passwd fields retain their positions; malformed records are handled explicitly."
+    },
+    {
+      "names": [
+        "dmesg"
+      ],
+      "status": "Contract",
+      "evidence": "tests/dmesg-fixture.py",
+      "scope": "Stream records split across read boundaries and final unterminated records."
+    },
+    {
+      "names": [
+        "git"
+      ],
+      "status": "Contract",
+      "evidence": "tests/git-integrity.py",
+      "scope": "Malformed objects, packs, index and tree records, with private containment fixtures."
+    },
+    {
+      "names": [
+        "git"
+      ],
+      "status": "Contract",
+      "evidence": "tests/git-apply-paths.py",
+      "scope": "Complete long patch lines and paths, preflight failures and nested rename strip-level comparisons."
+    },
+    {
+      "names": [
+        "vt",
+        "buf"
+      ],
+      "status": "Contract",
+      "evidence": "tests/vt-buf-edges.py",
+      "scope": "Response cloning, complete combining sequences, CSI bounds, reload cleanup and aliased save paths."
+    },
+    {
+      "names": [
+        "expect"
+      ],
+      "status": "Contract",
+      "evidence": "tests/expect-timeout.py",
+      "scope": "Whole-wait deadlines with continuous child output."
+    },
+    {
+      "names": [
+        "pkg"
+      ],
+      "status": "Contract",
+      "evidence": "tests/pkg-safety.py",
+      "scope": "Package publication and install rollback preserve unrelated private filesystem entries."
+    },
+    {
+      "names": [
+        "pkg"
+      ],
+      "status": "Contract",
+      "evidence": "tests/pkg-trust.py",
+      "scope": "Trust-file and revocation errors, signature lookup failures and recovery."
+    },
+    {
+      "names": [
+        "flock",
+        "setsid",
+        "ionice",
+        "taskset",
+        "chrt",
+        "prlimit",
+        "nice",
+        "nohup",
+        "timeout"
+      ],
+      "status": "Contract",
+      "evidence": "tests/process-wrapper-state.py",
+      "scope": "Exported environment, PATH, signals and child descriptor ownership."
+    },
+    {
+      "names": [
+        "flock",
+        "nice",
+        "timeout",
+        "ionice",
+        "taskset",
+        "chrt",
+        "uclampset",
+        "renice"
+      ],
+      "status": "Contract",
+      "evidence": "tests/process-numeric.py",
+      "scope": "Finite and bounded numeric arguments are checked before side effects."
+    },
+    {
+      "names": [
+        "dmesg",
+        "blkid",
+        "lsblk",
+        "losetup"
+      ],
+      "status": "Contract",
+      "evidence": "tests/device-fixtures.py",
+      "scope": "Private device-file and image fixtures; no live device mutation coverage is implied."
+    },
+    {
+      "names": [
+        "signal"
+      ],
+      "status": "Contract",
+      "evidence": "tests/signal-lookup.py",
+      "scope": "Signal name/number range lookup without sending signals."
+    },
+    {
+      "names": [
+        "sysctl"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sysctl-readonly.py",
+      "scope": "Read-only queries, ignored unknown names and invocation isolation."
+    },
+    {
+      "names": [
+        "nc"
+      ],
+      "status": "Contract",
+      "evidence": "tests/nc-stream.py",
+      "scope": "Loopback stream transfer, connection cleanup and timeout behavior."
+    },
+    {
+      "names": [
+        "http"
+      ],
+      "status": "Contract",
+      "evidence": "tests/http-framing.py",
+      "scope": "Byte-exact HTTP requests, URL/header validation, response parsing and output errors."
+    },
+    {
+      "names": [
+        "userdb"
+      ],
+      "status": "Contract",
+      "evidence": "tests/userdb-records.py",
+      "scope": "Complete record fields and provider bounds using private account files."
+    },
+    {
+      "names": [
+        "at",
+        "crontab"
+      ],
+      "status": "Contract",
+      "evidence": "tests/cron-spool.py",
+      "scope": "Private spool publication, unique jobs, error handling and caller traps."
+    },
+    {
+      "names": [
+        "crypto"
+      ],
+      "status": "Contract",
+      "evidence": "tests/crypto-state.py",
+      "scope": "Handle cleanup, output-binding failures and invocation state."
+    },
+    {
+      "names": [
+        "ptybroker"
+      ],
+      "status": "Contract",
+      "evidence": "tests/ptybroker.py",
+      "scope": "Broker lifecycle using private PTYs."
+    },
+    {
+      "names": [
+        "ptybroker"
+      ],
+      "status": "Contract",
+      "evidence": "tests/ptybroker-io.py",
+      "scope": "Binary transfer and backpressure on private PTYs."
+    },
+    {
+      "names": [
+        "screen",
+        "ptybroker"
+      ],
+      "status": "Contract",
+      "evidence": "tests/screen-broker.py",
+      "scope": "Broker attachment, relay and session lifecycle in private fixtures."
+    },
+    {
+      "names": [
+        "pty",
+        "bashpoll"
+      ],
+      "status": "Contract",
+      "evidence": "tests/pty-primitives.py",
+      "scope": "Signal handling, readiness and descriptor lifetime on private PTYs."
+    },
+    {
+      "names": [
         "head",
         "sed"
       ],
@@ -433,7 +708,7 @@
       ],
       "status": "Negative checks",
       "evidence": "tests/final-smoke.py",
-      "scope": "Invalid options are rejected before authentication or credential changes."
+      "scope": "Invalid-option checks always run. Root doas/sudo child transitions require an unprivileged account; su also requires the kernel token authority. Conditional transition fixtures are skipped when prerequisites are absent."
     },
     {
       "names": [
@@ -497,10 +772,272 @@
       ],
       "status": "Parity",
       "evidence": "tests/git-parity.py",
-      "scope": "Thirty-seven scenarios run under this build and under real git in fresh trees, comparing exit status, stdout, stderr and then the repository itself \u2014 refs, HEAD, index, status, stash, log, reflog and fsck \u2014 read back by real git. Object store, refs, packs, protocol, HTTP, ssh and signing have suites of their own."
+      "scope": "Sixty-nine scenarios compare exit status, stdout, stderr and repository state against Git in fresh trees; the recorded run has 414 comparisons. Object storage, refs, packs, protocols and signing have additional focused suites."
+    },
+    {
+      "names": [
+        "ar"
+      ],
+      "status": "Parity",
+      "evidence": "tests/ar-check.sh",
+      "scope": "Selected GNU comparisons for truncated archives, extraction failures and link handling; descriptor cleanup checks."
+    },
+    {
+      "names": [
+        "chmod"
+      ],
+      "status": "Parity",
+      "evidence": "tests/chmod-check.sh",
+      "scope": "Symbolic modes, special bits and directory search permissions compared with chmod under selected umasks."
+    },
+    {
+      "names": [
+        "col"
+      ],
+      "status": "Parity",
+      "evidence": "tests/col-check.sh",
+      "scope": "Three repeated redirected inputs compared with the host col output."
+    },
+    {
+      "names": [
+        "col"
+      ],
+      "status": "Parity",
+      "evidence": "tests/col-newline-check.sh",
+      "scope": "Terminated, unterminated, empty and overstrike input compared with util-linux col."
+    },
+    {
+      "names": [
+        "comm"
+      ],
+      "status": "Parity",
+      "evidence": "tests/comm-check.sh",
+      "scope": "Three-column and selected-column GNU comparisons, operand errors and prompt handling of write failures."
+    },
+    {
+      "names": [
+        "du"
+      ],
+      "status": "Contract",
+      "evidence": "tests/du-check.sh",
+      "scope": "Write failures return a nonzero status, with a GNU outcome check."
+    },
+    {
+      "names": [
+        "free"
+      ],
+      "status": "Contract",
+      "evidence": "tests/free-check.sh",
+      "scope": "Synthetic meminfo totals, units, cache accounting and selected host header comparisons."
+    },
+    {
+      "names": [
+        "hostid"
+      ],
+      "status": "Parity",
+      "evidence": "tests/hostid-check.sh",
+      "scope": "Host gethostid output, fixture overrides and invalid-input fallback."
+    },
+    {
+      "names": [
+        "rev"
+      ],
+      "status": "Parity",
+      "evidence": "tests/rev-check.sh",
+      "scope": "Selected line reversal and final-newline comparisons, missing files and write errors."
+    },
+    {
+      "names": [
+        "tee"
+      ],
+      "status": "Contract",
+      "evidence": "tests/tee-check.sh",
+      "scope": "Closed stdin, failed destinations and preservation of healthy outputs."
+    },
+    {
+      "names": [
+        "truncate"
+      ],
+      "status": "Contract",
+      "evidence": "tests/truncate-check.sh",
+      "scope": "Overflow and I/O failures preserve bytes; size adjustments and later-call recovery use private files."
+    },
+    {
+      "names": [
+        "uptime"
+      ],
+      "status": "Contract",
+      "evidence": "tests/uptime-check.sh",
+      "scope": "Private procfs boot-time and uptime records, formatting and error cases."
+    },
+    {
+      "names": [
+        "coreutils"
+      ],
+      "status": "Parity",
+      "evidence": "tests/nproc-check.sh",
+      "scope": "The nproc subcommand follows CPU affinity; --all and selected pinned cases are compared with GNU."
+    },
+    {
+      "names": [
+        "more",
+        "less",
+        "uuencode",
+        "xargs",
+        "obj",
+        "bsdgames",
+        "cat",
+        "tac",
+        "rev",
+        "nl",
+        "fold",
+        "sort",
+        "wc",
+        "strings"
+      ],
+      "status": "Contract",
+      "evidence": "tests/repeat-input-check.sh",
+      "scope": "Repeated redirected input emits the expected output length; selected second-input checks detect stale or empty output. This is not a complete byte-parity suite."
+    },
+    {
+      "names": [
+        "colrm"
+      ],
+      "status": "Parity",
+      "evidence": "tests/colrm-check.sh",
+      "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
+    },
+    {
+      "names": [
+        "column"
+      ],
+      "status": "Parity",
+      "evidence": "tests/column-check.sh",
+      "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
+    },
+    {
+      "names": [
+        "strings"
+      ],
+      "status": "Parity",
+      "evidence": "tests/strings-check.sh",
+      "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
+    },
+    {
+      "names": [
+        "od"
+      ],
+      "status": "Parity",
+      "evidence": "tests/od-check.sh",
+      "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
+    },
+    {
+      "names": [
+        "hexdump"
+      ],
+      "status": "Parity",
+      "evidence": "tests/hexdump-check.sh",
+      "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
     }
   ],
   "sanitizer_groups": [
+    {
+      "names": [
+        "cmp",
+        "cp",
+        "mv",
+        "split",
+        "diff",
+        "dd"
+      ],
+      "evidence": "tests/core-io-sanitize.sh",
+      "scope": "Core file/stream regression fixtures under AddressSanitizer and UndefinedBehaviorSanitizer."
+    },
+    {
+      "names": [
+        "cp",
+        "mv",
+        "tr",
+        "date",
+        "coreutils"
+      ],
+      "evidence": "tests/debian-sanitize.sh",
+      "scope": "Selected GNU comparisons and install regressions with instrumented modules."
+    },
+    {
+      "names": [
+        "vt",
+        "buf"
+      ],
+      "evidence": "tests/vt-buf-sanitize.sh",
+      "scope": "Terminal encoding and buffer ownership edge fixtures with instrumented modules."
+    },
+    {
+      "names": [
+        "pkg"
+      ],
+      "evidence": "tests/pkg-sanitize.sh",
+      "scope": "Package trust and publication fixtures with instrumented modules."
+    },
+    {
+      "names": [
+        "flock",
+        "setsid",
+        "ionice",
+        "taskset",
+        "chrt",
+        "prlimit",
+        "nice",
+        "nohup",
+        "timeout",
+        "renice",
+        "uclampset",
+        "dmesg",
+        "blkid",
+        "lsblk",
+        "losetup",
+        "signal",
+        "sysctl"
+      ],
+      "evidence": "tests/system-process-sanitize.sh",
+      "scope": "Process state, numeric arguments and private device/query fixtures with instrumented modules."
+    },
+    {
+      "names": [
+        "nc"
+      ],
+      "evidence": "tests/nc-sanitize.sh",
+      "scope": "Loopback stream fixtures with an instrumented module."
+    },
+    {
+      "names": [
+        "http"
+      ],
+      "evidence": "tests/http-sanitize.sh",
+      "scope": "HTTP framing fixtures with an instrumented module."
+    },
+    {
+      "names": [
+        "userdb"
+      ],
+      "evidence": "tests/userdb-sanitize.sh",
+      "scope": "Private account-record fixtures with an instrumented module."
+    },
+    {
+      "names": [
+        "at",
+        "crontab"
+      ],
+      "evidence": "tests/spool-sanitize.sh",
+      "scope": "Private spool and publication fixtures with instrumented modules."
+    },
+    {
+      "names": [
+        "crypto"
+      ],
+      "evidence": "tests/crypto-state-sanitize.sh",
+      "scope": "Crypto handle and invocation-state fixtures with an instrumented module."
+    },
     {
       "names": [
         "head",
@@ -1258,24 +1795,28 @@
       "evidence": "loadables/pkill.c"
     },
     "su": {
-      "note": "Current integration test rejects an invalid option before credential transition.",
-      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
+      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
+      "evidence": "tests/final-smoke.py"
     },
     "sudo": {
-      "note": "Current integration test rejects an invalid option before credential transition.",
-      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
+      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
+      "evidence": "tests/final-smoke.py"
     },
     "doas": {
-      "note": "Current integration test rejects an invalid option before credential transition.",
-      "next": "Add credential-transition and policy fixtures before benchmarking authentication."
+      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
+      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
+      "evidence": "tests/final-smoke.py"
     },
     "mail": {
       "note": "Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement.",
       "next": "Add a controlled submission/delivery benchmark."
     },
     "screen": {
-      "note": "Metadata/control fixtures pass; the live relay path needs separate sustained traffic measurements.",
-      "next": "Measure live PTY relay, backpressure and cleanup."
+      "note": "Private broker fixtures cover attachment, relay and lifecycle. Sustained live PTY traffic still needs a defined workload and timing.",
+      "evidence": "tests/screen-broker.py",
+      "next": "Measure sustained live PTY relay and backpressure on the target workload."
     },
     "ssh": {
       "note": "Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements."
@@ -1349,7 +1890,8 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "note": "Minus operands are stdin, including `diff - -`. The timed case still measures identical files, not edit-script generation."
+      "note": "Minus operands denote stdin, including diff - -. Dedicated fixtures compare edit addresses and final newlines with GNU and exercise allocation failures. The historical timing case uses identical files.",
+      "evidence": "tests/diff-safety.py"
     },
     "unexpand": {
       "note": "Write-failure stop and GNU comparison are covered by tests/unexpand-check.sh."
@@ -1358,18 +1900,19 @@
       "note": "Requested word-count assertions are covered by tests/wc-check.sh and tests/wc-tail-parity.sh."
     },
     "comm": {
-      "note": "Repeated-input and write-failure contracts are covered by tests/comm-check.sh. The timed comm case remains slower than GNU on this host.",
-      "next": "Profile input/output and allocation costs on the comm fixture, then measure the proposed change."
+      "note": "Selected-column GNU comparisons and write-failure contracts have a dedicated regression. The historical 2026-09-12 comm case measured 0.50 times the external runtime; current performance needs a new measurement.",
+      "evidence": "tests/comm-check.sh"
     },
     "join": {
       "note": "Write-failure stop and GNU comparison are covered by tests/join-check.sh."
     },
     "sort": {
-      "next": "Profile input/output and allocation costs on the sort-text fixture, then measure the proposed change.",
-      "note": "Write-failure stop and GNU comparison are covered by tests/sort-check.sh. sort-text remains a timed performance candidate."
+      "note": "Write-failure handling and selected GNU comparisons have dedicated regressions. The historical 2026-09-12 sort-text case measured 0.91 times the external runtime; it is not an open confirmed performance defect.",
+      "evidence": "tests/sort-check.sh"
     },
     "crypto": {
-      "note": "A failed digest write now returns failure; tests/crypto-check.sh covers sha256 -x > /dev/full."
+      "note": "Failed writes return failure. Dedicated state fixtures cover handle cleanup, output binding and subsequent invocations.",
+      "evidence": "tests/crypto-state.py"
     },
     "rev": {
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
@@ -1379,7 +1922,8 @@
       "evidence": "tests/col-newline-check.sh"
     },
     "split": {
-      "note": "Repeated redirected stdin is fixed; tests/split-check.sh matches GNU piece files across three redirections."
+      "note": "Repeated redirected input has dedicated comparisons; private fixtures also cover piece contents, input aliases and output failures.",
+      "evidence": "tests/split-safety.py"
     },
     "csplit": {
       "note": "Repeated redirected stdin is fixed; tests/csplit-check.sh matches GNU piece files across three redirections."
@@ -1397,13 +1941,15 @@
       "note": "A failed size-report write now returns failure; tests/du-check.sh covers du -b file > /dev/full."
     },
     "mv": {
-      "note": "Moving a file to itself now fails and preserves bytes; tests/mv-check.sh matches GNU."
+      "note": "Self-moves fail without changing bytes. Additional fixtures cover long paths, cross-filesystem moves, modes and injected close/metadata failures.",
+      "evidence": "tests/mv-safety.py"
     },
     "truncate": {
       "note": "Size arithmetic overflow is rejected and existing bytes are preserved; tests/truncate-check.sh matches GNU."
     },
     "cp": {
-      "note": "A forced copy that cannot read its source keeps the existing destination; tests/cp-check.sh matches GNU."
+      "note": "An unreadable source preserves an existing destination. Additional fixtures cover recursive bounds, aliases, metadata and close failures; selected GNU comparisons are mapped in the CSV.",
+      "evidence": "tests/cp-safety.py"
     },
     "zstd": {
       "note": "Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain.",
@@ -1423,20 +1969,20 @@
       "evidence": "loadables/coreutils.c"
     },
     "mktemp": {
-      "note": "`-u` does the filesystem work it is supposed to skip: sh_mktmpfd() runs unconditionally and -u is applied afterwards, so the builtin creates (O_CREAT|O_EXCL) and then unlinks, while GNU and BusyBox only expand the template. The builtin therefore fails where both references succeed whenever the template's directory is not writable.",
-      "next": "Apply -u before sh_mktmpfd so the template is only expanded."
+      "note": "The former -u create-then-unlink defect is fixed: name-only generation leaves the filesystem untouched. The regression also covers ordinary file and directory creation.",
+      "evidence": "tests/mktemp-u-check.sh"
     },
     "passwd": {
-      "note": "`list -l` misparses any record with an empty field: bpw_list_cmd splits with strtok_r(copy, \":\", &save), and strtok_r collapses consecutive delimiters, so fields shift left from the first empty one. bpw_lookup_user uses the same pattern, so the lookup path shares the defect. The benchmark fixture keeps all seven fields populated and must stay that way for its reference to hold.",
-      "next": "Split passwd records on a fixed field count rather than strtok_r."
+      "note": "Empty passwd fields retain their column positions in list and lookup paths; dedicated fixtures cover empty and malformed records. The historical timing fixture remains unchanged.",
+      "evidence": "tests/passwd-fields.py"
     },
     "vi": {
       "note": "After `dd` deletes the buffer's last line the cursor is left on a line that no longer exists, and every later `dd` is a silent no-op returning 0; nvim clamps the cursor and keeps deleting. The benchmark fixture deliberately omits `G` before its dd run: with it the case would have measured one edit instead of 250 while still validating.",
       "next": "Clamp the cursor to the new last line after a delete."
     },
     "dmesg": {
-      "note": "On the BASHDMESG_DEV_KMSG_FILE path, bd_drain() reads into a fixed 8192-byte buffer and silently truncates or drops a record that straddles the boundary.",
-      "next": "Carry the partial record across reads instead of dropping it."
+      "note": "The former split-record loss is fixed. Fixture checks cover records crossing read boundaries and an unterminated final record; device fixtures also exercise input bounds.",
+      "evidence": "tests/dmesg-fixture.py"
     },
     "fstrim": {
       "note": "`-I/--listed-in` reports, and would trim, any path in the list file that merely stat()s; util-linux cross-checks each entry against the live mount table and reports only mounted filesystems. This is why the case is self-timed: there is no output to compare against util-linux, which exits non-zero on the same input."
@@ -1457,6 +2003,30 @@
     },
     "ts": {
       "note": "Capture precedence takes the last matching pattern rather than the most specific: in span mode a JSON object key yields both string.special.key and string, and the renderer paints it with the later, less specific rule."
+    },
+    "git": {
+      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility.",
+      "evidence": "tests/git-integrity.py"
+    },
+    "pkg": {
+      "note": "Index verification uses the same byte buffer that is published. Separate trust and package-publication fixtures cover signature lookup, trust-file failures and install rollback, including sanitizer checks.",
+      "evidence": "loadables/pkg.c"
+    },
+    "vt": {
+      "note": "Dedicated edge fixtures cover drained response cloning, complete combining sequences in diff/scrollback output and bounded CSI numeric parsing.",
+      "evidence": "tests/vt-buf-edges.py"
+    },
+    "buf": {
+      "note": "Dedicated edge fixtures cover reload cleanup and saving through an aliased retained filename.",
+      "evidence": "tests/vt-buf-edges.py"
+    },
+    "expect": {
+      "note": "A continuous-output child cannot extend the whole-wait deadline; the regression uses a private PTY.",
+      "evidence": "tests/expect-timeout.py"
+    },
+    "ptybroker": {
+      "note": "Private PTY fixtures cover broker lifecycle, binary I/O, backpressure and screen attachment. No broad command benchmark is recorded.",
+      "evidence": "tests/ptybroker-io.py"
     }
   },
   "repeat_input_findings": [],
@@ -1486,10 +2056,80 @@
   "graphics_measurement_file": "docs/data/loadable-benchmarks.json",
   "validation": {
     "source_commit": "63cb23df1c3012dde4b07657cc27e4f1e5015b2f",
-    "summary": "This refresh measured the full build at `63cb23d` on one binary: **297 cases covering 248 of 279 loadables**, seven samples each, pinned to one CPU under the shared benchmark lock. 93 loadables are self-timed, having no external program or BusyBox applet that implements them; for those the repeated batch is a determinism check and no ratio is shown. The 31 loadables still without a metric each carry a written blocker rather than an empty row. The measured binary also carries the repeated-input fix: more, less, uuencode, xargs, obj and bsdgames read the persistent stdin stream and left its EOF flag set, so a second in-process invocation read nothing and still exited 0; tests/repeat-input-check.sh is the gate. coreutils nproc now counts the affinity mask as GNU's does, and col terminates its output like util-linux, which is what let col's large text fixture be measured. tests/run.sh was not re-run in full for this refresh."
+    "summary": "At measurement time, the full catalog contained 279 entries: 248 had individual command timings and 31 did not. The batch used seven samples per case, pinned to one CPU under the shared benchmark lock. The measured binary includes repeated-input fixes for more, less, uuencode, xargs, obj and bsdgames, affinity-aware coreutils nproc, and col output termination. The full test harness was not rerun for that measurement batch."
   },
   "assignments": {},
   "untimed_findings_file": "docs/data/loadable-untimed-findings.json",
   "ci_followup": "Historical [CI at 5fde494](https://github.com/itsmygithubacct/bash-os/actions/runs/34214029478) passed all nine jobs on the pre-integration tree. The integrated command measurement at `63cb23d` is later than that CI run.",
-  "pending_integration": {}
+  "pending_integration": {},
+  "inventory_review": {
+    "date": "2026-10-19",
+    "source_commit": "7f2a2416d6a4993c6738aaab322a1cdf0448881e",
+    "validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules.",
+    "focused_checks": [
+      {
+        "name": "Git apply paths",
+        "evidence": "tests/git-apply-paths.py",
+        "result": "10 tests passed, including complete long lines, long cached paths and nested rename strip levels."
+      },
+      {
+        "name": "Git parity",
+        "evidence": "tests/git-parity.py",
+        "result": "414 comparisons across 69 scenarios; 0 problems."
+      },
+      {
+        "name": "Git integrity",
+        "evidence": "tests/git-integrity.py",
+        "result": "209 checks passed."
+      },
+      {
+        "name": "Terminal and buffer edges",
+        "evidence": "tests/vt-buf-edges.py",
+        "result": "4 grouped checks passed, including complete base characters plus 32 combining marks in diff and scrollback output."
+      },
+      {
+        "name": "Package trust",
+        "evidence": "tests/pkg-trust.py",
+        "result": "9 tests passed."
+      },
+      {
+        "name": "Package publication",
+        "evidence": "tests/pkg-safety.py",
+        "result": "5 tests passed."
+      },
+      {
+        "name": "Package sanitizers",
+        "evidence": "tests/pkg-sanitize.sh",
+        "result": "The 9 trust and 5 publication tests passed with AddressSanitizer and UndefinedBehaviorSanitizer."
+      }
+    ],
+    "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
+    "catalog_sha256": "97903e9c62aedaad362b52317849065b915b491f3ca8ab21f770d17b2880d244",
+    "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b"
+  },
+  "optional_integrations": {
+    "bashperl": {
+      "scope": "Embedded Perl; requires an explicit Perl runtime build and package data.",
+      "evidence": [
+        "tests/bashperl.py",
+        "tests/interpreter-cache.py",
+        "tests/bashperl-sanitize.sh"
+      ]
+    },
+    "bashpython": {
+      "scope": "CPython invocation in a child of the shell; requires an explicit interpreter build and standard-library package data.",
+      "evidence": [
+        "tests/bashpython.py",
+        "tests/bashpython-package.py",
+        "tests/interpreter-cache.py"
+      ]
+    },
+    "uv": {
+      "scope": "Frontend to a separately packaged uv executable; fixture tests use a stand-in.",
+      "evidence": [
+        "tests/uv-builtin.py",
+        "tests/fetch-uv.py"
+      ]
+    }
+  }
 }

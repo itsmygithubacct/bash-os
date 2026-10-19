@@ -1,9 +1,12 @@
 # bench — bash-os against busybox and against bash with the GNU userland
 
-The [loadable status table](../docs/loadables-status.md) covers all 280 loadables
-and recommends the next work from correctness checks and individual timings.
+The [loadable status table](../docs/loadables-status.md) covers the 280 full-catalog
+loadables and lists three optional integrations separately. It recommends the
+next work from correctness checks and historical individual timings.
 Its [CSV](../docs/loadables-status.csv) supports filtering by profile and status.
-The current table uses one integrated full build and seven samples per case.
+The inventory and coverage references were reviewed on 2026-10-19. The broad
+timing dataset still describes the 2026-09-12 build at `63cb23d`, with seven
+samples per case; later correctness tests do not refresh those timings.
 The [original measurement](../docs/data/loadable-benchmarks.json) and its
 graphics data retain their separate source and binary provenance.
 Completed input fixes receive timings only after the repeated-call output check passes.
