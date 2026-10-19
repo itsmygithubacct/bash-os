@@ -938,6 +938,14 @@
       "status": "Parity",
       "evidence": "tests/hexdump-check.sh",
       "scope": "Three fresh stdin redirections in one shell are compared with repeated host-command output."
+    },
+    {
+      "names": [
+        "bashlogger"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-bashlogger-socket.py",
+      "scope": "Private AF_UNIX exact-byte priority/tag/PID/message checks; input limits, socket errors, repeated-call descriptor cleanup and intercepted CLOEXEC/exec behavior."
     }
   ],
   "sanitizer_groups": [
@@ -1228,6 +1236,13 @@
       ],
       "evidence": "tests/git-sanitize.sh",
       "scope": "The builtin and its helpers under ASan and UBSan over a scenario shaped to reach the edges: long files changed in many places, binary files, quoted paths, merges, rebases, submodules, worktrees, packing by hand and the protocol both ways."
+    },
+    {
+      "names": [
+        "bashlogger"
+      ],
+      "evidence": "tests/sol-bashlogger-build-fixtures.sh",
+      "scope": "Production sender module under ASan/UBSan with private-socket integration fixtures."
     }
   ],
   "fuzz": {
@@ -2027,6 +2042,11 @@
     "ptybroker": {
       "note": "Private PTY fixtures cover broker lifecycle, binary I/O, backpressure and screen attachment. No broad command benchmark is recorded.",
       "evidence": "tests/ptybroker-io.py"
+    },
+    "bashlogger": {
+      "note": "Private AF_UNIX sender contract and validated 5000-message API workload measured on 2026-10-19. Timing includes shell loop and Python receiver; no external ratio or host daemon/persistence qualification.",
+      "evidence": "docs/sol-bashlogger.md",
+      "next": "Qualify additional logger CLI or daemon integration behavior when required; current API measurement is separate from the historical catalog timings."
     }
   },
   "repeat_input_findings": [],

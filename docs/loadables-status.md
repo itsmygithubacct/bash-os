@@ -181,7 +181,7 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | [`bashio`](../loadables/bashio.c) | D S F | [Bench checked](#case-bashio-pread-hex) | —; Python os.pread/os.pwrite | 13.266 / 417.067 / 119.680; [bashio-pread-hex](#case-bashio-pread-hex), 80 passes; 2 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`bashjson`](../loadables/bashjson.c) | D S F | [Bench checked](#case-bashjson) | —; jq | 35.133 / — / 282.417; [bashjson](#case-bashjson), 67 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`bashkmod`](../loadables/bashkmod.c) | D S F | [Bench checked](#case-bashkmod-aliases) | modprobe; modprobe / insmod / rmmod | 54.468 / — / —; [bashkmod-aliases](#case-bashkmod-aliases), 50 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
-| [`bashlogger`](../loadables/bashlogger.c) | D S F | Build/help | logger; logger | N/M | P3 | Add behavioral fixtures, then timing. |
+| [`bashlogger`](../loadables/bashlogger.c) | D S F | [Contract](../tests/sol-bashlogger-socket.py); [S](../tests/sol-bashlogger-build-fixtures.sh) | logger; logger | N/M | P3 | Qualify additional logger CLI or daemon integration behavior when required; current API measurement is separate from the historical catalog timings. |
 | [`bashmount`](../loadables/bashmount.c) | D S F | [Bench checked](#case-bashmount-findmnt) | mount; mount / umount / findmnt | 63.388 / — / 461.233; [bashmount-findmnt](#case-bashmount-findmnt), 42 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`bashpoll`](../loadables/bashpoll.c) | D S T F | [Contract](../tests/pty-primitives.py) | —; Python selectors / socket | 6.634 / — / —; [bashpoll-wait](#case-bashpoll-wait), 130 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`bashsyslogd`](../loadables/bashsyslogd.c) | D S F | Build/help | syslogd; rsyslogd / syslogd | N/M | P3 | Add behavioral fixtures, then timing. |
@@ -500,6 +500,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | Loadable | Scope / limitation |
 | --- | --- |
 | `ar` | Truncated headers, extract write errors and short member bodies are rejected; tests/ar-check.sh matches GNU 2.44 including /dev/full unlink and archive-link identity. |
+| `bashlogger` | Private AF_UNIX sender contract and validated 5000-message API workload measured on 2026-10-19. Timing includes shell loop and Python receiver; no external ratio or host daemon/persistence qualification. [source](../docs/sol-bashlogger.md) |
 | `bc` | Repeated stdin is fixed. User functions, output-base printing, control flow, comments and file operands remain outside the supported language subset. [source](../docs/bc.md) |
 | `bsdgames` | The headless games read stdin with fgets and now clearerr(stdin) at the builtin entry; before, a second game in the same shell read nothing and exited 0 without playing. [source](../tests/repeat-input-check.sh) |
 | `buf` | Dedicated edge fixtures cover reload cleanup and saving through an aliased retained filename. [source](../tests/vt-buf-edges.py) |

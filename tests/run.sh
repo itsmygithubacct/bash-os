@@ -75,6 +75,7 @@ done
 check network-smoke python3 tests/network-smoke.py out/bash
 check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
+check 'bashlogger private datagrams' python3 tests/sol-bashlogger-socket.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
 check 'terminal and buffer edges' python3 tests/vt-buf-edges.py out/bash
 check 'expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash
@@ -101,6 +102,7 @@ for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams co
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
 check 'static final imports' python3 tests/final-smoke.py out/bash-static
+check 'static bashlogger private datagrams' python3 tests/sol-bashlogger-socket.py out/bash-static
 # The git builtin in the static build, which links its zlib in rather than
 # finding one: a handful of scenarios is enough to see that it reads and
 # writes a repository the same way there.
@@ -130,6 +132,12 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'bashlogger fixture build' bash tests/sol-bashlogger-build-fixtures.sh "$scratch/bashlogger"
+  check 'bashlogger descriptor and send failures' python3 tests/sol-bashlogger-socket.py out/bash \
+    --shim "$scratch/bashlogger/syscalls.so"
+  check 'bashlogger under ASan+UBSan' python3 tests/sol-bashlogger-socket.py out/bash \
+    --module "$scratch/bashlogger/bashlogger-sanitize.so" \
+    --asan-runtime "$(cat "$scratch/bashlogger/libasan.path")"
   check 'core file and stream safety under ASan+UBSan' bash tests/core-io-sanitize.sh out/bash
   check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
   check 'package publication and rollback under ASan+UBSan' bash tests/pkg-sanitize.sh out/bash
