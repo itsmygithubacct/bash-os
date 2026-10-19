@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <math.h>
 
+#define NEED_FPURGE_DECL
 #include "loadables.h"
 
 #define BSDG_DATA_ROOT  "/usr/share/games/bsdgames"
@@ -166,6 +167,12 @@ game_morse (int argc, char **argv)
 }
 
 /* ------------------------------------------------------------ caesar/rot13 */
+static void
+bsdg_caesar_transform (unsigned char *buf, size_t n, const unsigned char map[256])
+{
+    for (size_t i = 0; i < n; i++) buf[i] = map[buf[i]];
+}
+
 static int
 caesar_filter (int shift)
 {
@@ -186,7 +193,7 @@ caesar_filter (int shift)
             size_t n = fread (buf, 1, sizeof buf, stdin);
             int read_errno = errno;
             QUIT;
-            for (size_t i = 0; i < n; i++) buf[i] = map[buf[i]];
+            bsdg_caesar_transform (buf, n, map);
             if (n && fwrite (buf, 1, n, stdout) != n) goto write_error;
             if (ferror (stdin)) {
                 if (read_errno == EINTR) { clearerr (stdin); continue; }
@@ -228,10 +235,14 @@ caesar_text (const char *s, int shift)
         int c = (unsigned char) *s;
         if (c >= 'a' && c <= 'z') c = 'a' + (c - 'a' + shift) % 26;
         else if (c >= 'A' && c <= 'Z') c = 'A' + (c - 'A' + shift) % 26;
-        putchar (c);
+        if (putchar (c) == EOF) goto write_error;
     }
-    putchar ('\n');
+    if (putchar ('\n') == EOF || fflush (stdout) == EOF) goto write_error;
     return EXECUTION_SUCCESS;
+
+write_error:
+    builtin_error ("write error: %s", strerror (errno));
+    return EXECUTION_FAILURE;
 }
 static int
 game_caesar (int argc, char **argv)
@@ -25283,6 +25294,28 @@ static const game_ent GAMES[] = {
 };
 static const int NGAMES = (int) (sizeof GAMES / sizeof GAMES[0]);
 
+/* stdin's FILE survives Bash redirections. Retain read-ahead only while the
+ * underlying input is the same stream; an early game exit must not leak its
+ * buffered commands into a different file or pipe on the next invocation. */
+static int
+bsdg_prepare_stdin (void)
+{
+    static struct stat previous;
+    static int have_previous;
+    struct stat current;
+    int have_current = fstat (STDIN_FILENO, &current) == 0;
+
+    if (!have_current || (have_previous &&
+        (current.st_dev != previous.st_dev || current.st_ino != previous.st_ino ||
+         current.st_rdev != previous.st_rdev ||
+         (current.st_mode & S_IFMT) != (previous.st_mode & S_IFMT))))
+        fpurge (stdin);
+    if (have_current) previous = current;
+    have_previous = have_current;
+    clearerr (stdin);
+    return have_current && S_ISREG (current.st_mode);
+}
+
 static const game_ent *
 find_game (const char *name)
 {
@@ -25312,10 +25345,7 @@ int
 bsdgames_builtin (WORD_LIST *list)
 {
     if (!list) { builtin_error ("subcommand or game required (try list)"); return EX_USAGE; }
-    /* The headless games read stdin with fgets. A builtin does not fork, so a
-       stale EOF flag from a previous invocation would make the next game read
-       nothing and exit 0 without playing. */
-    clearerr (stdin);
+    int regular_input = bsdg_prepare_stdin ();
     const char *cmd = list->word->word;
 
     if (!strcmp (cmd, "--help") || !strcmp (cmd, "-h")) { builtin_usage (); return EXECUTION_SUCCESS; }
@@ -25344,6 +25374,13 @@ bsdgames_builtin (WORD_LIST *list)
     if (!argv) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
     int rr = g->fn (argc, argv);
     free (argv);
+    /* POSIX input fflush rewinds unread bytes on seekable files before Bash
+       restores fd 0. This also handles reopening the very same inode. Pipes
+       keep their read-ahead for the next game sharing that stream. */
+    if (regular_input && fflush (stdin) == EOF) {
+        builtin_error ("input sync error: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
     return rr;
 }
 
