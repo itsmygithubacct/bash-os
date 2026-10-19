@@ -5,6 +5,7 @@ No compiler or external command is run by a peer (PATH is empty). This module
 also supplies the same validated fixture to bench/sol-cluster.py.
 """
 import argparse
+import concurrent.futures
 import contextlib
 import hashlib
 import os
@@ -294,6 +295,77 @@ def test_failures(binary):
     print('PASS key mismatch/invalid input/timeout/nonprotocol/bind collision/malformed packets/expiry/seed disconnect/stale recovery')
 
 
+def test_child_ownership(binary):
+    with tempfile.TemporaryDirectory(prefix='sol-cluster-child-') as tmp, peers(binary, tmp, count=2) as (a,b):
+        a.init()
+        # The service must not inherit the guard's temporary SIGCHLD block.
+        def blocked(pid):
+            return next(line for line in Path(f'/proc/{pid}/status').read_text().splitlines()
+                        if line.startswith('SigBlk:'))
+        assert not (int(blocked(a.info['listener_pid']).split()[1], 16) & (1 << (signal.SIGCHLD-1)))
+        original_mask = blocked(b.proc.pid)
+        fifo = Path(tmp)/'wake'; os.mkfifo(fifo)
+        b.call(f'exec {{wake}}<> {shlex.quote(str(fifo))}; chld_count=0; '
+               "trap '((chld_count+=1))' CHLD; "
+               '(read -r -t 20 -u "$wake"; exit 41) & survivor=$!')
+        survivor = int(b.call('printf "%s" "$survivor"'))
+        trap = b.call('trap -p CHLD')
+        wrong = Path(tmp)/'wrong'; wrong.write_text('ab'*32+'\n')
+        for attempt in range(6):
+            # This unrelated Bash job exits while the listener waits for a bad MAC.
+            b.call('(read -r -t 0.02 -u "$wake"; exit 37) & completed=$!')
+            b.command('join', a.endpoint, '-k', wrong, rc=1, timeout=1)
+            b.call('wait "$completed"', rc=37)
+            assert b.call('trap -p CHLD') == trap
+            assert blocked(b.proc.pid) == original_mask
+            b.call('kill -0 "$survivor"; [[ $chld_count -gt 0 ]]')
+            assert b.status()['state'] == 'uninitialized'
+            assert sorted(p.name for p in b.directory.iterdir()) == ['lock']
+        # Persistence failure sends readiness=0 and exits immediately, racing
+        # the parent's failure cleanup. A directory cannot be renamed over.
+        (b.directory/'members').mkdir()
+        b.command('init','-p',0,rc=1)
+        (b.directory/'members').rmdir()
+        # Also exercise readiness EOF before any response, with an owned child
+        # killed during its real handshake. Never signal a PID from state.
+        with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as silent:
+            silent.bind(('127.0.0.1',0))
+            endpoint=f'127.0.0.1:{silent.getsockname()[1]}'
+            children = Path(f'/proc/{b.proc.pid}/task/{b.proc.pid}/children')
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as worker:
+                pending = worker.submit(b.command, 'join', endpoint, '-k', a.directory/'private_key', rc=1)
+                end = time.monotonic()+1
+                while True:
+                    owned = set(map(int,children.read_text().split())) - {survivor}
+                    if owned:
+                        assert len(owned) == 1, owned
+                        os.kill(owned.pop(),signal.SIGKILL)
+                        break
+                    assert not pending.done() and time.monotonic() < end
+                    time.sleep(.001)
+                pending.result(timeout=2)
+            # A forged on-disk PID must not be used by stale recovery.
+            for name,value in (('listener_pid',str(survivor)),('cluster_id',a.info['cluster_id']),
+                               ('node_id','1'*32),('port',str(silent.getsockname()[1]))):
+                (b.directory/name).write_text(value+'\n')
+            (b.directory/'private_key').write_bytes((a.directory/'private_key').read_bytes())
+            b.command('leave')
+        assert b.call('trap -p CHLD') == trap
+        assert blocked(b.proc.pid) == original_mask
+        b.call('kill -0 "$survivor"')
+        b.init()
+        assert b.command('ping',b.endpoint) == f'ok {b.endpoint}\n'
+        assert b.call('trap -p CHLD') == trap
+        b.call('kill -0 "$survivor"')
+        b.command('leave')
+        # Wake and reap our unrelated job normally; its original status survives.
+        b.call('printf "wake\\n" >&"$wake"; wait "$survivor"',rc=41)
+        b.call('[[ $chld_count -gt 0 ]]; exec {wake}>&-; trap - CHLD')
+        b.init(); b.command('leave')
+        eventually(lambda: not children.read_text().strip())
+    print('PASS guarded failure/readiness EOF/child exit/SIGCHLD trap/unrelated jobs+statuses/masks/forged state PID')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path)
@@ -301,6 +373,7 @@ def main():
     binary=args.binary.resolve(strict=True)
     test_membership(binary)
     test_failures(binary)
+    test_child_ownership(binary)
     print('sol-cluster: all real membership checks passed')
 
 

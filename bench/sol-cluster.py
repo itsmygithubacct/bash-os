@@ -18,6 +18,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,43 @@ def wait_roster(peers, expected, timeout=2):
         time.sleep(.001)
 
 
+class LossRelay:
+    """Owned transparent UDP relay; drop exactly every fourth ping request."""
+    def __init__(self, target):
+        host,port=target.split(':'); self.target=(host,int(port))
+        self.sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+        self.sock.bind(('127.0.0.1',0)); self.sock.settimeout(.05)
+        self.endpoint=f'127.0.0.1:{self.sock.getsockname()[1]}'
+        self.requests=0; self.drops=0; self.replies=0; self.error=None
+        self.stop=threading.Event()
+        self.thread=threading.Thread(target=self.serve)
+
+    def serve(self):
+        client=None
+        try:
+            while not self.stop.is_set():
+                try: data,address=self.sock.recvfrom(2048)
+                except socket.timeout: continue
+                if address==self.target:
+                    assert client is not None
+                    self.sock.sendto(data,client); self.replies+=1
+                else:
+                    assert len(data)==1212 and data[8]==4
+                    self.requests+=1
+                    if self.requests%4==0: self.drops+=1
+                    else:
+                        client=address; self.sock.sendto(data,self.target)
+        except Exception as error:
+            self.error=repr(error)
+
+    def __enter__(self):
+        self.thread.start(); return self
+
+    def __exit__(self,*unused):
+        self.stop.set(); self.thread.join(timeout=1); self.sock.close()
+        assert not self.thread.is_alive() and self.error is None, self.error
+
+
 def streaming(binary, before_binary, output, runs):
     """Same historical roster; validate every byte on every timed batch."""
     rows = ['node-%05d-0000-4000-8000-000000000000 10.%d.%d.%d:5450 '
@@ -52,6 +90,9 @@ def streaming(binary, before_binary, output, runs):
                   fixture_sha256=hashlib.sha256(expected).hexdigest(), passes=passes, runs=runs,
                   warmup_samples=1, cpus=sorted(os.sched_getaffinity(0)), kernel=platform.release(),
                   source_sha256=sha(ROOT/'loadables/cluster.c'),
+                  before_source_sha256=os.environ.get('BASHOS_CLUSTER_BEFORE_SOURCE_SHA256'),
+                  harness_sha256=sha(__file__), python=sys.version,
+                  bash_version=subprocess.check_output([binary,'--version'],text=True).splitlines()[0],
                   source_tree_dirty=bool(subprocess.check_output(['git','status','--porcelain'], cwd=ROOT)),
                   work_unit='40 complete streams of the same 20,000-row roster per batch',
                   method='wall time including shell startup and private file capture; exact per-pass bytes checked outside each timer; warm page cache; rotating order',
@@ -116,6 +157,7 @@ def main():
                    key='generated 256-bit shared key; unique nodes and ephemeral ports each fixture',
                    reset='third peer leaves before each join; verify 3-member add and 2-member remove on seed and observer',
                    oracle='exact node->endpoint map constructed from independent peer statuses; all ping lines and statuses checked')
+    fixture['loss_relay']='12 sequential pings per sample; forward to real leaf except every fourth request is dropped; independently count 12 requests, 9 replies and 3 drops'
     report = dict(schema=1, kind='api', external_reference=None, ratio=None,
                   binary=str(binary), binary_sha256=sha(binary),
                   source_commit=subprocess.check_output(['git','rev-parse','HEAD'], text=True, cwd=ROOT).strip(),
@@ -131,7 +173,7 @@ def main():
                   method='perf_counter_ns wall time; fixed pinned CPU inherited by all peers; join and ping exclude shell startup; updates include polling and snapshot IO; no external ratio',
                   cases={name: dict(samples_ms=[], operations_ms=[], attempts=0, successes=0,
                                     unexpected_timeouts=0, failures=0, expected_timeouts=0, errors=[])
-                         for name in ('join','ping','membership-add','membership-remove','ping-blackhole')})
+                         for name in ('join','ping','membership-add','membership-remove','ping-blackhole','ping-loss')})
     report['versions'] = {'compiler': subprocess.check_output(['cc','--version'], text=True).splitlines()[0]}
     def record(name, elapsed, operations, warmup):
         if not warmup:
@@ -188,6 +230,24 @@ def main():
                     if not warmup:
                         row=report['cases']['ping-blackhole']; row['samples_ms'].append(elapsed)
                         row['attempts']+=1; row['expected_timeouts']+=1
+                with LossRelay(b.endpoint) as relay:
+                    durations=[]
+                    for index in range(12):
+                        dropped=(index+1)%4==0
+                        started=time.perf_counter_ns()
+                        output=a.command('ping',relay.endpoint,rc=1 if dropped else 0,timeout=1)
+                        elapsed=(time.perf_counter_ns()-started)/1e6
+                        if dropped:
+                            assert 'timed out' in output and 150 <= elapsed < 900, (output,elapsed)
+                        else:
+                            assert output==f'ok {relay.endpoint}\n',output
+                        durations.append(elapsed)
+                    assert (relay.requests,relay.replies,relay.drops)==(12,9,3)
+                    if not warmup:
+                        row=report['cases']['ping-loss']
+                        row['samples_ms'].append(sum(durations)); row['operations_ms'].extend(durations)
+                        row['attempts']+=12; row['successes']+=9; row['expected_timeouts']+=3
+                        row.setdefault('relay_counts',[]).append(dict(requests=relay.requests,replies=relay.replies,drops=relay.drops))
                 assert f.roster_is((a,b),base)
         for name,row in report['cases'].items():
             row['status']='ok'
@@ -195,6 +255,7 @@ def main():
             row['min_batch_ms']=min(row['samples_ms']); row['max_batch_ms']=max(row['samples_ms'])
             row['work_unit'] = (f'{args.pings} authenticated request/reply pings' if name=='ping' else
                                 'one deliberately unanswered authenticated ping' if name=='ping-blackhole' else
+                                '12 authenticated pings via owned relay; 9 forwarded, 3 deliberately dropped requests' if name=='ping-loss' else
                                 f'{args.joins} validated {name} transitions with 2 persistent peers')
             row['request_loss'] = row['attempts'] - row['successes']
             row['request_loss_rate'] = row['request_loss'] / row['attempts']

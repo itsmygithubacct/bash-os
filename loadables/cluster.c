@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include "loadables.h"
+#include "child-wait.h"
 #include "_monocypher_monocypher.h"
 
 #define BC_MAX 32
@@ -548,11 +549,20 @@ bc_start (bc_state *s, WORD_LIST *args, int seed)
   }
   if (pipe2 (pipefd, O_CLOEXEC)) goto fail;
   fflush (NULL);
+  bos_child_wait waiting;
+  if (bos_child_wait_begin (&waiting) < 0) {
+    close (pipefd[0]); close (pipefd[1]); goto fail;
+  }
   pid_t owner = getpid ();
   child = fork ();
-  if (child == 0) { close (pipefd[0]); bc_service (s, pipefd[1], owner); }
+  if (child == 0) {
+    bos_child_wait_child (&waiting);
+    close (pipefd[0]); bc_service (s, pipefd[1], owner);
+  }
   close (pipefd[1]);
-  if (child < 0) { close (pipefd[0]); goto fail; }
+  if (child < 0) {
+    close (pipefd[0]); bos_child_wait_end (&waiting); goto fail;
+  }
   close (s->fd); s->fd = -1; close (s->lock); s->lock = -1;
   struct pollfd pfd = { pipefd[0], POLLIN, 0 };
   char result = 0;
@@ -561,10 +571,17 @@ bc_start (bc_state *s, WORD_LIST *args, int seed)
   if (polled > 0) { if (read (pipefd[0], &result, 1) != 1) result = 0; }
   close (pipefd[0]);
   if (result != '1') {
-    /* This is the child just forked here, never a PID taken from disk. */
-    kill (child, SIGTERM); waitpid (child, NULL, 0);
+    /* SIGCHLD is still blocked with default disposition: Bash cannot have
+       reaped this raw child, so even an exited child's PID remains ours.
+       Never derive a signal target from a state file. */
+    kill (child, SIGTERM);
+    while (waitpid (child, NULL, 0) < 0 && errno == EINTR) {}
+    bos_child_wait_end (&waiting);
     builtin_error ("membership handshake failed or timed out"); return EXECUTION_FAILURE;
   }
+  /* A successful service stays alive; release pending unrelated job signals
+     back to Bash with its original handler and mask restored. */
+  bos_child_wait_end (&waiting);
   if (bc_read (s, "cluster_id", s->cluster, sizeof s->cluster)) return EXECUTION_FAILURE;
   printf ("%s\ncluster_id=%s\nnode_id=%s\nport=%d\nlistener_pid=%ld\n",
           seed ? "initialized" : "joined", s->cluster, s->node, s->port, (long)child);

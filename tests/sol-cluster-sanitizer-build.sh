@@ -12,6 +12,7 @@ cc -shared -fPIC -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined \
   -Wl,-Bsymbolic -DHAVE_CONFIG_H -DSHELL \
   -I"$source_tree" -I"$source_tree/include" -I"$source_tree/lib" \
   -I"$source_tree/builtins" -I"$source_tree/examples/loadables" \
+  -I"$root/loadables/common" \
   "$root/loadables/cluster.c" "$root/loadables/_monocypher/monocypher.c" \
   -o "$destination/cluster-sanitized.so"
 cc -print-file-name=libasan.so > "$destination/asan-runtime.txt"
