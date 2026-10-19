@@ -1229,8 +1229,13 @@ bp_signify_revoked (const unsigned char *keynum)
     return revoked;
 }
 
+/* Check SIG against these bytes. 1 if the signature file is absent, 0 if
+   these bytes verify, -1 on any other failure. Callers that already hold
+   the bytes must use this: reopening the path can verify a different
+   snapshot from the one that is published. */
 static int
-bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
+bp_verify_bytes_with_sig (const unsigned char *data, size_t len,
+                          const char *sig, const char *what)
 {
     struct stat st;
     if (stat (sig, &st) < 0) {
@@ -1244,20 +1249,38 @@ bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
         bp_signify_trusted_key (signature + 2, key) < 0 ||
         bp_signify_revoked (signature + 2))
         return -1;
+    const unsigned char *message = data ? data : (const unsigned char *) "";
+    int bad = crypto_ed25519_check (signature + 10, key, message, len);
+    if (bad)
+        builtin_error ("%s does not match its signature %s", what, sig);
+    return bad ? -1 : 0;
+}
+
+static int
+bp_verify_signature_with_sig (const char *pkgfile, const char *sig)
+{
     bp_buf message = {0};
     int fd = open (pkgfile, O_RDONLY | O_CLOEXEC);
     if (fd < 0 || bp_read_all_fd (fd, &message) < 0) {
+        /* A missing signature is still "unsigned", even when the package
+           cannot be read. Inspect it before reporting the read error. */
+        struct stat st;
+        int saved = errno;
+        if (stat (sig, &st) < 0 && errno == ENOENT) {
+            if (fd >= 0) close (fd);
+            bp_buf_free (&message);
+            return 1;
+        }
+        errno = saved;
         builtin_error ("cannot read %s: %s", pkgfile, strerror (errno));
         if (fd >= 0) close (fd);
         bp_buf_free (&message);
         return -1;
     }
     close (fd);
-    int bad = crypto_ed25519_check (signature + 10, key, message.data, message.len);
+    int rc = bp_verify_bytes_with_sig (message.data, message.len, sig, pkgfile);
     bp_buf_free (&message);
-    if (bad)
-        builtin_error ("%s does not match its signature %s", pkgfile, sig);
-    return bad ? -1 : 0;
+    return rc;
 }
 
 static int
@@ -4091,7 +4114,16 @@ bp_update_copy_index (const char *src_idx, const char *src_pkgdir,
         bp_buf_free (&idx_body);
         return -1;
     }
-    int sigrc = bp_verify_signature (src_idx);
+    /* Verify the bytes just read. bp_verify_signature would open the path
+       again and could accept a different snapshot from the one written. */
+    char sigpath[BPKG_PATH_MAX];
+    if (snprintf (sigpath, sizeof sigpath, "%s.sig", src_idx) >=
+        (int) sizeof sigpath) {
+        bp_buf_free (&idx_body);
+        return -1;
+    }
+    int sigrc = bp_verify_bytes_with_sig (idx_body.data, idx_body.len,
+                                          sigpath, src_idx);
     if (sigrc < 0) {
         builtin_error ("signature verification failed for %s", src_idx);
         bp_buf_free (&idx_body);
