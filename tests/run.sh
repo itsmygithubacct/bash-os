@@ -86,6 +86,7 @@ check ptybroker-io python3 tests/ptybroker-io.py --bash out/bash
 check screen-broker python3 tests/screen-broker.py --bash out/bash
 check pty-primitives python3 tests/pty-primitives.py out/bash
 check large-smoke python3 tests/large-smoke.py out/bash
+check 'bsdgames byte and stream contracts' python3 tests/sol-bsdgames-contracts.py out/bash
 check helper-smoke python3 tests/helper-smoke.py out/bash
 check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
@@ -105,6 +106,7 @@ done
 check 'static final imports' python3 tests/final-smoke.py out/bash-static
 check 'static bashlogger private datagrams' python3 tests/sol-bashlogger-socket.py out/bash-static
 check 'static bashsyslogd private routing' python3 tests/sol-bashsyslogd-check.py out/bash-static
+check 'static bsdgames byte and stream contracts' python3 tests/sol-bsdgames-contracts.py out/bash-static
 # The git builtin in the static build, which links its zlib in rather than
 # finding one: a handful of scenarios is enough to see that it reads and
 # writes a repository the same way there.
@@ -156,6 +158,11 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
     --allocation-module "$scratch/bashsyslogd/bashsyslogd-alloc-sanitize.so" \
     --asan "$(cat "$scratch/bashsyslogd/libasan.path")"
   check 'core file and stream safety under ASan+UBSan' bash tests/core-io-sanitize.sh out/bash
+  check 'bsdgames fixture build' env BASHOS_TASK_DIR="$scratch/bsdgames" bash tests/sol-bsdgames-build.sh
+  check 'bsdgames under ASan+UBSan' env \
+    BSDGAMES_LOAD_ENV="$scratch/bsdgames/load-sanitize.sh" \
+    BSDGAMES_ASAN_LIB="$(cat "$scratch/bsdgames/asan-library.txt")" \
+    python3 tests/sol-bsdgames-contracts.py out/bash
   check 'Debian command parity under ASan+UBSan' bash tests/debian-sanitize.sh out/bash
   check 'package publication and rollback under ASan+UBSan' bash tests/pkg-sanitize.sh out/bash
   check 'paste and uniq under ASan+UBSan' bash tests/paste-uniq-sanitize.sh out/bash

@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${BASHOS_TASK_DIR:?set an evidence/artifact directory}"
+mkdir -p "$BASHOS_TASK_DIR"
 source config/versions.sh
 bt="build/bash-$BASH_SRC_VERSION"
 cc=${CC:-cc}

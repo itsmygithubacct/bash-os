@@ -962,6 +962,14 @@
       "status": "Contract",
       "evidence": "tests/sol-bashsyslogd-check.py",
       "scope": "Owned AF_UNIX daemon: exact facility routing, append/mode/config/reload, once, collisions, bounded queue forwarding/recovery/drop accounting, malformed input, output failures, signal/FD restoration and socket/temp cleanup; injected queue allocation failure preserves records."
+    },
+    {
+      "names": [
+        "bsdgames"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-bsdgames-contracts.py",
+      "scope": "Exact GNU tr ROT13 byte parity, explicit Caesar shifts, persistent file/pipe streams, private PTYs, representative deterministic games, read/write failures and descriptor cleanup; not full upstream game conformance."
     }
   ],
   "sanitizer_groups": [
@@ -1273,6 +1281,13 @@
       ],
       "evidence": "tests/sol-bashsyslogd-build-fixtures.sh",
       "scope": "Production daemon modules under ASan/UBSan, including private routing, send/rewrite failures and queue allocation recovery."
+    },
+    {
+      "names": [
+        "bsdgames"
+      ],
+      "evidence": "tests/sol-bsdgames-build.sh",
+      "scope": "Production module under ASan/UBSan, with the focused byte, stream, game and error contracts."
     }
   ],
   "fuzz": {
@@ -2043,8 +2058,9 @@
       "evidence": "tests/repeat-input-check.sh"
     },
     "bsdgames": {
-      "note": "The headless games read stdin with fgets and now clearerr(stdin) at the builtin entry; before, a second game in the same shell read nothing and exited 0 without playing.",
-      "evidence": "tests/repeat-input-check.sh"
+      "note": "ROT13 and explicit Caesar shifts have exact byte and persistent-stream fixtures. Argument output errors and stale read-ahead after early game exits are fixed. Current seven-sample historical workload measures 5.729 ms builtin / 8.600 ms GNU tr (0.666x); the historical slowdown does not reproduce on the current build. Only regular-file throughput is measured; representative adapter contracts do not establish full upstream game parity. Historical timing data remains unchanged.",
+      "evidence": "docs/sol-bsdgames.md",
+      "next": "Qualify other game adapters and pipe/TTY throughput if required."
     },
     "ts": {
       "note": "Capture precedence takes the last matching pattern rather than the most specific: in span mode a JSON object key yields both string.special.key and string, and the renderer paints it with the later, less specific rule."
