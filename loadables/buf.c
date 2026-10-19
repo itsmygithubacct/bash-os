@@ -685,10 +685,16 @@ bb_load_cmd (WORD_LIST *args)
     /* Free existing lines and release any prior mapping / checkpoint index.
        In the paged state b->lines is NULL (n_lines is the total), so guard the
        per-line free on the array pointer. */
+    /* Drop the previous record array, not only its line bytes. Leaving
+       the array in place with dangling data pointers made a later free
+       release those bytes a second time. A paged buffer has no array. */
     if (b->lines) {
         for (size_t i = 0; i < b->n_lines; i++) free (b->lines[i].data);
+        free (b->lines);
+        b->lines = NULL;
     }
     b->n_lines = 0;
+    b->capacity = 0;
     free (b->ckpt); b->ckpt = NULL; b->n_ckpt = 0; b->paged = 0;
     if (b->map_base) { munmap (b->map_base, b->map_size); b->map_base = NULL; b->map_size = 0; }
 
@@ -912,8 +918,17 @@ bb_save_cmd (WORD_LIST *args)
             close (dfd);
         }
     }
-    free (b->filename);
-    b->filename = strdup (path);
+    /* path aliases b->filename when save is asked to keep the current
+       name. Freeing that string and then copying it reads freed memory. */
+    if (path != b->filename) {
+        char *copy = strdup (path);
+        if (!copy) {
+            builtin_error ("save: strdup");
+            return EXECUTION_FAILURE;
+        }
+        free (b->filename);
+        b->filename = copy;
+    }
     b->dirty = 0;
     return EXECUTION_SUCCESS;
 }
