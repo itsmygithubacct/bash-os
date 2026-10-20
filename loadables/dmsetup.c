@@ -182,16 +182,20 @@ dms_cmd_name (unsigned long req, uint32_t flags)
     return "unknown";
 }
 
+static void
+dms_report_open_error (int error)
+{
+    fprintf (stderr, "%s: open failed: %s\n", DMS_CONTROL, strerror (error));
+    fputs ("Failure to communicate with kernel device-mapper driver.\n", stderr);
+    if (error == EACCES || error == EPERM)
+        fputs ("Check that device-mapper is available in the kernel and you have permission.\n", stderr);
+}
+
 static int
 dms_open_control (int quiet)
 {
     int fd = open (DMS_CONTROL, O_RDWR | O_CLOEXEC);
-    if (fd < 0 && !quiet) {
-        fprintf (stderr, "%s: open failed: %s\n", DMS_CONTROL, strerror (errno));
-        fputs ("Failure to communicate with kernel device-mapper driver.\n", stderr);
-        if (errno == EACCES || errno == EPERM)
-            fputs ("Check that device-mapper is available in the kernel and you have permission.\n", stderr);
-    }
+    if (fd < 0 && !quiet) dms_report_open_error (errno);
     return fd;
 }
 
@@ -790,7 +794,13 @@ static int
 dms_ls_cmd (const struct dms_opts *o)
 {
     int fd = dms_open_control (1);
-    if (fd < 0) return o->target ? (dms_open_control (0), EXECUTION_FAILURE) : dms_sysfs_list (0);
+    if (fd < 0) {
+        if (o->target) {
+            dms_report_open_error (errno);
+            return EXECUTION_FAILURE;
+        }
+        return dms_sysfs_list (0);
+    }
     struct dm_ioctl *io = dms_list (fd);
     int rc = EXECUTION_FAILURE, count = 0;
     if (io) {
@@ -1370,7 +1380,10 @@ dms_dispatch (const struct dms_opts *o)
     if (!strcmp (verb, "info")) {
         int fd = dms_open_control (1);
         if (fd < 0) {
-            if (o->npos > 1 || o->uuid) return dms_open_control (0), EXECUTION_FAILURE;
+            if (o->npos > 1 || o->uuid) {
+                dms_report_open_error (errno);
+                return EXECUTION_FAILURE;
+            }
             return dms_sysfs_list (1);
         }
         int rc;

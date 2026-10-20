@@ -126,7 +126,18 @@ of the 344 checks it reaches. A pre-change `create` with a multi-line table
 cannot produce the expected request sequence, so a few sections abort, and
 each counts as one failure.
 
-## Measurements (syscall-shim)
+The expanded suite passes 497 checks normally and under ASan/UBSan. It also
+covers a control open that fails once and would succeed on retry: named/UUID
+`info` and target-filtered `ls` now report the original error without reopening
+the device or leaking a descriptor. Fixed-header string and alignment checks
+are validated against the current source, rather than the older saved binary.
+
+## Historical measurements (syscall-shim)
+
+The numbers below measured commit `69736201678c3abfe3ccf88755d69007b63c1319`.
+They predate the response-validation and control-open corrections and do not
+measure the corrected implementation. A fresh gated run is required before
+claiming current performance.
 
 `bench/opus-dmsetup.py` times whole `bash -c` processes. Each process runs a
 fixed loop of dmsetup calls against the fixture. Every pass, warm-up

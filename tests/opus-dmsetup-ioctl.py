@@ -490,6 +490,12 @@ def t_malformed_responses(fx):
 
 def t_permissions(fx):
     print("== permission and open failures ==")
+    for script in ("dmsetup info alpha", "dmsetup info -u UUID-BETA", "dmsetup ls --target zero"):
+        r = fx.run(script, STATE, env={"DMSFIX_OPEN_ERRNO": "13", "DMSFIX_OPEN_ONCE": "1"})
+        check(r.rc == 1 and "Permission denied" in r.err,
+              f"{script}: original open failure diagnosed", r.err)
+        check(r.stats.get("opens") == 1 and r.stats.get("open_now") == 0,
+              f"{script}: diagnostic never reopens control", str(r.stats))
     r = fx.run("dmsetup table alpha", STATE, env={"DMSFIX_OPEN_ERRNO": "13"})
     check(r.rc == 1 and "/dev/mapper/control: open failed: Permission denied" in r.err, "EACCES on open", r.err)
     r = fx.run("dmsetup remove alpha", STATE, env={"DMSFIX_OPEN_ERRNO": "13"})

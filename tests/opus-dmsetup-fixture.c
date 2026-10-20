@@ -207,7 +207,7 @@ ctl_open (int flags)
 {
     const char *e = getenv ("DMSFIX_OPEN_ERRNO");
     n_opens++;
-    if (e) {
+    if (e && (!getenv ("DMSFIX_OPEN_ONCE") || n_opens == 1)) {
         if (logf) fprintf (logf, "open errno=%s\n", e);
         errno = atoi (e);
         return -1;
