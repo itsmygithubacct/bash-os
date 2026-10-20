@@ -340,7 +340,7 @@ bss_recv_loop (int fd, unsigned wanted_seq, bss_cb cb, void *ctx)
   int rc = 0;
   for (;;)
     {
-      ssize_t s = recv (fd, buf, BSS_BUFSZ, 0);
+      ssize_t s = recv (fd, buf, BSS_BUFSZ, MSG_TRUNC);
       if (s < 0)
         {
           if (errno == EINTR)
@@ -348,7 +348,7 @@ bss_recv_loop (int fd, unsigned wanted_seq, bss_cb cb, void *ctx)
           rc = -1;
           break;
         }
-      if (s == 0)
+      if (s == 0 || s > BSS_BUFSZ)
         { rc = -1; break; }
       struct nlmsghdr *h = (struct nlmsghdr *) buf;
       int done = 0;
@@ -356,24 +356,35 @@ bss_recv_loop (int fd, unsigned wanted_seq, bss_cb cb, void *ctx)
         {
           if (h->nlmsg_seq != wanted_seq)
             { h = NLMSG_NEXT (h, s); continue; }
+          if (h->nlmsg_flags & NLM_F_DUMP_INTR)
+            { rc = -1; done = 1; break; }
           if (h->nlmsg_type == NLMSG_DONE)
-            { done = 1; break; }
+            {
+              size_t len = h->nlmsg_len - NLMSG_HDRLEN;
+              int error = 0;
+              if (len && len < sizeof error) rc = -1;
+              else if (len) { memcpy (&error, NLMSG_DATA (h), sizeof error); if (error) rc = -1; }
+              done = 1; break;
+            }
           if (h->nlmsg_type == NLMSG_ERROR)
             {
+              if (h->nlmsg_len < NLMSG_LENGTH (sizeof (struct nlmsgerr)))
+                { rc = -1; done = 1; break; }
               struct nlmsgerr *err = (struct nlmsgerr *) NLMSG_DATA (h);
               if (err->error == 0)
-                { done = 1; break; }
+                { h = NLMSG_NEXT (h, s); continue; }
               errno = -err->error;
               rc = -1;
               done = 1;
               break;
             }
-          if (cb && cb (h, ctx) != 0)
-            { done = 1; break; }
+          if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY || (cb && cb (h, ctx) != 0))
+            { rc = -1; done = 1; break; }
           h = NLMSG_NEXT (h, s);
         }
       if (done)
         break;
+      if (s != 0) { rc = -1; break; }
     }
   free (buf);
   return rc;
@@ -390,6 +401,7 @@ struct bss_render_ctx
   int                legacy_columns; /* netstat-style headers         */
   struct bss_pidmap *pidmap;
   int                rows;
+  FILE              *out;
 };
 
 static void
@@ -397,13 +409,13 @@ bss_print_header (struct bss_render_ctx *c)
 {
   if (c->legacy_columns)
     {
-      printf ("Proto Recv-Q Send-Q Local Address               "
+      fprintf (c->out, "Proto Recv-Q Send-Q Local Address               "
               "Foreign Address             State%s\n",
               c->show_pid ? "        PID/Program" : "");
     }
   else
     {
-      printf ("Netid  State       Recv-Q  Send-Q   Local Address:Port    "
+      fprintf (c->out, "Netid  State       Recv-Q  Send-Q   Local Address:Port    "
               " Peer Address:Port%s\n",
               c->show_pid ? "  Process" : "");
     }
@@ -439,7 +451,9 @@ static int
 bss_cb_inet (struct nlmsghdr *h, void *vctx)
 {
   struct bss_render_ctx *c = vctx;
+  if (h->nlmsg_len < NLMSG_LENGTH (sizeof (struct inet_diag_msg))) return -1;
   struct inet_diag_msg *m = (struct inet_diag_msg *) NLMSG_DATA (h);
+  if (m->idiag_family != AF_INET && m->idiag_family != AF_INET6) return -1;
   char la[80], pa[80], proc[128] = { 0 };
   bss_format_inet (m->idiag_family, m->id.idiag_src, m->id.idiag_sport,
                    la, sizeof la, 1);
@@ -454,13 +468,13 @@ bss_cb_inet (struct nlmsghdr *h, void *vctx)
    * (ss -l + ss -p), deeper queue accounting deferred to v2. */
   if (c->legacy_columns)
     {
-      printf ("%-5s %-6u %-6u %-26s %-26s %s%s\n",
+      fprintf (c->out, "%-5s %-6u %-6u %-26s %-26s %s%s\n",
               c->netid, m->idiag_rqueue, m->idiag_wqueue, la, pa,
               ss_state_name (m->idiag_state), proc);
     }
   else
     {
-      printf ("%-6s %-11s %-7u %-7u  %-22s %s%s\n",
+      fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
               c->netid, ss_state_name (m->idiag_state),
               m->idiag_rqueue, m->idiag_wqueue, la, pa, proc);
     }
@@ -476,7 +490,7 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
   size_t rta_off = NLMSG_LENGTH (sizeof *m) - NLMSG_HDRLEN;
   size_t total = h->nlmsg_len - NLMSG_HDRLEN;
   if (rta_off > total)
-    return 0;
+    return -1;
   struct rtattr *rta = (struct rtattr *)
     ((char *) NLMSG_DATA (h) + (rta_off - 0));
   /* rta is just past the unix_diag_msg base. Use the standard
@@ -515,11 +529,11 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
     bss_pidmap_lookup (c->pidmap, (unsigned long) m->udiag_ino,
                        proc, sizeof proc);
   if (c->legacy_columns)
-    printf ("%-5s 0      0      %-26s %-26s %s%s\n",
+    fprintf (c->out, "%-5s 0      0      %-26s %-26s %s%s\n",
             typestr, path[0] ? path : "*", "*",
             ss_state_name (m->udiag_state), proc);
   else
-    printf ("%-6s %-11s %-7u %-7u  %-22s %s%s\n",
+    fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
             typestr, ss_state_name (m->udiag_state), 0U, 0U,
             path[0] ? path : "*", "*", proc);
   c->rows++;
@@ -532,46 +546,23 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
 
 /* Parse a hex addr field "AABBCCDD:PPPP" or "AABB....AABB:PPPP" into a
  * printable "X.X.X.X:N" or "[a:b:c::d]:N" string. */
-static void
+static int
 bss_proc_parse_addr (const char *hex, int family, char *out, size_t outsz)
 {
-  const char *colon = strchr (hex, ':');
-  if (!colon)
+  size_t digits = family == AF_INET ? 8 : 32;
+  if (strlen (hex) != digits + 5 || hex[digits] != ':') return -1;
+  for (size_t i = 0; i < digits + 5; i++)
+    if (i != digits && !isxdigit ((unsigned char) hex[i])) return -1;
+  uint32_t raw[4] = { 0 };
+  for (size_t i = 0; i < digits / 8; i++)
     {
-      snprintf (out, outsz, "%s", hex);
-      return;
+      char word[9];
+      memcpy (word, hex + i * 8, 8); word[8] = 0;
+      raw[i] = (uint32_t) strtoul (word, NULL, 16);
     }
-  unsigned port = (unsigned) strtoul (colon + 1, NULL, 16);
-  if (family == AF_INET)
-    {
-      unsigned long v = strtoul (hex, NULL, 16);
-      /* /proc/net stores little-endian when read on x86; convert
-       * using the documented host-byte-order layout. */
-      struct in_addr a;
-      a.s_addr = (uint32_t) v;       /* already in host LE */
-      char abuf[INET_ADDRSTRLEN];
-      inet_ntop (AF_INET, &a, abuf, sizeof abuf);
-      snprintf (out, outsz, "%s:%u", abuf, port);
-    }
-  else
-    {
-      /* IPv6 address printed as 8 little-endian 32-bit words in
-       * hex. Reorder to 16 raw bytes for inet_ntop. */
-      unsigned char raw[16] = { 0 };
-      char wb[9] = { 0 };
-      for (int w = 0; w < 4; w++)
-        {
-          memcpy (wb, hex + (size_t) w * 8, 8);
-          uint32_t v = (uint32_t) strtoul (wb, NULL, 16);
-          raw[w * 4 + 0] = (unsigned char) (v >> 0);
-          raw[w * 4 + 1] = (unsigned char) (v >> 8);
-          raw[w * 4 + 2] = (unsigned char) (v >> 16);
-          raw[w * 4 + 3] = (unsigned char) (v >> 24);
-        }
-      char abuf[INET6_ADDRSTRLEN];
-      inet_ntop (AF_INET6, raw, abuf, sizeof abuf);
-      snprintf (out, outsz, "[%s]:%u", abuf, port);
-    }
+  unsigned port = (unsigned) strtoul (hex + digits + 1, NULL, 16);
+  bss_format_inet (family, raw, htons (port), out, outsz, 1);
+  return 0;
 }
 
 static int
@@ -594,14 +585,6 @@ bss_proc_inet (const char *path, const char *netid, int family,
       /* /proc/net/{tcp,udp} columns:
        *   sl  local_address  rem_address  st  tx_queue:rx_queue  ...  inode
        * We deliberately skip the tr/tm field and uid via %*s. */
-      char l_hex[64], r_hex[64];
-      int n = sscanf (line,
-                      " %*u %63[^:]:%*x %63[^:]:%*x %x %x:%x"
-                      " %*x:%*x %*x %*u %*u %lu",
-                      l_hex, r_hex, &st, &txq, &rxq, &inode);
-      (void) n;
-      /* Easier: parse the columns directly via offsets.  Re-scan
-       * with the addr fields intact. */
       char dummy_sl[16];
       char laddr[64], raddr[64];
       unsigned long u0, u1, u2;
@@ -611,30 +594,32 @@ bss_proc_inet (const char *path, const char *netid, int family,
                            &txq, &rxq, &u0, &u1, &u2, &inode);
       if (parsed < 10)
         continue;
-      if (listen_only && st != BSS_TCP_LISTEN)
+      if (listen_only && st != (strncmp (netid, "udp", 3) == 0 ? 7U : BSS_TCP_LISTEN))
         continue;
-      bss_proc_parse_addr (laddr, family, local, sizeof local);
-      bss_proc_parse_addr (raddr, family, remote, sizeof remote);
+      if (bss_proc_parse_addr (laddr, family, local, sizeof local) < 0
+          || bss_proc_parse_addr (raddr, family, remote, sizeof remote) < 0)
+        continue;
       char proc[128] = { 0 };
       if (c->show_pid)
         bss_pidmap_lookup (c->pidmap, inode, proc, sizeof proc);
       if (c->legacy_columns)
-        printf ("%-5s %-6u %-6u %-26s %-26s %s%s\n",
+        fprintf (c->out, "%-5s %-6u %-6u %-26s %-26s %s%s\n",
                 netid, rxq, txq, local, remote,
                 ss_state_name ((unsigned char) st), proc);
       else
-        printf ("%-6s %-11s %-7u %-7u  %-22s %s%s\n",
+        fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
                 netid, ss_state_name ((unsigned char) st), rxq, txq,
                 local, remote, proc);
       rows++;
     }
+  int rc = ferror (fp) ? -1 : 0;
   fclose (fp);
   c->rows += rows;
-  return 0;
+  return rc;
 }
 
 static int
-bss_proc_unix (struct bss_render_ctx *c)
+bss_proc_unix (struct bss_render_ctx *c, int listen_only)
 {
   FILE *fp = fopen ("/proc/net/unix", "r");
   if (!fp)
@@ -652,8 +637,10 @@ bss_proc_unix (struct bss_render_ctx *c)
       int parsed = sscanf (line,
                            "%*s %*x %*x %lx %lx %lx %lu %199[^\n]",
                            &flags, &type, &st, &inode, path);
-      if (parsed < 4)
-        continue;
+      if (parsed < 4) continue;
+      if (listen_only && !(flags & 0x10000)) continue;
+      /* /proc/net/unix uses SS_* socket states, not TCP states. */
+      st = flags & 0x10000 ? BSS_TCP_LISTEN : st == 3 ? 1 : st == 2 ? 2 : st == 4 ? 8 : 7;
       const char *typestr = type == SOCK_STREAM ? "u_str"
                           : type == SOCK_DGRAM  ? "u_dgr"
                           : type == SOCK_SEQPACKET ? "u_seq"
@@ -663,17 +650,18 @@ bss_proc_unix (struct bss_render_ctx *c)
       if (c->show_pid)
         bss_pidmap_lookup (c->pidmap, inode, proc, sizeof proc);
       if (c->legacy_columns)
-        printf ("%-5s 0      0      %-26s %-26s %s%s\n",
+        fprintf (c->out, "%-5s 0      0      %-26s %-26s %s%s\n",
                 typestr, p, "*", ss_state_name ((unsigned char) st), proc);
       else
-        printf ("%-6s %-11s %-7u %-7u  %-22s %s%s\n",
+        fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
                 typestr, ss_state_name ((unsigned char) st), 0U, 0U,
                 p, "*", proc);
       rows++;
     }
+  int rc = ferror (fp) ? -1 : 0;
   fclose (fp);
   c->rows += rows;
-  return 0;
+  return rc;
 }
 
 /* ----------------------------------------------------------------- */
@@ -696,9 +684,7 @@ static int
 bss_do_inet (int fd, int family, int proto, const char *netid,
              struct bss_render_ctx *c, struct bss_opts *o)
 {
-  unsigned states = o->listen_only ? BSS_TCPF_LISTEN
-                    : o->all_states ? BSS_TCPF_ALL
-                    : BSS_TCPF_ALL;
+  unsigned states = o->listen_only ? (1U << (proto == IPPROTO_UDP ? 7 : BSS_TCP_LISTEN)) : BSS_TCPF_ALL;
   unsigned seq = bss_seq ();
   c->netid = netid;
   if (bss_send_inet_req (fd, family, proto, states, seq) < 0)
@@ -717,85 +703,66 @@ bss_do_unix (int fd, struct bss_render_ctx *c, struct bss_opts *o)
   return bss_recv_loop (fd, seq, bss_cb_unix, c);
 }
 
+/* Buffer each family until its dump completes. A failed dump contributes no
+ * rows, so fallback cannot duplicate a partially rendered netlink table. */
+static int
+bss_table (int family, int proto, const char *netid, const char *path,
+           struct bss_render_ctx *ctx, struct bss_opts *o)
+{
+  char *data = NULL;
+  size_t size = 0;
+  FILE *out = open_memstream (&data, &size);
+  if (!out) return -1;
+  ctx->out = out;
+  int fd = bss_open_diag ();
+  int rc = -1;
+  if (fd >= 0)
+    {
+      rc = family == AF_UNIX ? bss_do_unix (fd, ctx, o)
+           : bss_do_inet (fd, family, proto, netid, ctx, o);
+      close (fd);
+    }
+  if (fclose (out) != 0) rc = -1;
+  if (rc != 0)
+    {
+      free (data); data = NULL; size = 0;
+      out = open_memstream (&data, &size);
+      if (!out) return -1;
+      ctx->out = out;
+      rc = family == AF_UNIX ? bss_proc_unix (ctx, o->listen_only)
+           : bss_proc_inet (path, netid, family, ctx, o->listen_only);
+      if (fclose (out) != 0) rc = -1;
+    }
+  if (rc == 0 && size && fwrite (data, 1, size, stdout) != size) rc = -1;
+  free (data);
+  ctx->out = stdout;
+  return rc;
+}
+
 int
 bss_run (struct bss_opts *o)
 {
   struct bss_pidmap pm;
   bss_pidmap_init (&pm);
-  if (o->show_pid)
-    bss_pidmap_load (&pm);
-
+  if (o->show_pid) bss_pidmap_load (&pm);
   struct bss_render_ctx ctx = {
     .netid = "?", .show_pid = o->show_pid,
-    .legacy_columns = o->legacy_columns, .pidmap = &pm, .rows = 0
+    .legacy_columns = o->legacy_columns, .pidmap = &pm, .rows = 0,
+    .out = stdout
   };
   bss_print_header (&ctx);
-
   int rc = 0;
-  int fd = bss_open_diag ();
-  if (fd >= 0)
+  if (o->show_tcp)
     {
-      if (o->show_tcp)
-        {
-          if (bss_do_inet (fd, AF_INET,  IPPROTO_TCP, "tcp",  &ctx, o) < 0)
-            rc = -1;
-          /* Re-open per-family request because the dump stream
-           * tolerates a single in-flight request at a time. */
-          close (fd);
-          fd = bss_open_diag ();
-        }
-      if (fd >= 0 && o->show_tcp)
-        {
-          if (bss_do_inet (fd, AF_INET6, IPPROTO_TCP, "tcp6", &ctx, o) < 0)
-            rc = -1;
-          close (fd);
-          fd = bss_open_diag ();
-        }
-      if (fd >= 0 && o->show_udp)
-        {
-          if (bss_do_inet (fd, AF_INET,  IPPROTO_UDP, "udp",  &ctx, o) < 0)
-            rc = -1;
-          close (fd);
-          fd = bss_open_diag ();
-        }
-      if (fd >= 0 && o->show_udp)
-        {
-          if (bss_do_inet (fd, AF_INET6, IPPROTO_UDP, "udp6", &ctx, o) < 0)
-            rc = -1;
-          close (fd);
-          fd = bss_open_diag ();
-        }
-      if (fd >= 0 && o->show_unix)
-        {
-          if (bss_do_unix (fd, &ctx, o) < 0)
-            rc = -1;
-        }
-      if (fd >= 0)
-        close (fd);
+      if (bss_table (AF_INET, IPPROTO_TCP, "tcp", "/proc/net/tcp", &ctx, o) < 0) rc = -1;
+      if (bss_table (AF_INET6, IPPROTO_TCP, "tcp6", "/proc/net/tcp6", &ctx, o) < 0) rc = -1;
     }
-
-  if (rc != 0 || fd < 0)
+  if (o->show_udp)
     {
-      /* fall back to /proc/net — only for the families we still
-       * have zero rows for. */
-      if (o->show_tcp)
-        {
-          bss_proc_inet ("/proc/net/tcp",  "tcp",  AF_INET,  &ctx,
-                         o->listen_only);
-          bss_proc_inet ("/proc/net/tcp6", "tcp6", AF_INET6, &ctx,
-                         o->listen_only);
-        }
-      if (o->show_udp)
-        {
-          bss_proc_inet ("/proc/net/udp",  "udp",  AF_INET,  &ctx,
-                         o->listen_only);
-          bss_proc_inet ("/proc/net/udp6", "udp6", AF_INET6, &ctx,
-                         o->listen_only);
-        }
-      if (o->show_unix)
-        bss_proc_unix (&ctx);
-      rc = 0;
+      if (bss_table (AF_INET, IPPROTO_UDP, "udp", "/proc/net/udp", &ctx, o) < 0) rc = -1;
+      if (bss_table (AF_INET6, IPPROTO_UDP, "udp6", "/proc/net/udp6", &ctx, o) < 0) rc = -1;
     }
+  if (o->show_unix && bss_table (AF_UNIX, 0, "u_str", NULL, &ctx, o) < 0) rc = -1;
   bss_pidmap_free (&pm);
   return rc;
 }

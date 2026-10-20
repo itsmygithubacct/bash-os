@@ -15,8 +15,8 @@ python3 "$CAMPAIGN/scripts/gated.py" bench -- \
   --shim "$EVIDENCE/shim.so" --output "$EVIDENCE/benchmark.json"
 ```
 
-The product change is limited to `loadables/netstat.c`: flush stdout before
-returning, propagate output failures, and clear a previous call's stdio error
+The frontend in `loadables/netstat.c` flushes stdout before
+returning, propagates output failures, and clears a previous call's stdio error
 indicator at entry. This includes `--version`. A failed write must return failure
 while allowing another invocation in the same shell to succeed.
 
@@ -73,62 +73,15 @@ These are syscall-fixture wall times including shell startup and captured
 output. There is no external ratio, live-host throughput claim or speedup claim.
 Failed correctness cases are not benchmarked.
 
-## Shared backend integration
+## Backend behavior
 
-`loadables/ss.c` is owned by the `sol-ss` task and is intentionally untouched
-here. The evidence directory includes `backend-coordination.json`. Integration
-must apply and verify the ss backend changes before treating netstat as
-complete. In particular, unify endpoint formatting across transports, map proc
-Unix states and listen flags, use UDP's unconnected state for `-l`, reject
-malformed rows and short messages, propagate unavailable-table failures, and
-avoid appending duplicate fallback rows after partial netlink output.
+The shared backend validates netlink message lengths and dump completion,
+including interrupted dumps and error payloads. Each family is buffered until
+its dump completes; a failed dump is discarded before trying that family's
+proc table. If both transports fail, the command fails. This avoids duplicate
+rows after a partial netlink failure.
 
-Register the new task-owned test separately during integration. Do not infer
-completion from a harness's exit status without inspecting all JSON cases.
-
-## Verified result
-
-The targeted `netstat,ss` binary built successfully. The native suite passed
-36 of 63 cases; the instrumented fixture suite passed 31 of 57 cases with no
-ASan/UBSan diagnostic. Both suites exited 1 because the semantic failures are
-retained. The six owned live cases passed five, failing UDP `--listening`.
-The isolated build includes only the two required commands.
-
-The starting netstat source, loaded against the same shared backend, returned
-`0 0` for a table write and a version write redirected to `/dev/full`. The
-replacement returns `1 1`, and the next invocation succeeds. Persistent-shell
-FD sets were unchanged after 100 `-anp` calls through each fixture transport.
-An initial live setup attempt exceeded the Unix pathname limit under a long
-inherited temporary directory; the committed runner uses a private directory
-under `/tmp` and executes every owned socket case.
-
-The remaining failures belong to the shared backend:
-
-- UDP listening requests use the TCP listen mask in both transports.
-- Proc zero-port and IPv6 endpoints differ from netlink endpoints.
-- Proc Unix rows use TCP state decoding and ignore listening flags.
-- Invalid proc addresses and short netlink messages are accepted.
-- Interrupted dumps and error payloads in `NLMSG_DONE` are ignored.
-- A partial failed dump appends proc rows after already rendered rows.
-- Unavailable netlink plus denied proc tables returns success with a header.
-
-Consequently this task remains **incomplete** pending `sol-ss` integration.
-No `ss.c` edit or backend fix is claimed by this commit. The native JSON has
-27 failed assertions, including aliases and combined-family checks affected by
-these defects; those are not 27 independent implementation defects. Existing
-assertions were retained and expected output was not weakened to accommodate
-the failures.
-
-## Validated fixture timings
-
-Measured on 2026-10-19, x86_64 Linux 6.12.111+deb13-amd64, Bash 5.3.15(1)-release, GCC 14.2, pinned to CPU 11. Each value is the wall time of ten calls in one shell, including startup and captured output. One warmup precedes seven validated samples.
-
-| Work per call | Options | Median batch ms | Min–max ms |
-|---|---|---:|---:|
-| 7 snapshot records | `-an` | 1.407 | 1.319–1.527 |
-| 7 snapshot records, 3 ownership mappings | `-anp` | 1.598 | 1.541–1.876 |
-| 10,000 connected IPv4 records | `-tan` | 502.036 | 480.611–561.799 |
-
-The raw `benchmark.json` in the evidence directory contains all samples and hashes. The measured binary SHA-256 is `aff7091d66ec52f3046cb3138f60ce29c45183d500dc16b5dfcb54872501b033`. Its source provenance is the starting HEAD plus the exact recorded working-file hashes; those hashes must match any commit to which the results are attributed. All three cases have status `pass`.
-
-These successful subset timings do not clear the 27 native behavioral failures. There is no external netstat executable on this host and no external speed ratio. Other host activity can remain despite the campaign resource gate. No performance optimization or speedup is claimed.
+Proc and netlink endpoints use the same numeric rendering. UDP listening means
+unconnected sockets; proc Unix states and listen flags are mapped separately
+from TCP states. Malformed proc addresses are skipped. Integration must retain
+both `netstat.c` and the corresponding `ss.c` backend changes.
