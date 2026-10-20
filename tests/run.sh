@@ -192,6 +192,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'dmsetup independent ioctl oracle' python3 tests/opus-dmsetup-ioctl.py out/bash
+  check 'dmsetup ioctl oracle under ASan+UBSan' bash tests/review-dmsetup-sanitize.sh out/bash
   check 'fstrim fixture build' env BASHOS_TASK_DIR="$scratch/fstrim-contracts" bash tests/opus-fstrim-build.sh
   check 'fstrim native boundary contracts' python3 tests/opus-fstrim-check.py --binary out/bash --module "$scratch/fstrim-contracts/artifacts/fstrim.so"
   check 'fstrim boundary under ASan+UBSan' python3 tests/opus-fstrim-check.py --binary out/bash --module "$scratch/fstrim-contracts/artifacts/fstrim-sanitize.so" --preload "$(cat "$scratch/fstrim-contracts/artifacts/asan-path.txt")"

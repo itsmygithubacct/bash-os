@@ -1239,6 +1239,14 @@
       "status": "Contract",
       "evidence": "docs/opus-fstrim.md",
       "scope": "FITRIM range semantics and util-linux comparisons in a private namespace with intercepted ioctls. Actual discard support and latency remain hardware prerequisites."
+    },
+    {
+      "names": [
+        "dmsetup"
+      ],
+      "status": "Contract",
+      "evidence": "docs/opus-dmsetup.md",
+      "scope": "Raw device-mapper ioctl ABI, payload validation, rollback ownership and open-failure cleanup against a closed private fixture. Real mapper devices, udev coordination and deployment behavior remain VM prerequisites."
     }
   ],
   "sanitizer_groups": [
@@ -1731,6 +1739,12 @@
         "fstrim"
       ],
       "evidence": "tests/opus-fstrim-build.sh"
+    },
+    {
+      "names": [
+        "dmsetup"
+      ],
+      "evidence": "tests/opus-dmsetup-ioctl.py"
     }
   ],
   "fuzz": {
@@ -2267,9 +2281,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "dmsetup": {
-      "note": "Some mutation verbs still return an explicit unimplemented-backend error.",
-      "evidence": "loadables/dmsetup.c",
-      "next": "Define required mapper mutation verbs and add isolated device fixtures."
+      "evidence": "docs/opus-dmsetup.md",
+      "note": "Raw device-mapper ioctl ABI, payload validation, rollback ownership and open-failure cleanup against a closed private fixture. Real mapper devices, udev coordination and deployment behavior remain VM prerequisites.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "uclampset": {
       "evidence": "docs/sol-uclampset.md",
