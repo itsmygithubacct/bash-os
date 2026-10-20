@@ -94,26 +94,6 @@ not governed by the read timeout. Camera interoperability and decoded picture
 quality require separate device qualification. API timings include the Python
 server and shell startup; there is no matched external-tool ratio.
 
-The 2026-10-19 run passed **74 native cases and 73 ASan/UBSan network cases**.
-The allocator harness passed its 100,000 adversarial packets and allocation
-faults, with largest allocation and observed peak live tracked allocation both
-8,388,608 bytes, returning to zero after cleanup. The preserved starting source
-reproduced healthy packetization and three defects: a damaged FU-A was emitted,
-an unfinished EOF unit was emitted, and a timestamp boundary exceeded `-n 1`.
-The final exact-byte cases reject all three behaviors.
-
-The validated API measurement used CPU 11 on an Intel Core i7-9850H,
-Linux 6.12.111, GCC 14.2 and Bash 5.3.15. Each pass produced **1,200 frames,
-175,200 Annex-B bytes and 180,000 framed bytes** from 2,000 RTP packets.
-One warmup and all seven samples passed the complete output/status/request
-oracle. Raw samples and source, binary, fixture and driver hashes are retained
-in the task evidence report, outside historical repository datasets.
-
-| Measurement | Median | Seven-sample range |
-|---|---:|---:|
-| Launch through completed stream | 5.165 ms | 4.879–5.909 ms |
-| Launch through first complete frame | 1.609 ms | 1.278–2.206 ms |
-
-This corresponds to 232,355 validated frames/s and 34.85 MB/s of framed output
-for this small loopback workload, including shell startup and RTSP setup.
-There is no external comparison or claimed speedup.
+Root-relative SDP control paths use the Content-Base authority, discarding
+its path. `tests/astra-rtspcat-control.py BINARY` checks the exact authenticated
+SETUP URI and output frame against a private loopback server.

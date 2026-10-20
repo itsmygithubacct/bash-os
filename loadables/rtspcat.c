@@ -431,6 +431,13 @@ static int parse_sdp(struct rc *c, const char *sdp) {
                     if (!strncmp(line, "a=control:", 10)) {
                         const char *v = line + 10; int written;
                         if (!strncmp(v, "rtsp://", 7)) written = snprintf(c->control, sizeof c->control, "%s", v);
+                        else if (v[0] == '/') {
+                            const char *authority = strstr(c->base, "://");
+                            if (!authority) { free(section); rc_err(c, "invalid control base URL"); return -1; }
+                            const char *path = strchr(authority + 3, '/');
+                            size_t prefix = path ? (size_t)(path - c->base) : strlen(c->base);
+                            written = snprintf(c->control, sizeof c->control, "%.*s%s", (int)prefix, c->base, v);
+                        }
                         else { size_t bl = strlen(c->base); written = snprintf(c->control, sizeof c->control, "%s%s%s", c->base, bl && c->base[bl-1] != '/' && v[0] != '/' ? "/" : "", v); }
                         if (written < 0 || (size_t)written >= sizeof c->control) { free(section); rc_err(c, "control URL too long"); return -1; }
                     }
