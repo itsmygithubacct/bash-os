@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <ctype.h>
 #include <limits.h>
 #include <stdint.h>
@@ -200,7 +201,8 @@ overflow:
 static FILE *
 bx_stdin (void)
 {
-    int fd = dup (STDIN_FILENO);
+    /* Do not reopen closed stdout/stderr with a writable stdin alias. */
+    int fd = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3);
     if (fd < 0) return NULL;
     FILE *f = fdopen (fd, "r");
     if (!f) {

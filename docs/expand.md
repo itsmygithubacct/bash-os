@@ -1,5 +1,11 @@
 # expand: behavior and performance
 
+Stdin duplication reserves descriptors 0–2, so closed stdout cannot become a writable alias of stdin. `tests/review-expand-descriptors.py` checks failure status, unchanged input and descriptor cleanup.
+
+The measurements below predate this review correction. They describe the original
+worker implementation; they are not measurements of the corrected code. No new
+performance claim is made for this correction.
+
 `expand [-i] [-t TABLIST] [FILE...]` converts tabs to spaces. The default
 interval is eight columns. `TABLIST` accepts a positive interval or an
 increasing comma/space-separated list. A final `/N` repeats at multiples of N;
