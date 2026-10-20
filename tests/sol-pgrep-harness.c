@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Compile this translation unit under ASan/UBSan through the campaign build
    gate. Only the Bash ABI is stubbed; the entire production backend executes.
    CLI: harness MODE ARG...; MODE is pgrep, pkill, killall or killall5. */
