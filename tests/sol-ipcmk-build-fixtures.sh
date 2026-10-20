@@ -18,5 +18,5 @@ fi
 "${CC:-cc}" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined "${flags[@]}" tests/sol-ipcmk-kernel.c -o "$OUT/kernel-sanitize.so" -lrt -pthread
 printf 'enable -f %q ipcmk || exit 99\n' "$OUT/ipcmk-sanitize.so" > "$OUT/sanitize-env.sh"
 printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport BASH_ENV=%q\nexec %q "$@"\n' \
-    "$("${CC:-cc}" -print-file-name=libasan.so)" "$OUT/sanitize-env.sh" "$(realpath out/bash-sol-ipcmk)" > "$OUT/bash-sanitize"
+    "$("${CC:-cc}" -print-file-name=libasan.so)" "$OUT/sanitize-env.sh" "$(realpath "${2:-out/bash-sol-ipcmk}")" > "$OUT/bash-sanitize"
 chmod +x "$OUT/bash-sanitize"

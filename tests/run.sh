@@ -190,6 +190,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'ipcmk owned IPC fixture build' bash tests/sol-ipcmk-build-fixtures.sh "$scratch/ipcmk-contracts" out/bash
+  check 'ipcmk owned IPC lifecycle' python3 tests/sol-ipcmk.py out/bash "$scratch/ipcmk-contracts/kernel.so"
+  check 'ipcmk standalone sanitizer faults' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ipcmk-contracts/fixture-sanitize"
+  check 'ipcmk owned IPC sanitizer lifecycle' env ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ipcmk.py "$scratch/ipcmk-contracts/bash-sanitize" "$scratch/ipcmk-contracts/kernel-sanitize.so"
   check 'ipcctl private fixture build' bash tests/sol-ipcctl-build.sh "$scratch/ipcctl-contracts"
   check 'ipcctl private resource contracts' python3 tests/sol-ipcctl-check.py --binary out/bash --module "$scratch/ipcctl-contracts/ipcctl-shim.so" --report "$scratch/ipcctl-native.json"
   check 'ipcctl private resource sanitizer contracts' python3 tests/sol-ipcctl-check.py --binary out/bash --module "$scratch/ipcctl-contracts/ipcctl-shim-sanitize.so" --preload "$(cat "$scratch/ipcctl-contracts/asan-path.txt")" --report "$scratch/ipcctl-sanitize.json"

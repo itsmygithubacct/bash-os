@@ -1157,6 +1157,14 @@
       "status": "Contract",
       "evidence": "docs/sol-ipcctl.md",
       "scope": "Strict IPC identifiers and independent private SysV resource lifecycle plus injected failures. Only owned resources are removed; attached shared-memory lifetime and broader kernel variants remain separate."
+    },
+    {
+      "names": [
+        "ipcmk"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-ipcmk.md",
+      "scope": "Validated creation and exact payload/lifecycle checks for owned SysV/POSIX IPC resources, with cleanup and same-shell recovery. No arbitrary existing resources are accessed."
     }
   ],
   "sanitizer_groups": [
@@ -1587,6 +1595,12 @@
         "ipcctl"
       ],
       "evidence": "tests/sol-ipcctl-build.sh"
+    },
+    {
+      "names": [
+        "ipcmk"
+      ],
+      "evidence": "tests/sol-ipcmk-build-fixtures.sh"
     }
   ],
   "fuzz": {
@@ -2451,6 +2465,11 @@
       "evidence": "docs/sol-ipcctl.md",
       "note": "Strict IPC identifiers and independent private SysV resource lifecycle plus injected failures. Only owned resources are removed; attached shared-memory lifetime and broader kernel variants remain separate.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "ipcmk": {
+      "evidence": "docs/sol-ipcmk.md",
+      "note": "Validated creation and exact payload/lifecycle checks for owned SysV/POSIX IPC resources, with cleanup and same-shell recovery. No arbitrary existing resources are accessed.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2487,7 +2506,8 @@
     "zstdcat",
     "renice",
     "setpgid",
-    "ipcctl"
+    "ipcctl",
+    "ipcmk"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
