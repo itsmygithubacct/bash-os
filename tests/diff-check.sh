@@ -25,7 +25,7 @@ if [[ -x /usr/bin/diff ]]; then
   [[ $grc != 0 ]] && ok "GNU diff also reports the newline difference" || no "GNU rc=$grc"
 fi
 
-# `-` is stdin. Two minuses must share one slurp of the pipe.
+# `-` is stdin. Two minuses compare the same input without consuming it.
 printf 'hello\n' > "$d/f"
 rc=0
 printf 'hello\n' | "$BX" -c 'PATH=; diff - "$1"' _ "$d/f" >/dev/null 2>"$d/err" || rc=$?
@@ -46,9 +46,18 @@ fi
 rc=0
 printf 'hello\n' | "$BX" -c 'PATH=; diff - -' >/dev/null 2>"$d/err" || rc=$?
 if [[ $rc == 0 ]]; then
-  ok "diff - - slurps stdin once -> 0"
+  ok "diff - - compares stdin with itself -> 0"
 else
   no "diff - - rc=$rc err=$(tr '\n' ' ' < "$d/err")"
+fi
+
+rc=0
+printf 'hello\n' | "$BX" -c 'PATH=; diff - - || exit; IFS= read -r line; [[ $line == hello ]]' \
+  >/dev/null 2>"$d/err" || rc=$?
+if [[ $rc == 0 ]]; then
+  ok "diff - - leaves stdin available to the shell"
+else
+  no "diff - - consumed stdin rc=$rc"
 fi
 
 printf 'a\n' > "$d/f"
