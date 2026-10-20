@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Fault injection for production timestamp framing; only the named private log. */
 #define _GNU_SOURCE
 #include <dlfcn.h>

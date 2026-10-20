@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Exercise the production framing function without child/poll scheduling.
    Unused loadable entrypoints are discarded by --gc-sections at link time. */
 #ifndef SV_SOURCE
