@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: MIT */
-/* renice.c — POSIX renice(1) as a bash builtin.
+/* renice.c — absolute-priority renice(1) as a bash builtin.
  *
  *   renice [-n] PRIORITY [-g|-p|-u] ID...
  *
  * Sets niceness on already-running processes (-p PID), process groups
  * (-g PGID), or all processes owned by user (-u USER). Default target
- * type is -p. Closes a POSIX-2024 medium-impact gap.
+ * type is -p. Like traditional util-linux renice, -n is absolute too.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -32,7 +32,8 @@ brenice_priority (const char *s, int *out)
     char *end;
     errno = 0;
     long value = strtol (s, &end, 10);
-    if (errno || end == s || *end || value < INT_MIN || value > INT_MAX) {
+    if (errno || end == s || *end || isspace ((unsigned char) *s) ||
+        value < INT_MIN || value > INT_MAX) {
         builtin_error ("invalid priority: %s", s);
         return -1;
     }
@@ -44,32 +45,41 @@ int
 renice_builtin (WORD_LIST *list)
 {
     int which = PRIO_PROCESS;
-    int have_prio = 0;
     int prio = 0;
-
-    /* Optional leading -n is POSIX-allowed but the priority can also be
-       the bare first non-flag argument. Flags -p/-g/-u change the target
-       type for everything that follows. */
     int rc = EXECUTION_SUCCESS;
     int target_count = 0;
 
+    /* Selectors may precede the priority for compatibility. Consume the
+       priority exactly once, before any mutation. A misplaced -n must not
+       change it halfway through a target list (or expose its value as a PID). */
+    while (list) {
+        const char *w = list->word->word;
+        if (!strcmp (w, "-p")) which = PRIO_PROCESS;
+        else if (!strcmp (w, "-g")) which = PRIO_PGRP;
+        else if (!strcmp (w, "-u")) which = PRIO_USER;
+        else break;
+        list = list->next;
+    }
+    if (list && !strcmp (list->word->word, "-n")) list = list->next;
+    if (!list) {
+        builtin_usage ();
+        return EX_USAGE;
+    }
+    if (brenice_priority (list->word->word, &prio) < 0) return EX_USAGE;
+    list = list->next;
+    for (WORD_LIST *p = list; p; p = p->next) {
+        if (!strcmp (p->word->word, "-n")) {
+            builtin_error ("-n must precede the priority");
+            return EX_USAGE;
+        }
+    }
+
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
-        if (!strcmp (w, "-n") && p->next) {
-            p = p->next;
-            if (brenice_priority (p->word->word, &prio) < 0) return EX_USAGE;
-            have_prio = 1;
-            continue;
-        }
         if (!strcmp (w, "-p")) { which = PRIO_PROCESS; continue; }
         if (!strcmp (w, "-g")) { which = PRIO_PGRP;    continue; }
         if (!strcmp (w, "-u")) { which = PRIO_USER;    continue; }
-        if (!have_prio) {
-            /* First non-flag argument is the priority. */
-            if (brenice_priority (w, &prio) < 0) return EX_USAGE;
-            have_prio = 1;
-            continue;
-        }
+        target_count++;
         /* This is a target ID — interpret per the current `which`. */
         id_t id;
         if (which == PRIO_USER) {
@@ -98,7 +108,8 @@ renice_builtin (WORD_LIST *list)
             char *end;
             errno = 0;
             long n = strtol (w, &end, 10);
-            if (errno || end == w || *end || n < 0 || n > INT_MAX) {
+            if (errno || end == w || *end || isspace ((unsigned char) *w) ||
+                n < 0 || n > INT_MAX) {
                 builtin_error ("invalid process ID: %s", w);
                 rc = EXECUTION_FAILURE;
                 continue;
@@ -110,10 +121,9 @@ renice_builtin (WORD_LIST *list)
                            which, (unsigned long) id, prio, strerror (errno));
             rc = EXECUTION_FAILURE;
         }
-        target_count++;
     }
 
-    if (!have_prio || target_count == 0) {
+    if (target_count == 0) {
         builtin_error ("usage: renice [-n] PRIORITY [-g|-p|-u] ID...");
         return EX_USAGE;
     }
@@ -121,7 +131,7 @@ renice_builtin (WORD_LIST *list)
 }
 
 char *renice_doc[] = {
-    "Change the niceness of running processes (POSIX renice).",
+    "Set absolute niceness of running processes.",
     "",
     "    renice [-n] PRIORITY [-p|-g|-u] ID...",
     "",
@@ -130,7 +140,12 @@ char *renice_doc[] = {
     "    -u   IDs are usernames or UIDs (every process owned)",
     "",
     "Set the niceness to PRIORITY (an absolute value, NOT an increment",
-    "— that's nice's job). Negative values require CAP_SYS_NICE.",
+    "— that's nice's job). -n is also absolute, regardless of POSIXLY_CORRECT.",
+    "PRIORITY must fit a signed int; Linux clamps it to -20 through 19.",
+    "Lowering niceness requires privilege or an adequate RLIMIT_NICE.",
+    "Target 0 selects the caller, its group, or its real UID, respectively.",
+    "Selectors apply to subsequent IDs. Invalid targets do not stop later IDs.",
+    "Success is silent; failure may leave earlier targets changed.",
     (char *)NULL
 };
 
