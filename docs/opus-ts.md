@@ -124,3 +124,40 @@ spans and render over the 39 KB object, a key-heavy 1,000-record JSON and a
 1,000-function bash script, plus `ts-edit-highlight` (two incremental edits
 with a re-highlight after each). All of these are self timings with no
 external reference.
+
+### Results (2026-10-19)
+
+These are self timings on a shared 12-CPU host, pinned to CPU 11 by the bench
+gate, with load between 2.5 and 3.8. Each figure is the median of seven
+samples, each sample being five passes in one shell. The baseline is `9a73eaf`
+and the new build is `935015c`; both are `--include ts,hl,nano`.
+
+| workload | input bytes | resolved spans | baseline | new |
+|---|---:|---:|---:|---:|
+| ts-parse (array) | 39,109 | — | 91.3 | 101.7 |
+| ts-query (object) | 39,133 | 10,005 captures | 215.9 | 201.2 |
+| ts-spans-object | 39,133 | 10,003 | invalid output | 201.6 |
+| ts-render-object | 39,133 | 10,003 | invalid output | 160.5 |
+| ts-spans-keys | 103,341 | 18,000 | invalid output | 341.8 |
+| ts-render-keys | 103,341 | 18,000 | invalid output | 267.1 |
+| ts-spans-bash | 47,560 | 10,000 | invalid output | 192.8 |
+| ts-render-bash | 47,560 | 10,000 | 184.2 | 159.2 |
+| ts-edit-highlight | 103,341 + 2×29-byte edits | 36,006 | invalid output | 454.5 |
+| `bench/loadables.py` nano selftest | — | — | 30.3 | 9.7 |
+
+* **Invalid output:** the baseline output differs from the precedence oracle,
+  for example JSON keys painted as plain strings or raw overlapping `-S`
+  records. Those runs get no timing.
+* **ts-render-bash:** the only highlight workload where the old engine
+  happens to render correctly. It improves because the compiled query is
+  cached and output is written in runs rather than with `putchar` per byte.
+* **nano selftest:** improves because the query cache removes the per-render
+  `ts_query_new`.
+* **ts-parse and ts-query:** these paths differ only by one `fflush`. The
+  unchanged `bench/loadables.py` run measured the opposite direction
+  (`ts-query` 165.2 → 195.8, `ts-parse` 100.8 → 96.3). The differences are
+  host noise, not a change.
+* **Profiling:** `perf` is blocked here (`perf_event_paranoid=3`), so the
+  stage split comes from these workloads. Over the same 39 KB object, parse
+  plus query takes about 200 ms per 5 passes; resolving and writing spans
+  costs about as much as the raw query listing, and rendering costs less.
