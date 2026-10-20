@@ -112,9 +112,9 @@ any profile; existing profiles do not select it automatically.
 See [Perl inside Bash](perl.md) for module data, runtime loading and checks.
 
 All builds need a C compiler, make, Python 3.9+, curl, patch, GNU binutils and
-`flock`. The `shell`, `pure`, `core`, and `device` profiles need no extra codec,
-regex, database or TLS development libraries. Other selections may use PCRE2,
-zlib, liblzma, libzstd and bzip2. The build resolves only the libraries needed by
+`flock`. The `shell` and `pure` profiles need no extra codec, regex, database
+or TLS development libraries. The `core` and `device` profiles require PCRE2
+for grep. Other selections may also use zlib, liblzma, libzstd and bzip2. The build resolves only the libraries needed by
 the selected commands. Static builds require static archives.
 
 For static glibc builds, `coreutils install -o/-g` resolves account names from

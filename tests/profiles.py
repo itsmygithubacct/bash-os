@@ -29,7 +29,11 @@ assert {'ls','grep','find','sort','cut','seq'} <= set(p['core']['names'])
 assert {'ip','bashmount','procstat'} <= set(p['device']['names'])
 assert {'ssh','sshd','crypto','sqlite'} <= set(p['server']['names'])
 assert {'nano','ts','hl','tiv','gpu'} <= set(p['desktop']['names'])
-assert not p['core']['libraries'] and not p['device']['libraries']
+assert not p['shell']['libraries'] and not p['pure']['libraries']
+for profile in ('core', 'device'):
+    assert p[profile]['libraries'] == ['-lpcre2-8']
+    assert plan('--profile', profile, '--exclude', 'grep')['libraries'] == []
+assert plan('--include', 'grep')['libraries'] == ['-lpcre2-8']
 for level,name in enumerate(['shell','pure','core','device','server','full']):
     assert plan('--level',str(level))['names']==p[name]['names']
 assert plan()['names']==p['full']['names']

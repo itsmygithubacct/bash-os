@@ -54,9 +54,10 @@ resolved `.loadables.list`, a `.manifest.json` with its selection and checksum,
 and a readable `.manifest.txt`. The Bash 5.3 source and official patches 001–015
 are pinned by SHA-256 in `config/versions.sh`.
 
-All builds need Python 3 and the usual C build tools. The first four profiles
-need no additional development libraries. Larger selections may need PCRE2,
-zlib, liblzma, libzstd and bzip2. `build-deps.sh` builds pinned static libraries
+All builds need Python 3 and the usual C build tools. The `shell` and `pure`
+profiles need no additional development libraries. The `core` and `device`
+profiles require PCRE2 for grep. Larger selections may also need zlib, liblzma,
+libzstd and bzip2. `build-deps.sh` builds pinned static libraries
 for a host or cross compiler in a private prefix:
 
 ```sh
