@@ -1,5 +1,12 @@
 # sed cycle, regex and shared-input completion
 
+Replacement text also decodes `\r`, `\a`, `\f`, and `\v` to their control
+bytes, including with captures and case conversion. The focused suite retains
+18 exact GNU comparisons for these and the existing newline/tab escapes.
+
+The measurements below precede this replacement-escape correction. They remain
+evidence for the original measured source, not timings of the corrected source.
+
 The builtin selects BRE by default and ERE with `-E` or `-r`. Address and
 substitution regexes retain their own case/multiline flags. Empty regexes reuse
 the most recently evaluated regex, including across file operands; skipping a

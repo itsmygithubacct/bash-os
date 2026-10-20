@@ -85,6 +85,11 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-') as directory:
         for script in ('', 'p', 'h;G', 'N;P', 's/./[&]/g', r's/\(.\)/\1\1/g',
                        's/b/B/g', '/b/p', '$p', 's/[^a]/X/g', r's/\x00/X/g', r'/\x00/p', r's/./\x00/g', r's/b/\o000/g', r's/a/\d000/g'):
             parity([script], data)
+    # Named control escapes must produce the same bytes as numeric escapes,
+    # including inside a case-converting or capture-bearing replacement.
+    for escape in ('r', 'a', 'f', 'v', 'n', 't'):
+        for replacement in ('\\'+escape, r'\U'+'\\'+escape+r'&\E', r'\1'+'\\'+escape):
+            parity([r's/\(a\)/'+replacement+'/g'], b'a\0a\n')
     old_locale = env['LC_ALL']
     env['LC_ALL'] = 'C.UTF-8'
     for script in ('s/x*/-/g', 's/./[&]/g', r's/\b/-/g', 's/é/X/g'):

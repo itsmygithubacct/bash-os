@@ -1126,6 +1126,10 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
             switch (*r) {
                 case 'n': e_ch = '\n'; break;
                 case 't': e_ch = '\t'; break;
+                case 'r': e_ch = '\r'; break;
+                case 'a': e_ch = '\a'; break;
+                case 'f': e_ch = '\f'; break;
+                case 'v': e_ch = '\v'; break;
                 case '\\': e_ch = '\\'; break;
                 default:  e_ch = *r;   break;
             }
