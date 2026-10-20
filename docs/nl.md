@@ -90,11 +90,12 @@ the builtin fails, which is where `nl(1)` reports it too.
 
 ## Bytes and long lines
 
-Records are read with `getline` and written by length, so NUL bytes inside a
+Records are read from the descriptor and written by length, so NUL bytes inside a
 line survive and lines are limited only by memory. A `-bp` / `-hp` / `-fp`
-regular expression is matched over the line's real length where the platform
-offers `REG_STARTEND`, so a pattern can match text after an embedded NUL, as
-GNU's length-carrying search does. BusyBox's `nl` ends a line at the first NUL
+regular expression is matched over the line's real length using host
+`REG_STARTEND` or a private length-aware fallback, so a pattern can match text
+after or across an embedded NUL, as GNU's length-carrying search does.
+See [the completion checks](sol-nl.md) for fallback provenance and coverage. BusyBox's `nl` ends a line at the first NUL
 and has no logical pages, so those inputs are compared against GNU only.
 
 ## Tests
