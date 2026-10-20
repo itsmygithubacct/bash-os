@@ -20,3 +20,6 @@ printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport HEAD_SED_MODULE=%q\nexec %q "$
 chmod +x "$d/bash-os"
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   python3 tests/head-sed-parity.py "$d/bash-os"
+
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+  python3 tests/sol-sed-parity.py "$d/bash-os"

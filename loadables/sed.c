@@ -41,7 +41,8 @@
  *   -i [SUFFIX]   in-place edit; SUFFIX (if non-empty) saves backup
  *   -e SCRIPT     append SCRIPT (multiple allowed; semicolon-joined)
  *   -f FILE       read commands from FILE
- *   -E            extended regex (always on; -E accepted no-op)
+ *   -E / -r       extended regex (default is BRE)
+ *   -s            separate input files (also implied by -i)
  *   -n            suppress default print
  *
  * Security: e / s///e shell execution is disabled unless
@@ -51,6 +52,9 @@
  * MIT License — same boilerplate as binhex.c.
  */
 
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE 1
+#endif
 #include <config.h>
 
 #if defined (HAVE_UNISTD_H)
@@ -68,6 +72,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#if defined (__linux__)
+# include <sys/syscall.h>
+#endif
 
 #include "loadables.h"
 
@@ -117,6 +125,7 @@ typedef struct {
     char      *s_literal;    /* nonempty ASCII regex without operators */
     size_t     s_literal_len, s_repl_len;
     int        s_repl_literal;
+    int        s_needed_sub;
     int        s_empty_re;   /* s//repl/ : reuse the last regex at runtime */
     char      *s_repl;       /* replacement, may contain & and \1..\9 */
     int        s_global;     /* g flag */
@@ -146,38 +155,131 @@ typedef struct {
     int    failed;   /* once set, all further ops become no-ops */
 } bs_string;
 
-/* BRE→ERE compat: when we compile with REG_EXTENDED but the caller wrote
- * BRE-style escaped metacharacters (`\(`, `\)`, `\+`, `\?`, `\{`, `\}`,
- * `\|`), translate the escape away so the same metachar is recognized
- * by ERE. POSIX sed defaults to BRE; users will write `s/\(.\)\(.\)/\2\1/`
- * and expect capture groups. Returns a malloc'd buffer the caller frees;
- * NULL on OOM. Pattern is unchanged when it has no BRE escapes — `(`, `+`,
- * etc. without a leading `\` stay ERE-meta as before. Pre-escaped digits
- * (`\1`..`\9`) used by s/// in the REPLACEMENT half are NOT touched
- * here; this function only processes regex SOURCE patterns. */
-static char *
-bs_bre_to_ere_compat (const char *pat)
+static int bs_runtime_error;
+
+/* Compile the selected sed dialect. GNU libc exposes the same length-aware
+   regex interface used by GNU sed, including dot matching embedded NULs.
+   Keep the POSIX backend for other libcs. Never leave process-global regex
+   syntax changed: later shell expressions and loadables share this process. */
+static int
+bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
 {
-    if (!pat) return NULL;
-    size_t n = strlen (pat);
-    char *out = malloc (n + 1);
+#if defined (__GLIBC__)
+    reg_syntax_t syntax = flags & REG_EXTENDED
+        ? RE_SYNTAX_POSIX_EXTENDED : RE_SYNTAX_POSIX_BASIC;
+    syntax &= ~(RE_DOT_NOT_NULL | RE_UNMATCHED_RIGHT_PAREN_ORD);
+    syntax |= RE_NO_POSIX_BACKTRACKING;
+    if (flags & REG_ICASE) syntax |= RE_ICASE;
+    if (flags & REG_NEWLINE) {
+        syntax &= ~RE_DOT_NEWLINE;
+        syntax |= RE_HAT_LISTS_NOT_NEWLINE;
+    }
+    reg_syntax_t saved = re_set_syntax (syntax);
+    const char *error = re_compile_pattern (pat, len, re);
+    re_set_syntax (saved);
+    re->newline_anchor = !!(flags & REG_NEWLINE);
+    if (error) { regfree (re); memset (re, 0, sizeof *re); return -1; }
+    return 0;
+#else
+    if (memchr (pat, 0, len)) return REG_BADPAT;
+    return regcomp (re, pat, flags);
+#endif
+}
+
+/* Preserve the entire subject, including the character preceding the search
+   offset (word boundaries and multiline anchors depend on it). Matches are
+   returned relative to off for the replacement expander. */
+static int
+bs_search (regex_t *re, const char *str, size_t len, size_t off,
+           size_t nmatch, regmatch_t *matches)
+{
+    if (len > INT_MAX) { bs_runtime_error = 1; return REG_ESPACE; }
+#if defined (__GLIBC__)
+    regoff_t starts[10], ends[10];
+    for (int i = 0; i < 10; i++) starts[i] = ends[i] = -1;
+    struct re_registers regs = { 10, starts, ends };
+    re->regs_allocated = REGS_FIXED;
+    regoff_t result = re_search (re, str, (regoff_t) len, (regoff_t) off,
+                                (regoff_t) (len - off), nmatch ? &regs : NULL);
+    if (result < 0) return REG_NOMATCH;
+    for (size_t i = 0; i < nmatch; i++) {
+        matches[i].rm_so = starts[i] < 0 ? -1 : starts[i] - (regoff_t) off;
+        matches[i].rm_eo = ends[i] < 0 ? -1 : ends[i] - (regoff_t) off;
+    }
+    return 0;
+#elif defined (REG_STARTEND)
+    regmatch_t m[10];
+    m[0].rm_so = off; m[0].rm_eo = len;
+    int rc = regexec (re, str, nmatch ? nmatch : 1, m, REG_STARTEND);
+    if (!rc) for (size_t i = 0; i < nmatch; i++) {
+        matches[i].rm_so = m[i].rm_so < 0 ? -1 : m[i].rm_so - off;
+        matches[i].rm_eo = m[i].rm_eo < 0 ? -1 : m[i].rm_eo - off;
+    }
+    return rc;
+#else
+    return regexec (re, str + off, nmatch, matches, off ? REG_NOTBOL : 0);
+#endif
+}
+
+/* GNU sed numeric escapes can represent NUL in regexes and replacements. */
+static int
+bs_numeric_escape (const char **pp, unsigned char *value)
+{
+    const char *p = *pp;
+    int base, limit;
+    if (*p == 'c' && p[1]) {
+        *value = (unsigned char) toupper ((unsigned char) p[1]) ^ 64;
+        *pp = p + 2; return 1;
+    }
+    if (*p == 'x') { base = 16; limit = 2; }
+    else if (*p == 'o') { base = 8; limit = 3; }
+    else if (*p == 'd') { base = 10; limit = 3; }
+    else return 0;
+    const char *start = ++p;
+    unsigned n = 0;
+    while (p - start < limit) {
+        unsigned char ch = *p;
+        int digit = ch >= '0' && ch <= '9' ? ch - '0'
+            : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10
+            : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : base;
+        if (digit >= base) break;
+        n = n * base + digit; p++;
+    }
+    if (p == start) return 0;
+    *value = (unsigned char) n; *pp = p;
+    return 1;
+}
+
+/* Script text cannot contain NUL. Decode common sed regex escapes without
+   changing BRE/ERE operators; delimiters are literal inside the regex. */
+static char *
+bs_regex_text (const char *pat, char delim, int extended, size_t *len)
+{
+    char *out = strdup (pat);
     if (!out) return NULL;
     size_t j = 0;
-    for (size_t i = 0; i < n; i++) {
-        char c = pat[i];
-        if (c == '\\' && i + 1 < n) {
-            char nx = pat[i + 1];
-            /* These BRE escapes are ERE meta when un-escaped. */
-            if (nx == '(' || nx == ')' || nx == '+' || nx == '?'
-                || nx == '{' || nx == '}' || nx == '|') {
-                out[j++] = nx;
-                i++;
-                continue;
+    for (size_t i = 0; pat[i]; i++) {
+        if (pat[i] == '\\' && pat[i + 1]) {
+            char ch = pat[++i];
+            const char *end = pat + i;
+            unsigned char value;
+            if (bs_numeric_escape (&end, &value)) {
+                out[j++] = (char) value; i = end - pat - 1; continue;
             }
-        }
-        out[j++] = c;
+            switch (ch) {
+                case 'n': out[j++] = '\n'; continue;
+                case 't': out[j++] = '\t'; continue;
+                case 'r': out[j++] = '\r'; continue;
+                case 'a': out[j++] = '\a'; continue;
+                case 'f': out[j++] = '\f'; continue;
+                case 'v': out[j++] = '\v'; continue;
+            }
+            if (ch != delim || strchr (extended ? ".^$*+?[](){}|\\" : ".^$*[]\\", ch)) out[j++] = '\\';
+            out[j++] = ch;
+        } else out[j++] = pat[i];
     }
-    out[j] = '\0';
+    out[j] = 0;
+    *len = j;
     return out;
 }
 
@@ -323,8 +425,27 @@ bs_y_decode (const char **pp, char delim, unsigned char *out, size_t cap, size_t
     return 0;
 }
 
+/* Reject numeric overflow before arithmetic; malformed scripts must not
+   leave undefined state in the persistent shell. */
 static int
-bs_parse_addr (const char **psp, bs_addr *a, int icase)
+bs_number (const char **pp, long *out)
+{
+    const char *p = *pp;
+    long n = 0;
+    if (!isdigit ((unsigned char) *p)) return -1;
+    while (isdigit ((unsigned char) *p)) {
+        int digit = *p++ - '0';
+        if (n > (LONG_MAX - digit) / 10) {
+            builtin_error ("number too large"); return -1;
+        }
+        n = n * 10 + digit;
+    }
+    *pp = p; *out = n;
+    return 0;
+}
+
+static int
+bs_parse_addr (const char **psp, bs_addr *a, int extended)
 {
     const char *p = *psp;
     while (*p == ' ' || *p == '\t') p++;
@@ -335,7 +456,7 @@ bs_parse_addr (const char **psp, bs_addr *a, int icase)
         int mult = (*p == '~');
         p++;
         long n = 0;
-        while (*p >= '0' && *p <= '9') { n = n * 10 + (*p - '0'); p++; }
+        if (bs_number (&p, &n) < 0) return -1;
         a->kind = mult ? BS_ADDR_MULT : BS_ADDR_PLUS;
         a->step = n;
         *psp = p;
@@ -345,13 +466,13 @@ bs_parse_addr (const char **psp, bs_addr *a, int icase)
     {
         a->kind = BS_ADDR_LINE;
         long n = 0;
-        while (*p >= '0' && *p <= '9') { n = n * 10 + (*p - '0'); p++; }
+        if (bs_number (&p, &n) < 0) return -1;
         a->line = n;
         /* GNU step address: first~step (e.g. 1~2 = every other line). */
         if (*p == '~') {
             p++;
             long st = 0;
-            while (*p >= '0' && *p <= '9') { st = st * 10 + (*p - '0'); p++; }
+            if (bs_number (&p, &st) < 0) return -1;
             a->kind = BS_ADDR_STEP;
             a->step = st;
         }
@@ -369,26 +490,33 @@ bs_parse_addr (const char **psp, bs_addr *a, int icase)
         size_t rlen = (size_t) (p - start);
         char *pat_raw = strndup (start, rlen);
         if (!pat_raw) return -1;
-        char *pat = bs_bre_to_ere_compat (pat_raw);
+        char *pat = bs_regex_text (pat_raw, '/', extended, &rlen);
         free (pat_raw);
         if (!pat) return -1;
-        int flags = REG_EXTENDED | REG_NEWLINE;
-        if (icase) flags |= REG_ICASE;
-        if (regcomp (&a->re, pat, flags) != 0) {
+        int flags = extended ? REG_EXTENDED : 0;
+        p++;
+        while (*p == 'I' || *p == 'M') {
+            if (*p++ == 'I') flags |= REG_ICASE;
+            else flags |= REG_NEWLINE;
+        }
+        if (!rlen && (flags & (REG_ICASE | REG_NEWLINE))) {
+            builtin_error ("cannot specify modifiers on empty regexp"); free (pat); return -1;
+        }
+        if (rlen && bs_compile_re (&a->re, pat, rlen, flags) != 0) {
             builtin_error ("bad regex in address: %s", pat);
             free (pat); return -1;
         }
         free (pat);
         a->kind = BS_ADDR_REGEX;
-        a->re_ok = 1;
-        *psp = p + 1;
+        a->re_ok = rlen != 0;
+        *psp = p;
         return 1;
     }
     return 0;
 }
 
 /* Most recently used regex (address or s///), for POSIX empty-regex reuse
-   (`s//repl/`, `//addr`). Reset at the start of each bs_run. */
+   (`s//repl/`, `//addr`). Reset at the start of each invocation. */
 static regex_t *bs_last_re = NULL;
 
 /* q/Q quit signalling: when a q/Q command runs, the whole stream editor stops
@@ -518,7 +646,7 @@ bs_close_rstreams (void)
 }
 
 static int
-bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line)
+bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line, size_t len)
 {
     if (a->kind == BS_ADDR_REGEX && a->re_ok)
         bs_last_re = &a->re;   /* track for empty-regex reuse */
@@ -533,8 +661,12 @@ bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line)
             return lineno >= a->line && (lineno - a->line) % a->step == 0;
         case BS_ADDR_LAST: return is_last;
         case BS_ADDR_REGEX:
-            if (!a->re_ok) return 0;
-            return regexec (&a->re, line, 0, NULL, 0) == 0;
+            if (!bs_last_re) {
+                builtin_error ("no previous regular expression");
+                bs_runtime_error = 1;
+                return 0;
+            }
+            return bs_search (bs_last_re, line, len, 0, 0, NULL) == 0;
     }
     return 0;
 }
@@ -557,23 +689,22 @@ bs_cmd_free (bs_cmd *c)
 /* Parse the entire script into a flat command list. Returns malloc'd
    array; *out_n is the count. Returns -1 on parse error. */
 static int
-bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
+bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended)
 {
     int cap = 16, n = 0;
-    bs_cmd *cmds = calloc ((size_t) cap, sizeof *cmds);
+    bs_cmd *cmds = calloc ((size_t) cap + 1, sizeof *cmds);
     if (!cmds) return -1;
     const char *p = script;
-    int seen_regex = 0;   /* any regex (address or s///) seen so far, for s// reuse */
     while (*p)
     {
         if (n == cap)
         {
             if (cap > INT_MAX / 2 || (size_t) cap > SIZE_MAX / sizeof *cmds / 2) goto err;
             int new_cap = cap * 2;
-            bs_cmd *bigger = realloc (cmds, (size_t) new_cap * sizeof *cmds);
+            bs_cmd *bigger = realloc (cmds, ((size_t) new_cap + 1) * sizeof *cmds);
             if (!bigger) goto err;
             cmds = bigger;
-            memset (cmds + n, 0, (size_t) (new_cap - n) * sizeof *cmds);
+            memset (cmds + n, 0, (size_t) (new_cap + 1 - n) * sizeof *cmds);
             cap = new_cap;
         }
         bs_cmd *c = &cmds[n];
@@ -586,23 +717,22 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
         if (*p == '#') { while (*p && *p != '\n') p++; continue; }
 
         /* Parse address(es). */
-        int got_a = bs_parse_addr (&p, &c->addr1, 0);
+        int got_a = bs_parse_addr (&p, &c->addr1, extended);
         if (got_a < 0) goto err;
         c->has_a1 = got_a;
-        if (c->addr1.kind == BS_ADDR_REGEX) seen_regex = 1;
         if (c->has_a1 && *p == ',')
         {
             p++;
-            int got2 = bs_parse_addr (&p, &c->addr2, 0);
-            if (got2 < 0) goto err;
+            int got2 = bs_parse_addr (&p, &c->addr2, extended);
+            if (got2 <= 0) { builtin_error ("missing range end"); goto err; }
             c->has_a2 = got2;
-            if (c->addr2.kind == BS_ADDR_REGEX) seen_regex = 1;
         }
         while (*p == ' ' || *p == '\t') p++;
 
         /* ! ? */
         if (*p == '!') { c->negate = 1; p++; while (*p == ' ' || *p == '\t') p++; }
 
+        if (!*p) { builtin_error ("missing command"); goto err; }
         /* Command character. */
         char op = *p++;
         switch (op)
@@ -633,6 +763,13 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
                 size_t replen = (size_t) (p - rep_start);
                 c->s_repl = strndup (rep_start, replen);
                 if (!c->s_repl) { free (pat); goto err; }
+                for (const char *r = c->s_repl; *r; r++) {
+                    if (*r == '\\' && r[1]) {
+                        r++;
+                        if (*r >= '1' && *r <= '9' && *r - '0' > c->s_needed_sub)
+                            c->s_needed_sub = *r - '0';
+                    }
+                }
                 c->s_repl_len = replen;
                 c->s_repl_literal = strpbrk (c->s_repl, "&\\") == NULL;
                 p++;   /* skip closing delim */
@@ -654,42 +791,43 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
                         break;
                     }
                     else if (*p >= '0' && *p <= '9') {
-                        int occurrence = 0;
-                        while (*p >= '0' && *p <= '9') { occurrence = occurrence * 10 + (*p - '0'); p++; }
-                        c->s_n = occurrence;
+                        long occurrence;
+                        if (bs_number (&p, &occurrence) < 0 || occurrence > INT_MAX || occurrence == 0) {
+                            free (pat); builtin_error ("invalid substitution occurrence"); goto err;
+                        }
+                        c->s_n = (int) occurrence;
                         continue;
                     }
                     else if (*p == ' ' || *p == '\t') { /* skip — fall through to p++ */ }
                     else break;
                     p++;
                 }
-                int rflags = REG_EXTENDED;
+                int rflags = extended ? REG_EXTENDED : 0;
                 if (c->s_icase) rflags |= REG_ICASE;
                 /* m/M: ^ and $ match at embedded newlines in the pattern
                    space (REG_NEWLINE), like GNU sed's multiline flag. */
                 if (c->s_multiline) rflags |= REG_NEWLINE;
                 if (rlen == 0) {
-                    /* Empty regex: POSIX reuses the last regex used (address
-                       or s///) at runtime. Like GNU, error at parse time if no
-                       regex has appeared lexically before this point. */
                     free (pat);
-                    if (!seen_regex) {
-                        builtin_error ("no previous regular expression");
+                    if (c->s_icase || c->s_multiline) {
+                        builtin_error ("cannot specify modifiers on empty regexp");
                         goto err;
                     }
                     c->s_empty_re = 1;
                     break;
                 }
-                seen_regex = 1;
-                char *pat_compat = bs_bre_to_ere_compat (pat);
+                char *pat_compat = bs_regex_text (pat, delim, extended, &rlen);
                 free (pat);
                 if (!pat_compat) goto err;
-                if (regcomp (&c->s_re, pat_compat, rflags) != 0) {
+                if (bs_compile_re (&c->s_re, pat_compat, rlen, rflags) != 0) {
                     builtin_error ("s/// bad regex: %s", pat_compat);
                     free (pat_compat); goto err;
                 }
                 c->s_re_ok = 1;
-                if (!c->s_icase && *pat_compat
+                if ((size_t) c->s_needed_sub > c->s_re.re_nsub) {
+                    builtin_error ("invalid backreference in replacement"); free (pat_compat); goto err;
+                }
+                if (!c->s_icase && *pat_compat && !memchr (pat_compat, 0, rlen)
                     && strpbrk (pat_compat, "\\.^$*+?[](){}|") == NULL) {
                     const unsigned char *q = (const unsigned char *) pat_compat;
                     while (*q && *q < 0x80) q++;
@@ -709,8 +847,10 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
                 /* optional exit code: q N / Q N (POSIX). Default 0. */
                 while (*p == ' ' || *p == '\t') p++;
                 if (*p >= '0' && *p <= '9') {
-                    int code = 0;
-                    while (*p >= '0' && *p <= '9') { code = code * 10 + (*p - '0'); p++; }
+                    long code;
+                    if (bs_number (&p, &code) < 0 || code > INT_MAX) {
+                        builtin_error ("invalid quit code"); goto err;
+                    }
                     c->q_code = code & 0xff;
                 }
                 break;
@@ -886,6 +1026,14 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n)
             cmds[i].target_idx = found;
         }
     }
+    /* Reject stray closing braces as well as unmatched opening braces. */
+    int block_depth = 0;
+    for (int i = 0; i < n; i++) {
+        if (cmds[i].kind == BS_BLOCK_OPEN) block_depth++;
+        else if (cmds[i].kind == BS_BLOCK_CLOSE && --block_depth < 0) {
+            builtin_error ("unexpected }"); goto err;
+        }
+    }
     /* Resolve {...} matching close indexes. */
     for (int i = 0; i < n; i++)
     {
@@ -957,6 +1105,13 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
         }
         else if (*r == '\\' && r[1]) {
             r++;
+            const char *end = r;
+            unsigned char value;
+            if (bs_numeric_escape (&end, &value)) {
+                char ch = (char) value;
+                bs_case_append (out, &ch, 1, &mode, &one);
+                r = end - 1; continue;
+            }
             /* Case-conversion directives (GNU sed). */
             switch (*r) {
                 case 'U': mode = 'U'; continue;
@@ -997,8 +1152,11 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     bs_string out;
     /* Effective regex: an empty s// reuses the last regex used at runtime. */
     regex_t *re = c->s_empty_re ? bs_last_re : &c->s_re;
-    if (!re) { builtin_error ("no previous regular expression"); return 0; }
+    if (!re) { builtin_error ("no previous regular expression"); bs_runtime_error = 1; return -1; }
     bs_last_re = re;
+    if ((size_t) c->s_needed_sub > re->re_nsub) {
+        builtin_error ("invalid backreference in replacement"); bs_runtime_error = 1; return -1;
+    }
     bs_str_init (&out);
     /* A byte search is equivalent for ASCII subjects in every locale and
        for arbitrary byte subjects in a single-byte locale. Keep the regex
@@ -1022,16 +1180,15 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     while (off <= pat->len)
     {
         if (literal) {
-            /* strstr preserves regexec's existing NUL-terminated subject
-               contract. Literal regexes have no capture groups. */
-            const char *hit = strstr (pat->str + off, c->s_literal);
+            const char *hit = memmem (pat->str + off, pat->len - off,
+                                      c->s_literal, c->s_literal_len);
             if (!hit) break;
             m[0].rm_so = (regoff_t) (hit - pat->str - off);
             m[0].rm_eo = m[0].rm_so + (regoff_t) c->s_literal_len;
             if (!c->s_repl_literal)
                 for (int i = 1; i < 10; i++) m[i].rm_so = m[i].rm_eo = -1;
         }
-        else if (regexec (re, pat->str + off, 10, m, off > 0 ? REG_NOTBOL : 0) != 0)
+        else if (bs_search (re, pat->str, pat->len, off, 10, m) != 0)
             break;
         /* GNU/POSIX: an empty match is suppressed when it sits exactly at the
            end of the previous match (prevents a spurious extra replacement
@@ -1043,7 +1200,9 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
             if (m[0].rm_so > 0)
                 bs_str_append (&out, pat->str + off, (size_t) m[0].rm_so);
             off += (size_t) m[0].rm_so;
-            if (off < pat->len) { bs_str_append (&out, pat->str + off, 1); off++; }
+            if (off < pat->len) {
+                bs_str_append (&out, pat->str + off, 1); off++;
+            }
             else off = pat->len + 1;
             continue;
         }
@@ -1069,8 +1228,9 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
                 off = pat->len + 1;
                 break;
             }
-            if (off < pat->len) bs_str_append (&out, pat->str + off, 1);
-            off++;
+            if (off < pat->len) {
+                bs_str_append (&out, pat->str + off, 1); off++;
+            } else off++;
             continue;
         }
         /* Append the lead-up. */
@@ -1113,22 +1273,134 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     return matched_any;
 }
 
-/* Only an evaluated $ address needs lookahead. Ordinary cycles, including
-   q before a later $ command, must not consume the next byte from a pipe. */
-static int
-bs_input_addr_match (bs_addr *addr, long lineno, int *is_last, const char *pat, FILE *in)
+/* One invocation edits a concatenation of operands. Only -s and -i start
+   separate cycles. Input ownership, stdio reconciliation and output buffering
+   live here so n/N and dollar lookahead can cross empty/error operands too. */
+typedef struct {
+    FILE *fp;
+    const char **files;
+    int count, next, owned, use_stdin, seekable, error, buffer_output;
+    const char *name;
+    bs_output *out;
+    FILE *buffered;
+} bs_input;
+
+static void
+bs_input_close (bs_input *in)
 {
-    if (addr->kind == BS_ADDR_LAST && *is_last < 0) {
-        int ch = getc (in);
-        *is_last = ch == EOF;
-        if (ch != EOF) ungetc (ch, in);
+    if (!in->fp) return;
+    if (ferror (in->fp)) {
+        builtin_error ("%s: read error: %s", in->name, strerror (errno));
+        in->error = 1;
     }
-    return bs_addr_match (addr, lineno, *is_last > 0, pat);
+    if (!in->owned) { in->fp = NULL; return; }
+    if (in->buffered) {
+        if (fclose (in->buffered) != 0) in->error = 1;
+        in->buffered = NULL;
+        in->out->fp = stdout;
+    }
+    if (in->use_stdin && in->seekable && fseeko (in->fp, 0, SEEK_CUR) != 0)
+        in->error = 1;
+    if (fclose (in->fp) != 0) in->error = 1;
+    in->fp = NULL;
+}
+
+static int
+bs_input_open (bs_input *in)
+{
+    while (in->next < in->count) {
+        in->name = in->files[in->next++];
+        in->use_stdin = !strcmp (in->name, "-");
+        int fd = in->use_stdin ? dup (STDIN_FILENO) : open (in->name, O_RDONLY);
+        in->fp = fd < 0 ? NULL : fdopen (fd, "r");
+        if (!in->fp) {
+            builtin_error ("%s: %s", in->name, strerror (errno));
+            if (fd >= 0) close (fd);
+            in->error = 1;
+            continue;
+        }
+        in->owned = 1;
+        in->seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
+        if (!in->seekable) setvbuf (in->fp, NULL, _IONBF, 0);
+        struct stat sb;
+        if (in->buffer_output && fstat (fd, &sb) == 0 && S_ISREG (sb.st_mode)
+            && fflush (stdout) == 0) {
+            int outfd = dup (STDOUT_FILENO);
+            in->buffered = outfd < 0 ? NULL : fdopen (outfd, "w");
+            if (in->buffered) in->out->fp = in->buffered;
+            else if (outfd >= 0) close (outfd);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static ssize_t
+bs_input_read (bs_input *in, char **line, size_t *cap)
+{
+    for (;;) {
+        if (!in->fp && !bs_input_open (in)) return -1;
+        ssize_t n = getline (line, cap, in->fp);
+        if (n >= 0) return n;
+        bs_input_close (in);
+    }
+}
+
+/* No byte removed from a Linux pipe may be lost to the next shell reader.
+   tee duplicates one byte to a private pipe, leaving the source untouched.
+   Like getc, it waits for data or EOF when a live producer has no data yet. */
+static int
+bs_input_peek (bs_input *in)
+{
+    struct stat sb;
+    int fd = fileno (in->fp);
+    if (!in->seekable && fstat (fd, &sb) == 0) {
+#if defined (__linux__) && defined (SYS_tee)
+        if (S_ISFIFO (sb.st_mode)) {
+            int probe[2];
+            if (pipe (probe) != 0) { in->error = 1; return EOF; }
+            ssize_t n;
+            do n = syscall (SYS_tee, fd, probe[1], 1, 0); while (n < 0 && errno == EINTR);
+            close (probe[0]); close (probe[1]);
+            if (n < 0) in->error = 1;
+            return n > 0 ? 0 : EOF;
+        }
+#endif
+        if (S_ISSOCK (sb.st_mode)) {
+            char byte;
+            ssize_t n;
+            do n = recv (fd, &byte, 1, MSG_PEEK); while (n < 0 && errno == EINTR);
+            if (n < 0) in->error = 1;
+            return n > 0 ? 0 : EOF;
+        }
+    }
+    int ch = getc (in->fp);
+    if (ch != EOF) ungetc (ch, in->fp);
+    return ch;
+}
+
+static int
+bs_input_last (bs_input *in)
+{
+    for (;;) {
+        if (!in->fp && !bs_input_open (in)) return 1;
+        if (bs_input_peek (in) != EOF) return 0;
+        bs_input_close (in);
+    }
+}
+
+static int
+bs_input_addr_match (bs_addr *addr, long lineno, int *is_last,
+                     const bs_string *pat, bs_input *in)
+{
+    if (addr->kind == BS_ADDR_LAST && *is_last < 0)
+        *is_last = bs_input_last (in);
+    return bs_addr_match (addr, lineno, *is_last > 0, pat->str, pat->len);
 }
 
 /* Run the script over an input stream. Returns 0 on success. */
 static int
-bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default, const char *filename)
+bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_default)
 {
     char *cur = NULL;
     size_t cur_cap = 0;
@@ -1138,7 +1410,6 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
     bs_string pat, hold, a_queue;
     bs_str_init (&pat); bs_str_init (&hold); bs_str_init (&a_queue);
 
-    bs_last_re = NULL;   /* reset empty-regex-reuse tracking for this run */
     bs_runtime_error = 0;
 
     /* range_active[i]: 1 if a 2-address range is currently open for cmd i.
@@ -1161,7 +1432,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
         goto done;
     }
     long lineno = 0;
-    while ((rd = getline (&cur, &cur_cap, in)) >= 0)
+    while ((rd = bs_input_read (in, &cur, &cur_cap)) >= 0)
     {
         lineno++;
         pat_nl = rd > 0 && cur[rd - 1] == '\n';
@@ -1179,7 +1450,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
             int addr_match = 1;
             if (c->has_a1 && !c->has_a2)
             {
-                addr_match = bs_input_addr_match (&c->addr1, lineno, &is_last, pat.str, in);
+                addr_match = bs_input_addr_match (&c->addr1, lineno, &is_last, &pat, in);
             }
             else if (c->has_a1 && c->has_a2)
             {
@@ -1189,35 +1460,40 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                     int close;
                     if (c->addr2.kind == BS_ADDR_PLUS || c->addr2.kind == BS_ADDR_MULT)
                         close = (lineno >= range_end[ci]);
+                    else if (c->addr2.kind == BS_ADDR_LINE)
+                        close = lineno >= c->addr2.line;
                     else
-                        close = bs_input_addr_match (&c->addr2, lineno, &is_last, pat.str, in);
+                        close = bs_input_addr_match (&c->addr2, lineno, &is_last, &pat, in);
                     if (close) range_active[ci] = 0;
                 }
-                else if (bs_input_addr_match (&c->addr1, lineno, &is_last, pat.str, in))
+                else if (bs_input_addr_match (&c->addr1, lineno, &is_last, &pat, in))
                 {
                     addr_match = 1;
                     range_active[ci] = 1;
                     if (c->addr2.kind == BS_ADDR_PLUS) {
                         /* ,+N : end N lines after addr1; +0 = single line. */
-                        range_end[ci] = lineno + c->addr2.step;
+                        range_end[ci] = c->addr2.step > LONG_MAX - lineno ? LONG_MAX : lineno + c->addr2.step;
                         if (lineno >= range_end[ci]) range_active[ci] = 0;
                     }
                     else if (c->addr2.kind == BS_ADDR_MULT) {
                         /* ,~N : next multiple of N strictly after addr1. */
                         long N = c->addr2.step;
                         if (N <= 0) range_active[ci] = 0;
-                        else range_end[ci] = (lineno / N + 1) * N;
+                        else range_end[ci] = N > LONG_MAX - (lineno / N) * N ? LONG_MAX : (lineno / N + 1) * N;
                     }
                     /* A regexp end-address is only tested from the line AFTER
                        addr1 (POSIX/GNU), so it can never close the range on the
                        opening line. A line-number/$ end-address may yield a
                        single-line range when it already holds here. */
+                    else if (c->addr2.kind == BS_ADDR_LINE && lineno >= c->addr2.line)
+                        range_active[ci] = 0;
                     else if (c->addr2.kind != BS_ADDR_REGEX
-                        && bs_input_addr_match (&c->addr2, lineno, &is_last, pat.str, in))
+                        && bs_input_addr_match (&c->addr2, lineno, &is_last, &pat, in))
                         range_active[ci] = 0;
                 }
                 else addr_match = 0;
             }
+            if (bs_runtime_error) goto done;
             if (c->negate) addr_match = !addr_match;
             if (!addr_match) {
                 /* For BLOCK_OPEN with no match, skip to matching close. */
@@ -1228,19 +1504,21 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
             switch (c->kind)
             {
                 case BS_S:
-                    last_subst = bs_apply_s (c, &pat);
-                    if (last_subst < 0)
-                        goto done;
-                    if (last_subst && c->s_print) {
+                {
+                    int substituted = bs_apply_s (c, &pat);
+                    if (substituted < 0) goto done;
+                    last_subst |= substituted;
+                    if (substituted && c->s_print) {
                         bs_emit (out, pat.str, pat.len, pat_nl);
                     }
                     /* s///w FILE: on a successful substitution, write the
                        resulting pattern space to FILE. */
-                    if (last_subst && c->s_wfile) {
+                    if (substituted && c->s_wfile) {
                         bs_output *wf = bs_get_wstream (c->s_wfile);
                         if (wf) bs_emit (wf, pat.str, pat.len, pat_nl);
                     }
                     break;
+                }
                 case BS_D:
                     /* Skip to next input line. */
                     pat.len = 0;
@@ -1266,8 +1544,8 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                     break;
                 case BS_F:
                     /* Print the current input filename ("-" for stdin). */
-                    bs_emit (out, filename ? filename : "-",
-                             strlen (filename ? filename : "-"), 1);
+                    bs_emit (out, in->name ? in->name : "-",
+                             strlen (in->name ? in->name : "-"), 1);
                     break;
                 case BS_E: {
                     bs_string exec_out;
@@ -1326,9 +1604,8 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                     if (!last_subst) {
                         if (c->target_idx >= 0) ci = c->target_idx;
                         else ci = n_cmds;
-                    } else {
-                        last_subst = 0;
                     }
+                    last_subst = 0;
                     break;
                 case BS_I:
                     /* Insert: emit text immediately (before pat prints). */
@@ -1367,16 +1644,17 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                         a_queue.len = 0;
                         if (a_queue.str) a_queue.str[0] = '\0';
                     }
-                    rd = getline (&cur, &cur_cap, in);
+                    rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) goto done;
                     lineno++;
                     pat_nl = rd > 0 && cur[rd - 1] == '\n';
                     is_last = -1;
+                    last_subst = 0;
                     bs_str_set (&pat, cur, (size_t) rd - pat_nl);
                     suppress_this_line = 0;
                     break;
                 case BS_NUP_CMD:
-                    rd = getline (&cur, &cur_cap, in);
+                    rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) {
                         if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         goto done;
@@ -1386,6 +1664,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
                     bs_str_append (&pat, cur, (size_t) rd - pat_nl);
                     lineno++;
                     is_last = -1;
+                    last_subst = 0;
                     break;
                 case BS_D_LO:
                     if (pat.str) {
@@ -1485,10 +1764,7 @@ bs_run (bs_cmd *cmds, int n_cmds, FILE *in, bs_output *out, int suppress_default
     next_line:;
     }
 done:
-    if (ferror (in)) {
-        builtin_error ("%s: read error: %s", filename, strerror (errno));
-        bs_runtime_error = 1;
-    }
+    if (in->error) bs_runtime_error = 1;
     if (fflush (out->fp) == EOF || ferror (out->fp)) {
         builtin_error ("write error: %s", strerror (errno));
         bs_runtime_error = 1;
@@ -1526,7 +1802,9 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
     if (!out) { close (fd); fclose (in); unlink (tmp); return -1; }
 
     bs_output output = { out, 0 };
-    int rc = bs_run (cmds, n_cmds, in, &output, suppress_default, path);
+    bs_input input = { .fp = in, .name = path, .out = &output };
+    int rc = bs_run (cmds, n_cmds, &input, &output, suppress_default);
+    bs_close_rstreams ();
     if (fclose (in) != 0) rc = -1;
     /* Preserve owner+mode via the open fd before closing. fchown/fchmod are
        symlink-safe and avoid TOCTOU on the path. */
@@ -1557,7 +1835,7 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
 int
 sed_builtin (WORD_LIST *list)
 {
-    int suppress_default = 0;
+    int suppress_default = 0, extended = 0, separate = 0;
     int inplace = 0;
     char inplace_suffix[64] = {0};
     char *script = NULL;
@@ -1582,16 +1860,17 @@ sed_builtin (WORD_LIST *list)
         script[script_len] = '\0'; \
     } while (0)
 
-    int script_seen = 0;
+    int script_seen = 0, options = 1;
     WORD_LIST *p = list;
     while (p)
     {
         const char *w = p->word->word;
-        if (w[0] == '-' && w[1] != '\0' && strcmp (w, "--") != 0)
+        if (options && !strcmp (w, "--")) { options = 0; goto next_word; }
+        if (options && w[0] == '-' && w[1] != '\0')
         {
             if (!strcmp (w, "--help")) {
                 puts ("bashsed: stream editor");
-                puts ("Usage: bashsed [-niE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
+                puts ("Usage: bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
                 free (files); free (script);
                 return EXECUTION_SUCCESS;
             }
@@ -1600,7 +1879,8 @@ sed_builtin (WORD_LIST *list)
                 switch (*c)
                 {
                     case 'n': suppress_default = 1; break;
-                    case 'E': /* default extended — no-op */ break;
+                    case 'E': case 'r': extended = 1; break;
+                    case 's': separate = 1; break;
                     case 'i':
                         inplace = 1;
                         /* If next char is non-flag/non-end, take as suffix on this token. */
@@ -1632,7 +1912,12 @@ sed_builtin (WORD_LIST *list)
                         size_t rd;
                         while ((rd = fread (buf, 1, sizeof buf, sf)) > 0)
                             APP_SCRIPT (buf, rd);
-                        fclose (sf);
+                        int failed = ferror (sf);
+                        if (fclose (sf) != 0) failed = 1;
+                        if (failed) {
+                            builtin_error ("-f %s: read error", p->word->word);
+                            free (files); free (script); return EXECUTION_FAILURE;
+                        }
                         script_seen = 1;
                         goto next_word;
                     }
@@ -1672,7 +1957,7 @@ sed_builtin (WORD_LIST *list)
     if (!script_seen) { free (files); free (script); builtin_error ("no script"); return EX_USAGE; }
 
     bs_cmd *cmds = NULL; int n_cmds = 0;
-    if (bs_parse_script (script, &cmds, &n_cmds) < 0) {
+    if (bs_parse_script (script, &cmds, &n_cmds, extended) < 0) {
         free (files); free (script);
         return EXECUTION_FAILURE;
     }
@@ -1693,60 +1978,37 @@ sed_builtin (WORD_LIST *list)
     int rc = EXECUTION_SUCCESS;
     bs_stdout = (bs_output) { stdout, 0 };
     bs_stderr = (bs_output) { stderr, 0 };
-    bs_quit_signaled = 0; bs_quit_code = 0;
+    bs_quit_signaled = 0; bs_quit_code = 0; bs_last_re = NULL;
     if (inplace)
     {
-        for (int i = 0; i < n_files; i++)
+        for (int i = 0; i < n_files; i++) {
             if (bs_inplace (cmds, n_cmds, files[i], inplace_suffix, suppress_default) < 0)
                 rc = EXECUTION_FAILURE;
-    }
-    else
-    {
-        for (int i = 0; i < (n_files ? n_files : 1); i++)
-        {
-            const char *name = n_files ? files[i] : "-";
-            int use_stdin = !strcmp (name, "-");
-            int fd = use_stdin ? dup (STDIN_FILENO) : open (name, O_RDONLY);
-            FILE *f = fd < 0 ? NULL : fdopen (fd, "r");
-            if (!f) {
-                builtin_error ("%s: %s", name, strerror (errno));
-                if (fd >= 0) close (fd);
-                rc = EXECUTION_FAILURE;
-                continue;
-            }
-            int seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
-            if (!seekable) setvbuf (f, NULL, _IONBF, 0);
-            /* Bash line-buffers stdout. A private stream batches regular
-               file output without changing the shell's buffering or the
-               prompt delivery of lines read from a pipe/FIFO/terminal. */
-            FILE *buffered = NULL;
-            struct stat sb;
-            if (buffer_output && fstat (fd, &sb) == 0 && S_ISREG (sb.st_mode)
-                && fflush (stdout) == 0) {
-                int outfd = dup (STDOUT_FILENO);
-                buffered = outfd < 0 ? NULL : fdopen (outfd, "w");
-                if (buffered) bs_stdout.fp = buffered;
-                else if (outfd >= 0) close (outfd);
-            }
-            if (bs_run (cmds, n_cmds, f, &bs_stdout, suppress_default, name) < 0)
-                rc = EXECUTION_FAILURE;
-            if (buffered) {
-                /* Flush/close before opening the next potentially live file.
-                   Keep missing_newline across files on the shared bs_output. */
-                if (fclose (buffered) != 0) rc = EXECUTION_FAILURE;
-                bs_stdout.fp = stdout;
-            }
-            /* Reconcile stdio read-ahead with the shared descriptor offset.
-               fclose alone would discard bytes that shell read still needs. */
-            if (use_stdin && seekable && fseeko (f, 0, SEEK_CUR) != 0) {
-                builtin_error ("stdin: %s", strerror (errno));
-                rc = EXECUTION_FAILURE;
-            }
-            if (fclose (f) != 0) rc = EXECUTION_FAILURE;
             if (bs_quit_signaled) {
                 if (rc == EXECUTION_SUCCESS) rc = bs_quit_code;
                 break;
             }
+        }
+    }
+    else
+    {
+        const char *standard_input = "-";
+        int count = n_files ? n_files : 1;
+        const char **operands = n_files ? files : &standard_input;
+        for (int i = 0; i < count; ) {
+            bs_input input = { .files = operands + i, .count = separate ? 1 : count,
+                               .out = &bs_stdout, .buffer_output = buffer_output };
+            if (bs_run (cmds, n_cmds, &input, &bs_stdout, suppress_default) < 0)
+                rc = EXECUTION_FAILURE;
+            bs_input_close (&input);
+            if (input.error) rc = EXECUTION_FAILURE;
+            if (bs_quit_signaled) {
+                if (rc == EXECUTION_SUCCESS) rc = bs_quit_code;
+                break;
+            }
+            if (!separate) break;
+            bs_close_rstreams ();
+            i++;
         }
     }
 
@@ -1766,7 +2028,7 @@ sed_builtin (WORD_LIST *list)
 char *sed_doc[] = {
     "POSIX-shape sed(1) — stream editor.",
     "",
-    "    bashsed [-iE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "    bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     "",
     "Commands: s/// (capture groups), d p q =, h H g G x,",
     "          a/i/c TEXT, y/SET1/SET2/, n D P,",
@@ -1780,7 +2042,8 @@ char *sed_doc[] = {
     "    -i [SUFFIX]   in-place edit; SUFFIX saves backup",
     "    -e SCRIPT     append SCRIPT (multiple OK)",
     "    -f FILE       read commands from FILE",
-    "    -E            extended regex (always on)",
+    "    -E / -r       extended regex (default BRE)",
+    "    -s            separate input files (implied by -i)",
     "",
     "Security: e and s///e shell execution require BASHSED_ALLOW_EXEC=1.",
     (char *)NULL
@@ -1791,6 +2054,6 @@ struct builtin bashsed_struct = {
     sed_builtin,
     BUILTIN_ENABLED,
     sed_doc,
-    "bashsed [-iE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     0
 };
