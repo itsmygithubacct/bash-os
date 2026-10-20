@@ -15,15 +15,17 @@ t=$(B type -t unexpand 2>/dev/null) || t=
 cd "$d"
 printf 'a\tb\tc\nxx\tyy\tzz\n        eight\n' > tabs.txt
 
-got=$(B unexpand -a tabs.txt)
+B unexpand -a tabs.txt > builtin.out; brc=$?
 if [[ -x /usr/bin/unexpand ]]; then
-  want=$(/usr/bin/unexpand -a tabs.txt)
-  [[ $got == "$want" ]] && ok "matches GNU unexpand -a" || no "builtin '$got' gnu '$want'"
-  want=$(/usr/bin/unexpand tabs.txt)
-  got=$(B unexpand tabs.txt)
-  [[ $got == "$want" ]] && ok "matches GNU unexpand leading" || no "leading builtin '$got' gnu '$want'"
+  /usr/bin/unexpand -a tabs.txt > gnu.out; grc=$?
+  [[ $brc == "$grc" ]] && cmp -s builtin.out gnu.out \
+    && ok "matches GNU unexpand -a" || no "unexpand -a bytes/status differ"
+  /usr/bin/unexpand tabs.txt > gnu.out; grc=$?
+  B unexpand tabs.txt > builtin.out; brc=$?
+  [[ $brc == "$grc" ]] && cmp -s builtin.out gnu.out \
+    && ok "matches GNU unexpand leading" || no "leading bytes/status differ"
 else
-  [[ -n $got ]] && ok "unexpand -a produced output" || no "unexpand -a empty"
+  [[ $brc == 0 && -s builtin.out ]] && ok "unexpand -a produced output" || no "unexpand -a failed/empty"
 fi
 
 B unexpand -a tabs.txt >/dev/full 2>"$d/err"; rc=$?
