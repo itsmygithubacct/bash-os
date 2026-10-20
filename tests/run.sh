@@ -191,6 +191,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'losetup fixture build' env BASHOS_TASK_DIR="$scratch/losetup-contracts" bash tests/sol-losetup-build.sh "$scratch/losetup-contracts/artifacts"
+  check 'losetup native boundary contracts' python3 tests/sol-losetup-fixtures.py --binary out/bash --module "$scratch/losetup-contracts/artifacts/losetup-fixture.so"
+  check 'losetup boundary under ASan+UBSan' python3 tests/sol-losetup-fixtures.py --binary out/bash --module "$scratch/losetup-contracts/artifacts/losetup-sanitize.so" --preload "$(cat "$scratch/losetup-contracts/artifacts/libasan-path")"
   check 'fsfreeze fixture build' env BASHOS_TASK_DIR="$scratch/fsfreeze-contracts" bash tests/sol-fsfreeze-build.sh "$scratch/fsfreeze-contracts/artifacts"
   check 'fsfreeze native boundary contracts' python3 tests/sol-fsfreeze-check.py --binary out/bash --module "$scratch/fsfreeze-contracts/artifacts/fsfreeze.so"
   check 'fsfreeze boundary under ASan+UBSan' python3 tests/sol-fsfreeze-check.py --binary out/bash --module "$scratch/fsfreeze-contracts/artifacts/fsfreeze-sanitize.so" --asan-library "$(cat "$scratch/fsfreeze-contracts/artifacts/asan-library.txt")"

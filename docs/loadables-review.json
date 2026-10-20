@@ -1199,6 +1199,14 @@
       "status": "Contract",
       "evidence": "docs/sol-fsfreeze.md",
       "scope": "Parser, directory-open and freeze/thaw syscall boundary with closed fixtures. Actual freezable filesystem behavior and latency require a disposable capable VM."
+    },
+    {
+      "names": [
+        "losetup"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-losetup.md",
+      "scope": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. Actual kernel loop behavior requires a disposable loop-capable VM."
     }
   ],
   "sanitizer_groups": [
@@ -1661,6 +1669,12 @@
         "fsfreeze"
       ],
       "evidence": "tests/sol-fsfreeze-build.sh"
+    },
+    {
+      "names": [
+        "losetup"
+      ],
+      "evidence": "tests/sol-losetup-build.sh"
     }
   ],
   "fuzz": {
@@ -2560,6 +2574,11 @@
       "evidence": "docs/sol-fsfreeze.md",
       "note": "Parser, directory-open and freeze/thaw syscall boundary with closed fixtures. Actual freezable filesystem behavior and latency require a disposable capable VM.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "losetup": {
+      "evidence": "docs/sol-losetup.md",
+      "note": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. Actual kernel loop behavior requires a disposable loop-capable VM.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2603,7 +2622,8 @@
     "halt",
     "reboot",
     "poweroff",
-    "fsfreeze"
+    "fsfreeze",
+    "losetup"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
