@@ -970,6 +970,14 @@
       "status": "Contract",
       "evidence": "tests/sol-bsdgames-contracts.py",
       "scope": "Exact GNU tr ROT13 byte parity, explicit Caesar shifts, persistent file/pipe streams, private PTYs, representative deterministic games, read/write failures and descriptor cleanup; not full upstream game conformance."
+    },
+    {
+      "names": [
+        "uclampset"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-uclampset.py",
+      "scope": "28 owned-child/private-sysctl tests: request bytes, effective clamp validation before thread updates, strict parsing, command argv/status, error handling and rollback-open failure. Successful kernel setters are emulated on this host."
     }
   ],
   "sanitizer_groups": [
@@ -1288,6 +1296,13 @@
       ],
       "evidence": "tests/sol-bsdgames-build.sh",
       "scope": "Production module under ASan/UBSan, with the focused byte, stream, game and error contracts."
+    },
+    {
+      "names": [
+        "uclampset"
+      ],
+      "evidence": "tests/opus-uclampset-sanitize.sh",
+      "scope": "Production loadable under ASan/UBSan with all 28 focused setter/query/command contracts; shim does not replace production request construction."
     }
   ],
   "fuzz": {
@@ -1828,9 +1843,9 @@
       "next": "Define required mapper mutation verbs and add isolated device fixtures."
     },
     "uclampset": {
-      "note": "Query subset; setting PID/system clamps and command mode are refused.",
-      "evidence": "loadables/uclampset.c",
-      "next": "Decide whether to implement the missing setter surface."
+      "note": "PID/system setters and command mode implemented. Effective single-clamp requests are preflighted against current limits; mixed-thread, reset and whitespace regressions covered. This host lacks CONFIG_UCLAMP_TASK: successful setters use a recording syscall emulator/private sysctl fixtures, and live acceptance remains unqualified.",
+      "evidence": "docs/opus-uclampset.md",
+      "next": "Qualify real task/sysctl setters on a kernel with CONFIG_UCLAMP_TASK. Hidden procfs can prevent disambiguating unsupported and supported 0/0 task clamps."
     },
     "lpr": {
       "note": "Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim.",
@@ -2180,8 +2195,9 @@
       }
     ],
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
-    "catalog_sha256": "97903e9c62aedaad362b52317849065b915b491f3ca8ab21f770d17b2880d244",
-    "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b"
+    "catalog_sha256": "7c4a09d1fc026a42cbf9e8d25073a0e5477689f78ae37c9f2477fedfd3eb05ab",
+    "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b",
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries."
   },
   "optional_integrations": {
     "bashperl": {

@@ -141,7 +141,7 @@ hwclock|hwclock(8) subset over /dev/rtc0
 renice|Change the niceness of running processes (POSIX renice)
 taskset|Run or query commands with a CPU affinity mask
 chrt|Show or change process scheduling policy and priority
-uclampset|Show process utilization clamp values through sched_getattr(2)
+uclampset|Show and change task or system utilization clamps
 
 # text and formatting tools (imported 2026-09-06 from the upstream collection)
 expand|Convert tabs to spaces (POSIX expand)
