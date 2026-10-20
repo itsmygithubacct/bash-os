@@ -1255,6 +1255,15 @@
       "status": "Contract",
       "evidence": "docs/sol-ping.md",
       "scope": "Linux echo requests with complete payload/checksum validation, monotonic deadlines and same-shell recovery. Native owned loopback and injected raw-socket paths are distinct; no traceroute or external network qualification."
+    },
+    {
+      "names": [
+        "netstat",
+        "ss"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-netstat.md",
+      "scope": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim."
     }
   ],
   "sanitizer_groups": [
@@ -1759,6 +1768,13 @@
         "ping"
       ],
       "evidence": "tests/sol-ping-build.sh"
+    },
+    {
+      "names": [
+        "netstat",
+        "ss"
+      ],
+      "evidence": "tests/sol-netstat-build-fixtures.sh"
     }
   ],
   "fuzz": {
@@ -2685,6 +2701,16 @@
       "evidence": "docs/sol-ping.md",
       "note": "Linux echo requests with complete payload/checksum validation, monotonic deadlines and same-shell recovery. Native owned loopback and injected raw-socket paths are distinct; no traceroute or external network qualification.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "netstat": {
+      "evidence": "docs/sol-netstat.md",
+      "note": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "ss": {
+      "evidence": "docs/sol-netstat.md",
+      "note": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2734,7 +2760,9 @@
     "swapoff",
     "hwclock",
     "fstrim",
-    "ping"
+    "ping",
+    "netstat",
+    "ss"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

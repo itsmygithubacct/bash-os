@@ -192,6 +192,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'netstat fixtures build' bash tests/sol-netstat-build-fixtures.sh "$scratch/netstat-contracts"
+  check 'netstat owned sockets and transport fixtures' python3 tests/sol-netstat-behavior.py --binary out/bash --shim "$scratch/netstat-contracts/shim.so" --output "$scratch/netstat-native.json"
+  check 'netstat transport under ASan+UBSan' env BASH_ENV="$scratch/netstat-contracts/sanitize-env.sh" LD_PRELOAD="$(cat "$scratch/netstat-contracts/asan-path")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-netstat-behavior.py --binary out/bash --shim "$scratch/netstat-contracts/shim.so" --no-live --output "$scratch/netstat-sanitize.json"
   check 'ping boundary build' bash tests/sol-ping-build.sh "$scratch/ping-contracts"
   check 'ping native echo contracts' python3 tests/sol-ping-check.py out/bash "$scratch/ping-contracts"
   check 'ping injected sanitizer contracts' python3 tests/sol-ping-check.py out/bash "$scratch/ping-contracts" --sanitize
