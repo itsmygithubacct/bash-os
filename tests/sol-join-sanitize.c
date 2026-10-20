@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Standalone ASan/UBSan entry into the real production builtin. Bash's word
    list and diagnostics are the only host interfaces mocked here. */
 #include <stdarg.h>

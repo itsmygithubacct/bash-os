@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Small memory-accounting launcher. Fork after exec so the measured child
    cannot inherit the Python fixture generator's pre-exec peak RSS. */
 #define _GNU_SOURCE

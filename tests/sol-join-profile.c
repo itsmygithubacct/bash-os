@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Instrument the production translation unit; profile builds are never timed
    as throughput results. Build with -finstrument-functions -Wl,-Bsymbolic. */
 #define join_builtin sol_join_impl
