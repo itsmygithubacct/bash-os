@@ -13,7 +13,7 @@ patch --batch -s "$d/head.c" < patches/head-stdin.patch
 sed -e 's/^struct builtin bashsed_struct/struct builtin sed_struct/' \
     -e 's/^    "bashsed",$/    "sed",/' loadables/sed.c > "$d/sed.c"
 "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
-  -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" \
+  -DHAVE_CONFIG_H -I"$HERE/loadables/common" -I"$BT" -I"$BT/include" -I"$BT/builtins" \
   -I"$BT/examples/loadables" "$d/head.c" "$d/sed.c" -o "$d/head-sed.so"
 printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport HEAD_SED_MODULE=%q\nexec %q "$@"\n' \
   "$("$CC" -print-file-name=libasan.so)" "$d/head-sed.so" "$(realpath "${1:-out/bash-core}")" > "$d/bash-os"

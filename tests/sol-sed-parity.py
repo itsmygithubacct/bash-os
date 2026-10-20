@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-') as directory:
                    'q 999999999999999999999999'):
         assert run([script], b'a\n').returncode == 1, script
         checks += 1
-    assert run(['-f', d], b'a\n').returncode == 1
+    assert run(['-f', d], b'a\n').returncode == 4
     checks += 1
     # Capture groups, binary subjects, multiline state and final newlines.
     for data in (b'', b'a', b'a\0b', b'a\0b\n', b'a\0b\nc\0d', b'\0\n\0'):

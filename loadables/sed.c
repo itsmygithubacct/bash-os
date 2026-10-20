@@ -23,7 +23,7 @@
  *   [ADDR] N                 append next input line to pattern space
  *   [ADDR] D                 delete to first \n in pattern, restart cycle
  *   [ADDR] P                 print to first \n in pattern
- *   [ADDR] l                 print pattern space with escapes
+ *   [ADDR] l [WIDTH]         print pattern space with escapes
  *   [ADDR] :LABEL            label
  *   [ADDR] b LABEL           unconditional branch
  *   [ADDR] t LABEL           branch if last s/// matched
@@ -44,6 +44,8 @@
  *   -E / -r       extended regex (default is BRE)
  *   -s            separate input files (also implied by -i)
  *   -n            suppress default print
+ *   -u            unbuffered output
+ *   -l WIDTH      default l-command width (zero disables wrapping)
  *
  * Security: e / s///e shell execution is disabled unless
  * BASHSED_ALLOW_EXEC=1 is set.
@@ -68,16 +70,25 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include <regex.h>
+#if defined (__GLIBC__) && !defined (BASHSED_PORTABLE_REGEX)
+# include <regex.h>
+#else
+# include "sed-regex.h"
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <poll.h>
+#include <termios.h>
 #if defined (__linux__)
 # include <sys/syscall.h>
 #endif
 
 #include "loadables.h"
+#include "quit.h"
+#include "trap.h"
 
 /* Address kinds. */
 typedef enum { BS_ADDR_NONE, BS_ADDR_LINE, BS_ADDR_LAST, BS_ADDR_REGEX,
@@ -134,6 +145,7 @@ typedef struct {
     int        s_icase;      /* i flag */
     int        s_multiline;  /* m/M flag: ^/$ match at embedded newlines */
     int        s_exec;       /* e flag: execute resulting pattern space */
+    long       l_width;     /* -1 uses the invocation default */
     int        q_code;       /* q/Q exit code (default 0) */
     char      *s_wfile;      /* s///w FILE : write substituted line to FILE */
     /* labels / branches */
@@ -156,15 +168,33 @@ typedef struct {
 } bs_string;
 
 static int bs_runtime_error;
+static long bs_list_width;
+static int bs_io_error;
+static int bs_unbuffered;
+static int bs_interrupt_signal;
+
+static int
+bs_interrupted (void)
+{
+    if (terminating_signal) bs_interrupt_signal = terminating_signal;
+    else if (interrupt_state) bs_interrupt_signal = SIGINT;
+    /* Noninteractive Bash can queue a trap without setting interrupt_state.
+       Defer running it until all invocation-owned resources are released. */
+    else if (*(volatile int *) &trapped_signal_received) {
+        const int signals[] = { SIGINT, SIGTERM, SIGHUP, SIGQUIT };
+        for (size_t i = 0; i < sizeof signals / sizeof *signals; i++)
+            if (signal_is_pending (signals[i])) { bs_interrupt_signal = signals[i]; break; }
+    }
+    return bs_interrupt_signal != 0;
+}
 
 /* Compile the selected sed dialect. GNU libc exposes the same length-aware
    regex interface used by GNU sed, including dot matching embedded NULs.
-   Keep the POSIX backend for other libcs. Never leave process-global regex
+   Other libcs use the private, vendored GNU engine. Never leave process-global regex
    syntax changed: later shell expressions and loadables share this process. */
 static int
 bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
 {
-#if defined (__GLIBC__)
     reg_syntax_t syntax = flags & REG_EXTENDED
         ? RE_SYNTAX_POSIX_EXTENDED : RE_SYNTAX_POSIX_BASIC;
     syntax &= ~(RE_DOT_NOT_NULL | RE_UNMATCHED_RIGHT_PAREN_ORD);
@@ -180,10 +210,7 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
     re->newline_anchor = !!(flags & REG_NEWLINE);
     if (error) { regfree (re); memset (re, 0, sizeof *re); return -1; }
     return 0;
-#else
-    if (memchr (pat, 0, len)) return REG_BADPAT;
-    return regcomp (re, pat, flags);
-#endif
+
 }
 
 /* Preserve the entire subject, including the character preceding the search
@@ -194,31 +221,20 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
            size_t nmatch, regmatch_t *matches)
 {
     if (len > INT_MAX) { bs_runtime_error = 1; return REG_ESPACE; }
-#if defined (__GLIBC__)
     regoff_t starts[10], ends[10];
     for (int i = 0; i < 10; i++) starts[i] = ends[i] = -1;
     struct re_registers regs = { 10, starts, ends };
     re->regs_allocated = REGS_FIXED;
     regoff_t result = re_search (re, str, (regoff_t) len, (regoff_t) off,
                                 (regoff_t) (len - off), nmatch ? &regs : NULL);
+    if (result == -2) { bs_runtime_error = 1; return REG_ESPACE; }
     if (result < 0) return REG_NOMATCH;
     for (size_t i = 0; i < nmatch; i++) {
         matches[i].rm_so = starts[i] < 0 ? -1 : starts[i] - (regoff_t) off;
         matches[i].rm_eo = ends[i] < 0 ? -1 : ends[i] - (regoff_t) off;
     }
     return 0;
-#elif defined (REG_STARTEND)
-    regmatch_t m[10];
-    m[0].rm_so = off; m[0].rm_eo = len;
-    int rc = regexec (re, str, nmatch ? nmatch : 1, m, REG_STARTEND);
-    if (!rc) for (size_t i = 0; i < nmatch; i++) {
-        matches[i].rm_so = m[i].rm_so < 0 ? -1 : m[i].rm_so - off;
-        matches[i].rm_eo = m[i].rm_eo < 0 ? -1 : m[i].rm_eo - off;
-    }
-    return rc;
-#else
-    return regexec (re, str + off, nmatch, matches, off ? REG_NOTBOL : 0);
-#endif
+
 }
 
 /* GNU sed numeric escapes can represent NUL in regexes and replacements. */
@@ -293,7 +309,7 @@ bs_str_reserve (bs_string *s, size_t n)
     if (s->failed) return -1;
     if (n + 1 < n) { s->failed = 1; return -1; }   /* SIZE_MAX overflow */
     if (s->cap >= n + 1) return 0;
-    size_t nc = s->cap ? s->cap * 2 : 64;
+    size_t nc = s->cap ? s->cap : 64;
     while (nc < n + 1) {
         if (nc > SIZE_MAX / 2) { s->failed = 1; return -1; }
         nc *= 2;
@@ -317,6 +333,7 @@ static int
 bs_str_append (bs_string *s, const char *src, size_t srclen)
 {
     if (s->failed) return -1;
+    if (srclen > SIZE_MAX - s->len) { s->failed = 1; return -1; }
     if (bs_str_reserve (s, s->len + srclen) < 0) return -1;
     memcpy (s->str + s->len, src, srclen);
     s->len += srclen;
@@ -340,24 +357,39 @@ bs_emit (bs_output *out, const char *data, size_t len, int newline)
     if (len) fwrite (data, 1, len, out->fp);
     if (newline) fputc ('\n', out->fp);
     out->missing_newline = !newline;
+    if (bs_unbuffered) fflush (out->fp);
+}
+
+/* Append-file bytes are verbatim, including an unterminated final record.
+   q flushes even an empty queue, terminating any pending pattern output. */
+static void
+bs_flush_queue (bs_output *out, bs_string *queue, int *pending)
+{
+    if (out->missing_newline) fputc ('\n', out->fp);
+    if (queue->len) fwrite (queue->str, 1, queue->len, out->fp);
+    out->missing_newline = 0;
+    *pending = 0;
+    queue->len = 0;
+    if (queue->str) queue->str[0] = '\0';
+    fflush (out->fp);
 }
 
 static void
-bs_l_emit_token (FILE *out, const char *tok, size_t len, int *col)
+bs_l_emit_token (FILE *out, const char *tok, size_t len, size_t *col, long width)
 {
-    if (*col > 0 && *col + (int) len > 70)
+    if (width > 0 && *col + len >= (size_t) width)
     {
         fputs ("\\\n", out);
         *col = 0;
     }
     fwrite (tok, 1, len, out);
-    *col += (int) len;
+    *col += len;
 }
 
 static void
-bs_l_emit (FILE *out, const char *s, size_t len)
+bs_l_emit (FILE *out, const char *s, size_t len, long width)
 {
-    int col = 0;
+    size_t col = 0;
     for (size_t i = 0; i < len; i++)
     {
         unsigned char ch = (unsigned char) s[i];
@@ -377,16 +409,17 @@ bs_l_emit (FILE *out, const char *s, size_t len)
                 if (ch >= 0x20 && ch < 0x7f)
                 {
                     char c = (char) ch;
-                    bs_l_emit_token (out, &c, 1, &col);
+                    bs_l_emit_token (out, &c, 1, &col, width);
                     continue;
                 }
                 snprintf (oct, sizeof oct, "\\%03o", ch);
                 tok = oct;
                 break;
         }
-        bs_l_emit_token (out, tok, strlen (tok), &col);
+        bs_l_emit_token (out, tok, strlen (tok), &col, width);
     }
     fputs ("$\n", out);
+    if (bs_unbuffered) fflush (out);
 }
 
 /* Parse a single address from *psp. Advances *psp past the address.
@@ -582,15 +615,15 @@ bs_get_wstream (const char *path)
     if (!strcmp (path, "/dev/stderr")) return &bs_stderr;
     for (int i = 0; i < bs_n_wstreams; i++)
         if (!strcmp (bs_wstreams[i].path, path)) return &bs_wstreams[i].out;
-    if (bs_n_wstreams >= BS_MAX_WSTREAMS) { bs_runtime_error = 1; return NULL; }
+    if (bs_n_wstreams >= BS_MAX_WSTREAMS) { bs_io_error = 4; bs_runtime_error = 1; return NULL; }
     FILE *fp = fopen (path, "w");   /* truncate on first use */
     if (!fp) {
         builtin_error ("%s: %s", path, strerror (errno));
-        bs_runtime_error = 1;
+        bs_io_error = 4; bs_runtime_error = 1;
         return NULL;
     }
     char *copy = strdup (path);
-    if (!copy) { fclose (fp); bs_runtime_error = 1; return NULL; }
+    if (!copy) { fclose (fp); bs_io_error = 4; bs_runtime_error = 1; return NULL; }
     bs_wstreams[bs_n_wstreams].path = copy;
     bs_wstreams[bs_n_wstreams].out = (bs_output) { fp, 0 };
     return &bs_wstreams[bs_n_wstreams++].out;
@@ -866,7 +899,14 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
             case 'N': c->kind = BS_NUP_CMD; break;
             case 'D': c->kind = BS_D_LO; break;
             case 'P': c->kind = BS_P_LO; break;
-            case 'l': c->kind = BS_L_CMD; break;
+            case 'l':
+                c->kind = BS_L_CMD;
+                c->l_width = -1;
+                while (*p == ' ' || *p == '\t') p++;
+                if (*p >= '0' && *p <= '9' && bs_number (&p, &c->l_width) < 0) {
+                    builtin_error ("invalid list width"); goto err;
+                }
+                break;
             case ':':
                 c->kind = BS_LABEL;
                 while (*p == ' ' || *p == '\t') p++;
@@ -1293,26 +1333,26 @@ static void
 bs_input_close (bs_input *in)
 {
     if (!in->fp) return;
-    if (ferror (in->fp)) {
+    if (ferror (in->fp) && !bs_interrupted ()) {
         builtin_error ("%s: read error: %s", in->name, strerror (errno));
-        in->error = 1;
+        in->error = 4;
     }
     if (!in->owned) { in->fp = NULL; return; }
     if (in->buffered) {
-        if (fclose (in->buffered) != 0) in->error = 1;
+        if (fclose (in->buffered) != 0) in->error = 4;
         in->buffered = NULL;
         in->out->fp = stdout;
     }
     if (in->use_stdin && in->seekable && fseeko (in->fp, 0, SEEK_CUR) != 0)
-        in->error = 1;
-    if (fclose (in->fp) != 0) in->error = 1;
+        in->error = 4;
+    if (fclose (in->fp) != 0) in->error = 4;
     in->fp = NULL;
 }
 
 static int
 bs_input_open (bs_input *in)
 {
-    while (in->next < in->count) {
+    while (in->next < in->count && !bs_interrupted ()) {
         in->name = in->files[in->next++];
         in->use_stdin = !strcmp (in->name, "-");
         int fd = in->use_stdin ? dup (STDIN_FILENO) : open (in->name, O_RDONLY);
@@ -1320,7 +1360,8 @@ bs_input_open (bs_input *in)
         if (!in->fp) {
             builtin_error ("%s: %s", in->name, strerror (errno));
             if (fd >= 0) close (fd);
-            in->error = 1;
+            if (in->use_stdin) in->error = 4;
+            else if (in->error < 2) in->error = 2;
             continue;
         }
         in->owned = 1;
@@ -1343,6 +1384,8 @@ static ssize_t
 bs_input_read (bs_input *in, char **line, size_t *cap)
 {
     for (;;) {
+        if (bs_interrupted () || in->error >= 4) return -1;
+        if (ferror (in->out->fp)) { bs_io_error = 4; return -1; }
         if (!in->fp && !bs_input_open (in)) return -1;
         ssize_t n = getline (line, cap, in->fp);
         if (n >= 0) return n;
@@ -1359,24 +1402,44 @@ bs_input_peek (bs_input *in)
     struct stat sb;
     int fd = fileno (in->fp);
     if (!in->seekable && fstat (fd, &sb) == 0) {
-#if defined (__linux__) && defined (SYS_tee)
+#if defined (__linux__) && defined (SYS_tee) && !defined (BASHSED_PORTABLE_PEEK)
         if (S_ISFIFO (sb.st_mode)) {
             int probe[2];
-            if (pipe (probe) != 0) { in->error = 1; return EOF; }
+            if (pipe (probe) != 0) { in->error = 4; return EOF; }
             ssize_t n;
-            do n = syscall (SYS_tee, fd, probe[1], 1, 0); while (n < 0 && errno == EINTR);
+            do n = syscall (SYS_tee, fd, probe[1], 1, 0); while (n < 0 && errno == EINTR && !bs_interrupted ());
             close (probe[0]); close (probe[1]);
-            if (n < 0) in->error = 1;
+            if (n < 0) in->error = 4;
             return n > 0 ? 0 : EOF;
         }
 #endif
         if (S_ISSOCK (sb.st_mode)) {
             char byte;
             ssize_t n;
-            do n = recv (fd, &byte, 1, MSG_PEEK); while (n < 0 && errno == EINTR);
-            if (n < 0) in->error = 1;
+            do n = recv (fd, &byte, 1, MSG_PEEK); while (n < 0 && errno == EINTR && !bs_interrupted ());
+            if (n < 0) in->error = 4;
             return n > 0 ? 0 : EOF;
         }
+#if defined (FIONREAD)
+        if (S_ISFIFO (sb.st_mode) || isatty (fd)) {
+            struct pollfd ready = { fd, POLLIN, 0 };
+            int timeout = -1;
+            struct termios settings;
+            if (isatty (fd) && tcgetattr (fd, &settings) == 0
+                && !(settings.c_lflag & ICANON) && settings.c_cc[VMIN] == 0)
+                timeout = settings.c_cc[VTIME] * 100;
+            int rc;
+            do rc = poll (&ready, 1, timeout); while (rc < 0 && errno == EINTR && !bs_interrupted ());
+            int available = 0;
+            if (rc < 0 || ioctl (fd, FIONREAD, &available) < 0) {
+                in->error = 4;
+                return EOF;
+            }
+            /* Readable canonical tty with zero bytes denotes an EOF marker;
+               a drained pipe reports POLLHUP. Neither requires taking a byte. */
+            return available > 0 ? 0 : EOF;
+        }
+#endif
     }
     int ch = getc (in->fp);
     if (ch != EOF) ungetc (ch, in->fp);
@@ -1387,6 +1450,7 @@ static int
 bs_input_last (bs_input *in)
 {
     for (;;) {
+        if (bs_interrupted () || in->error >= 4) return 1;
         if (!in->fp && !bs_input_open (in)) return 1;
         if (bs_input_peek (in) != EOF) return 0;
         bs_input_close (in);
@@ -1399,6 +1463,7 @@ bs_input_addr_match (bs_addr *addr, long lineno, int *is_last,
 {
     if (addr->kind == BS_ADDR_LAST && *is_last < 0)
         *is_last = bs_input_last (in);
+    if (in->error >= 4) { bs_runtime_error = 1; return 0; }
     return bs_addr_match (addr, lineno, *is_last > 0, pat->str, pat->len);
 }
 
@@ -1409,7 +1474,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
     char *cur = NULL;
     size_t cur_cap = 0;
     ssize_t rd;
-    int pat_nl = 1, hold_nl = 1;
+    int pat_nl = 1, hold_nl = 1, append_pending = 0;
 
     bs_string pat, hold, a_queue;
     bs_str_init (&pat); bs_str_init (&hold); bs_str_init (&a_queue);
@@ -1448,6 +1513,8 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
     restart_script:
         for (int ci = 0; ci < n_cmds; ci++)
         {
+            if (bs_interrupted ()) { bs_runtime_error = 1; goto done; }
+            if (ferror (out->fp)) goto done;
             bs_cmd *c = &cmds[ci];
 
             /* Address matching. */
@@ -1535,6 +1602,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     if (!suppress_default) {
                         bs_emit (out, pat.str, pat.len, pat_nl);
                     }
+                    bs_flush_queue (out, &a_queue, &append_pending);
                     bs_quit_signaled = 1; bs_quit_code = c->q_code;
                     goto done;
                 case BS_BIGQ:
@@ -1544,6 +1612,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                 case BS_EQ:
                     if (out->missing_newline) fputc ('\n', out->fp);
                     fprintf (out->fp, "%ld\n", lineno);
+                    if (bs_unbuffered) fflush (out->fp);
                     out->missing_newline = 0;
                     break;
                 case BS_F:
@@ -1634,7 +1703,8 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     /* Print pattern with sed l-command escapes. */
                     if (pat.str) {
                         if (out->missing_newline) fputc ('\n', out->fp);
-                        bs_l_emit (out->fp, pat.str, pat.len);
+                        bs_l_emit (out->fp, pat.str, pat.len,
+                                   c->l_width < 0 ? bs_list_width : c->l_width);
                         out->missing_newline = 0;
                     }
                     break;
@@ -1642,12 +1712,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     if (!suppress_default) {
                         bs_emit (out, pat.str, pat.len, pat_nl);
                     }
-                    if (a_queue.len > 0) {
-                        bs_emit (out, a_queue.str, a_queue.len, 0);
-                        out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
-                        a_queue.len = 0;
-                        if (a_queue.str) a_queue.str[0] = '\0';
-                    }
+                    if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                     rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) goto done;
                     lineno++;
@@ -1658,6 +1723,15 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     suppress_this_line = 0;
                     break;
                 case BS_NUP_CMD:
+                    /* GNU checks EOF before draining the append queue. At
+                       EOF, print the current pattern before queued r/R data. */
+                    if (bs_input_last (in)) {
+                        if (in->error >= 4 || bs_interrupted ()) goto done;
+                        if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
+                        if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
+                        goto done;
+                    }
+                    if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                     rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) {
                         if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
@@ -1688,6 +1762,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     goto next_line;
                     break;
                 case BS_A:
+                    append_pending = 1;
                     /* Append: queue text for emission after pat default-print. */
                     if (c->text) {
                         bs_str_append (&a_queue, c->text, strlen (c->text));
@@ -1695,6 +1770,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     }
                     break;
                 case BS_R:
+                    append_pending = 1;
                     /* r FILE: queue the file's contents (verbatim) after the
                        line. A missing/unreadable file is silently ignored
                        (matches GNU sed). */
@@ -1734,8 +1810,8 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                         char *rl = NULL; size_t rcap = 0;
                         ssize_t rn = getline (&rl, &rcap, rf);
                         if (rn > 0) {
+                            append_pending = 1;
                             bs_str_append (&a_queue, rl, (size_t) rn);
-                            if (rl[rn - 1] != '\n') bs_str_append (&a_queue, "\n", 1);
                         }
                         free (rl);
                     }
@@ -1759,19 +1835,14 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
         if (!suppress_default && !suppress_this_line) {
             bs_emit (out, pat.str, pat.len, pat_nl);
         }
-        if (a_queue.len > 0) {
-            bs_emit (out, a_queue.str, a_queue.len, 0);
-            out->missing_newline = a_queue.str[a_queue.len - 1] != '\n';
-            a_queue.len = 0;
-            if (a_queue.str) a_queue.str[0] = '\0';
-        }
-    next_line:;
+    next_line:
+        if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
     }
 done:
-    if (in->error) bs_runtime_error = 1;
+    if (in->error || bs_interrupted ()) bs_runtime_error = 1;
     if (fflush (out->fp) == EOF || ferror (out->fp)) {
         builtin_error ("write error: %s", strerror (errno));
-        bs_runtime_error = 1;
+        bs_runtime_error = 1; bs_io_error = 4;
     }
     if (pat.failed || hold.failed || a_queue.failed) bs_runtime_error = 1;
     bs_str_free (&pat); bs_str_free (&hold); bs_str_free (&a_queue);
@@ -1789,34 +1860,37 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
     /* Refuse to edit non-regular files (symlinks, fifos, devices). */
     struct stat src_st;
     if (lstat (path, &src_st) != 0)
-        { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
+        { builtin_error ("%s: %s", path, strerror (errno));
+          if (bs_io_error < 2) bs_io_error = 2; return -1; }
     if (!S_ISREG (src_st.st_mode))
-        { builtin_error ("-i: not a regular file: %s", path); return -1; }
+        { builtin_error ("-i: not a regular file: %s", path); bs_io_error = 4; return -1; }
 
     FILE *in = fopen (path, "r");
-    if (!in) { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
+    if (!in) { builtin_error ("%s: %s", path, strerror (errno));
+          if (bs_io_error < 2) bs_io_error = 2; return -1; }
 
     char tmp[4096];
     int written = snprintf (tmp, sizeof tmp, "%s.bsedXXXXXX", path);
     if (written < 0 || (size_t) written >= sizeof tmp)
-        { fclose (in); builtin_error ("path too long: %s", path); return -1; }
+        { fclose (in); builtin_error ("path too long: %s", path); bs_io_error = 4; return -1; }
     int fd = mkstemp (tmp);
-    if (fd < 0) { fclose (in); builtin_error ("mkstemp: %s", strerror (errno)); return -1; }
+    if (fd < 0) { fclose (in); builtin_error ("mkstemp: %s", strerror (errno)); bs_io_error = 4; return -1; }
     FILE *out = fdopen (fd, "w");
-    if (!out) { close (fd); fclose (in); unlink (tmp); return -1; }
+    if (!out) { close (fd); fclose (in); unlink (tmp); bs_io_error = 4; return -1; }
 
     bs_output output = { out, 0 };
     bs_input input = { .fp = in, .name = path, .out = &output };
     int rc = bs_run (cmds, n_cmds, &input, &output, suppress_default);
+    if (input.error) bs_io_error = input.error;
     bs_close_rstreams ();
-    if (fclose (in) != 0) rc = -1;
+    if (fclose (in) != 0) { rc = -1; bs_io_error = 4; }
     /* Preserve owner+mode via the open fd before closing. fchown/fchmod are
        symlink-safe and avoid TOCTOU on the path. */
     if (fchmod (fd, src_st.st_mode & 07777) < 0)
         builtin_warning ("fchmod %s: %s", tmp, strerror (errno));
     if (fchown (fd, src_st.st_uid, src_st.st_gid) < 0 && errno != EPERM)
         builtin_warning ("fchown %s: %s", tmp, strerror (errno));
-    if (fclose (out) != 0) rc = -1;
+    if (fclose (out) != 0) { rc = -1; bs_io_error = 4; }
     if (rc < 0) { unlink (tmp); return -1; }
 
     if (suffix && *suffix)
@@ -1824,13 +1898,15 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
         char bak[4096];
         int bw = snprintf (bak, sizeof bak, "%s%s", path, suffix);
         if (bw < 0 || (size_t) bw >= sizeof bak)
-            { unlink (tmp); builtin_error ("backup path too long"); return -1; }
-        if (rename (path, bak) != 0)
-            builtin_warning ("rename %s -> %s: %s", path, bak, strerror (errno));
+            { unlink (tmp); builtin_error ("backup path too long"); bs_io_error = 4; return -1; }
+        if (rename (path, bak) != 0) {
+            builtin_error ("rename %s -> %s: %s", path, bak, strerror (errno));
+            unlink (tmp); bs_io_error = 4; return -1;
+        }
     }
     if (rename (tmp, path) != 0) {
         builtin_error ("rename %s: %s", path, strerror (errno));
-        unlink (tmp);
+        unlink (tmp); bs_io_error = 4;
         return -1;
     }
     return 0;
@@ -1840,27 +1916,34 @@ int
 sed_builtin (WORD_LIST *list)
 {
     int suppress_default = 0, extended = 0, separate = 0;
-    int inplace = 0;
+    int inplace = 0, unbuffered = 0;
+    bs_list_width = 70; bs_io_error = 0; bs_unbuffered = 0; bs_interrupt_signal = 0;
     char inplace_suffix[64] = {0};
     char *script = NULL;
+    FILE *script_file = NULL;
     size_t script_cap = 0, script_len = 0;
     int n_files = 0, files_cap = 8;
     const char **files = malloc ((size_t) files_cap * sizeof *files);
     if (!files) return EXECUTION_FAILURE;
 
     /* Append text to the script buffer. */
-    #define APP_SCRIPT(text, tlen) do { \
-        size_t need = script_len + (tlen) + 2; \
+    #define APP_SCRIPT(text, tlen, separator) do { \
+        size_t chunk_len = (tlen); \
+        if (chunk_len > SIZE_MAX - 2 || script_len > SIZE_MAX - chunk_len - 2) { \
+            if (script_file) fclose (script_file); \
+            free (files); free (script); return 4; \
+        } \
+        size_t need = script_len + chunk_len + 2; \
         if (script_cap < need) { \
-            size_t nc = script_cap ? script_cap * 2 : 256; \
-            while (nc < need) nc *= 2; \
+            size_t nc = script_cap ? script_cap : 256; \
+            while (nc < need) { if (nc > SIZE_MAX / 2) { nc = need; break; } nc *= 2; } \
             char *ns = realloc (script, nc); \
-            if (!ns) { free (files); free (script); return EXECUTION_FAILURE; } \
+            if (!ns) { if (script_file) fclose (script_file); free (files); free (script); return 4; } \
             script = ns; script_cap = nc; \
         } \
-        if (script_len > 0) { script[script_len++] = '\n'; } \
-        memcpy (script + script_len, (text), (tlen)); \
-        script_len += (tlen); \
+        if ((separator) && script_len > 0) { script[script_len++] = '\n'; } \
+        memcpy (script + script_len, (text), chunk_len); \
+        script_len += chunk_len; \
         script[script_len] = '\0'; \
     } while (0)
 
@@ -1874,10 +1957,26 @@ sed_builtin (WORD_LIST *list)
         {
             if (!strcmp (w, "--help")) {
                 puts ("bashsed: stream editor");
-                puts ("Usage: bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
+                puts ("Usage: bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
                 free (files); free (script);
-                return EXECUTION_SUCCESS;
+                int failed = fflush (stdout) == EOF || ferror (stdout);
+                clearerr (stdout);
+                return failed ? 4 : EXECUTION_SUCCESS;
             }
+            /* GNU long spellings and attached option arguments. */
+            const char *long_value = NULL;
+            if (!strcmp (w, "--quiet") || !strcmp (w, "--silent")) w = "-n";
+            else if (!strcmp (w, "--separate")) w = "-s";
+            else if (!strcmp (w, "--regexp-extended")) w = "-E";
+            else if (!strcmp (w, "--unbuffered")) w = "-u";
+            else if (!strcmp (w, "--expression")) w = "-e";
+            else if (!strncmp (w, "--expression=", 13)) { long_value = w + 13; w = "-e"; }
+            else if (!strcmp (w, "--file")) w = "-f";
+            else if (!strncmp (w, "--file=", 7)) { long_value = w + 7; w = "-f"; }
+            else if (!strcmp (w, "--line-length")) w = "-l";
+            else if (!strncmp (w, "--line-length=", 14)) { long_value = w + 14; w = "-l"; }
+            else if (!strcmp (w, "--in-place")) w = "-i";
+            else if (!strncmp (w, "--in-place=", 11)) { long_value = w + 11; w = "-i"; }
             for (const char *c = w + 1; *c; c++)
             {
                 switch (*c)
@@ -1885,51 +1984,67 @@ sed_builtin (WORD_LIST *list)
                     case 'n': suppress_default = 1; break;
                     case 'E': case 'r': extended = 1; break;
                     case 's': separate = 1; break;
-                    case 'i':
+                    case 'u': unbuffered = 1; break;
+                    case 'i': {
                         inplace = 1;
-                        /* If next char is non-flag/non-end, take as suffix on this token. */
-                        if (c[1] && c[1] != ' ') {
-                            size_t slen = strlen (c + 1);
-                            if (slen >= sizeof inplace_suffix) {
-                                builtin_error ("-i suffix too long (max %zu bytes)",
-                                               sizeof inplace_suffix - 1);
-                                free (files); free (script); return EX_USAGE;
-                            }
-                            memcpy (inplace_suffix, c + 1, slen);
-                            inplace_suffix[slen] = '\0';
-                            c += slen;
+                        const char *suffix = long_value ? long_value : c + 1;
+                        size_t slen = strlen (suffix);
+                        if (slen >= sizeof inplace_suffix) {
+                            builtin_error ("-i suffix too long");
+                            free (files); free (script); return 1;
                         }
-                        break;
-                    case 'e':
-                        if (!p->next) { builtin_error ("-e needs SCRIPT"); free (files); free (script); return EX_USAGE; }
-                        p = p->next;
-                        APP_SCRIPT (p->word->word, strlen (p->word->word));
-                        script_seen = 1;
+                        memcpy (inplace_suffix, suffix, slen + 1);
                         goto next_word;
-                    case 'f':
-                    {
-                        if (!p->next) { builtin_error ("-f needs FILE"); free (files); free (script); return EX_USAGE; }
-                        p = p->next;
-                        FILE *sf = fopen (p->word->word, "r");
-                        if (!sf) { builtin_error ("-f %s: %s", p->word->word, strerror (errno)); free (files); free (script); return EXECUTION_FAILURE; }
-                        char buf[4096];
-                        size_t rd;
-                        while ((rd = fread (buf, 1, sizeof buf, sf)) > 0)
-                            APP_SCRIPT (buf, rd);
-                        int failed = ferror (sf);
-                        if (fclose (sf) != 0) failed = 1;
-                        if (failed) {
-                            builtin_error ("-f %s: read error", p->word->word);
-                            free (files); free (script); return EXECUTION_FAILURE;
+                    }
+                    case 'e': case 'f': case 'l': {
+                        char opt = *c;
+                        const char *value = long_value ? long_value : c[1] ? c + 1 : NULL;
+                        if (!value) {
+                            if (!p->next) {
+                                builtin_error ("-%c needs an argument", opt);
+                                free (files); free (script); return 1;
+                            }
+                            p = p->next;
+                            value = p->word->word;
                         }
-                        script_seen = 1;
+                        if (opt == 'l') {
+                            const char *end = value;
+                            if (bs_number (&end, &bs_list_width) < 0 || *end) {
+                                builtin_error ("invalid list width");
+                                free (files); free (script); return 1;
+                            }
+                        } else if (opt == 'e') {
+                            APP_SCRIPT (value, strlen (value), 1);
+                            script_seen = 1;
+                        } else {
+                            FILE *sf = script_file = fopen (value, "r");
+                            if (!sf) {
+                                builtin_error ("-f %s: %s", value, strerror (errno));
+                                free (files); free (script); return 4;
+                            }
+                            char buf[4096];
+                            size_t rd;
+                            int first = 1;
+                            while ((rd = fread (buf, 1, sizeof buf, sf)) > 0) {
+                                APP_SCRIPT (buf, rd, first);
+                                first = 0;
+                            }
+                            int failed = ferror (sf);
+                            if (fclose (sf) != 0) failed = 1;
+                            script_file = NULL;
+                            if (failed) {
+                                builtin_error ("-f %s: read error", value);
+                                free (files); free (script); return 4;
+                            }
+                            script_seen = 1;
+                        }
                         goto next_word;
                     }
                     default:
                         builtin_error ("unknown flag: -%c", *c);
                         builtin_usage ();
                         free (files); free (script);
-                        return EX_USAGE;
+                        return 1;
                 }
             }
         }
@@ -1937,7 +2052,7 @@ sed_builtin (WORD_LIST *list)
         {
             if (!script_seen)
             {
-                APP_SCRIPT (w, strlen (w));
+                APP_SCRIPT (w, strlen (w), 1);
                 script_seen = 1;
             }
             else
@@ -1958,8 +2073,13 @@ sed_builtin (WORD_LIST *list)
         p = p->next;
     }
 
-    if (!script_seen) { free (files); free (script); builtin_error ("no script"); return EX_USAGE; }
+    if (!script_seen) { free (files); free (script); builtin_error ("no script"); return 1; }
 
+    if (!script) { script = strdup (""); if (!script) { free (files); return 4; } }
+    if (script[0] == '#' && script[1] == 'n') suppress_default = 1;
+    if (inplace && !n_files) {
+        builtin_error ("no input files"); free (files); free (script); return 4;
+    }
     bs_cmd *cmds = NULL; int n_cmds = 0;
     if (bs_parse_script (script, &cmds, &n_cmds, extended) < 0) {
         free (files); free (script);
@@ -1969,7 +2089,8 @@ sed_builtin (WORD_LIST *list)
     /* A script that only uses its main input/output can buffer regular
        file output. Auxiliary streams and execution retain their original
        ordering and may block, so keep immediate stdout delivery for them. */
-    int buffer_output = !isatty (STDOUT_FILENO);
+    bs_unbuffered = unbuffered;
+    int buffer_output = !unbuffered && !isatty (STDOUT_FILENO);
     for (int i = 0; i < n_cmds; i++) {
         bs_cmd *c = &cmds[i];
         if (c->kind == BS_R || c->kind == BS_BIGR
@@ -1983,7 +2104,15 @@ sed_builtin (WORD_LIST *list)
     bs_stdout = (bs_output) { stdout, 0 };
     bs_stderr = (bs_output) { stderr, 0 };
     bs_quit_signaled = 0; bs_quit_code = 0; bs_last_re = NULL;
-    if (inplace)
+    /* GNU opens write destinations even when no input or no match reaches
+       their command. Keep handles invocation-owned for error recovery. */
+    for (int i = 0; i < n_cmds; i++) {
+        bs_cmd *c = &cmds[i];
+        if (c->kind == BS_W || c->kind == BS_BIGW) bs_get_wstream (c->text);
+        if (c->s_wfile) bs_get_wstream (c->s_wfile);
+    }
+    if (bs_io_error) rc = bs_io_error;
+    else if (inplace)
     {
         for (int i = 0; i < n_files; i++) {
             if (bs_inplace (cmds, n_cmds, files[i], inplace_suffix, suppress_default) < 0)
@@ -2005,7 +2134,7 @@ sed_builtin (WORD_LIST *list)
             if (bs_run (cmds, n_cmds, &input, &bs_stdout, suppress_default) < 0)
                 rc = EXECUTION_FAILURE;
             bs_input_close (&input);
-            if (input.error) rc = EXECUTION_FAILURE;
+            if (input.error) rc = input.error;
             if (bs_quit_signaled) {
                 if (rc == EXECUTION_SUCCESS) rc = bs_quit_code;
                 break;
@@ -2016,9 +2145,9 @@ sed_builtin (WORD_LIST *list)
         }
     }
 
-    if (bs_close_wstreams () < 0) rc = EXECUTION_FAILURE;
-    if (fflush (stdout) == EOF || ferror (stdout)) rc = EXECUTION_FAILURE;
-    if (fflush (stderr) == EOF || ferror (stderr)) rc = EXECUTION_FAILURE;
+    if (bs_close_wstreams () < 0) rc = 4;
+    if (fflush (stdout) == EOF || ferror (stdout)) rc = 4;
+    if (fflush (stderr) == EOF || ferror (stderr)) rc = 4;
     clearerr (stdout);
     clearerr (stderr);
     bs_close_rstreams ();   /* close any `R` input files */
@@ -2026,16 +2155,23 @@ sed_builtin (WORD_LIST *list)
     free (cmds);
     free (files);
     free (script);
+    if (bs_io_error) rc = bs_io_error;
+    if (bs_interrupt_signal && signal_is_trapped (bs_interrupt_signal)) {
+        rc = 128 + bs_interrupt_signal;
+        if (bs_interrupt_signal == SIGINT) interrupt_state = 0;
+        /* The executor runs the pending trap after this return. */
+    }
+    QUIT;
     return rc;
 }
 
 char *sed_doc[] = {
     "POSIX-shape sed(1) — stream editor.",
     "",
-    "    bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "    bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     "",
     "Commands: s/// (capture groups), d p q =, h H g G x,",
-    "          a/i/c TEXT, y/SET1/SET2/, n D P,",
+    "          a/i/c TEXT, y/SET1/SET2/, n N D P l [WIDTH],",
     "          r/R FILE, w/W FILE, F, e (gated),",
     "          :LABEL, b LABEL, t LABEL, { ... }, ! prefix.",
     "Addresses: $, N, /REGEX/, ADDR1,ADDR2.",
@@ -2043,6 +2179,8 @@ char *sed_doc[] = {
     "",
     "Flags:",
     "    -n            suppress default print",
+    "    -u            unbuffered output",
+    "    -l WIDTH      l-command width (zero disables wrapping)",
     "    -i [SUFFIX]   in-place edit; SUFFIX saves backup",
     "    -e SCRIPT     append SCRIPT (multiple OK)",
     "    -f FILE       read commands from FILE",
@@ -2058,6 +2196,6 @@ struct builtin bashsed_struct = {
     sed_builtin,
     BUILTIN_ENABLED,
     sed_doc,
-    "bashsed [-nsiE] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     0
 };

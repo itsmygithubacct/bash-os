@@ -4,7 +4,8 @@ Replacement text also decodes `\r`, `\a`, `\f`, and `\v` to their control
 bytes, including with captures and case conversion. The focused suite retains
 18 exact GNU comparisons for these and the existing newline/tab escapes.
 
-The measurements below precede this replacement-escape correction. They remain
+The measurements below precede the replacement-escape, portable-regex and
+framing corrections. They remain
 evidence for the original measured source, not timings of the corrected source.
 
 The builtin selects BRE by default and ERE with `-E` or `-r`. Address and
@@ -18,7 +19,9 @@ On glibc, matching uses explicit subject lengths and offsets, so embedded NULs
 are data, `.` matches them, and word boundaries can inspect the character before
 a later substitution offset. Literal substitutions use bounded byte searches.
 UTF-8 fixtures also check empty-match and word-boundary behavior. Other libcs
-use their POSIX regex API: full GNU binary regex behavior is not qualified there.
+use a private length-aware GNU engine; see [backend provenance and build
+notes](sol-sed-regex.md). Native builds can select that path with
+`BASHSED_PORTABLE_REGEX` for sanitizer validation.
 
 File operands form one stream: numbering, hold space, address ranges, branch
 state and `n`/`N` cycles cross file boundaries. Empty operands do not terminate
@@ -34,13 +37,33 @@ stdio lookahead before closing the duplicate. A producer with no pending bytes
 must provide another byte or close before `$` can decide whether the current
 line is last. A preceding `q` avoids this dependency. Pipe/terminal input still
 uses byte-at-a-time reads, and terminal output retains immediate line delivery.
-Non-Linux pipes and terminal lookahead retain the stdio fallback limitation.
+Terminals and platforms without Linux `tee` use `poll` and `FIONREAD` where
+available. These queries leave queued bytes untouched. Readable canonical
+terminal EOF markers are recognized when the byte count is zero. A terminal
+EOF marker followed by already queued data cannot be distinguished from data
+by these queries; exact GNU last-line classification in that case remains a
+limitation. Unusual nonseekable devices without a supported peek facility
+retain the stdio fallback. Non-Linux execution needs platform qualification.
 
-The command remains a subset of GNU sed. Existing `q` final-newline preservation,
-`l` wrapping, auxiliary `R` framing and execution opt-in behavior are retained;
-see [head/sed notes](head-sed.md). These fixes do not establish full GNU option,
-exit-code, signal or cross-libc equivalence. Numeric overflow is rejected; GNU
-saturates some out-of-range values instead.
+`q` flushes pending append data and terminates an unterminated printed pattern,
+matching GNU. `Q` discards pending appends. `l` reserves its final column for
+continuation, accepts a command width and `-l`/`--line-length`, and uses width
+zero for no wrapping. `r` and `R` preserve auxiliary bytes, including an
+unterminated final record; queues flush before `n`/`N` reads and after `d`.
+
+Attached `-e`/`-f` arguments and long spellings of supported options are
+accepted. Script-file read boundaries do not insert script characters.
+`-u` disables regular-file output buffering. Invalid options and scripts
+return 1; missing input operands return 2; read/write failures return 4.
+A quit code cannot erase an earlier I/O failure. Invocation resources are
+released before checking Bash's pending interrupt state.
+
+The command remains a GNU sed subset: `-z`, `--posix`, `--sandbox`, `--debug`
+and `--follow-symlinks` are not implemented, and execution still requires
+`BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
+in-place backup suffixes remain bounded and literal. Script files containing
+literal NUL are not supported; use numeric escapes in regex and replacement
+text. This is not a full GNU command-line or locale-collation equivalence claim.
 
 ## Validation
 
@@ -53,11 +76,14 @@ build gate. Measurements must use its bench gate.
 python3 "$CAMPAIGN_SCRIPTS/gated.py" build -- \
   ./build.sh --include sed,head,fold,expand,nl,pr,tac,bc --name sol-sed
 python3 tests/sol-sed-parity.py out/bash-sol-sed
+python3 tests/sol-sed-complete.py out/bash-sol-sed
+python3 tests/sol-sed-binary-regex.py out/bash-sol-sed
+python3 tests/sol-sed-signals.py out/bash-sol-sed
 python3 tests/head-sed-parity.py out/bash-sol-sed
 python3 tests/sed-streams.py out/bash-sol-sed
 python3 tests/input-lifetime.py out/bash-sol-sed
 python3 "$CAMPAIGN_SCRIPTS/gated.py" build -- \
-  bash tests/head-sed-sanitize.sh out/bash-sol-sed
+  bash tests/sol-sed-sanitize.sh out/bash-sol-sed
 python3 "$CAMPAIGN_SCRIPTS/gated.py" bench -- \
   python3 bench/sol-sed.py out/bash-sol-sed REPORT.json
 ```
@@ -82,10 +108,52 @@ environment, work counts and complete sample distributions.
 Native x86-64 glibc validation passed 258 new checks, 974 existing head/sed
 checks, 8 live-stream checks and 156 mixed-reader checks. ASan/UBSan passed
 both the 974-check existing suite and the 258-check new suite. No global suite
-or full-profile build was run. Non-glibc GNU binary-regex parity remains open;
-these results qualify the Linux/glibc implementation.
+or full-profile build was run. The original run did not qualify non-glibc GNU binary regexes;
+these historical results qualify the earlier Linux/glibc implementation;
+they do not measure or qualify subsequent corrections.
 
-## Measurements
+## Current correction checks
+
+The correction passes 977 head/sed parity checks, 276 focused cycle/regex
+checks, 308 framing/CLI/terminal checks, 1,008 binary regex comparisons, 12
+owned-process signal checks, 8 stream checks and 156 mixed-reader checks.
+These passed on the linked glibc binary, the forced portable regex/peek
+module, and ASan/UBSan modules for both backends. Sanitizer leak detection
+is disabled because the hosting Bash is not instrumented.
+
+The separate `tests/sol-sed-terminal-eof.py` oracle remains a strict failure:
+with a canonical EOF marker before already queued terminal bytes, `$` cannot
+classify the current line correctly through `poll`/`FIONREAD`. The ordinary
+canonical/raw terminal cases verify that subsequent readers retain every
+byte, including NUL. These passing cases do not close the EOF-ordering gap.
+The forced portable peek checks run on Linux and do not qualify another
+kernel. Do not register the strict failure as a passing or skipped test.
+
+## Corrected native measurements
+
+The corrected glibc binary was measured on the same Intel Core i7-9850H,
+Linux x86-64, CPU 11, GCC 14.2, Bash 5.3.15 and GNU sed 4.9 configuration.
+Each cell is milliseconds for eight calls: median and min–max across seven
+samples after a validated warmup. Every invocation's status and complete
+output bytes matched the independent oracle. The fixtures, regular-file
+output method and work units are described above.
+
+| Workload | Builtin ms | GNU ms | Builtin / GNU |
+|---|---:|---:|---:|
+| Historical substitution | 23.199 (22.826–24.531) | 73.244 (71.289–78.486) | 0.317 |
+| Substitution/branch loop | 77.403 (72.576–82.200) | 146.388 (137.360–161.390) | 0.529 |
+| Multifile hold/range/substitution | 29.049 (28.199–47.275) | 55.507 (51.805–61.423) | 0.523 |
+
+The measured binary SHA-256 is
+`f2e01b08803fad68caaaab0526247eb717300321b426a54fea46a1a229ae4ec9`;
+`loadables/sed.c` SHA-256 is
+`e322db4675efbd0526037523634075bd07dea414249f5a47eca0284d9a3447df`.
+The raw report is `benchmark-final-native.json` in the correction receipt.
+The former slower-than-GNU result was not reproduced, so no speculative
+performance optimization was added. These measurements do not establish a
+before/after speedup against the separate historical runs.
+
+## Historical measurements before these corrections
 
 Intel Core i7-9850H, Linux x86-64, CPU 11, GCC 14.2, Bash 5.3.15 and GNU sed
 4.9. Each cell is milliseconds for eight calls: median followed by min–max

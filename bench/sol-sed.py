@@ -36,6 +36,8 @@ for label, command in [('bash', [str(binary), '--version']), ('sed', ['/usr/bin/
 manifest = Path(str(binary)+'.manifest.txt')
 report['build_manifest'] = manifest.read_text() if manifest.exists() else None
 report['driver_sha256'] = sha(Path(__file__).read_bytes())
+header = ROOT/'loadables/common/sed-regex.h'
+report['portable_regex_header_sha256'] = sha(header.read_bytes()) if header.exists() else None
 report['source_is_git_head'] = a.source.read_bytes() == subprocess.check_output(['git', 'show', 'HEAD:loadables/sed.c'], cwd=ROOT)
 with tempfile.TemporaryDirectory(prefix='sol-sed-bench-') as directory:
     d = Path(directory)

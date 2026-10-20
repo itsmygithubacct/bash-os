@@ -76,15 +76,11 @@ with tempfile.TemporaryDirectory(prefix='head-sed-test-') as directory:
             # BusyBox 1.37 appends a newline for explicit -n printing.
             parity('sed', ['-n', '-e', script], data, references=['gnu']
                    if data and not data.endswith(b'\n') else None)
-        # GNU q adds a newline here; BusyBox preserves the unterminated line.
-        parity('sed', ['q'], data, references=['busybox'])
+        # q follows GNU framing, including an unterminated last pattern.
+        parity('sed', ['q'], data, references=['gnu'])
         for script in ('Q', 'q 7', 'Q 7', 'l', 'N;W /dev/stdout'):
-            if script == 'l' and len(data) > 60:  # existing wrap-width difference
-                continue
-            if script.startswith('q') and data and not data.endswith(b'\n') and b'\n' not in data:
-                continue
             parity('sed', ['-e', script], data, references=['gnu'])
-    # Embedded NULs are byte data for head; sed's regex engine remains text based.
+    # Embedded NULs are byte data; this case checks head's input boundary.
     parity('head', ['-n', '2'], b'a\0b\nc\0d\nend')
     first.write_bytes(b'a\nb\nc\n'); second.write_bytes(b'z\ny\nx\n')
     parity('head', ['-n', '1', first, second])
@@ -163,7 +159,7 @@ while IFS= read -r line; do printf '%s\n' "$line"; done'''
     expect('repeated partial sed', '''for ((i=0;i<3;i++)); do sed 1q < "$1"; done''',
            [first], output=b'a\n'*3)
     expect('sed explicit quit code', 'sed "q 7" < "$1"', [first], output=b'a\n', status=7)
-    expect('sed error beats quit code', 'sed "q 0" < "$1" >/dev/full 2>/dev/null', [first], status=1)
+    expect('sed error beats quit code', 'sed "q 0" < "$1" >/dev/full 2>/dev/null', [first], status=4)
 
     # A producer remains open: head and ordinary sed q must return immediately.
     for command in (['head', '-n', '1'], ['sed', '1q'], ['sed', '1q;$p']):
@@ -199,7 +195,7 @@ while IFS= read -r line; do printf '%s\n' "$line"; done'''
             actual = shell('sed -n "$1"', [script+str(first)], data)
             assert actual.returncode == expected.returncode == 0 and first.read_bytes() == second.read_bytes()
             checks += 1
-    expect('sed w error', 'sed -n "w /dev/full"', data=b'a', status=1)
-    expect('sed w open error', 'sed -n "w $1/missing/file"', [d], b'a', status=1)
+    expect('sed w error', 'sed -n "w /dev/full"', data=b'a', status=4)
+    expect('sed w open error', 'sed -n "w $1/missing/file"', [d], b'a', status=4)
 
 print(f'head-sed: {checks} byte-parity and shell-state checks passed')
