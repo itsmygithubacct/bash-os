@@ -13,14 +13,14 @@
 #include <sys/stat.h>
 #include "loadables.h"
 
-static char scenario[40] = "success", trace[256], stat_path[64];
+static char scenario[40] = "success", fixture_trace[256], stat_path[64];
 static unsigned long stats, opens, freezes, thaws, closes, bad;
 static int active_fd = -1, verbose = 1, expect_freeze = 1;
 
 static void event(const char *s)
 {
-    if (verbose && strlen(trace) + strlen(s) + 1 < sizeof(trace))
-        strcat(trace, s);
+    if (verbose && strlen(fixture_trace) + strlen(s) + 1 < sizeof(fixture_trace))
+        strcat(fixture_trace, s);
 }
 
 static int injected_errno(const char *prefix)
@@ -133,13 +133,13 @@ static int fsfreeze_fixture_builtin(WORD_LIST *list)
         strcpy(scenario, list->word->word);
         verbose = !(list->next && !strcmp(list->next->word->word, "quiet"));
         stats = opens = freezes = thaws = closes = bad = 0;
-        trace[0] = stat_path[0] = 0;
+        fixture_trace[0] = stat_path[0] = 0;
         expect_freeze = 1;
         return EXECUTION_SUCCESS;
     }
     if (!strcmp(list->word->word, "dump")) {
         printf("stat=%lu open=%lu freeze=%lu thaw=%lu close=%lu live=%d bad=%lu trace=%s\n",
-               stats, opens, freezes, thaws, closes, active_fd != -1, bad, trace);
+               stats, opens, freezes, thaws, closes, active_fd != -1, bad, fixture_trace);
         return EXECUTION_SUCCESS;
     }
     return EX_USAGE;

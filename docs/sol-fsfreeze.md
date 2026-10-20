@@ -1,12 +1,12 @@
-# fsfreeze software-path qualification (pending)
+# fsfreeze software-path qualification
 
-Runtime qualification is **incomplete**. The implementation, fixture tests and
-benchmark adapter are prepared, but the required campaign build gate never
-admitted compilation while another measurement held both build slots. The
-queued task-owned request was cancelled before it spawned any child process.
-Shell/Python syntax and diff checks passed; no native build, behavioral test,
-sanitizer run or fsfreeze timing was completed. No host filesystem was frozen.
-The commands below are the remaining validation steps, not recorded passes.
+The native build and closed fixture are validated. The 57-case contract suite
+passes normally and under ASan/UBSan; the archived pre-hardening source fails
+35 cases under the same fixture. The fixture uses `fixture_trace` to avoid a
+name collision with Bash's `trace` declaration. The original uncompiled delivery
+and its failed evidence remain historical; they are not counted as passes.
+No host filesystem was frozen. Actual kernel freeze/thaw behavior remains
+unqualified and requires an isolated disposable filesystem.
 
 `fsfreeze` requires exactly one action flag (`-f`/`--freeze` or
 `-u`/`--unfreeze`) and one nonempty directory operand. Repeated action flags,
