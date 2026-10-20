@@ -35,6 +35,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
@@ -371,6 +372,24 @@ bj_optarg (WORD_LIST **lp, const char *attached)
     return (*lp)->word->word;
 }
 
+static FILE *
+bj_open_input (const char *name)
+{
+    if (strcmp (name, "-")) return fopen (name, "r");
+    /* A failed output can leave unread bytes in stdio. Own that buffer so
+       a later stdin redirection cannot expose an earlier invocation's data. */
+    /* Reserve the standard descriptors even when stdout/stderr is closed. */
+    int fd = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3);
+    if (fd < 0) return NULL;
+    FILE *input = fdopen (fd, "r");
+    if (!input) {
+        int saved_errno = errno;
+        close (fd);
+        errno = saved_errno;
+    }
+    return input;
+}
+
 static int
 bj_join (WORD_LIST *list, bj_opts *o)
 {
@@ -500,11 +519,11 @@ bj_join (WORD_LIST *list, bj_opts *o)
         builtin_error ("both files cannot be standard input");
         return EXECUTION_FAILURE;
     }
-    FILE *fa = !strcmp (p1, "-") ? stdin : fopen (p1, "r");
+    FILE *fa = bj_open_input (p1);
     if (!fa) { builtin_error ("%s: %s", p1, strerror (errno)); return EXECUTION_FAILURE; }
-    FILE *fb = !strcmp (p2, "-") ? stdin : fopen (p2, "r");
+    FILE *fb = bj_open_input (p2);
     if (!fb) {
-        if (fa != stdin) fclose (fa);
+        fclose (fa);
         builtin_error ("%s: %s", p2, strerror (errno));
         return EXECUTION_FAILURE;
     }
@@ -647,8 +666,8 @@ done:
     free ((void *) key.data);
     bj_free_group (&ga); bj_free_group (&gb);
     bj_free_rec (&ra); bj_free_rec (&rb);
-    if (fa != stdin) fclose (fa);
-    if (fb != stdin) fclose (fb);
+    fclose (fa);
+    fclose (fb);
     if (!out_err && (fflush (o->out) == EOF || ferror (o->out)))
         out_err = errno ? errno : EIO;
     if (o->out != stdout && fclose (o->out) != 0 && !out_err)

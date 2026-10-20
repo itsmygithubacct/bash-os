@@ -1,5 +1,11 @@
 # Join: byte fields, reusable groups and focused qualification
 
+Each invocation owns its stdin stdio buffer and closes it on ordinary success/error paths. `tests/review-join-streams.py` checks that output failure cannot carry buffered bytes into a later redirected invocation, for either input operand. It also checks descriptor cleanup and closed-output safety.
+
+The measurements below predate this review correction. They describe the original
+worker implementation; they are not measurements of the corrected code. No new
+performance claim is made for this correction.
+
 `join` supports sorted C-locale inputs, duplicate-key Cartesian groups,
 `-1`/`-2`/`-j`, single-byte `-t`, `-i`, `-a`/`-v`, `-o`/`-e`, `-o auto`,
 headers and order checking. This qualification covers that implemented surface;
