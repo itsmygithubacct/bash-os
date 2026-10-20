@@ -18,8 +18,8 @@ The stream cases are:
 | Workload | Fixed work and oracle |
 | --- | --- |
 | Binary relay | 2 MiB + 719 bytes sent through repeated `send-fd` calls in one shell with a 16 KiB window (receive each chunk before sending the next), echoed by a raw child, compared byte for byte at the controller. |
-| Burst with observers | 4 MiB generated at the child in 16 KiB blocks with a requested 250 microsecond delay after each block, three active subscribers (one controller and two observers), and one nonreading observer; each active subscriber must receive every byte at contiguous offsets. The nonreading observer must be disconnected. |
-| Sustained output | 8 MiB in 8 KiB blocks, with a 1 ms requested delay after each block, delivered to a controller and observer. Delay scheduling is part of the workload, not a maximum-throughput test. |
+| Burst with observers | 4 MiB generated at the child in 16 KiB blocks with a requested 250 microsecond delay after each block, three active subscribers (one controller and two observers), and one nonreading observer; 64 KiB windows wait for all active readers; each active subscriber must receive every byte at contiguous offsets. The nonreading observer must be disconnected. |
+| Sustained output | 8 MiB in 8 KiB blocks, with a 1 ms requested delay after each block, delivered to a controller and observer in 64 KiB windows, waiting for both after each window. Delay scheduling is part of the workload, not a maximum-throughput test. |
 | Round trip | 64 serial requests of 256 binary bytes in one attachment; each acknowledgement follows complete PTY output delivery. |
 | Input saturation | Stop only the owned raw child, fill the input ring until rejection, resume the child (echoing in 4 KiB blocks with a 500 microsecond delay), verify exactly the accepted bytes, and verify renewed acceptance after drain and wrap. Failed sends are never retried. |
 
@@ -74,6 +74,7 @@ private service each pass with identical content and options. Reports retain
 every sample, work and delivered byte counts, fixture/source/binary SHA-256,
 versions, CPU affinity, byte-validation status, latency samples, and broker
 RSS/high-water marks. Timings include harness and Bash dispatch overhead.
+Per-window request dispatch and active-reader progress waits are timed.
 Creation, history capture, comparison, reconnection checks, and cleanup are
 outside stream timing. Completion polling has 1 ms granularity, and stream times include subscriber teardown. Round-trip latency includes the driver pipes and shell
 dispatch as well as the PTY relay. These are API measurements with no external
@@ -105,7 +106,21 @@ teardown in addition to dispatch and verified relay delivery. Producer rate,
 consumer scheduling, and the finite queue policy matter; these measurements
 are not an unlimited-rate delivery guarantee or a maximum PTY bandwidth claim.
 
-Validated measurements on 2026-10-20 UTC used an Intel Core i7-9850H, Linux
+Historical measurements below precede the active-reader window correction.
+They measure the original sleep-paced streams and must not be labeled as
+measurements of the current windowed harness. No new timings are claimed.
+Re-run the benchmark on the integrated binary before publishing new figures.
+
+The original UBSan burst test could evict an active observer even under the
+serialized gate: a producer sleep does not guarantee that every consumer has
+run. The corrected fixture limits each request to 64 KiB and waits until all
+active observers have written that window. It keeps the exact full-payload,
+contiguous-offset, slow-observer disconnect, history, reconnect and cleanup
+assertions. The deliberately nonreading observer never participates in the
+progress barrier, so overload handling is still exercised. This is a bounded
+subscriber test, not a guarantee of unbounded-rate delivery.
+
+Validated historical measurements on 2026-10-20 UTC used an Intel Core i7-9850H, Linux
 6.12.111+deb13-amd64, GCC 14.2, Python 3.13.5, and Bash 5.3.15, pinned to CPU 11. Each row has one separate
 warm-up followed by seven verified samples on the same binary. These rates
 count unique PTY output bytes; the burst delivers three copies and sustained

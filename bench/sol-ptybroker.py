@@ -47,7 +47,7 @@ def main():
              'loadables/_ptybroker/transport.h', 'tests/sol-ptybroker-streams.py',
              'tests/ptybroker.py', 'tests/fixtures/ptybroker-child.py', 'bench/sol-ptybroker.py']
     report = dict(kind='api', reference=None, ratio=None, passed=False,
-                  method='One warmup then >=7 fresh private sessions per workload; exact bytes and offsets on every pass. Timings include Python/Bash orchestration; exclude creation, cleanup, history capture and byte comparison. Same input/options/reset on every pass.',
+                  method='One warmup then >=7 fresh private sessions per workload; exact bytes and offsets on every pass. Timings include Python/Bash orchestration and 64 KiB active-reader window barriers for burst/sustained; exclude creation, cleanup, history capture and byte comparison. Same input/options/reset on every pass.',
                   cpu_affinity=affinity, platform=platform.platform(), python=sys.version,
                   started_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   environment={k: os.environ.get(k) for k in ('LANG','LC_ALL','MALLOC_ARENA_MAX')},

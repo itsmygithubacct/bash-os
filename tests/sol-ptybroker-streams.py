@@ -145,7 +145,28 @@ def stream(args, name, size, block, delay, observers, slow=False, measure=False)
             h.hold('stream', name='slow')
         data = expected(size)
         start = time.perf_counter_ns() if measure else 0
-        h.send_bytes('stream', struct.pack('!III', size, block, delay))
+        # Sleeping in the producer cannot guarantee subscriber scheduling.
+        # Bound outstanding output below the subscriber queue size and wait
+        # for every active reader to write each window before producing more.
+        # The nonreading observer is deliberately excluded from this barrier:
+        # it must still overflow and disconnect. All byte/offset oracles below
+        # remain unchanged. A full pattern per window preserves the source's
+        # independent generator even though each request starts at offset zero.
+        window = len(PATTERN)
+        sent = 0
+        while sent < size:
+            n = min(window, size - sent)
+            h.send_bytes('stream', struct.pack('!III', n, min(block, n), delay))
+            sent += n
+            base.eventually(
+                lambda: all((h.directory / f'{tag}.bytes').stat().st_size >= sent
+                            for tag, _ in readers)
+                        or any(proc.poll() is not None and proc.returncode != 0
+                               for _, proc in readers),
+                f'active readers consumed {sent} bytes', timeout=10)
+            for tag, proc in readers:
+                if proc.poll() is not None:
+                    assert proc.returncode == 0, (tag, proc.returncode, proc.communicate())
         completion = finish_readers(h, readers, data, broker, measure)
         peak, end = completion if measure else (completion, None)
         elapsed = (end - start) / 1e9 if measure else None
@@ -163,7 +184,7 @@ def stream(args, name, size, block, delay, observers, slow=False, measure=False)
         gaps = [event for event in events if event.startswith('gap ')]
         assert len(gaps) == 1 and f'oldest={final["oldest"]} next={size}' in gaps[0], events
         return dict(name=name, passed=True, bytes=size, delivered_bytes=size*observers,
-                    observers=observers, block_bytes=block, delay_us=delay,
+                    observers=observers, block_bytes=block, delay_us=delay, window_bytes=window,
                     seconds=elapsed, bytes_per_second=size/elapsed if measure else None,
                     broker_idle=idle, broker_peak=peak,
                     fixture_sha256=hashlib.sha256(expected(size)).hexdigest())
