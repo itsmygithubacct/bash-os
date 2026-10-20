@@ -76,7 +76,9 @@ done
         def marker(expected):
             assert select.select([child.stdout], [], [], 60)[0], 'shell timeout'
             line = child.stdout.readline()
-            assert line == expected, (line, child.poll())
+            if line != expected:
+                errors.seek(0)
+                raise AssertionError((line, child.poll(), errors.read()))
         try:
             marker(b'ready\n')
             fds = fd_state(child.pid)
@@ -94,7 +96,8 @@ done
             child.stdin.flush()
             assert child.wait(timeout=20) == 0
             errors.seek(0)
-            assert not errors.read(), 'unexpected shell diagnostics'
+            diagnostics = errors.read()
+            assert not diagnostics, ('unexpected shell diagnostics', diagnostics)
         finally:
             if child.poll() is None:
                 child.kill()

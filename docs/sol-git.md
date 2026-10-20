@@ -10,7 +10,7 @@ and `index`. The full parity scenarios use native fixture utilities with an
 empty PATH. The validation selection is:
 
 ```sh
-./build.sh --include git,obj,index,pack,cat,chmod,cp,ln,mkdir,mv,rm,rmdir,sed,sleep,wc,head,cut,sort,tr --name sol-git --no-strip
+./build.sh --include git,obj,index,pack,cat,chmod,cp,ln,mkdir,mv,rm,rmdir,sed,sleep,wc,head,cut,sort,tr,cksum,cmp,env,grep,ls,seq,tail,od --name sol-git --no-strip
 ```
 
 This includes `_git`, `_sha1dc`, and `_monocypher` and links zlib. Campaign
@@ -22,6 +22,12 @@ For correctness only, run:
 python3 bench/sol-git.py out/bash-sol-git --check-only --output /tmp/git-check.json
 python3 tests/sol-git-lifecycle.py out/bash-sol-git
 python3 tests/sol-git-oracles.py
+```
+
+Build the resource launcher separately through the build gate:
+
+```sh
+cc -O2 -Wall -Wextra -Werror bench/sol-git-rusage.c -o out/sol-git-rusage
 ```
 
 For measurements, omit `--check-only` and use at least seven samples, after
@@ -73,18 +79,20 @@ must have link count one, and must use no alternates. A strict reference
 common server; they do not measure SSH encryption or network latency.
 
 JSON reports retain each wall-time sample in milliseconds, per-process
-peak RSS from Linux `wait4` in KiB (maximum of shell and waited descendants),
+peak RSS from a native launcher using Linux `wait4` in KiB (maximum of shell and waited descendants),
 user/system CPU time, and stored `.pack` bytes excluding `.idx` files.
 They also record CPU affinity, versions, work counts, fixture hashes, and
-source/binary SHA-256 hashes. Setup and oracle memory are outside the
-measured child. Ratios apply only to these validated, matched work units.
+source/binary SHA-256 hashes. The launcher execs before forking the measured shell, excluding inherited
+Python fixture-generation memory from the command peak. Launcher startup is
+included in elapsed wall time on both sides. Ratios apply only to these validated, matched work units.
 
 `tests/sol-git-lifecycle.py` makes 720 Git calls in a persistent shell,
 including failed protocol helpers, blocked config writers, and invalid commands, interleaved with
 owned background jobs. It checks parent descriptors, signal masks/handlers,
 cwd/environment, unreaped children, lock cleanup, and exact repository
 state. It also sends five blob sizes to `/dev/full` to check write-failure
-status propagation.
+status propagation. The child now checks `ferror(stdout)` as well as its final
+flush, since a prior full-buffer write failure can leave no bytes to flush.
 
 The scope is these workloads and the existing focused suites. It does not
 establish full Git compatibility, real-network performance, cold-cache

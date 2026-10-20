@@ -48,6 +48,7 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "child-wait.h"
 
 #include "_git_checkout.h"
 #include "_git_config.h"
@@ -27155,45 +27156,6 @@ git_run (WORD_LIST *list)
     return 1;
 }
 
-/* The shell reaps children of its own, so a raw fork has to keep SIGCHLD to
-   itself until it has waited, or waitpid loses the race and reports that
-   there is no such child. pkg.c guards its children the same way. */
-struct git_child_guard {
-    struct sigaction old_chld;
-    sigset_t oldmask;
-};
-
-static int
-git_child_guard_begin (struct git_child_guard *guard)
-{
-    struct sigaction dfl;
-    sigset_t block;
-    memset (&dfl, 0, sizeof dfl);
-    dfl.sa_handler = SIG_DFL;
-    sigemptyset (&dfl.sa_mask);
-    if (sigaction (SIGCHLD, &dfl, &guard->old_chld) < 0) return -1;
-    sigemptyset (&block);
-    sigaddset (&block, SIGCHLD);
-    if (sigprocmask (SIG_BLOCK, &block, &guard->oldmask) < 0) {
-        sigaction (SIGCHLD, &guard->old_chld, NULL);
-        return -1;
-    }
-    return 0;
-}
-
-static void
-git_child_guard_parent_end (struct git_child_guard *guard)
-{
-    sigprocmask (SIG_SETMASK, &guard->oldmask, NULL);
-    sigaction (SIGCHLD, &guard->old_chld, NULL);
-}
-
-static void
-git_child_guard_child_end (struct git_child_guard *guard)
-{
-    sigprocmask (SIG_SETMASK, &guard->oldmask, NULL);
-}
-
 int
 git_builtin (WORD_LIST *list)
 {
@@ -27201,23 +27163,23 @@ git_builtin (WORD_LIST *list)
        caller, and held locks are released when the child dies. */
     fflush (stdout);
     fflush (stderr);
-    struct git_child_guard guard;
-    if (git_child_guard_begin (&guard) < 0) {
+    bos_child_wait guard;
+    if (bos_child_wait_begin (&guard) < 0) {
         builtin_error ("cannot guard SIGCHLD: %s", strerror (errno));
         return GIT_EXIT_FATAL;
     }
     pid_t pid = fork ();
     if (pid < 0) {
-        git_child_guard_parent_end (&guard);
+        bos_child_wait_end (&guard);
         builtin_error ("fork: %s", strerror (errno));
         return GIT_EXIT_FATAL;
     }
     if (pid == 0) {
-        git_child_guard_child_end (&guard);
+        bos_child_wait_child (&guard);
         bos_prepare_child ();
         int status = git_run (list);
         bgit_lock_release_all ();
-        if (fflush (stdout) == EOF && status == 0)
+        if ((fflush (stdout) == EOF || ferror (stdout)) && status == 0)
             status = 1;
         fflush (stderr);
         _exit (status);
@@ -27225,12 +27187,12 @@ git_builtin (WORD_LIST *list)
     int status = 0;
     while (waitpid (pid, &status, 0) < 0) {
         if (errno != EINTR) {
-            git_child_guard_parent_end (&guard);
+            bos_child_wait_end (&guard);
             builtin_error ("waitpid: %s", strerror (errno));
             return GIT_EXIT_FATAL;
         }
     }
-    git_child_guard_parent_end (&guard);
+    bos_child_wait_end (&guard);
     if (WIFSIGNALED (status))
         return 128 + WTERMSIG (status);
     return WEXITSTATUS (status);

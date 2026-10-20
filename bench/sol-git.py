@@ -23,6 +23,7 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 GIT = shutil.which('git')
+RUSAGE = ROOT/'out/sol-git-rusage'
 DESCRIPTION = b"Unnamed repository; edit this file 'description' to name the repository.\n"
 EXCLUDE = (b'# git ls-files --others --exclude-from=.git/info/exclude\n'
            b"# Lines that start with '#' are comments.\n")
@@ -211,9 +212,11 @@ def state_oracle(repo, env, fixture, added=False, clone=False):
 def execute(binary, side, args, cwd, env, timed):
     executable = str(binary)
     script = 'PATH=; ' + ('builtin git' if side == 'bashos' else shlex.quote(GIT)) + ' "$@"'
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, tempfile.TemporaryDirectory(prefix="git-usage-") as usage_dir:
+        usage_path = Path(usage_dir)/"usage"
+        launch = [str(RUSAGE.resolve(strict=True)), str(usage_path)] if timed else []
         start = time.perf_counter_ns() if timed else None
-        p = subprocess.Popen([executable, '--noprofile', '--norc', '-c', script,
+        p = subprocess.Popen([*launch, executable, '--noprofile', '--norc', '-c', script,
                               'workload', *map(str, args)], cwd=cwd, env=env,
                              stdout=out, stderr=err, start_new_session=True)
         def timeout(signum, frame):
@@ -230,11 +233,13 @@ def execute(binary, side, args, cwd, env, timed):
         out.seek(0)
         err.seek(0)
         stdout, stderr = out.read(), err.read()
+        metrics = usage_path.read_text().split() if timed and usage_path.exists() else []
     assert p.returncode == 0, (side, args, p.returncode, stderr[:1000])
     assert not stderr, (side, args, stderr[:1000])
-    return stdout, dict(wall_ms=elapsed, peak_rss_kib=usage.ru_maxrss if timed else None,
-                        user_s=usage.ru_utime if timed else None,
-                        system_s=usage.ru_stime if timed else None,
+    if timed: assert len(metrics) == 3, 'missing native child resource report'
+    return stdout, dict(wall_ms=elapsed, peak_rss_kib=int(metrics[0]) if timed else None,
+                        user_s=float(metrics[1]) if timed else None,
+                        system_s=float(metrics[2]) if timed else None,
                         stdout_sha256=sha(stdout), stderr_sha256=sha(stderr),
                         exit_code=p.returncode, validation='pass')
 
@@ -256,10 +261,10 @@ def main():
         load_average_start=os.getloadavg(), method=dict(
         warmups=0 if args.check_only else 1, samples=0 if args.check_only else args.samples,
         affinity=sorted(os.sched_getaffinity(0)),
-        timing='shell startup + one command; fixture/reset/oracles excluded; warm cache',
+        timing='native resource launcher + shell startup + one command; fixture/reset/oracles excluded; warm cache',
         shell='same selected Bash executable for builtin and absolute system Git',
         index='stat fields refreshed before changes; initial file mtimes fixed at 1750000000, outside racy window',
-        rss='wait4 ru_maxrss, Linux KiB, maximum of shell and waited descendants',
+        rss='native launcher wait4 ru_maxrss, Linux KiB, maximum of shell and waited descendants; excludes Python fixture-generator inherited peak',
         clone='SSH pipe fixture to the same system Git upload-pack; protocol v2; no network'),
         source_commit=subprocess.check_output([GIT, 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
         environment=dict(platform=platform.platform(), python=platform.python_version(),
@@ -272,6 +277,8 @@ def main():
                 sha(p.read_bytes()) for p in [binary, Path(GIT), Path('/bin/bash'),
                                               Path(__file__), ROOT/'loadables/git.c',
                                               *sorted((ROOT/'loadables/_git').glob('*.[ch]'))]})
+    if not args.check_only:
+        report['rusage_launcher'] = dict(path=str(RUSAGE.resolve(strict=True)), sha256=sha(RUSAGE.read_bytes()), source_sha256=sha((ROOT/'bench/sol-git-rusage.c').read_bytes()))
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     def save():
