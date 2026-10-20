@@ -578,7 +578,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `sftp` | Local operation and failure fixtures exist; remote transfer behavior needs dedicated interop and throughput coverage. |
 | `sort` | Write-failure handling and selected GNU comparisons have dedicated regressions. The historical 2026-09-12 sort-text case measured 0.91 times the external runtime; it is not an open confirmed performance defect. [source](../tests/sort-check.sh) |
 | `split` | Repeated redirected input has dedicated comparisons; private fixtures also cover piece contents, input aliases and output failures. [source](../tests/split-safety.py) |
-| `ss` | Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim. [source](../docs/sol-netstat.md) |
+| `ss` | Numeric TCP/UDP/Unix snapshots and the shared netstat backend, including the unpadded netlink remainder check. Not full iproute2 compatibility and not a live kernel qualification beyond owned loopback sockets. [source](../docs/sol-ss.md) |
 | `ssh` | Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements. |
 | `sshd` | Loopback interoperability and malformed setup cases pass; no concurrent-session measurements. |
 | `strings` | Repeated redirected stdin is fixed; tests/strings-check.sh matches GNU on three fresh redirections. |

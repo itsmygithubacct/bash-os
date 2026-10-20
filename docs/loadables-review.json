@@ -1363,6 +1363,14 @@
       "status": "Contract",
       "evidence": "tests/sol-pr-pages.py",
       "scope": "Native C-locale GNU pagination and CLI contracts, including form-feed boundaries, repeated stdin and bounded page/row streaming. Cross-platform qualification and universal GNU compatibility remain unclaimed."
+    },
+    {
+      "names": [
+        "ss"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-ss.md",
+      "scope": "Numeric TCP/UDP/Unix snapshots and the shared netstat backend, including the unpadded netlink remainder check. Not full iproute2 compatibility and not a live kernel qualification beyond owned loopback sockets."
     }
   ],
   "sanitizer_groups": [
@@ -1943,6 +1951,12 @@
         "killall5"
       ],
       "evidence": "tests/sol-pgrep-tools-build.sh"
+    },
+    {
+      "names": [
+        "ss"
+      ],
+      "evidence": "tests/sol-ss-build-fixtures.sh"
     }
   ],
   "fuzz": {
@@ -2889,8 +2903,8 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "ss": {
-      "evidence": "docs/sol-netstat.md",
-      "note": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim.",
+      "evidence": "docs/sol-ss.md",
+      "note": "Numeric TCP/UDP/Unix snapshots and the shared netstat backend, including the unpadded netlink remainder check. Not full iproute2 compatibility and not a live kernel qualification beyond owned loopback sockets.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "sv": {

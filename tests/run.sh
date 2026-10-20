@@ -215,6 +215,11 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'ss fixtures build' bash tests/sol-ss-build-fixtures.sh "$scratch/ss-contracts"
+  check 'ss numeric snapshots and unaligned netlink remainder' python3 tests/sol-ss-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-native.json"
+  check 'ss snapshots under ASan+UBSan' env BASH_ENV="$scratch/ss-contracts/ss-sanitize-env.sh" LD_PRELOAD="$(cat "$scratch/ss-contracts/ss-asan-path")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ss-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-sanitize.json"
+  check 'netstat shared backend after ss remainder fix' python3 tests/sol-netstat-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-netstat-native.json"
+  check 'netstat shared backend under ASan+UBSan after ss remainder fix' env BASH_ENV="$scratch/ss-contracts/ss-sanitize-env.sh" LD_PRELOAD="$(cat "$scratch/ss-contracts/ss-asan-path")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-netstat-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-netstat-sanitize.json"
   mkdir -p "$scratch/pgrep-contracts"
   check 'pgrep sanitizer harness build' sh tests/sol-pgrep-tools-build.sh "$scratch/pgrep-contracts"
   check 'pgrep regex and selectors under ASan+UBSan' python3 tests/sol-pgrep-sanitize.py "$scratch/pgrep-contracts/pgrep-sanitize"
