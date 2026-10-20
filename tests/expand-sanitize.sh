@@ -12,3 +12,5 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 export EXPAND_PRELOAD=$("$CC" -print-file-name=libasan.so) EXPAND_MODULE="$d/expand.so"
 python3 tests/expand-parity.py "${1:-out/bash}"
 python3 tests/sol-expand-options.py "${1:-out/bash}"
+
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 REVIEW_MODULE="$EXPAND_MODULE" LD_PRELOAD="$EXPAND_PRELOAD" python3 tests/review-expand-descriptors.py "${1:-out/bash}"

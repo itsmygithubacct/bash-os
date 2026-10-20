@@ -1042,6 +1042,14 @@
       "status": "Contract",
       "evidence": "tests/sol-pcre-check.py",
       "scope": "Independent PCRE2 captures, binary cache keys, binding scope, replacement growth, bounded matching and stream-error recovery."
+    },
+    {
+      "names": [
+        "expand"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-expand-options.py",
+      "scope": "GNU byte-column and tab-stop behavior; closed output cannot overwrite read/write stdin. Native glibc scope, not display-width or cross-libc qualification."
     }
   ],
   "sanitizer_groups": [
@@ -2067,8 +2075,9 @@
       "evidence": "docs/fold.md"
     },
     "expand": {
-      "note": "Buffered output and per-invocation input are validated. Documented option/tab-stop differences and locale scope remain; tiny-input speedup is not established.",
-      "evidence": "docs/expand.md"
+      "evidence": "docs/expand.md",
+      "note": "GNU byte-column and tab-stop behavior; closed output cannot overwrite read/write stdin. Native glibc scope, not display-width or cross-libc qualification.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "diff": {
       "evidence": "docs/sol-diff.md",
