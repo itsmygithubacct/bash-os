@@ -302,7 +302,7 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | [`man`](../loadables/man.c) | T F | [Contract](../tests/misc-smoke.py) | —; man | 4.080 / — / 1280.398; [man](#case-man), 93 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `mkdir`* | P C D S T F | [Contract](../tests/rootfs-smoke.sh) | mkdir; mkdir | 5.097 / 125.204 / 138.417; [mkdir](#case-mkdir), 144 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `mkfifo`* | P C D S T F | [Bench checked](#case-mkfifo) | mkfifo; mkfifo | 5.558 / 100.869 / 102.612; [mkfifo](#case-mkfifo), 133 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
-| [`mkfs`](../loadables/mkfs.c) | D S F | [Contract](../tests/misc-smoke.py) | —; mkfs | N/M | P3 | Add a matched workload and timing. |
+| [`mkfs`](../loadables/mkfs.c) | D S F | [Contract](../tests/misc-smoke.py); [limited](#scope-notes); [S](../tests/sol-mkfs-build.sh) | —; mkfs | N/M | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
 | [`mkswap`](../loadables/mkswap.c) | D S F | [Bench checked](#case-mkswap) | mkswap; mkswap | 8.386 / ERROR / 226.295; [mkswap](#case-mkswap), 136 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `mktemp`* | P C D S T F | [Contract](../tests/mktemp-u-check.sh) | mktemp; mktemp | 10.779 / 127.203 / 104.423; [mktemp](#case-mktemp), 115 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`mlock`](../loadables/mlock.c) | D S F | [Smoke](../tests/system-smoke.sh) | —; API fixture | 25.498 / — / —; [mlock-trylock](#case-mlock-trylock), 95 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
@@ -542,6 +542,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `lpr` | Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim. [source](../loadables/lpr.c) |
 | `lsattr` | The flag field is 14 columns where e2fsprogs prints 22 for the same file, so the two cannot be compared on exact bytes. |
 | `mail` | Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement. |
+| `mkfs` | Ext2 layout checked by independent decoders and filesystem tools using private regular images, including write faults and cleanup. Block devices, mounting, crash recovery and real storage behavior remain unqualified. [source](../docs/sol-mkfs.md) |
 | `mktemp` | The former -u create-then-unlink defect is fixed: name-only generation leaves the filesystem untouched. The regression also covers ordinary file and directory creation. [source](../tests/mktemp-u-check.sh) |
 | `more` | Forward pager software paths and checked key helper are qualified. Original historical throughput slowdown was not reproduced; separate worker large-pipe measurements include producer/sink and shell costs. [source](../docs/sol-more.md) |
 | `mv` | Self-moves fail without changing bytes. Additional fixtures cover long paths, cross-filesystem moves, modes and injected close/metadata failures. [source](../tests/mv-safety.py) |

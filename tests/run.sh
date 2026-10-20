@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'mkfs private ext2 images' env PATH="$PATH:/usr/sbin:/sbin" python3 tests/sol-mkfs.py --binary out/bash --report "$scratch/mkfs-native.json"
 check 'rngseed owned private files' bash tests/sol-rngseed-check.sh out/bash
 check 'setpgid owned-child contracts' python3 tests/sol-setpgid-check.py --binary out/bash
 check 'zstd bounded streaming and atomic output' python3 tests/sol-zstd-check.py out/bash
@@ -191,6 +192,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'mkfs private fault modules' env BASHOS_TASK_DIR="$scratch/mkfs-contracts" bash tests/sol-mkfs-build.sh
+  check 'mkfs native write faults' python3 tests/sol-mkfs-faults.py --binary out/bash --module "$scratch/mkfs-contracts/artifacts/mkfs-shim.so" --report "$scratch/mkfs-faults.json"
+  check 'mkfs private images under ASan+UBSan' env PATH="$PATH:/usr/sbin:/sbin" python3 tests/sol-mkfs.py --binary out/bash --module "$scratch/mkfs-contracts/artifacts/mkfs-sanitize.so" --asan-lib "$(cat "$scratch/mkfs-contracts/artifacts/asan-path.txt")" --report "$scratch/mkfs-sanitize.json"
+  check 'mkfs write faults under ASan+UBSan' python3 tests/sol-mkfs-faults.py --binary out/bash --module "$scratch/mkfs-contracts/artifacts/mkfs-sanitize.so" --asan-lib "$(cat "$scratch/mkfs-contracts/artifacts/asan-path.txt")" --report "$scratch/mkfs-sanitize-faults.json"
   check 'losetup fixture build' env BASHOS_TASK_DIR="$scratch/losetup-contracts" bash tests/sol-losetup-build.sh "$scratch/losetup-contracts/artifacts"
   check 'losetup native boundary contracts' python3 tests/sol-losetup-fixtures.py --binary out/bash --module "$scratch/losetup-contracts/artifacts/losetup-fixture.so"
   check 'losetup boundary under ASan+UBSan' python3 tests/sol-losetup-fixtures.py --binary out/bash --module "$scratch/losetup-contracts/artifacts/losetup-sanitize.so" --preload "$(cat "$scratch/losetup-contracts/artifacts/libasan-path")"

@@ -1207,6 +1207,14 @@
       "status": "Contract",
       "evidence": "docs/sol-losetup.md",
       "scope": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. Actual kernel loop behavior requires a disposable loop-capable VM."
+    },
+    {
+      "names": [
+        "mkfs"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-mkfs.py",
+      "scope": "Ext2 layout checked by independent decoders and filesystem tools using private regular images, including write faults and cleanup. Block devices, mounting, crash recovery and real storage behavior remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1675,6 +1683,12 @@
         "losetup"
       ],
       "evidence": "tests/sol-losetup-build.sh"
+    },
+    {
+      "names": [
+        "mkfs"
+      ],
+      "evidence": "tests/sol-mkfs-build.sh"
     }
   ],
   "fuzz": {
@@ -2579,6 +2593,11 @@
       "evidence": "docs/sol-losetup.md",
       "note": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. Actual kernel loop behavior requires a disposable loop-capable VM.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "mkfs": {
+      "evidence": "docs/sol-mkfs.md",
+      "note": "Ext2 layout checked by independent decoders and filesystem tools using private regular images, including write faults and cleanup. Block devices, mounting, crash recovery and real storage behavior remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2623,7 +2642,8 @@
     "reboot",
     "poweroff",
     "fsfreeze",
-    "losetup"
+    "losetup",
+    "mkfs"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
