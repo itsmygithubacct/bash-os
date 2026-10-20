@@ -296,6 +296,7 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'doas boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-doas-check.py --fixture "$scratch/doas-sanitize/fixture"
   check 'payload module build' bash tests/opus-payload-build-sanitizer.sh "$scratch/payload-contracts"
   check 'payload protocol under ASan+UBSan' python3 tests/opus-payload-installer.py out/bash --module "$scratch/payload-contracts/payload-sanitize.so" --asan-runtime "$(cat "$scratch/payload-contracts/libasan.path")"
+  check 'cluster staged production build' ./build.sh --include cluster --name cluster-contracts --no-strip
   check 'cluster module build' bash tests/sol-cluster-sanitizer-build.sh "$scratch/cluster-contracts"
   check 'cluster membership under ASan+UBSan' env BASHOS_CLUSTER_TEST_MODULE="$scratch/cluster-contracts/cluster-sanitized.so" LD_PRELOAD="$(cat "$scratch/cluster-contracts/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-cluster-membership.py out/bash
   check 'join stream ownership under ASan+UBSan' bash tests/review-join-sanitize.sh out/bash
