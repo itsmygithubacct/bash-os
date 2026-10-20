@@ -161,3 +161,10 @@ and the new build is `935015c`; both are `--include ts,hl,nano`.
   stage split comes from these workloads. Over the same 39 KB object, parse
   plus query takes about 200 ms per 5 passes; resolving and writing spans
   costs about as much as the raw query listing, and rendering costs less.
+
+Review qualifications: the historical nano selftest timing used five calls per
+shell; only the first call compiles the cached query. It does not measure a
+fresh-shell invocation or the combined corrected nano/ts implementation.
+The incremental edit tests verify equality with a fresh parse, not subtree
+reuse. Historical ts-parse timings disagreed across harnesses; no new speedup
+is claimed and hardware performance-counter profiling was unavailable.
