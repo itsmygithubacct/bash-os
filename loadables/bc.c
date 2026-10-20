@@ -1,10 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* bc.c — arbitrary-precision bc(1) as a bash builtin.
  *
- * GNU bc compatibility: expression evaluation with arbitrary-precision
- * decimal arithmetic. Reads expressions from args or stdin (one per line).
- * Supports the core POSIX bc surface: + - * / % ^, parentheses, sqrt(),
- * length(), scale(), and the standard variables scale/ibase/obase/last.
+ * GNU bc language: arbitrary-precision arithmetic, functions and local
+ * state, arrays, control flow, comments, strings and input/output bases.
+ * Reads programs from expressions, named files and standard input.
  *
  * Design: numbers are stored as decimal digit strings with a scale
  * (fractional digits). Operations use grade-school algorithms.
@@ -1775,6 +1774,7 @@ typedef struct bc_src bc_src;
 
 typedef struct {
     int        scale, ibase;
+    int        call_base; /* constants use the function's entry ibase; 0 at top level */
     long       obase;
     int        mathlib;
     bc_num     last;
@@ -2662,6 +2662,10 @@ bc_parse_unary (bc_parser *p)
     bc_node *n;
 
     if (p->err) return NULL;
+    if (bc_stack_exhausted (p->ip)) {
+        bc_semantic_error (p, "expression nested too deeply");
+        return NULL;
+    }
     if (type == '-') {
         bc_consume (p);
         n = bc_mk (p, E_NEG);
@@ -3254,19 +3258,36 @@ static bc_num bc_read (bc_interp *ip);
 /* Can evaluating N change a variable, call a function or read input?  The
    answer is cached in the node. */
 static int
-bc_pure (bc_node *n)
+bc_pure (bc_interp *ip, bc_node *n)
 {
     if (!n) return 1;
     if (n->pure < 0) {
+        /* This walk can be deeper than the parser for a left-associated
+           expression. Conservatively disable borrowing at the stack bound. */
+        if (bc_stack_exhausted (ip)) return 0;
         switch (n->kind) {
         case E_ASSIGN: case E_INCDEC: case E_CALL: case E_READ: case E_ARRARG:
             n->pure = 0;
             break;
         default:
-            n->pure = bc_pure (n->a) && bc_pure (n->b);
+            n->pure = bc_pure (ip, n->a) && bc_pure (ip, n->b);
         }
     }
     return n->pure;
+}
+
+/* GNU fixes constant conversion to the input base at function entry,
+   although assignments to ibase immediately affect subsequent calls. */
+static const bc_num *
+bc_constant (bc_interp *ip, bc_node *n)
+{
+    int base = ip->call_base ? ip->call_base : ip->ibase;
+    if (n->cache_base != base && n->cache_base != BC_ANY_BASE) {
+        if (n->cache.digits) bc_free (&n->cache);
+        n->cache = bc_str2num (n->text, n->tlen, base);
+        n->cache_base = base;
+    }
+    return &n->cache;
 }
 
 /* The value of N without a copy when it is already stored: a variable or a
@@ -3280,8 +3301,8 @@ bc_eval_ref (bc_interp *ip, bc_node *n, bc_num *tmp)
     if (!ip->err && !ip->stop) {
         if (n->kind == E_VAR)
             return ip->vars[n->id].digits ? &ip->vars[n->id] : &_bc_zero;
-        if (n->kind == E_NUM && (n->cache_base == ip->ibase || n->cache_base == BC_ANY_BASE))
-            return &n->cache;
+        if (n->kind == E_NUM)
+            return bc_constant (ip, n);
     }
     *tmp = bc_eval (ip, n);
     return tmp;
@@ -3299,7 +3320,7 @@ static void
 bc_operands (bc_interp *ip, bc_node *n, const bc_num **l, bc_num *lt,
              const bc_num **r, bc_num *rt)
 {
-    if (bc_pure (n->b)) {
+    if (bc_pure (ip, n->b)) {
         *l = bc_eval_ref (ip, n->a, lt);
     } else {
         *lt = bc_eval (ip, n->a);
@@ -3370,7 +3391,7 @@ bc_update (bc_interp *ip, bc_node *n, int want)
         const bc_num *lp, *rp;
         bc_num rt;
         l.digits = NULL;
-        if (t->kind == E_VAR && bc_pure (n->b))
+        if (t->kind == E_VAR && bc_pure (ip, n->b))
             lp = ip->vars[t->id].digits ? &ip->vars[t->id] : &_bc_zero;
         else { l = bc_named_get (ip, t, idx); lp = &l; }
         rp = bc_eval_ref (ip, n->b, &rt);
@@ -3396,12 +3417,7 @@ bc_eval (bc_interp *ip, bc_node *n)
     }
     switch (n->kind) {
     case E_NUM:
-        if (n->cache_base != ip->ibase && n->cache_base != BC_ANY_BASE) {
-            if (n->cache.digits) bc_free (&n->cache);
-            n->cache = bc_str2num (n->text, n->tlen, ip->ibase);
-            n->cache_base = ip->ibase;
-        }
-        return bc_dup (&n->cache);
+        return bc_dup (bc_constant (ip, n));
     case E_VAR:
         v = ip->vars[n->id];
         return v.digits ? bc_dup (&v) : bc_zero ();
@@ -3553,7 +3569,9 @@ static BC_NOINLINE bc_num
 bc_call_lib (bc_interp *ip, bc_func *f, bc_node *n)
 {
     bc_num args[2];
-    int want = f->native == 6 ? 2 : 1, got = 0;
+    /* read() in an argument may intern function names and move ip->funcs. */
+    int native = f->native;
+    int want = native == 6 ? 2 : 1, got = 0;
     if (n->op != want) { bc_rt_error (ip, "parameter number mismatch", NULL); return bc_zero (); }
     for (bc_node *a = n->a; a; a = a->next) {
         if (a->kind == E_ARRARG) {
@@ -3563,7 +3581,7 @@ bc_call_lib (bc_interp *ip, bc_func *f, bc_node *n)
         }
         args[got++] = bc_eval (ip, a);
     }
-    bc_num r = ip->err ? bc_zero () : bc_call_native (ip, f->native, args);
+    bc_num r = ip->err ? bc_zero () : bc_call_native (ip, native, args);
     while (got > 0) bc_free (&args[--got]);
     return r;
 }
@@ -3576,6 +3594,11 @@ bc_call_lib (bc_interp *ip, bc_func *f, bc_node *n)
 static BC_NOINLINE int
 bc_bind (bc_interp *ip, bc_func *f, bc_node *n)
 {
+    /* read() parses expressions while binding arguments. Its name interning
+       may reallocate the function vector; the definition's owned arrays and
+       body remain stable, so keep the metadata outside that vector. */
+    bc_func definition = *f;
+    f = &definition;
     bc_num small_vals[8];
     bc_array *small_arrs[8];
     int np = f->nparams;
@@ -3653,10 +3676,13 @@ bc_call (bc_interp *ip, bc_node *n, int allow_void)
 
     int mark = bc_bind (ip, f, n);
     if (mark < 0) return bc_zero ();
+    f = &ip->funcs[n->id];
 
     bc_num result = { 0, NULL, 0, 0 };
     const char *caller = ip->func;
     int line = ip->line;
+    int caller_base = ip->call_base;
+    ip->call_base = ip->ibase;
     ip->func = ip->fnames.names[n->id];
     if (bc_exec (ip, f->body) == ST_RETURN) {
         result = ip->retval;
@@ -3664,6 +3690,7 @@ bc_call (bc_interp *ip, bc_node *n, int allow_void)
     }
     ip->func = caller;
     ip->line = line;
+    ip->call_base = caller_base;
     bc_restore_to (ip, mark);
     if (!result.digits) result = bc_zero ();
     if (ip->err || ip->stop) { bc_free (&result); return bc_zero (); }
@@ -3677,6 +3704,11 @@ bc_read (bc_interp *ip)
     char *line = NULL;
     size_t cap = 0;
     ssize_t n = bc_input_line (ip->stdin_in, &line, &cap);
+    if (ip->stdin_in->error) {
+        bc_rt_error (ip, "read(): %s", strerror (ip->stdin_in->error));
+        free (line);
+        return bc_zero ();
+    }
     if (n < 0) { free (line); return bc_zero (); }
 
     bc_src src = { NULL, line, (size_t) n, 0, "(read)", 1 };
@@ -3701,7 +3733,10 @@ bc_read (bc_interp *ip)
         ip->err = 1;              /* the syntax error has been reported */
         v = bc_zero ();
     } else {
+        int caller_base = ip->call_base;
+        ip->call_base = 0;        /* input is converted in the current ibase */
         v = bc_eval (ip, e);
+        ip->call_base = caller_base;
     }
     bc_arena_free (&arena);
     free (line);

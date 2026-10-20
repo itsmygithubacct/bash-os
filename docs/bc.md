@@ -48,8 +48,11 @@ program:
   `obase` (2 and up; bases above 16 print each digit as a zero-padded decimal
   group, as GNU does) and `last` (also `.`).  A one-digit constant keeps its
   value in any base (`A` is 10), and in a longer constant a digit not below
-  the base counts as `ibase-1`, as in GNU bc.  Constants are converted when
-  they run, so `ibase=16; FF` on one line is 255.
+  the base counts as `ibase-1`, as in GNU bc. At top level constants use the
+  current input base, so `ibase=16; FF` on one line is 255. Inside a function,
+  constants use the input base captured at entry, after evaluating arguments.
+  Changing `ibase` affects subsequent calls immediately, including recursive
+  calls, but does not change the current call's constant conversion.
 * Variables, arrays `a[i]` (subscripts 0–16777215) and functions in separate
   namespaces: `a`, `a[]` and `a()` are three things.
 * `define f(x, a[], *r[]) { auto i, t[]; ... }`: parameters, array parameters
@@ -90,14 +93,17 @@ Standard output matches GNU bc 1.07.1 for every program in
 `tests/opus-bc-language.py`, including its quirks: zero keeps its scale
 (`0/5+1` at `scale=3` is `1.000`), `&&` yields its zero operand rather than 0,
 `x op= e` reads `x` before evaluating `e`, a negative power too small for the
-scale is a `-0` that compares below zero. These are deliberate differences:
+scale is a `-0` that compares below zero. Other compatibility contracts and
+deliberate differences are:
 
 | Behavior | GNU bc 1.07.1 | This builtin |
 | --- | --- | --- |
 | Final line without a newline | syntax error, line ignored | evaluated |
-| Exit status after a syntax, runtime, input or output error | 0 | 1 (warnings alone leave 0) |
+| Exit status after a syntax or runtime error | 0 | 1 (warnings alone leave 0) |
+| Exit status when a named file cannot be opened | 1 | 1 |
+| Exit status after an output write error (`/dev/full`) | 1 | 1 |
 | Diagnostic text | `(standard_in) 2: syntax error`, `Runtime error (func=f, adr=12): Divide by zero` | `bc: (standard_in) 2: syntax error`, `bc: (standard_in) 1: runtime error (func=f): divide by zero` on standard error, prefixed by the shell; a diagnostic is written exactly when GNU writes one |
-| `read()` | reads a number | reads the next line of standard input and evaluates it as an expression (the builtin's original contract) |
+| `read()` | reads a number | reads the next line of standard input and evaluates it as an expression in the current `ibase` (the builtin's original contract) |
 | Recursion depth | heap-bounded (100,000 calls is fine) | bounded by the C stack: about 7 MiB under the default 8 MiB limit, which is roughly 10,000 nested calls of a simple recursive function; deeper, the item fails with `nested too deeply` instead of crashing the shell, and the same bound applies to absurdly nested source |
 | A void function used in an expression | rejected while parsing | the same when it was defined void earlier; a later redefinition is caught when it runs |
 | `warranty` | prints the GPL warranty text | prints a one-line MIT notice |
@@ -105,8 +111,11 @@ scale is a `-0` that compares below zero. These are deliberate differences:
 | `-s`, `-w`, `BC_ENV_ARGS`, `POSIXLY_CORRECT` | POSIX checks, extra options | not implemented |
 
 POSIX leaves bc's exit status after an error unspecified; a failing status
-lets scripts notice. Evaluating the final unterminated line is what
-`bc <<< expr` users expect and what this builtin always did.
+lets scripts notice. A descriptor read error also returns 1. Evaluating a
+complete final statement without a newline preserves the original expression
+operand and redirected-input contracts. This includes complete blocks and
+function calls; an unfinished string, comment or block still fails. A shell
+here-string already supplies a newline.
 
 An interrupt (SIGINT) stops a running program at the next loop iteration or
 call; the shell then handles the signal as it would for any builtin. Output
@@ -152,7 +161,8 @@ shell with LeakSanitizer.
 ```sh
 python3 tests/bc-parity.py out/bash          # 119 repeated-input checks
 python3 tests/opus-bc-language.py out/bash   # language and contract checks
-bash tests/bc-sanitize.sh out/bash           # both under ASan/UBSan (+LSan)
+python3 tests/sol-bc-regression.py out/bash  # independent programs and call-frame regressions
+bash tests/bc-sanitize.sh out/bash           # all three under ASan/UBSan (+LSan)
 python3 tests/large-smoke.py out/bash bc     # the arithmetic fixtures
 ```
 
@@ -190,6 +200,11 @@ after file operands, the final-newline and exit-status table above, output to
 `/dev/full`, SIGINT during an endless loop, an empty `PATH`, and usage errors.
 
 ## Measured performance
+
+The independent follow-up in [sol-bc.md](sol-bc.md) covers function input-base
+capture, function-table relocation during `read()`, unary stack bounds and
+fresh before/after allocation and output measurements. Its evidence supersedes
+the implementation claims below where those defects were involved.
 
 The measurements below describe revision `66ddbd7`, before duplicate `auto`
 declarations and parameter/`auto` collisions were rejected. They do not measure

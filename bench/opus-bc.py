@@ -129,7 +129,10 @@ def main():
             notes = {}
             out = tmp / 'out'
             for i in range(args.warmup + args.runs):
-                for impl, (shell, text) in impls.items():
+                order = list(impls.items())
+                if i % 2:
+                    order.reverse()
+                for impl, (shell, text) in order:
                     if not valid[impl]:
                         continue
                     start = time.perf_counter()

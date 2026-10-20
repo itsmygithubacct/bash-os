@@ -16,3 +16,5 @@ ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print
   python3 tests/bc-parity.py "$d/bash-os"
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
   python3 tests/opus-bc-language.py "$d/bash-os"
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  python3 tests/sol-bc-regression.py "$d/bash-os"
