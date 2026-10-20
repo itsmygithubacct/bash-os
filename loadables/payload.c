@@ -26,7 +26,7 @@
  *
  * Every NAME is checked against [A-Za-z0-9][A-Za-z0-9._+-]* and must have an
  * INDEX record before the helper runs; TXN must be printable, space-free and
- * must not begin with '-'. Neither can then be read as an option or a path.
+ * must not begin with '-'. Names cannot be paths; TXNs are opaque helper IDs.
  * The helper's exit status is the builtin's (128+N if signal N killed it).
  *
  * Env overrides (all optional):
@@ -153,23 +153,28 @@ pl_valid_name (const char *s)
   return 1;
 }
 
-/* Read one line. Returns 1 for a complete line, 0 at EOF, -1 for a line too
- * long for BUF (the remainder is consumed so it cannot be read as a record). */
+/* Read one bounded line, consuming it completely even when it is malformed.
+ * fgets + strlen cannot distinguish an embedded NUL from the terminator and
+ * could silently accept a truncated record or transaction id. */
 static int
 pl_getline (FILE *f, char *buf, size_t sz)
 {
-  size_t n;
-  int ch;
-  if (!fgets (buf, sz, f))
-    return 0;
-  n = strlen (buf);
-  if (n > 0 && buf[n - 1] == '\n')
-    return 1;
-  if (n + 1 < sz)
-    return 1;           /* last line without a newline */
-  while ((ch = getc (f)) != EOF && ch != '\n')
-    ;
-  return -1;
+  size_t n = 0;
+  int ch, bad = 0, any = 0;
+  flockfile (f);
+  while ((ch = getc_unlocked (f)) != EOF)
+    {
+      any = 1;
+      if (ch == 0) bad = 1;
+      if (n + 1 < sz) buf[n++] = (char) ch;
+      else bad = 1;
+      if (ch == '\n') break;
+    }
+  funlockfile (f);
+  buf[n] = '\0';
+  if (!any) return 0;
+  if (n + 1 == sz && (n == 0 || buf[n - 1] != '\n')) bad = 1;
+  return bad ? -1 : 1;
 }
 
 /* --- install-state probes (bl-pkg records under <root>/var/lib/bl-pkg) ------ */
@@ -219,7 +224,9 @@ pl_read_txn (const pl_cfg *c, const char *name, char **out)
       if (strncmp (line, "txn=", 4) != 0)
         continue;
       v = line + 4;
-      v[strcspn (v, "\r\n")] = '\0';
+      size_t len = strlen (v);
+      if (len && v[len - 1] == '\n') v[--len] = '\0';
+      if (len && v[len - 1] == '\r') v[--len] = '\0';
       rc = PL_TXN_MALFORMED;
       if (!*v || *v == '-' || strlen (v) >= PL_FLDSZ)
         break;

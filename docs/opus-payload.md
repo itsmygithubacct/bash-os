@@ -84,7 +84,7 @@ $BASH INSTALLER --internal --root ROOT rollback TXN
 The share is a **trusted local repository** staged by the host. `payload`
 always passes `--allow-unsigned`; it does no signature checking of its own.
 `pkg` is the command for the signed-mirror workflow. `payload` does not trust
-the share's *structure*, however. INDEX records with an invalid name, a field
+the share's *structure*, however. INDEX records with an embedded NUL, an invalid name, a field
 of 256 bytes or more, no `name=`, or a line longer than 8191 bytes are skipped.
 `list` and `info` report the number skipped on stderr, and `install` will not
 act on a skipped record. Previously, the 8 KiB tail of an overlong line could
@@ -157,6 +157,9 @@ here, because it is not available on this host. That check belongs to the
 bashy.box image.
 
 ## Measurements
+
+These historical timings predate the bounded line-reader correction for embedded
+NUL bytes. They do not measure the corrected parser or establish its speedup.
 
 All timings are self-timed on one host (i7-9850H, Linux 6.12), pinned to CPU
 2 and run through the campaign bench gate. There is no external comparator: no

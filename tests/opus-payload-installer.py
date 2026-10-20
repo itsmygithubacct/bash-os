@@ -54,6 +54,7 @@ case $1 in
     for f in "$state"/*; do
       while IFS= read -r line; do
         [[ $line == txn=* ]] || continue
+        line=${line%$'\r'}
         if [[ $line == "txn=$2" ]]; then
           PATH=/usr/bin:/bin rm -f -- "$f"
           echo "helper: rolled back $2"
@@ -266,6 +267,13 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
     check('install with no INDEX', 'payload install ok', status=1,
           stderr_has=['no payload repo staged'], ncalls=0)
 
+    reset(index='blpkg-v1 name=bun\x00hidden version=1\n'
+                'blpkg-v1 name=rust version=2\n')
+    check('NUL record rejected without hiding the next record', 'payload list -p',
+          stdout='available\trust\t2\t\n', stderr_has=['skipped 1 malformed record'])
+    check('install refuses NUL-truncated name', 'payload install bun', status=1,
+          stderr_has=["no payload named 'bun'"], ncalls=0)
+
     # --- install through the helper boundary -------------------------------
     reset()
     check('install multiple names', 'payload install bun gcc',
@@ -364,11 +372,19 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
                              ('option txn', 'txn=--root=/\n', 'malformed txn='),
                              ('spaced txn', 'txn=a b\n', 'malformed txn='),
                              ('control txn', 'txn=a\x1bb\n', 'malformed txn='),
+                             ('embedded CR txn', 'txn=T-bun-1\rhidden\n', 'malformed txn='),
+                             ('NUL txn', 'txn=T-bun-1\x00hidden\n', 'malformed txn='),
                              ('overlong txn', 'txn=' + 'x' * 9000 + '\n', 'malformed txn='),
                              ('long txn field', 'txn=' + 'x' * 300 + '\n', 'malformed txn=')):
         reset(installed={'bun': body})
         check(f'malformed state: {label}', 'payload remove bun', status=1, ncalls=0,
               stderr_has=[why, "use 'pkg remove bun'"])
+    reset(installed={'bun': 'txn=T-bun-1\r\n'})
+    check('CRLF transaction retains complete ID', 'payload remove bun',
+          argvs=[ROLLBACK + ['T-bun-1']],
+          stdout='helper: rolled back T-bun-1\npayload: removed bun\n',
+          env={'FAKE_MODE': 'ok-crlf'})
+
     reset(installed={'bun': 'txn=T-bun-1\n', 'gcc': 'txn=T-gcc-2\n', 'rust': 'txn=T-r-3\n'})
     check('rollback failure: first helper status returned, later names still tried',
           'payload remove bun gcc rust', status=9, env={'FAKE_MODE': 'failtxn:T-gcc-2'},
