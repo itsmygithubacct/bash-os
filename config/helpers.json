@@ -1,5 +1,10 @@
 {
   "commands": {
+    "grep": {
+      "libs": [
+        "-lpcre2-8"
+      ]
+    },
     "pcre": {
       "libs": [
         "-lpcre2-8"

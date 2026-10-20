@@ -8,7 +8,8 @@
  *
  *   cc -O1 -g -fsanitize=address,undefined -DHAVE_CONFIG_H -Ibuild/bash-5.3 \
  *      -Ibuild/bash-5.3/include -Ibuild/bash-5.3/builtins \
- *      -Ibuild/bash-5.3/examples/loadables loadables/grep.c tests/grep-host.c -o grep
+ *      -Ibuild/bash-5.3/examples/loadables loadables/grep.c tests/grep-host.c \
+ *      -lpcre2-8 -o grep
  *
  * SPDX-License-Identifier: MIT
  */
