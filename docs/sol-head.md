@@ -1,5 +1,11 @@
 # head option and performance completion
 
+Private stdin descriptors start above stderr. `tests/review-head-descriptors.py` checks that closed output fails without overwriting read/write stdin, for byte, line, header and negative-count modes.
+
+The measurements below predate this review correction. They describe the original
+worker implementation; they are not measurements of the corrected code. No new
+performance claim is made for this correction.
+
 `head` extends the pinned Bash example through
 [`patches/head-stdin.patch`](../patches/head-stdin.patch). The build still uses
 `examples/loadables/head.c`; there is no replacement loadable or generated

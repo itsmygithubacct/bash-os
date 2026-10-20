@@ -370,7 +370,7 @@
 +  standard = name == 0 || strcmp (name, "-") == 0;
 +  /* Ownership follows how the descriptor was obtained, even if open returns
 +     descriptor zero because shell stdin was closed. Never use global stdin. */
-+  fd = standard ? dup (STDIN_FILENO) : open (name, O_RDONLY);
++  fd = standard ? fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3) : open (name, O_RDONLY);
 +  if (fd < 0) goto open_error;
 +  fp = fdopen (fd, "r");
 +  if (fp == 0) { saved_errno = errno; close (fd); errno = saved_errno; goto open_error; }
