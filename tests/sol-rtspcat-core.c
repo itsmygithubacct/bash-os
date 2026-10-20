@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Include the genuine implementation, instrument its allocation boundary, and
  * exercise adversarial assembly under ASan/UBSan. No copied depacketizer. */
 #define _GNU_SOURCE
