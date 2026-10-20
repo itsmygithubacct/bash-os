@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'sv owned readiness and backpressure' python3 tests/astra-sv-readiness.py out/bash
 check 'RTSP private loopback protocol' python3 tests/sol-rtspcat-loopback.py --binary out/bash --report "$scratch/rtspcat-native.json"
 check 'RTSP root-relative control URI' python3 tests/astra-rtspcat-control.py out/bash
 check 'mail private queue and SMTP' python3 tests/sol-mail-check.py out/bash
@@ -196,6 +197,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'sv fault and sanitizer modules' bash tests/sol-sv-build-fixtures.sh "$scratch/sv-contracts"
+  check 'sv native lifecycle and write faults' env SV_TEST_WRITE_SHIM="$scratch/sv-contracts/write-shim.so" python3 tests/sol-sv-check.py out/bash
+  check 'sv lifecycle under ASan+UBSan' env BASH_ENV="$scratch/sv-contracts/asan-env.sh" LD_PRELOAD="$(cat "$scratch/sv-contracts/asan-library.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-sv-check.py out/bash
+  check 'sv sanitized readiness backpressure' env BASH_ENV="$scratch/sv-contracts/asan-env.sh" LD_PRELOAD="$(cat "$scratch/sv-contracts/asan-library.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-sv-readiness.py out/bash
   mkdir -p "$scratch/rtspcat-contracts"
   check 'RTSP bounded allocation and sanitizer protocol' env BASHOS_TASK_DIR="$scratch/rtspcat-contracts" UBSAN_OPTIONS=halt_on_error=1 bash tests/sol-rtspcat-sanitize.sh
   check 'RTSP sanitized control URI' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-rtspcat-control.py "$scratch/rtspcat-contracts/rtspcat-sanitize" --standalone

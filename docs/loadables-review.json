@@ -1280,6 +1280,14 @@
       "status": "Contract",
       "evidence": "tests/sol-rtspcat-loopback.py",
       "scope": "RTSP/TCP interleaved H.264 framing, authenticated root-relative control paths and bounded allocation checked with private loopback fixtures. Cameras, decoders, UDP RTP, TLS and IPv6-literal authorities remain unqualified."
+    },
+    {
+      "names": [
+        "sv"
+      ],
+      "status": "Contract",
+      "evidence": "tests/astra-sv-readiness.py",
+      "scope": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. Live service configuration, privilege transitions and durability are unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1803,6 +1811,12 @@
         "rtspcat"
       ],
       "evidence": "tests/sol-rtspcat-sanitize.sh"
+    },
+    {
+      "names": [
+        "sv"
+      ],
+      "evidence": "tests/sol-sv-build-fixtures.sh"
     }
   ],
   "fuzz": {
@@ -2741,6 +2755,11 @@
       "evidence": "docs/sol-netstat.md",
       "note": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "sv": {
+      "evidence": "docs/sol-sv.md",
+      "note": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. Live service configuration, privilege transitions and durability are unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2794,7 +2813,8 @@
     "netstat",
     "ss",
     "mail",
-    "rtspcat"
+    "rtspcat",
+    "sv"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
