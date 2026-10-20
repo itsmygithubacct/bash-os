@@ -206,6 +206,13 @@ def test_failures(binary):
         fifo = Path(tmp) / 'fifo.key'; os.mkfifo(fifo)
         b.command('join', a.endpoint, '-k', fifo, rc=1, timeout=1)
         b.command('join', a.endpoint, '-k', Path(tmp)/'absent.key', rc=1)
+        # Temporary assignments use Bash's shared getenv result buffer.
+        # Reading the timeout must not invalidate the selected state path.
+        selected = Path(tmp) / 'selected-state'
+        out = b.call(f'BASHCLUSTER_STATE_DIR={shlex.quote(str(selected))} '
+                     'BASHCLUSTER_TIMEOUT_MS=200 cluster status')
+        assert dict(line.split('=', 1) for line in out.splitlines()) == {
+            'state': 'uninitialized', 'state_dir': str(selected)}, out
         b.call('BASHCLUSTER_TIMEOUT_MS=0 cluster status', rc=1)
         b.call('BASHCLUSTER_TIMEOUT_MS=5001 cluster status', rc=1)
         public = Path(tmp) / 'public'; public.mkdir(mode=0o755)

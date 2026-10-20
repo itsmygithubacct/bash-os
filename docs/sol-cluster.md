@@ -90,6 +90,11 @@ before retrying a mutating operation.
 
 ## Validation and measurement
 
+The state directory is copied before the timeout environment lookup, because
+Bash reuses the `getenv` buffer for command-prefixed assignments. The membership
+suite checks both temporary assignments together. Timings below predate this
+correction and do not measure the corrected implementation.
+
 `python3 tests/sol-cluster-membership.py out/bash-cluster` uses independent
 persistent shells, ephemeral loopback ports, and private temporary directories.
 It verifies three-peer membership transitions, node/endpoint ping, key mismatch,

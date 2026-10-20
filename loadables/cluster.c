@@ -80,7 +80,7 @@ bc_number (const char *s, int min, int max)
 static int
 bc_setup (bc_state *s)
 {
-  const char *d = getenv ("BASHCLUSTER_STATE_DIR"), *t = getenv ("BASHCLUSTER_TIMEOUT_MS");
+  const char *d = getenv ("BASHCLUSTER_STATE_DIR"), *t;
   char cwd[PATH_MAX];
   int n;
   memset (s, 0, sizeof *s); s->fd = s->lock = -1;
@@ -91,6 +91,9 @@ bc_setup (bc_state *s)
     n = snprintf (s->dir, sizeof s->dir, "%s/%s", cwd, d);
   }
   if (n < 0 || n >= (int)sizeof s->dir) return -1;
+  /* Bash may reuse or free its getenv buffer for temporary assignments.
+     Finish copying the directory before looking up another variable. */
+  t = getenv ("BASHCLUSTER_TIMEOUT_MS");
   s->timeout = t ? bc_number (t, 50, 5000) : 500;
   return s->timeout < 0 ? -1 : 0;
 }
