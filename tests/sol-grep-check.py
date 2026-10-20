@@ -34,6 +34,8 @@ def main():
         (root/'long').write_bytes(b'begin\n'+b'x'*300000+b'foo123\nend\n')
         (root/'straddle').write_bytes(b'x'*98302+b'foo123\nend\n')
         (root/'empty').touch()
+        (root/'final-newline').write_bytes(b'a\n\0\n\0')
+        (root/'explicit-utf').write_bytes('éa'.encode()+b'\xffa\0')
         def run(script, locale, impl=False):
             env = dict(os.environ, LC_ALL=locale, PATH='' if impl else '/usr/bin:/bin',
                        ASAN_OPTIONS='detect_leaks=1:exitcode=99', UBSAN_OPTIONS='halt_on_error=1:exitcode=99')
@@ -69,6 +71,12 @@ def main():
                 parity(f'grep -P {opts} {shlex.quote(pattern)} '+('nul' if 'z' in opts else 'text'), locale)
             for opts in ['', '-a', '-o', '-ao', '-c']:
                 parity(f'grep -P {opts} . invalid', locale)
+            for pattern in ['a$', '^$', '(?m)a$', '(?m)^$']:
+                parity('grep -Pzo '+shlex.quote(pattern)+' final-newline', locale)
+            for pattern in ['(*UTF)a', '(*UTF)(?:|a)', '(*UTF).*?']:
+                # GNU can report BADUTFOFFSET for empty (*UTF) matches in C;
+                # require exact bytes/status and a diagnostic, not its wording.
+                parity('grep -Pzao '+shlex.quote(pattern)+' explicit-utf', locale, diagnostic=False)
             parity("grep -P -ao 'foo.bar' binary", locale)
             parity("grep -P -ao '.' binary", locale)
             for fixture in ['long', 'straddle']:

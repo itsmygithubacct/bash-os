@@ -1,5 +1,14 @@
 # grep: PCRE2 and focused completion
 
+PCRE dollar anchors require the true record end unless multiline mode is
+requested, including when a NUL-delimited record ends in a newline. Patterns
+that explicitly request `(*UTF)` in the C locale receive invalid-subject
+handling too; ordinary C-locale patterns continue to match raw bytes. Empty
+explicit-UTF matches retain GNU's C-locale offset-error behavior.
+
+The timings below predate these dollar-anchor and explicit-UTF corrections;
+they are evidence for the original measured source, not the corrected source.
+
 `grep` implements BRE (default and `-G`), ERE (`-E`), fixed strings (`-F`),
 and PCRE2 (`-P`) inside Bash. It never delegates to an external grep.
 Selecting `grep` now requires the PCRE2 development headers and `libpcre2-8`

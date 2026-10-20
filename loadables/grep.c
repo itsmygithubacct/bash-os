@@ -114,6 +114,7 @@ typedef struct {
     char *combined;                 /* the combined pattern text, freed at the end */
     pcre2_code *pcre; pcre2_match_data *pcre_md;
     pcre2_match_context *pcre_ctx;
+    int pcre_utf;                  /* effective mode, including (*UTF) */
     size_t *kw_blk, *kw_line;       /* needle caches: the block scan, the line scan */
     char *ob; size_t on;            /* the output buffer: bash line-buffers stdout, a write per line */
 } bg_opts;
@@ -162,11 +163,12 @@ bg_pcre_match_ctx (void)
 }
 
 static pcre2_code *
-bg_pcre_compile (const char *pattern, size_t length, const bg_opts *o)
+bg_pcre_compile (const char *pattern, size_t length, bg_opts *o)
 {
     /* GNU grep keeps \d/\w/\s ASCII unless the pattern requests UCP.
        Invalid UTF bytes are barriers, not fatal subject errors. */
-    uint32_t flags = o->mb ? PCRE2_UTF | PCRE2_MATCH_INVALID_UTF : 0;
+    uint32_t flags = PCRE2_DOLLAR_ENDONLY;
+    if (o->mb) flags |= PCRE2_UTF | PCRE2_MATCH_INVALID_UTF;
     if (o->iflag)
         flags |= PCRE2_CASELESS;
 
@@ -175,6 +177,20 @@ bg_pcre_compile (const char *pattern, size_t length, const bg_opts *o)
     pcre2_code *code = pcre2_compile ((PCRE2_SPTR) pattern,
                                       length,
                                       flags, &errcode, &erroffset, NULL);
+    if (code) {
+        uint32_t effective;
+        pcre2_pattern_info (code, PCRE2_INFO_ALLOPTIONS, &effective);
+        o->pcre_utf = !!(effective & PCRE2_UTF);
+        /* A leading (*UTF) can enable UTF in the C locale too. Enabling
+           invalid-subject support unconditionally would force byte patterns
+           into UTF mode, so recompile only when the pattern requested it. */
+        if ((effective & PCRE2_UTF) && !(flags & PCRE2_MATCH_INVALID_UTF)) {
+            pcre2_code_free (code);
+            code = pcre2_compile ((PCRE2_SPTR) pattern, length,
+                                  flags | PCRE2_MATCH_INVALID_UTF,
+                                  &errcode, &erroffset, NULL);
+        }
+    }
     if (!code)
     {
         char buf[256];
@@ -189,8 +205,13 @@ static int
 bg_pcre_exec (const bg_opts *o, const char *line, size_t llen,
               size_t start, uint32_t match_opts, regmatch_t *m)
 {
-    int rc = pcre2_match (o->pcre, (PCRE2_SPTR) line, llen, start,
-                          match_opts, o->pcre_md, o->pcre_ctx);
+    /* Keep GNU's invalid starting-offset error even though
+       MATCH_INVALID_UTF otherwise accepts continuation-byte offsets. */
+    int rc = o->pcre_utf && start && start < llen
+             && ((unsigned char) line[start] & 0xC0) == 0x80
+        ? PCRE2_ERROR_BADUTFOFFSET
+        : pcre2_match (o->pcre, (PCRE2_SPTR) line, llen, start,
+                        match_opts, o->pcre_md, o->pcre_ctx);
     if (rc == PCRE2_ERROR_NOMATCH)
         return 0;
     if (rc < 0)
