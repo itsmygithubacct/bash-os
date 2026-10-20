@@ -496,6 +496,17 @@ bp_print_pid (int pid, int lflag, int aflag, const char *delim, int *first,
     *first = 0;
 }
 
+/* Count successful requests, not merely selected processes. A process exiting
+   between selection and kill is an ordinary race; diagnose other failures. */
+static int
+bp_signal_pid (int pid, int sig)
+{
+    if (kill (pid, sig) == 0) return 1;
+    if (errno != ESRCH)
+        builtin_error ("kill (%d): %s", pid, strerror (errno));
+    return 0;
+}
+
 static int
 bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
          int filter_uid_set, uid_t want_uid, int mode, int sig,
@@ -607,12 +618,7 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         }
 
         if (delivers) {
-            if (kill (pid, sig) == 0) matched++;
-            /* Else: ESRCH (race with exit) is silently skipped; EPERM
-               counts as a process we tried to signal but couldn't.
-               procps-ng's pkill prints a warning on EPERM; we mirror. */
-            else if (errno == EPERM)
-                builtin_error ("kill (%d): %s", pid, strerror (errno));
+            matched += bp_signal_pid (pid, sig);
         } else {
             matched++;
             if (!count_only) {
@@ -622,9 +628,13 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
     }
     closedir (d);
     if (best_pid) {
-        matched = 1;
-        if (!count_only)
-            bp_print_pid (best_pid, lflag, aflag, odelim, &first_print, &cmdline, &cmdcap);
+        if (delivers)
+            matched = bp_signal_pid (best_pid, sig);
+        else {
+            matched = 1;
+            if (!count_only)
+                bp_print_pid (best_pid, lflag, aflag, odelim, &first_print, &cmdline, &cmdcap);
+        }
     }
     free (cmdline);
     /* -c/--count: print only the tally (procps-ng prints "0" + exit 1 on
@@ -741,7 +751,7 @@ bp_dispatch (WORD_LIST *list, int mode)
                 continue;
             }
         }
-        if (mode == BP_MODE_GREP && (!strcmp (w, "-n") || !strcmp (w, "--newest") ||
+        if ((mode == BP_MODE_GREP || mode == BP_MODE_KILL) && (!strcmp (w, "-n") || !strcmp (w, "--newest") ||
                                      !strcmp (w, "-o") || !strcmp (w, "--oldest"))) {
             int age = (!strcmp (w, "-n") || !strcmp (w, "--newest")) ? 1 : -1;
             if (selection.age && selection.age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
@@ -825,29 +835,25 @@ bp_dispatch (WORD_LIST *list, int mode)
             list = list->next;
             continue;
         }
-        /* GREP-mode short-flag clustering (procps-ng compat): -af, -fa, -cf,
-           -lf, -vf, -xf, and value flags as cluster members (-fu USER, -fdX).
-           Reached only for single-dash, multi-char, non-"--" tokens that no
-           whole-word arm above matched. Signal modes (pkill/killall) are
-           deliberately NOT clustered so the `-SIGNAL` selector arm below keeps
-           owning `-9`, `-TERM`, etc. (matches procps-ng, which does not cluster
-           pkill's listing flags). */
-        if (mode == BP_MODE_GREP && w[0] == '-' && w[1] && w[1] != '-') {
+        /* Shared short-option clusters. Whole pkill signal names were handled
+           above, before selector parsing, so -USR1/-PIPE retain precedence.
+           Listing, inversion and delimiter options remain pgrep-only. */
+        if ((mode == BP_MODE_GREP || mode == BP_MODE_KILL) && w[0] == '-' && w[1] && w[1] != '-') {
             const char *c;
             for (c = w + 1; *c; c++) {
                 if (*c == 'f') { by_cmdline = 1; continue; }
                 if (*c == 'c') { count_only = 1; continue; }
                 if (*c == 'x') { exact = 1; continue; }
-                if (*c == 'l') { lflag = 1; aflag = 0; continue; }
-                if (*c == 'a') { aflag = 1; lflag = 0; continue; }
-                if (*c == 'v') { vflag = 1; continue; }
+                if (mode == BP_MODE_GREP && *c == 'l') { lflag = 1; aflag = 0; continue; }
+                if (mode == BP_MODE_GREP && *c == 'a') { aflag = 1; lflag = 0; continue; }
+                if (mode == BP_MODE_GREP && *c == 'v') { vflag = 1; continue; }
                 if (*c == 'n' || *c == 'o') {
                     int age = *c == 'n' ? 1 : -1;
                     if (selection.age && selection.age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
                     selection.age = age;
                     continue;
                 }
-                if (*c == 'd' || bp_selector_kind (*c) >= 0) {
+                if ((mode == BP_MODE_GREP && *c == 'd') || bp_selector_kind (*c) >= 0) {
                     /* Value flag: its argument is the rest of the cluster when
                        attached (-fdX), else the next argv element (-fu USER).
                        Either way it consumes the cluster remainder. */
