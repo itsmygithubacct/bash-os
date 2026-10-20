@@ -1215,6 +1215,14 @@
       "status": "Contract",
       "evidence": "tests/sol-mkfs.py",
       "scope": "Ext2 layout checked by independent decoders and filesystem tools using private regular images, including write faults and cleanup. Block devices, mounting, crash recovery and real storage behavior remain unqualified."
+    },
+    {
+      "names": [
+        "swapoff"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-swapoff.md",
+      "scope": "Strict proc-swaps snapshot parsing, escape decoding, deduplication and failure continuation. A closed interposer and seccomp guard prevent real swapoff; live reclaim and permission behavior remain VM prerequisites."
     }
   ],
   "sanitizer_groups": [
@@ -1689,6 +1697,12 @@
         "mkfs"
       ],
       "evidence": "tests/sol-mkfs-build.sh"
+    },
+    {
+      "names": [
+        "swapoff"
+      ],
+      "evidence": "tests/sol-swapoff-build.sh"
     }
   ],
   "fuzz": {
@@ -2598,6 +2612,11 @@
       "evidence": "docs/sol-mkfs.md",
       "note": "Ext2 layout checked by independent decoders and filesystem tools using private regular images, including write faults and cleanup. Block devices, mounting, crash recovery and real storage behavior remain unqualified.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "swapoff": {
+      "evidence": "docs/sol-swapoff.md",
+      "note": "Strict proc-swaps snapshot parsing, escape decoding, deduplication and failure continuation. A closed interposer and seccomp guard prevent real swapoff; live reclaim and permission behavior remain VM prerequisites.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2643,7 +2662,8 @@
     "poweroff",
     "fsfreeze",
     "losetup",
-    "mkfs"
+    "mkfs",
+    "swapoff"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

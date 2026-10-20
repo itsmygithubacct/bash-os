@@ -192,6 +192,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'swapoff boundary build' env BASHOS_TASK_DIR="$scratch/swapoff-contracts" bash tests/sol-swapoff-build.sh
+  check 'swapoff native guarded contracts' python3 tests/sol-swapoff-check.py --binary out/bash --shim "$scratch/swapoff-contracts/artifacts/swapoff-shim.so" --output "$scratch/swapoff-native.json"
+  check 'swapoff guarded ASan+UBSan contracts' python3 tests/sol-swapoff-check.py --binary out/bash --shim "$scratch/swapoff-contracts/artifacts/swapoff-shim.so" --module "$scratch/swapoff-contracts/artifacts/swapoff-sanitize.so" --asan "$(cat "$scratch/swapoff-contracts/artifacts/asan-path.txt")" --output "$scratch/swapoff-sanitize.json"
   check 'mkfs private fault modules' env BASHOS_TASK_DIR="$scratch/mkfs-contracts" bash tests/sol-mkfs-build.sh
   check 'mkfs native write faults' python3 tests/sol-mkfs-faults.py --binary out/bash --module "$scratch/mkfs-contracts/artifacts/mkfs-shim.so" --report "$scratch/mkfs-faults.json"
   check 'mkfs private images under ASan+UBSan' env PATH="$PATH:/usr/sbin:/sbin" python3 tests/sol-mkfs.py --binary out/bash --module "$scratch/mkfs-contracts/artifacts/mkfs-sanitize.so" --asan-lib "$(cat "$scratch/mkfs-contracts/artifacts/asan-path.txt")" --report "$scratch/mkfs-sanitize.json"
