@@ -1133,6 +1133,14 @@
       "status": "Contract",
       "evidence": "docs/sol-renice.md",
       "scope": "Absolute-priority parsing and continuation with owned process/group targets; all-user selectors are intercepted. Smoke mutation targets only a disposable child and cannot change the invoking shell."
+    },
+    {
+      "names": [
+        "setpgid"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-setpgid-check.py",
+      "scope": "Exact operand count, pid_t bounds and owned-child process-group contracts. No live host process groups are changed; cross-architecture pid_t qualification remains separate."
     }
   ],
   "sanitizer_groups": [
@@ -1551,6 +1559,12 @@
         "renice"
       ],
       "evidence": "tests/sol-renice-build.sh"
+    },
+    {
+      "names": [
+        "setpgid"
+      ],
+      "evidence": "tests/sol-setpgid-build-ubsan.sh"
     }
   ],
   "fuzz": {
@@ -2405,6 +2419,11 @@
       "evidence": "docs/sol-renice.md",
       "note": "Absolute-priority parsing and continuation with owned process/group targets; all-user selectors are intercepted. Smoke mutation targets only a disposable child and cannot change the invoking shell.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "setpgid": {
+      "evidence": "docs/sol-setpgid.md",
+      "note": "Exact operand count, pid_t bounds and owned-child process-group contracts. No live host process groups are changed; cross-architecture pid_t qualification remains separate.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2439,7 +2458,8 @@
     "su",
     "zstd",
     "zstdcat",
-    "renice"
+    "renice",
+    "setpgid"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

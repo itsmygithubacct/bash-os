@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'setpgid owned-child contracts' python3 tests/sol-setpgid-check.py --binary out/bash
 check 'zstd bounded streaming and atomic output' python3 tests/sol-zstd-check.py out/bash
 check 'payload isolated installer protocol' python3 tests/opus-payload-installer.py out/bash
 check 'cluster owned membership and recovery' python3 tests/sol-cluster-membership.py out/bash
@@ -189,6 +190,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'setpgid UBSan module build' bash tests/sol-setpgid-build-ubsan.sh "$scratch/setpgid-contracts"
+  check 'setpgid owned children under UBSan' env UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-setpgid-check.py --binary out/bash --module "$scratch/setpgid-contracts/setpgid-ubsan.so"
   check 'renice private boundary build' bash tests/sol-renice-build.sh "$scratch/renice-contracts"
   check 'renice owned-child contracts' python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
   check 'renice owned-child sanitizer contracts' env SOL_RENICE_MODULE="$scratch/renice-contracts/renice-sanitized.so" SOL_RENICE_ASAN_RUNTIME="$(cat "$scratch/renice-contracts/asan-runtime")" python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
