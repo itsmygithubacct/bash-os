@@ -1223,6 +1223,14 @@
       "status": "Contract",
       "evidence": "docs/sol-swapoff.md",
       "scope": "Strict proc-swaps snapshot parsing, escape decoding, deduplication and failure continuation. A closed interposer and seccomp guard prevent real swapoff; live reclaim and permission behavior remain VM prerequisites."
+    },
+    {
+      "names": [
+        "hwclock"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-hwclock.md",
+      "scope": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM."
     }
   ],
   "sanitizer_groups": [
@@ -1703,6 +1711,12 @@
         "swapoff"
       ],
       "evidence": "tests/sol-swapoff-build.sh"
+    },
+    {
+      "names": [
+        "hwclock"
+      ],
+      "evidence": "tests/sol-hwclock-build.sh"
     }
   ],
   "fuzz": {
@@ -2617,6 +2631,11 @@
       "evidence": "docs/sol-swapoff.md",
       "note": "Strict proc-swaps snapshot parsing, escape decoding, deduplication and failure continuation. A closed interposer and seccomp guard prevent real swapoff; live reclaim and permission behavior remain VM prerequisites.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "hwclock": {
+      "evidence": "docs/sol-hwclock.md",
+      "note": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2663,7 +2682,8 @@
     "fsfreeze",
     "losetup",
     "mkfs",
-    "swapoff"
+    "swapoff",
+    "hwclock"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

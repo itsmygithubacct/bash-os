@@ -192,6 +192,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'hwclock isolated fixture build' env BASHOS_TASK_DIR="$scratch/hwclock-contracts" bash tests/sol-hwclock-build.sh
+  check 'hwclock guarded native contracts' python3 tests/sol-hwclock-check.py --binary out/bash --module "$scratch/hwclock-contracts/artifacts/hwclock.so" --report "$scratch/hwclock-native.json"
+  check 'hwclock standalone sanitizer contracts' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-hwclock-check.py --binary out/bash --module "$scratch/hwclock-contracts/artifacts/hwclock.so" --host "$scratch/hwclock-contracts/artifacts/hwclock-sanitize" --report "$scratch/hwclock-sanitize.json"
   check 'swapoff boundary build' env BASHOS_TASK_DIR="$scratch/swapoff-contracts" bash tests/sol-swapoff-build.sh
   check 'swapoff native guarded contracts' python3 tests/sol-swapoff-check.py --binary out/bash --shim "$scratch/swapoff-contracts/artifacts/swapoff-shim.so" --output "$scratch/swapoff-native.json"
   check 'swapoff guarded ASan+UBSan contracts' python3 tests/sol-swapoff-check.py --binary out/bash --shim "$scratch/swapoff-contracts/artifacts/swapoff-shim.so" --module "$scratch/swapoff-contracts/artifacts/swapoff-sanitize.so" --asan "$(cat "$scratch/swapoff-contracts/artifacts/asan-path.txt")" --output "$scratch/swapoff-sanitize.json"
