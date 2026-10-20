@@ -1,0 +1,32 @@
+--- jobs.c
++++ jobs.c
+@@ -4248,9 +4248,11 @@
+ 	  if (sigchld == 0 && wait_intr_flag)
+ 	    sh_longjmp (wait_intr_buf, 1);
+ 	}
+-      /* If not in posix mode and not executing the wait builtin, queue the
+-	 signal for later handling.  Run the trap immediately if we are
+-	 executing the wait builtin, but don't break out of `wait'. */
++      /* Queue the trap and keep waiting. Running it inside waitchld calls
++	 parse_and_execute() while this function still owns the job list, and
++	 the system malloc then corrupts its freelist. The wait builtin runs
++	 the queued trap after it returns and does not break out of wait.
++	 See builtins/wait.def. */
+       else if (sigchld)	/* called from signal handler */
+ 	queue_sigchld_trap (children_exited);
+       else if (signal_in_progress (SIGCHLD))
+@@ -4260,13 +4262,7 @@
+       else if (running_trap)
+ 	queue_sigchld_trap (children_exited);
+       else if (this_shell_builtin == wait_builtin)
+-	{
+-	  int o;
+-	  o = jobs_list_frozen;
+-	  jobs_list_frozen = 1;
+-	  run_sigchld_trap (children_exited);	/* XXX */
+-	  jobs_list_frozen = o;
+-	}
++	queue_sigchld_trap (children_exited);	/* after wait returns */
+       else
+ 	queue_sigchld_trap (children_exited);
+     }

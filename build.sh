@@ -218,6 +218,12 @@ done
 pl=$(awk '$1=="#define" && $2=="PATCHLEVEL" {print $3}' patchlevel.h)
 [[ "$pl" == "$BASH_PATCHLEVEL" ]] || die "patchlevel $pl after patching, expected $BASH_PATCHLEVEL"
 
+# Shell repair applied after the pinned official set. waitchld() must queue a
+# SIGCHLD trap instead of running it in this frame; parse_and_execute() here
+# allocates while the job list is still being updated and corrupts glibc malloc.
+patch -p0 -s < "$HERE/patches/bash-sigchld-malloc.patch" >>"$LOG" 2>&1 \
+  || die "bash-sigchld-malloc.patch did not apply (see $LOG)"
+
 # --- 3. stage the loadable sources + helper headers ------------------------
 say "staging loadables"
 cp "$HERE/loadables"/*.c examples/loadables/
