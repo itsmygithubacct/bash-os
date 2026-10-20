@@ -1181,6 +1181,16 @@
       "status": "Contract",
       "evidence": "tests/sol-rngseed-check.sh",
       "scope": "Private seed-file validation, consume-before-credit ordering, atomic replacement and injected error recovery. Native tests save or load missing private files; entropy-credit and power-loss qualification remain isolated-VM prerequisites."
+    },
+    {
+      "names": [
+        "halt",
+        "reboot",
+        "poweroff"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-halt.md",
+      "scope": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM."
     }
   ],
   "sanitizer_groups": [
@@ -1629,6 +1639,14 @@
         "rngseed"
       ],
       "evidence": "tests/sol-rngseed-build.sh"
+    },
+    {
+      "names": [
+        "halt",
+        "reboot",
+        "poweroff"
+      ],
+      "evidence": "tests/sol-halt-build.sh"
     }
   ],
   "fuzz": {
@@ -2508,6 +2526,21 @@
       "evidence": "docs/sol-rngseed.md",
       "note": "Private seed-file validation, consume-before-credit ordering, atomic replacement and injected error recovery. Native tests save or load missing private files; entropy-credit and power-loss qualification remain isolated-VM prerequisites.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "halt": {
+      "evidence": "docs/sol-halt.md",
+      "note": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "reboot": {
+      "evidence": "docs/sol-halt.md",
+      "note": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "poweroff": {
+      "evidence": "docs/sol-halt.md",
+      "note": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2547,7 +2580,10 @@
     "ipcctl",
     "ipcmk",
     "keyctl",
-    "rngseed"
+    "rngseed",
+    "halt",
+    "reboot",
+    "poweroff"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
