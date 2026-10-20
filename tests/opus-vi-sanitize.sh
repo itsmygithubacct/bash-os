@@ -25,3 +25,4 @@ BASH_ENV=$HELPER_LOAD_ENV LD_PRELOAD=$HELPER_ASAN_LIB \
 cat "$d/selftest.tap"
 ! grep -q '^not ok' "$d/selftest.tap"
 python3 tests/opus-vi-dd.py "$bin"
+python3 tests/sol-vi-delete.py "$bin"

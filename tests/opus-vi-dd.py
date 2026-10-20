@@ -209,6 +209,8 @@ with tempfile.TemporaryDirectory() as tmp:
     keys_case(d, 'g-dd-j-noop', abc, b'Gddjdd', b'a\nb\n')
     keys_case(d, 'g-dd-insert', abc, b'Gddix' + ESC, b'a\nb\nxc\n')
     keys_case(d, 'g-dd-x', b'ab\ncd\nef\n', b'Gddx', b'ab\nd\n')
+    keys_case(d, 'g-dd-w-x', b'ab\ncd\nef\n', b'Gddwx', b'ab\nc\n')
+    keys_case(d, 'g-dd-w-x-noeol', b'ab\ncd\nef', b'Gddwx', b'ab\nc')
     keys_case(d, 'g-dd-p', abc, b'Gddp', b'a\nb\nc\nd\n')
     keys_case(d, 'g-dd-P', abc, b'GddP', b'a\nb\nd\nc\n')
     # ESC keeps the cursor on its line, so the next edit hits that line.
@@ -240,6 +242,27 @@ with tempfile.TemporaryDirectory() as tmp:
     keys_case(d, 'noeol-yy-p', b'a\nb', b'jyyp', b'a\nb\nb')
     keys_case(d, 'noeol-dd-p', b'a\nb\nc', b'Gddp', b'a\nb\nc')
     keys_case(d, 'noeol-2dd-end', b'a\nb\nc', b'j2dd', b'a')
+    # Missing EOL can expose a zero-byte last line after a delete. It
+    # remains a real line in memory even though a save cannot encode that
+    # distinction. Exercise snapshots, motion, counts, yank and insertion.
+    keys_case(d, 'noeol-empty-tail-repeat', b'a\n\nb', b'Gdddd', b'a')
+    keys_case(d, 'noeol-empty-tail-undo', b'a\n\nb', b'Gddddu', b'a\n')
+    keys_case(d, 'noeol-empty-tail-redo', b'a\n\nb', b'Gddddu' + CTRL_R, b'a')
+    keys_case(d, 'noeol-empty-tail-undo-cursor', b'a\n\nb', b'Gdddduix' + ESC, b'a\nx')
+    keys_case(d, 'noeol-empty-tail-down', b'a\n\nb', b'Gddkjdd', b'a')
+    keys_case(d, 'noeol-empty-tail-count', b'a\n\nb', b'Gddk2dd', b'')
+    keys_case(d, 'noeol-empty-tail-put', b'a\n\nb', b'Gddp', b'a\n\nb')
+    keys_case(d, 'noeol-empty-tail-put-before', b'a\n\nb', b'Gddkp', b'a\nb\n')
+    keys_case(d, 'noeol-empty-tail-yank', b'a\n\nb', b'Gddk2yyGp', b'a\n\na\n')
+    keys_case(d, 'noeol-empty-tail-insert', b'a\n\nb', b'Gddix' + ESC, b'a\nx')
+    keys_case(d, 'noeol-put-blank-tail-delete', b'a\n\nb', b'2yyGpGdd', b'a\n\nb\na')
+    keys_case(d, 'noeol-empty-tail-count-before', b'a\n\nb', b'Gddkdd', b'')
+    keys_case(d, 'noeol-empty-tail-count-undo', b'a\n\nb',
+              b'Gddk2dduGdd', b'a')
+    keys_case(d, 'noeol-only-blank-tail-undo', b'\nb', b'Gddddu', b'')
+    keys_case(d, 'noeol-empty-tail-save', b'a\n\nb',
+              b'Gdd:w ' + bytes(d / 'intermediate') + CR + b'dd', b'a', compare=False)
+    assert (d / 'intermediate').read_bytes() == b'a\n'
 
     # --- counts ---
     keys_case(d, 'count-3dd', b'1\n2\n3\n4\n5\n', b'j3dd', b'1\n5\n')
@@ -304,6 +327,10 @@ with tempfile.TemporaryDirectory() as tmp:
     ex_case(d, 'ex-delete-word', abc, ['2delete'], b'a\nc\nd\n')
     ex_case(d, 'ex-del-abbrev', abc, ['1,2del'], b'c\nd\n')
     ex_case(d, 'ex-noeol', b'a\nb\nc', ['$d'], b'a\nb')
+    ex_case(d, 'ex-noeol-empty-tail', b'a\n\nb', ['$d', '$', 'd'], b'a')
+    ex_case(d, 'ex-noeol-empty-tail-count', b'a\n\nb', ['$d', '1d 2'], b'')
+    ex_case(d, 'ex-noeol-empty-tail-undo', b'a\n\nb', ['$d', 'd', 'undo'], b'a\n')
+    ex_case(d, 'ex-noeol-empty-tail-redo', b'a\n\nb', ['$d', 'd', 'undo', 'redo'], b'a')
     ex_case(d, 'ex-empty-d', b'', ['d'], b'')
     ex_case(d, 'ex-undo', abc, ['$d', '$d', 'undo'], b'a\nb\nc\n')
     ex_case(d, 'ex-undo-redo', abc, ['$d', '$d', 'u', 'u', 'redo'], b'a\nb\nc\n')

@@ -11,8 +11,10 @@ not match is reported as `output-mismatch` and is not timed, so a no-op
 cannot be measured as a fast edit.
 
 Cases
-  vi-gdd        1,000-line / 45,000-byte file: G, then 250 dd (each deleting
+  vi-gdd        1,000-line / 43,000-byte file: G, then 250 dd (each deleting
                 the current last line), then :w of the remaining 750 lines.
+  vi-gdd-noeol  1,000 lines with interspersed blank lines and no final newline:
+                G, 250 dd, then :w of the exact remaining 750-line prefix.
   vi-gdd-large  The 1.68 MB / 120,000-line `duplicates` file: G, 250 dd,
                 then :w of the remaining 119,750 lines.
   vi-write      `duplicates` loaded and saved unchanged (the historical
@@ -46,8 +48,11 @@ def fixtures(root):
     (root / 'small').write_bytes(b''.join(small))
     dup = [f'{i//3:08d} word\n'.encode() for i in range(120000)]
     (root / 'duplicates').write_bytes(b''.join(dup))
+    noeol = [b'' if i % 5 == 3 else f'{i:04d}:payload'.encode() for i in range(1000)]
+    (root / 'small-noeol').write_bytes(b'\n'.join(noeol))
     return {
         'vi-gdd': ('small', b'G' + b'dd' * 250, b''.join(small[:750]), 250),
+        'vi-gdd-noeol': ('small-noeol', b'G' + b'dd' * 250, b'\n'.join(noeol[:750]), 250),
         'vi-gdd-large': ('duplicates', b'G' + b'dd' * 250, b''.join(dup[:-250]), 250),
         'vi-write': ('duplicates', None, b''.join(dup), 0),
     }
@@ -76,6 +81,8 @@ def main():
     ap.add_argument('--passes', type=int)
     ap.add_argument('--only')
     ap.add_argument('--no-reference', action='store_true')
+    ap.add_argument('--provenance', type=Path,
+                    help='JSON keyed by binary name with sha256, vi_c_sha256 and source_commit')
     args = ap.parse_args()
     if args.runs < 7:
         ap.error('--runs must be at least 7')
@@ -83,6 +90,7 @@ def main():
         os.sched_setaffinity(0, {args.cpu})
     nvim = None if args.no_reference else shutil.which('nvim', path=HOST_PATH)
     binaries = [b.resolve(strict=True) for b in args.binary]
+    provenance = json.loads(args.provenance.read_text()) if args.provenance else {}
     report = {
         'schema': 1, 'harness': 'bench/opus-vi.py',
         'date': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
@@ -112,6 +120,12 @@ def main():
             'path': str(b), 'sha256': sha(b.read_bytes()),
             'version': subprocess.run([str(b), '--version'], capture_output=True,
                                       text=True).stdout.splitlines()[0]}
+        if args.provenance:
+            info = provenance[label]
+            if info['sha256'] != report['implementations'][label]['sha256']:
+                raise ValueError(f'provenance binary hash mismatch: {label}')
+            report['implementations'][label].update(
+                vi_c_sha256=info['vi_c_sha256'], source_commit=info['source_commit'])
     if nvim:
         impls['nvim'] = ('nvim', Path(nvim))
         report['implementations']['nvim'] = {
@@ -127,7 +141,7 @@ def main():
         cases = fixtures(root)
         report['fixtures'] = {name: {'sha256': sha((root / name).read_bytes()),
                                      'bytes': (root / name).stat().st_size}
-                              for name in ['small', 'duplicates']}
+                              for name in ['small', 'small-noeol', 'duplicates']}
         selected = args.only.split(',') if args.only else list(cases)
         shell = binaries[0]
 
@@ -172,7 +186,8 @@ def main():
                    'keys_sha256': sha(keys) if keys else None,
                    'actual_deletes_per_pass': deletes,
                    'expected_bytes': len(want), 'expected_sha256': sha(want),
-                   'expected_lines': want.count(b'\n'), 'results': {}}
+                   'expected_lines': want.count(b'\n') + int(bool(want) and not want.endswith(b'\n')),
+                   'results': {}}
             accepted = {}
             for label, (kind, binary) in impls.items():
                 # Probe for calibration (one pass) and correctness.

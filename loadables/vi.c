@@ -30,7 +30,8 @@
  * cursor to the new last line and further dd keep deleting until the
  * buffer is empty; dd on the empty buffer is a no-op without an undo
  * step. Linewise deletes and puts keep the buffer's final-newline
- * state (a file without one stays without one).
+ * state (a file without one stays without one). An empty unterminated
+ * last line exposed by deletion is tracked separately from the bytes.
  *
  * Deferred (out of scope at v1):
  *   - Macros (q/@), marks (m), named registers ("a..z), counts on
@@ -118,6 +119,7 @@ typedef struct {
     size_t n_pieces;
     size_t total_len;
     size_t total_lines;
+    int empty_last_line; /* unterminated empty line after the stored bytes */
     int dirty;
     size_t cur;          /* cursor at the time the snapshot was taken */
 } bv_pt_snapshot;
@@ -141,6 +143,7 @@ typedef struct {
     size_t pieces_cap;
     size_t total_len;
     size_t total_lines;
+    int empty_last_line;
     int dirty;
 } bv_pt_buffer;
 
@@ -508,6 +511,13 @@ bv_replace_span (bv_pt_buffer *b, size_t start, size_t end,
         memcpy (b->pieces + remove_start, newp, nn * sizeof *newp);
     b->n_pieces = new_count;
     bv_recount (b);
+    /* Inserting text into the empty unterminated last line consumes it.
+     * Edits before it, and an inserted newline, leave it present. */
+    if (b->empty_last_line && b->total_len) {
+        const bv_pt_piece *last = &b->pieces[b->n_pieces - 1];
+        if (bv_piece_data (b, last)[last->length - 1] != '\n')
+            b->empty_last_line = 0;
+    }
     b->dirty = 1;
     return 0;
 }
@@ -636,6 +646,7 @@ bv_snapshot_push (bv_pt_stack *u, const bv_pt_buffer *b, size_t cur)
     s->n_pieces = b->n_pieces;
     s->total_len = b->total_len;
     s->total_lines = b->total_lines;
+    s->empty_last_line = b->empty_last_line;
     s->dirty = b->dirty;
     s->cur = cur;
     return 0;
@@ -650,6 +661,7 @@ bv_snapshot_restore (bv_pt_buffer *b, bv_pt_snapshot *s)
     b->n_pieces  = s->n_pieces;
     b->total_len = s->total_len;
     b->total_lines = s->total_lines;
+    b->empty_last_line = s->empty_last_line;
     b->dirty = s->dirty;
     return 0;
 }
@@ -788,19 +800,21 @@ bv_line_to_pos (const bv_pt_buffer *b, size_t line)
 
 /* Number of real lines. A final newline terminates the last line
  * rather than starting another one, so "a\n" has one line and the
- * empty buffer has none. */
+ * empty buffer has none. Deletion can expose an empty unterminated
+ * last line: its presence is state, not an extra stored newline. */
 static size_t
 bv_nlines (const bv_pt_buffer *b)
 {
-    if (b->total_len == 0) return 0;
+    if (b->total_len == 0) return b->empty_last_line ? 1 : 0;
     return b->total_lines
-         + (bv_byte_at (b, b->total_len - 1) != '\n' ? 1 : 0);
+         + (b->empty_last_line || bv_byte_at (b, b->total_len - 1) != '\n' ? 1 : 0);
 }
 
 /* Start of the last real line (0 for the empty buffer). */
 static size_t
 bv_last_line_start (const bv_pt_buffer *b)
 {
+    if (b->empty_last_line) return b->total_len;
     if (b->total_len == 0) return 0;
     size_t end = b->total_len;
     if (bv_byte_at (b, end - 1) == '\n') end--;
@@ -857,7 +871,8 @@ bv_first_nonblank (const bv_pt_buffer *b, size_t pos)
 }
 
 /* Keep the cursor on a real line after any edit or restore. The offset
- * just past a final newline is not a line: an edit that leaves the
+ * just past a final newline is not a line (unless deletion exposed an
+ * empty unterminated last line): an edit that leaves the
  * cursor there (dd of the last line, undo to shorter text, :N past the
  * end) moves it to the new last line, as vi does. */
 static void
@@ -865,6 +880,10 @@ bv_cursor_normalize (void)
 {
     const bv_pt_buffer *b = &bv_st.pt;
     if (b->total_len == 0) { bv_st.cur = 0; return; }
+    if (b->empty_last_line && bv_st.cur >= b->total_len) {
+        bv_st.cur = b->total_len;
+        return;
+    }
     if (bv_st.cur >= b->total_len) {
         if (bv_byte_at (b, b->total_len - 1) == '\n')
             bv_st.cur = bv_line_start (b, b->total_len - 1);
@@ -905,7 +924,7 @@ bv_motion_down (size_t pos)
     size_t nl  = bv_next_line (&bv_st.pt, pos);
     /* No next line: either end of a file without a final newline or
      * the offset past the final newline, which is not a line. */
-    if (nl >= bv_st.pt.total_len)
+    if (nl >= bv_st.pt.total_len && !bv_st.pt.empty_last_line)
         return pos;
     size_t nle = bv_line_end (&bv_st.pt, nl);
     size_t target = nl + col;
@@ -949,6 +968,12 @@ bv_motion_w (size_t pos)
     /* Skip whitespace (incl. newlines). */
     while (pos < tot && isspace ((unsigned char) bv_byte_at (&bv_st.pt, pos)))
         pos++;
+    /* At EOF, stay on the last character (or real empty last line).
+     * Otherwise w after a tail delete reintroduces the phantom cursor
+     * and a following x silently does nothing. */
+    if (pos == tot && !bv_st.pt.empty_last_line)
+        return bv_clamp_to_line (&bv_st.pt,
+                                tot - (bv_byte_at (&bv_st.pt, tot - 1) == '\n'));
     return pos;
 }
 
@@ -1069,10 +1094,10 @@ bv_lines_end (size_t ls, size_t count)
 /* Yank lines [ls, end) linewise. The register always ends in a newline
  * so a put recreates whole lines even when the last line had none. */
 static int
-bv_yank_lines (size_t ls, size_t end)
+bv_yank_lines (size_t ls, size_t end, int empty_tail)
 {
     if (bv_yank_range (ls, end, 1) < 0) return -1;
-    if (bv_st.yank_len == 0 || bv_st.yank[bv_st.yank_len - 1] != '\n') {
+    if (empty_tail || bv_st.yank_len == 0 || bv_st.yank[bv_st.yank_len - 1] != '\n') {
         char *ny = realloc (bv_st.yank, bv_st.yank_len + 2);
         if (!ny) return -1;
         ny[bv_st.yank_len++] = '\n';
@@ -1091,20 +1116,34 @@ static int
 bv_delete_lines (size_t pos, size_t count)
 {
     bv_pt_buffer *b = &bv_st.pt;
-    if (b->total_len == 0 || count == 0) return 0;
+    if (bv_nlines (b) == 0 || count == 0) return 0;
     size_t ls = bv_line_start (b, pos);
-    if (ls >= b->total_len) ls = bv_last_line_start (b);
+    if (ls >= b->total_len && !b->empty_last_line) ls = bv_last_line_start (b);
     size_t end = bv_lines_end (ls, count);
     size_t start = ls;
+    /* Byte endpoints alone cannot tell whether a range includes an
+     * empty unterminated tail. Its predecessor ends at the same offset.
+     * Only consult line counts in that exceptional state; ordinary dd
+     * keeps the short scan used for large mapped files. */
+    int through_tail = end == b->total_len
+        && (!b->empty_last_line
+            || count > b->total_lines - bv_line_number (b, ls));
+    int no_eol = b->empty_last_line
+        || (b->total_len && bv_byte_at (b, b->total_len - 1) != '\n');
+    int empty_tail = b->empty_last_line && through_tail;
     /* The final line has no newline: take the previous line's newline
      * with it so the remaining last line keeps the missing-EOL state. */
-    if (end == b->total_len && bv_byte_at (b, end - 1) != '\n' && ls > 0)
+    if (through_tail && no_eol && ls > 0)
         start = ls - 1;
+    int keep_empty = through_tail
+        ? (no_eol && ls > 0 && (start == 0 || bv_byte_at (b, start - 1) == '\n'))
+        : b->empty_last_line;
     if (bv_history_mark (&bv_st) < 0) return -1;
-    if (bv_yank_lines (ls, end) < 0) return -1;
+    if (bv_yank_lines (ls, end, empty_tail) < 0) return -1;
     /* The register holds whole newline-terminated lines. */
     size_t deleted = bv_count_nl (bv_st.yank, bv_st.yank_len);
     if (bv_replace_span (b, start, end, NULL, 0) < 0) return -1;
+    b->empty_last_line = keep_empty;
     bv_st.cur = start;
     bv_cursor_normalize ();
     bv_st.cur = bv_first_nonblank (b, bv_st.cur);
@@ -1118,7 +1157,8 @@ static int
 bv_count_fits (size_t count)
 {
     return count <= 1
-        || bv_next_line (&bv_st.pt, bv_st.cur) < bv_st.pt.total_len;
+        || bv_next_line (&bv_st.pt, bv_st.cur) < bv_st.pt.total_len
+        || (bv_st.pt.empty_last_line && bv_st.cur < bv_st.pt.total_len);
 }
 
 static int
@@ -1131,10 +1171,12 @@ bv_cmd_dd (size_t count)
 static int
 bv_cmd_yy (size_t count)
 {
-    if (bv_st.pt.total_len == 0) return 0;
+    if (bv_nlines (&bv_st.pt) == 0) return 0;
     if (!bv_count_fits (count)) return -1;
     size_t ls = bv_line_start (&bv_st.pt, bv_st.cur);
-    return bv_yank_lines (ls, bv_lines_end (ls, count));
+    int empty_tail = bv_st.pt.empty_last_line
+        && count > bv_st.pt.total_lines - bv_line_number (&bv_st.pt, ls);
+    return bv_yank_lines (ls, bv_lines_end (ls, count), empty_tail);
 }
 
 /* [count]p / [count]P. A linewise put after a last line that lacks a
@@ -1160,12 +1202,16 @@ bv_cmd_p (int before, size_t count)
             insert_at = bv_line_start (b, bv_st.cur);
         else
             insert_at = bv_next_line  (b, bv_st.cur);
-        if (!before && insert_at == b->total_len && b->total_len > 0 &&
-            bv_byte_at (b, b->total_len - 1) != '\n')
+        if (!before && insert_at == b->total_len &&
+            ((b->empty_last_line && bv_st.cur == b->total_len) ||
+             (!b->empty_last_line && b->total_len > 0 &&
+             bv_byte_at (b, b->total_len - 1) != '\n')))
         {
             memmove (text + 1, text, n - 1);
             text[0] = '\n';
             rc = bv_insert_at (insert_at, text, n);
+            if (rc == 0)
+                b->empty_last_line = text[n - 1] == '\n';
             insert_at++;
         } else {
             rc = bv_insert_at (insert_at, text, n);
@@ -1623,11 +1669,11 @@ bv_ex_command (const char *line)
             bv_set_status ("E37: No write since last change (add ! to override)");
             return -1;
         }
-        bv_st.quit = 1; bv_st.rc = 0; return 0;
+        bv_st.quit = 1; return 0;
     }
     if (strcmp (verb, "wq") == 0 || strcmp (verb, "x") == 0) {
         if (bv_ex_write (p) < 0) return -1;
-        bv_st.quit = 1; bv_st.rc = 0; return 0;
+        bv_st.quit = 1; return 0;
     }
     bv_set_status ("E492: Not an editor command: %s", verb);
     return -1;
@@ -1781,12 +1827,10 @@ bv_render (int fd)
     int num_w = bv_st.show_line_numbers ? 5 : 0;
 
     size_t pos = bv_line_to_pos (&bv_st.pt, bv_st.top_line);
+    size_t nlines = bv_nlines (&bv_st.pt);
     for (int r = 0; r < text_rows; r++) {
         size_t line_no = bv_st.top_line + (size_t) r;
-        if (line_no >= bv_st.pt.total_lines &&
-            (bv_st.pt.total_len == 0 ||
-             bv_byte_at (&bv_st.pt, bv_st.pt.total_len - 1) == '\n'))
-        {
+        if (line_no >= nlines) {
             bv_writef (fd, "~");
         } else {
             if (bv_st.show_line_numbers)
