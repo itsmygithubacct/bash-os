@@ -31,8 +31,14 @@ bytes to the shared descriptor position before closing. This lets a later
 shell `read` continue immediately after `head`'s last line or `sed`'s early
 quit. Simply closing a buffered duplicate would lose that data.
 
-Nonseekable input uses unbuffered stdio to avoid consuming a later reader's
-bytes. `sed` no longer preloads a whole following line; it peeks one byte only
+Positive line-count `head` and `sed` use unbuffered stdio on nonseekable
+input to avoid consuming a later reader's bytes. Head byte counts use bounded
+reads; tail exclusion consumes through EOF. Ownership follows the opened
+operand or duplicated stdin, even when opening a file reuses descriptor zero
+because shell stdin was closed. Closing that file must close descriptor zero;
+closing a stdin duplicate must leave shell stdin open.
+
+`sed` no longer preloads a whole following line; it peeks one byte only
 when evaluating a `$` address. Thus `sed '1q'` and `sed '1q;$p'` return after the
 first complete line even while a pipe producer remains open.
 
@@ -43,12 +49,14 @@ indicator is cleared after recording failure so subsequent shell output works.
 
 ## Scope and compatibility
 
-These remain command subsets, with the following limits:
+Head supports the options described below; sed retains its command subset.
+The compatibility boundaries are:
 
-- `head` retains Bash's positive `-n N`, legacy `-N`, default ten lines, and
-  named-file headers. It does not implement GNU byte counts, zero/negative
-  counts, quiet/verbose flags or the `-` stdin operand. Its inherited `atoi`
-  count parsing is not a strict GNU numeric parser.
+- `head` supports byte counts, zero and negative (tail-excluding) counts,
+  quiet/verbose headers, `-` stdin operands, NUL-delimited records, long options
+  and GNU numeric suffixes, in addition to positive line counts and legacy
+  `-N`. See [the head completion report](sol-head.md) for semantics, focused
+  coverage and separate first-N/tail-exclusion measurements.
 - `sed` uses extended regular expressions by default with limited BRE escape
   translation; `-E` is a no-op. Its option parser and command set are not full
   GNU sed. Numbering, hold space and address ranges restart for each named
@@ -63,8 +71,11 @@ These remain command subsets, with the following limits:
   a pipe, the peeked byte cannot be returned to the kernel pipe for a later
   shell reader. Seekable stdin restores that byte. Ordinary `q`, `n` and `N`
   paths do not have this limitation.
-- Avoiding pipe read-ahead uses byte-at-a-time input syscalls on pipes and
-  terminals. The regular-file benchmark does not measure that throughput.
+- Avoiding pipe read-ahead uses byte-at-a-time input syscalls for positive
+  line-count `head` and ordinary `sed` input on pipes and terminals. Head byte
+  counts read bounded blocks, and tail exclusion consumes the complete pipe
+  using blocks. The historical regular-file benchmark does not measure pipe
+  throughput.
   Signal interruption and full GNU exit-code equivalence are outside the
   focused parity suite.
 
