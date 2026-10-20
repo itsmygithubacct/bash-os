@@ -22,12 +22,14 @@ target=$(realpath "${1:-out/bash}")
 printf '[[ $BASH == %q ]] || return 0\nset -e\n' "$target" > "$d/load.sh"
 for name in "${names[@]}"; do printf 'enable -f %q %q\n' "$d/nano.so" "$name" >> "$d/load.sh"; done
 export BASH_ENV="$d/load.sh" LD_PRELOAD=$("$CC" -print-file-name=libasan.so)
-export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+printf 'leak:^xmalloc$\nleak:^sh_xmalloc$\nleak:^xrealloc$\nleak:^sh_xrealloc$\n' > "$d/lsan.supp"
+export LSAN_OPTIONS="suppressions=$d/lsan.supp"
+export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 fail=0
 for t in '' -piecetable -keybindings -saveprompt -replace -search -resize -statusbar \
          -yank-ring -atomic-save -undo-redo -justify -spell -complete -selection -linecache; do
   out=$(env -i PATH= LANG=C.UTF-8 BASH_ENV="$BASH_ENV" LD_PRELOAD="$LD_PRELOAD" \
-        ASAN_OPTIONS="$ASAN_OPTIONS" UBSAN_OPTIONS="$UBSAN_OPTIONS" \
+        ASAN_OPTIONS="$ASAN_OPTIONS" LSAN_OPTIONS="$LSAN_OPTIONS" UBSAN_OPTIONS="$UBSAN_OPTIONS" \
         "$target" -c "nano selftest$t" 2>&1) || { echo "FAIL selftest$t"; echo "$out" | tail -30; fail=1; continue; }
   if grep -q -E '^not ok|runtime error|AddressSanitizer' <<<"$out"; then
     echo "FAIL selftest$t"; echo "$out" | tail -30; fail=1

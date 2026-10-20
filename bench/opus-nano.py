@@ -13,7 +13,7 @@ Workloads (W = fixture size):
   save       insert one byte at the top, ^S, quit        (load + one edit + atomic save)
   edit       go to the middle line (^_), type 400 bytes, delete 100 with
              Backspace, type 10 x (Enter + "line"), ^S, quit
-             (550 edit keystrokes, one frame each, then a save)
+             (550 edit keystrokes sent in bursts, coalesced frames, then a save)
 
 Implementations: the nano builtin of each --binary, and optionally GNU nano
 (--gnu PATH) started by the same shell with --ignorercfiles.  GNU nano is

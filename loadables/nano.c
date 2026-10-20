@@ -2256,20 +2256,30 @@ bn_inpar (size_t i)
 }
 
 static int
-bn_begpar (size_t i, int depth)
+bn_begpar (size_t i)
 {
-    if (i == 0) return 1;
-    if (depth > 100) return 0;
-    bn_line *L = &bn_b.lines[i], *P = &bn_b.lines[i - 1];
-    size_t lead = bn_lead_len (L);
-    if (lead == L->len) return 0;
-    size_t q = bn_quote_len (L->data, L->len);
-    size_t pq = bn_quote_len (P->data, P->len);
-    if (q != pq || (q && memcmp (L->data, P->data, q) != 0)) return 1;
-    size_t plead = bn_lead_len (P);
-    if (plead == P->len) return 1;
-    if (bn_lead_width (P->data, plead) == bn_lead_width (L->data, lead)) return 0;
-    return !bn_begpar (i - 1, depth + 1);
+    /* Unequal indentation negates the previous line's answer. Walk back
+       iteratively so long alternating runs have no recursion cutoff. */
+    int invert = 0, answer;
+    for (;;) {
+        if (i == 0) { answer = 1; break; }
+        bn_line *L = &bn_b.lines[i], *P = &bn_b.lines[i - 1];
+        size_t lead = bn_lead_len (L);
+        if (lead == L->len) { answer = 0; break; }
+        size_t q = bn_quote_len (L->data, L->len);
+        size_t pq = bn_quote_len (P->data, P->len);
+        if (q != pq || (q && memcmp (L->data, P->data, q) != 0)) {
+            answer = 1; break;
+        }
+        size_t plead = bn_lead_len (P);
+        if (plead == P->len) { answer = 1; break; }
+        if (bn_lead_width (P->data, plead) == bn_lead_width (L->data, lead)) {
+            answer = 0; break;
+        }
+        invert = !invert;
+        i--;
+    }
+    return answer ^ invert;
 }
 
 typedef struct {
@@ -2396,7 +2406,7 @@ bn_justify_lines (size_t l0, size_t l1, size_t *end_line)
             continue;
         }
         size_t e = i;
-        while (e < l1 && bn_inpar (e + 1) && !bn_begpar (e + 1, 0)) e++;
+        while (e < l1 && bn_inpar (e + 1) && !bn_begpar (e + 1)) e++;
         bn_justify_par (i, e, &out);
         i = e + 1;
     }
@@ -2438,9 +2448,9 @@ bn_justify (int whole)
             bn_set_status ("No paragraph to justify");
             return;
         }
-        while (!bn_begpar (line, 0)) line--;
+        while (!bn_begpar (line)) line--;
         l0 = l1 = line;
-        while (l1 + 1 < bn_b.n_lines && bn_inpar (l1 + 1) && !bn_begpar (l1 + 1, 0))
+        while (l1 + 1 < bn_b.n_lines && bn_inpar (l1 + 1) && !bn_begpar (l1 + 1))
             l1++;
         what = "paragraph";
     }
@@ -2545,8 +2555,14 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
     char *argv[32];
     int argc = 0;
     if (!copy) { snprintf (err, errsz, "Spell helper: out of memory"); return -1; }
-    for (char *tok = strtok (copy, " \t"); tok && argc < 31; tok = strtok (NULL, " \t"))
+    for (char *tok = strtok (copy, " \t"); tok; tok = strtok (NULL, " \t")) {
+        if (argc == 31) {
+            free (copy);
+            snprintf (err, errsz, "Spell helper: at most 31 command words");
+            return -1;
+        }
         argv[argc++] = tok;
+    }
     argv[argc] = NULL;
     if (argc == 0) {
         free (copy);
@@ -2591,10 +2607,14 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
         sigset_t none;
         sigemptyset (&none);
         sigprocmask (SIG_SETMASK, &none, NULL);
-        int devnull = open ("/dev/null", O_WRONLY);
-        if (dup2 (in[0], STDIN_FILENO) < 0 || dup2 (out[1], STDOUT_FILENO) < 0)
+        /* Detach from the editor's controlling terminal before exec. */
+        if (setsid () < 0) _exit (126);
+        int devnull = open ("/dev/null", O_WRONLY | O_CLOEXEC);
+        if (devnull < 0 || dup2 (in[0], STDIN_FILENO) < 0
+            || dup2 (out[1], STDOUT_FILENO) < 0
+            || dup2 (devnull, STDERR_FILENO) < 0)
             _exit (126);
-        if (devnull >= 0) dup2 (devnull, STDERR_FILENO);
+        if (devnull > STDERR_FILENO) close (devnull);
         execvp (argv[0], argv);
         _exit (errno == ENOENT ? 127 : 126);
     }
@@ -4391,6 +4411,7 @@ bn_selftest_statusbar (void)
             unlink (tmppath);
             bn_free_lines (); bn_pt_free (&bn_b.pt);
             bn_pt_stack_free (&bn_b.undo); bn_pt_stack_free (&bn_b.redo);
+            free (bn_b.path);
             memset (&bn_b, 0, sizeof bn_b);
         }
     }
@@ -4975,6 +4996,21 @@ static int
 bn_selftest_justify (void)
 {
     bn_st_fails = bn_st_asserts = 0;
+    {
+        char text[2048];
+        size_t used = 0;
+        for (size_t i = 0; i < 260; i++) {
+            const char *line = i % 2 ? " x\n" : "x\n";
+            size_t n = strlen (line);
+            memcpy (text + used, line, n); used += n;
+        }
+        text[used] = '\0';
+        bn_st_load (text);
+        int ok = 1;
+        for (size_t i = 0; i < 260; i++)
+            if (bn_begpar (i) != (i % 2 == 0)) ok = 0;
+        BN_ST_ASSERT ("long alternating indentation has no paragraph depth cutoff", ok);
+    }
     char desc[128];
     for (size_t i = 0; i < sizeof bn_justify_gnu_cases / sizeof bn_justify_gnu_cases[0]; i++) {
         bn_st_load (bn_justify_gnu_cases[i].in);
@@ -5244,6 +5280,12 @@ bn_selftest_spell (void)
     BN_ST_KEYS ("\x14");
     BN_ST_ASSERT ("blank helper command is rejected without running anything",
                   strcmp (bn_status, "No spell helper configured") == 0);
+    free (bn_speller);
+    bn_speller = strdup ("/proc/self/exe a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a");
+    BN_ST_KEYS ("\x14");
+    BN_ST_ASSERT ("too many helper command words are rejected, not truncated",
+                  strcmp (bn_status, "Spell helper: at most 31 command words") == 0
+                  && bn_st_text_is ("teh\n"));
     free (bn_speller);
     bn_speller = NULL;
 
@@ -5705,6 +5747,7 @@ char *nano_doc[] = {
     "      ^T spell check (marked region or buffer): a word-list helper --",
     "         --speller=CMD, else $NANO_SPELLER, else spell -- reads the text on",
     "         stdin and prints misspelled words; it is run with execvp, without",
+    "         GNU interactive alternate-speller support ($SPELL is not used);",
     "         a shell or the terminal, capped at 1 MiB / 4096 words / 10 s.",
     "         Each word opens \"Edit a replacement\": Enter replaces every",
     "         whole-word occurrence, Enter unchanged skips, Esc stops",

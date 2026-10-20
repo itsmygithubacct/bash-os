@@ -57,7 +57,7 @@ class Session:
         child_env = {"TERM": "xterm", "LANG": "C.UTF-8", "HOME": str(cwd), "PATH": ""}
         if argv0 is None:
             # tests/opus-nano-sanitize.sh loads instrumented builtins this way.
-            for name in ("BASH_ENV", "LD_PRELOAD", "ASAN_OPTIONS", "UBSAN_OPTIONS"):
+            for name in ("BASH_ENV", "LD_PRELOAD", "ASAN_OPTIONS", "UBSAN_OPTIONS", "LSAN_OPTIONS"):
                 if os.environ.get(name):
                     child_env[name] = os.environ[name]
         child_env.update(env or {})
@@ -211,6 +211,7 @@ def gnu_oracle(d):
     words = ["a", "be", "sea", "deed", "eerie", "fluffy", "gargantuan", "hi.", "ok!", "why?)",
              "naïve", "中文", "café", "x" * 14, "end."]
     compared = 0
+    changed = 0
     for case in range(24):
         lines = []
         for _ in range(rng.randint(1, 3)):
@@ -246,12 +247,13 @@ def gnu_oracle(d):
         for k in (key, SAVE, EXIT):
             os.write(g.fd, k)
             g.pump(0.15)
-        g.finish()
+        check(g.finish() == 0, f"oracle case {case + 1}: GNU nano session exits 0")
         ours, theirs = ours_path.read_bytes(), gnu_path.read_bytes()
         check(ours == theirs, f"oracle case {case + 1}: M-J with {' '.join(opts)} equals {version}"
               + ("" if ours == theirs else f" (ours {ours!r} gnu {theirs!r} src {src!r})"))
+        changed += theirs != src
         compared += 1
-    print(f"# GNU oracle compared {compared} random paragraphs sets")
+    check(changed >= 12, f"GNU oracle changed {changed}/{compared} input files (at least 12 required)")
 
 
 def spell(d):
@@ -326,6 +328,50 @@ def spell(d):
     tail = sess.out.rsplit(b"fds ", 1)[-1].split()[:2]
     check(st == 0 and len(tail) == 2 and tail[0] == tail[1],
           f"spell: shell descriptor count unchanged after helper run ({tail})")
+
+
+def helper_isolation(d):
+    helper = d / "helper.py"
+    helper.write_text("""import os
+try:
+    fd = os.open('/dev/tty', os.O_RDWR)
+except OSError:
+    pass
+else:
+    os.close(fd)
+    raise SystemExit(3)
+# Probe inherited extra /dev/null descriptors, including the former leak.
+for fd in range(3, 128):
+    try:
+        target = os.readlink('/proc/self/fd/' + str(fd))
+    except OSError:
+        continue
+    if target == '/dev/null':
+        raise SystemExit(4)
+""")
+    def act(s):
+        s.keys(SPELL)
+        s.wait_for(b"Finished checking spelling (0 replaced)")
+        s.key(EXIT, render=False)
+    cmd = str(Path(sys.executable).resolve()) + " " + str(helper)
+    st, _ = edit(d, "isolation.txt", b"teh\n", f"nano --speller={quote(cmd)} isolation.txt", act)
+    check(st == 0 and (d / "isolation.txt").read_bytes() == b"teh\n",
+          "spell helper has no controlling terminal or leaked /dev/null descriptor")
+
+
+def highlighted_selection(d):
+    def act(s):
+        s.keys(RIGHT, ESC + b"a", RIGHT, RIGHT, RIGHT)
+        mark = len(s.out)
+        s.keys(CTRL["l"])
+        s.wait_for(b'\x1b[7m\x1b[1;36m"k"', start=mark)
+        s.keys(CTRL["e"])
+        s.text(" ")
+        s.keys(SAVE)
+        s.key(EXIT, render=False)
+    st, _ = edit(d, "highlight.json", b'{"k":1}\n', "nano highlight.json", act)
+    check(st == 0 and (d / "highlight.json").read_bytes() == b'{"k":1} \n',
+          "combined ts JSON key colour survives selection and an edit")
 
 
 def completion(d):
@@ -479,7 +525,7 @@ def repeated_calls(d):
 
 def invalid(d):
     env = {"PATH": "", "LANG": "C.UTF-8"}
-    for name in ("BASH_ENV", "LD_PRELOAD", "ASAN_OPTIONS", "UBSAN_OPTIONS"):
+    for name in ("BASH_ENV", "LD_PRELOAD", "ASAN_OPTIONS", "UBSAN_OPTIONS", "LSAN_OPTIONS"):
         if os.environ.get(name):
             env[name] = os.environ[name]
     for args, rc, msg in ((["--bogus"], 2, b"invalid option"), (["-r", "x", "f"], 2, b"invalid fill width"),
@@ -493,9 +539,11 @@ def invalid(d):
 
 with tempfile.TemporaryDirectory(prefix="opus-nano-pty.") as tmp:
     d = Path(tmp)
-    for group in (justify_cases, justify_undo, spell, completion, burst, utf8_selection, save_paths,
+    for group in (justify_cases, justify_undo, spell, helper_isolation, completion, burst, utf8_selection, save_paths,
                   terminal_restore, repeated_calls, invalid, gnu_oracle):
         group(d)
+    if os.environ.get("NANO_REQUIRE_RESOLVED_TS") == "1":
+        highlighted_selection(d)
 
 print(f"1..{checks}")
 for s in skips:

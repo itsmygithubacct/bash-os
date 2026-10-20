@@ -71,12 +71,15 @@ The spell checker uses a word-list helper, the interface of `spell(1)`,
 `aspell list` and `hunspell -l`. The helper reads text on standard input and
 prints the misspelled words, one per line. The command comes from
 `--speller=CMD`, otherwise the exported `NANO_SPELLER` variable, otherwise
-`spell`. Running it is subject to these limits:
+`spell`. GNU nano interactive alternate spellers (such as `aspell -c`)
+and the `$SPELL` variable are not supported. Running it is subject to these limits:
 
 - The command is split on blanks and started with `execvp`, never through a
-  shell, so quoting and expansion do not apply.
+  shell, so quoting and expansion do not apply. More than 31 command words
+  are rejected.
 - The helper receives the marked region, or the whole buffer, on a pipe.
-  Its standard error goes to `/dev/null`, so it never sees the terminal.
+  It starts a new session without a controlling terminal; standard error
+  goes to `/dev/null`, and that descriptor is closed after redirection.
   It gets the shell's exported variables, like any command bash runs.
 - Output is capped at 1 MiB and 4,096 distinct words of at most 255 bytes.
   Carriage returns and blank lines are ignored, and duplicates are dropped.
@@ -221,11 +224,25 @@ SHA-256 and the fixture hashes.
 
 The `edit` workload: go to the middle line with `^_`, type 400 bytes, delete 100
 with Backspace, type ten Enter+`line` pairs (550 editing keys), save, quit. It is
-the case the old edit path could not handle: 10.4 s at 8 MiB became 76 ms. Subtracting
-the `save` row, the editing part is about 10 ms at 16 KiB and 18 ms at 8 MiB.
-What still grows with the buffer is the line-array move on each Enter (ten of
-them here). Three causes were found in turn,
-remeasuring after each:
+an end-to-end burst workload: the historical 10.4 s at 8 MiB became 76 ms
+with both edit-path changes and frame coalescing. It does not isolate editing
+CPU cost or measure paced typing with one rendered frame per key. Subtracting
+the save row does not separate these costs. All fixtures are unhighlighted
+`.txt` files; syntax-highlighted editing performance is not measured here.
+
+Median terminal output bytes for the edit rows make the drawing difference
+explicit (before / after / GNU):
+
+| buffer | before bytes | after bytes | GNU bytes |
+|---|---:|---:|---:|
+| 16 KiB | 391498 | 7816 | 3179 |
+| 1 MiB | 394734 | 9390 | 3223 |
+| 8 MiB | 397412 | 10961 | 3245 |
+
+These historical figures measure the original worker binary, before the helper
+isolation, paragraph-boundary and selftest cleanup corrections. They are not
+measurements of the corrected or combined nano/ts code. Three causes were found
+in the original investigation, remeasuring after each:
 
 1. A full flatten and re-split of the buffer per key (`bench-1`: 18.9 s → 0.95 s
    at 8 MiB).
