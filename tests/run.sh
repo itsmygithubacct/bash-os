@@ -58,6 +58,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'RTSP private loopback protocol' python3 tests/sol-rtspcat-loopback.py --binary out/bash --report "$scratch/rtspcat-native.json"
+check 'RTSP root-relative control URI' python3 tests/astra-rtspcat-control.py out/bash
 check 'mail private queue and SMTP' python3 tests/sol-mail-check.py out/bash
 check 'mail closed peer survival' python3 tests/astra-mail-disconnect.py out/bash
 check 'mkfs private ext2 images' env PATH="$PATH:/usr/sbin:/sbin" python3 tests/sol-mkfs.py --binary out/bash --report "$scratch/mkfs-native.json"
@@ -194,6 +196,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  mkdir -p "$scratch/rtspcat-contracts"
+  check 'RTSP bounded allocation and sanitizer protocol' env BASHOS_TASK_DIR="$scratch/rtspcat-contracts" UBSAN_OPTIONS=halt_on_error=1 bash tests/sol-rtspcat-sanitize.sh
+  check 'RTSP sanitized control URI' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-rtspcat-control.py "$scratch/rtspcat-contracts/rtspcat-sanitize" --standalone
   check 'mail sanitizer helpers build' env BASHOS_TASK_DIR="$scratch/mail-contracts" bash tests/sol-mail-sanitize-build.sh
   check 'mail contracts under ASan+UBSan' env SOL_MAIL_LOAD_ENV="$scratch/mail-contracts/sanitize/load.sh" SOL_MAIL_ASAN_LIB="$(cat "$scratch/mail-contracts/sanitize/asan-runtime.txt")" python3 tests/sol-mail-check.py out/bash
   check 'mail sanitized peer disconnect' env BASH_ENV="$scratch/mail-contracts/sanitize/load.sh" LD_PRELOAD="$(cat "$scratch/mail-contracts/sanitize/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-mail-disconnect.py out/bash

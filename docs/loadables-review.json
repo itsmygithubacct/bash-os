@@ -1272,6 +1272,14 @@
       "status": "Contract",
       "evidence": "tests/sol-mail-check.py",
       "scope": "Private queue and local SMTP fixtures qualify response classes, same-shell recovery and SIGPIPE-safe socket writes. No live delivery, credential or TLS-deployment qualification."
+    },
+    {
+      "names": [
+        "rtspcat"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-rtspcat-loopback.py",
+      "scope": "RTSP/TCP interleaved H.264 framing, authenticated root-relative control paths and bounded allocation checked with private loopback fixtures. Cameras, decoders, UDP RTP, TLS and IPv6-literal authorities remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1789,6 +1797,12 @@
         "mail"
       ],
       "evidence": "tests/sol-mail-sanitize-build.sh"
+    },
+    {
+      "names": [
+        "rtspcat"
+      ],
+      "evidence": "tests/sol-rtspcat-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2406,8 +2420,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "rtspcat": {
-      "note": "No command-specific fixture is mapped in the current repository suite.",
-      "next": "Add a controlled RTSP/RTP stream with loss, reordering and framing checks."
+      "evidence": "docs/sol-rtspcat.md",
+      "note": "RTSP/TCP interleaved H.264 framing, authenticated root-relative control paths and bounded allocation checked with private loopback fixtures. Cameras, decoders, UDP RTP, TLS and IPv6-literal authorities remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "head": {
       "evidence": "docs/head-sed.md",
@@ -2778,7 +2793,8 @@
     "ping",
     "netstat",
     "ss",
-    "mail"
+    "mail",
+    "rtspcat"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
