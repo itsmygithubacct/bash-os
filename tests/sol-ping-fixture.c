@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Compile only through the campaign build gate. This translation unit includes
    the production implementation; only socket/time calls are replaced. */
 #include <config.h>
