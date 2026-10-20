@@ -1090,6 +1090,14 @@
       "status": "Contract",
       "evidence": "tests/review-join-streams.py",
       "scope": "Newline records and C-locale byte fields with dynamic duplicate groups and invocation-owned stdin buffers. Repeated failed output cannot leak old input into redirected calls. Full locale/CLI and asynchronous-signal conformance remain unqualified."
+    },
+    {
+      "names": [
+        "cluster"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-cluster-membership.py",
+      "scope": "Authenticated IPv4 loopback membership with one seed and at most 32 peers. Temporary environment lifetimes, child ownership and cleanup are tested; off-host deployment and maximum-capacity performance remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1475,6 +1483,12 @@
         "join"
       ],
       "evidence": "tests/review-join-sanitize.sh"
+    },
+    {
+      "names": [
+        "cluster"
+      ],
+      "evidence": "tests/sol-cluster-sanitizer-build.sh"
     }
   ],
   "fuzz": {
@@ -2086,8 +2100,9 @@
       "note": "BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured."
     },
     "cluster": {
-      "note": "Only a version smoke check is mapped here.",
-      "next": "Add peer membership, timeout and disconnect fixtures."
+      "evidence": "docs/sol-cluster.md",
+      "note": "Authenticated IPv4 loopback membership with one seed and at most 32 peers. Temporary environment lifetimes, child ownership and cleanup are tested; off-host deployment and maximum-capacity performance remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "rtspcat": {
       "note": "No command-specific fixture is mapped in the current repository suite.",
@@ -2345,7 +2360,8 @@
     "wc",
     "diff",
     "pcre",
-    "join"
+    "join",
+    "cluster"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
