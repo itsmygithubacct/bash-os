@@ -71,5 +71,29 @@ print(json.dumps({'argv':sys.argv[1:], 'uid':os.getuid(), 'gid':os.getgid(), 'fd
             assert decoded[0]==dict(argv=['-n','--','/bin/echo','literal ; no',''],uid=os.getuid(),gid=os.getgid(),fds=[]),decoded
             assert decoded[1]['argv']==['-n','--','/bin/echo','again'] and not decoded[1]['fds']
             shell_run(f'{command} -n -- /bin/true',1,{'FIXTURE_DENY':'1'})
+        # Fast children can exit before waitpid; pin the owned shell to one CPU
+        # to exercise that race while preserving unrelated Bash job statuses.
+        quick=tmp/'quick'
+        quick.write_text('#!/bin/sh\nexit 37\n')
+        quick.chmod(0o700)
+        cpu=min(os.sched_getaffinity(0))
+        script = r'''PATH=
+trap ':' CHLD
+saved_trap=$(trap -p CHLD)
+for ((i=0;i<1000;i++)); do
+  (exit 41) & background=$!
+  doas -n -- /bin/true; rc=$?
+  [[ $rc == 37 ]] || { printf 'doas round=%s status=%s\n' "$i" "$rc"; exit 90; }
+  wait "$background"; [[ $? == 41 ]] || exit 91
+  sudo -n -- /bin/true; [[ $? == 37 ]] || exit 92
+  [[ $(trap -p CHLD) == "$saved_trap" ]] || exit 93
+done
+'''
+        proc=subprocess.run([str(shell),'--noprofile','--norc','-c',script],
+                            env={**os.environ,'BASHDOAS_EXTERNAL':str(quick)},
+                            capture_output=True,timeout=60,
+                            preexec_fn=lambda:os.sched_setaffinity(0,{cpu}))
+        assert proc.returncode==0 and not proc.stdout and not proc.stderr, (proc.returncode,proc.stdout,proc.stderr)
+        print('1000 pinned doas/sudo rounds preserve fast-child and background-job statuses and CHLD trap')
         print('native doas/sudo/su entries, repeated calls, empty PATH, output failures and owned fallback passed')
 print('sol-doas checks passed; live authority qualification is unavailable on this host')

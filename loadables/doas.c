@@ -33,6 +33,7 @@
 #include "_bashos_auth_uapi.h"
 #include "bashcred_privdrop.h"
 #include "loadables.h"
+#include "child-wait.h"
 
 extern char **export_env;
 extern void maybe_make_export_env (void);
@@ -91,6 +92,27 @@ typedef struct {
 static int bda_wait_status (pid_t pid);
 static void bda_child_reset_signals (void);
 static void bda_child_close_fds (void);
+
+/* Bash must not reap a raw child before this command collects its status.
+   Keep unrelated SIGCHLD notifications pending until our wait is complete. */
+static pid_t
+bda_fork_owned (bos_child_wait *waiting)
+{
+  if (bos_child_wait_begin (waiting) < 0) return -1;
+  pid_t pid = fork ();
+  if (pid == 0) bos_child_wait_child (waiting);
+  else if (pid < 0) bos_child_wait_end (waiting);
+  return pid;
+}
+
+static int
+bda_wait_owned (pid_t pid, const bos_child_wait *waiting)
+{
+  int rc = bda_wait_status (pid);
+  bos_child_wait_end (waiting);
+  return rc;
+}
+
 
 /* Reject numeric target overflow before the shared resolver casts to uid_t. */
 static int
@@ -473,7 +495,8 @@ static int
 bda_run_verify_once (int fd, const bda_opts *o,
                      const struct bashos_auth_privcmd *r)
 {
-  pid_t pid = fork ();
+  bos_child_wait waiting;
+  pid_t pid = bda_fork_owned (&waiting);
   if (pid < 0)
     {
       builtin_error ("v2 verifier fork: %s", strerror (errno));
@@ -481,7 +504,7 @@ bda_run_verify_once (int fd, const bda_opts *o,
     }
   if (pid == 0)
     bda_exec_verify_child (fd, o, r);
-  return bda_wait_status (pid);
+  return bda_wait_owned (pid, &waiting);
 }
 
 static void
@@ -597,7 +620,8 @@ bda_spawn_editor (char **temps, int n)
   argv[n + 1] = NULL;
 
   fflush (NULL);
-  pid = fork ();
+  bos_child_wait waiting;
+  pid = bda_fork_owned (&waiting);
   if (pid < 0)
     {
       free (argv);
@@ -612,7 +636,7 @@ bda_spawn_editor (char **temps, int n)
       _exit (127);
     }
   free (argv);			/* child has its own (COW) copy; parent's is done */
-  return bda_wait_status (pid);
+  return bda_wait_owned (pid, &waiting);
 }
 
 /*
@@ -1035,7 +1059,8 @@ bda_run_authority (const bda_opts *o)
               goto out;
             }
           fflush (NULL);
-          pid_t pid = fork ();
+          bos_child_wait waiting;
+          pid_t pid = bda_fork_owned (&waiting);
           if (pid < 0)
             {
               close (pfd[0]);
@@ -1079,7 +1104,7 @@ bda_run_authority (const bda_opts *o)
           close (pfd[1]);
           (void) read (pfd[0], &marker, 1);
           close (pfd[0]);
-          rc = bda_wait_status (pid);
+          rc = bda_wait_owned (pid, &waiting);
           if (marker == 'V' && rc == 0 && !verified_once)
             {
               verified_once = 1;
@@ -1426,7 +1451,8 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
   for (int i = 0; i < origc; i++) argv[i + 1] = orig[i];
   argv[origc + 1] = NULL;
 
-  pid_t pid = fork ();
+  bos_child_wait waiting;
+  pid_t pid = bda_fork_owned (&waiting);
   if (pid < 0)
     {
       builtin_error ("fork: %s", strerror (errno));
@@ -1444,7 +1470,7 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
       _exit (exec_errno == ENOENT ? 127 : 126);
     }
   free (argv);
-  return bda_wait_status (pid);
+  return bda_wait_owned (pid, &waiting);
 }
 
 static int
@@ -1487,7 +1513,8 @@ bda_run_root (const bda_opts *o)
       return EX_USAGE;
     }
 
-  pid_t pid = fork ();
+  bos_child_wait waiting;
+  pid_t pid = bda_fork_owned (&waiting);
   if (pid < 0)
     {
       builtin_error ("fork: %s", strerror (errno));
@@ -1571,7 +1598,7 @@ bda_run_root (const bda_opts *o)
                o->is_sudo ? "sudo" : "doas", exec_cmd[0], strerror (errno));
       _exit (exec_errno == ENOENT ? 127 : 126);
     }
-  return bda_wait_status (pid);
+  return bda_wait_owned (pid, &waiting);
 }
 
 static void

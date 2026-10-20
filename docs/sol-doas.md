@@ -17,6 +17,13 @@ cleanup first uses Linux `close_range`, retaining the loop for unavailable or
 filtered syscalls. The shared sudoedit helper closes its staging descriptor
 following a successful rename.
 
+All five raw-fork paths now use the existing `child-wait.h` guard until the
+owned child has been waited for. This prevents Bash's SIGCHLD handler from
+stealing fast-child exit statuses, while restoring the child's previous mask
+and the parent's handler and mask. The native regression runs 1,000 pinned
+rounds through both doas and sudo, checking unrelated background-job statuses
+and the shell's CHLD trap.
+
 `tests/sol-doas-fixture.c` includes the actual production source and shared
 credential helper. Compile-time function substitutions inject account streams,
 credential syscalls and authority ioctls. The minimal generated Bash adapter
@@ -89,7 +96,8 @@ measurement workloads independently pass their output/status oracles before
 any paired timing. Native entry and fallback checks run separately from these
 injected credential and authority paths.
 
-The validated measurement used CPU 11, one warmup and seven samples of 16 work
+The following historical measurement predates the raw-child wait correction;
+it does not measure corrected code. The validated measurement used CPU 11, one warmup and seven samples of 16 work
 units per phase and variant. Median batch time divided by 16 was:
 
 | Phase | Baseline | Current |
