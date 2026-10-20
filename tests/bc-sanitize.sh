@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the bc parity and repeated-input checks against an instrumented module.
+# Run the bc parity, repeated-input and language checks against an instrumented module.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 CC=${CC:-cc}
@@ -14,3 +14,5 @@ printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport BC_MODULE=%q\nexec %q "$@"\n' 
 chmod +x "$d/bash-os"
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
   python3 tests/bc-parity.py "$d/bash-os"
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  python3 tests/opus-bc-language.py "$d/bash-os"
