@@ -190,6 +190,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'keyctl private fixtures build' env BASHOS_TASK_DIR="$scratch/keyctl-contracts" bash tests/sol-keyctl-build.sh
+  check 'keyctl private keyring contracts' python3 tests/sol-keyctl-check.py --binary out/bash --module "$scratch/keyctl-contracts/artifacts/keyctl-shim.so" --report "$scratch/keyctl-native.json"
+  check 'keyctl private keyring sanitizer contracts' python3 tests/sol-keyctl-check.py --binary out/bash --module "$scratch/keyctl-contracts/artifacts/keyctl-sanitize.so" --real-module "$scratch/keyctl-contracts/artifacts/keyctl-real-sanitize.so" --preload "$(cat "$scratch/keyctl-contracts/artifacts/asan-path.txt")" --report "$scratch/keyctl-sanitize.json"
+  check 'keyctl real private kernel qualification' python3 -c 'import json,sys; reports=[json.load(open(p)) for p in sys.argv[1:]]; assert all(r["kernel"]["status"]=="passed" for r in reports), reports' "$scratch/keyctl-native.json" "$scratch/keyctl-sanitize.json"
   check 'ipcmk owned IPC fixture build' bash tests/sol-ipcmk-build-fixtures.sh "$scratch/ipcmk-contracts" out/bash
   check 'ipcmk owned IPC lifecycle' python3 tests/sol-ipcmk.py out/bash "$scratch/ipcmk-contracts/kernel.so"
   check 'ipcmk standalone sanitizer faults' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ipcmk-contracts/fixture-sanitize"

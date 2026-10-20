@@ -1165,6 +1165,14 @@
       "status": "Contract",
       "evidence": "docs/sol-ipcmk.md",
       "scope": "Validated creation and exact payload/lifecycle checks for owned SysV/POSIX IPC resources, with cleanup and same-shell recovery. No arbitrary existing resources are accessed."
+    },
+    {
+      "names": [
+        "keyctl"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-keyctl.md",
+      "scope": "Strict key identifiers and synthetic/private anonymous-session key lifecycle. Tests never fall back to inherited keyrings. Kernel quotas, concurrent mutation and cross-account authority remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1601,6 +1609,12 @@
         "ipcmk"
       ],
       "evidence": "tests/sol-ipcmk-build-fixtures.sh"
+    },
+    {
+      "names": [
+        "keyctl"
+      ],
+      "evidence": "tests/sol-keyctl-build.sh"
     }
   ],
   "fuzz": {
@@ -2470,6 +2484,11 @@
       "evidence": "docs/sol-ipcmk.md",
       "note": "Validated creation and exact payload/lifecycle checks for owned SysV/POSIX IPC resources, with cleanup and same-shell recovery. No arbitrary existing resources are accessed.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "keyctl": {
+      "evidence": "docs/sol-keyctl.md",
+      "note": "Strict key identifiers and synthetic/private anonymous-session key lifecycle. Tests never fall back to inherited keyrings. Kernel quotas, concurrent mutation and cross-account authority remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2507,7 +2526,8 @@
     "renice",
     "setpgid",
     "ipcctl",
-    "ipcmk"
+    "ipcmk",
+    "keyctl"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
