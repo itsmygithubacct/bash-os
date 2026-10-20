@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory() as d:
         for opts in options:
             args = (['-t:'] if separator == ':' else []) + opts + ['left', 'right']
             reference = subprocess.run(['/usr/bin/join', *args], capture_output=True, env=env)
-            actual = subprocess.run([binary, '-c', 'join "$@"', 'check', *args],
+            actual = subprocess.run([binary, '-c', 'PATH=; join "$@"', 'check', *args],
                                     capture_output=True, env=env)
             assert (actual.returncode, actual.stdout) == (reference.returncode, reference.stdout), (
                 args, actual.returncode, actual.stderr, actual.stdout[:160], reference.stdout[:160])

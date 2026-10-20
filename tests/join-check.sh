@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/join-check.sh [BINARY] — join builtin against GNU join(1)
 set -u
+export LC_ALL=C
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 BX=$(readlink -f "${1:-$HERE/out/bash}")
 d=$(mktemp -d); trap 'rm -rf "$d"; kill $(jobs -p) 2>/dev/null' EXIT
@@ -55,6 +56,7 @@ if [[ -x /usr/bin/join ]]; then
   printf 'a 1\nb 2\nd 4\nc 3\ne 5\n' > late; printf 'a x\nb y\nc z\ne w\n' > s4
   printf 'c 9\nb 8\n' > u2; printf 'H1 h\nb 1\na 2\n' > hu; printf 'H2 g\na x\nb y\n' > hs
   printf 'a\n' > one; printf 'a\nc\nb\n' > tailu
+  printf 'L:b\nM:a\n' > du; printf 'R:a\nS:b\n' > ds
   while IFS= read -r c; do
     g_out=$(PATH=/usr/bin:/bin bash -c "$c" 2>"$d/g.err"); g_rc=$?
     b_out=$("$BX" -c "PATH=; $c" 2>"$d/b.err"); b_rc=$?
@@ -74,6 +76,9 @@ join -a2 -e X -o 0,1.2,2.2 u1 s1
 join --header hu hs
 join - s1 < u1
 join one tailu
+join --check-order one tailu
+join --check-order -t: -j2 du ds
+join --check-order -a1 -a2 u1 u2
 join -i u1 s1
 CASES
 fi
@@ -91,9 +96,15 @@ B join left right extra >/dev/null 2>"$d/extra"; rc=$?
 # A 64 KiB unmatched record fills stdio and fails the write. GNU then leaves
 # without reading again; holding the producer open must not hang.
 held(){
-  local label=$1 extra=$2
+  local label=$1 extra=$2 matched=${3:-0}
   mkfifo "$d/h"
-  { head -c 65536 /dev/zero | tr '\0' a; printf '\n'; sleep 10; } >"$d/h" &
+  {
+    [[ $matched == 1 ]] && printf 'a '
+    head -c 65536 /dev/zero | tr '\0' a
+    printf '\n'
+    [[ $matched == 1 ]] && printf 'b L\n'
+    exec sleep 10
+  } >"$d/h" &
   local wp=$!
   timeout 2 "$BX" -c "PATH=; join $extra >/dev/full" <"$d/h" 2>"$d/h.err"
   local rc=$?
@@ -108,6 +119,11 @@ held(){
 held "unmatched -a1" "--nocheck-order -a1 - empty"
 held "unmatched -a2" "--nocheck-order -a2 empty -"
 held "header" "--header --nocheck-order - empty"
+printf 'a R\nb S\n' > matchedright
+held "matched Cartesian group" "--nocheck-order - matchedright" 1
+
+python3 "$HERE/tests/sol-join-check.py" "$BX" \
+  && ok "extended byte parity and repeated streams" || no "extended byte parity and repeated streams"
 
 echo "join-check: $pass passed, $fail failed"
 exit $(( fail>0 ? 1 : 0 ))
