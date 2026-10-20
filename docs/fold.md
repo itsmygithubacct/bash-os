@@ -14,16 +14,18 @@ Printable ASCII runs that fit the current width are copied together. Tabs,
 backspaces, carriage returns, other controls, non-ASCII bytes and wrap
 boundaries use the general decoder and column logic. The `-s` remainder is
 still rescanned after a wrap. Printable ASCII also bypasses `wcwidth` in
-that remainder path.
+that remainder path. Under `-b`, spans also include non-ASCII and control
+bytes other than newline, since each counts one in this mode.
 
 Output uses the existing per-invocation 64 KiB buffer in
 [`bl-output.h`](../loadables/common/bl-output.h). It flushes complete lines
 to a terminal and flushes remaining bytes before returning. It does not
 change Bash's stdout buffering. Write errors return failure and stop further
-input processing once detected. Stdin has a private stdio stream on a
-duplicated descriptor, shared by repeated `-` operands within one call and
-closed afterward. This prevents EOF/error flags and prefetched bytes left
-by an output failure from contaminating the next redirected invocation.
+input processing once detected. Stdin has a duplicated descriptor, shared
+by repeated `-` operands within one call and closed afterward. Its private
+`FILE` is used only for ownership; raw reads never touch Bash's persistent
+stdin stream. EOF/error flags and prefetched bytes from a failed invocation
+cannot contaminate the next redirected input.
 
 Pending-line storage grows on demand, starting at no more than 4 KiB even
 for a very large width. Column arithmetic can represent a tab or wide
@@ -58,17 +60,20 @@ UTF-8 behavior also differs from the builtin's display-width rules. Therefore
 the tests compare Unicode output with explicit builtin contracts, and use
 byte mode for binary/Unicode comparisons with both references.
 
-Malformed input retains the prior behavior. Missing continuations and
-incomplete sequences fall back to individual bytes. The decoder is
-permissive: it also groups overlong encodings, surrogate encodings and
-out-of-range code points. This change does not make it a strict UTF-8
-validator. Tests preserve those outputs, including embedded NULs.
+The decoder now accepts only shortest-form UTF-8 Unicode scalar values.
+Malformed input, including overlong, surrogate, out-of-range, and truncated
+encodings, is preserved byte for byte; each rejected byte counts one in both
+character and display-column modes. Valid scalars remain whole units even
+in the C locale. Byte mode is independent of decoding and may split sequences.
 
-Input still uses an 8 KiB `fread` lookahead. A short line on a pipe or terminal
-can wait for more input or EOF; the terminal tests feed a complete input
-block and require output before EOF. Output buffering preserves that
-existing behavior. Records containing many carriage returns, backspaces or
-zero-width characters can require storage proportional to their byte length.
+Input uses 8 KiB `read` chunks. It requests more input only when the current
+chunk is exhausted or a potentially valid UTF-8 prefix lacks continuations.
+Completed output flushes before a blocking refill, including output to a pipe,
+so short complete lines no longer wait for unrelated input or EOF. Terminal
+newline flushing is retained. Records containing many carriage returns,
+backspaces or zero-width characters can require storage proportional to their
+byte length. See [the current qualification](sol-fold.md) for the counting
+contract, independent oracle, open-producer tests, and fresh measurements.
 
 ## Validation
 
@@ -79,7 +84,8 @@ python3 tests/fold-parity.py out/bash-core
 bash tests/fold-sanitize.sh out/bash-core
 ```
 
-The native and ASan/UBSan runs each passed 2,651 checks in C and C.UTF-8.
+The September native and ASan/UBSan runs each passed 2,651 checks in C and
+C.UTF-8. Current validation is recorded in [the completion report](sol-fold.md).
 The suite covers wrap edges, options and reference differences, tab/BS/CR,
 Unicode widths, malformed/incomplete bytes, NULs, empty and unterminated
 input, input/output buffer boundaries, long records, multiple files,
@@ -88,7 +94,8 @@ repeated redirected calls, descriptor lifetime, reads after failures,
 flushing. The sanitizer module compiles the repository source and loads it
 into a real Bash process; Bash-wide leak detection is disabled.
 
-A separate deterministic comparison with the saved baseline passed 500
+That historical change also ran a separate deterministic comparison with the
+saved baseline, passing 500
 mixed-byte cases across all six combinations of counting/space modes in
 both locales. These comparisons establish preservation for the exercised
 cases, not complete GNU or BusyBox conformance.

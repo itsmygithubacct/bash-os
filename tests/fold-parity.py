@@ -125,11 +125,12 @@ with tempfile.TemporaryDirectory(prefix='fold-parity-') as directory:
         contract(['-w3'], b'a\0bc\0def\n', b'a\0bc\0\ndef\n', loc)
         contract(['-c', '-w3'], b'a\0bc\0def\n', b'a\0b\nc\0d\nef\n', loc)
 
-        # Keep the existing permissive decoder contract explicit: overlong,
-        # surrogate and out-of-range sequences are grouped, not rejected.
+        # Strict scalar decoding: overlong, surrogate and out-of-range
+        # sequences recover one byte at a time, preserving every input byte.
         malformed = b'A\xc0\x80B\xed\xa0\x80C\xf4\x90\x80\x80D\xe2\x82'
-        contract(['-w3'], malformed, b'A\xc0\x80B\xed\xa0\x80\nC\xf4\x90\x80\x80D\n\xe2\x82', loc)
-        contract(['-c', '-w3'], malformed, b'A\xc0\x80B\n\xed\xa0\x80C\xf4\x90\x80\x80\nD\xe2\x82', loc)
+        strict = b'A\xc0\x80\nB\xed\xa0\n\x80C\xf4\n\x90\x80\x80\nD\xe2\x82'
+        contract(['-w3'], malformed, strict, loc)
+        contract(['-c', '-w3'], malformed, strict, loc)
         for fragment in (b'\xc2', b'\xe2\x82', b'\xf0\x9f\x98', b'\xe2X\x82', b'\xff\x80'):
             contract(['-c', '-w3'], b'abc'+fragment, b'abc\n'+fragment, loc)
         if loc != 'C':
@@ -251,6 +252,25 @@ printf survived >&2
         if proc is not None and proc.poll() is None:
             proc.kill(); proc.wait()
         os.close(master); os.close(slave)
+    # Once a prefix is known invalid, it must not wait for the nominal
+    # sequence length. The invalid byte itself already forces a wrap here.
+    for mode in ('', '-b', '-c', '-s', '-bs', '-cs'):
+        for fragment in (b'\xc0', b'\xe0\x80', b'\xed\xa0', b'\xf0\x80',
+                         b'\xf4\x90', b'\xf5', b'\xe2X'):
+            proc = subprocess.Popen([binary, '-c', prefix+f'fold {mode} -w3'],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, env=environment)
+            try:
+                proc.stdin.write(b'abc'+fragment); proc.stdin.flush()
+                assert read_bytes(proc.stdout.fileno(), 4) == b'abc\n'
+                proc.stdin.write(b'\n'); proc.stdin.flush()
+                assert read_bytes(proc.stdout.fileno(), len(fragment)+1) == fragment+b'\n'
+                proc.stdin.close()
+                assert proc.wait(timeout=10) == 0 and not proc.stderr.read()
+                checks += 1
+            finally:
+                if proc.poll() is None:
+                    proc.kill(); proc.wait()
     # Later Bash printf still flushes a line while read waits on open input.
     first.write_bytes(b'abc\n')
     proc = subprocess.Popen([binary, '-c', prefix+'fold "$1"; printf "ready\\n"; read -r x',
