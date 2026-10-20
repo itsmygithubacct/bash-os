@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import random
 import statistics
 import subprocess
 import tempfile
@@ -16,8 +17,11 @@ p.add_argument('--binary', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--source', type=Path)
 p.add_argument('--passes', type=int, default=10)
+p.add_argument('--pagination', action='store_true', help='also validate and measure form-feed column pages')
+p.add_argument('--legacy', action='store_true', help='measure only the historical 423000-byte pr fixture, with captured output validation')
 a = p.parse_args()
 assert a.passes > 0
+assert not (a.legacy and a.pagination), 'select legacy or pagination workloads'
 binary = a.binary.resolve(strict=True)
 root = Path(__file__).resolve().parents[1]
 sha = lambda b: hashlib.sha256(b).hexdigest()
@@ -34,15 +38,28 @@ report = dict(binary=str(binary), binary_sha256=sha(binary.read_bytes()),
               shell_version=subprocess.check_output([str(binary), '--version'], text=True).splitlines()[0], cases=[])
 script = '''file=$1; count=$2; shift 2
 for ((i=0;i<count;i++)); do "$@" < "$file"; rc=$?; printf '\\036status=%d\\037' "$rc"; [[ $rc == 0 ]] || exit "$rc"; done'''
+cases = [
+    ('plain', ['-t'], b'plain record with words\n'*20000),
+    ('columns-control', ['-t', '-3', '-n'], b'alpha\tbeta\0x\rY\bZ\n'*20000),
+]
+if a.pagination:
+    page_data = (b'alpha\tbeta\0x\rY\bZ\n'*17+b'\f\n'+b'end\n'*14+b'\f')*400
+    cases.extend([
+        ('columns-formfeed', ['-t', '-l4', '-3', '-n'], page_data),
+        ('across-formfeed', ['-t', '-l4', '-3', '-a', '-n'], page_data),
+    ])
+if a.legacy:
+    rng = random.Random(20260908)
+    words = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'the', 'and', 'of']
+    data = ''.join(' '.join(rng.choice(words) for _ in range(10))+'\n'
+                   for _ in range(12000)).encode()[:423000]
+    cases = [('legacy-captured', ['-t'], data)]
 with tempfile.TemporaryDirectory(prefix='sol-pr-bench-') as d:
     fixture = Path(d)/'input'
-    for name, options, data in [
-        ('plain', ['-t'], b'plain record with words\n'*20000),
-        ('columns-control', ['-t', '-3', '-n'], b'alpha\tbeta\0x\rY\bZ\n'*20000),
-    ]:
+    for name, options, data in cases:
         fixture.write_bytes(data)
         expected = subprocess.run(['/usr/bin/pr', *options], input=data, capture_output=True, env=env, check=True).stdout
-        row = dict(name=name, options=options, fixture_sha256=sha(data), input_bytes=len(data), input_records=20000,
+        row = dict(name=name, options=options, fixture_sha256=sha(data), input_bytes=len(data), input_records=data.count(b'\n')-data.count(b'\f\n'),
                    expected_bytes=len(expected), expected_sha256=sha(expected), results={})
         commands = {'builtin': ['pr', *options], 'gnu': ['/usr/bin/pr', *options]}
         for label in commands:

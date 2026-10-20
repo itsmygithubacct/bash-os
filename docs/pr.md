@@ -80,12 +80,27 @@ writes through a 64 KiB buffer of its own. Consequences worth relying on:
 - A failed write is reported as `write error: …` and returns 1. The shell
   carries on: the next call still produces its whole page.
 - A terminal receives complete lines while the input stream is still open.
+  Across layout delivers complete rows; down-column layout balances and
+  delivers each complete page without waiting for EOF. Completed column and
+  merge pages are also flushed to pipes.
+- Down-column storage is bounded by one page of records, plus the fixed input
+  buffer and a reusable allocation for the longest record. Across and merge
+  layouts retain one row. Record lengths themselves are not capped.
+- Repeated `-` operands share standard-input bytes within an invocation,
+  including unread bytes after a selected page range. Merged columns keep
+  separate form-feed holds and natural-page-boundary flags even when they
+  share that reader.
 
 ## Records
 
 A record ends at a newline or input form feed; a final unterminated record
 is still printed. A form feed ends the input page and consumes an immediately
-following newline. `-T` suppresses its output byte. NUL bytes and other control bytes are carried through,
+following newline. A natural full page suppresses one leading form feed on
+that column's next read. Merged columns hold independently until the page
+ends, then resume together. `-T` suppresses its output byte, except that GNU-compatible page lengths of
+ten or fewer lines implicitly re-enable input form feeds. If both `-t` and
+`-T` are given, the later option controls form-feed preservation before that
+short-page rule is applied. NUL bytes and other control bytes are carried through,
 and a carriage return is part of the record rather than a terminator. Records
 of any length are read, including ones longer than the 64 KiB input buffer.
 
@@ -102,7 +117,15 @@ truncation for single-column output.
 The original named exclusions for numbered control bytes, merged unterminated
 records, narrow widths, string separators, post-operand options and column
 counts above nine are exercised by assertions in `tests/pr-parity.py` and
-`tests/sol-pr-cli.py`. Test and measurement qualification, including remaining
+`tests/sol-pr-cli.py`. `tests/sol-pr-formfeed.py` retains the complete recorded
+294-case form-feed matrix. `tests/sol-pr-pages.py` extends the GNU oracle to
+page boundaries, double spacing, shared stdin and invocation recovery;
+`tests/sol-pr-stream.py` checks delivery before EOF, page-range termination,
+and long inputs under a fixed address-space ceiling. The sanitizer suite
+includes all three, with the address-space ceiling qualified separately in
+native runs because ASan reserves a large shadow mapping.
+
+Test and measurement qualification, including remaining
 core limitations, is recorded in [the implementation report](sol-pr.md).
 `--version` identifies the loadable rather than a coreutils release. GNU's
 translated diagnostics and unique long-option abbreviations are outside this
