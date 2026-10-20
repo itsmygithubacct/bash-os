@@ -20,6 +20,9 @@
  *   ^K      Cut current line or marked region into the yank ring
  *   ^U      Paste cut buffer
  *   ^G      Help (prints to status line)
+ *   ^J/M-J  Justify paragraph or marked lines / whole buffer
+ *   ^T      Spell check through an explicit word-list helper
+ *   ^]      Complete the word before the cursor (repeat to cycle)
  *   ^Z      Undo
  *   ^Y/M-E  Redo
  *   M-W     Toggle soft-wrap rendering
@@ -31,7 +34,7 @@
  *   Enter   — split line at cursor
  *   printable byte — insert at cursor
  *
- * Usage:  nano [FILE]
+ * Usage:  nano [-r N] [-M] [--speller=CMD] [FILE]
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -54,8 +57,13 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <poll.h>
+#include <time.h>
 
 #include "loadables.h"
+
+extern char **environ;
 
 /* libgrapheme (vendored, flattened by patch-bash-loadables.sh). */
 #include "_libgrapheme_grapheme.h"
@@ -78,6 +86,10 @@ typedef struct {
     size_t total_len;
     size_t total_lines;
     int dirty;
+    /* The edit that led from this state to the next one: [e_start,
+       e_start + e_old) became e_new bytes.  Lets undo/redo carry the mark. */
+    int e_valid;
+    size_t e_start, e_old, e_new;
 } bn_pt_snapshot;
 
 typedef struct {
@@ -420,8 +432,11 @@ static size_t
 bn_pt_count_nl (const char *s, size_t n)
 {
     size_t c = 0;
-    for (size_t i = 0; i < n; i++)
-        if (s[i] == '\n') c++;
+    const char *end = s + n, *p = s;
+    while (p < end && (p = memchr (p, '\n', (size_t) (end - p))) != NULL) {
+        c++;
+        p++;
+    }
     return c;
 }
 
@@ -557,17 +572,51 @@ bn_pt_replace_span_raw (bn_pt_buffer *b, size_t start, size_t end,
 {
     if (start > end || end > b->total_len) return -1;
 
+    /* Typing appends to the add buffer one cluster at a time.  When the
+       insertion point is the end of the piece that holds the most recent
+       append, extend that piece instead of splitting in a new one, so a
+       typed run stays one piece and undo snapshots stay small.  Snapshots
+       hold their own copies of piece lengths and the add buffer is
+       append-only, so earlier states are unaffected. */
+    if (start == end && ins_len && start > 0) {
+        size_t cur = 0;
+        for (size_t i = 0; i < b->n_pieces; i++) {
+            cur += b->pieces[i].length;
+            if (cur < start) continue;
+            bn_pt_piece *p = &b->pieces[i];
+            if (cur == start && p->source == BN_PT_ADD
+                && p->offset + p->length == b->add_len) {
+                if (bn_pt_reserve_add (b, b->add_len + ins_len) < 0) return -1;
+                memcpy (b->add + b->add_len, ins, ins_len);
+                b->add_len += ins_len;
+                size_t nl = bn_pt_count_nl (ins, ins_len);
+                p->length += ins_len;
+                p->line_count += nl;
+                b->total_len += ins_len;
+                b->total_lines += nl;
+                b->dirty = 1;
+                return 0;
+            }
+            break;
+        }
+    }
+
     size_t si, so, ei, eo;
     if (bn_pt_find_piece (b, start, &si, &so) < 0) return -1;
     if (bn_pt_find_piece (b, end, &ei, &eo) < 0) return -1;
 
+    /* A split piece's line count is derived from the smaller side, so an
+       edit at the edge of a large piece does not rescan the whole of it. */
     bn_pt_piece newp[3];
     size_t nn = 0;
     if (si < b->n_pieces && so > 0) {
-        newp[nn] = b->pieces[si];
+        const bn_pt_piece *old = &b->pieces[si];
+        const char *d = bn_pt_piece_data (b, old);
+        newp[nn] = *old;
         newp[nn].length = so;
-        newp[nn].line_count = bn_pt_count_nl (bn_pt_piece_data (b, &newp[nn]),
-                                              newp[nn].length);
+        newp[nn].line_count = so <= old->length - so
+            ? bn_pt_count_nl (d, so)
+            : old->line_count - bn_pt_count_nl (d + so, old->length - so);
         nn++;
     }
     if (ins_len) {
@@ -582,11 +631,14 @@ bn_pt_replace_span_raw (bn_pt_buffer *b, size_t start, size_t end,
         nn++;
     }
     if (ei < b->n_pieces && eo < b->pieces[ei].length) {
-        newp[nn] = b->pieces[ei];
+        const bn_pt_piece *old = &b->pieces[ei];
+        const char *d = bn_pt_piece_data (b, old);
+        newp[nn] = *old;
         newp[nn].offset += eo;
         newp[nn].length -= eo;
-        newp[nn].line_count = bn_pt_count_nl (bn_pt_piece_data (b, &newp[nn]),
-                                              newp[nn].length);
+        newp[nn].line_count = eo <= old->length - eo
+            ? old->line_count - bn_pt_count_nl (d, eo)
+            : bn_pt_count_nl (d + eo, old->length - eo);
         nn++;
     }
 
@@ -742,6 +794,26 @@ bn_free_lines (void)
     bn_b.cap = 0;
 }
 
+/* Line start offsets are shifted lazily.  Lines at index bn_shift_from and
+   later store their offset minus bn_shift_delta (modular arithmetic), so an
+   edit only rewrites the offsets between its own line and the previous
+   edit's, instead of every line below it. */
+static size_t bn_shift_from = 0;
+static size_t bn_shift_delta = 0;
+
+static size_t
+bn_labs (size_t i)
+{
+    return bn_b.lines[i].abs + (bn_shift_delta && i >= bn_shift_from ? bn_shift_delta : 0);
+}
+
+static void
+bn_shift_range (size_t a, size_t b, size_t d)
+{
+    for (size_t i = a; i < b; i++)
+        bn_b.lines[i].abs += d;
+}
+
 static int
 bn_sync_lines_from_pt (void)
 {
@@ -752,6 +824,8 @@ bn_sync_lines_from_pt (void)
     if (!flat) return -1;
 
     bn_free_lines ();
+    bn_shift_from = 0;
+    bn_shift_delta = 0;
     bn_b.had_trailing_nl = flat_len > 0 && flat[flat_len - 1] == '\n';
     size_t start = 0;
     for (size_t i = 0; i < flat_len; i++) {
@@ -779,6 +853,101 @@ bn_sync_lines_from_pt (void)
     return 0;
 }
 
+/* Index of the render line holding absolute offset POS: the last line whose
+   start is at or before POS.  A line's trailing newline belongs to it. */
+static size_t
+bn_line_of_abs (size_t pos)
+{
+    if (bn_b.n_lines == 0) return 0;
+    size_t lo = 0, hi = bn_b.n_lines;
+    while (hi - lo > 1) {
+        size_t mid = lo + (hi - lo) / 2;
+        if (bn_labs (mid) <= pos) lo = mid;
+        else hi = mid;
+    }
+    return lo;
+}
+
+/* Update the render-line cache for one piece-table replacement of
+   [start, end) by INS, instead of flattening and re-splitting the whole
+   buffer.  Only the lines the span touches are rebuilt; later lines shift
+   their start offsets.  The cache stays equal to the text split on '\n',
+   which is what bn_sync_lines_from_pt produces. */
+static int
+bn_lines_apply_edit (size_t start, size_t end, const char *ins, size_t ins_len)
+{
+    if (bn_b.n_lines == 0) return bn_sync_lines_from_pt ();
+    bn_highlight_cache_clear ();
+    bn_text_rev++;
+    size_t ls = bn_line_of_abs (start), le = bn_line_of_abs (end);
+    bn_line *Ls = &bn_b.lines[ls], *Le = &bn_b.lines[le];
+    size_t base_abs = bn_labs (ls);
+    size_t head = start - base_abs;
+    size_t tail_off = end - bn_labs (le);
+    if (head > Ls->len || tail_off > Le->len) return bn_sync_lines_from_pt ();
+    size_t tail = Le->len - tail_off;
+    size_t region_len = head + ins_len + tail;
+    char *region = malloc (region_len + 1);
+    if (!region) return -1;
+    if (head) memcpy (region, Ls->data, head);
+    if (ins_len) memcpy (region + head, ins, ins_len);
+    if (tail) memcpy (region + head + ins_len, Le->data + tail_off, tail);
+
+    size_t k = 1 + bn_pt_count_nl (ins, ins_len);
+    size_t old_n = le - ls + 1;
+    for (size_t i = ls; i <= le; i++) {
+        free (bn_b.lines[i].data);
+        bn_line_cluster_cache_free (&bn_b.lines[i]);
+    }
+    if (k > old_n && bn_lines_grow (bn_b.n_lines + (k - old_n)) < 0) {
+        /* The freed lines must not be reached again; rebuild from scratch. */
+        for (size_t i = ls; i <= le; i++)
+            memset (&bn_b.lines[i], 0, sizeof bn_b.lines[i]);
+        free (region);
+        return bn_sync_lines_from_pt ();
+    }
+    /* Fold the pending shift so that, after this edit, one marker at the
+       first line below it carries both the old and the new delta: lines
+       between the previous marker and this edit are fixed up directly. */
+    size_t removed = end - start;
+    size_t pend = bn_shift_delta;
+    if (pend) {
+        if (bn_shift_from < ls)
+            bn_shift_range (bn_shift_from, ls, pend);
+        else if (bn_shift_from > le + 1)
+            bn_shift_range (le + 1, bn_shift_from < bn_b.n_lines ? bn_shift_from : bn_b.n_lines,
+                            (size_t) 0 - pend);
+    }
+    bn_shift_delta = pend + ins_len - removed;
+    bn_shift_from = ls + k;
+    if (k != old_n && le + 1 < bn_b.n_lines)
+        memmove (bn_b.lines + ls + k, bn_b.lines + le + 1,
+                 (bn_b.n_lines - le - 1) * sizeof (bn_line));
+    bn_b.n_lines = bn_b.n_lines - old_n + k;
+
+    int failed = 0;
+    size_t s = 0;
+    for (size_t j = 0; j < k; j++) {
+        size_t e = s;
+        while (e < region_len && region[e] != '\n') e++;
+        bn_line *L = &bn_b.lines[ls + j];
+        memset (L, 0, sizeof *L);
+        L->abs = base_abs + s;
+        size_t n = e - s;
+        if (n && bn_line_ensure (L, n) < 0) failed = 1;
+        else if (n) memcpy (L->data, region + s, n);
+        L->len = failed ? 0 : n;
+        s = e + 1;
+    }
+    free (region);
+    if (failed) return bn_sync_lines_from_pt ();
+
+    bn_b.had_trailing_nl = bn_b.n_lines > 1
+                           && bn_b.lines[bn_b.n_lines - 1].len == 0;
+    bn_b.dirty = bn_b.pt.dirty;
+    return 0;
+}
+
 static size_t
 bn_abs_from_lc (long line, long col)
 {
@@ -790,7 +959,7 @@ bn_abs_from_lc (long line, long col)
         size_t max = bn_b.lines[line].len;
         if (col < 0) col = 0;
         if ((size_t) col > max) col = (long) max;
-        pos = bn_b.lines[line].abs;
+        pos = bn_labs ((size_t) line);
         pos += (size_t) col;
     }
     if (pos > bn_b.pt.total_len) pos = bn_b.pt.total_len;
@@ -801,31 +970,56 @@ static void
 bn_set_cursor_abs (size_t pos)
 {
     if (pos > bn_b.pt.total_len) pos = bn_b.pt.total_len;
-    size_t cur = 0;
-    for (size_t i = 0; i < bn_b.n_lines; i++) {
-        size_t end = cur + bn_b.lines[i].len;
-        if (pos <= end || i + 1 == bn_b.n_lines) {
-            bn_cy = (long) i;
-            bn_cx = (long) (pos < cur ? 0 : pos - cur);
-            bn_clamp_cx ();
-            return;
-        }
-        cur = end + 1;
-    }
-    bn_cy = bn_cx = 0;
+    if (bn_b.n_lines == 0) { bn_cy = bn_cx = 0; return; }
+    size_t i = bn_line_of_abs (pos);
+    bn_cy = (long) i;
+    bn_cx = (long) (pos - bn_labs (i));
+    bn_clamp_cx ();
+}
+
+/* Map an offset across a replacement of [start, end) by INS_LEN bytes:
+   offsets before the span stay, offsets after it shift, and offsets inside
+   it collapse to the span start. */
+static size_t
+bn_offset_after_edit (size_t pos, size_t start, size_t end, size_t ins_len)
+{
+    if (pos <= start) return pos;
+    if (pos >= end) return pos - (end - start) + ins_len;
+    return start;
+}
+
+static void
+bn_mark_from_abs (size_t pos)
+{
+    size_t cy = bn_cy, cx = bn_cx;
+    bn_set_cursor_abs (pos);
+    bn_mark_cy = bn_cy;
+    bn_mark_cx = bn_cx;
+    bn_cy = (long) cy;
+    bn_cx = (long) cx;
 }
 
 static int
 bn_piece_replace (size_t start, size_t end, const char *ins, size_t ins_len,
                   size_t cursor_after)
 {
+    /* The mark is an anchor in the text, not a screen position: carry it
+       across the edit so a selection survives typing elsewhere. */
+    size_t mark_abs = bn_mark_active ? bn_abs_from_lc (bn_mark_cy, bn_mark_cx) : 0;
     if (bn_pt_snapshot_push (&bn_b.undo, &bn_b.pt) < 0) return -1;
+    bn_pt_snapshot *snap = &bn_b.undo.v[bn_b.undo.n - 1];
+    snap->e_valid = 1;
+    snap->e_start = start;
+    snap->e_old = end - start;
+    snap->e_new = ins_len;
     bn_pt_stack_free (&bn_b.redo);
     if (bn_pt_replace_span_raw (&bn_b.pt, start, end, ins, ins_len) < 0) {
         (void) bn_pt_snapshot_pop (&bn_b.undo, &bn_b.pt);
         return -1;
     }
-    if (bn_sync_lines_from_pt () < 0) return -1;
+    if (bn_lines_apply_edit (start, end, ins, ins_len) < 0) return -1;
+    if (bn_mark_active)
+        bn_mark_from_abs (bn_offset_after_edit (mark_abs, start, end, ins_len));
     bn_set_cursor_abs (cursor_after);
     return 0;
 }
@@ -963,9 +1157,9 @@ bn_save (void)
     if (!bn_b.path) { bn_set_status ("No filename"); return -1; }
     if (bn_pt_save_file (bn_b.path) < 0)
         { bn_set_status ("write: %s", strerror (errno)); return -1; }
+    /* Saving changes no text, so the render-line cache stays valid. */
     bn_b.dirty = 0;
     bn_b.pt.dirty = 0;
-    bn_sync_lines_from_pt ();
     bn_set_status ("Wrote %zu lines to %s", bn_b.n_lines, bn_b.path);
     return 0;
 }
@@ -1190,6 +1384,7 @@ bn_total_visual_rows (int viewport_cols)
 {
     long rows = 0;
     if (viewport_cols < 1) viewport_cols = 1;
+    if (!bn_softwrap) return bn_b.n_lines > 0 ? (long) bn_b.n_lines : 1;
     for (size_t i = 0; i < bn_b.n_lines; i++)
         rows += bn_softwrap ? bn_softwrap_rows_for_line (&bn_b.lines[i], viewport_cols) : 1;
     return rows > 0 ? rows : 1;
@@ -1218,9 +1413,10 @@ static void
 bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
                       long start_col, int viewport_cols,
                       const char **sgr_at, long *line_off,
-                      size_t total_bytes)
+                      size_t total_bytes, size_t sel_lo, size_t sel_hi)
 {
     const char *cur_sgr = NULL;
+    int cur_sel = 0;
     int cells = 0;
     int col_acc = 0;        /* screen column from line start */
     size_t pos = 0;
@@ -1238,23 +1434,42 @@ bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
         }
         if (cells + w > viewport_cols) break;
         /* Stage 7.E — SGR transition for this cluster's first byte, if
-           highlighting is on. */
+           highlighting is on.  The marked region is drawn in reverse video
+           on top of any highlight colour. */
+        const char *want = NULL;
         if (sgr_at && line_off) {
             long gb = line_off[lineno] + (long) pos;
-            const char *want = (gb >= 0 && (size_t) gb < total_bytes)
-                               ? sgr_at[gb] : NULL;
-            if (want != cur_sgr) {
-                if (cur_sgr) bn_out_cstr (out, "\033[0m");
-                if (want) bn_out_fmt (out, "\033[%sm", want);
-                cur_sgr = want;
-            }
+            want = (gb >= 0 && (size_t) gb < total_bytes) ? sgr_at[gb] : NULL;
+        }
+        int want_sel = pos >= sel_lo && pos < sel_hi;
+        if (want != cur_sgr || want_sel != cur_sel) {
+            if (cur_sgr || cur_sel) bn_out_cstr (out, "\033[0m");
+            if (want_sel) bn_out_cstr (out, "\033[7m");
+            if (want) bn_out_fmt (out, "\033[%sm", want);
+            cur_sgr = want;
+            cur_sel = want_sel;
         }
         bn_out_append (out, L->data + pos, adv);
         cells += w;
         col_acc += w;
         pos += adv;
     }
-    if (cur_sgr) bn_out_cstr (out, "\033[0m");
+    if (cur_sgr || cur_sel) bn_out_cstr (out, "\033[0m");
+}
+
+/* Line-relative byte range of the marked region on LINENO; empty when the
+   mark is unset or the region does not touch the line. */
+static void
+bn_selection_on_line (long lineno, size_t sel_a, size_t sel_b,
+                      size_t *lo, size_t *hi)
+{
+    *lo = *hi = 0;
+    if (!bn_mark_active || sel_a >= sel_b) return;
+    bn_line *L = &bn_b.lines[lineno];
+    size_t ls = bn_labs ((size_t) lineno), le = ls + L->len;
+    if (sel_b <= ls || sel_a > le) return;
+    *lo = sel_a > ls ? sel_a - ls : 0;
+    *hi = (sel_b < le ? sel_b : le) - ls;
 }
 
 static void
@@ -1313,6 +1528,13 @@ bn_render (void)
         total_bytes = bn_hl_cache.total_bytes;
     }
 
+    size_t sel_a = 0, sel_b = 0;
+    if (bn_mark_active) {
+        sel_a = bn_abs_from_lc (bn_mark_cy, bn_mark_cx);
+        sel_b = bn_abs_from_lc (bn_cy, bn_cx);
+        if (sel_a > sel_b) { size_t t = sel_a; sel_a = sel_b; sel_b = t; }
+    }
+
     /* Body — v2 walks graphemes and accumulates cells, not bytes. */
     if (bn_softwrap) {
         long visual = 0;
@@ -1323,9 +1545,11 @@ bn_render (void)
             for (long chunk = 0; chunk < chunks && outrow < viewport_rows; chunk++, visual++) {
                 if (visual < bn_view_top) continue;
                 bn_out_cstr (&out, "\033[K");
+                size_t lo, hi;
+                bn_selection_on_line (lineno, sel_a, sel_b, &lo, &hi);
                 bn_render_line_chunk (&out, L, lineno, chunk * viewport_cols,
                                       viewport_cols, sgr_at, line_off,
-                                      total_bytes);
+                                      total_bytes, lo, hi);
                 bn_out_cstr (&out, "\r\n");
                 outrow++;
             }
@@ -1336,10 +1560,13 @@ bn_render (void)
         for (int row = 0; row < viewport_rows; row++) {
             long lineno = bn_view_top + row;
             bn_out_cstr (&out, "\033[K");
-            if (lineno < (long) bn_b.n_lines)
+            if (lineno < (long) bn_b.n_lines) {
+                size_t lo, hi;
+                bn_selection_on_line (lineno, sel_a, sel_b, &lo, &hi);
                 bn_render_line_chunk (&out, &bn_b.lines[lineno], lineno,
                                       bn_view_left, viewport_cols,
-                                      sgr_at, line_off, total_bytes);
+                                      sgr_at, line_off, total_bytes, lo, hi);
+            }
             bn_out_cstr (&out, "\r\n");
         }
     }
@@ -1586,9 +1813,18 @@ bn_undo (void)
 {
     size_t pos = bn_abs_from_lc (bn_cy, bn_cx);
     if (bn_b.undo.n == 0) { bn_set_status ("Nothing to undo"); return; }
+    size_t mark_abs = bn_mark_active ? bn_abs_from_lc (bn_mark_cy, bn_mark_cx) : 0;
+    bn_pt_snapshot ed = bn_b.undo.v[bn_b.undo.n - 1];
     if (bn_pt_snapshot_push (&bn_b.redo, &bn_b.pt) < 0) return;
+    bn_pt_snapshot *mirror = &bn_b.redo.v[bn_b.redo.n - 1];
+    mirror->e_valid = ed.e_valid;
+    mirror->e_start = ed.e_start;
+    mirror->e_old = ed.e_old;
+    mirror->e_new = ed.e_new;
     if (bn_pt_snapshot_pop (&bn_b.undo, &bn_b.pt) < 0) return;
     bn_sync_lines_from_pt ();
+    if (bn_mark_active)
+        bn_mark_from_abs (ed.e_valid ? bn_offset_after_edit (mark_abs, ed.e_start, ed.e_start + ed.e_new, ed.e_old) : mark_abs);
     bn_set_cursor_abs (pos > bn_b.pt.total_len ? bn_b.pt.total_len : pos);
     bn_set_status ("Undid change");
 }
@@ -1598,9 +1834,18 @@ bn_redo (void)
 {
     size_t pos = bn_abs_from_lc (bn_cy, bn_cx);
     if (bn_b.redo.n == 0) { bn_set_status ("Nothing to redo"); return; }
+    size_t mark_abs = bn_mark_active ? bn_abs_from_lc (bn_mark_cy, bn_mark_cx) : 0;
+    bn_pt_snapshot ed = bn_b.redo.v[bn_b.redo.n - 1];
     if (bn_pt_snapshot_push (&bn_b.undo, &bn_b.pt) < 0) return;
+    bn_pt_snapshot *mirror = &bn_b.undo.v[bn_b.undo.n - 1];
+    mirror->e_valid = ed.e_valid;
+    mirror->e_start = ed.e_start;
+    mirror->e_old = ed.e_old;
+    mirror->e_new = ed.e_new;
     if (bn_pt_snapshot_pop (&bn_b.redo, &bn_b.pt) < 0) return;
     bn_sync_lines_from_pt ();
+    if (bn_mark_active)
+        bn_mark_from_abs (ed.e_valid ? bn_offset_after_edit (mark_abs, ed.e_start, ed.e_start + ed.e_old, ed.e_new) : mark_abs);
     bn_set_cursor_abs (pos > bn_b.pt.total_len ? bn_b.pt.total_len : pos);
     bn_set_status ("Redid change");
 }
@@ -1768,7 +2013,12 @@ bn_modal_prompt (const char *label, char *dest, size_t dest_size)
 
         char k[8];
         int klen = bn_read_key (k, sizeof k);
-        if (klen <= 0) continue;
+        if (klen == 0) continue;            /* interrupted read */
+        if (klen < 0) {                     /* input closed: cancel */
+            memcpy (bn_status, saved_status, sizeof bn_status);
+            bn_status_until = saved_until;
+            return -1;
+        }
 
         if (klen == 1 && (k[0] == '\r' || k[0] == '\n')) {
             memcpy (bn_status, saved_status, sizeof bn_status);
@@ -1782,7 +2032,11 @@ bn_modal_prompt (const char *label, char *dest, size_t dest_size)
         }
         if (klen >= 2 && k[0] == 0x1b) continue;        /* swallow other escape sequences */
         if (klen == 1 && (k[0] == 0x7f || k[0] == 0x08)) {
-            if (dlen > 0) dest[--dlen] = '\0';
+            /* Remove a whole cluster, never part of a UTF-8 sequence. */
+            if (dlen > 0) {
+                dlen = (size_t) bn_grapheme_prev (dest, dlen, (long) dlen);
+                dest[dlen] = '\0';
+            }
             continue;
         }
         /* Append the keystroke (printable ASCII or full UTF-8 cluster). */
@@ -1849,9 +2103,31 @@ bn_prompt_save_as (void)
     return bn_save_as (dest);
 }
 
+/* Headless fixtures queue whole keys here; while a queue is installed,
+   bn_read_key returns its keys in order and then end-of-input, so the
+   production prompts and dispatch run without a terminal. */
+static const char *const *bn_keyq = NULL;
+static size_t bn_keyq_n = 0, bn_keyq_pos = 0;
+
+static void
+bn_keyq_set (const char *const *keys, size_t n)
+{
+    bn_keyq = keys;
+    bn_keyq_n = n;
+    bn_keyq_pos = 0;
+}
+
 static int
 bn_read_key (char *buf, size_t bufsz)
 {
+    if (bn_keyq) {
+        if (bn_keyq_pos >= bn_keyq_n) return -1;
+        const char *key = bn_keyq[bn_keyq_pos++];
+        size_t n = strlen (key);
+        if (n >= bufsz) n = bufsz - 1;
+        memcpy (buf, key, n);
+        return (int) n;
+    }
     /* Read one key. ESC sequences: read up to 6 bytes. UTF-8 multi-byte
        sequences (high bit set, not ESC): read continuation bytes per
        leading-bits length. */
@@ -1898,6 +2174,749 @@ bn_read_key (char *buf, size_t bufsz)
         return (int) total;
     }
     return 1;
+}
+
+/* ---- justify (^J, M-J) ----
+
+   Follows GNU nano's paragraph model: a paragraph is a run of lines with
+   text after their quote and indentation, beginning where begpar() says so
+   (after a blank line, at a change of quoting, or at the first of two lines
+   whose indentation differs).  The first line keeps its own lead (quote plus
+   indentation); later lines take the second line's.  Runs of blanks become
+   one space, except that up to two survive after sentence punctuation and
+   one closing bracket.  Lines are refilled greedily so that each one,
+   including its lead, is at most the fill width; a word wider than that
+   stays whole on its own line.  The blanks at a break stay on the upper
+   line unless --trimblanks is in effect, as in GNU nano.  The whole
+   justification is one piece-table replacement, so one undo restores it. */
+
+static long bn_fill = -8;          /* <= 0: relative to the terminal width */
+static int bn_trimblanks = 0;
+static regex_t bn_quote_re;
+static int bn_quote_state = 0;     /* 0 untried, 1 compiled, -1 failed */
+
+static long
+bn_fill_width (void)
+{
+    long w = bn_fill > 0 ? bn_fill : bn_cols + bn_fill;
+    return w < 0 ? 0 : w;
+}
+
+static int
+bn_is_blank (char c)
+{
+    return c == ' ' || c == '\t';
+}
+
+/* GNU nano's default quotestr, "^([ \t]*([!#%:;>|}]|//))+". */
+static size_t
+bn_quote_len (const char *s, size_t n)
+{
+    if (bn_quote_state == 0)
+        bn_quote_state = regcomp (&bn_quote_re, "^([ \t]*([!#%:;>|}]|//))+",
+                                  REG_EXTENDED) == 0 ? 1 : -1;
+    if (bn_quote_state < 0) return 0;
+    /* Only these bytes can take part in a quote prefix, so match on that
+       leading run instead of copying the whole line. */
+    size_t run = 0;
+    while (run < n && run < 255 && strchr (" \t!#%:;>|}/", s[run]) && s[run])
+        run++;
+    if (run == 0) return 0;
+    char tmp[256];
+    memcpy (tmp, s, run);
+    tmp[run] = '\0';
+    regmatch_t m;
+    if (regexec (&bn_quote_re, tmp, 1, &m, 0) != 0 || m.rm_so != 0) return 0;
+    return (size_t) m.rm_eo;
+}
+
+static size_t
+bn_lead_len (const bn_line *L)
+{
+    size_t q = bn_quote_len (L->data, L->len);
+    while (q < L->len && bn_is_blank (L->data[q])) q++;
+    return q;
+}
+
+/* Display width of a line's lead; tabs advance to the next multiple of 8. */
+static long
+bn_lead_width (const char *s, size_t n)
+{
+    long col = 0;
+    for (size_t i = 0; i < n; i++)
+        col = s[i] == '\t' ? col + 8 - col % 8 : col + 1;
+    return col;
+}
+
+static int
+bn_inpar (size_t i)
+{
+    bn_line *L = &bn_b.lines[i];
+    return bn_lead_len (L) < L->len;
+}
+
+static int
+bn_begpar (size_t i, int depth)
+{
+    if (i == 0) return 1;
+    if (depth > 100) return 0;
+    bn_line *L = &bn_b.lines[i], *P = &bn_b.lines[i - 1];
+    size_t lead = bn_lead_len (L);
+    if (lead == L->len) return 0;
+    size_t q = bn_quote_len (L->data, L->len);
+    size_t pq = bn_quote_len (P->data, P->len);
+    if (q != pq || (q && memcmp (L->data, P->data, q) != 0)) return 1;
+    size_t plead = bn_lead_len (P);
+    if (plead == P->len) return 1;
+    if (bn_lead_width (P->data, plead) == bn_lead_width (L->data, lead)) return 0;
+    return !bn_begpar (i - 1, depth + 1);
+}
+
+typedef struct {
+    char *v;
+    size_t n, cap;
+    int failed;
+} bn_strbuf;
+
+static void
+bn_sb_add (bn_strbuf *b, const char *s, size_t n)
+{
+    if (b->failed || n == 0) return;
+    if (b->n + n + 1 > b->cap) {
+        size_t nc = b->cap ? b->cap : 256;
+        while (nc < b->n + n + 1) nc *= 2;
+        char *nv = realloc (b->v, nc);
+        if (!nv) { b->failed = 1; return; }
+        b->v = nv;
+        b->cap = nc;
+    }
+    memcpy (b->v + b->n, s, n);
+    b->n += n;
+    b->v[b->n] = '\0';
+}
+
+/* GNU nano's squeeze(): one space per blank run, up to two after
+   sentence punctuation and one closing bracket, none at the end. */
+static void
+bn_squeeze (bn_strbuf *out, const char *s, size_t n)
+{
+    size_t i = 0;
+    while (i < n) {
+        if (bn_is_blank (s[i])) {
+            bn_sb_add (out, " ", 1);
+            while (i < n && bn_is_blank (s[i])) i++;
+        } else if (strchr ("!.?", s[i]) && s[i]) {
+            bn_sb_add (out, s + i, 1); i++;
+            if (i < n && s[i] && strchr ("\"')>]}", s[i])) { bn_sb_add (out, s + i, 1); i++; }
+            for (int k = 0; k < 2 && i < n && bn_is_blank (s[i]); k++, i++)
+                bn_sb_add (out, " ", 1);
+            while (i < n && bn_is_blank (s[i])) i++;
+        } else {
+            bn_sb_add (out, s + i, 1); i++;
+        }
+    }
+    while (!out->failed && out->n > 0 && out->v[out->n - 1] == ' ')
+        out->v[--out->n] = '\0';
+}
+
+/* Justify lines L0..L1 as one paragraph, appending the result to OUT
+   without a final newline. */
+static void
+bn_justify_par (size_t l0, size_t l1, bn_strbuf *out)
+{
+    bn_line *F = &bn_b.lines[l0];
+    size_t lead1 = bn_lead_len (F);
+    const char *lead2_s = F->data;
+    size_t lead2 = lead1;
+    if (l1 > l0) {
+        lead2_s = bn_b.lines[l0 + 1].data;
+        lead2 = bn_lead_len (&bn_b.lines[l0 + 1]);
+    }
+
+    bn_strbuf joined = {0};
+    for (size_t i = l0; i <= l1; i++) {
+        bn_line *L = &bn_b.lines[i];
+        size_t lead = bn_lead_len (L);
+        if (joined.n > 0 && !bn_is_blank (joined.v[joined.n - 1]))
+            bn_sb_add (&joined, " ", 1);
+        bn_sb_add (&joined, L->data + lead, L->len - lead);
+    }
+    bn_strbuf text = {0};
+    bn_squeeze (&text, joined.v ? joined.v : "", joined.n);
+    free (joined.v);
+    if (text.failed || joined.failed) { out->failed = 1; free (text.v); return; }
+
+    long fill = bn_fill_width ();
+    long leadw1 = bn_lead_width (F->data, lead1);
+    long leadw2 = bn_lead_width (lead2_s, lead2);
+    bn_sb_add (out, F->data, lead1);
+    long curw = leadw1;
+    int first = 1;
+    size_t pending = 0;            /* spaces after the previous word */
+    size_t i = 0;
+    while (i < text.n) {
+        size_t ws = i;
+        while (i < text.n && text.v[i] != ' ') i++;
+        size_t wl = i - ws;
+        long ww = bn_screen_col (text.v + ws, wl, (long) wl);
+        size_t sep = 0;
+        while (i < text.n && text.v[i] == ' ') { i++; sep++; }
+        if (first) {
+            first = 0;
+        } else if (curw + (long) pending + ww <= fill) {
+            bn_sb_add (out, "  ", pending);
+            curw += (long) pending;
+        } else {
+            if (!bn_trimblanks) bn_sb_add (out, "  ", pending);
+            bn_sb_add (out, "\n", 1);
+            bn_sb_add (out, lead2_s, lead2);
+            curw = leadw2;
+        }
+        bn_sb_add (out, text.v + ws, wl);
+        curw += ww;
+        pending = sep;
+    }
+    free (text.v);
+}
+
+/* Justify every paragraph inside lines L0..L1 (L0 starts a paragraph) as a
+   single replacement.  Returns 1 when the text changed, 0 when it was
+   already justified, -1 on failure.  *END_LINE receives the last line of
+   the replaced span after the edit. */
+static int
+bn_justify_lines (size_t l0, size_t l1, size_t *end_line)
+{
+    bn_strbuf out = {0};
+    size_t i = l0;
+    while (i <= l1) {
+        if (i > l0) bn_sb_add (&out, "\n", 1);
+        if (!bn_inpar (i)) {
+            bn_sb_add (&out, bn_b.lines[i].data, bn_b.lines[i].len);
+            i++;
+            continue;
+        }
+        size_t e = i;
+        while (e < l1 && bn_inpar (e + 1) && !bn_begpar (e + 1, 0)) e++;
+        bn_justify_par (i, e, &out);
+        i = e + 1;
+    }
+    if (out.failed) { free (out.v); return -1; }
+    size_t start = bn_labs (l0);
+    size_t end = bn_labs (l1) + bn_b.lines[l1].len;
+    size_t new_lines = bn_pt_count_nl (out.v ? out.v : "", out.n);
+    *end_line = l0 + new_lines;
+    size_t old_len = 0;
+    char *old = bn_pt_flatten_range (&bn_b.pt, start, end, &old_len);
+    int same = old && old_len == out.n && memcmp (old, out.v ? out.v : "", out.n) == 0;
+    free (old);
+    if (same) { free (out.v); *end_line = l1; return 0; }
+    int rc = bn_piece_replace (start, end, out.v ? out.v : "", out.n, start + out.n);
+    free (out.v);
+    return rc < 0 ? -1 : 1;
+}
+
+/* ^J justifies the paragraph at or after the cursor, or with the mark set
+   the paragraphs in the marked lines; M-J (WHOLE) justifies the buffer. */
+static void
+bn_justify (int whole)
+{
+    if (bn_b.n_lines == 0) return;
+    size_t l0, l1, end_line = 0;
+    const char *what;
+    if (whole) {
+        l0 = 0;
+        l1 = bn_b.n_lines - 1;
+        what = "file";
+    } else if (bn_mark_active) {
+        l0 = (size_t) (bn_mark_cy < bn_cy ? bn_mark_cy : bn_cy);
+        l1 = (size_t) (bn_mark_cy < bn_cy ? bn_cy : bn_mark_cy);
+        what = "selection";
+    } else {
+        size_t line = (size_t) bn_cy;
+        while (line < bn_b.n_lines && !bn_inpar (line)) line++;
+        if (line >= bn_b.n_lines) {
+            bn_set_status ("No paragraph to justify");
+            return;
+        }
+        while (!bn_begpar (line, 0)) line--;
+        l0 = l1 = line;
+        while (l1 + 1 < bn_b.n_lines && bn_inpar (l1 + 1) && !bn_begpar (l1 + 1, 0))
+            l1++;
+        what = "paragraph";
+    }
+    long save_cy = bn_cy, save_cx = bn_cx;
+    int rc = bn_justify_lines (l0, l1, &end_line);
+    if (rc < 0) { bn_set_status ("Justify failed: out of memory"); return; }
+    if (!whole && bn_mark_active) bn_mark_active = 0;
+    if (whole) {
+        bn_cy = save_cy < (long) bn_b.n_lines ? save_cy : (long) bn_b.n_lines - 1;
+        bn_cx = save_cx;
+        bn_clamp_cx ();
+    } else if (end_line + 1 < bn_b.n_lines) {
+        bn_cy = (long) end_line + 1;
+        bn_cx = 0;
+    } else {
+        bn_cy = (long) end_line;
+        bn_cx = (long) bn_b.lines[end_line].len;
+    }
+    if (rc == 0) bn_set_status ("%c%s already justified", what[0] - 32, what + 1);
+    else         bn_set_status ("Justified %s", what);
+}
+
+/* ---- spell check (^T) ----
+
+   The helper boundary: the command named by --speller=CMD, else the
+   NANO_SPELLER environment variable, else "spell", is split on blanks and
+   run with execvp -- never through a shell.  It receives the text being
+   checked (the marked region, or the whole buffer) on stdin and must print
+   the misspelled words one per line on stdout, which is the interface of
+   spell(1), "aspell list" and "hunspell -l".  Its stderr goes to /dev/null
+   and it never sees the terminal.  Output is capped at 1 MiB and 4096
+   words, the run at bn_spell_timeout_ms (then SIGKILL to that child only),
+   and any nonzero exit, signal, exec failure or overflow leaves the buffer
+   untouched with a status message.  For each word the cursor moves to its
+   first whole-word occurrence and the "Edit a replacement" prompt opens
+   prefilled with it: Enter with a changed word replaces every whole-word
+   occurrence in the checked text as one undoable edit, Enter unchanged
+   skips it, and Esc ends the check. */
+
+static char *bn_speller = NULL;
+static int bn_spell_timeout_ms = 10000;
+#define BN_SPELL_MAX_OUT ((size_t) 1 << 20)
+#define BN_SPELL_MAX_WORDS 4096
+#define BN_WORD_MAX 255
+
+typedef struct {
+    char **v;
+    size_t n, cap;
+} bn_wordlist;
+
+static void
+bn_wordlist_free (bn_wordlist *w)
+{
+    for (size_t i = 0; i < w->n; i++) free (w->v[i]);
+    free (w->v);
+    memset (w, 0, sizeof *w);
+}
+
+static int
+bn_wordlist_add_unique (bn_wordlist *w, const char *s, size_t n)
+{
+    for (size_t i = 0; i < w->n; i++)
+        if (strlen (w->v[i]) == n && memcmp (w->v[i], s, n) == 0) return 0;
+    if (w->n == w->cap) {
+        size_t nc = w->cap ? w->cap * 2 : 16;
+        char **nv = realloc (w->v, nc * sizeof *nv);
+        if (!nv) return -1;
+        w->v = nv;
+        w->cap = nc;
+    }
+    char *c = malloc (n + 1);
+    if (!c) return -1;
+    memcpy (c, s, n);
+    c[n] = '\0';
+    w->v[w->n++] = c;
+    return 1;
+}
+
+static int
+bn_is_word_byte (char c)
+{
+    unsigned char u = (unsigned char) c;
+    return (u >= '0' && u <= '9') || (u >= 'a' && u <= 'z')
+        || (u >= 'A' && u <= 'Z') || u == '_' || u >= 0x80;
+}
+
+static const char *
+bn_speller_command (void)
+{
+    if (bn_speller && *bn_speller) return bn_speller;
+    const char *env = getenv ("NANO_SPELLER");
+    return env && *env ? env : "spell";
+}
+
+/* Run the helper over TEXT; on success fill WORDS and return 0, otherwise
+   describe the failure in ERR and return -1. */
+static int
+bn_spell_run_helper (const char *cmd, const char *text, size_t len,
+                     bn_wordlist *words, char *err, size_t errsz)
+{
+    char *copy = strdup (cmd);
+    char *argv[32];
+    int argc = 0;
+    if (!copy) { snprintf (err, errsz, "Spell helper: out of memory"); return -1; }
+    for (char *tok = strtok (copy, " \t"); tok && argc < 31; tok = strtok (NULL, " \t"))
+        argv[argc++] = tok;
+    argv[argc] = NULL;
+    if (argc == 0) {
+        free (copy);
+        snprintf (err, errsz, "No spell helper configured");
+        return -1;
+    }
+
+    int in[2] = { -1, -1 }, out[2] = { -1, -1 };
+    if (pipe (in) < 0 || pipe (out) < 0) {
+        snprintf (err, errsz, "Spell helper: %s", strerror (errno));
+        if (in[0] >= 0) { close (in[0]); close (in[1]); }
+        free (copy);
+        return -1;
+    }
+    for (int i = 0; i < 2; i++) {
+        fcntl (in[i], F_SETFD, FD_CLOEXEC);
+        fcntl (out[i], F_SETFD, FD_CLOEXEC);
+    }
+
+    /* Bash's SIGCHLD handler reaps any child; block it so this wait gets
+       the status.  A helper that stops reading must not SIGPIPE the shell. */
+    sigset_t chld, old_mask;
+    sigemptyset (&chld);
+    sigaddset (&chld, SIGCHLD);
+    sigprocmask (SIG_BLOCK, &chld, &old_mask);
+    struct sigaction ign, old_pipe;
+    memset (&ign, 0, sizeof ign);
+    ign.sa_handler = SIG_IGN;
+    sigemptyset (&ign.sa_mask);
+    sigaction (SIGPIPE, &ign, &old_pipe);
+
+    /* Exported shell variables reach the helper the way they reach any
+       command bash runs. */
+    maybe_make_export_env ();
+    pid_t pid = fork ();
+    if (pid == 0) {
+        if (export_env) environ = export_env;
+        static const int dfl[] = { SIGPIPE, SIGINT, SIGQUIT, SIGTERM, SIGTSTP,
+                                   SIGTTIN, SIGTTOU, SIGWINCH, SIGCHLD, SIGALRM };
+        for (size_t i = 0; i < sizeof dfl / sizeof dfl[0]; i++)
+            signal (dfl[i], SIG_DFL);
+        sigset_t none;
+        sigemptyset (&none);
+        sigprocmask (SIG_SETMASK, &none, NULL);
+        int devnull = open ("/dev/null", O_WRONLY);
+        if (dup2 (in[0], STDIN_FILENO) < 0 || dup2 (out[1], STDOUT_FILENO) < 0)
+            _exit (126);
+        if (devnull >= 0) dup2 (devnull, STDERR_FILENO);
+        execvp (argv[0], argv);
+        _exit (errno == ENOENT ? 127 : 126);
+    }
+    int fork_errno = errno;
+    close (in[0]);
+    close (out[1]);
+    if (pid < 0) {
+        close (in[1]);
+        close (out[0]);
+        sigaction (SIGPIPE, &old_pipe, NULL);
+        sigprocmask (SIG_SETMASK, &old_mask, NULL);
+        snprintf (err, errsz, "Spell helper: fork: %s", strerror (fork_errno));
+        free (copy);
+        return -1;
+    }
+    fcntl (in[1], F_SETFL, fcntl (in[1], F_GETFL) | O_NONBLOCK);
+    fcntl (out[0], F_SETFL, fcntl (out[0], F_GETFL) | O_NONBLOCK);
+
+    char *buf = NULL;
+    size_t blen = 0, bcap = 0, sent = 0;
+    int wfd = in[1], rfd = out[0];
+    const char *problem = NULL;
+    struct timespec t0;
+    clock_gettime (CLOCK_MONOTONIC, &t0);
+    if (len == 0) { close (wfd); wfd = -1; }
+    while (rfd >= 0 && !problem) {
+        struct timespec now;
+        clock_gettime (CLOCK_MONOTONIC, &now);
+        long elapsed = (long) ((now.tv_sec - t0.tv_sec) * 1000
+                               + (now.tv_nsec - t0.tv_nsec) / 1000000);
+        if (elapsed >= bn_spell_timeout_ms) { problem = "timed out"; break; }
+        struct pollfd pfd[2];
+        int np = 0;
+        pfd[np].fd = rfd; pfd[np].events = POLLIN; pfd[np].revents = 0; np++;
+        if (wfd >= 0) { pfd[np].fd = wfd; pfd[np].events = POLLOUT; pfd[np].revents = 0; np++; }
+        int pr = poll (pfd, (nfds_t) np, (int) (bn_spell_timeout_ms - elapsed));
+        if (pr < 0) {
+            if (errno == EINTR) continue;
+            problem = "poll failed";
+            break;
+        }
+        if (np == 2 && pfd[1].revents) {
+            ssize_t w = (pfd[1].revents & POLLOUT)
+                        ? write (wfd, text + sent, len - sent) : -1;
+            if (w > 0) sent += (size_t) w;
+            if (w < 0 && (errno == EAGAIN || errno == EINTR)) w = 0;
+            if (w < 0 || sent == len) { close (wfd); wfd = -1; }
+        }
+        if (pfd[0].revents) {
+            char chunk[4096];
+            ssize_t r = read (rfd, chunk, sizeof chunk);
+            if (r < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+            if (r <= 0) { close (rfd); rfd = -1; break; }
+            if (blen + (size_t) r > BN_SPELL_MAX_OUT) { problem = "output too large"; break; }
+            if (blen + (size_t) r > bcap) {
+                size_t nc = bcap ? bcap * 2 : 8192;
+                while (nc < blen + (size_t) r) nc *= 2;
+                char *nb = realloc (buf, nc);
+                if (!nb) { problem = "out of memory"; break; }
+                buf = nb;
+                bcap = nc;
+            }
+            memcpy (buf + blen, chunk, (size_t) r);
+            blen += (size_t) r;
+        }
+    }
+    if (wfd >= 0) close (wfd);
+    if (rfd >= 0) close (rfd);
+    /* A helper may close its output and keep running; the deadline still
+       applies to the wait. */
+    int status = 0;
+    pid_t wr = 0;
+    while (!problem) {
+        wr = waitpid (pid, &status, WNOHANG);
+        if (wr != 0 && !(wr < 0 && errno == EINTR)) break;
+        struct timespec now, nap = { 0, 5 * 1000 * 1000 };
+        clock_gettime (CLOCK_MONOTONIC, &now);
+        long elapsed = (long) ((now.tv_sec - t0.tv_sec) * 1000
+                               + (now.tv_nsec - t0.tv_nsec) / 1000000);
+        if (elapsed >= bn_spell_timeout_ms) { problem = "timed out"; break; }
+        nanosleep (&nap, NULL);
+    }
+    if (problem) {
+        kill (pid, SIGKILL);
+        while ((wr = waitpid (pid, &status, 0)) < 0 && errno == EINTR) { }
+    }
+    sigaction (SIGPIPE, &old_pipe, NULL);
+    sigprocmask (SIG_SETMASK, &old_mask, NULL);
+
+    int rc = -1;
+    if (problem)
+        snprintf (err, errsz, "Spell helper %s: %s", problem, argv[0]);
+    else if (wr < 0)
+        snprintf (err, errsz, "Spell helper: waitpid: %s", strerror (errno));
+    else if (WIFSIGNALED (status))
+        snprintf (err, errsz, "Spell helper killed by signal %d: %s",
+                  WTERMSIG (status), argv[0]);
+    else if (WEXITSTATUS (status) == 127)
+        snprintf (err, errsz, "Spell helper not found: %s", argv[0]);
+    else if (WEXITSTATUS (status) == 126)
+        snprintf (err, errsz, "Spell helper cannot run: %s", argv[0]);
+    else if (WEXITSTATUS (status) != 0)
+        snprintf (err, errsz, "Spell helper failed (exit %d): %s",
+                  WEXITSTATUS (status), argv[0]);
+    else {
+        rc = 0;
+        size_t s = 0;
+        while (s < blen && rc == 0) {
+            size_t e = s;
+            while (e < blen && buf[e] != '\n') e++;
+            size_t a = s, b = e;
+            while (a < b && bn_is_blank (buf[a])) a++;
+            while (b > a && (bn_is_blank (buf[b - 1]) || buf[b - 1] == '\r')) b--;
+            int ok = b > a && b - a <= BN_WORD_MAX;
+            for (size_t k = a; ok && k < b; k++)
+                if ((unsigned char) buf[k] < 0x20 || buf[k] == ' ') ok = 0;
+            if (ok && words->n < BN_SPELL_MAX_WORDS
+                && bn_wordlist_add_unique (words, buf + a, b - a) < 0) {
+                snprintf (err, errsz, "Spell helper: out of memory");
+                rc = -1;
+            }
+            s = e + 1;
+        }
+    }
+    free (buf);
+    free (copy);
+    return rc;
+}
+
+/* Offset of the first whole-word occurrence of WORD in [from, end), or -1. */
+static long
+bn_find_whole_word (const char *text, size_t text_len, size_t from,
+                    const char *word, size_t wl)
+{
+    size_t pos = from;
+    while (pos + wl <= text_len) {
+        const char *hit = memmem (text + pos, text_len - pos, word, wl);
+        if (!hit) return -1;
+        size_t h = (size_t) (hit - text);
+        int left_ok = h == 0 || !bn_is_word_byte (text[h - 1]);
+        int right_ok = h + wl == text_len || !bn_is_word_byte (text[h + wl]);
+        if (left_ok && right_ok) return (long) h;
+        pos = h + 1;
+    }
+    return -1;
+}
+
+/* Replace every whole-word WORD in the buffer span [rs, *re) by REPL as one
+   edit; *RE and *KEEP follow the edit.  Returns the replacement count. */
+static long
+bn_spell_replace_all (size_t rs, size_t *re, const char *word,
+                      const char *repl, size_t *keep)
+{
+    size_t tl = 0;
+    char *text = bn_pt_flatten_range (&bn_b.pt, rs, *re, &tl);
+    if (!text) return -1;
+    size_t wl = strlen (word), rl = strlen (repl);
+    bn_strbuf out = {0};
+    long first = -1, count = 0;
+    size_t last_end = 0, pos = 0;
+    long h;
+    while ((h = bn_find_whole_word (text, tl, pos, word, wl)) >= 0) {
+        if (first < 0) { first = h; last_end = (size_t) h; }
+        bn_sb_add (&out, text + last_end, (size_t) h - last_end);
+        bn_sb_add (&out, repl, rl);
+        last_end = (size_t) h + wl;
+        pos = last_end;
+        count++;
+    }
+    if (count == 0 || out.failed) { free (text); free (out.v); return out.failed ? -1 : 0; }
+    size_t s = rs + (size_t) first, e = rs + last_end;
+    int rc = bn_piece_replace (s, e, out.v ? out.v : "", out.n, s);
+    free (text);
+    free (out.v);
+    if (rc < 0) return -1;
+    *keep = bn_offset_after_edit (*keep, s, e, out.n);
+    *re = *re - (e - s) + out.n;
+    return count;
+}
+
+static void
+bn_spell (void)
+{
+    size_t rs = 0, re = bn_b.pt.total_len;
+    if (bn_mark_active) {
+        rs = bn_abs_from_lc (bn_mark_cy, bn_mark_cx);
+        re = bn_abs_from_lc (bn_cy, bn_cx);
+        if (rs > re) { size_t t = rs; rs = re; re = t; }
+    }
+    size_t keep = bn_abs_from_lc (bn_cy, bn_cx);
+    size_t tl = 0;
+    char *text = bn_pt_flatten_range (&bn_b.pt, rs, re, &tl);
+    if (!text) { bn_set_status ("Spell check: out of memory"); return; }
+    bn_set_status ("Invoking spell checker...");
+    bn_wordlist words = {0};
+    char err[256];
+    int rc = bn_spell_run_helper (bn_speller_command (), text, tl, &words, err, sizeof err);
+    free (text);
+    if (rc < 0) {
+        bn_wordlist_free (&words);
+        bn_set_status ("%s", err);
+        return;
+    }
+    long replaced = 0;
+    int cancelled = 0;
+    for (size_t w = 0; w < words.n && !cancelled; w++) {
+        const char *word = words.v[w];
+        text = bn_pt_flatten_range (&bn_b.pt, rs, re, &tl);
+        if (!text) break;
+        long h = bn_find_whole_word (text, tl, 0, word, strlen (word));
+        free (text);
+        if (h < 0) continue;
+        bn_set_cursor_abs (rs + (size_t) h);
+        char dest[BN_WORD_MAX + 1];
+        snprintf (dest, sizeof dest, "%s", word);
+        if (bn_modal_prompt ("Edit a replacement: ", dest, sizeof dest) != 0) {
+            cancelled = 1;
+            break;
+        }
+        if (!dest[0] || strcmp (dest, word) == 0) continue;
+        long n = bn_spell_replace_all (rs, &re, word, dest, &keep);
+        if (n < 0) { bn_set_status ("Spell check: replace failed"); bn_wordlist_free (&words); return; }
+        replaced += n;
+    }
+    bn_wordlist_free (&words);
+    bn_set_cursor_abs (keep);
+    if (cancelled)
+        bn_set_status ("Spell check cancelled (%ld replaced)", replaced);
+    else
+        bn_set_status ("Finished checking spelling (%ld replaced)", replaced);
+}
+
+/* ---- word completion (^]) ----
+
+   The fragment is the run of word bytes (ASCII letters, digits, '_' and
+   any UTF-8 byte) ending at the cursor.  Candidates are the distinct
+   longer words in the buffer that start with it, in buffer order from the
+   top, excluding the word being typed.  Each ^] replaces the inserted tail
+   with the next candidate; after the last one the bare fragment comes back
+   with "No further matches", and the next ^] starts over.  Any edit or
+   cursor movement in between starts a fresh completion. */
+
+#define BN_COMPLETE_MAX 1024
+
+static struct {
+    int active;
+    unsigned long rev;      /* bn_text_rev after the last completion step */
+    size_t cursor;          /* cursor offset after the last step */
+    size_t frag_start;
+    size_t frag_len;
+    size_t tail_len;        /* bytes inserted after the fragment */
+    size_t next;            /* next candidate index */
+    bn_wordlist cands;
+} bn_comp;
+
+static void
+bn_complete_reset (void)
+{
+    bn_wordlist_free (&bn_comp.cands);
+    memset (&bn_comp, 0, sizeof bn_comp);
+}
+
+static void
+bn_complete (void)
+{
+    size_t cur = bn_abs_from_lc (bn_cy, bn_cx);
+    if (!(bn_comp.active && bn_comp.rev == bn_text_rev && bn_comp.cursor == cur)) {
+        bn_complete_reset ();
+        bn_line *L = bn_curline ();
+        if (!L) return;
+        long s = bn_cx;
+        while (s > 0 && bn_is_word_byte (L->data[s - 1])) s--;
+        if (s == bn_cx) { bn_set_status ("No word fragment to complete"); return; }
+        size_t fs = bn_labs ((size_t) bn_cy) + (size_t) s, fl = (size_t) (bn_cx - s);
+        size_t tl = 0;
+        char *text = bn_pt_flatten (&bn_b.pt, &tl);
+        if (!text) { bn_set_status ("Completion: out of memory"); return; }
+        size_t i = 0;
+        while (i < tl && bn_comp.cands.n < BN_COMPLETE_MAX) {
+            if (!bn_is_word_byte (text[i])) { i++; continue; }
+            size_t ws = i;
+            while (i < tl && bn_is_word_byte (text[i])) i++;
+            size_t wl = i - ws;
+            if (ws == fs || wl <= fl || wl > BN_WORD_MAX
+                || memcmp (text + ws, text + fs, fl) != 0)
+                continue;
+            if (bn_wordlist_add_unique (&bn_comp.cands, text + ws, wl) < 0) break;
+        }
+        free (text);
+        if (bn_comp.cands.n == 0) {
+            bn_complete_reset ();
+            bn_set_status ("No matches");
+            return;
+        }
+        bn_comp.active = 1;
+        bn_comp.frag_start = fs;
+        bn_comp.frag_len = fl;
+    }
+    size_t tail_at = bn_comp.frag_start + bn_comp.frag_len;
+    const char *ins = "";
+    size_t ins_len = 0;
+    if (bn_comp.next < bn_comp.cands.n) {
+        const char *cand = bn_comp.cands.v[bn_comp.next];
+        ins = cand + bn_comp.frag_len;
+        ins_len = strlen (cand) - bn_comp.frag_len;
+    }
+    if (bn_piece_replace (tail_at, tail_at + bn_comp.tail_len, ins, ins_len,
+                          tail_at + ins_len) < 0) {
+        bn_complete_reset ();
+        bn_set_status ("Completion failed");
+        return;
+    }
+    bn_comp.tail_len = ins_len;
+    if (bn_comp.next < bn_comp.cands.n) {
+        bn_comp.next++;
+        bn_set_status ("Completion %zu of %zu", bn_comp.next, bn_comp.cands.n);
+    } else {
+        bn_comp.next = 0;
+        bn_set_status ("No further matches");
+    }
+    bn_comp.rev = bn_text_rev;
+    bn_comp.cursor = bn_abs_from_lc (bn_cy, bn_cx);
 }
 
 static int
@@ -1972,6 +2991,10 @@ bn_dispatch (const char *k, int klen)
             return 0;
         case 'U': case 'u':
             bn_undo ();
+            return 0;
+        case 'J': case 'j':
+            /* M-J: full justify, GNU nano's binding. */
+            bn_justify (1);
             return 0;
         case 'W': case 'w':
             /* G03 — soft-wrap is a render-only view: file bytes and cursor
@@ -2077,15 +3100,15 @@ bn_dispatch (const char *k, int klen)
         case 0x15:  /* ^U */ bn_paste (); return 0;
         case 0x1a:  /* ^Z */ bn_undo (); return 0;
         case 0x19:  /* ^Y */ bn_redo (); return 0;
-        case 0x07:  /* ^G */ bn_set_status ("^O/^S Save  ^X Exit  ^K Cut  ^U Paste  ^D Del  ^W Search  M-W Wrap"); return 0;
-        case 0x0a:  /* ^J — justify deferred in v1 */
-            bn_set_status ("justify not implemented");
+        case 0x07:  /* ^G */ bn_set_status ("^O/^S Save  ^X Exit  ^K Cut  ^U Paste  ^W Search  ^J Justify  ^T Spell  ^] Complete  M-W Wrap"); return 0;
+        case 0x0a:  /* ^J — justify paragraph (or marked lines) */
+            bn_justify (0);
             return 0;
-        case 0x14:  /* ^T — spell deferred in v1 */
-            bn_set_status ("spell not implemented");
+        case 0x14:  /* ^T — spell check through the word-list helper */
+            bn_spell ();
             return 0;
-        case 0x1d:  /* ^] — word completion deferred in v1 */
-            bn_set_status ("completion not implemented");
+        case 0x1d:  /* ^] — complete the word fragment before the cursor */
+            bn_complete ();
             return 0;
         case 0x12: { /* ^R — read file into current buffer at cursor */
             char path[256] = "";
@@ -2710,15 +3733,37 @@ bn_selftest_keybindings (void)
                        && strstr (bn_status, "[col 3]") != NULL
                        && strstr (bn_status, "[byte 5]") != NULL
                        && strstr (bn_status, "[62% through file]") != NULL);
+    /* ^J, ^T and ^] used to report "not implemented"; they now edit. */
+    bn_cols = 80; bn_fill = -8; bn_trimblanks = 0;
+    bn_cy = 0; bn_cx = 0;
     bn_dispatch (justify_key, 1);
-    BN_KEYTEST_ASSERT ("^J reports deferred justify",
-                       strstr (bn_status, "justify not implemented") != NULL);
+    flat = bn_pt_flatten (&bn_b.pt, &flat_len);
+    BN_KEYTEST_ASSERT ("^J dispatches to justify (lines joined, tab squeezed)",
+                       flat && flat_len == 8 && memcmp (flat, "ab cd ef", 8) == 0
+                       && strstr (bn_status, "Justified paragraph") != NULL);
+    free (flat); flat = NULL; flat_len = 0;
+    bn_dispatch (undo_key, 1);
+    flat = bn_pt_flatten (&bn_b.pt, &flat_len);
+    BN_KEYTEST_ASSERT ("one ^Z undoes the justification",
+                       flat && flat_len == 8 && memcmp (flat, "ab\ncd\tef", 8) == 0);
+    free (flat); flat = NULL; flat_len = 0;
+    free (bn_speller);
+    bn_speller = strdup ("/nonexistent/opus-nano-spell-helper");
+    size_t undo_depth = bn_b.undo.n;
     bn_dispatch (spell_key, 1);
-    BN_KEYTEST_ASSERT ("^T reports deferred spell",
-                       strstr (bn_status, "spell not implemented") != NULL);
+    BN_KEYTEST_ASSERT ("^T dispatches to the spell helper and reports exec failure",
+                       strstr (bn_status, "Spell helper not found") != NULL
+                       && bn_b.undo.n == undo_depth);
+    free (bn_speller); bn_speller = NULL;
+    bn_cy = 1; bn_cx = 5;          /* end of "cd\tef" */
+    bn_insert_bytes (" c", 2);
     bn_dispatch (complete_key, 1);
-    BN_KEYTEST_ASSERT ("^] reports deferred completion",
-                       strstr (bn_status, "completion not implemented") != NULL);
+    flat = bn_pt_flatten (&bn_b.pt, &flat_len);
+    BN_KEYTEST_ASSERT ("^] completes the fragment from a buffer word",
+                       flat && flat_len == 11 && memcmp (flat, "ab\ncd\tef cd", 11) == 0
+                       && strstr (bn_status, "Completion 1 of 1") != NULL);
+    free (flat); flat = NULL; flat_len = 0;
+    bn_complete_reset ();
 
     bn_free_lines ();
     bn_pt_free (&bn_b.pt);
@@ -3794,6 +4839,700 @@ bn_selftest_undo_redo (void)
 #undef BN_UR_RESET
 }
 
+/* ---- selftests for justify, spell, completion, selection and the
+   incremental line cache.  They drive bn_dispatch and the real prompts
+   through the key queue, with renders sent to /dev/null. ---- */
+
+static int bn_st_fails, bn_st_asserts;
+
+#define BN_ST_ASSERT(desc, cond) \
+    do { \
+        bn_st_asserts++; \
+        if (cond) printf ("ok %d - %s\n", bn_st_asserts, desc); \
+        else { bn_st_fails++; printf ("not ok %d - %s\n", bn_st_asserts, desc); } \
+    } while (0)
+
+static void
+bn_st_reset (void)
+{
+    bn_free_lines ();
+    bn_pt_free (&bn_b.pt);
+    bn_pt_stack_free (&bn_b.undo);
+    bn_pt_stack_free (&bn_b.redo);
+    free (bn_b.path);
+    memset (&bn_b, 0, sizeof bn_b);
+    bn_cy = bn_cx = 0;
+    bn_view_top = bn_view_left = 0;
+    bn_mark_active = 0;
+    bn_mark_cy = bn_mark_cx = 0;
+    bn_status[0] = '\0';
+    bn_status_until = 0;
+    bn_rows = 24; bn_cols = 80;
+    bn_fill = -8;
+    bn_trimblanks = 0;
+    bn_complete_reset ();
+    bn_keyq_set (NULL, 0);
+}
+
+static void
+bn_st_load (const char *text)
+{
+    bn_st_reset ();
+    bn_pt_init_text (&bn_b.pt, text, strlen (text));
+    bn_sync_lines_from_pt ();
+}
+
+static int
+bn_st_text_is (const char *want)
+{
+    size_t n = 0;
+    char *f = bn_pt_flatten (&bn_b.pt, &n);
+    int ok = f && n == strlen (want) && memcmp (f, want, n) == 0;
+    if (f && !ok) {
+        printf ("# got:  \"");
+        for (size_t i = 0; i < n; i++)
+            printf (f[i] == '\n' ? "\\n" : "%c", f[i]);
+        printf ("\"\n# want: \"");
+        for (size_t i = 0; want[i]; i++)
+            printf (want[i] == '\n' ? "\\n" : "%c", want[i]);
+        printf ("\"\n");
+    }
+    free (f);
+    return ok;
+}
+
+/* Feed KEYS to the editor's input loop, as the interactive loop would. */
+static void
+bn_st_keys (const char *const *keys, size_t n)
+{
+    fflush (stdout);
+    int saved = dup (STDOUT_FILENO);
+    int devnull = open ("/dev/null", O_WRONLY);
+    if (devnull >= 0) { dup2 (devnull, STDOUT_FILENO); close (devnull); }
+    bn_keyq_set (keys, n);
+    char k[16];
+    int klen;
+    while ((klen = bn_read_key (k, sizeof k)) > 0)
+        bn_dispatch (k, klen);
+    bn_keyq_set (NULL, 0);
+    if (saved >= 0) { dup2 (saved, STDOUT_FILENO); close (saved); }
+}
+
+#define BN_ST_KEYS(...) \
+    do { \
+        static const char *const _k[] = { __VA_ARGS__ }; \
+        bn_st_keys (_k, sizeof _k / sizeof _k[0]); \
+    } while (0)
+
+/* Cases whose expected text was produced by GNU nano 8.4 from the same
+   input with the same --fill/--trimblanks options (LANG=C.UTF-8). */
+static const struct {
+    const char *in;
+    long fill;
+    int trim;
+    const char *out;
+} bn_justify_gnu_cases[] = {
+    { "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk\n", 20, 0,
+      "aaaa bbbb cccc dddd \neeee ffff gggg hhhh \niiii jjjj kkkk\n" },
+    { "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk\n", 20, 1,
+      "aaaa bbbb cccc dddd\neeee ffff gggg hhhh\niiii jjjj kkkk\n" },
+    { "aaaaaaaaa bbbbbbbbbb ccc\n", 20, 0, "aaaaaaaaa bbbbbbbbbb \nccc\n" },
+    { "aaaaaaaaa bbbbbbbbbbb ccc\n", 20, 0, "aaaaaaaaa \nbbbbbbbbbbb ccc\n" },
+    { "hello   world  \n", 20, 0, "hello world\n" },
+    { "One.  Two!   Three?) four   five.\tsix seven eight nine ten\n", 20, 0,
+      "One.  Two!  Three?) \nfour five. six seven \neight nine ten\n" },
+    { "One.  Two!   Three?) four   five.\tsix seven eight nine ten\n", 20, 1,
+      "One.  Two!  Three?)\nfour five. six seven\neight nine ten\n" },
+    { "aaaa bbbb cccc ddd.  eeee ffff\n", 20, 0, "aaaa bbbb cccc ddd.  \neeee ffff\n" },
+    { "aaaa bbbb cccc ddd.  eeee ffff\n", 20, 1, "aaaa bbbb cccc ddd.\neeee ffff\n" },
+    { "  first line here and more words\nsecond line with\nmore words to wrap around nicely\n", 20, 0,
+      "  first line here \nand more words \nsecond line with \nmore words to wrap \naround nicely\n" },
+    { "first line here and more words\n  second line with\n  more words to wrap around nicely\n", 20, 0,
+      "first line here and \n  more words second \n  line with more \n  words to wrap \n  around nicely\n" },
+    { "  first line here\n    second line with\nmore words to wrap around nicely\n", 20, 0,
+      "  first line here \n    second line with\nmore words to wrap around nicely\n" },
+    { "averyveryverylongwordthatexceeds width\n", 10, 0, "averyveryverylongwordthatexceeds \nwidth\n" },
+    { "h\xc3\xa9llo w\xc3\xb6rld \xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87 caf\xc3\xa9 na\xc3\xafve r\xc3\xa9sum\xc3\xa9 \xc3\xbc" "ber\n", 12, 0,
+      "h\xc3\xa9llo w\xc3\xb6rld \n\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87 \ncaf\xc3\xa9 na\xc3\xafve \nr\xc3\xa9sum\xc3\xa9 \xc3\xbc" "ber\n" },
+    { "> quoted text that is long enough to wrap\n> more quoted\n", 20, 0,
+      "> quoted text that \n> is long enough to \n> wrap more quoted\n" },
+    { "> quoted\n>> deeper quote here and there\n", 20, 0,
+      "> quoted\n>> deeper quote here and there\n" },
+    { "  a\n  b\n  c d e\n", 20, 0, "  a b c d e\n" },
+    { "x\n  y\n  z\n", 20, 0, "x y z\n" },
+    { "ab  \ncd\n", 20, 0, "ab cd\n" },
+    { "ab.  \ncd\n", 20, 0, "ab.  cd\n" },
+    { "ab. \ncd\n", 20, 0, "ab. cd\n" },
+    { "\tTabbed first line with words\n\tsecond\n", 20, 0,
+      "\tTabbed first \n\tline with \n\twords second\n" },
+    { "para one is here with words\n\npara two is here\n", 20, 0,
+      "para one is here \nwith words\n\npara two is here\n" },
+    { "\n\npara two is here with many words\n", 20, 0,
+      "\n\npara two is here \nwith many words\n" },
+};
+
+static int
+bn_selftest_justify (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    char desc[128];
+    for (size_t i = 0; i < sizeof bn_justify_gnu_cases / sizeof bn_justify_gnu_cases[0]; i++) {
+        bn_st_load (bn_justify_gnu_cases[i].in);
+        bn_fill = bn_justify_gnu_cases[i].fill;
+        bn_trimblanks = bn_justify_gnu_cases[i].trim;
+        BN_ST_KEYS ("\x0a");
+        snprintf (desc, sizeof desc, "GNU nano justify case %zu (fill %ld%s)", i + 1,
+                  bn_justify_gnu_cases[i].fill, bn_justify_gnu_cases[i].trim ? ", -M" : "");
+        BN_ST_ASSERT (desc, bn_st_text_is (bn_justify_gnu_cases[i].out));
+    }
+
+    /* Deliberate difference from GNU nano 8.4, which measures a paragraph's
+       first line from the byte offset of the second line's lead: with a
+       one-byte tab lead below, that offset splits the leading "\xc3\xa9"
+       and GNU wraps "\xc3\xa9t\xc3\xa9 sea be a" (12 columns) early, as
+       "\xc3\xa9t\xc3\xa9 sea be \n\ta \n...".  Widths here are measured
+       from each line's own lead, giving GNU's result for "et\xc3\xa9". */
+    bn_st_load ("\xc3\xa9t\xc3\xa9 sea be a deed end.\n\tok! eerie\n");
+    bn_fill = 12;
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("first-line width is measured from its own lead",
+                  bn_st_text_is ("\xc3\xa9t\xc3\xa9 sea be a \n\tdeed \n\tend. \n\tok! \n\teerie\n"));
+
+    /* Default fill is the terminal width minus 8, as in GNU nano. */
+    bn_st_load ("aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk\n");
+    bn_cols = 28;
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("fill -8 on a 28-column terminal wraps at 20",
+                  bn_st_text_is ("aaaa bbbb cccc dddd \neeee ffff gggg hhhh \niiii jjjj kkkk\n"));
+    BN_ST_ASSERT ("justify reports the paragraph",
+                  strcmp (bn_status, "Justified paragraph") == 0);
+    BN_ST_ASSERT ("justify leaves the cursor below the paragraph",
+                  bn_cy == 3 && bn_cx == 0);
+    BN_ST_ASSERT ("justify is one undo step", bn_b.undo.n == 1 && bn_b.dirty);
+    BN_ST_KEYS ("\x1a");
+    BN_ST_ASSERT ("^Z restores the unjustified paragraph",
+                  bn_st_text_is ("aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk\n")
+                  && bn_b.undo.n == 0 && !bn_b.dirty);
+    BN_ST_KEYS ("\x19");
+    BN_ST_ASSERT ("^Y re-applies the justification",
+                  bn_st_text_is ("aaaa bbbb cccc dddd \neeee ffff gggg hhhh \niiii jjjj kkkk\n"));
+
+    /* Repeated ^J walks paragraph by paragraph, like GNU nano. */
+    bn_st_load ("p1 a b c d e f g h i\nnext\n\np2 words long long\n");
+    bn_fill = 10;
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("first ^J justifies the first paragraph only",
+                  bn_st_text_is ("p1 a b c d \ne f g h i \nnext\n\np2 words long long\n"));
+    BN_ST_ASSERT ("cursor lands on the blank line after it", bn_cy == 3 && bn_cx == 0);
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("second ^J moves on to the next paragraph",
+                  bn_st_text_is ("p1 a b c d \ne f g h i \nnext\n\np2 words \nlong long\n"));
+
+    /* M-J justifies every paragraph as one edit. */
+    bn_st_load ("p1 a b c d e f g h i\nnext\n\np2 words long long\n");
+    bn_fill = 10;
+    BN_ST_KEYS ("\x1bj");
+    BN_ST_ASSERT ("M-J justifies the whole buffer",
+                  bn_st_text_is ("p1 a b c d \ne f g h i \nnext\n\np2 words \nlong long\n")
+                  && bn_b.undo.n == 1 && strcmp (bn_status, "Justified file") == 0);
+
+    /* With the mark set, only the marked lines are justified. */
+    bn_st_load ("a b c d e f\n\ng h i j k l\n\nm n o p q r\n");
+    bn_fill = 6;
+    bn_cy = 2; bn_cx = 0;
+    BN_ST_KEYS ("\x1b" "a");
+    bn_cy = 4; bn_cx = 3;
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("marked justify touches only the marked paragraphs",
+                  bn_st_text_is ("a b c d e f\n\ng h i \nj k l\n\nm n o \np q r\n"));
+    BN_ST_ASSERT ("marked justify unsets the mark and reports the selection",
+                  !bn_mark_active && strcmp (bn_status, "Justified selection") == 0);
+
+    /* An already-justified paragraph is not an edit. */
+    bn_st_load ("short line\n");
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("already-justified paragraph adds no undo step and stays clean",
+                  bn_b.undo.n == 0 && !bn_b.dirty
+                  && strcmp (bn_status, "Paragraph already justified") == 0);
+
+    bn_st_load ("\n\n   \n");
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("blank buffer reports no paragraph",
+                  strcmp (bn_status, "No paragraph to justify") == 0 && bn_b.undo.n == 0);
+
+    /* A very narrow fill puts each word on its own line. */
+    bn_st_load ("one two three\n");
+    bn_fill = 1;
+    BN_ST_KEYS ("\x0a");
+    BN_ST_ASSERT ("fill 1 breaks after every word", bn_st_text_is ("one \ntwo \nthree\n"));
+
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+static int
+bn_st_write_file (const char *dir, const char *name, const char *body, char *path, size_t psz)
+{
+    snprintf (path, psz, "%s/%s", dir, name);
+    int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC, 0700);
+    if (fd < 0) return -1;
+    size_t n = strlen (body);
+    int ok = write (fd, body, n) == (ssize_t) n;
+    close (fd);
+    return ok ? 0 : -1;
+}
+
+static int
+bn_st_count_fds (void)
+{
+    DIR *d = opendir ("/proc/self/fd");
+    if (!d) return -1;
+    int n = 0;
+    while (readdir (d)) n++;
+    closedir (d);
+    return n;
+}
+
+static void
+bn_st_set_speller (const char *dir, const char *script)
+{
+    char cmd[512];
+    snprintf (cmd, sizeof cmd, "/proc/self/exe %s/%s", dir, script);
+    free (bn_speller);
+    bn_speller = strdup (cmd);
+}
+
+static int
+bn_selftest_spell (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    char dir[] = "/tmp/nano-spell.XXXXXX";
+    if (!mkdtemp (dir)) { printf ("not ok 1 - mkdtemp\n1..1\n"); return 1; }
+    char path[512];
+    /* A fixed-dictionary helper with spell(1)'s interface, written in the
+       shell itself so the fixture needs no external program. */
+    bn_st_write_file (dir, "ok.sh",
+        "while IFS= read -r line || [[ -n $line ]]; do\n"
+        "  for w in $line; do\n"
+        "    case $w in teh|wrold|recieve|na$'\\xc3\\xaf've) printf '%s\\n' \"$w\";; esac\n"
+        "  done\n"
+        "done\n", path, sizeof path);
+    bn_st_write_file (dir, "crlf.sh", "printf 'teh\\r\\n   \\n\\nteh\\n'\n", path, sizeof path);
+    bn_st_write_file (dir, "fail.sh", "exit 3\n", path, sizeof path);
+    bn_st_write_file (dir, "sig.sh", "kill -KILL $$\n", path, sizeof path);
+    bn_st_write_file (dir, "hang.sh", "while :; do :; done\n", path, sizeof path);
+    bn_st_write_file (dir, "linger.sh", "exec >&-\nwhile :; do :; done\n", path, sizeof path);
+    bn_st_write_file (dir, "big.sh",
+        "s=xxxxxxxxxxxxxxx; s=$s$s$s$s$s$s$s$s; s=$s$s$s$s$s$s$s$s\n"
+        "while :; do printf '%s\\n' \"$s\"; done\n", path, sizeof path);
+    bn_st_write_file (dir, "noread.sh", "printf 'teh\\n'\n", path, sizeof path);
+
+    sigset_t mask_before, mask_after;
+    sigprocmask (SIG_SETMASK, NULL, &mask_before);
+    struct sigaction pipe_before, pipe_after;
+    sigaction (SIGPIPE, NULL, &pipe_before);
+    int fds_before = bn_st_count_fds ();
+
+    /* Replace one word everywhere, then Esc out of the next prompt. */
+    bn_st_load ("teh cat saw teh wrold near tehran\n");
+    bn_st_set_speller (dir, "ok.sh");
+    bn_cy = 0; bn_cx = 33;
+    BN_ST_KEYS ("\x14", "\x7f", "\x7f", "\x7f", "t", "h", "e", "e", "\r", "\x1b");
+    BN_ST_ASSERT ("spell replaces every whole-word occurrence, not substrings",
+                  bn_st_text_is ("thee cat saw thee wrold near tehran\n"));
+    BN_ST_ASSERT ("Esc at the second word cancels the rest",
+                  strcmp (bn_status, "Spell check cancelled (2 replaced)") == 0);
+    BN_ST_ASSERT ("the cursor returns to its place, shifted by the edit",
+                  bn_cy == 0 && bn_cx == 35);
+    BN_ST_ASSERT ("one word's replacements are one undo step", bn_b.undo.n == 1);
+    BN_ST_KEYS ("\x1a");
+    BN_ST_ASSERT ("^Z restores the misspellings",
+                  bn_st_text_is ("teh cat saw teh wrold near tehran\n"));
+
+    /* Input that ends inside the prompt cancels instead of spinning. */
+    bn_st_load ("teh cat\n");
+    BN_ST_KEYS ("\x14");
+    BN_ST_ASSERT ("end of input inside the replacement prompt cancels the check",
+                  strcmp (bn_status, "Spell check cancelled (0 replaced)") == 0
+                  && bn_st_text_is ("teh cat\n"));
+
+    /* Enter on an unchanged word skips it. */
+    bn_st_load ("teh cat saw teh wrold near tehran\n");
+    BN_ST_KEYS ("\x14", "\r", "\r");
+    BN_ST_ASSERT ("Enter on unchanged words finishes without edits",
+                  bn_st_text_is ("teh cat saw teh wrold near tehran\n")
+                  && bn_b.undo.n == 0 && !bn_b.dirty
+                  && strcmp (bn_status, "Finished checking spelling (0 replaced)") == 0);
+
+    /* Second word replaced too; the multibyte word is edited by cluster. */
+    bn_st_load ("teh na\xc3\xafve wrold\n");
+    BN_ST_KEYS ("\x14", "\r", "\x7f", "\x7f", "\x7f", "\x7f", "a", "i", "v", "e", "\r",
+                "\x7f", "\x7f", "\x7f", "\x7f", "\x7f", "w", "o", "r", "l", "d", "\r");
+    BN_ST_ASSERT ("UTF-8 word replaced after grapheme-wise prompt editing",
+                  bn_st_text_is ("teh naive world\n")
+                  && strcmp (bn_status, "Finished checking spelling (2 replaced)") == 0);
+
+    /* With the mark set, only the region is sent and edited, and the
+       selection survives the check. */
+    bn_st_load ("teh one\nteh two\n");
+    bn_cy = 1; bn_cx = 0;
+    BN_ST_KEYS ("\x1b" "a");
+    bn_cy = 1; bn_cx = 7;
+    BN_ST_KEYS ("\x14", "\x7f", "\x7f", "\x7f", "t", "h", "e", "\r");
+    BN_ST_ASSERT ("marked spell check edits only the region",
+                  bn_st_text_is ("teh one\nthe two\n"));
+    BN_ST_ASSERT ("the mark stays set at its anchor",
+                  bn_mark_active && bn_mark_cy == 1 && bn_mark_cx == 0);
+
+    /* Helper output is trimmed and de-duplicated. */
+    bn_st_load ("teh teh\n");
+    bn_st_set_speller (dir, "crlf.sh");
+    BN_ST_KEYS ("\x14", "\x7f", "\x7f", "\x7f", "t", "h", "e", "\r");
+    BN_ST_ASSERT ("CRLF/blank helper lines are trimmed and duplicates prompt once",
+                  bn_st_text_is ("the the\n")
+                  && strcmp (bn_status, "Finished checking spelling (2 replaced)") == 0);
+
+    /* A helper that never reads its input still works (no SIGPIPE). */
+    {
+        size_t big = 200 * 1024;
+        char *text = malloc (big + 1);
+        for (size_t i = 0; i < big; i += 4) memcpy (text + i, "teh ", 4);
+        text[big] = '\0';
+        bn_st_load (text);
+        free (text);
+        bn_st_set_speller (dir, "noread.sh");
+        BN_ST_KEYS ("\x14", "\r");
+        BN_ST_ASSERT ("helper that ignores 200 KiB of input is still read",
+                      strcmp (bn_status, "Finished checking spelling (0 replaced)") == 0);
+    }
+
+    /* Failures leave the buffer alone and say why. */
+    static const struct { const char *script; const char *status; int timeout; } fail_cases[] = {
+        { "fail.sh", "Spell helper failed (exit 3)", 10000 },
+        { "sig.sh", "Spell helper killed by signal 9", 10000 },
+        { "hang.sh", "Spell helper timed out", 300 },
+        { "linger.sh", "Spell helper timed out", 300 },
+        { "big.sh", "Spell helper output too large", 20000 },
+    };
+    char desc[160];
+    for (size_t i = 0; i < sizeof fail_cases / sizeof fail_cases[0]; i++) {
+        bn_st_load ("teh wrold\n");
+        bn_st_set_speller (dir, fail_cases[i].script);
+        bn_spell_timeout_ms = fail_cases[i].timeout;
+        BN_ST_KEYS ("\x14");
+        snprintf (desc, sizeof desc, "%s: status \"%s\", buffer untouched",
+                  fail_cases[i].script, fail_cases[i].status);
+        BN_ST_ASSERT (desc, strstr (bn_status, fail_cases[i].status) != NULL
+                      && bn_st_text_is ("teh wrold\n") && bn_b.undo.n == 0);
+    }
+    bn_spell_timeout_ms = 10000;
+
+    bn_st_load ("teh\n");
+    free (bn_speller);
+    bn_speller = strdup ("/nonexistent/opus-nano-helper --list");
+    BN_ST_KEYS ("\x14");
+    BN_ST_ASSERT ("missing helper reports not found",
+                  strstr (bn_status, "Spell helper not found: /nonexistent/opus-nano-helper") != NULL);
+    free (bn_speller);
+    bn_speller = strdup (dir);
+    BN_ST_KEYS ("\x14");
+    BN_ST_ASSERT ("non-executable helper reports cannot run",
+                  strstr (bn_status, "Spell helper cannot run") != NULL);
+    free (bn_speller);
+    bn_speller = strdup (" \t ");
+    BN_ST_KEYS ("\x14");
+    BN_ST_ASSERT ("blank helper command is rejected without running anything",
+                  strcmp (bn_status, "No spell helper configured") == 0);
+    free (bn_speller);
+    bn_speller = NULL;
+
+    int status = 0;
+    pid_t zombie = waitpid (-1, &status, WNOHANG);
+    BN_ST_ASSERT ("no helper is left unreaped", zombie <= 0);
+    BN_ST_ASSERT ("no descriptor leaks across helper runs",
+                  bn_st_count_fds () == fds_before);
+    sigprocmask (SIG_SETMASK, NULL, &mask_after);
+    BN_ST_ASSERT ("SIGCHLD mask restored",
+                  sigismember (&mask_after, SIGCHLD) == sigismember (&mask_before, SIGCHLD));
+    sigaction (SIGPIPE, NULL, &pipe_after);
+    BN_ST_ASSERT ("SIGPIPE disposition restored",
+                  pipe_after.sa_handler == pipe_before.sa_handler);
+
+    static const char *const names[] = { "ok.sh", "crlf.sh", "fail.sh", "sig.sh", "hang.sh",
+                                         "linger.sh", "big.sh", "noread.sh" };
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+        snprintf (path, sizeof path, "%s/%s", dir, names[i]);
+        unlink (path);
+    }
+    rmdir (dir);
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+static int
+bn_selftest_complete (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    bn_st_load ("apple\napricot\nap\nape\napex\n");
+    bn_cy = 2; bn_cx = 2;
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("first ^] inserts the first candidate in buffer order",
+                  bn_st_text_is ("apple\napricot\napple\nape\napex\n")
+                  && bn_cy == 2 && bn_cx == 5
+                  && strcmp (bn_status, "Completion 1 of 4") == 0);
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("second ^] cycles to the next candidate",
+                  bn_st_text_is ("apple\napricot\napricot\nape\napex\n") && bn_cx == 7);
+    BN_ST_KEYS ("\x1d", "\x1d");
+    BN_ST_ASSERT ("candidates after the cursor follow",
+                  bn_st_text_is ("apple\napricot\napex\nape\napex\n"));
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("after the last candidate the fragment returns",
+                  bn_st_text_is ("apple\napricot\nap\nape\napex\n")
+                  && bn_cx == 2 && strcmp (bn_status, "No further matches") == 0);
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("the next ^] starts the cycle again",
+                  bn_st_text_is ("apple\napricot\napple\nape\napex\n"));
+    BN_ST_KEYS ("\x1a");
+    BN_ST_ASSERT ("^Z undoes one completion step",
+                  bn_st_text_is ("apple\napricot\nap\nape\napex\n"));
+
+    bn_st_load ("apple apple\nap\n");
+    bn_cy = 1; bn_cx = 2;
+    BN_ST_KEYS ("\x1d", "\x1d");
+    BN_ST_ASSERT ("duplicate words are offered once",
+                  bn_st_text_is ("apple apple\nap\n")
+                  && strcmp (bn_status, "No further matches") == 0);
+
+    /* Typing between presses starts a new completion of the new fragment. */
+    bn_st_load ("apple\napplesauce\nap\n");
+    bn_cy = 2; bn_cx = 2;
+    BN_ST_KEYS ("\x1d", "s", "\x1d");
+    BN_ST_ASSERT ("an edit between presses restarts from the new fragment",
+                  bn_st_text_is ("apple\napplesauce\napplesauce\n"));
+
+    bn_st_load ("zebra\nzeb\n");
+    bn_cy = 0; bn_cx = 3;
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("the word under the cursor is not its own candidate",
+                  bn_st_text_is ("zebra\nzeb\n") && strcmp (bn_status, "No matches") == 0);
+
+    bn_st_load ("alpha \n");
+    bn_cx = 6;
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("no fragment before the cursor is reported",
+                  bn_st_text_is ("alpha \n")
+                  && strcmp (bn_status, "No word fragment to complete") == 0
+                  && bn_b.undo.n == 0);
+
+    bn_st_load ("na\xc3\xafvet\xc3\xa9 \xc3\xbc" "ber\n\xc3\xbc\n");
+    bn_cy = 1; bn_cx = 2;
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("UTF-8 fragment completes to a UTF-8 word",
+                  bn_st_text_is ("na\xc3\xafvet\xc3\xa9 \xc3\xbc" "ber\n\xc3\xbc" "ber\n")
+                  && bn_cx == 5);
+
+    /* The selection survives completion and follows the inserted text. */
+    bn_st_load ("selection anchor\nsel\n");
+    bn_cy = 1; bn_cx = 0;
+    BN_ST_KEYS ("\x1b" "a");
+    bn_cx = 3;
+    BN_ST_KEYS ("\x1d");
+    BN_ST_ASSERT ("completion keeps the mark and its anchor",
+                  bn_st_text_is ("selection anchor\nselection\n")
+                  && bn_mark_active && bn_mark_cy == 1 && bn_mark_cx == 0);
+    BN_ST_KEYS ("\x1b^");
+    BN_ST_ASSERT ("the marked region now copies the completed word",
+                  bn_clip && bn_clip_len == 9 && memcmp (bn_clip, "selection", 9) == 0);
+
+    free (bn_clip); bn_clip = NULL; bn_clip_len = 0;
+    bn_yank_ring_clear ();
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+static int
+bn_selftest_selection (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    /* a, thumbs-up + skin tone (one cluster, 8 bytes), e + combining acute
+       (one cluster, 3 bytes), CJK (one cluster, 3 bytes, 2 cells). */
+    const char *line = "a\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd" "e\xcc\x81\xe4\xb8\xad\n";
+    bn_st_load (line);
+    BN_ST_KEYS ("\x1b[C");
+    BN_ST_ASSERT ("right steps over the ASCII cluster", bn_cx == 1);
+    BN_ST_KEYS ("\x1b[C");
+    BN_ST_ASSERT ("right steps over the whole emoji+modifier cluster", bn_cx == 9);
+    BN_ST_KEYS ("\x1b[C");
+    BN_ST_ASSERT ("right steps over e+combining acute", bn_cx == 12);
+    BN_ST_KEYS ("\x1b[C");
+    BN_ST_ASSERT ("right steps over the CJK cluster to line end", bn_cx == 15);
+    BN_ST_KEYS ("\x1b[D", "\x1b[D");
+    BN_ST_ASSERT ("left steps back cluster by cluster", bn_cx == 9);
+    BN_ST_KEYS ("\x7f");
+    BN_ST_ASSERT ("backspace removes the whole emoji cluster",
+                  bn_st_text_is ("ae\xcc\x81\xe4\xb8\xad\n") && bn_cx == 1);
+    BN_ST_KEYS ("\x1a");
+
+    /* Mark across clusters, move, copy. */
+    bn_st_load (line);
+    BN_ST_KEYS ("\x1b" "a", "\x1b[C", "\x1b[C", "\x1b[C");
+    BN_ST_ASSERT ("the mark stays set while the cursor moves",
+                  bn_mark_active && bn_mark_cy == 0 && bn_mark_cx == 0 && bn_cx == 12);
+    {
+        fflush (stdout);
+        char tmpl[] = "/tmp/nano-render.XXXXXX";
+        int fd = mkstemp (tmpl);
+        int saved = dup (STDOUT_FILENO);
+        dup2 (fd, STDOUT_FILENO);
+        bn_render ();
+        dup2 (saved, STDOUT_FILENO);
+        close (saved);
+        char buf[4096] = {0};
+        lseek (fd, 0, SEEK_SET);
+        ssize_t n = read (fd, buf, sizeof buf - 1);
+        close (fd);
+        unlink (tmpl);
+        const char *want = "\033[7ma\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd" "e\xcc\x81\033[0m\xe4\xb8\xad";
+        BN_ST_ASSERT ("render draws exactly the marked clusters in reverse video",
+                      n > 0 && memmem (buf, (size_t) n, want, strlen (want)) != NULL);
+    }
+    BN_ST_KEYS ("\x1b^");
+    BN_ST_ASSERT ("M-^ copies whole clusters", bn_clip && bn_clip_len == 12
+                  && memcmp (bn_clip, line, 12) == 0 && !bn_mark_active);
+
+    /* The anchor follows edits before it and survives undo. */
+    bn_st_load ("first\nsecond line\n");
+    bn_cy = 1; bn_cx = 7;
+    BN_ST_KEYS ("\x1b" "a");
+    bn_cy = 1; bn_cx = 0;
+    BN_ST_KEYS ("X", "Y");
+    BN_ST_ASSERT ("typing before the anchor on its line shifts it",
+                  bn_mark_active && bn_mark_cy == 1 && bn_mark_cx == 9);
+    bn_cy = 0; bn_cx = 0;
+    BN_ST_KEYS ("\r");
+    BN_ST_ASSERT ("a new line above moves the anchor down",
+                  bn_mark_active && bn_mark_cy == 2 && bn_mark_cx == 9);
+    BN_ST_KEYS ("\x1a");
+    BN_ST_ASSERT ("undo keeps the selection active",
+                  bn_mark_active && bn_st_text_is ("first\nXYsecond line\n"));
+    BN_ST_ASSERT ("undo maps the anchor back through the inverse edit",
+                  bn_mark_cy == 1 && bn_mark_cx == 9);
+    bn_cy = 1; bn_cx = 10;
+    BN_ST_KEYS ("\x1b^");
+    BN_ST_ASSERT ("copy after edits covers the intended text",
+                  bn_clip && bn_clip_len == 1 && bn_clip[0] == 'l');
+
+    /* Vertical movement onto a line of wide clusters snaps to a boundary. */
+    bn_st_load ("abcdef\n\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\n");
+    bn_cx = 4;
+    BN_ST_KEYS ("\x1b[B");
+    BN_ST_ASSERT ("down onto CJK snaps the cursor to a cluster start",
+                  bn_cy == 1 && bn_cx == 3);
+
+    free (bn_clip); bn_clip = NULL; bn_clip_len = 0;
+    bn_yank_ring_clear ();
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+/* The incremental render-line cache must equal a full re-split after any
+   edit sequence. */
+static int
+bn_st_lines_match_full_sync (void)
+{
+    size_t n = bn_b.n_lines;
+    bn_line *copy = malloc ((n ? n : 1) * sizeof *copy);
+    if (!copy) return 0;
+    for (size_t i = 0; i < n; i++) {
+        copy[i] = bn_b.lines[i];
+        copy[i].abs = bn_labs (i);
+        copy[i].data = malloc (bn_b.lines[i].len + 1);
+        memcpy (copy[i].data, bn_b.lines[i].data ? bn_b.lines[i].data : "", bn_b.lines[i].len);
+    }
+    int trailing = bn_b.had_trailing_nl;
+    bn_sync_lines_from_pt ();
+    int ok = n == bn_b.n_lines && trailing == bn_b.had_trailing_nl;
+    for (size_t i = 0; i < n; i++) {
+        if (ok && (copy[i].len != bn_b.lines[i].len || copy[i].abs != bn_b.lines[i].abs
+                   || memcmp (copy[i].data, bn_b.lines[i].data ? bn_b.lines[i].data : "",
+                              copy[i].len) != 0))
+            ok = 0;
+        free (copy[i].data);
+    }
+    free (copy);
+    return ok;
+}
+
+static int
+bn_selftest_linecache (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    bn_st_load ("alpha\nbeta\n\ngamma delta\nepsilon");
+    unsigned long seed = 12345;
+    int all_ok = 1, first_bad = -1;
+    static const char *const ins[] = { "", "x", "\n", "ab\ncd", "\n\n", "\xe4\xb8\xad", "tail\n" };
+    for (int step = 0; step < 2000 && all_ok; step++) {
+        seed = seed * 6364136223846793005UL + 1442695040888963407UL;
+        size_t total = bn_b.pt.total_len;
+        size_t a = total ? (size_t) ((seed >> 33) % (total + 1)) : 0;
+        size_t len = (size_t) ((seed >> 20) % 4);
+        size_t b = a + len > total ? total : a + len;
+        const char *s = ins[(seed >> 8) % (sizeof ins / sizeof ins[0])];
+        if (step % 50 == 49) bn_undo ();
+        else bn_piece_replace (a, b, s, strlen (s), a + strlen (s));
+        if (!bn_st_lines_match_full_sync ()) { all_ok = 0; first_bad = step; }
+    }
+    if (!all_ok) printf ("# first mismatch at step %d\n", first_bad);
+    BN_ST_ASSERT ("2000 random edits keep the line cache equal to a full re-split", all_ok);
+    {
+        size_t fl = 0, counted = 0;
+        char *f = bn_pt_flatten (&bn_b.pt, &fl);
+        for (size_t i = 0; i < bn_b.pt.n_pieces; i++) counted += bn_b.pt.pieces[i].line_count;
+        BN_ST_ASSERT ("piece line counts derived from split sides stay exact",
+                      f && counted == bn_pt_count_nl (f, fl) && counted == bn_b.pt.total_lines
+                      && bn_b.pt.n_pieces > 10);
+        free (f);
+    }
+
+    /* Undo the whole history back to the original text. */
+    while (bn_b.undo.n) bn_undo ();
+    BN_ST_ASSERT ("undoing every edit restores the original",
+                  bn_st_text_is ("alpha\nbeta\n\ngamma delta\nepsilon"));
+
+    /* Typing a run extends one piece instead of adding one per key. */
+    bn_st_load ("0123456789\n");
+    bn_cx = 5;
+    for (int i = 0; i < 200; i++) bn_insert_bytes ("k", 1);
+    BN_ST_ASSERT ("200 typed bytes add at most two pieces", bn_b.pt.n_pieces <= 3);
+    for (int i = 0; i < 200; i++) bn_undo ();
+    BN_ST_ASSERT ("each coalesced keystroke still undoes separately",
+                  bn_st_text_is ("0123456789\n") && bn_b.undo.n == 0);
+    /* Undo half of a coalesced run, then type at its end: the shortened
+       piece no longer ends at the add buffer's end, so the new byte must
+       get its own piece rather than resurrect the undone one. */
+    bn_cy = 0; bn_cx = 5;
+    bn_insert_bytes ("a", 1);
+    bn_insert_bytes ("b", 1);
+    bn_undo ();
+    bn_cy = 0; bn_cx = 6;
+    bn_insert_bytes ("Q", 1);
+    BN_ST_ASSERT ("typing after a partial undo writes fresh add-buffer bytes",
+                  bn_st_text_is ("01234aQ56789\n"));
+    BN_ST_ASSERT ("line cache consistent after coalesced edits", bn_st_lines_match_full_sync ());
+
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+#undef BN_ST_ASSERT
+#undef BN_ST_KEYS
+
 int
 nano_builtin (WORD_LIST *list)
 {
@@ -3820,6 +5559,61 @@ nano_builtin (WORD_LIST *list)
         return bn_selftest_atomic_save () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     if (list && list->word && strcmp (list->word->word, "selftest-undo-redo") == 0)
         return bn_selftest_undo_redo () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-justify") == 0)
+        return bn_selftest_justify () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-spell") == 0)
+        return bn_selftest_spell () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-complete") == 0)
+        return bn_selftest_complete () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-selection") == 0)
+        return bn_selftest_selection () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-linecache") == 0)
+        return bn_selftest_linecache () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+
+    /* Options are reset on every call: the builtin's state lives in the
+       shell process and must not leak into the next invocation. */
+    bn_fill = -8;
+    bn_trimblanks = 0;
+    free (bn_speller);
+    bn_speller = NULL;
+    while (list && list->word && list->word->word[0] == '-' && list->word->word[1]) {
+        const char *w = list->word->word;
+        const char *num = NULL;
+        if (strcmp (w, "--") == 0) { list = list->next; break; }
+        if (strcmp (w, "-M") == 0 || strcmp (w, "--trimblanks") == 0)
+            bn_trimblanks = 1;
+        else if (strncmp (w, "--fill=", 7) == 0)
+            num = w + 7;
+        else if (strcmp (w, "-r") == 0 || strcmp (w, "--fill") == 0) {
+            if (!list->next) { builtin_usage (); return EX_USAGE; }
+            list = list->next;
+            num = list->word->word;
+        } else if (strncmp (w, "-r", 2) == 0)
+            num = w + 2;
+        else if (strncmp (w, "--speller=", 10) == 0) {
+            free (bn_speller);
+            bn_speller = strdup (w + 10);
+        } else {
+            builtin_error ("%s: invalid option", w);
+            builtin_usage ();
+            return EX_USAGE;
+        }
+        if (num) {
+            char *end = NULL;
+            errno = 0;
+            long v = strtol (num, &end, 10);
+            if (!*num || *end || errno || v > 100000 || v < -100000) {
+                builtin_error ("%s: invalid fill width", num);
+                return EX_USAGE;
+            }
+            bn_fill = v;
+        }
+        list = list->next;
+    }
+    if (list && list->next) {
+        builtin_error ("only one file can be edited");
+        return EX_USAGE;
+    }
 
     if (!isatty (STDIN_FILENO) || !isatty (STDOUT_FILENO)) {
         builtin_error ("nano needs a tty");
@@ -3833,6 +5627,9 @@ nano_builtin (WORD_LIST *list)
     bn_softwrap = 0;
     bn_status[0] = '\0';
     bn_status_until = 0;
+    bn_mark_active = 0;
+    bn_keyq_set (NULL, 0);
+    bn_complete_reset ();
     free (bn_clip);
     bn_clip = NULL;
     bn_clip_len = 0;
@@ -3850,7 +5647,12 @@ nano_builtin (WORD_LIST *list)
 
     char keybuf[16];
     for (;;) {
-        bn_render ();
+        /* Like GNU nano, do not draw while more input is already waiting:
+           a pasted or fast-typed burst is drawn once, when it has been
+           consumed, instead of once per byte. */
+        struct pollfd pending = { STDIN_FILENO, POLLIN, 0 };
+        if (poll (&pending, 1, 0) <= 0 || !(pending.revents & POLLIN))
+            bn_render ();
         int k = bn_read_key (keybuf, sizeof keybuf);
         if (k < 0) break;
         if (k == 0) continue;
@@ -3874,6 +5676,10 @@ nano_builtin (WORD_LIST *list)
     bn_clip = NULL;
     bn_clip_len = 0;
     bn_yank_ring_clear ();
+    bn_complete_reset ();
+    bn_mark_active = 0;
+    free (bn_speller);
+    bn_speller = NULL;
     memset (&bn_b, 0, sizeof bn_b);
 
     return EXECUTION_SUCCESS;
@@ -3882,7 +5688,11 @@ nano_builtin (WORD_LIST *list)
 char *nano_doc[] = {
     "Minimal nano-like text editor (bash-os Phase V V-4 v2, Stage 16 piece-table core).",
     "",
-    "    nano [FILE]",
+    "    nano [-r N | --fill=N] [-M | --trimblanks] [--speller=CMD] [--] [FILE]",
+    "",
+    "Options: -r/--fill sets the justify width (N <= 0 is relative to the",
+    "      terminal width; default -8, as in GNU nano); -M/--trimblanks drops",
+    "      the blanks at justified line breaks; --speller names the spell helper.",
     "",
     "Keys: arrows / Home / End / PgUp / PgDn — move",
     "      ^O Write-Out (prompts for filename, prefilled with current path)",
@@ -3890,7 +5700,17 @@ char *nano_doc[] = {
     "      ^X exit — if buffer is modified, prompts Y=save / N=discard / ESC=cancel",
     "      ^K cut line/marked region, ^U paste, ^Z/M-U undo, ^Y/M-E redo",
     "      ^B/^F left/right, ^P/^N up/down, ^I tab, ^R insert file",
-    "      ^J/^T/^] report deferred justify/spell/completion",
+    "      ^J justify the paragraph at or after the cursor (with the mark set:",
+    "         the marked lines); M-J justify the whole buffer; one ^Z undoes it",
+    "      ^T spell check (marked region or buffer): a word-list helper --",
+    "         --speller=CMD, else $NANO_SPELLER, else spell -- reads the text on",
+    "         stdin and prints misspelled words; it is run with execvp, without",
+    "         a shell or the terminal, capped at 1 MiB / 4096 words / 10 s.",
+    "         Each word opens \"Edit a replacement\": Enter replaces every",
+    "         whole-word occurrence, Enter unchanged skips, Esc stops",
+    "      ^] complete the word before the cursor from the buffer's words;",
+    "         repeat to cycle, the bare fragment returns after the last match",
+    "      M-A set/unset the mark (shown in reverse video; it follows edits)",
     "      M-W toggle soft-wrap rendering for overlong lines",
     "      M-{ / M-} rotate older/newer yank-ring entries",
     "      Backspace, Enter, printable ASCII — edit",
@@ -3898,6 +5718,8 @@ char *nano_doc[] = {
     "v2 — UTF-8 read + grapheme-cluster cursor (left/right arrows step",
     "by clusters not bytes) + cell-width-aware render via libgrapheme.",
     "Stage 16 v1 — edits, save, and undo/redo use an internal piece table.",
+    "Edits patch the render-line cache in place with lazily shifted line",
+    "  offsets, and no frame is drawn while more input is already waiting.",
     "G03 SAVE-PROMPTS — ^O always prompts (real-nano parity), modified-buffer",
     "  guard fires on ^X, save-as updates bn_b.path so subsequent ^S targets",
     "  the new file. Selftest: `nano selftest-saveprompt` (TAP-13).",
@@ -3930,6 +5752,6 @@ struct builtin nano_struct = {
     nano_builtin,
     BUILTIN_ENABLED,
     nano_doc,
-    "nano [FILE]",
+    "nano [-r N] [-M] [--speller=CMD] [FILE]",
     0
 };
