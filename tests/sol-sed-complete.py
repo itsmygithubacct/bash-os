@@ -97,6 +97,33 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-complete-') as tmp:
             finally:
                 if p.poll() is None:p.kill();p.wait()
                 os.close(master);os.close(slave)
+    # poll readiness can require VMIN bytes even when a one-byte read would
+    # succeed. Check both a queued suffix and a producer that delivers it later.
+    for delayed in (False,True):
+        master,slave=pty.openpty();tty.setraw(slave)
+        attrs=termios.tcgetattr(slave);attrs[6][termios.VMIN]=5
+        termios.tcsetattr(slave,termios.TCSANOW,attrs)
+        p=subprocess.Popen([binary,'-c',"sed -u 'p;$!q'"],stdin=slave,
+                           stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
+        try:
+            os.write(master,b'a\n'+(b'' if delayed else b'\0'))
+            prefix=b''
+            if delayed:
+                assert select.select([p.stdout],[],[],5)[0], 'first pattern was not delivered'
+                prefix=p.stdout.readline()
+                assert prefix==b'a\n', prefix
+                os.write(master,b'\0')
+            try:
+                out,err=p.communicate(timeout=5)
+                check(('raw VMIN output',delayed),(p.returncode,prefix+out),(0,b'a\na\n'))
+            except subprocess.TimeoutExpired:
+                check(('raw VMIN output',delayed),'blocked',(0,b'a\na\n'))
+                p.kill();p.wait()
+            os.set_blocking(slave,False)
+            check(('raw VMIN suffix',delayed),os.read(slave,1),b'\0')
+        finally:
+            if p.poll() is None:p.kill();p.wait()
+            os.close(master);os.close(slave)
     # A canonical EOF marker must let dollar finish while the PTY stays open.
     master,slave=pty.openpty()
     p=subprocess.Popen([binary,'-c',"sed -n '$p'"],stdin=slave,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)

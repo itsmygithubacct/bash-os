@@ -1423,21 +1423,38 @@ bs_input_peek (bs_input *in)
 #if defined (FIONREAD)
         if (S_ISFIFO (sb.st_mode) || isatty (fd)) {
             struct pollfd ready = { fd, POLLIN, 0 };
-            int timeout = -1;
+            int timeout = -1, raw_threshold = 0;
             struct termios settings;
             if (isatty (fd) && tcgetattr (fd, &settings) == 0
-                && !(settings.c_lflag & ICANON) && settings.c_cc[VMIN] == 0)
-                timeout = settings.c_cc[VTIME] * 100;
-            int rc;
-            do rc = poll (&ready, 1, timeout); while (rc < 0 && errno == EINTR && !bs_interrupted ());
-            int available = 0;
-            if (rc < 0 || ioctl (fd, FIONREAD, &available) < 0) {
-                in->error = 4;
+                && !(settings.c_lflag & ICANON)) {
+                if (settings.c_cc[VMIN] == 0)
+                    timeout = settings.c_cc[VTIME] * 100;
+                else if (settings.c_cc[VMIN] > 1) {
+                    /* A one-byte read needs only one byte, but poll can wait
+                       for VMIN bytes. Recheck the count without changing the
+                       caller's terminal settings or consuming its input. */
+                    timeout = 50;
+                    raw_threshold = 1;
+                }
+            }
+            for (;;) {
+                int available = 0;
+                if (bs_interrupted ()) return EOF;
+                if (ioctl (fd, FIONREAD, &available) < 0) {
+                    in->error = 4; return EOF;
+                }
+                if (available > 0) return 0;
+                int rc;
+                do rc = poll (&ready, 1, timeout); while (rc < 0 && errno == EINTR && !bs_interrupted ());
+                if (rc < 0 || ioctl (fd, FIONREAD, &available) < 0) {
+                    in->error = 4; return EOF;
+                }
+                if (available > 0) return 0;
+                if (rc == 0 && raw_threshold) continue;
+                /* Readable canonical tty with zero bytes denotes an EOF
+                   marker; a drained pipe reports POLLHUP. */
                 return EOF;
             }
-            /* Readable canonical tty with zero bytes denotes an EOF marker;
-               a drained pipe reports POLLHUP. Neither requires taking a byte. */
-            return available > 0 ? 0 : EOF;
         }
 #endif
     }

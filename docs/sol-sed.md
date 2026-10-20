@@ -44,6 +44,9 @@ EOF marker followed by already queued data cannot be distinguished from data
 by these queries; exact GNU last-line classification in that case remains a
 limitation. Unusual nonseekable devices without a supported peek facility
 retain the stdio fallback. Non-Linux execution needs platform qualification.
+For raw terminals with `VMIN > 1`, readiness may require more bytes than a
+one-byte lookahead. The builtin checks the byte count first and rechecks at
+bounded intervals while waiting, preserving the caller's terminal settings.
 
 `q` flushes pending append data and terminates an unterminated printed pattern,
 matching GNU. `Q` discards pending appends. `l` reserves its final column for
@@ -115,7 +118,7 @@ they do not measure or qualify subsequent corrections.
 ## Current correction checks
 
 The correction passes 977 head/sed parity checks, 276 focused cycle/regex
-checks, 308 framing/CLI/terminal checks, 1,008 binary regex comparisons, 12
+checks, 312 framing/CLI/terminal checks, 1,008 binary regex comparisons, 12
 owned-process signal checks, 8 stream checks and 156 mixed-reader checks.
 These passed on the linked glibc binary, the forced portable regex/peek
 module, and ASan/UBSan modules for both backends. Sanitizer leak detection
