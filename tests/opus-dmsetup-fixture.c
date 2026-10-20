@@ -18,8 +18,8 @@
  *   DMSFIX_FAIL    comma list CMD[@NAME]=ERRNO, CMD a libdm command name or *
  *   DMSFIX_OPEN_ERRNO  make opening the control node fail with this errno
  *   DMSFIX_EUID    value returned by geteuid()
- *   DMSFIX_MALFORM names|table|status|deps|versions|message|header
- *                  corrupt that response so bounds checks can be exercised
+ *   DMSFIX_MALFORM response fault (see malform calls below)
+ *   DMSFIX_FULL    command that always returns DM_BUFFER_FULL_FLAG
  *
  * --- LICENSE --- MIT, same boilerplate as the bash-os loadables.
  */
@@ -430,7 +430,7 @@ static int
 put_target_specs (struct dm_ioctl *io, struct table *tb, int table_mode)
 {
     char *data = (char *) io + io->data_start;
-    size_t room = io->data_size - io->data_start, off = 0;
+    size_t room = io->data_size - io->data_start, off = 0, used = 0;
     io->target_count = 0;
     for (unsigned i = 0; i < tb->n; i++) {
         const char *params = table_mode ? tb->t[i].params : "";
@@ -445,17 +445,28 @@ put_target_specs (struct dm_ioctl *io, struct table *tb, int table_mode)
         ts->length = tb->t[i].len;
         snprintf (ts->target_type, sizeof ts->target_type, "%s", tb->t[i].type);
         strcpy ((char *) (ts + 1), params);
+        used = off + sizeof *ts + strlen (params) + 1;
         off += one;
         ts->next = (uint32_t) off;      /* from the start of the data area */
         io->target_count++;
     }
-    io->data_size = (uint32_t) (io->data_start + off);
+    /* retrieve_status reports bytes through the last NUL, excluding padding. */
+    io->data_size = tb->n ? (uint32_t) (io->data_start + used) : offsetof (struct dm_ioctl, data);
     if (malform ("table") && io->target_count > 1)
         ((struct dm_target_spec *) data)->next = 0;     /* a loop back to itself */
     if (malform ("status") && io->target_count) {
         struct dm_target_spec *ts = (struct dm_target_spec *) data;
         memset (ts + 1, 'x', room - sizeof *ts);        /* unterminated params */
         io->data_size = (uint32_t) (io->data_start + room);
+    }
+    if (io->target_count > 1) {
+        struct dm_target_spec *ts = (struct dm_target_spec *) data;
+        if (malform ("table-cross-params"))
+            memset (ts + 1, 'x', ts->next - sizeof *ts);
+        if (malform ("table-overlap")) ts->next = 8;
+        if (malform ("table-gap")) ts->sector_start = 1;
+        if (malform ("table-overflow")) ts->length = UINT64_MAX;
+        if (malform ("table-type")) memset (ts->target_type, 'x', sizeof ts->target_type);
     }
     return 0;
 }
@@ -468,7 +479,8 @@ do_names (struct dm_ioctl *io)
     if (ndevs == 0) {
         if (room < sizeof (struct dm_name_list)) { io->flags |= DM_BUFFER_FULL_FLAG; return 0; }
         memset (data, 0, sizeof (struct dm_name_list));
-        io->data_size = (uint32_t) (io->data_start + sizeof (struct dm_name_list));
+        /* list_devices writes a zero dev internally but copies no payload. */
+        io->data_size = io->data_start;
         return 0;
     }
     struct dm_name_list *prev = NULL;
@@ -494,6 +506,12 @@ do_names (struct dm_ioctl *io)
     }
     io->data_size = (uint32_t) (io->data_start + off);
     if (malform ("names")) ((struct dm_name_list *) data)->next = 0x7ffffff0;
+    if (malform ("names-short")) io->data_size = io->data_start + 1;
+    if (malform ("names-next-end")) ((struct dm_name_list *) data)->next = off;
+    if (malform ("names-cross") && ndevs > 1) {
+        struct dm_name_list *nl = (struct dm_name_list *) data;
+        memset (nl->name, 'x', nl->next - offsetof (struct dm_name_list, name));
+    }
     if (malform ("unaligned") && off + 1 <= room) {
         memmove (data + 1, data, off);
         io->data_start++;
@@ -505,6 +523,10 @@ do_names (struct dm_ioctl *io)
 static int
 do_deps (struct dm_ioctl *io, struct table *tb)
 {
+    if (!tb->present) {
+        io->data_size = offsetof (struct dm_ioctl, data);
+        return 0;
+    }
     uint64_t devv[256];
     unsigned n = 0;
     for (unsigned i = 0; i < tb->n; i++) {
@@ -554,6 +576,14 @@ do_versions (struct dm_ioctl *io)
     }
     io->data_size = (uint32_t) (io->data_start + off);
     if (malform ("versions")) ((struct dm_target_versions *) data)->next = 0x7ffffff0;
+    if (malform ("versions-short")) io->data_size = io->data_start + 1;
+    if (malform ("versions-next-end")) ((struct dm_target_versions *) data)->next = off;
+    if (malform ("versions-short-next"))
+        io->data_size = io->data_start + ((struct dm_target_versions *) data)->next + 1;
+    if (malform ("versions-cross")) {
+        struct dm_target_versions *v = (struct dm_target_versions *) data;
+        memset (v->name, 'x', v->next - offsetof (struct dm_target_versions, name));
+    }
     return 0;
 }
 
@@ -580,6 +610,7 @@ do_message (struct dm_ioctl *io, struct dev *d)
         for (unsigned i = 0; i < big; i++) data[i] = (char) ('a' + i % 26);
         data[big] = '\0';
         io->flags |= DM_DATA_OUT_FLAG;
+        io->data_size = io->data_start + need;
         return 0;
     } else return EINVAL;
     size_t need = strlen (out) + 1;
@@ -588,7 +619,8 @@ do_message (struct dm_ioctl *io, struct dev *d)
         if (malform ("message")) memset (data, 'z', io->data_size - io->data_start);
         else memcpy (data, out, need);
         io->flags |= DM_DATA_OUT_FLAG;
-    }
+        if (!malform ("message")) io->data_size = io->data_start + need;
+    } else io->data_size = offsetof (struct dm_ioctl, data);
     return 0;
 }
 
@@ -615,7 +647,7 @@ handle (unsigned nr, struct dm_ioctl *io)
     if (nr == DM_REMOVE_ALL_CMD) {
         for (unsigned i = ndevs; i-- > 0;)
             if (devs[i].open_count == 0) remove_dev (&devs[i]);
-        io->data_size = sizeof *io;
+        io->data_size = 0; /* remove_all copies no result, even the header */
         return 0;
     }
     if (nr == DM_DEV_CREATE_CMD) {
@@ -761,10 +793,20 @@ ioctl (int fd, unsigned long req, ...)
     memcpy (k, io, insize);
     int e = handle (nr, k);
     if (!e) {
+        /* ctl_ioctl initializes header-only output to offsetof(data), 305 on
+           the tested ABI, not sizeof(dm_ioctl), 312. VERSION is special and
+           only writes version[]. Keep malformed lengths intact. */
+        if (k->data_size == sizeof *k && nr != DM_LIST_DEVICES_CMD)
+            k->data_size = offsetof (struct dm_ioctl, data);
+        const char *full = getenv ("DMSFIX_FULL");
+        if (full && !strcmp (full, cmd_name (nr, io->flags)))
+            k->flags |= DM_BUFFER_FULL_FLAG;
+        if (k->flags & DM_BUFFER_FULL_FLAG)
+            k->data_size = offsetof (struct dm_ioctl, data);
         size_t back = k->data_size <= insize ? k->data_size : insize;
-        if (k->flags & DM_BUFFER_FULL_FLAG) back = sizeof *k;
         if (malform ("header")) back = sizeof *k;
-        memcpy (io, k, back < sizeof *k ? sizeof *k : back);
+        if (nr == DM_VERSION_CMD) back = sizeof k->version;
+        memcpy (io, k, back);
     }
     if (logf) fprintf (logf, "result nr=%u errno=%d flags=%#x data_size=%u targets=%u\n",
                        nr, e, k->flags, k->data_size, k->target_count);

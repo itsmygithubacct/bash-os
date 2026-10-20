@@ -539,6 +539,96 @@ def t_shell(fx):
     check(r.rc == 0 and "0 100 linear" in r.out, "-- ends options")
 
 
+def t_kernel_abi(fx):
+    print("== kernel-sized replies (header tail padding is not copied) ==")
+    for script, cmds in (
+        ("dmsetup create fresh --table '0 8 zero'", ["create", "reload", "resume"]),
+        ("dmsetup info alpha", ["info"]),
+        ("dmsetup suspend alpha", ["suspend"]),
+        ("dmsetup resume alpha", ["resume"]),
+        ("dmsetup clear alpha", ["clear"]),
+        ("dmsetup rename alpha renamed", ["rename"]),
+        ("dmsetup remove alpha", ["remove"]),
+        ("dmsetup message alpha 0 silent", ["message"]),
+        ("dmsetup table gamma", ["table"]),
+        ("dmsetup deps gamma", ["deps"]),
+    ):
+        r = fx.run(script, STATE)
+        check(r.rc == 0 and r.err == "" and r.cmds() == cmds, script + ": valid kernel reply", r.err)
+        check(all(int(x["data_size"]) == 305 for x in r.results),
+              script + ": fixture copies offsetof(dm_ioctl, data), not sizeof", r.results)
+        balanced(r, script)
+    r = fx.run("dmsetup remove_all", STATE)
+    check(r.rc == 0 and int(r.results[0]["data_size"]) == 0,
+          "remove_all succeeds with no copy-back", r.err)
+    r = fx.run("dmsetup ls", "")
+    check(r.rc == 0 and r.out == "No devices found\n" and int(r.results[0]["data_size"]) == HDR.size,
+          "empty names list has exactly zero payload", r.results)
+    r = fx.run("dmsetup table alpha", STATE)
+    # Two records: first is 56 padded bytes; last is 40 + len('8:16 0') + NUL.
+    check(r.rc == 0 and int(r.results[0]["data_size"]) == HDR.size + 56 + 47,
+          "last status record excludes alignment padding", r.results)
+    r = fx.run("dmsetup deps --inactive alpha; dmsetup table --inactive alpha", STATE)
+    check(r.rc == 0 and r.out == "0 dependencies\t:\n",
+          "no inactive table accepts a header-only reply despite a live table", r.out + r.err)
+
+
+def t_record_boundaries(fx):
+    print("== record boundaries, wipe geometry and bounded retry ==")
+    cases = [(x, "dmsetup ls") for x in ("names-short", "names-cross", "names-next-end")]
+    cases += [(x, "dmsetup targets") for x in
+              ("versions-short", "versions-cross", "versions-next-end", "versions-short-next")]
+    cases += [(x, f"dmsetup {verb} alpha") for x in
+              ("table-cross-params", "table-overlap", "table-type")
+              for verb in ("table", "status", "wipe_table")]
+    cases += [(x, "dmsetup wipe_table alpha") for x in ("table-gap", "table-overflow", "status")]
+    for fault, script in cases:
+        r = fx.run(script, STATE, env={"DMSFIX_MALFORM": fault})
+        check(r.rc == 1 and "malformed" in r.err, f"{script}: rejects {fault}", r.out + r.err)
+        if "wipe_table" in script:
+            check(r.cmds() == ["table"], f"{fault}: malformed live table never reaches TABLE_LOAD", r.cmds())
+        balanced(r, script + "/" + fault)
+    r = fx.run("dmsetup ls", STATE, env={"DMSFIX_FULL": "names", "DMSFIX_LOG": ""})
+    check(r.rc == 1 and "response exceeds 67108864 bytes" in r.err,
+          "permanently full response stops at 64 MiB", r.err)
+    check(r.stats.get("ioctls") == 13, "growth is bounded to 13 attempts (16 KiB through 64 MiB)", r.stats)
+    balanced(r, "full response")
+
+
+def t_failure_recovery(fx):
+    print("== cleanup failures, multi-device continuation and shell recovery ==")
+    r = fx.run("dmsetup create stranded --table '0 5 zero'", STATE,
+               env={"DMSFIX_FAIL": "resume@stranded=5,remove@stranded=16"})
+    check(r.rc == 1 and r.cmds() == ["create", "reload", "resume", "remove"],
+          "rollback attempted after failed activation even when removal fails", r.cmds())
+    check("Input/output error" in r.err and "Device or resource busy" in r.err
+          and "dev stranded " in r.stats["text"],
+          "both errors reported and fixture exposes remaining device", r.err)
+    balanced(r, "failed rollback")
+    state = STATE + "live 0 20 zero\n"
+    for verb, failed_cmd in (("resume", "resume"), ("clear", "clear"), ("wipe_table", "table")):
+        r = fx.run(f"dmsetup {verb} alpha beta gamma", state,
+                   env={"DMSFIX_FAIL": f"{failed_cmd}@beta=1"})
+        check(r.rc == 1 and "Operation not permitted" in r.err,
+              verb + ": failure is aggregated", r.err)
+        check([q.name for q in r.reqs if q.cmd == failed_cmd] == ["alpha", "beta", "gamma"],
+              verb + ": later devices still attempted", r.cmds())
+        balanced(r, verb + " multi-device failure")
+    r = fx.run("dmsetup info alpha >/dev/full; [[ $? == 1 ]] || exit 9; "
+               "dmsetup message alpha 0 ping >/dev/full; [[ $? == 1 ]] || exit 9; "
+               "dmsetup message alpha 0 ping", STATE)
+    check(r.rc == 0 and r.out == "pong sector=0\n" and r.err.count("write error") == 2,
+          "stdout failures do not poison the next invocation", r.out + r.err)
+    balanced(r, "output recovery")
+    oversized = os.path.join(fx.tmp, "oversized.table")
+    with open(oversized, "wb") as f:
+        f.truncate(16 << 20)
+    r = fx.run(f"dmsetup load alpha {oversized}", STATE)
+    check(r.rc == 1 and "exceeds 16777216 bytes" in r.err and not r.reqs,
+          "oversized input refused before TABLE_LOAD", r.err)
+    balanced(r, "oversized input")
+
+
 def main():
     bash = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "out", "bash"))
     with tempfile.TemporaryDirectory(prefix="dmsfix.") as tmp:
@@ -549,7 +639,8 @@ def main():
                             "-o", so, os.path.join(HERE, "opus-dmsetup-fixture.c"), "-ldl"], check=True)
         fx = Fixture(bash, os.path.abspath(so), tmp)
         for t in (t_policy, t_create, t_malformed_tables, t_load_cycle, t_suspend_remove, t_rename,
-                  t_message, t_queries, t_malformed_responses, t_permissions, t_shell):
+                  t_message, t_queries, t_malformed_responses, t_permissions, t_shell,
+                  t_kernel_abi, t_record_boundaries, t_failure_recovery):
             try:
                 t(fx)
             except Exception as exc:   # a section that cannot even decode its run fails as a whole

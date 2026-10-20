@@ -30,6 +30,7 @@
 #include <dirent.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -275,6 +276,13 @@ dms_run (int fd, unsigned long req, const char *name, const char *uuid, uint32_t
             /* never trust a returned size beyond what was allocated */
             size_t have = bytes > sizeof (struct dm_ioctl) + payload_len
                 ? bytes : sizeof (struct dm_ioctl) + payload_len;
+            /* ctl_ioctl copies only offsetof(data) bytes for a header-only
+               reply, not sizeof(struct dm_ioctl), which includes tail padding.
+               Normalize that valid empty payload to our aligned data area.
+               Consumers still validate any advertised records or DATA_OUT. */
+            if (io->data_size == offsetof (struct dm_ioctl, data)
+                && io->data_start == sizeof (struct dm_ioctl))
+                io->data_size = io->data_start;
             /* Name and UUID are fixed arrays. A missing NUL would make
                later %s walks leave the header. Records and the next-offset
                chain are 8-byte aligned; an odd data_start is not a record. */
@@ -331,6 +339,32 @@ dms_bad_response (const struct dm_ioctl *io, const char *what)
     return -1;
 }
 
+/* Status replies use offsets from the data area (unlike TABLE_LOAD).
+   Bound each string by its own record, and reject overlapping records before
+   a caller prints parameters or uses lengths to build a replacement table.
+   The last record may end before its alignment padding in data_size. */
+static const struct dm_target_spec *
+dms_target (const struct dm_ioctl *io, size_t off, uint32_t index, const char *what)
+{
+    size_t total = (size_t) (dms_end (io) - dms_data (io));
+    if (off > total || total - off <= sizeof (struct dm_target_spec))
+        goto bad;
+    const struct dm_target_spec *ts = (const struct dm_target_spec *) (dms_data (io) + off);
+    size_t stop = total;
+    if (index + 1 < io->target_count) {
+        if (ts->next <= off + sizeof *ts || ts->next >= total || (ts->next & 7U))
+            goto bad;
+        stop = ts->next;
+    }
+    if (!memchr (ts->target_type, '\0', sizeof ts->target_type)
+        || !memchr (ts + 1, '\0', stop - off - sizeof *ts))
+        goto bad;
+    return ts;
+bad:
+    dms_bad_response (io, what);
+    return NULL;
+}
+
 /* Walk DM_LIST_DEVICES records. cb returns nonzero to stop with failure. */
 typedef int (*dms_name_cb) (int fd, const char *name, uint64_t dev, void *arg);
 
@@ -340,19 +374,23 @@ dms_each_name (const struct dm_ioctl *io, int fd, dms_name_cb cb, void *arg, int
     const char *p = dms_data (io), *end = dms_end (io);
     int rc = 0;
     *count = 0;
-    if ((size_t) (end - p) < sizeof (struct dm_name_list)) return 0;
+    if (p == end) return 0;  /* kernel's empty list has no payload */
     for (;;) {
         const struct dm_name_list *nl = (const struct dm_name_list *) p;
         if ((size_t) (end - p) < sizeof *nl) return dms_bad_response (io, "names");
-        size_t room = (size_t) (end - nl->name);
+        size_t span = (size_t) (end - p);
+        if (nl->next) {
+            if (nl->next < sizeof *nl || nl->next >= span || (nl->next & 7U))
+                return dms_bad_response (io, "names");
+            span = nl->next;
+        }
+        size_t room = span - offsetof (struct dm_name_list, name);
         if (!memchr (nl->name, '\0', room)) return dms_bad_response (io, "names");
         if (nl->dev == 0 && nl->next == 0 && nl->name[0] == '\0' && *count == 0)
             return 0;   /* the kernel's empty list is one zeroed record */
         ++*count;
         if (cb (fd, nl->name, nl->dev, arg)) rc = 1;
         if (nl->next == 0) break;
-        if (nl->next < sizeof *nl || nl->next > (size_t) (end - p) || (nl->next & 7U))
-            return dms_bad_response (io, "names");
         p += nl->next;
     }
     return rc;
@@ -473,7 +511,8 @@ dms_table_payload (const struct dms_spec *specs, size_t n, size_t *len)
     size_t total = 0;
     for (size_t i = 0; i < n; i++) {
         size_t one = dms_align8 (sizeof (struct dm_target_spec) + specs[i].params_len + 1);
-        if (one > UINT32_MAX || total > DMS_MAX_BUF) {
+        if (one > DMS_MAX_BUF - sizeof (struct dm_ioctl)
+            || total > DMS_MAX_BUF - sizeof (struct dm_ioctl) - one) {
             fprintf (stderr, "dmsetup: table too large\n");
             return NULL;
         }
@@ -680,23 +719,15 @@ dms_table_print (int fd, const char *name, const struct dms_table_arg *a, int *o
         return EXECUTION_FAILURE;
     }
 
-    const char *first = dms_data (io), *end = dms_end (io);
     size_t off = 0;
     int matched = 0, rc = EXECUTION_SUCCESS;
     for (uint32_t i = 0; i < io->target_count; i++) {
-        if (off > (size_t) (end - first) || (size_t) (end - first) - off < sizeof (struct dm_target_spec)) {
-            dms_bad_response (io, dms_cmd_name (DM_TABLE_STATUS, flags));
+        const struct dm_target_spec *ts = dms_target (io, off, i, dms_cmd_name (DM_TABLE_STATUS, flags));
+        if (!ts) {
             rc = EXECUTION_FAILURE;
             break;
         }
-        const struct dm_target_spec *ts = (const struct dm_target_spec *) (first + off);
         const char *params = (const char *) (ts + 1);
-        if (!memchr (ts->target_type, '\0', sizeof ts->target_type)
-            || !memchr (params, '\0', (size_t) (end - params))) {
-            dms_bad_response (io, dms_cmd_name (DM_TABLE_STATUS, flags));
-            rc = EXECUTION_FAILURE;
-            break;
-        }
         if (!a->o->target || !strcmp (a->o->target, ts->target_type)) {
             matched++;
             if (!only_count) {
@@ -707,15 +738,7 @@ dms_table_print (int fd, const char *name, const struct dms_table_arg *a, int *o
                 putchar ('\n');
             }
         }
-        if (i + 1 < io->target_count) {
-            /* the kernel's next is measured from the start of the data area */
-            if (ts->next <= off || (ts->next & 7U)) {
-                dms_bad_response (io, dms_cmd_name (DM_TABLE_STATUS, flags));
-                rc = EXECUTION_FAILURE;
-                break;
-            }
-            off = ts->next;
-        }
+        off = ts->next;
     }
     if (!only_count && a->prefix && io->target_count == 0 && !a->o->target)
         printf ("%s: \n", name);
@@ -743,6 +766,13 @@ dms_deps_print (int fd, const char *name, const char *uuid, int prefix, int inac
         return EXECUTION_FAILURE;
     }
     const char *p = dms_data (io), *end = dms_end (io);
+    /* No selected table: the kernel returns only the fixed header. */
+    if (p == end && !(io->flags & (inactive ? DM_INACTIVE_PRESENT_FLAG : DM_ACTIVE_PRESENT_FLAG))) {
+        if (prefix) printf ("%s: ", name);
+        printf ("0 dependencies\t:\n");
+        free (io);
+        return EXECUTION_SUCCESS;
+    }
     const struct dm_target_deps *deps = (const struct dm_target_deps *) p;
     if ((size_t) (end - p) < sizeof *deps
         || deps->count > ((size_t) (end - p) - sizeof *deps) / sizeof deps->dev[0]) {
@@ -837,9 +867,23 @@ dms_targets_cmd (int fd)
     if (!io) return EXECUTION_FAILURE;
     const char *p = dms_data (io), *end = dms_end (io);
     int rc = EXECUTION_SUCCESS;
-    while ((size_t) (end - p) >= sizeof (struct dm_target_versions)) {
+    while (p < end) {
+        if ((size_t) (end - p) <= sizeof (struct dm_target_versions)) {
+            dms_bad_response (io, "versions");
+            rc = EXECUTION_FAILURE;
+            break;
+        }
         const struct dm_target_versions *tv = (const struct dm_target_versions *) p;
-        if (!memchr (tv->name, '\0', (size_t) (end - tv->name))) {
+        size_t span = (size_t) (end - p);
+        if (tv->next) {
+            if (tv->next <= sizeof *tv || tv->next >= span || (tv->next & 7U)) {
+                dms_bad_response (io, "versions");
+                rc = EXECUTION_FAILURE;
+                break;
+            }
+            span = tv->next;
+        }
+        if (!memchr (tv->name, '\0', span - offsetof (struct dm_target_versions, name))) {
             dms_bad_response (io, "versions");
             rc = EXECUTION_FAILURE;
             break;
@@ -847,11 +891,6 @@ dms_targets_cmd (int fd)
         if (tv->name[0])
             printf ("%-16s v%u.%u.%u\n", tv->name, tv->version[0], tv->version[1], tv->version[2]);
         if (tv->next == 0) break;
-        if (tv->next < sizeof *tv || tv->next > (size_t) (end - p) || (tv->next & 7U)) {
-            dms_bad_response (io, "versions");
-            rc = EXECUTION_FAILURE;
-            break;
-        }
         p += tv->next;
     }
     free (io);
@@ -903,25 +942,21 @@ dms_device_size (int fd, const char *name, const char *uuid)
         if (err == ENXIO) dms_no_device ();
         return -1;
     }
-    const char *first = dms_data (io), *end = dms_end (io);
     size_t off = 0;
     unsigned long long total = 0;
     for (uint32_t i = 0; i < io->target_count; i++) {
-        if (off > (size_t) (end - first) || (size_t) (end - first) - off < sizeof (struct dm_target_spec)) {
-            dms_bad_response (io, "table");
+        const struct dm_target_spec *ts = dms_target (io, off, i, "table");
+        if (!ts) {
             free (io);
             return -1;
         }
-        const struct dm_target_spec *ts = (const struct dm_target_spec *) (first + off);
-        total += ts->length;
-        if (i + 1 < io->target_count) {
-            if (ts->next <= off || (ts->next & 7U)) {
-                dms_bad_response (io, "table");
-                free (io);
-                return -1;
-            }
-            off = ts->next;
+        if (ts->sector_start != total || !ts->length || ts->length > (unsigned long long) LLONG_MAX - total) {
+            dms_bad_response (io, "table geometry");
+            free (io);
+            return -1;
         }
+        total += ts->length;
+        off = ts->next;
     }
     free (io);
     return (long long) total;
