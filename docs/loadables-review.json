@@ -1058,6 +1058,14 @@
       "status": "Contract",
       "evidence": "tests/sol-fold-check.py",
       "scope": "Strict UTF-8 grouping, malformed-byte recovery, open-pipe delivery and descriptor ownership. Display widths depend on libc; help write errors and grapheme equivalence remain outside scope."
+    },
+    {
+      "names": [
+        "bc"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-bc-language.py",
+      "scope": "Bounded GNU 1.07 language corpus, scalar/array scope restoration and duplicate declaration rejection. Preserve explicit POSIX-option, read/newline/status and stack-bounded recursion differences."
     }
   ],
   "sanitizer_groups": [
@@ -1956,8 +1964,9 @@
       "evidence": "loadables/grep.c"
     },
     "bc": {
-      "note": "Repeated stdin is fixed. User functions, output-base printing, control flow, comments and file operands remain outside the supported language subset.",
-      "evidence": "docs/bc.md"
+      "evidence": "docs/bc.md",
+      "note": "Bounded GNU 1.07 language corpus, scalar/array scope restoration and duplicate declaration rejection. Preserve explicit POSIX-option, read/newline/status and stack-bounded recursion differences.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "dmsetup": {
       "note": "Some mutation verbs still return an explicit unimplemented-backend error.",
