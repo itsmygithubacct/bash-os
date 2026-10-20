@@ -978,6 +978,14 @@
       "status": "Contract",
       "evidence": "tests/opus-uclampset.py",
       "scope": "28 owned-child/private-sysctl tests: request bytes, effective clamp validation before thread updates, strict parsing, command argv/status, error handling and rollback-open failure. Successful kernel setters are emulated on this host."
+    },
+    {
+      "names": [
+        "fifo"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-fifo-check.py",
+      "scope": "Process-local signed-integer queue: independent list oracle, all ring offsets, atomic rejection, subshell isolation and output-error recovery."
     }
   ],
   "sanitizer_groups": [
@@ -2118,6 +2126,10 @@
       "note": "Owned-daemon software contract and three fixed loopback/queue workloads measured on 2026-10-19. Timestamp/send shims are labeled; intentional UDP overflow and bounded-spool drops are counted. Allocation-failure preservation was corrected after timing. No external performance ratio.",
       "evidence": "docs/sol-bashsyslogd.md",
       "next": "Qualify deployment-specific transport and persistence requirements; UDP forwarding and the single-daemon spool remain best effort without acknowledgements or crash durability."
+    },
+    "fifo": {
+      "evidence": "docs/sol-fifo.md",
+      "next": "FIFO API contract qualified with native and sanitizer checks. Worker measurements are self-timed API wall costs for their recorded binary; no terminal performance or external ratio is claimed."
     }
   },
   "repeat_input_findings": [],

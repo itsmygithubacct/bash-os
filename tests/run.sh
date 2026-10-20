@@ -100,6 +100,7 @@ check misc-smoke python3 tests/misc-smoke.py out/bash
 check 'bashlogger private datagrams' python3 tests/sol-bashlogger-socket.py out/bash
 check 'bashsyslogd private routing' python3 tests/sol-bashsyslogd-check.py out/bash
 check terminal-smoke python3 tests/terminal-smoke.py out/bash
+check 'FIFO queue contracts' python3 tests/sol-fifo-check.py out/bash
 check 'terminal and buffer edges' python3 tests/vt-buf-edges.py out/bash
 check 'expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
@@ -138,6 +139,7 @@ check 'static git parity' python3 tests/git-parity.py out/bash-static \
 check 'static git untrusted objects and paths' python3 tests/git-integrity.py out/bash-static
 check 'static git apply path preflight' python3 tests/git-apply-paths.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
+check 'static FIFO queue contracts' python3 tests/sol-fifo-check.py out/bash-static
 check 'static terminal and buffer edges' python3 tests/vt-buf-edges.py out/bash-static
 check 'static expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash-static
 check rootfs-smoke bash tests/rootfs-smoke.sh out/bash-static

@@ -22,3 +22,6 @@ TERMINAL_LOAD_ENV="$d/load.sh" TERMINAL_ASAN_LIB=$("$CC" -print-file-name=libasa
   python3 tests/terminal-smoke.py "${1:-out/bash}"
 EXPECT_TEST_LOADABLE="$d/pty.so" EXPECT_TEST_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
   python3 tests/expect-timeout.py "${1:-out/bash}"
+
+FIFO_TEST_LOADABLE="$d/fifo.so" FIFO_TEST_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
+  python3 tests/sol-fifo-check.py "${1:-out/bash}"
