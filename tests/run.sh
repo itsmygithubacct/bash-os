@@ -189,6 +189,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'renice private boundary build' bash tests/sol-renice-build.sh "$scratch/renice-contracts"
+  check 'renice owned-child contracts' python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
+  check 'renice owned-child sanitizer contracts' env SOL_RENICE_MODULE="$scratch/renice-contracts/renice-sanitized.so" SOL_RENICE_ASAN_RUNTIME="$(cat "$scratch/renice-contracts/asan-runtime")" python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
   check 'zstd fault harness build' "$CC" -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" tests/sol-zstd-host.c -lzstd -ldl -o "$scratch/zstd-contracts"
   check 'zstd streaming faults under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/zstd-contracts"
   check 'doas private fixture build' python3 tests/sol-doas-build.py "$scratch/doas-native"

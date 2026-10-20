@@ -1125,6 +1125,14 @@
       "status": "Contract",
       "evidence": "tests/sol-zstd-check.py",
       "scope": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee."
+    },
+    {
+      "names": [
+        "renice"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-renice.md",
+      "scope": "Absolute-priority parsing and continuation with owned process/group targets; all-user selectors are intercepted. Smoke mutation targets only a disposable child and cannot change the invoking shell."
     }
   ],
   "sanitizer_groups": [
@@ -1537,6 +1545,12 @@
         "zstdcat"
       ],
       "evidence": "tests/sol-zstd-host.c"
+    },
+    {
+      "names": [
+        "renice"
+      ],
+      "evidence": "tests/sol-renice-build.sh"
     }
   ],
   "fuzz": {
@@ -2386,6 +2400,11 @@
       "evidence": "docs/sol-zstd.md",
       "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "renice": {
+      "evidence": "docs/sol-renice.md",
+      "note": "Absolute-priority parsing and continuation with owned process/group targets; all-user selectors are intercepted. Smoke mutation targets only a disposable child and cannot change the invoking shell.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2419,7 +2438,8 @@
     "sudo",
     "su",
     "zstd",
-    "zstdcat"
+    "zstdcat",
+    "renice"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

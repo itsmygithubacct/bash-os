@@ -349,7 +349,7 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | [`readlink`](../loadables/readlink.c) | C D S T F | [Bench checked](#case-readlink) | readlink; readlink | 4.081 / 86.580 / 67.526; [readlink](#case-readlink), 114 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `realpath`* | P C D S T F | [Bench checked](#case-realpath) | realpath; realpath | 4.497 / 105.446 / 86.555; [realpath](#case-realpath), 139 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`reboot`](../loadables/reboot.c) | D S F | Build/help | reboot; reboot | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`renice`](../loadables/renice.c) | D S F | [Contract](../tests/process-numeric.py); [S](../tests/system-process-sanitize.sh) | renice; renice | N/M | P3 | Add a matched workload and timing. |
+| [`renice`](../loadables/renice.c) | D S F | [Contract](../tests/process-numeric.py); [limited](#scope-notes); [S](../tests/system-process-sanitize.sh) | renice; renice | N/M | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
 | [`rev`](../loadables/rev.c) | C D S T F | [Parity](../tests/rev-check.sh) | rev; rev | 75.272 / 40.518 / 142.930; [rev](#case-rev), 16 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `rm`* | P C D S T F | [Bench checked](#case-rm) | rm; rm | 4.760 / 96.093 / 84.547; [rm](#case-rm), 146 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `rmdir`* | P C D S T F | [Bench checked](#case-rmdir) | rmdir; rmdir | 5.591 / 108.131 / 90.280; [rmdir](#case-rmdir), 113 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
@@ -551,6 +551,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `pkill` | Shares pgrep matching and process traversal; validate signals only against owned child fixtures. [source](../loadables/pkill.c) |
 | `pr` | Repeated stdin, paging and output failures are fixed for the tested subset. Numbered multi-column control bytes, merged unterminated records and several GNU options remain documented exclusions. [source](../docs/pr.md) |
 | `ptybroker` | Private PTY fixtures cover broker lifecycle, binary I/O, backpressure and screen attachment. No broad command benchmark is recorded. [source](../tests/ptybroker-io.py) |
+| `renice` | Absolute-priority parsing and continuation with owned process/group targets; all-user selectors are intercepted. Smoke mutation targets only a disposable child and cannot change the invoking shell. [source](../docs/sol-renice.md) |
 | `rev` | Write-failure stop and GNU comparison are covered by tests/rev-check.sh. |
 | `rsync` | For a non-existent single-file DEST the builtin creates the destination as a directory, while stock rsync treats DEST as a directory only when it already exists or ends in '/'. The measured case uses the trailing-slash form into a reset-recreated directory, where the two agree byte for byte. |
 | `rtspcat` | No command-specific fixture is mapped in the current repository suite. |
