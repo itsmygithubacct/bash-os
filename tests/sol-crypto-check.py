@@ -91,8 +91,11 @@ class CryptoTests(unittest.TestCase):
                             self.assertEqual(p.returncode, 1, p.stderr)
                             self.assertEqual(p.stdout, b'')
                     cipher = impl(key).encrypt(nonce, b'fixture', aad)
-                    for wrong in [args.replace(nonce.hex(), 'ff'*12), args.replace(aad.hex(), 'ff')]:
-                        p = shell(wrong+' -d', data=cipher)
+                    # Change exactly one authenticated input; the nonce bytes are
+                    # also a prefix of this key, so string replacement is unsafe.
+                    for wrong_nonce, wrong_aad in [('ff'*12, aad.hex()), (nonce.hex(), 'ff')]:
+                        p = shell('crypto "$@"', name, '-k', key.hex(),
+                                  '-n', wrong_nonce, '-A', wrong_aad, '-d', data=cipher)
                         self.assertEqual(p.returncode, 1, p.stderr)
                         self.assertEqual(p.stdout, b'')
 
