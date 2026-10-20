@@ -1,5 +1,11 @@
 # nl completion checks
 
+Empty-backreference loop guards are specific to the input position and restored with each backtracking branch. This prevents a failed empty capture from suppressing a later valid match. `tests/review-nl-backrefs.py` covers empty captures and binary/UTF-8 subjects on both regex paths.
+
+The measurements below predate this review correction. They describe the original
+worker implementation; they are not measurements of the corrected code. No new
+performance claim is made for this correction.
+
 `nl` uses the host BRE engine with `REG_STARTEND` when available. Other
 platforms use a private, length-aware engine in `loadables/common/nl-regex.h`.
 Both paths receive the record length without its trailing newline, reject

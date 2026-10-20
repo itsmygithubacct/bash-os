@@ -4043,7 +4043,7 @@ typedef struct tre_backtrack_struct {
 	  s->prev = stack;						      \
 	  s->next = NULL;						      \
 	  s->item.tags = tre_bt_mem_alloc(mem,				      \
-					  sizeof(*tags) * tnfa->num_tags);    \
+					  sizeof(*tags) * (tnfa->num_tags + tnfa->num_states));    \
 	  if (!s->item.tags)						      \
 	    {								      \
 	      tre_bt_mem_destroy(mem);					      \
@@ -4067,7 +4067,7 @@ typedef struct tre_backtrack_struct {
       stack->item.next_c = (_next_c); stack->item.prev_c = prev_c; stack->item.pos_add_next = pos_add_next;					      \
       for (i = 0; i < tnfa->num_tags; i++)				      \
 	stack->item.tags[i] = (_tags)[i];				      \
-      BT_STACK_MBSTATE_IN;						      \
+      for (i = 0; i < tnfa->num_states; i++) stack->item.tags[tnfa->num_tags + i] = states_seen[i]; BT_STACK_MBSTATE_IN;						      \
     }									      \
   while (0)
 
@@ -4082,7 +4082,7 @@ typedef struct tre_backtrack_struct {
       next_c = stack->item.next_c; prev_c = stack->item.prev_c; pos_add_next = stack->item.pos_add_next;					      \
       for (i = 0; i < tnfa->num_tags; i++)				      \
 	tags[i] = stack->item.tags[i];					      \
-      BT_STACK_MBSTATE_OUT;						      \
+      for (i = 0; i < tnfa->num_states; i++) states_seen[i] = stack->item.tags[tnfa->num_tags + i]; BT_STACK_MBSTATE_OUT;						      \
       stack = stack->prev;						      \
     }									      \
   while (0)
@@ -4123,7 +4123,7 @@ tre_tnfa_run_backtrack(const tre_tnfa_t *tnfa, const void *string, size_t length
   regoff_t *tags = NULL;
   /* Current TNFA state. */
   tre_tnfa_transition_t *state;
-  int *states_seen = NULL;
+  regoff_t *states_seen = NULL;
 
   /* Memory allocator to for allocating the backtracking stack. */
   tre_mem_t mem = tre_bt_mem_new();
@@ -4152,7 +4152,7 @@ tre_tnfa_run_backtrack(const tre_tnfa_t *tnfa, const void *string, size_t length
 
   if (tnfa->num_tags)
     {
-      tags = xmalloc(sizeof(*tags) * tnfa->num_tags);
+      tags = xmalloc(sizeof(*tags) * (tnfa->num_tags + tnfa->num_states));
       if (!tags)
 	{
 	  ret = REG_ESPACE;
@@ -4188,7 +4188,7 @@ tre_tnfa_run_backtrack(const tre_tnfa_t *tnfa, const void *string, size_t length
 	  match_tags[i] = -1;
       }
     for (i = 0; i < tnfa->num_states; i++)
-      states_seen[i] = 0;
+      states_seen[i] = -1;
   }
 
   state = NULL;
@@ -4292,12 +4292,12 @@ tre_tnfa_run_backtrack(const tre_tnfa_t *tnfa, const void *string, size_t length
 	      /* Back reference matched.  Check for infinite loop. */
 	      if (bt_len == 0)
 		empty_br_match = 1;
-	      if (empty_br_match && states_seen[trans_i->state_id])
+	      if (empty_br_match && states_seen[trans_i->state_id] == pos)
 		{
 		  goto backtrack;
 		}
 
-	      states_seen[trans_i->state_id] = empty_br_match;
+	      states_seen[trans_i->state_id] = empty_br_match ? pos : -1;
 
 	      /* Advance in input string and resync `prev_c', `next_c'
 		 and pos. */
@@ -4508,7 +4508,7 @@ regexec(const regex_t *restrict preg, const char *restrict string,
   if (tnfa->cflags & REG_NOSUB) nmatch = 0;
   if (tnfa->num_tags > 0 && nmatch > 0)
     {
-      tags = xmalloc(sizeof(*tags) * tnfa->num_tags);
+      tags = xmalloc(sizeof(*tags) * (tnfa->num_tags + tnfa->num_states));
       if (tags == NULL)
 	return REG_ESPACE;
     }

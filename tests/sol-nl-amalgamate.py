@@ -125,6 +125,22 @@ for file in ['tre.h','tre-mem.c','regcomp.c','regexec.c']:
               'tre_char_t last_c = prev_c;\n\t      if (bt_len) last_c = bnl_last_char((const char *)string + so, (size_t)bt_len);\n\t      str_byte = (const char *)string + pos + bt_len;')
   s=s.replace('pos_add_next = 0;\n\t      GET_NEXT_WCHAR();',
               'pos_add_next = 0;\n\t      GET_NEXT_WCHAR();\n\t      prev_c = last_c;')
+  # Empty-backreference cycle guards belong to one search path and input
+  # position. A visit on a failed branch must not reject a later valid path.
+  s=s.replace('int *states_seen = NULL;', 'regoff_t *states_seen = NULL;')
+  s=s.replace('states_seen[i] = 0;', 'states_seen[i] = -1;')
+  s=s.replace('empty_br_match && states_seen[trans_i->state_id]',
+              'empty_br_match && states_seen[trans_i->state_id] == pos')
+  s=s.replace('states_seen[trans_i->state_id] = empty_br_match;',
+              'states_seen[trans_i->state_id] = empty_br_match ? pos : -1;')
+  # Save the guard array after the tags in each stack frame, using the same
+  # allocation/error handling. Restore it with the rest of the search state.
+  s=s.replace('sizeof(*tags) * tnfa->num_tags);',
+              'sizeof(*tags) * (tnfa->num_tags + tnfa->num_states));')
+  s=s.replace('BT_STACK_MBSTATE_IN;',
+              'for (i = 0; i < tnfa->num_states; i++) stack->item.tags[tnfa->num_tags + i] = states_seen[i]; BT_STACK_MBSTATE_IN;')
+  s=s.replace('BT_STACK_MBSTATE_OUT;',
+              'for (i = 0; i < tnfa->num_states; i++) states_seen[i] = stack->item.tags[tnfa->num_tags + i]; BT_STACK_MBSTATE_OUT;')
   s='''/* Preserve the character preceding a backreference's end for assertions. */
 static wchar_t
 bnl_last_char(const char *s, size_t n)
