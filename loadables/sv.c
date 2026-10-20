@@ -1560,7 +1560,9 @@ bsv_run_readiness_probe (const char *name,
                          const char *status,
                          const char *transition,
                          const char *logfile,
-                         const struct bsv_log_policy *policy)
+                         const struct bsv_log_policy *policy,
+                         int svc_rfd, int svc_lfd,
+                         int *svc_line_start, int *svc_log_error)
 {
   int pipe_read = -1, log_fd = -1, line_start = 1, log_error = 0;
   int st = 0;
@@ -1587,6 +1589,10 @@ bsv_run_readiness_probe (const char *name,
   deadline = time (NULL) + ready->timeout;
   while (1)
     {
+      /* The probe may wait for work that the service performs after writing
+         its startup log. Drain both pipes while readiness is pending. */
+      if (svc_rfd >= 0)
+        bsv_drain_log_pipe_once (svc_rfd, svc_lfd, svc_line_start, svc_log_error);
       if (pipe_read >= 0)
         bsv_drain_log_pipe_once (pipe_read, log_fd, &line_start, &log_error);
       pid_t got = waitpid (w, &st, WNOHANG);
@@ -2273,7 +2279,8 @@ bsv_supervise (const char *name)
       if (!oneshot && (ready_policy.mode == BSV_READY_PROBE ||
                        ready_policy.mode == BSV_READY_COMMAND))
         bsv_run_readiness_probe (name, &ready_policy, pid, status, transition,
-                                 logfile, &log_policy);
+                                 logfile, &log_policy, pipe_read, log_fd,
+                                 &line_start, &log_error);
       time_t notify_deadline = 0;
       if (notify_mode)
         {

@@ -89,52 +89,7 @@ equivalent-output reference. These file tests include no `fsync` or disk-durabil
 measurement.
 
 
-Measurements on 2026-10-19 used CPU 11, Intel Core i7-9850H, Linux
-6.12.111+deb13, GCC 14.2.0, Bash 5.3.15 and GNU tail 9.7. All builds selected
-only `sv`, with `-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2` and retained
-symbols. Each measured variant passed one warm-up and seven samples. The table
-uses the interleaved old/new run, with identical fixture hashes, options and
-reset rules; wall time includes the shell and, for capture, the identical Python
-producer and its receipt. The synthetic catalog file is 40,000 LF records.
-Tails of the actual supervised children's logs also match GNU tail in the
-focused tests.
-
-| Workload | Input bytes | Output bytes | Before median ms | After median ms | Comparison |
-|---|---:|---:|---:|---:|---|
-| `sv log`, 29 calls | 2,800,000 (file) | 14,000/call | 5.58 | 5.54 | GNU tail 25.42 ms; sv/tail 0.218 |
-| capture-short | 73,728 | 327,680 | 133.65 | 53.47 | 2.50× |
-| capture-long | 131,077 | 131,139 | 310.52 | 49.94 | 6.22× |
-
-The original current-build round already showed no historical tail regression:
-3.56 ms for sv versus 17.17 ms for GNU tail, ratio 0.207. The later standalone
-round measured 5.39/24.44 ms, demonstrating drift between rounds; the table above
-therefore uses the interleaved comparison. No speedup against the historical
-3.356 ratio is claimed, and the existing reverse-tail algorithm was retained.
-
-In the short-record syscall profile, writes fell from 24,699 to 34 (including
-child/receipt writes); the original writes consumed 90.56% of traced syscall
-time. The long-record path also stopped sleeping unconditionally between pipe
-drains. Tracing is separate from the wall-time samples.
-
-The interleaved production-function profile processed 1,179,648 input bytes /
-131,072 records into 5,242,880 timestamped bytes: 289.95 → 63.27 ms
-(4.58×). Median system CPU fell from 209.76 to 7.77 ms; the buffered
-implementation then spent 56.64 ms of user CPU, making prefix formatting the
-remaining substantial cost. The unframed copy control emitted 1,179,648 bytes in
-2.79 ms, so this work did not pursue speculative copy optimizations.
-
-Every capture sample validated the child's completed byte-count/SHA-256 receipt,
-timestamp grammar, exact timestamp-stripped log payload, stdout and exit status.
-The before/after byte totals in the table are identical. Raw distributions,
-fixture hashes, environment, syscall profiles and earlier failed regression
-runs are preserved with the task receipt in `bench-before.json`,
-`bench-final.json`, `paired.json`, `framing.json` and their adjacent logs.
-Native fault-injection, ASan/UBSan and the original `large-smoke.py ... sv` checks
-all pass on the final build.
-
-Before binary SHA-256:
-`1ac1efc612f5f630a87165d29a6958eeeada21b3424b49c5b9e0512c6ac9c43b`.
-Final binary SHA-256:
-`a4d571c84f4745e43487f5cfe8d332ed017389ac0d83fb5236d28b4c8decfa8e`.
-Final `sv.c` SHA-256:
-`582734c71c65d5f35b111a851caba5834b3a6063979027f555edcb90f3f44388`.
+While a readiness probe runs, the supervisor drains both the service and
+probe log pipes. A probe can therefore depend on startup work that follows
+service output larger than pipe capacity. `tests/astra-sv-readiness.py BINARY`
+checks that dependency and the complete captured bytes in private directories.
