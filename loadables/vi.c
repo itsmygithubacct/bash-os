@@ -2033,7 +2033,12 @@ bv_visual_key (int fd, int key)
     case 'x': {
         size_t a = bv_st.visual_anchor, c = bv_st.cur;
         if (a > c) { size_t t = a; a = c; c = t; }
-        if (c < bv_st.pt.total_len) c++;
+        /* Visual selection is inclusive of the character at either end.
+         * Include a newline on an empty line, but never split UTF-8. */
+        if (c < bv_st.pt.total_len) {
+            size_t le = bv_line_end (&bv_st.pt, c);
+            c = c < le ? bv_char_next (&bv_st.pt, c, le) : c + 1;
+        }
         bv_history_mark (&bv_st);
         if (key == 'y') {
             bv_yank_range (a, c, 0);

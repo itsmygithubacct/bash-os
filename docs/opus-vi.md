@@ -131,3 +131,12 @@ splits there no longer rescan the mapped `left` piece. That fixture still has
 no `G`, as the shared harness defines it. The G + dd workload is measured
 here instead. The historical 72.15 ms used 19 passes and an older binary;
 it is kept as recorded and not paired with today's figures.
+
+Measurement qualification: the nvim column starts an external process for each
+pass, including startup, while builtin passes share one shell. These are
+end-to-end command workloads, not isolated editing-engine speed ratios.
+The recorded measurements precede the visual UTF-8 endpoint correction; they
+must not be represented as measurements of the corrected code. Leak detection
+covered `vi selftest`; the key/ex regression suite used ASan/UBSan with leak
+detection disabled. Visual endpoint regressions now cover two-, three-, and
+four-byte UTF-8 characters for deletion and yank/put, in both directions.

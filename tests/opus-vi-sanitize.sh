@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build vi (and its _bl_key helper) with ASan/UBSan as a loadable and run
-# the vi selftest, the helper-smoke vi cases and tests/opus-vi-dd.py on it.
+# the vi selftest and tests/opus-vi-dd.py on it.
+# Leak detection covers the selftest; the key/ex harness uses ASan/UBSan.
 # Compiles: run through the campaign build gate.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"

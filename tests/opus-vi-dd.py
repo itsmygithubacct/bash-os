@@ -185,6 +185,18 @@ abc = b'a\nb\nc\nd\n'
 with tempfile.TemporaryDirectory() as tmp:
     d = Path(tmp)
 
+    # Inclusive visual endpoints cover whole UTF-8 characters, in either
+    # direction, including yanks which are subsequently put back.
+    for label, char in [('two', 'é'), ('three', '界'), ('four', '🙂')]:
+        u = char.encode()
+        keys_case(d, 'visual-end-' + label, b'a' + u + b'\n', b'v$d', b'\n')
+        keys_case(d, 'visual-one-' + label, u + b'x\n', b'vd', b'x\n')
+        keys_case(d, 'visual-x-' + label, u + b'x\n', b'vx', b'x\n')
+        keys_case(d, 'visual-reverse-' + label, b'a' + u + b'\n', b'$v0d', b'\n')
+        keys_case(d, 'visual-yank-' + label, b'a' + u + b'z\n', b'vly0P', b'a' + u + b'a' + u + b'z\n')
+        keys_case(d, 'visual-yank-end-' + label, b'a' + u + b'\n', b'v$y0P', b'a' + u + b'a' + u + b'\n')
+        keys_case(d, 'visual-no-eol-' + label, b'a' + u, b'v$d', b'', compare=False)
+
     # --- the reported defect: dd after G must keep deleting ---
     keys_case(d, 'g-dd-1', abc, b'Gdd', b'a\nb\nc\n')
     keys_case(d, 'g-dd-2', abc, b'Gdddd', b'a\nb\n')
