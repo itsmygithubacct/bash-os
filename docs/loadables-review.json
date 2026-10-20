@@ -1026,6 +1026,14 @@
       "status": "Parity",
       "evidence": "tests/sol-wc-check.py",
       "scope": "Native glibc C/C.UTF-8/en_US.utf8 bytes, characters, words and display widths, malformed boundaries and stream/output errors."
+    },
+    {
+      "names": [
+        "diff"
+      ],
+      "status": "Parity",
+      "evidence": "tests/diff-safety.py",
+      "scope": "GNU normal/unified/quiet/case-insensitive byte output, independent LCS script replay, repeated input and allocation-failure recovery."
     }
   ],
   "sanitizer_groups": [
@@ -1381,6 +1389,12 @@
         "wc"
       ],
       "evidence": "tests/sol-wc-sanitize.sh"
+    },
+    {
+      "names": [
+        "diff"
+      ],
+      "evidence": "tests/sol-diff-build.sh"
     }
   ],
   "fuzz": {
@@ -2043,8 +2057,9 @@
       "evidence": "docs/expand.md"
     },
     "diff": {
-      "note": "Minus operands denote stdin, including diff - -. Dedicated fixtures compare edit addresses and final newlines with GNU and exercise allocation failures. The historical timing case uses identical files.",
-      "evidence": "tests/diff-safety.py"
+      "evidence": "docs/sol-diff.md",
+      "note": "Packed trace and byte-slice storage reduce selected workload costs; identical input has no material speedup. Shell VmHWM excludes GNU child memory.",
+      "next": "Retain whole-input and quadratic worst-case time/saved-trace limits; directory comparisons and broader GNU options remain outside this scope."
     },
     "unexpand": {
       "evidence": "docs/sol-unexpand.md",
@@ -2235,7 +2250,8 @@
     "more",
     "crypto",
     "unexpand",
-    "wc"
+    "wc",
+    "diff"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
@@ -2254,7 +2270,7 @@
   "inventory_review": {
     "date": "2026-10-19",
     "source_commit": "7f2a2416d6a4993c6738aaab322a1cdf0448881e",
-    "validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules.",
+    "validation_summary": "Additional per-command coverage references and bounded scope notes were refreshed on 2026-10-20 after the global inventory revision above. The aggregate and focused results below remain historical, not full-suite qualification of these later changes. On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules.",
     "focused_checks": [
       {
         "name": "Git apply paths",
@@ -2295,7 +2311,8 @@
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
     "catalog_sha256": "7c4a09d1fc026a42cbf9e8d25073a0e5477689f78ae37c9f2477fedfd3eb05ab",
     "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b",
-    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries."
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries.",
+    "historical_validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules."
   },
   "optional_integrations": {
     "bashperl": {

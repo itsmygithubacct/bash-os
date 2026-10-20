@@ -174,6 +174,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'diff allocation fixture build' bash tests/sol-diff-build.sh "$scratch/diff" out/bash
+  check 'diff allocation failures' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-native"
+  check 'diff allocation failures under ASan+UBSan' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-sanitize"
   check 'wc locale contracts under ASan+UBSan' bash tests/sol-wc-sanitize.sh out/bash
   check 'unexpand under ASan+UBSan' bash tests/sol-unexpand-sanitize.sh out/bash
   check 'crypto independent contracts under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/crypto-contracts" bash tests/sol-crypto-sanitize.sh out/bash
