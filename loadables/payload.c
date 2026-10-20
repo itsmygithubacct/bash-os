@@ -34,8 +34,8 @@
  *   PAYLOAD_ROOT                               install root (default /)
  *   PAYLOAD_INSTALLER                          installer  (default /bash-os/bl-pkg.sh)
  *
- * Static-musl notes: fixed 4 KiB path buffers (no PATH_MAX reliance), fgets (no
- * getline feature-macro dance), pure POSIX fork/exec.
+ * Static-musl notes: allocated paths (no PATH_MAX reliance), bounded line
+ * input (no getline feature-macro dance), pure POSIX fork/exec.
  */
 
 #include <config.h>
@@ -54,12 +54,12 @@
 #include "loadables.h"
 #include "child-wait.h"
 #include "command-run.h"
+#include "bl-output.h"
 
 #define PL_DEFAULT_REPO      "/root/loadables"
 #define PL_DEFAULT_ROOT      "/"
 #define PL_DEFAULT_INSTALLER "/bash-os/bl-pkg.sh"
 
-#define PL_PATHSZ 4096
 #define PL_LINESZ 8192
 #define PL_FLDSZ  256
 
@@ -99,7 +99,8 @@ pl_getvar (const char *env_name, const char *bash_name, const char *dflt)
 static void
 pl_cfg_init (pl_cfg *c)
 {
-  char state[PL_PATHSZ];
+  char *state;
+  size_t len;
   const char *v;
 
   /* PAYLOAD_REPO overrides; else BASHPKG_LOADABLES_DATADIR (set by /init), as
@@ -117,8 +118,12 @@ pl_cfg_init (pl_cfg *c)
   /* One directory descriptor serves every state probe, so a 20000-record
    * listing does not resolve the root prefix 20000 times. Double slash when
    * root ends in '/' is harmless on Linux. */
-  snprintf (state, sizeof state, "%s/var/lib/bl-pkg/installed", c->root);
+  len = strlen (c->root);
+  state = xmalloc (len + sizeof "/var/lib/bl-pkg/installed");
+  memcpy (state, c->root, len);
+  memcpy (state + len, "/var/lib/bl-pkg/installed", sizeof "/var/lib/bl-pkg/installed");
   c->statefd = open (state, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  free (state);
 }
 
 static void
@@ -183,7 +188,8 @@ static int
 pl_is_installed (const pl_cfg *c, const char *name)
 {
   struct stat st;
-  return c->statefd >= 0 && fstatat (c->statefd, name, &st, 0) == 0;
+  return c->statefd >= 0 && fstatat (c->statefd, name, &st, 0) == 0
+         && S_ISREG (st.st_mode);
 }
 
 #define PL_TXN_OK        0
@@ -198,11 +204,19 @@ pl_read_txn (const pl_cfg *c, const char *name, char **out)
   char line[PL_LINESZ];
   int fd, r, rc = PL_TXN_ABSENT;
   FILE *f;
+  struct stat st;
 
   *out = NULL;
   if (c->statefd < 0
-      || (fd = openat (c->statefd, name, O_RDONLY | O_CLOEXEC)) < 0)
+      || (fd = openat (c->statefd, name, O_RDONLY | O_CLOEXEC | O_NONBLOCK)) < 0)
     return PL_TXN_ABSENT;
+  /* Check the opened object too: a FIFO must not block even if the state
+   * changes between the installed probe and this open. */
+  if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode))
+    {
+      close (fd);
+      return PL_TXN_MALFORMED;
+    }
   if (!(f = fdopen (fd, "r")))
     {
       close (fd);
@@ -279,9 +293,13 @@ static int
 pl_parse_record (char *line, pl_rec *r)
 {
   char *save = NULL, *tok;
+  unsigned char *p;
   int bad = 0;
   if (strncmp (line, "blpkg-v1 ", 9) != 0 && strncmp (line, "blpkg-v1\t", 9) != 0)
     return PL_REC_NONE;
+  for (p = (unsigned char *) line; *p; p++)
+    if ((*p < ' ' && *p != '\t' && *p != '\r' && *p != '\n') || *p == 0x7f)
+      return PL_REC_MALFORMED;
   r->name[0] = r->ver[0] = r->arch[0] = r->prov[0] = '\0';
   memcpy (r->type, "payload", sizeof "payload");
   tok = strtok_r (line, " \t", &save);          /* the blpkg-v1 magic */
@@ -328,15 +346,40 @@ pl_next_record (FILE *f, pl_rec *r, int *bad)
 static FILE *
 pl_open_index (const pl_cfg *c, int quiet)
 {
-  char idx[PL_PATHSZ];
-  FILE *f;
-  snprintf (idx, sizeof idx, "%s/INDEX", c->repo);
-  f = fopen (idx, "r");
+  char *idx;
+  FILE *f = NULL;
+  struct stat st;
+  int fd, err;
+  size_t len = strlen (c->repo);
+  idx = xmalloc (len + sizeof "/INDEX");
+  memcpy (idx, c->repo, len);
+  memcpy (idx + len, "/INDEX", sizeof "/INDEX");
+  fd = open (idx, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+  free (idx);
+  if (fd >= 0)
+    {
+      if (fstat (fd, &st) == 0)
+        {
+          if (S_ISREG (st.st_mode))
+            f = fdopen (fd, "r");
+          else
+            errno = S_ISDIR (st.st_mode) ? EISDIR : EINVAL;
+        }
+      if (!f)
+        {
+          err = errno;
+          close (fd);
+          errno = err;
+        }
+    }
+  err = errno;
   if (!f && !quiet)
     {
+      builtin_error ("%s/INDEX: read error: %s", c->repo, strerror (err));
       printf ("payload: no payload repo staged at %s\n", c->repo);
       printf ("payload: (this image has no staged payloads; nothing to list)\n");
     }
+  errno = err;
   return f;
 }
 
@@ -380,7 +423,8 @@ pl_verb_list (const pl_cfg *c, int filter, int porcelain)
 {
   FILE *f;
   pl_rec r;
-  int total = 0, installed = 0, shown = 0, bad = 0;
+  bl_output output;
+  int total = 0, installed = 0, shown = 0, bad = 0, read_rc;
 
   f = pl_open_index (c, 0);
   if (!f)
@@ -393,9 +437,13 @@ pl_verb_list (const pl_cfg *c, int filter, int porcelain)
       printf ("payload: repo %s\n\n", c->repo);
       printf ("  %-10s  %-18s  %-12s  %s\n", "STATUS", "NAME", "VERSION", "PROVIDES");
     }
+  /* Keep Bash's stdio settings intact. Pipe/file output is batched, while
+   * terminal rows are still flushed at each newline. */
+  bl_output_init (&output, stdout);
   while (pl_next_record (f, &r, &bad))
     {
-      int is_i;
+      char row[4 * PL_FLDSZ + 64];
+      int is_i, length;
       total++;
       is_i = pl_is_installed (c, r.name);
       if (is_i)
@@ -403,15 +451,30 @@ pl_verb_list (const pl_cfg *c, int filter, int porcelain)
       if ((filter == 1 && !is_i) || (filter == 2 && is_i))
         continue;
       if (porcelain)
-        printf ("%s\t%s\t%s\t%s\n", is_i ? "installed" : "available",
-                r.name, r.ver[0] ? r.ver : "-", r.prov);
+        length = snprintf (row, sizeof row, "%s\t%s\t%s\t%s\n",
+                           is_i ? "installed" : "available",
+                           r.name, r.ver[0] ? r.ver : "-", r.prov);
       else
-        printf ("  %-10s  %-18s  %-12s  %s\n",
-                is_i ? "installed" : "available",
-                r.name, r.ver[0] ? r.ver : "-", r.prov);
+        length = snprintf (row, sizeof row, "  %-10s  %-18s  %-12s  %s\n",
+                           is_i ? "installed" : "available",
+                           r.name, r.ver[0] ? r.ver : "-", r.prov);
+      if (length < 0 || (size_t) length >= sizeof row)
+        output.error = EOVERFLOW;
+      else
+        bl_output_write (&output, row, length);
+      if (output.error)
+        break;
       shown++;
     }
-  if (pl_close_index (c, f, bad) < 0)
+  read_rc = pl_close_index (c, f, bad);
+  bl_output_flush (&output);
+  if (output.error)
+    {
+      builtin_error ("write error: %s", strerror (output.error));
+      clearerr (stdout);
+      return EXECUTION_FAILURE;
+    }
+  if (read_rc < 0)
     return pl_finish_output (EXECUTION_FAILURE);
   if (porcelain)
     return pl_finish_output (EXECUTION_SUCCESS);
@@ -481,8 +544,9 @@ pl_check_helper (const pl_cfg *c, const char *verb)
   struct stat st;
   if (stat (c->installer, &st) < 0)
     {
-      builtin_error ("%s: installer %s: %s", verb, c->installer, strerror (errno));
-      return errno == ENOENT || errno == ENOTDIR ? 127 : 126;
+      int err = errno;
+      builtin_error ("%s: installer %s: %s", verb, c->installer, strerror (err));
+      return err == ENOENT || err == ENOTDIR ? 127 : 126;
     }
   if (!S_ISREG (st.st_mode))
     {
@@ -580,7 +644,7 @@ pl_verb_install (const pl_cfg *c, WORD_LIST *names)
 
   if (!(f = pl_open_index (c, 1)))
     {
-      builtin_error ("install: no payload repo staged at %s: %s", c->repo,
+      builtin_error ("install: no payload repo staged at %s (INDEX read error): %s", c->repo,
                      strerror (errno));
       return EXECUTION_FAILURE;
     }
@@ -632,14 +696,17 @@ pl_verb_install (const pl_cfg *c, WORD_LIST *names)
   return EXECUTION_SUCCESS;
 }
 
-/* payload remove NAME...  ->  for each: look up its install txn, then
- *                             bash bl-pkg.sh --internal --root R rollback TXN
+/* payload remove NAME...  ->  snapshot the requested install txn IDs, then
+ *                     bash bl-pkg.sh --internal --root R rollback TXN
+ * A rollback may remove several state files. Resolve names before any helper
+ * runs and attempt each distinct transaction just once, including failures.
  * Returns the first failing helper status, else 1 if any NAME was refused. */
 static int
 pl_verb_remove (const pl_cfg *c, WORD_LIST *names)
 {
   WORD_LIST *l;
-  int refused = 0, helper_rc = 0, checked = 0;
+  int refused = 0, helper_rc = 0, checked = 0, count = 0, i, j;
+  struct request { const char *name; char *txn; int rc; } *requests;
 
   if (names == NULL)
     {
@@ -647,40 +714,48 @@ pl_verb_remove (const pl_cfg *c, WORD_LIST *names)
       return EX_USAGE;
     }
   for (l = names; l; l = l->next)
+    count++;
+  requests = xmalloc (count * sizeof *requests);
+  memset (requests, 0, count * sizeof *requests);
+  /* Keep valid references even when an earlier rollback removes their files. */
+  for (l = names, i = 0; l; l = l->next, i++)
     {
-      const char *name = l->word->word;
-      char *txn;
-      char *argv[8];
-      int n = 0, rc;
-
+      const char *name = requests[i].name = l->word->word;
+      int rc;
       if (!pl_valid_name (name))
         {
           builtin_error ("remove: invalid payload name '%s'", name);
           refused++;
-          continue;
         }
-      if (!pl_is_installed (c, name))
+      else if (!pl_is_installed (c, name))
         {
           builtin_error ("remove: '%s' is not installed", name);
           refused++;
-          continue;
         }
-      rc = pl_read_txn (c, name, &txn);
-      if (rc != PL_TXN_OK)
+      else if ((rc = pl_read_txn (c, name, &requests[i].txn)) != PL_TXN_OK)
         {
           builtin_error ("remove: cannot determine install transaction for '%s' "
                          "(%s txn= in its bl-pkg state); use 'pkg remove %s' "
                          "or roll back manually",
                          name, rc == PL_TXN_ABSENT ? "no" : "malformed", name);
           refused++;
-          continue;
         }
+    }
+  for (i = 0; i < count; i++)
+    {
+      const char *name = requests[i].name;
+      char *txn = requests[i].txn;
+      char *argv[8];
+      int n = 0, rc;
+
+      if (!txn)
+        continue;
       if (!checked)
         {
           if ((rc = pl_check_helper (c, "remove")) != 0)
             {
-              free (txn);
-              return rc;
+              helper_rc = rc;
+              break;
             }
           checked = 1;
         }
@@ -693,8 +768,10 @@ pl_verb_remove (const pl_cfg *c, WORD_LIST *names)
       argv[n++] = txn;
       argv[n] = NULL;
 
-      rc = pl_run (argv);
-      free (txn);
+      for (j = 0; j < i; j++)
+        if (requests[j].txn && strcmp (requests[j].txn, txn) == 0)
+          break;
+      rc = requests[i].rc = j < i ? requests[j].rc : pl_run (argv);
       if (rc != 0)
         {
           builtin_error ("remove: rollback failed for '%s' (bl-pkg exit %d)",
@@ -705,6 +782,9 @@ pl_verb_remove (const pl_cfg *c, WORD_LIST *names)
       else
         printf ("payload: removed %s\n", name);
     }
+  for (i = 0; i < count; i++)
+    free (requests[i].txn);
+  free (requests);
   if (helper_rc)
     return pl_finish_output (helper_rc);
   return pl_finish_output (refused ? EXECUTION_FAILURE : EXECUTION_SUCCESS);

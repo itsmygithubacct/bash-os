@@ -46,24 +46,27 @@ case $1 in
     [[ $3 == --allow-unsigned && $4 == install && -r $2/INDEX ]] || exit 64
     shift 4
     for name; do
-      printf 'txn=txn-%s-%d\nversion=fake\n' "$name" "$n" > "$state/$name"
+      txn=txn-$name-$n
+      [[ $mode == shared ]] && txn=txn-shared-$n
+      printf 'txn=%s\nversion=fake\n' "$txn" > "$state/$name"
       echo "helper: installed $name"
     done ;;
   rollback)
     [[ $# == 2 ]] || exit 64
+    found=0
     for f in "$state"/*; do
-      while IFS= read -r line; do
+      while IFS= read -r line || [[ -n $line ]]; do
         [[ $line == txn=* ]] || continue
         line=${line%$'\r'}
         if [[ $line == "txn=$2" ]]; then
           PATH=/usr/bin:/bin rm -f -- "$f"
-          echo "helper: rolled back $2"
-          exit 0
+          found=1
         fi
         break
       done < "$f"
     done
-    exit 65 ;;
+    [[ $found == 1 ]] || exit 65
+    echo "helper: rolled back $2" ;;
   *) exit 64 ;;
 esac
 '''
@@ -88,7 +91,7 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
     repo = top / "re po 'q' $(touch PWNED)"
     root = top / 'ro"ot `touch PWNED`'
     log = top / 'log'
-    helper = top / 'bl-pkg.sh'
+    helper = top / "bl-pkg 'q' $(touch PWNED).sh"
     for d in (repo, root / 'var/lib/bl-pkg/installed', log):
         d.mkdir(parents=True)
     state = root / 'var/lib/bl-pkg/installed'
@@ -119,20 +122,26 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
             n += 1
         return out
 
-    def run(script, env=None, unset=(), pin=False):
+    def run(script, env=None, unset=(), pin=False, timeout=30):
         e = dict(base_env, **(env or {}))
         for k in unset:
             e.pop(k, None)
         cpu = min(os.sched_getaffinity(0))
         return subprocess.run([binary, '--norc', '--noprofile', '-c', prefix + script],
-                              capture_output=True, env=e, timeout=30, text=True,
+                              capture_output=True, env=e, timeout=timeout, text=True,
                               errors='backslashreplace',
                               preexec_fn=(lambda: os.sched_setaffinity(0, {cpu})) if pin else None)
 
     def check(label, script, status=0, stdout=None, stderr_has=(), stderr_empty=None,
-              ncalls=None, argvs=None, env=None, unset=(), extra=None, pin=False):
+              ncalls=None, argvs=None, env=None, unset=(), extra=None, pin=False,
+              timeout=30):
         global checks
-        r = run(script, env, unset, pin)
+        try:
+            r = run(script, env, unset, pin, timeout)
+        except subprocess.TimeoutExpired:
+            checks += 1
+            failures.append((label, ['timed out'], '', ''))
+            return None
         got = calls()
         problems = []
         if r.returncode != status:
@@ -182,6 +191,10 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
     check('porcelain', 'payload list --porcelain', stdout=''.join(
         '%s\t%s\t%s\t%s\n' % ('installed' if n == 'gcc' else 'available', n, v, p)
         for n, v, p in full))
+    check('buffered rows preserve surrounding shell output order',
+          'printf before; payload list -p; printf after', stdout='before' + ''.join(
+              '%s\t%s\t%s\t%s\n' % ('installed' if n == 'gcc' else 'available', n, v, p)
+              for n, v, p in full) + 'after', ncalls=0)
     check('-p --installed', 'payload list -p --installed',
           stdout='installed\tgcc\t14.2\tbin/gcc\n')
     check('installed verb', 'payload installed', stdout=header +
@@ -237,6 +250,17 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
     check('no repo staged', 'payload list', status=1,
           env={'PAYLOAD_REPO': str(top / 'absent')},
           extra=lambda r, g: None if 'no payload repo staged' in r.stdout else 'no hint')
+    # A 4095-byte repo path used to consume the entire fixed buffer, silently
+    # dropping "/INDEX" and reading this regular file as the index itself.
+    alias = top / 'index-alias'
+    if len(str(alias)) % 2 == 0:
+        alias = top / 'index-aliasx'
+    alias.write_text('blpkg-v1 name=wrong-file\n')
+    long_repo = '/' + './' * ((4095 - len(str(alias))) // 2) + str(alias)[1:]
+    assert len(long_repo) == 4095
+    check('long repo cannot drop INDEX suffix and read another file', 'payload list -p',
+          status=1, env={'PAYLOAD_REPO': long_repo}, ncalls=0,
+          stderr_has=['File name too long'])
 
     # --- malformed INDEX --------------------------------------------------
     long_tail = 'x' * (8191 - len('blpkg-v1 name=long provides=')) + \
@@ -273,8 +297,24 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
           stdout='available\trust\t2\t\n', stderr_has=['skipped 1 malformed record'])
     check('install refuses NUL-truncated name', 'payload install bun', status=1,
           stderr_has=["no payload named 'bun'"], ncalls=0)
+    reset(index='blpkg-v1 name=bun version=1\x1b[31m\n'
+                'blpkg-v1 name=gcc provides=bin/gcc\x7f\n'
+                'blpkg-v1 name=rust version=2\n')
+    check('INDEX control bytes cannot reach terminal output', 'payload list -p',
+          stdout='available\trust\t2\t\n', stderr_has=['skipped 2 malformed records'])
+    check('install refuses control-bearing record', 'payload install bun', status=1,
+          ncalls=0, stderr_has=["no payload named 'bun'"])
+    (repo / 'INDEX').unlink()
+    os.mkfifo(repo / 'INDEX')
+    check('FIFO INDEX fails without waiting for a writer', 'payload list -p',
+          status=1, ncalls=0, timeout=2)
+    (repo / 'INDEX').unlink()
 
     # --- install through the helper boundary -------------------------------
+    wide_name, wide_version, wide_provides = 'n' * 255, 'v' * 255, 'p' * 255
+    reset(index=f'blpkg-v1 name={wide_name} version={wide_version} provides={wide_provides}\n')
+    check('maximum field widths fit a buffered output row', 'payload list -p',
+          stdout=f'available\t{wide_name}\t{wide_version}\t{wide_provides}\n', ncalls=0)
     reset()
     check('install multiple names', 'payload install bun gcc',
           stdout='helper: installed bun\nhelper: installed gcc\n',
@@ -334,6 +374,9 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
     reset()
     check('interpreter cannot be executed -> 127', 'BASH=/nonexistent/bash payload install bun',
           status=127, ncalls=0, stderr_has=['/nonexistent/bash'])
+    check('non-executable interpreter -> 126',
+          f'BASH={shlex.quote(str(helper))} payload install bun',
+          status=126, ncalls=0, stderr_has=['Permission denied'])
     reset()
     check('status visible to set -e and $?',
           'payload install bun; echo "rc=$?"; set -e; payload install bun; echo unreachable',
@@ -357,6 +400,36 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
                  'helper: rolled back txn-bun-0\npayload: removed bun\n',
           argvs=[INSTALL + ['bun', 'rust'], ROLLBACK + ['txn-rust-0'],
                  ROLLBACK + ['txn-bun-0']])
+    reset()
+    check('shared install transaction rolled back once for multiple names',
+          'payload install bun gcc && payload remove bun gcc bun && payload list -p --installed',
+          env={'FAKE_MODE': 'shared'},
+          stdout='helper: installed bun\nhelper: installed gcc\n'
+                 'helper: rolled back txn-shared-0\npayload: removed bun\n'
+                 'payload: removed gcc\npayload: removed bun\n',
+          argvs=[INSTALL + ['bun', 'gcc'], ROLLBACK + ['txn-shared-0']],
+          extra=lambda r, g: None if not any(state.iterdir()) else 'state left behind')
+    reset(installed={'bun': 'txn=shared\n', 'gcc': 'txn=shared\n'})
+    check('failed shared transaction is attempted once and status retained',
+          'payload remove bun gcc bun', status=42, env={'FAKE_MODE': 'fail:42'},
+          stdout='', argvs=[ROLLBACK + ['shared']],
+          stderr_has=["rollback failed for 'bun'", "rollback failed for 'gcc'"])
+    reset(installed={'bun': "txn=T;'$(echo${IFS}PWNED)`echo${IFS}PWNED`\n"})
+    check('transaction shell syntax remains one literal argument', 'payload remove bun',
+          argvs=[ROLLBACK + ["T;'$(echo${IFS}PWNED)`echo${IFS}PWNED`"]],
+          stdout="helper: rolled back T;'$(echo${IFS}PWNED)`echo${IFS}PWNED`\n"
+                 "payload: removed bun\n")
+    reset()
+    os.mkfifo(state / 'bun')
+    check('FIFO state does not block info', 'payload info bun', timeout=2,
+          extra=lambda r, g: None if 'available (not installed)' in r.stdout else r.stdout)
+    check('FIFO state does not block remove', 'payload remove bun', status=1, ncalls=0, timeout=2,
+          stderr_has=['not installed'])
+    (state / 'bun').unlink()
+    (state / 'bun').mkdir()
+    check('directory is not installed package state', 'payload list -p --installed',
+          stdout='', ncalls=0)
+    (state / 'bun').rmdir()
     reset(installed={'bun': 'txn=T-bun-1\n'})
     check('remove not-installed + installed', 'payload remove nope bun', status=1,
           stderr_has=["'nope' is not installed"], argvs=[ROLLBACK + ['T-bun-1']],
@@ -384,6 +457,19 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
           argvs=[ROLLBACK + ['T-bun-1']],
           stdout='helper: rolled back T-bun-1\npayload: removed bun\n',
           env={'FAKE_MODE': 'ok-crlf'})
+    reset(installed={'bun': 'txn=first\ntxn=second\n'})
+    check('first transaction line is authoritative', 'payload remove bun',
+          argvs=[ROLLBACK + ['first']],
+          stdout='helper: rolled back first\npayload: removed bun\n')
+    reset(installed={'bun': 'txn=without-newline'})
+    (repo / 'INDEX').unlink()
+    check('rollback needs state but no INDEX or final newline', 'payload remove bun',
+          argvs=[ROLLBACK + ['without-newline']],
+          stdout='helper: rolled back without-newline\npayload: removed bun\n')
+    reset(installed={'bun': 'txn=' + 't' * 255 + '\n'})
+    check('255-byte transaction accepted without truncation', 'payload remove bun',
+          argvs=[ROLLBACK + ['t' * 255]],
+          stdout='helper: rolled back ' + 't' * 255 + '\npayload: removed bun\n')
 
     reset(installed={'bun': 'txn=T-bun-1\n', 'gcc': 'txn=T-gcc-2\n', 'rust': 'txn=T-r-3\n'})
     check('rollback failure: first helper status returned, later names still tried',
@@ -427,6 +513,10 @@ with tempfile.TemporaryDirectory(prefix='opus-payload-') as directory:
           'payload list -p --installed; echo "rc=$?"', stdout='rc=0\n')
     check('info to a full device fails', 'payload info bun >/dev/full', status=1,
           stderr_has=['write error'])
+    reset(installed={'bun': 'txn=T-bun-1\n'})
+    check('remove reports output failure after rollback', 'payload remove bun >/dev/full',
+          status=1, stderr_empty=False, argvs=[ROLLBACK + ['T-bun-1']],
+          extra=lambda r, g: None if not any(state.iterdir()) else 'rollback did not run')
     big = ''.join('blpkg-v1 name=pl-%05d version=1.%d.0 provides=bin/pl-%05d\n'
                   % (i, i % 53, i) for i in range(5000))
     reset(index=big, installed={'pl-%05d' % i: 'txn=t%d\n' % i for i in range(0, 5000, 8)})

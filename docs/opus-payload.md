@@ -5,6 +5,9 @@ payload share. `list`, `installed` and `info` read the share INDEX and the
 install state in-process. `install` and `remove` hand off to an external
 installer, `bl-pkg.sh`.
 
+The [completion review](sol-payload.md) extends these checks and refreshes the
+measurements after the parser correction.
+
 ## The external helper and who owns it
 
 `bl-pkg.sh` is **not part of this repository**. The bashy.box image ships it at
@@ -48,11 +51,13 @@ $BASH INSTALLER --internal --root ROOT rollback TXN
 
   If any NAME fails, the helper is not run. An invalid NAME exits 2. A NAME
   with no record is reported and exits 1.
-* `remove` runs the helper once per NAME. It takes `TXN` from the first
+* `remove` runs the helper once per distinct transaction, resolving all NAMEs
+  before the first rollback. Names sharing a transaction reuse its result,
+  including failures. It takes `TXN` from the first
   `txn=` line of `ROOT/var/lib/bl-pkg/installed/NAME`. A NAME is refused (and
   the helper is not run for it) if:
   * the NAME is invalid;
-  * the NAME is not installed;
+  * the NAME has no regular installed-state file;
   * the state file has no `txn=` line;
   * the TXN is empty, starts with `-`, contains a space or control byte, or is
     256 bytes or longer;
@@ -84,7 +89,8 @@ $BASH INSTALLER --internal --root ROOT rollback TXN
 The share is a **trusted local repository** staged by the host. `payload`
 always passes `--allow-unsigned`; it does no signature checking of its own.
 `pkg` is the command for the signed-mirror workflow. `payload` does not trust
-the share's *structure*, however. INDEX records with an embedded NUL, an invalid name, a field
+the share's *structure*, however. INDEX must be a regular file. Records with
+an embedded NUL, terminal control bytes, an invalid name, a field
 of 256 bytes or more, no `name=`, or a line longer than 8191 bytes are skipped.
 `list` and `info` report the number skipped on stderr, and `install` will not
 act on a skipped record. Previously, the 8 KiB tail of an overlong line could
