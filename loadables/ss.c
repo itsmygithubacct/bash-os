@@ -299,7 +299,7 @@ bss_send_inet_req (int fd, int family, int proto, unsigned states,
   kaddr.nl_family = AF_NETLINK;
   ssize_t n = sendto (fd, &pkt, pkt.nlh.nlmsg_len, 0,
                       (struct sockaddr *) &kaddr, sizeof kaddr);
-  return n < 0 ? -1 : 0;
+  return n == (ssize_t) pkt.nlh.nlmsg_len ? 0 : -1;
 }
 
 static int
@@ -317,14 +317,14 @@ bss_send_unix_req (int fd, unsigned states, unsigned seq)
   pkt.nlh.nlmsg_seq = seq;
   pkt.req.sdiag_family = AF_UNIX;
   pkt.req.udiag_states = states ? states : ~0U;
-  pkt.req.udiag_show = UDIAG_SHOW_NAME | UDIAG_SHOW_PEER;
+  pkt.req.udiag_show = UDIAG_SHOW_NAME | UDIAG_SHOW_PEER | UDIAG_SHOW_RQLEN;
 
   struct sockaddr_nl kaddr;
   memset (&kaddr, 0, sizeof kaddr);
   kaddr.nl_family = AF_NETLINK;
   ssize_t n = sendto (fd, &pkt, pkt.nlh.nlmsg_len, 0,
                       (struct sockaddr *) &kaddr, sizeof kaddr);
-  return n < 0 ? -1 : 0;
+  return n == (ssize_t) pkt.nlh.nlmsg_len ? 0 : -1;
 }
 
 /* Callback receives one nlmsghdr; returns 0 to continue, non-zero to
@@ -462,10 +462,8 @@ bss_cb_inet (struct nlmsghdr *h, void *vctx)
   if (c->show_pid)
     bss_pidmap_lookup (c->pidmap, (unsigned long) m->idiag_inode,
                        proc, sizeof proc);
-  /* idiag_rqueue / idiag_wqueue follow the msg in attrs; the base
-   * msg has rmem/wmem only via INET_DIAG_SKMEMINFO. Surface base
-   * fields here — sufficient for the ML-T4-03 acceptance gate
-   * (ss -l + ss -p), deeper queue accounting deferred to v2. */
+  /* The base message contains queue lengths, including the backlog for
+   * listeners. No INET_DIAG_SKMEMINFO attribute is needed for these columns. */
   if (c->legacy_columns)
     {
       fprintf (c->out, "%-5s %-6u %-6u %-26s %-26s %s%s\n",
@@ -491,6 +489,8 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
   size_t total = h->nlmsg_len - NLMSG_HDRLEN;
   if (rta_off > total)
     return -1;
+  if (m->udiag_family != AF_UNIX)
+    return -1;
   struct rtattr *rta = (struct rtattr *)
     ((char *) NLMSG_DATA (h) + (rta_off - 0));
   /* rta is just past the unix_diag_msg base. Use the standard
@@ -498,9 +498,16 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
   int len = (int) (total - rta_off);
   const char *path = "";
   char pathbuf[128] = { 0 };
+  struct unix_diag_rqlen queues = { 0, 0 };
   while (RTA_OK (rta, len))
     {
-      if (rta->rta_type == UNIX_DIAG_NAME)
+      if (rta->rta_type == UNIX_DIAG_RQLEN)
+        {
+          if (RTA_PAYLOAD (rta) < sizeof queues)
+            return -1;
+          memcpy (&queues, RTA_DATA (rta), sizeof queues);
+        }
+      else if (rta->rta_type == UNIX_DIAG_NAME)
         {
           int dl = (int) (rta->rta_len - sizeof (struct rtattr));
           if (dl > 0)
@@ -520,6 +527,8 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
         }
       rta = RTA_NEXT (rta, len);
     }
+  if (len != 0)
+    return -1;
   const char *typestr = m->udiag_type == SOCK_STREAM ? "u_str"
                       : m->udiag_type == SOCK_DGRAM  ? "u_dgr"
                       : m->udiag_type == SOCK_SEQPACKET ? "u_seq"
@@ -529,12 +538,14 @@ bss_cb_unix (struct nlmsghdr *h, void *vctx)
     bss_pidmap_lookup (c->pidmap, (unsigned long) m->udiag_ino,
                        proc, sizeof proc);
   if (c->legacy_columns)
-    fprintf (c->out, "%-5s 0      0      %-26s %-26s %s%s\n",
-            typestr, path[0] ? path : "*", "*",
+    fprintf (c->out, "%-5s %-6u %-6u %-26s %-26s %s%s\n",
+            typestr, queues.udiag_rqueue, queues.udiag_wqueue,
+            path[0] ? path : "*", "*",
             ss_state_name (m->udiag_state), proc);
   else
     fprintf (c->out, "%-6s %-11s %-7u %-7u  %-22s %s%s\n",
-            typestr, ss_state_name (m->udiag_state), 0U, 0U,
+            typestr, ss_state_name (m->udiag_state),
+            queues.udiag_rqueue, queues.udiag_wqueue,
             path[0] ? path : "*", "*", proc);
   c->rows++;
   return 0;
@@ -575,7 +586,7 @@ bss_proc_inet (const char *path, const char *netid, int family,
   char line[512];
   /* skip header */
   if (!fgets (line, sizeof line, fp))
-    { fclose (fp); return 0; }
+    { int rc = ferror (fp) ? -1 : 0; fclose (fp); return rc; }
   int rows = 0;
   while (fgets (line, sizeof line, fp))
     {
@@ -627,7 +638,7 @@ bss_proc_unix (struct bss_render_ctx *c, int listen_only)
   char line[512];
   /* header */
   if (!fgets (line, sizeof line, fp))
-    { fclose (fp); return 0; }
+    { int rc = ferror (fp) ? -1 : 0; fclose (fp); return rc; }
   int rows = 0;
   while (fgets (line, sizeof line, fp))
     {
@@ -777,6 +788,8 @@ ss_builtin (WORD_LIST *list)
   struct bss_opts o;
   memset (&o, 0, sizeof o);
   o.numeric = 1;
+  /* stdout and its error indicator outlive this invocation in Bash. */
+  clearerr (stdout);
 
   int explicit_family = 0;
   for (WORD_LIST *p = list; p; p = p->next)
@@ -790,7 +803,8 @@ ss_builtin (WORD_LIST *list)
           printf ("bashss — ss(8) subset (sock_diag=%s)\n",
                   fd >= 0 ? "ok" : "proc-fallback");
           if (fd >= 0) close (fd);
-          return EXECUTION_SUCCESS;
+          return fflush (stdout) == 0 && !ferror (stdout)
+                 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
         }
       if (w[0] != '-' || w[1] == 0)
         {
@@ -824,7 +838,10 @@ ss_builtin (WORD_LIST *list)
   if (!o.listen_only && !o.all_states)
     o.all_states = 1;
 
-  return bss_run (&o) == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  int rc = bss_run (&o);
+  if (fflush (stdout) == EOF || ferror (stdout))
+    rc = -1;
+  return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
 char *ss_doc[] = {

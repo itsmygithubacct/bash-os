@@ -22,9 +22,9 @@ while allowing another invocation in the same shell to succeed.
 
 The scope is the documented numeric TCP/UDP/Unix subset, including short and
 long aliases. It does not claim complete net-tools compatibility, service-name
-resolution, routing/interface tables or IPv4/IPv6 selection options. Unix queue fields
-are currently fixed at zero; queued Unix traffic accounting is outside this
-software-path fixture scope. The current
+resolution, routing/interface tables or IPv4/IPv6 selection options. Unix queue
+fields come from `UNIX_DIAG_RQLEN` when netlink supplies it; the proc Unix table
+does not expose queues and retains zero placeholders. The current
 shared renderer uses ss state labels (`ESTAB`, `UNCONN`) and ss process
 annotations even under the legacy `PID/Program` header.
 

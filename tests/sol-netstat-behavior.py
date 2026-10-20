@@ -207,7 +207,7 @@ class Suite:
         base=fixtures(Path(tmp)/'invalid-unix-attr')
         payload=struct.pack('=BBBBIII',1,1,10,0,301,0xffffffff,0xffffffff)+struct.pack('=HH',3,0)
         (base/'diag/1-0.bin').write_bytes(msg(payload)+msg(kind=3))
-        self.case('malformed Unix attribute bounded',lambda:self.check('netstat -xnl',environment(self.shim,base,'diag'),HEADER+'\n'+row('u_str',0,0,'*','*','LISTEN')))
+        self.case('malformed Unix attribute falls back',lambda:self.check('netstat -xnl',environment(self.shim,base,'diag'),HEADER+'\n'+row('u_str',0,0,'/fixture/listener','*','LISTEN')))
         base=fixtures(Path(tmp)/'malformed-proc')
         bad='not a socket row\n0: Z:1 Z:2 01 0:0 0:0 0 1000 0 555\n0: 1:1 1:2 01 0:0 0:0 0 1000 0 556\n'
         (base/'proc/net/tcp').write_text('header\n'+bad+proc_row(1,2,1,41002,41003,102))
@@ -264,7 +264,7 @@ class Suite:
                         # selects this exact socket among the path matches.
                         own=[x for x in lines if f'pid={os.getpid()},fd={s.fileno()}' in ' '.join(x)]
                         assert len(own)==int(not listen or state=='LISTEN'),(opts,own)
-                        if own:assert own[0][:6]==['u_str','0','0',s.getsockname(),'*',state],own
+                        if own:assert own[0][:6]==['u_str','0','8' if state=='LISTEN' else '0',s.getsockname(),'*',state],own
                 self.case('owned private Unix '+opts,check)
 
 def main():
