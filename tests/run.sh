@@ -58,6 +58,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'required nano oracle and termios tools' python3 -c 'import shutil; assert all(shutil.which(n,path="/usr/bin:/bin") for n in ("nano","stty")), "Required GNU nano or stty missing"'
+check 'nano private PTY and resolved highlight integration' env NANO_REQUIRE_RESOLVED_TS=1 python3 tests/opus-nano-pty.py out/bash
 check 'coreutils dispatcher contracts' python3 tests/sol-coreutils-check.py out/bash
 check 'grep PCRE2 and persistent state' python3 tests/sol-grep-check.py out/bash
 check 'ptybroker bounded streams and ownership' env TMPDIR=/tmp python3 tests/sol-ptybroker-streams.py --bash out/bash --output "$scratch/ptybroker-streams.json"
@@ -202,6 +204,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'nano combined selftests and PTYs under ASan+UBSan' env NANO_REQUIRE_RESOLVED_TS=1 bash tests/opus-nano-sanitize.sh out/bash
   check 'coreutils dispatcher under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/coreutils-contracts" bash tests/sol-coreutils-sanitize.sh out/bash
   check 'grep sanitizer harness build' bash tests/sol-grep-build-harness.sh "$scratch/grep-contracts"
   check 'grep PCRE2 sanitizer contracts' python3 tests/sol-grep-check.py out/bash --impl "$scratch/grep-contracts"

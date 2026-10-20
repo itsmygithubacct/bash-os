@@ -1320,6 +1320,14 @@
       "status": "Contract",
       "evidence": "tests/sol-coreutils-check.py",
       "scope": "Dispatcher command contracts, exact literal tac separators and nproc environment overrides. The bounded dispatcher surface is distinct from the unfinished standalone general-regex tac task."
+    },
+    {
+      "names": [
+        "nano"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-nano-pty.py",
+      "scope": "Justify, word-list spelling, completion, selection and lazy line-cache behavior with mandatory GNU reference checks. Both corrected nano and ts are verified together in an integration-derived private checkout before nano acceptance; central HEAD contains only this original task."
     }
   ],
   "sanitizer_groups": [
@@ -1873,6 +1881,12 @@
         "coreutils"
       ],
       "evidence": "tests/sol-coreutils-sanitize.sh"
+    },
+    {
+      "names": [
+        "nano"
+      ],
+      "evidence": "tests/opus-nano-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2430,8 +2444,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "nano": {
-      "note": "Editor selftests pass; justify, spell and completion still report unimplemented.",
-      "evidence": "loadables/nano.c"
+      "evidence": "docs/opus-nano.md",
+      "note": "Justify, word-list spelling, completion, selection and lazy line-cache behavior with mandatory GNU reference checks. Both corrected nano and ts are verified together in an integration-derived private checkout before nano acceptance; central HEAD contains only this original task.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pgrep": {
       "note": "Matching is substring-based unless exact matching is selected; not full procps regular-expression behavior.",
