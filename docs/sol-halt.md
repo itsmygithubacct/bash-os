@@ -9,7 +9,7 @@ transition, permission override, or wtmp/utmp accounting. Accounting options
 `-w` and `-d` are unsupported and return usage status 2 before any mutation.
 An ordinary request syncs first; a forced request still reports kernel errors.
 
-The proposed shared-header fixes reject operands before requesting shutdown,
+The shared-header fixes reject operands before requesting shutdown,
 handle `--help` through Bash's help convention (status 2), propagate a failed
 dry-run write, and return success when the reboot boundary reports success.
 Kernel errors produce a diagnostic and status 1. A real successful shutdown
@@ -57,12 +57,14 @@ python3 "$CAMPAIGN/scripts/gated.py" bench -- python3 bench/sol-halt.py \
   --runs 7 --passes 10000 --output "$BASHOS_TASK_DIR/benchmark.json"
 ```
 
-Validation remains incomplete in this checkout: the campaign resource gate has
-not admitted the targeted build. Another benchmark held both campaign build
-slots for roughly 49 minutes when inspected, with multiple queued jobs ahead of
-this one. Consequently, the C changes, boundary fixture, 108 runtime assertions,
-sanitizer checks, and benchmark are unverified; no timings or speedup are
-reported. Python syntax, shell-script syntax, and patch whitespace can be
-checked without compiling. Integration must rerun all three siblings after this
-shared-header change and after any subsequent reboot/poweroff change. Live
-machine shutdown qualification is deliberately outside this software scope.
+The targeted build and boundary fixtures passed validation in an isolated
+checkout. All 108 assertions passed both natively and with ASan/UBSan.
+Each of the three benchmark workloads passed its warm-up and seven measured
+batches of 10,000 calls. These checks exercise the unchanged production wrapper
+behind the closed boundary; they do not qualify real shutdown, storage flushes,
+accounting or runlevel changes. Earlier unsuccessful build attempts remain
+separate evidence, rather than being treated as runtime passes.
+
+Integration must rerun all three siblings after any subsequent change to the
+shared header, reboot or poweroff. Live machine shutdown qualification remains
+outside this software scope.
