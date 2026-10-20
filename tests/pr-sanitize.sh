@@ -17,3 +17,5 @@ printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport PR_MODULE=%q\nexec %q "$@"\n' 
 chmod +x "$d/bash-os"
 ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   python3 tests/pr-parity.py "$d/bash-os"
+ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+  python3 tests/sol-pr-cli.py "$d/bash-os"

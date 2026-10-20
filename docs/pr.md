@@ -1,4 +1,4 @@
-# pr — the supported subset
+# pr — pagination and column formatting
 
 [`loadables/pr.c`](../loadables/pr.c) is a paginator and column formatter in
 the shape of POSIX `pr(1)`. It is compared byte for byte with GNU coreutils
@@ -16,21 +16,39 @@ a drop-in GNU `pr`, and the differences that remain are listed at the end.
 | --- | --- |
 | `-t` | no header, no footer, no page padding |
 | `-l LINES`, `--length` | lines per page (default 66). A page of ten lines or fewer has no room for the five-line header and five-line footer and is printed without them, as in GNU pr. Zero is an error. |
-| `-w WIDTH`, `--width` | page width for column layout, default 72, **minimum 8** |
+| `-w WIDTH`, `--width` | positive page width for column layout, default 72; an impossible column geometry fails |
 | `-h HEADER`, `--header` | replace the page title |
-| `-N` (a bare digit 1–9) | lay one input out in N balanced columns |
+| `-COLUMN`, `--columns=COLUMN` | lay one input out in N balanced columns |
 | `-a`, `--across` | fill those columns left to right instead of top to bottom |
 | `-m` | merge: read every FILE in parallel, one column each |
 | `-n[SEP][DIGITS]` | number records: `-n`, `-n3`, `-nc3`, `-n:` |
 | `-o OFFSET` | indent every line by OFFSET columns |
-| `-s[SEP]` | join columns with one separator character (default TAB) and stop padding and truncating |
+| `-s[STRING]` | join columns with a separator string (default TAB); explicit `-w` retains column alignment and truncation |
 | `-d`, `--double-space` | a blank line after each record, in single and column layouts |
 | `-f`, `-F`, `--form-feed` | separate pages with a form feed instead of blank padding |
 | `--help`, `--version` | usage text; the loadable's own version string |
 | `--` | end of options |
 | `FILE...`, `-` | operands; `-` and no operand are standard input |
 
-Options must precede the operands. GNU pr also accepts them afterwards.
+Invalid options and arguments now return GNU's failure status 1 (the previous
+loadable returned Bash usage status 2). The tests compare this status directly
+with GNU; diagnostics retain Bash's command prefix.
+
+Options may follow operands. Attached required arguments and short-option
+clusters are accepted; optional arguments attach to their option (`-e4`,
+`-n:3`, `-S::`) or use the long option's `=` form.
+
+Additional GNU surfaces include `-c`/`--show-control-chars`,
+`-v`/`--show-nonprinting`, `-e[CHAR[WIDTH]]`/`--expand-tabs`,
+`-i[CHAR[WIDTH]]`/`--output-tabs`, `-J`/`--join-lines`,
+`-S[STRING]`/`--sep-string`, `-W WIDTH`/`--page-width`,
+`-D FORMAT`/`--date-format`, `-r`/`--no-file-warnings`,
+`-T`/`--omit-pagination`, `-N NUMBER`/`--first-line-number`,
+`+FIRST[:LAST]`/`--pages=FIRST[:LAST]`, and GNU long names for the
+short options in the table. `-W` applies truncation even to a single column;
+`-J` joins complete records. `-S` controls the separator independently of
+width; it overrides the older `-s` interaction. A custom first line number
+starts at the first page printed; default numbering counts skipped input.
 
 ## Page dates
 
@@ -65,32 +83,27 @@ writes through a 64 KiB buffer of its own. Consequences worth relying on:
 
 ## Records
 
-A record is the bytes up to and including its newline; a final record without
-one is still a record. NUL bytes and other control bytes are carried through,
+A record ends at a newline or input form feed; a final unterminated record
+is still printed. A form feed ends the input page and consumes an immediately
+following newline. `-T` suppresses its output byte. NUL bytes and other control bytes are carried through,
 and a carriage return is part of the record rather than a terminator. Records
 of any length are read, including ones longer than the 64 KiB input buffer.
 
 In a multi-column layout the column arithmetic follows GNU pr: a printable byte
 occupies one column, an input TAB advances to the next eight-column stop
 measured from the start of its cell, a backspace moves back one, any other byte
-occupies none, and the resulting spacing is re-emitted with TABs. A single
-column is a byte-for-byte pass-through, as in GNU pr. Column contents are
-truncated to the column width; a single column is never truncated.
+occupies none, and the resulting spacing is re-emitted with TABs. Ordinary single-column output preserves the input bytes, except backspaces
+that would move before the start of an input record. The conversion options
+apply when requested. Columns are truncated to their width; `-W` also enables
+truncation for single-column output.
 
-## Differences from GNU pr
+## Qualification limits
 
-These are known and deliberate; the parity test skips them by name.
-
-- **Numbered column layouts of records holding control bytes.** With more than
-  one column, `-n` *and* either a custom `-n` separator (`-nc3`, `-n:`) or the
-  default-TAB `-s`, a record containing a TAB, CR or NUL is spaced differently
-  from GNU pr. Plain records match in every layout the test covers.
-- **`-m` with `-n` over a file whose final record has no newline.** GNU pr
-  emits a second number field part way through that output row and skips a
-  number; `pr` here numbers output rows consecutively.
-- **`-w` below 8** is a usage error rather than a narrow page.
-- **`-s` takes one separator character.** GNU pr takes a string.
-- **Options after the first operand** are treated as operands.
-- Not implemented: `-c`, `-e`, `-i`, `-J`, `-r`, `-S`, `-T`, `-v`, `-D`,
-  `+FIRST[:LAST]`, and column counts above 9.
-- `--version` reports the loadable, not a coreutils release.
+The original named exclusions for numbered control bytes, merged unterminated
+records, narrow widths, string separators, post-operand options and column
+counts above nine are exercised by assertions in `tests/pr-parity.py` and
+`tests/sol-pr-cli.py`. Test and measurement qualification, including remaining
+core limitations, is recorded in [the implementation report](sol-pr.md).
+`--version` identifies the loadable rather than a coreutils release. GNU's
+translated diagnostics and unique long-option abbreviations are outside this
+CLI compatibility scope.

@@ -25,8 +25,7 @@ prefix = 'if [[ -n ${PR_MODULE:-} ]]; then enable -f "$PR_MODULE" pr; fi\n'
 GNU = '/usr/bin/pr'
 MTIME = 981173106                       # 2001-02-03 04:05:06 UTC
 STAMP = re.compile(rb'\d{4}-\d\d-\d\d \d\d:\d\d')
-CONTROL = re.compile(rb'[\t\r\x00\x08]')
-checks = skipped = 0
+checks = 0
 
 
 def builtin(args, data=b'', cwd=None, script='"$@"'):
@@ -104,20 +103,6 @@ OPTIONS = [
     ['-m'], ['-t', '-m'],
 ]
 
-# Layouts where a record holding a TAB or another control byte still differs
-# from GNU pr. GNU tracks such a record through its own clump machinery, whose
-# column arithmetic these do not reproduce; plain records match everywhere.
-def excluded(options, data):
-    columns = any(o in ('-2', '-3', '-4', '-m') for o in options)
-    numbered = any(o.startswith('-n') for o in options)
-    own_separator = any(o.startswith('-n') and len(o) > 2 and not o[2:].isdigit()
-                        for o in options)
-    if (columns and numbered and (own_separator or '-s' in options)
-            and CONTROL.search(data)):
-        return 'numbered column layout of a record holding a control byte'
-    return None
-
-
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     for name, data in FIXTURES.items():
@@ -126,9 +111,6 @@ with tempfile.TemporaryDirectory() as directory:
 
     for name, data in FIXTURES.items():
         for options in OPTIONS:
-            if excluded(options, data):
-                skipped += 1
-                continue
             compare([*options, name], cwd=root)             # the file operand
             if '-m' not in options:
                 compare(options, data, cwd=root)            # the same bytes on stdin
@@ -141,12 +123,6 @@ with tempfile.TemporaryDirectory() as directory:
         for names in (['abc', 'n5'], ['abc', 'empty'], ['empty', 'abc'],
                       ['abc', 'n5', 'n7'], ['nonl', 'abc'], ['page', 'abc'],
                       ['abc', 'abc']):
-            # GNU restarts its row numbering part way through a row when a
-            # merged file's final record has no newline; see docs/pr.md.
-            if '-m' in options and any(o.startswith('-n') for o in options) \
-                    and any(not FIXTURES[n].endswith(b'\n') and FIXTURES[n] for n in names):
-                skipped += 1
-                continue
             compare([*options, *names], cwd=root)
 
     # "-" is standard input, and mixes with file operands.
@@ -254,16 +230,16 @@ pr -t "$1"'''
     assert message.returncode == 1 and b'write error' in message.stderr, message.stderr
     checks += 1
 
-    # Rejected option values name the option and exit with the usage status.
-    for options in (['-w', '7'], ['-w', '0'], ['-l', '0'], ['-l', 'x'], ['-o', '-1'],
-                    ['-n0'], ['-nx0'], ['--width=3'], ['--length=0'], ['-q'], ['-2x']):
+    # Rejected option values name the option and exit with GNU's failure status.
+    for options in (['-w', '0'], ['-l', '0'], ['-l', 'x'], ['-o', '-1'],
+                    ['-n0'], ['-nx0'], ['--length=0'], ['-q'], ['-2x']):
         p = builtin([*options, 'abc'], cwd=root)
-        assert p.returncode == 2 and p.stderr, (options, p.returncode, p.stderr)
+        assert p.returncode == reference([*options, 'abc'], cwd=root).returncode == 1 and p.stderr, (options, p.returncode, p.stderr)
         checks += 1
     # An option whose argument is missing is a usage error, not a silent read.
     for options in (['-h'], ['-l'], ['-w'], ['-o'], ['--header'], ['--length'], ['--width']):
         p = builtin(options, cwd=root)
-        assert p.returncode == 2 and p.stderr, (options, p.returncode, p.stderr)
+        assert p.returncode == reference(options, cwd=root).returncode == 1 and p.stderr, (options, p.returncode, p.stderr)
         checks += 1
 
     # --- a terminal receives complete lines while the input stays open -------
@@ -286,5 +262,4 @@ pr -t "$1"'''
         os.close(slave)
     checks += 1
 
-print(f'pr: {checks} GNU parity and shell-state checks passed, '
-      f'{skipped} layouts outside the supported subset skipped')
+print(f'pr: {checks} GNU parity and shell-state checks passed (no layout exclusions)')
