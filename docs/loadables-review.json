@@ -1066,6 +1066,14 @@
       "status": "Contract",
       "evidence": "tests/opus-bc-language.py",
       "scope": "Bounded GNU 1.07 language corpus, scalar/array scope restoration and duplicate declaration rejection. Preserve explicit POSIX-option, read/newline/status and stack-bounded recursion differences."
+    },
+    {
+      "names": [
+        "head"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-head-options.py",
+      "scope": "Native GNU byte/count/header/NUL records plus exact-consumption and descriptor ownership. Signals, live input mutation and cross-libc behavior remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1433,6 +1441,12 @@
         "pcre"
       ],
       "evidence": "tests/sol-pcre-sanitize-build.sh"
+    },
+    {
+      "names": [
+        "head"
+      ],
+      "evidence": "tests/sol-head-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2052,8 +2066,9 @@
       "next": "Add a controlled RTSP/RTP stream with loss, reordering and framing checks."
     },
     "head": {
-      "note": "Repeated stdin is fixed. The stock Bash option subset remains; private streams restore seekable read-ahead and use unbuffered pipe input.",
-      "evidence": "docs/head-sed.md"
+      "evidence": "docs/head-sed.md",
+      "note": "Native GNU byte/count/header/NUL records plus exact-consumption and descriptor ownership. Signals, live input mutation and cross-libc behavior remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "sed": {
       "note": "Repeated stdin and final-newline preservation are fixed. Regex and per-file state differ from GNU; an evaluated dollar address before early pipe quit can consume one lookahead byte.",
