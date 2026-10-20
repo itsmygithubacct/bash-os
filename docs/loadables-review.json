@@ -1116,6 +1116,15 @@
       "status": "Contract",
       "evidence": "docs/sol-doas.md",
       "scope": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified."
+    },
+    {
+      "names": [
+        "zstd",
+        "zstdcat"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-zstd-check.py",
+      "scope": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee."
     }
   ],
   "sanitizer_groups": [
@@ -1521,6 +1530,13 @@
         "su"
       ],
       "evidence": "tests/sol-doas-build.py"
+    },
+    {
+      "names": [
+        "zstd",
+        "zstdcat"
+      ],
+      "evidence": "tests/sol-zstd-host.c"
     }
   ],
   "fuzz": {
@@ -2259,9 +2275,9 @@
       "evidence": "tests/cp-safety.py"
     },
     "zstd": {
-      "note": "Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain.",
-      "evidence": "docs/zstd.md",
-      "next": "See the dedicated zstd report; extend sizes and levels if a slower case appears."
+      "evidence": "docs/sol-zstd.md",
+      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "hostid": {
       "note": "Default is gethostid(3), matching hostid(1), including on this measured full binary. tests/hostid-check.sh covers override files and the machine-id fallback.",
@@ -2365,6 +2381,11 @@
       "evidence": "docs/sol-pcre.md",
       "note": "Bounded PCRE API paths are qualified; literal grep fastpath timings are distinct from general regex engine throughput.",
       "next": "Retain native Linux scope, explicit PCRE API semantics and per-workload regressions; no GNU grep/sed command equivalence or leak-free claim."
+    },
+    "zstdcat": {
+      "evidence": "docs/sol-zstd.md",
+      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2396,7 +2417,9 @@
     "cluster",
     "doas",
     "sudo",
-    "su"
+    "su",
+    "zstd",
+    "zstdcat"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

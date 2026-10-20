@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'zstd bounded streaming and atomic output' python3 tests/sol-zstd-check.py out/bash
 check 'payload isolated installer protocol' python3 tests/opus-payload-installer.py out/bash
 check 'cluster owned membership and recovery' python3 tests/sol-cluster-membership.py out/bash
 check 'join redirected stdin recovery' python3 tests/review-join-streams.py out/bash
@@ -188,6 +189,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'zstd fault harness build' "$CC" -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" tests/sol-zstd-host.c -lzstd -ldl -o "$scratch/zstd-contracts"
+  check 'zstd streaming faults under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/zstd-contracts"
   check 'doas private fixture build' python3 tests/sol-doas-build.py "$scratch/doas-native"
   check 'doas delegation and owned-child wait' python3 tests/sol-doas-check.py --fixture "$scratch/doas-native/fixture" --shell out/bash
   check 'doas sanitized fixture build' python3 tests/sol-doas-build.py "$scratch/doas-sanitize" --sanitize

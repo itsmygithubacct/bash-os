@@ -443,8 +443,8 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | [`xattr`](../loadables/xattr.c) | S F | [Contract](../tests/system-smoke.sh) | —; getfattr / setfattr | 6.451 / — / —; [xattr-list](#case-xattr-list), 141 passes; self-timed; 2 cases total | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`zcat`](../loadables/zcat.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | zcat; zcat | 56.812 / 171.397 / ERROR; [zcat](#case-zcat), 52 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`zlib`](../loadables/zlib.c) | S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | gzip; gzip / xz / zstd / bzip2 | 88.246 / 101.960 / 94.144; [zlib-bzip2](#case-zlib-bzip2), 7 passes; 3 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
-| [`zstd`](../loadables/zstd.c) | S T F | [Parity](../tests/zstd-check.sh); [S](../tests/zstd-host.c) | —; zstd | 50.259 / — / 123.087; [zstd-decompress](#case-zstd-decompress), 56 passes | P3 | See the dedicated zstd report; extend sizes and levels if a slower case appears. |
-| [`zstdcat`](../loadables/zstdcat.c) | S T F | [Parity](../tests/zstd-check.sh) | —; zstdcat | 52.119 / — / 121.452; [zstdcat](#case-zstdcat), 56 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
+| [`zstd`](../loadables/zstd.c) | S T F | [Parity](../tests/zstd-check.sh); [limited](#scope-notes); [S](../tests/zstd-host.c) | —; zstd | 50.259 / — / 123.087; [zstd-decompress](#case-zstd-decompress), 56 passes | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
+| [`zstdcat`](../loadables/zstdcat.c) | S T F | [Parity](../tests/zstd-check.sh); [limited](#scope-notes); [S](../tests/sol-zstd-host.c) | —; zstdcat | 52.119 / — / 121.452; [zstdcat](#case-zstdcat), 56 passes | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
 <!-- END CATALOG -->
 
 ## Repeated-input findings
@@ -575,7 +575,8 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `vi` | Last-line deletion and inclusive UTF-8 visual endpoints are corrected. Historical editing timings precede the UTF-8 correction and include external-process startup. [source](../docs/opus-vi.md) |
 | `vt` | Dedicated edge fixtures cover drained response cloning, complete combining sequences in diff/scrollback output and bounded CSI numeric parsing. [source](../tests/vt-buf-edges.py) |
 | `wc` | Direct-block UTF-8 decoding and filename-list bounds are qualified. Worker UTF-8 workload gains do not imply a current C-locale slowdown or universal speedup. [source](../docs/sol-wc.md) |
-| `zstd` | Default-level stdin compress/decompress is ahead of host zstd(1) on the catalog binary; frames are not byte-identical and validation is round-trip. BusyBox has no applet. Whole-file reads and one-shot ZSTD_compress remain. [source](../docs/zstd.md) |
+| `zstd` | Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee. [source](../docs/sol-zstd.md) |
+| `zstdcat` | Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee. [source](../docs/sol-zstd.md) |
 <!-- END NOTES -->
 
 ## Individual benchmark cases
