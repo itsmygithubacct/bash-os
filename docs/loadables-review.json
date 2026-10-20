@@ -994,6 +994,14 @@
       "status": "Parity",
       "evidence": "tests/opus-vi-dd.py",
       "scope": "Exact key/ex output and mandatory interactive nvim comparisons for line deletion, counts, undo/redo and complete UTF-8 visual endpoints."
+    },
+    {
+      "names": [
+        "more"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-more-check.py",
+      "scope": "Forward newline-record paging, exact stream bytes, private PTY input, interruption and termios/signal/descriptor restoration."
     }
   ],
   "sanitizer_groups": [
@@ -1325,6 +1333,12 @@
         "vi"
       ],
       "evidence": "tests/opus-vi-sanitize.sh"
+    },
+    {
+      "names": [
+        "more"
+      ],
+      "evidence": "tests/sol-more-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2145,6 +2159,11 @@
     "fifo": {
       "evidence": "docs/sol-fifo.md",
       "next": "FIFO API contract qualified with native and sanitizer checks. Worker measurements are self-timed API wall costs for their recorded binary; no terminal performance or external ratio is claimed."
+    },
+    "more": {
+      "evidence": "docs/sol-more.md",
+      "note": "Forward pager software paths and checked key helper are qualified. Original historical throughput slowdown was not reproduced; separate worker large-pipe measurements include producer/sink and shell costs.",
+      "next": "Backward scrolling, wrapped-row accounting, full POSIX conformance and physical terminals remain unqualified."
     }
   },
   "repeat_input_findings": [],
@@ -2165,7 +2184,8 @@
     "expand",
     "nl",
     "pr",
-    "vi"
+    "vi",
+    "more"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
