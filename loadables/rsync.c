@@ -176,6 +176,10 @@ typedef struct {
     long long pre_size, pre_mtime;
     long pre_mode;
     mode_t umask_v;
+    /* Source-to-destination roots for the complete push. Deletion must honor
+     * the union when several directory contents map onto one destination. */
+    char **source_roots, **target_roots;
+    int root_count;
     char *rsync_path;      /* remote rsync binary for --native (default "rsync") */
     long block_size;       /* --block-size N override (0 = auto sqrt) */
     char **rsh_argv;
@@ -2003,6 +2007,18 @@ br_delete_extra (br_ctx *c, const char *lpath, const char *rpath)
         if (!missing) continue;
 
         char *rnext = br_join (rpath, name);
+        for (int i = 0; i < c->root_count && missing; i++) {
+            size_t prefix = strlen (c->target_roots[i]);
+            if (strncmp (rnext, c->target_roots[i], prefix) != 0
+                || (rnext[prefix] && rnext[prefix] != '/')) continue;
+            const char *suffix = rnext + prefix;
+            if (*suffix == '/') suffix++;
+            char *source = *suffix ? br_join (c->source_roots[i], suffix)
+                                   : br_xstrdup (c->source_roots[i]);
+            if (lstat (source, &sb) == 0 || errno != ENOENT) missing = 0;
+            free (source);
+        }
+        if (!missing) { free (rnext); continue; }
         if (c->vflag) fprintf (stderr, "%s (delete)\n", rnext);
         int drc;
         if (c->local) {
@@ -2141,6 +2157,12 @@ br_push (br_ctx *c, char **srcs, int nsrc)
             br_fail (c, BR_RERR_SELECT);
         }
 
+        c->source_roots = roots;
+        c->root_count = count;
+        c->target_roots = br_xmalloc (sizeof (char *) * (size_t) count);
+        for (int i = 0; i < count; i++)
+            c->target_roots[i] = (!dest_dir || contents[i])
+                ? br_xstrdup (c->rdir) : br_join (c->rdir, br_basename (roots[i]));
         int top_meta = -1;
         for (int i = 0; i < count && !c->fatal; i++) {
             if (!dest_dir) {
@@ -2158,6 +2180,10 @@ br_push (br_ctx *c, char **srcs, int nsrc)
         }
         if (top_meta >= 0 && !c->fatal)
             br_dir_meta (c, c->rdir, &sts[top_meta], 0);
+        for (int i = 0; i < count; i++) free (c->target_roots[i]);
+        free (c->target_roots);
+        c->target_roots = c->source_roots = NULL;
+        c->root_count = 0;
     }
     for (int i = 0; i < count; i++) free (roots[i]);
     free (roots); free (contents); free (sts);

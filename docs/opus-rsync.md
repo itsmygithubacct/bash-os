@@ -79,8 +79,8 @@ show up as an extra tree entry.
 All builtin calls for a transport run in one bash-os shell with an empty
 PATH. The shell's open descriptors are compared before and after.
 
-There are 40 scenarios, all run on both transports except the empty-DEST
-case, which is local only. They cover:
+The scenarios run on both transports except the empty-DEST case, which is
+local only. They cover:
 
 - single files to new, existing, slash-terminated, missing-parent,
   under-a-file and symlink destinations
@@ -95,67 +95,8 @@ case, which is local only. They cover:
 - an interrupted copy over an existing file and into a new directory, with
   RLIMIT_FSIZE set and SIGXFSZ ignored for both implementations
 
-Results, against stock rsync 3.5.0 (protocol 32):
-
-| binary | checks | failures |
-|---|---|---|
-| baseline (`2317322`) | 143 | 116 |
-| final, static builtin | 143 | 0 |
-| final, ASan+UBSan object (`tests/opus-rsync-so.sh OUT asan`) | 143 | 0 |
-
-`--delta`, `-z`, `-n` and the server sub-modes were also run through
-`-e "$BIN -c"`. The delta case reported `2045 delta / 153600 file bytes`.
-Usage errors, an empty PATH, closed stdout and repeated calls in one shell
-were checked too, with stable descriptors.
-
-## Measurements
-
-`bench/opus-rsync.py` resets DEST before every pass and runs the same
-arguments through the builtin and through stock rsync (absolute path),
-from one bash-os shell with an empty PATH, pinned to one CPU.
-
-- **Validation:** every pass of both implementations is first driven from
-  a persistent shell, and the full DEST tree is compared after each one.
-- **Timed batches:** each pass's status is checked, each reset asserts the
-  previous pass left the expected entry type, and the final tree is
-  compared again.
-- **Runs:** one warm-up, then 7 samples of 11 passes each.
-
-Final static build (`out/bash-opus-rsync`, rsync+rm+mkdir, source sha256
-`b0097864…`), CPU 11, load average about 3. Times are the median batch
-in milliseconds:
-
-| case | bash-os ms | stock ms | ratio |
-|---|---|---|---|
-| rsync-rsh-shim (historical: `text :rdest/`) | 67.8 | 568.6 | 0.119 |
-| rsync-rsh-file-to-dir (`text :rdest`) | 58.7 | 553.2 | 0.106 |
-| rsync-rsh-file-to-file (`text :rout`, new) | 63.0 | 553.1 | 0.114 |
-| rsync-local-file-to-file (`text lout`, new) | 4.9 | 535.8 | 0.009 |
-| rsync-local-file-to-dir (`text ldest`) | 6.9 | 536.7 | 0.013 |
-| rsync-local-big-file-to-file (16 MiB) | 114.2 | 775.5 | 0.147 |
-| rsync-local-tree (200 × 2 KiB in 8 dirs, `tree/ ltree`) | 85.3 | 633.8 | 0.135 |
-
-The unchanged `bench/loadables.py --only rsync-rsh-shim` run on the same
-binary gave 77.0 ms for bash-os and 623.5 ms for stock, at 12 calibrated
-passes.
-
-### Before and after
-
-These runs loaded each rsync object with `enable -f` into the same binary,
-one after another. Host load was 8–30, so compare them only with each
-other. Times are the median of 11-pass batches in milliseconds:
-
-| case | baseline | new, before optimizing | optimized |
-|---|---|---|---|
-| rsh-shim | 165.9 | 170.1 | 138.6 |
-| rsh-file-to-dir | 167.9 | 164.0 | 143.8 |
-| rsh-file-to-file | wrong output (directory) | 181.0 | 158.2 |
-| local cases | wrong output (exec ssh) | — | — |
-| local-big-file-to-file | wrong output | 250.6 | 212.5 |
-
-The optimizations were made only after the parity suite passed. They are
-the shared DEST/file probe, removing the noclobber subshell, and
-`copy_file_range` with a read/write fallback.
+The oracle compares exit status and destination contents with stock rsync.
+It also checks descriptor counts across repeated calls in one shell.
 
 ## Remaining differences
 
@@ -167,3 +108,8 @@ the shared DEST/file probe, removing the noclobber subshell, and
   are not byte-identical.
 - Devices, FIFOs and sockets are always skipped.
 - Hard links (`-H`), ACLs and xattrs are not supported (as before).
+
+For multiple source directories merged into one destination, `--delete`
+checks the union of source-to-destination mappings, including nested paths.
+The parity suite exercises overlapping directory contents through both
+transports; `tests/astra-rsync-delete.py BINARY` is a focused local regression.

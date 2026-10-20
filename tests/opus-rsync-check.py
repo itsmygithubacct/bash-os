@@ -200,6 +200,11 @@ SCENARIOS = [
                                   rs('-an', 'd/', '@e'), rs('-an', '--delete', 'd/', '@e'),
                                   rs('-an', 'f', 'g', '@n/a/')]),
     # --delete
+    ('delete-merged-sources', BASE + [('d', 'second', 0o755, 40),
+        ('f', 'second/other', b'other\n', 0o644, 41),
+        ('d', 'second/sub', 0o750, 12), ('f', 'second/sub/other', b'nested\n', 0o644, 42)],
+     [rs('-a', '--delete', 'd/', 'second/', '@merged'),
+      rs('-a', '--delete', 'd/', 'second/', '@merged')]),
     ('delete-extras', EXISTING, [rs('-a', '--delete', 'd/', '@e'), rs('-a', '--delete', 'd/', '@e')]),
     # repeated, with source edits between the calls
     ('repeat-edits', BASE, [rs('-a', 'd', '@new'), write('d/a', b'alpha two\n', 50),
