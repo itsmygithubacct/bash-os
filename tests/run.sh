@@ -192,6 +192,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'fstrim fixture build' env BASHOS_TASK_DIR="$scratch/fstrim-contracts" bash tests/opus-fstrim-build.sh
+  check 'fstrim native boundary contracts' python3 tests/opus-fstrim-check.py --binary out/bash --module "$scratch/fstrim-contracts/artifacts/fstrim.so"
+  check 'fstrim boundary under ASan+UBSan' python3 tests/opus-fstrim-check.py --binary out/bash --module "$scratch/fstrim-contracts/artifacts/fstrim-sanitize.so" --preload "$(cat "$scratch/fstrim-contracts/artifacts/asan-path.txt")"
+  check 'fstrim isolated util-linux oracle' env OPUS_FSTRIM_EVIDENCE="$scratch/fstrim-contracts" bash tests/opus-fstrim-oracle.sh out/bash "$scratch/fstrim-contracts/artifacts/fitrim-preload.so"
   check 'hwclock isolated fixture build' env BASHOS_TASK_DIR="$scratch/hwclock-contracts" bash tests/sol-hwclock-build.sh
   check 'hwclock guarded native contracts' python3 tests/sol-hwclock-check.py --binary out/bash --module "$scratch/hwclock-contracts/artifacts/hwclock.so" --report "$scratch/hwclock-native.json"
   check 'hwclock standalone sanitizer contracts' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-hwclock-check.py --binary out/bash --module "$scratch/hwclock-contracts/artifacts/hwclock.so" --host "$scratch/hwclock-contracts/artifacts/hwclock-sanitize" --report "$scratch/hwclock-sanitize.json"

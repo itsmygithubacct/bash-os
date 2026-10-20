@@ -1231,6 +1231,14 @@
       "status": "Contract",
       "evidence": "docs/sol-hwclock.md",
       "scope": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM."
+    },
+    {
+      "names": [
+        "fstrim"
+      ],
+      "status": "Contract",
+      "evidence": "docs/opus-fstrim.md",
+      "scope": "FITRIM range semantics and util-linux comparisons in a private namespace with intercepted ioctls. Actual discard support and latency remain hardware prerequisites."
     }
   ],
   "sanitizer_groups": [
@@ -1717,6 +1725,12 @@
         "hwclock"
       ],
       "evidence": "tests/sol-hwclock-build.sh"
+    },
+    {
+      "names": [
+        "fstrim"
+      ],
+      "evidence": "tests/opus-fstrim-build.sh"
     }
   ],
   "fuzz": {
@@ -2489,7 +2503,9 @@
       "evidence": "tests/dmesg-fixture.py"
     },
     "fstrim": {
-      "note": "`-I/--listed-in` reports, and would trim, any path in the list file that merely stat()s; util-linux cross-checks each entry against the live mount table and reports only mounted filesystems. This is why the case is self-timed: there is no output to compare against util-linux, which exits non-zero on the same input."
+      "evidence": "docs/opus-fstrim.md",
+      "note": "FITRIM range semantics and util-linux comparisons in a private namespace with intercepted ioctls. Actual discard support and latency remain hardware prerequisites.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "rsync": {
       "note": "For a non-existent single-file DEST the builtin creates the destination as a directory, while stock rsync treats DEST as a directory only when it already exists or ends in '/'. The measured case uses the trailing-slash form into a reset-recreated directory, where the two agree byte for byte."
@@ -2683,7 +2699,8 @@
     "losetup",
     "mkfs",
     "swapoff",
-    "hwclock"
+    "hwclock",
+    "fstrim"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
