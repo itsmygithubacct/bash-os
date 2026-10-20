@@ -12,13 +12,12 @@
  *   - a second save yields different bytes (fresh getrandom, not a repeat);
  *   - a MISSING seed on load is the first boot: exit 0, not an error;
  *   - a too-short seed is refused and left untouched;
- *   - a FAILED credit leaves the seed byte-identical — never consumed. The
- *     credit needs CAP_SYS_ADMIN, so as non-root it is EPERM: exactly the
- *     branch that must not destroy the seed. As root the credit runs for real
- *     and the seed must then have been REFRESHED instead;
+ *   - a FAILED credit leaves the seed byte-identical — never consumed.
+ *     ioctl is intercepted unconditionally, including when running as root;
+ *     this test can never credit the host entropy pool.
  *   - verb and argument errors are EX_USAGE.
- * The credit's success path (RNDADDENTROPY initialising the pool) is proven on
- * the board by the two-boot test, not here.
+ * The focused tests/sol-rngseed-host.c harness additionally injects successful
+ * credit and syscall failures to verify durability and seed-reuse prevention.
  *
  * Build (what run-all.sh does):
  *   cc -fsanitize=address,undefined -DHAVE_CONFIG_H -Iinclude -Iloadables/common \
@@ -33,8 +32,18 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/ioctl.h>
 #include "loadables.h"
 #include "bashgetopt.h"
+
+/* Safety boundary: no real entropy ioctl, regardless of UID/capabilities. */
+int ioctl (int fd, unsigned long request, ...)
+{
+  (void) fd; (void) request;
+  errno = EPERM;
+  return -1;
+}
 
 /* --- the five bash runtime symbols rngseed.c calls, stubbed ---------------- */
 WORD_LIST *loptend;
@@ -109,25 +118,16 @@ main (void)
   CHECK (run (2, "load", missing) == EXECUTION_SUCCESS, "missing seed is a non-error (first boot)");
 
   puts ("== load on a too-short file: refused, untouched ==");
-  { FILE *f = fopen (shortf, "wb"); fwrite ("0123456789", 1, 10, f); fclose (f); }
+  { FILE *f = fopen (shortf, "wb"); fwrite ("0123456789", 1, 10, f); fclose (f); chmod (shortf, 0600); }
   CHECK (run (2, "load", shortf) == EXECUTION_FAILURE, "10-byte seed rejected");
   CHECK (fsize (shortf) == 10, "rejected seed left untouched");
 
-  puts ("== load: the credit either fails and keeps the seed, or succeeds and refreshes it ==");
+  puts ("== load: injected failed credit restores identical seed ==");
   rc = run (2, "load", seed);
   long got = slurp (seed, c, 512);
-  if (geteuid () != 0)
-    {
-      CHECK (rc == EXECUTION_FAILURE, "non-root credit fails (RNDADDENTROPY needs CAP_SYS_ADMIN)");
-      CHECK (got == 512 && memcmp (b, c, 512) == 0, "a FAILED credit leaves the seed byte-identical (not consumed)");
-      CHECK (access (tmp, F_OK) != 0, "and no .tmp was created");
-    }
-  else
-    {
-      CHECK (rc == EXECUTION_SUCCESS, "root credit succeeds");
-      CHECK (got == 512 && memcmp (b, c, 512) != 0, "credited seed was REPLACED with fresh bytes (never reused)");
-      CHECK (fmode (seed) == 0600 && access (tmp, F_OK) != 0, "refreshed seed is 0600, no .tmp");
-    }
+  CHECK (rc == EXECUTION_FAILURE, "injected RNDADDENTROPY fails for every UID");
+  CHECK (got == 512 && memcmp (b, c, 512) == 0, "a FAILED credit leaves the seed byte-identical (not consumed)");
+  CHECK (access (tmp, F_OK) != 0, "and no .tmp was created");
 
   puts ("== argument handling ==");
   CHECK (run (2, "frob", seed) == EX_USAGE, "unknown verb -> EX_USAGE");
