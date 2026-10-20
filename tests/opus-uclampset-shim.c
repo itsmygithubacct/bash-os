@@ -8,7 +8,10 @@
    UCLAMP_SHIM_DIR  state directory; unset means pure pass-through
    UCLAMP_SHIM_SET  real | emulate | errno:N        (default real)
    UCLAMP_SHIM_GET  real | errno:N                   (default real)
-   UCLAMP_SHIM_FAIL_WRITE  basename whose write-mode open fails with EIO
+   UCLAMP_SHIM_FAIL_WRITE  basename whose write-mode open fails
+   UCLAMP_SHIM_OPEN_ERRNO  errno for that open (default EIO)
+   UCLAMP_SHIM_IO_FILE     basename for one-shot write/close fault
+   UCLAMP_SHIM_IO_FAULT    error | error-always | short | zero | eintr | close
 
    Write-mode opens of sched_util_clamp_* files are logged in order too,
    which is how the system setter's write ordering and rollback are observed.
@@ -164,6 +167,79 @@ access (const char *path, int mode)
   return fn (path, mode);
 }
 
+/* Track only fixture descriptors, never arbitrary shell output. */
+static unsigned char sysctl_fds[65536];
+static int fault_used;
+
+static const char *
+fd_basename (int fd)
+{
+  if (fd < 0 || fd >= (int) sizeof sysctl_fds || !sysctl_fds[fd])
+    return NULL;
+  return sysctl_fds[fd] == 1 ? "sched_util_clamp_min" : "sched_util_clamp_max";
+}
+
+static int
+want_fault (const char *base, const char *fault)
+{
+  const char *file = getenv ("UCLAMP_SHIM_IO_FILE");
+  const char *mode = getenv ("UCLAMP_SHIM_IO_FAULT");
+  if (base && file && mode && !strcmp (file, base)
+      && !strcmp (mode, "error-always") && !strcmp (fault, "error"))
+    return 1;
+  if (!fault_used && base && file && mode && !strcmp (file, base) && !strcmp (mode, fault))
+    { fault_used = 1; return 1; }
+  return 0;
+}
+
+ssize_t
+write (int fd, const void *buf, size_t count)
+{
+  typedef ssize_t (*write_fn) (int, const void *, size_t);
+  static write_fn fn;
+  if (!fn)
+    fn = (write_fn) dlsym (RTLD_NEXT, "write");
+  const char *base = fd_basename (fd);
+  if (!base)
+    return fn (fd, buf, count);
+  ssize_t n;
+  if (want_fault (base, "error"))
+    { errno = EIO; n = -1; }
+  else if (want_fault (base, "eintr"))
+    { errno = EINTR; n = -1; }
+  else if (want_fault (base, "zero"))
+    n = 0;
+  else if (want_fault (base, "short"))
+    n = fn (fd, buf, count ? count - 1 : 0);
+  else
+    n = fn (fd, buf, count);
+  int err = n < 0 ? errno : 0;
+  char line[512];
+  size_t len = count && ((const char *) buf)[count - 1] == '\n' ? count - 1 : count;
+  snprintf (line, sizeof line, "write path=%s value=%.*s bytes=%ld count=%zu result=%d\n",
+            base, (int) len, (const char *) buf, (long) n, count, err);
+  log_line (getenv ("UCLAMP_SHIM_DIR"), line);
+  errno = err;
+  return n;
+}
+
+int
+close (int fd)
+{
+  typedef int (*close_fn) (int);
+  static close_fn fn;
+  if (!fn)
+    fn = (close_fn) dlsym (RTLD_NEXT, "close");
+  const char *base = fd_basename (fd);
+  int fail = want_fault (base, "close");
+  if (base)
+    sysctl_fds[fd] = 0;
+  int rc = fn (fd);
+  if (fail)
+    { errno = EIO; return -1; }
+  return rc;
+}
+
 typedef int (*open_fn) (const char *, int, ...);
 
 static int
@@ -184,7 +260,7 @@ shim_open (const char *sym, const char *path, int flags, mode_t mode)
   if (fail && strcmp (fail, base) == 0)
     {
       fd = -1;
-      err = EIO;
+      err = getenv ("UCLAMP_SHIM_OPEN_ERRNO") ? atoi (getenv ("UCLAMP_SHIM_OPEN_ERRNO")) : EIO;
     }
   else
     {
@@ -192,7 +268,9 @@ shim_open (const char *sym, const char *path, int flags, mode_t mode)
       err = fd < 0 ? errno : 0;
     }
   char line[512];
-  snprintf (line, sizeof line, "write path=%s result=%d\n", base, err);
+  if (fd >= 0 && fd < (int) sizeof sysctl_fds)
+    sysctl_fds[fd] = strcmp (base, "sched_util_clamp_min") == 0 ? 1 : 2;
+  snprintf (line, sizeof line, "open path=%s flags=%d result=%d\n", base, flags, err);
   log_line (dir, line);
   errno = err;
   return fd;

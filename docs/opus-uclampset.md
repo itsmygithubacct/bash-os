@@ -1,5 +1,9 @@
 # uclampset — setters, command mode and their evidence
 
+This records the predecessor implementation. Current system-file preflight,
+write recovery, command output handling and follow-up measurements are
+documented in [the follow-up report](sol-uclampset.md).
+
 `loadables/uclampset.c` now implements the whole util-linux command surface:
 PID and thread queries, PID setters, system setters and command mode. Earlier
 builds printed the clamps and refused every setter.

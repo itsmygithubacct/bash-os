@@ -16,9 +16,10 @@
  * sched_util_clamp_min/max under BASHOS_PROC_ROOT (default /proc).
  *
  * Every value, PID, operand and the min <= max relation is validated, and
- * every target is read, before the first mutation. A system update orders
- * its two writes so the kernel's own min <= max check never fails midway,
- * and restores the first file if the second write fails. Command mode forks;
+ * every target is read, before the first mutation. System files are opened
+ * without truncation before any write. A system update orders its two writes
+ * so the kernel's own min <= max check never fails midway, and attempts to
+ * restore every attempted file if a write fails. Command mode forks;
  * only the child changes its clamps, then execs the literal argv. The
  * calling shell's attributes are never changed.
  *
@@ -38,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -474,26 +476,57 @@ buclamp_print_system (void)
   return EXECUTION_SUCCESS;
 }
 
+struct buclamp_sysctl {
+  const char *path;
+  int fd, trim;
+  long old_value, new_value;
+};
+
+/* Open every changed file without truncation before the first write. access()
+   alone uses real credentials and cannot predict an effective-credential,
+   read-only mount or LSM denial from open(). Keep the descriptors for the
+   update and rollback, so a pathname replacement cannot redirect either. */
 static int
-buclamp_write_sysctl (const char *path, long value)
+buclamp_open_sysctl (struct buclamp_sysctl *ctl)
+{
+  struct stat st;
+  ctl->fd = open (ctl->path, O_WRONLY | O_CLOEXEC);
+  if (ctl->fd < 0)
+    return -1;
+  if (fstat (ctl->fd, &st) < 0)
+    {
+      int saved = errno;
+      close (ctl->fd);
+      ctl->fd = -1;
+      errno = saved;
+      return -1;
+    }
+  /* Real procfs sysctls have size zero and consume one complete write. The
+     private regular-file fixture needs its stale suffix removed as well. */
+  ctl->trim = S_ISREG (st.st_mode) && st.st_size > 0;
+  return 0;
+}
+
+static int
+buclamp_write_sysctl (struct buclamp_sysctl *ctl, long value)
 {
   char buf[32];
   int len = snprintf (buf, sizeof buf, "%ld\n", value);
-  int fd = open (path, O_WRONLY | O_TRUNC | O_CLOEXEC);
-  if (fd < 0)
+  if (lseek (ctl->fd, 0, SEEK_SET) < 0)
     return -1;
   ssize_t w;
   do
-    w = write (fd, buf, (size_t) len);
+    w = write (ctl->fd, buf, (size_t) len);
   while (w < 0 && errno == EINTR);
-  int saved = errno;
-  if (close (fd) < 0 && w == len)
-    return -1;
+  /* Never send the tail of a short write as a second sysctl request. */
   if (w != len)
     {
-      errno = w < 0 ? saved : EIO;
+      if (w >= 0)
+        errno = EIO;
       return -1;
     }
+  if (ctl->trim && ftruncate (ctl->fd, len) < 0)
+    return -1;
   return 0;
 }
 
@@ -518,44 +551,52 @@ buclamp_set_system (const struct buclamp_opts *o)
       return EXECUTION_FAILURE;
     }
 
-  int write_min = new_min != cur_min, write_max = new_max != cur_max;
-  if ((write_min && access (min_path, W_OK) < 0)
-      || (write_max && access (max_path, W_OK) < 0))
-    {
-      fprintf (stderr, "uclampset: cannot write %s: %s\n",
-               write_min && access (min_path, W_OK) < 0 ? min_path : max_path,
-               strerror (errno));
-      return EXECUTION_FAILURE;
-    }
+  /* The kernel rejects an intermediate min > max. Raise the ceiling first
+     when necessary; otherwise move the floor first. */
+  struct buclamp_sysctl ctls[2];
+  size_t n = 0;
+  if (new_min > cur_max && new_max != cur_max)
+    ctls[n++] = (struct buclamp_sysctl) { max_path, -1, 0, cur_max, new_max };
+  if (new_min != cur_min)
+    ctls[n++] = (struct buclamp_sysctl) { min_path, -1, 0, cur_min, new_min };
+  if (new_min <= cur_max && new_max != cur_max)
+    ctls[n++] = (struct buclamp_sysctl) { max_path, -1, 0, cur_max, new_max };
 
-  /* The kernel rejects any intermediate state with min > max: raising the
-     floor above the current ceiling must move the ceiling first. */
-  int max_first = new_min > cur_max;
-  const char *first = max_first ? max_path : min_path;
-  const char *second = max_first ? min_path : max_path;
-  long first_new = max_first ? new_max : new_min, first_old = max_first ? cur_max : cur_min;
-  long second_new = max_first ? new_min : new_max;
-  int first_needed = max_first ? write_max : write_min;
-  int second_needed = max_first ? write_min : write_max;
+  int rc = EXECUTION_SUCCESS;
+  for (size_t i = 0; i < n; i++)
+    if (buclamp_open_sysctl (&ctls[i]) < 0)
+      {
+        fprintf (stderr, "uclampset: cannot open %s for writing: %s\n",
+                 ctls[i].path, strerror (errno));
+        rc = EXECUTION_FAILURE;
+        goto out;
+      }
 
-  if (first_needed && buclamp_write_sysctl (first, first_new) < 0)
-    {
-      fprintf (stderr, "uclampset: cannot write %s: %s\n", first, strerror (errno));
-      return EXECUTION_FAILURE;
-    }
-  if (second_needed && buclamp_write_sysctl (second, second_new) < 0)
-    {
-      int saved = errno;
-      fprintf (stderr, "uclampset: cannot write %s: %s\n", second, strerror (saved));
-      if (first_needed && buclamp_write_sysctl (first, first_old) < 0)
-        fprintf (stderr, "uclampset: cannot restore %s to %ld: %s\n",
-                 first, first_old, strerror (errno));
-      return EXECUTION_FAILURE;
-    }
+  for (size_t i = 0; i < n; i++)
+    if (buclamp_write_sysctl (&ctls[i], ctls[i].new_value) < 0)
+      {
+        fprintf (stderr, "uclampset: cannot write %s: %s\n",
+                 ctls[i].path, strerror (errno));
+        /* A failed or short write can already have changed a private file.
+           Restore that file too, then undo earlier writes in reverse order. */
+        for (size_t j = i + 1; j > 0; j--)
+          if (buclamp_write_sysctl (&ctls[j - 1], ctls[j - 1].old_value) < 0)
+            fprintf (stderr, "uclampset: cannot restore %s to %ld: %s\n",
+                     ctls[j - 1].path, ctls[j - 1].old_value, strerror (errno));
+        rc = EXECUTION_FAILURE;
+        goto out;
+      }
 
-  if (o->verbose)
+out:
+  for (size_t i = 0; i < n; i++)
+    if (ctls[i].fd >= 0 && close (ctls[i].fd) < 0)
+      {
+        fprintf (stderr, "uclampset: cannot close %s: %s\n", ctls[i].path, strerror (errno));
+        rc = EXECUTION_FAILURE;
+      }
+  if (rc == EXECUTION_SUCCESS && o->verbose)
     return buclamp_print_system ();
-  return EXECUTION_SUCCESS;
+  return rc;
 }
 
 static int
@@ -609,8 +650,14 @@ buclamp_run_command (const struct buclamp_opts *o, WORD_LIST *list)
           fflush (stderr);
           _exit (EXECUTION_FAILURE);
         }
-      if (o->verbose)
-        buclamp_print_pid (0, argv[0]);
+      if (o->verbose
+          && (buclamp_print_pid (0, argv[0]) != EXECUTION_SUCCESS
+              || fflush (stdout) == EOF || ferror (stdout)))
+        {
+          fprintf (stderr, "uclampset: cannot display command status: %s\n", strerror (errno));
+          fflush (stderr);
+          _exit (EXECUTION_FAILURE);
+        }
       fflush (stdout);
       bos_run_builtin (argv[0], argv, NULL);
       execvp (argv[0], argv);

@@ -632,11 +632,11 @@ assert ctypes.get_errno() == errno.EINVAL
              [("max", 0), ("min", 0)]),
             ((100, 200), ("-m", 50, "-M", 150), None, 0, ("50\n", "150\n"),
              [("min", 0), ("max", 0)]),
-            # A failed second write restores the first file.
+            # A failed second open is rejected before either file is written.
             ((100, 200), ("-m", 50, "-M", 150), "sched_util_clamp_max", 1, ("100\n", "200\n"),
-             [("min", 0), ("max", errno.EIO), ("min", 0)]),
+             []),
             ((100, 200), ("-m", 500, "-M", 600), "sched_util_clamp_min", 1, ("100\n", "200\n"),
-             [("max", 0), ("min", errno.EIO), ("max", 0)]),
+             []),
             # An unchanged value is not rewritten.
             ((100, 200), ("-m", 100, "-M", 300), None, 0, ("100\n", "300\n"), [("max", 0)]),
             ((100, 200), ("-m", 100), None, 0, ("100\n", "200\n"), []),
@@ -652,6 +652,8 @@ assert ctypes.get_errno() == errno.EINVAL
                 self.assertEqual(writes(), order)
                 if fail:
                     self.assertIn(b"Input/output error", r.stderr)
+                    opened = [f for kind, f in self.log() if kind == "open"]
+                    self.assertEqual([int(f["result"]) for f in opened], [0, errno.EIO])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
