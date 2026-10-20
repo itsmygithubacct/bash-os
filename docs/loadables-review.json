@@ -1098,6 +1098,14 @@
       "status": "Contract",
       "evidence": "tests/sol-cluster-membership.py",
       "scope": "Authenticated IPv4 loopback membership with one seed and at most 32 peers. Temporary environment lifetimes, child ownership and cleanup are tested; off-host deployment and maximum-capacity performance remain unqualified."
+    },
+    {
+      "names": [
+        "payload"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-payload-installer.py",
+      "scope": "Trusted local repository parsing and builtin-to-installer protocol with an isolated recording installer. Embedded NUL/control records fail without truncation; actual bashy.box installation remains unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1489,6 +1497,12 @@
         "cluster"
       ],
       "evidence": "tests/sol-cluster-sanitizer-build.sh"
+    },
+    {
+      "names": [
+        "payload"
+      ],
+      "evidence": "tests/opus-payload-build-sanitizer.sh"
     }
   ],
   "fuzz": {
@@ -2040,9 +2054,9 @@
       "next": "Decide whether real print delivery belongs in this loadable."
     },
     "payload": {
-      "note": "Install/remove invoke a helper outside this repository; the current fixture only calls help.",
-      "evidence": "loadables/payload.c",
-      "next": "Add an installer-boundary fixture and document the external helper."
+      "evidence": "docs/opus-payload.md",
+      "note": "Trusted local repository parsing and builtin-to-installer protocol with an isolated recording installer. Embedded NUL/control records fail without truncation; actual bashy.box installation remains unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "nano": {
       "note": "Editor selftests pass; justify, spell and completion still report unimplemented.",
