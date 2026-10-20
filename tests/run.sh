@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'PCRE capture and error contracts' python3 tests/sol-pcre-check.py out/bash
 check 'wc locale and boundary contracts' python3 tests/sol-wc-check.py out/bash
 check 'unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash
 check 'crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash
@@ -122,6 +123,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static PCRE capture and error contracts' python3 tests/sol-pcre-check.py out/bash-static
 check 'static wc locale and boundary contracts' python3 tests/sol-wc-check.py out/bash-static
 check 'static unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash-static
 check 'static crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash-static
@@ -174,6 +176,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'PCRE contract module build' env BASHOS_TASK_DIR="$scratch/pcre-contracts" bash tests/sol-pcre-sanitize-build.sh
+  check 'PCRE contracts under ASan+UBSan' env SOL_PCRE_LOAD_ENV="$scratch/pcre-contracts/sanitize/load.sh" SOL_PCRE_ASAN_LIB="$(cat "$scratch/pcre-contracts/sanitize/asan-runtime.txt")" python3 tests/sol-pcre-check.py out/bash
   check 'diff allocation fixture build' bash tests/sol-diff-build.sh "$scratch/diff" out/bash
   check 'diff allocation failures' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-native"
   check 'diff allocation failures under ASan+UBSan' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-sanitize"

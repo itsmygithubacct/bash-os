@@ -1034,6 +1034,14 @@
       "status": "Parity",
       "evidence": "tests/diff-safety.py",
       "scope": "GNU normal/unified/quiet/case-insensitive byte output, independent LCS script replay, repeated input and allocation-failure recovery."
+    },
+    {
+      "names": [
+        "pcre"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-pcre-check.py",
+      "scope": "Independent PCRE2 captures, binary cache keys, binding scope, replacement growth, bounded matching and stream-error recovery."
     }
   ],
   "sanitizer_groups": [
@@ -1395,6 +1403,12 @@
         "diff"
       ],
       "evidence": "tests/sol-diff-build.sh"
+    },
+    {
+      "names": [
+        "pcre"
+      ],
+      "evidence": "tests/sol-pcre-sanitize-build.sh"
     }
   ],
   "fuzz": {
@@ -2226,6 +2240,11 @@
       "evidence": "docs/sol-more.md",
       "note": "Forward pager software paths and checked key helper are qualified. Original historical throughput slowdown was not reproduced; separate worker large-pipe measurements include producer/sink and shell costs.",
       "next": "Backward scrolling, wrapped-row accounting, full POSIX conformance and physical terminals remain unqualified."
+    },
+    "pcre": {
+      "evidence": "docs/sol-pcre.md",
+      "note": "Bounded PCRE API paths are qualified; literal grep fastpath timings are distinct from general regex engine throughput.",
+      "next": "Retain native Linux scope, explicit PCRE API semantics and per-workload regressions; no GNU grep/sed command equivalence or leak-free claim."
     }
   },
   "repeat_input_findings": [],
@@ -2251,7 +2270,8 @@
     "crypto",
     "unexpand",
     "wc",
-    "diff"
+    "diff",
+    "pcre"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
