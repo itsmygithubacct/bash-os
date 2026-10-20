@@ -1355,6 +1355,14 @@
       "status": "Contract",
       "evidence": "tests/sol-pgrep-check.py",
       "scope": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend."
+    },
+    {
+      "names": [
+        "pr"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-pr-pages.py",
+      "scope": "Native C-locale GNU pagination and CLI contracts, including form-feed boundaries, repeated stdin and bounded page/row streaming. Cross-platform qualification and universal GNU compatibility remain unclaimed."
     }
   ],
   "sanitizer_groups": [
@@ -2575,8 +2583,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pr": {
-      "note": "Repeated stdin, paging and output failures are fixed for the tested subset. Numbered multi-column control bytes, merged unterminated records and several GNU options remain documented exclusions.",
-      "evidence": "docs/pr.md"
+      "evidence": "docs/sol-pr.md",
+      "note": "Native C-locale GNU pagination and CLI contracts, including form-feed boundaries, repeated stdin and bounded page/row streaming. Cross-platform qualification and universal GNU compatibility remain unclaimed.",
+      "next": "Qualify musl and RISC-V; preserve the reported short-page form-feed performance limitation."
     },
     "colrm": {
       "note": "Repeated redirected stdin is fixed; tests/colrm-check.sh matches GNU on three fresh redirections."

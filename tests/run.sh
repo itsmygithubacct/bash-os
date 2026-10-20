@@ -58,6 +58,10 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash
+check 'pr sol-pr-formfeed contracts' python3 tests/sol-pr-formfeed.py out/bash
+check 'pr sol-pr-pages contracts' python3 tests/sol-pr-pages.py out/bash
+check 'pr sol-pr-stream contracts' python3 tests/sol-pr-stream.py out/bash
 check 'pgrep complete regex and selector contracts' python3 tests/sol-pgrep-check.py out/bash
 check 'process matcher version output recovery' python3 tests/review-pgrep-output.py out/bash
 check 'ts resolved highlight and nano statusbar' env TS_REQUIRE_NANO_STATUSBAR=1 python3 tests/opus-ts-highlight.py out/bash
@@ -154,6 +158,10 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash-static
+check 'static pr sol-pr-formfeed contracts' python3 tests/sol-pr-formfeed.py out/bash-static
+check 'static pr sol-pr-pages contracts' python3 tests/sol-pr-pages.py out/bash-static
+check 'static pr sol-pr-stream contracts' python3 tests/sol-pr-stream.py out/bash-static
 check 'static PCRE capture and error contracts' python3 tests/sol-pcre-check.py out/bash-static
 check 'static wc locale and boundary contracts' python3 tests/sol-wc-check.py out/bash-static
 check 'static unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash-static
