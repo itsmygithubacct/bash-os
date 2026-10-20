@@ -22,7 +22,7 @@ ASan/UBSan module and runs the same cases; run it through the build gate.
 
 The supported software scope is byte-oriented conversion in the C locale
 on the native Linux Bash build.
-As with the adjacent expand implementation, tab widths are bounded by
+Tab widths are bounded by
 `INT_MAX` and explicit lists by 64 stops. Invalid CLI arguments use Bash's
 usage status 2; GNU uses 1. Diagnostic prefixes/help/version text are specific
 to the builtin. These bounds and text differences are not full GNU CLI
