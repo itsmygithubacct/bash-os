@@ -1288,6 +1288,14 @@
       "status": "Contract",
       "evidence": "tests/astra-sv-readiness.py",
       "scope": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. Live service configuration, privilege transitions and durability are unqualified."
+    },
+    {
+      "names": [
+        "rsync"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-rsync-check.py",
+      "scope": "Local and isolated rsh-shim push parity, including multi-source deletion against the complete source union. Pull, native/daemon protocol, special files, ACLs and xattrs remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1817,6 +1825,12 @@
         "sv"
       ],
       "evidence": "tests/sol-sv-build-fixtures.sh"
+    },
+    {
+      "names": [
+        "rsync"
+      ],
+      "evidence": "tests/opus-rsync-so.sh"
     }
   ],
   "fuzz": {
@@ -2596,7 +2610,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "rsync": {
-      "note": "For a non-existent single-file DEST the builtin creates the destination as a directory, while stock rsync treats DEST as a directory only when it already exists or ends in '/'. The measured case uses the trailing-slash form into a reset-recreated directory, where the two agree byte for byte."
+      "evidence": "docs/opus-rsync.md",
+      "note": "Local and isolated rsh-shim push parity, including multi-source deletion against the complete source union. Pull, native/daemon protocol, special files, ACLs and xattrs remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "lsattr": {
       "note": "The flag field is 14 columns where e2fsprogs prints 22 for the same file, so the two cannot be compared on exact bytes."
@@ -2814,7 +2830,8 @@
     "ss",
     "mail",
     "rtspcat",
-    "sv"
+    "sv",
+    "rsync"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
