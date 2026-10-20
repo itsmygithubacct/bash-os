@@ -111,7 +111,12 @@ the signals it caught. They cover:
 * Output to `/dev/full`; `list` keeps its v1 format.
 
 `tests/opus-lpr-sanitize.sh BINARY` builds `lpr.c` as an ASan+UBSan module and
-runs the same suite against it. It compiles, so it must run through the
+runs the same suite against it. It then runs `tests/opus-lpr-cancel-sigpipe.py`.
+That test uses a preload shim to hold `cancel` between opening the control FIFO
+and writing to it, while the test closes the reader. The write then fails with
+EPIPE, and `cancel` reports the job as already finished. This holds whether
+SIGPIPE is at its default, trapped or ignored, and in each case the shell's
+SIGPIPE disposition and traps are unchanged afterwards. It compiles, so it must run through the
 campaign build gate.
 
 ## Benchmark
