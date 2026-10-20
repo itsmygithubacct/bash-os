@@ -1264,6 +1264,14 @@
       "status": "Contract",
       "evidence": "docs/sol-netstat.md",
       "scope": "Owned socket cases and deterministic netlink/proc fixtures qualify formatting, UDP selection and atomic per-family fallback. Truncated/interrupted dumps fail safely; corrected per-family buffering has no new timing claim."
+    },
+    {
+      "names": [
+        "mail"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-mail-check.py",
+      "scope": "Private queue and local SMTP fixtures qualify response classes, same-shell recovery and SIGPIPE-safe socket writes. No live delivery, credential or TLS-deployment qualification."
     }
   ],
   "sanitizer_groups": [
@@ -1775,6 +1783,12 @@
         "ss"
       ],
       "evidence": "tests/sol-netstat-build-fixtures.sh"
+    },
+    {
+      "names": [
+        "mail"
+      ],
+      "evidence": "tests/sol-mail-sanitize-build.sh"
     }
   ],
   "fuzz": {
@@ -2358,8 +2372,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "mail": {
-      "note": "Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement.",
-      "next": "Add a controlled submission/delivery benchmark."
+      "evidence": "docs/sol-mail.md",
+      "note": "Private queue and local SMTP fixtures qualify response classes, same-shell recovery and SIGPIPE-safe socket writes. No live delivery, credential or TLS-deployment qualification.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "screen": {
       "note": "Private broker fixtures cover attachment, relay and lifecycle. Sustained live PTY traffic still needs a defined workload and timing.",
@@ -2762,7 +2777,8 @@
     "fstrim",
     "ping",
     "netstat",
-    "ss"
+    "ss",
+    "mail"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
