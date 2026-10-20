@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdint.h>
+#include <limits.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -83,7 +84,7 @@ list_loops (int header, const char *only_backing)
         if (!isdigit ((unsigned char)*digit)) continue;
         while (isdigit ((unsigned char)*digit)) digit++;
         if (*digit) continue;
-        char path[512], back[512] = "", off[64] = "0", ro[8] = "0", dio[8] = "0";
+        char path[512], back[PATH_MAX + 1] = "", off[64] = "0", ro[8] = "0", dio[8] = "0";
         snprintf (path, sizeof path, "/sys/block/%s/loop/backing_file", de->d_name);
         if (read_first_line (path, back, sizeof back) < 0 || back[0] == '\0')
             continue;  /* not an attached loop */

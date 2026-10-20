@@ -11,7 +11,7 @@ open mode and `LO_FLAGS_READ_ONLY`, limits fallback to `EACCES`/`EROFS`
 errors, opens descriptors with close-on-exec, preserves ioctl errno
 across close, and diagnoses rollback failures. It rejects surplus operands and
 incompatible actions before opening devices. Listing checks complete loop names,
-reads direct-I/O status, recognizes associated-file aliases by device/inode,
+reads direct-I/O status, retains backing paths up to PATH_MAX, recognizes associated-file aliases by device/inode,
 and reports directory access failures while tolerating an absent block layer.
 Failed writes return failure; later calls recover stdio state.
 
@@ -80,6 +80,8 @@ association; fixtures are unchanged and hashed. The report records source and
 binary SHA-256 values, options, work counts, versions, CPU affinity, warm-up and
 seven validated samples. These are syscall-shim measurements, with no external
 ratio or speedup claim. No prior valid losetup timing exists to reproduce.
+
+The measurements below are historical results for commit `657322608ebd0498bf125b4a4ab1429096ff25f7`, before the backing-path buffer correction. They do not measure the corrected code. The expanded 15-test suite, including a backing pathname longer than 512 bytes and its alias, passes normally and under ASan/UBSan.
 
 The 2026-10-19 run passed the existing nine device-fixture tests and all 14
 focused tests, repeated with ASan/UBSan, with no skips. Measured on CPU 11,

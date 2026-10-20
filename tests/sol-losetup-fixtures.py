@@ -119,6 +119,23 @@ class LosetupFixtures(unittest.TestCase):
                           (HEADER + row('loop7', 1, 4096, 1, self.image)) * 2 + AUDIT)
         self.run_case('losetup -j /absent; losetup_fixture state', HEADER + AUDIT)
 
+    def test_long_backing_path_and_alias(self):
+        # A pathname can exceed the old 512-byte reporting buffer without any
+        # individual component exceeding NAME_MAX. Both the literal name and
+        # an inode-equivalent alias must find the complete association.
+        parent = self.root
+        for i in range(4):
+            parent = parent / (str(i) + 'x' * 170)
+            parent.mkdir()
+        backing = parent / 'image'
+        backing.write_bytes(b'private long-path fixture')
+        alias = self.root / 'long-alias'
+        alias.symlink_to(backing)
+        (self.root / 'sys/loop7/loop/backing_file').write_text(str(backing) + '\n')
+        for path in (backing, alias):
+            self.run_case(f'losetup -j {shlex.quote(str(path))}; losetup_fixture state',
+                          HEADER + row('loop7', 1, 4096, 1, backing) + AUDIT)
+
     def test_missing_sysfs(self):
         import shutil
         shutil.rmtree(self.root / 'sys')
