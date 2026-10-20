@@ -582,8 +582,8 @@ def cases():
              'and backward search with wraparound, hscroll and soft-wrap '
              'viewport math, then one bn_render after '
              "bn_detect_language('cache-test.sh'), which reaches "
-             'bashts_compute_sgr_map and recompiles the tree-sitter bash '
-             'highlight query with ts_query_new on every call')
+             'bashts_compute_sgr_map; the tree-sitter bash highlight query is '
+             'cached once per language per shell, amortized across batch calls')
     add('nano2', ['selftest'], fixture='empty', reference='self',
         work='23 piece-table assertions: 1,000 single-byte cursor inserts, '
              'one 64 KiB insert plus a 64 KiB flatten_range round trip, '

@@ -1328,6 +1328,15 @@
       "status": "Contract",
       "evidence": "tests/opus-nano-pty.py",
       "scope": "Justify, word-list spelling, completion, selection and lazy line-cache behavior with mandatory GNU reference checks. Both corrected nano and ts are verified together in an integration-derived private checkout before nano acceptance; central HEAD contains only this original task."
+    },
+    {
+      "names": [
+        "ts",
+        "hl"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-ts-highlight.py",
+      "scope": "Resolved nonoverlapping winning-capture spans and per-language query cache, with transactional writable-scalar handle publication. Combined corrected nano+ts checks cover selected JSON colors, edits and statusbar; raw captures remain ts -A only."
     }
   ],
   "sanitizer_groups": [
@@ -1887,6 +1896,13 @@
         "nano"
       ],
       "evidence": "tests/opus-nano-sanitize.sh"
+    },
+    {
+      "names": [
+        "ts",
+        "hl"
+      ],
+      "evidence": "tests/opus-ts-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2686,7 +2702,9 @@
       "next": "Qualify other game adapters and pipe/TTY throughput if required."
     },
     "ts": {
-      "note": "Capture precedence takes the last matching pattern rather than the most specific: in span mode a JSON object key yields both string.special.key and string, and the renderer paints it with the later, less specific rule."
+      "evidence": "docs/opus-ts.md",
+      "note": "Resolved nonoverlapping winning-capture spans and per-language query cache, with transactional writable-scalar handle publication. Combined corrected nano+ts checks cover selected JSON colors, edits and statusbar; raw captures remain ts -A only.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "git": {
       "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility.",
@@ -2836,6 +2854,11 @@
       "evidence": "docs/sol-sv.md",
       "note": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. Live service configuration, privilege transitions and durability are unqualified.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "hl": {
+      "evidence": "docs/opus-ts.md",
+      "note": "Resolved nonoverlapping winning-capture spans and per-language query cache, with transactional writable-scalar handle publication. Combined corrected nano+ts checks cover selected JSON colors, edits and statusbar; raw captures remain ts -A only.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2893,7 +2916,9 @@
     "sv",
     "rsync",
     "ptybroker",
-    "coreutils"
+    "coreutils",
+    "ts",
+    "hl"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
