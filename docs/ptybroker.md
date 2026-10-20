@@ -57,6 +57,10 @@ hooks, imported functions and unrelated file descriptors removed. Loading
 path for the fresh shell. `BASH_PTYBROKER_LOADABLE` can supply an explicit
 absolute shared-object path. An unavailable executable or object is an error.
 
+`create`, `status` and `list` return failure when their metadata output cannot
+be written. A `create` output error can happen after the service was created;
+inspect that session and terminate it explicitly rather than retrying blindly.
+
 `status` prints `key=value` fields: broker and child PIDs, child running and
 exit status, stopping state, geometry, controller/observer counts and the
 oldest/next byte offsets. Capability fields identify a raw PTY with no replay.
@@ -159,3 +163,8 @@ frontend loss, observer pressure, malformed requests, output failures,
 startup cancellation, concurrent statuses, geometry and descendant cleanup.
 The broker suite also accepts `--loadable FILE`; screen's suite accepts a
 `--load-dir` containing linked `ptybroker.so` and `screen.so` modules.
+
+[Additional stream checks and API measurements](sol-ptybroker.md) cover larger
+binary relays, bounded bursts, sustained output, multiple live subscribers,
+input saturation, exact queue boundaries and reconnect offsets. Use a short
+`TMPDIR` for private fixtures so their socket paths fit the Unix address limit.
