@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'coreutils dispatcher contracts' python3 tests/sol-coreutils-check.py out/bash
 check 'grep PCRE2 and persistent state' python3 tests/sol-grep-check.py out/bash
 check 'ptybroker bounded streams and ownership' env TMPDIR=/tmp python3 tests/sol-ptybroker-streams.py --bash out/bash --output "$scratch/ptybroker-streams.json"
 check 'rsync isolated push parity' python3 tests/opus-rsync-check.py out/bash
@@ -201,6 +202,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'coreutils dispatcher under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/coreutils-contracts" bash tests/sol-coreutils-sanitize.sh out/bash
   check 'grep sanitizer harness build' bash tests/sol-grep-build-harness.sh "$scratch/grep-contracts"
   check 'grep PCRE2 sanitizer contracts' python3 tests/sol-grep-check.py out/bash --impl "$scratch/grep-contracts"
   check 'ptybroker sanitizer boundaries build' bash tests/sol-ptybroker-build-checks.sh "$scratch/ptybroker-contracts"

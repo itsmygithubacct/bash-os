@@ -1312,6 +1312,14 @@
       "status": "Contract",
       "evidence": "tests/sol-grep-check.py",
       "scope": "PCRE2 integration with record-end anchors, explicit UTF invalid-byte handling, match limits and persistent-shell recovery. Retain POSIX embedded-NUL/libc, non-UTF locale and accepted-but-no-color limitations."
+    },
+    {
+      "names": [
+        "coreutils"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-coreutils-check.py",
+      "scope": "Dispatcher command contracts, exact literal tac separators and nproc environment overrides. The bounded dispatcher surface is distinct from the unfinished standalone general-regex tac task."
     }
   ],
   "sanitizer_groups": [
@@ -1859,6 +1867,12 @@
         "grep"
       ],
       "evidence": "tests/sol-grep-build-harness.sh"
+    },
+    {
+      "names": [
+        "coreutils"
+      ],
+      "evidence": "tests/sol-coreutils-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2613,8 +2627,9 @@
       "evidence": "tests/free-check.sh"
     },
     "coreutils": {
-      "note": "Dispatcher; each subcommand is measured separately. nproc's default counts the affinity mask, as GNU's does, so it follows a taskset pin; --all reports every configured processor. GNU's OMP_NUM_THREADS and OMP_THREAD_LIMIT overrides are deliberately not implemented.",
-      "evidence": "loadables/coreutils.c"
+      "evidence": "docs/sol-coreutils.md",
+      "note": "Dispatcher command contracts, exact literal tac separators and nproc environment overrides. The bounded dispatcher surface is distinct from the unfinished standalone general-regex tac task.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "mktemp": {
       "note": "The former -u create-then-unlink defect is fixed: name-only generation leaves the filesystem untouched. The regression also covers ordinary file and directory creation.",
@@ -2862,7 +2877,8 @@
     "rtspcat",
     "sv",
     "rsync",
-    "ptybroker"
+    "ptybroker",
+    "coreutils"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
