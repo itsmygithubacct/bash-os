@@ -75,7 +75,7 @@ def workload(name, data):
         inserted = TYPED[:300].encode() + TAIL.replace("\r", "\n").encode()
         off = sum(len(l) + 1 for l in lines[:mid - 1])
         return keys, data[:off] + inserted + data[off:], \
-            f"goto line {mid}, 400 typed + 100 backspace + 10 newline + 40 typed = 550 edit keys, save"
+            f"goto line {mid}, 400 typed + 100 backspace + 10 newline + 40 typed = 550 edit keys in bursts with coalesced frames, save"
     raise ValueError(name)
 
 

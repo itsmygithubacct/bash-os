@@ -431,6 +431,7 @@ bn_line_cluster_cache_build (bn_line *L)
 static size_t
 bn_pt_count_nl (const char *s, size_t n)
 {
+    if (n == 0) return 0;  /* deletion may pass a NULL insertion */
     size_t c = 0;
     const char *end = s + n, *p = s;
     while (p < end && (p = memchr (p, '\n', (size_t) (end - p))) != NULL) {
@@ -5487,26 +5488,26 @@ bn_selftest_selection (void)
 static int
 bn_st_lines_match_full_sync (void)
 {
-    size_t n = bn_b.n_lines;
-    bn_line *copy = malloc ((n ? n : 1) * sizeof *copy);
-    if (!copy) return 0;
-    for (size_t i = 0; i < n; i++) {
-        copy[i] = bn_b.lines[i];
-        copy[i].abs = bn_labs (i);
-        copy[i].data = malloc (bn_b.lines[i].len + 1);
-        memcpy (copy[i].data, bn_b.lines[i].data ? bn_b.lines[i].data : "", bn_b.lines[i].len);
+    /* Split an independent flattened copy without rebuilding the live cache:
+       rebuilding here would erase pending shifts between random edits. */
+    size_t len = 0;
+    char *flat = bn_pt_flatten (&bn_b.pt, &len);
+    if (!flat) return 0;
+    size_t line = 0, start = 0;
+    int ok = 1;
+    for (size_t end = 0; end <= len; end++) {
+        if (end < len && flat[end] != '\n') continue;
+        if (line >= bn_b.n_lines) { ok = 0; break; }
+        const bn_line *L = &bn_b.lines[line];
+        size_t n = end - start;
+        if (bn_labs (line) != start || L->len != n
+            || (n && memcmp (L->data, flat + start, n) != 0)) ok = 0;
+        line++;
+        start = end + 1;
     }
-    int trailing = bn_b.had_trailing_nl;
-    bn_sync_lines_from_pt ();
-    int ok = n == bn_b.n_lines && trailing == bn_b.had_trailing_nl;
-    for (size_t i = 0; i < n; i++) {
-        if (ok && (copy[i].len != bn_b.lines[i].len || copy[i].abs != bn_b.lines[i].abs
-                   || memcmp (copy[i].data, bn_b.lines[i].data ? bn_b.lines[i].data : "",
-                              copy[i].len) != 0))
-            ok = 0;
-        free (copy[i].data);
-    }
-    free (copy);
+    ok = ok && line == bn_b.n_lines
+         && bn_b.had_trailing_nl == (len > 0 && flat[len - 1] == '\n');
+    free (flat);
     return ok;
 }
 

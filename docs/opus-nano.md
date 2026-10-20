@@ -182,11 +182,13 @@ Undo and redo still rebuild the cache from the restored snapshot.
 | `nano selftest-linecache` | incremental cache vs full re-split, undo to origin, typed-run coalescing |
 | `nano selftest-keybindings` | ^J/^T/^] now assert real edits (previously "not implemented") |
 | `tests/opus-nano-pty.py BINARY` | the above through a private PTY with an empty PATH: justify vs GNU (fixed and 24 random), undo/redo, spell (replace/cancel/skip/env/override/failure/missing helper), shell descriptor count, completion, UTF-8 movement and visible selection, atomic save mode and no residue, ^O prompt, ^X guard, termios restored exactly (`stty -g`), alternate screen, repeated calls, invalid invocations |
-| `tests/opus-nano-sanitize.sh BINARY` | all nano selftests and the PTY suite with nano and ts built under ASan/UBSan |
+| `tests/opus-nano-sanitize.sh BINARY` | all nano selftests under ASan/UBSan/LSan (shell allocation suppressions); PTY suite under ASan/UBSan |
 
-The existing selftests (`selftest`, `-piecetable`, `-saveprompt`, `-replace`,
+The retained selftests (`selftest`, `-piecetable`, `-saveprompt`, `-replace`,
 `-search`, `-resize`, `-statusbar`, `-yank-ring`, `-atomic-save`,
-`-undo-redo`) are unchanged and pass.
+`-undo-redo`) remain required. The statusbar selftest now frees its saved path.
+The random line-cache oracle splits a flattened copy without rebuilding the
+live cache, retaining lazy offset shifts across all 2,000 edits.
 
 ## Measurements
 
