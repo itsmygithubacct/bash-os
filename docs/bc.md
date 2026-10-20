@@ -151,7 +151,7 @@ shell with LeakSanitizer.
 
 ```sh
 python3 tests/bc-parity.py out/bash          # 119 repeated-input checks
-python3 tests/opus-bc-language.py out/bash   # 563 language and contract checks
+python3 tests/opus-bc-language.py out/bash   # language and contract checks
 bash tests/bc-sanitize.sh out/bash           # both under ASan/UBSan (+LSan)
 python3 tests/large-smoke.py out/bash bc     # the arithmetic fixtures
 ```
@@ -190,6 +190,10 @@ after file operands, the final-newline and exit-status table above, output to
 `/dev/full`, SIGINT during an endless loop, an empty `PATH`, and usage errors.
 
 ## Measured performance
+
+The measurements below describe revision `66ddbd7`, before duplicate `auto`
+declarations and parameter/`auto` collisions were rejected. They do not measure
+the corrected parser. Scalar and array names remain separate namespaces.
 
 `bench/opus-bc.py` times fixed programs through this builtin, the previous
 builtin (source `5a91c6e`) and GNU bc 1.07.1, all launched from the same

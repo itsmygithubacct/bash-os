@@ -3022,6 +3022,16 @@ bc_parse_define (bc_parser *p)
             int id = kind ? bc_array_id (ip, aname) : bc_var_id (ip, aname);
             free (aname);
             if (id < 0) { bc_semantic_error (p, "too many names"); goto fail; }
+            for (int i = 0; i < f.nparams; i++)
+                if (f.params[i].id == id && (f.params[i].kind != 0) == (kind != 0)) {
+                    bc_semantic_error (p, "variable in both parameter and auto lists");
+                    goto fail;
+                }
+            for (int i = 0; i < f.nautos; i++)
+                if (f.autos[i].id == id && (f.autos[i].kind != 0) == (kind != 0)) {
+                    bc_semantic_error (p, "duplicate auto variable names");
+                    goto fail;
+                }
             if (!bc_add_param (p, &f.autos, &f.nautos, id, kind)) goto fail;
             if (bc_peek_type (p) != ',') break;
             bc_consume (p);
