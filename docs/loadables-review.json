@@ -1337,6 +1337,14 @@
       "status": "Contract",
       "evidence": "tests/opus-ts-highlight.py",
       "scope": "Resolved nonoverlapping winning-capture spans and per-language query cache, with transactional writable-scalar handle publication. Combined corrected nano+ts checks cover selected JSON colors, edits and statusbar; raw captures remain ts -A only."
+    },
+    {
+      "names": [
+        "killall"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-killall.md",
+      "scope": "Exact process-name selection with complete comm records, canonical bounded PIDs and fail-closed fixture roots. Native signal delivery targets individually verified owned children only. Shared backend keeps mode-specific behavior."
     }
   ],
   "sanitizer_groups": [
@@ -1903,6 +1911,12 @@
         "hl"
       ],
       "evidence": "tests/opus-ts-sanitize.sh"
+    },
+    {
+      "names": [
+        "killall"
+      ],
+      "evidence": "tests/sol-killall-shim.c"
     }
   ],
   "fuzz": {
@@ -2859,6 +2873,11 @@
       "evidence": "docs/opus-ts.md",
       "note": "Resolved nonoverlapping winning-capture spans and per-language query cache, with transactional writable-scalar handle publication. Combined corrected nano+ts checks cover selected JSON colors, edits and statusbar; raw captures remain ts -A only.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "killall": {
+      "evidence": "docs/sol-killall.md",
+      "note": "Exact process-name selection with complete comm records, canonical bounded PIDs and fail-closed fixture roots. Native signal delivery targets individually verified owned children only. Shared backend keeps mode-specific behavior.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2918,7 +2937,8 @@
     "ptybroker",
     "coreutils",
     "ts",
-    "hl"
+    "hl",
+    "killall"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

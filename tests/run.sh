@@ -205,6 +205,11 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  mkdir -p "$scratch/killall-contracts"
+  check 'killall guarded signal fixture build' "$CC" -O2 -g -fPIC -shared tests/sol-killall-shim.c -ldl -o "$scratch/killall-contracts/shim.so"
+  check 'killall exact selection and owned signals' python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --report "$scratch/killall-native.json"
+  check 'killall sanitizer module build' env BASHOS_TASK_DIR="$scratch/killall-contracts" bash tests/sol-killall-sanitize-build.sh
+  check 'killall guarded sanitizer contracts' env SOL_KILLALL_ASAN="$(cat "$scratch/killall-contracts/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --module "$scratch/killall-contracts/sol-killall-sanitize.so" --report "$scratch/killall-sanitize.json"
   check 'ts combined highlight under ASan+UBSan+LSan' env TS_REQUIRE_NANO_STATUSBAR=1 bash tests/opus-ts-sanitize.sh out/bash
   check 'nano combined selftests and PTYs under ASan+UBSan' env NANO_REQUIRE_RESOLVED_TS=1 bash tests/opus-nano-sanitize.sh out/bash
   check 'coreutils dispatcher under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/coreutils-contracts" bash tests/sol-coreutils-sanitize.sh out/bash
