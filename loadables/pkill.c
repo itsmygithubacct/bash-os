@@ -40,10 +40,13 @@ char *pkill_doc[] = {
     "               with or without leading SIG. Default: TERM",
     "    -f         match against /proc/PID/cmdline (full command line)",
     "    -c, --count  print only the count of processes signalled",
-    "    -x, --exact  match the whole comm/cmdline, not a substring",
-    "    -u USER    only signal processes whose real uid is USER",
+    "    -x, --exact  require the regex to match the whole comm/cmdline",
+    "    -u USER    only signal processes whose effective uid is USER",
+    "    -U USER    filter real uid; -G GROUP filter real gid",
+    "    -P PID     filter parent; -g PGRP process group; -s SID session",
+    "               selectors accept comma-separated alternatives",
     "",
-    "PATTERN is a substring (not a regex) unless -x is given. Self is never signalled.",
+    "PATTERN is a POSIX extended regular expression. Self is never signalled.",
     "Returns 0 if any process was signalled, 1 if none matched.",
     (char *)NULL
 };
