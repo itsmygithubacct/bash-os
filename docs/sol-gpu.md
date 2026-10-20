@@ -1,10 +1,16 @@
 # GPU application frame validation
 
-Qualification remains incomplete. The required campaign resource gate admitted
-neither build during more than 40 minutes of waiting. Python syntax and frame
-oracle negative controls pass. The executable and C fixture have not been built;
-runtime, sanitizer, native-driver, live-importer and frame measurement checks
-remain unrun. There are no new performance results.
+Fresh review builds and runtime checks now pass: all 12 frame cases with the
+injected driver, all 12 with ASan/UBSan instrumentation, and all 12 on the
+available host render device. Error injection and oracle negative controls pass;
+the native smoke suite passes 86 checks. The original unrun status is retained
+in the campaign evidence. Live terminal importing and intended-device deployment
+remain unqualified; these checks use an isolated protocol peer.
+
+The frame fixture creates its private socket directory under `/tmp`. Unix socket
+addresses have a 108-byte bound; inheriting a long campaign `TMPDIR` previously
+forced shared-memory fallback before the DMA-BUF assertions could be exercised.
+The correction preserves the exact transport, pixel and lifecycle assertions.
 
 `tests/sol-gpu-frames.py` adds application frame oracles to the existing
 `tests/gpu-smoke.py` terminal peer. Each presentation is replayed independently
@@ -118,3 +124,30 @@ variation and are validated against the byte counter on each pass. Shell peak RS
 it does not measure total device memory, terminal memory or the Python peer.
 Real deployment memory and display latency need qualification on the intended
 device and terminal.
+
+## Fresh review measurements
+
+The corrected fixture completed seven measured batches after one warm-up for
+all 12 cases, plus all five shader cases on the host i915 render node (PCI
+8086:3e9b). Each batch has 16 updates after its initial frame. The benchmark gate
+pinned the processes to CPU 11. The native shader frame distributions were:
+
+| Case | Median ms | p95 ms |
+| --- | ---: | ---: |
+| `shader-shm` | 5.437 | 6.754 |
+| `shader-dmabuf` | 140.734 | 277.783 |
+| `shader-reject` | 4.573 | 45.058 |
+| `shader-abandon` | 5.076 | 43.819 |
+| `shader-resize` | 58.124 | 68.741 |
+
+These are 112 frame samples per case. DMA-BUF presentation waits for the test
+peer to map and convert the exported pixels before acknowledging the handoff;
+that Python work contributes to its reported latency. The table therefore does
+not compare renderer throughput or establish that one transport is faster in
+a real terminal. The raw campaign reports retain every batch and source,
+binary and driver identity.
+
+The legacy headless GPU case also passed seven 30-iteration batches: median
+102.194 ms per batch. That work includes session reset, raster drawing and PPM
+saving. Its rectangle is filled, despite the older shared catalog description
+calling it stroked. No external comparator or speedup is claimed.

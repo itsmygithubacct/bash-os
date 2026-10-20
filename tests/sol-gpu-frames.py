@@ -159,7 +159,9 @@ def parse_info(text):
 def execute(binary, name, *, frames=FRAMES, device=None, fixture=None, measure=False):
     peer.binary = str(Path(binary).resolve())
     transport, initial, steps, expected = workload(name, frames)
-    with tempfile.TemporaryDirectory(prefix='gpu-frame-') as tmp:
+    # Unix socket addresses are bounded to 108 bytes. A long inherited TMPDIR
+    # would exercise fallback instead of the requested DMA-BUF transport.
+    with tempfile.TemporaryDirectory(prefix='gpu-frame-', dir='/tmp') as tmp:
         directory = Path(tmp)
         session = directory/'session'
         session.mkdir(mode=0o700)
@@ -238,7 +240,7 @@ gpu stop
         assert after['patches'] == (frames if patch else 0), after
         assert after['composes'] == (frames if name.endswith('scroll') else 0), after
         expected_transport = 'dmabuf' if name == 'shader-dmabuf' else ('inline' if name.startswith('inline') or name == 'auto-fallback' else 'shm')
-        assert after['transport'] == expected_transport, after
+        assert after['transport'] == expected_transport, (after, output)
         assert after['fallbacks'] == int(name in ('driver-fallback','shader-reject','shader-abandon')), after
         uploads = frames+1 if name == 'shader-resize' else 2 if name in ('shader-reject','shader-abandon') else int(native)
         readbacks = frames+1 if native and name != 'shader-dmabuf' else 0
