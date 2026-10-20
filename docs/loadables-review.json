@@ -1106,6 +1106,16 @@
       "status": "Contract",
       "evidence": "tests/opus-payload-installer.py",
       "scope": "Trusted local repository parsing and builtin-to-installer protocol with an isolated recording installer. Embedded NUL/control records fail without truncation; actual bashy.box installation remains unqualified."
+    },
+    {
+      "names": [
+        "doas",
+        "sudo",
+        "su"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-doas.md",
+      "scope": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1503,6 +1513,14 @@
         "payload"
       ],
       "evidence": "tests/opus-payload-build-sanitizer.sh"
+    },
+    {
+      "names": [
+        "doas",
+        "sudo",
+        "su"
+      ],
+      "evidence": "tests/sol-doas-build.py"
     }
   ],
   "fuzz": {
@@ -2071,19 +2089,19 @@
       "evidence": "loadables/pkill.c"
     },
     "su": {
-      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
-      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
-      "evidence": "tests/final-smoke.py"
+      "evidence": "docs/sol-doas.md",
+      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "sudo": {
-      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
-      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
-      "evidence": "tests/final-smoke.py"
+      "evidence": "docs/sol-doas.md",
+      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "doas": {
-      "note": "Invalid-option rejection is unconditional. Root doas/sudo child-transition fixtures require an unprivileged account; su additionally requires /dev/bashos-auth. The recorded unprivileged run skipped these transitions, so no successful authentication coverage or timing is claimed.",
-      "next": "Run the conditional credential-transition and policy fixtures in an environment with their prerequisites before timing authentication.",
-      "evidence": "tests/final-smoke.py"
+      "evidence": "docs/sol-doas.md",
+      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "mail": {
       "note": "Alias compilation/expansion fixtures exist; no SMTP delivery throughput measurement.",
@@ -2375,7 +2393,10 @@
     "diff",
     "pcre",
     "join",
-    "cluster"
+    "cluster",
+    "doas",
+    "sudo",
+    "su"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
