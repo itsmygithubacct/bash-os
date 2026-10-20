@@ -190,6 +190,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'ipcctl private fixture build' bash tests/sol-ipcctl-build.sh "$scratch/ipcctl-contracts"
+  check 'ipcctl private resource contracts' python3 tests/sol-ipcctl-check.py --binary out/bash --module "$scratch/ipcctl-contracts/ipcctl-shim.so" --report "$scratch/ipcctl-native.json"
+  check 'ipcctl private resource sanitizer contracts' python3 tests/sol-ipcctl-check.py --binary out/bash --module "$scratch/ipcctl-contracts/ipcctl-shim-sanitize.so" --preload "$(cat "$scratch/ipcctl-contracts/asan-path.txt")" --report "$scratch/ipcctl-sanitize.json"
+  check 'ipcctl native prerequisites exercised' python3 -c 'import json,sys; assert all(json.load(open(p))["native"]["status"]=="pass" for p in sys.argv[1:])' "$scratch/ipcctl-native.json" "$scratch/ipcctl-sanitize.json"
   check 'setpgid UBSan module build' bash tests/sol-setpgid-build-ubsan.sh "$scratch/setpgid-contracts"
   check 'setpgid owned children under UBSan' env UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-setpgid-check.py --binary out/bash --module "$scratch/setpgid-contracts/setpgid-ubsan.so"
   check 'renice private boundary build' bash tests/sol-renice-build.sh "$scratch/renice-contracts"

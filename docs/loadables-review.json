@@ -1149,6 +1149,14 @@
       "status": "Contract",
       "evidence": "docs/sol-uclampset.md",
       "scope": "Mutation preflight opens all destinations before writes, retains descriptors for rollback and checks verbose child output before exec. Tests retain predecessor assertions and use intercepted setters/private files."
+    },
+    {
+      "names": [
+        "ipcctl"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-ipcctl.md",
+      "scope": "Strict IPC identifiers and independent private SysV resource lifecycle plus injected failures. Only owned resources are removed; attached shared-memory lifetime and broader kernel variants remain separate."
     }
   ],
   "sanitizer_groups": [
@@ -1573,6 +1581,12 @@
         "setpgid"
       ],
       "evidence": "tests/sol-setpgid-build-ubsan.sh"
+    },
+    {
+      "names": [
+        "ipcctl"
+      ],
+      "evidence": "tests/sol-ipcctl-build.sh"
     }
   ],
   "fuzz": {
@@ -2432,6 +2446,11 @@
       "evidence": "docs/sol-setpgid.md",
       "note": "Exact operand count, pid_t bounds and owned-child process-group contracts. No live host process groups are changed; cross-architecture pid_t qualification remains separate.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "ipcctl": {
+      "evidence": "docs/sol-ipcctl.md",
+      "note": "Strict IPC identifiers and independent private SysV resource lifecycle plus injected failures. Only owned resources are removed; attached shared-memory lifetime and broader kernel variants remain separate.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2467,7 +2486,8 @@
     "zstd",
     "zstdcat",
     "renice",
-    "setpgid"
+    "setpgid",
+    "ipcctl"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
