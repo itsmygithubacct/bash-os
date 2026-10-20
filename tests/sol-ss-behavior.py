@@ -101,6 +101,7 @@ class Suite(f.Suite):
     def errors(self,tmp):
         variants={
             'short inet':f.msg(b'\x02'),
+            'unaligned unmatched at buffer end':struct.pack('=IHHII',32767,20,0,0xffffffff,0)+bytes(32751),
             'short error':f.msg(kind=2),
             'oversize length':struct.pack('=IHHII',1000,20,0,0,0)+b'x',
             'partial error':f.inet(2,1,55555,55556)+f.msg(struct.pack('=i',-13)+bytes(16),kind=2),

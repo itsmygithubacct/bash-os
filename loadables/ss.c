@@ -352,7 +352,9 @@ bss_recv_loop (int fd, unsigned wanted_seq, bss_cb cb, void *ctx)
         { rc = -1; break; }
       struct nlmsghdr *h = (struct nlmsghdr *) buf;
       int done = 0;
-      while (NLMSG_OK (h, (size_t) s))
+      /* Alignment can consume more than the final unpadded message.
+       * Reject a negative remainder before inspecting another header. */
+      while (s >= (ssize_t) sizeof *h && NLMSG_OK (h, s))
         {
           if (h->nlmsg_seq != wanted_seq)
             { h = NLMSG_NEXT (h, s); continue; }
