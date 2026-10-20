@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'rngseed owned private files' bash tests/sol-rngseed-check.sh out/bash
 check 'setpgid owned-child contracts' python3 tests/sol-setpgid-check.py --binary out/bash
 check 'zstd bounded streaming and atomic output' python3 tests/sol-zstd-check.py out/bash
 check 'payload isolated installer protocol' python3 tests/opus-payload-installer.py out/bash
@@ -190,6 +191,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'rngseed intercepted boundaries build' bash tests/sol-rngseed-build.sh "$scratch/rngseed-contracts"
+  check 'rngseed intercepted native faults' env PATH= "$scratch/rngseed-contracts/rngseed-host"
+  check 'rngseed intercepted ASan+UBSan faults' env PATH= ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/rngseed-contracts/rngseed-host-sanitize"
+  check 'rngseed retained sanitizer assertions' env PATH= ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/rngseed-contracts/rngseed-legacy-sanitize"
   check 'keyctl private fixtures build' env BASHOS_TASK_DIR="$scratch/keyctl-contracts" bash tests/sol-keyctl-build.sh
   check 'keyctl private keyring contracts' python3 tests/sol-keyctl-check.py --binary out/bash --module "$scratch/keyctl-contracts/artifacts/keyctl-shim.so" --report "$scratch/keyctl-native.json"
   check 'keyctl private keyring sanitizer contracts' python3 tests/sol-keyctl-check.py --binary out/bash --module "$scratch/keyctl-contracts/artifacts/keyctl-sanitize.so" --real-module "$scratch/keyctl-contracts/artifacts/keyctl-real-sanitize.so" --preload "$(cat "$scratch/keyctl-contracts/artifacts/asan-path.txt")" --report "$scratch/keyctl-sanitize.json"
