@@ -986,6 +986,14 @@
       "status": "Contract",
       "evidence": "tests/sol-fifo-check.py",
       "scope": "Process-local signed-integer queue: independent list oracle, all ring offsets, atomic rejection, subshell isolation and output-error recovery."
+    },
+    {
+      "names": [
+        "vi"
+      ],
+      "status": "Parity",
+      "evidence": "tests/opus-vi-dd.py",
+      "scope": "Exact key/ex output and mandatory interactive nvim comparisons for line deletion, counts, undo/redo and complete UTF-8 visual endpoints."
     }
   ],
   "sanitizer_groups": [
@@ -1311,6 +1319,12 @@
       ],
       "evidence": "tests/opus-uclampset-sanitize.sh",
       "scope": "Production loadable under ASan/UBSan with all 28 focused setter/query/command contracts; shim does not replace production request construction."
+    },
+    {
+      "names": [
+        "vi"
+      ],
+      "evidence": "tests/opus-vi-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2060,8 +2074,9 @@
       "evidence": "tests/passwd-fields.py"
     },
     "vi": {
-      "note": "After `dd` deletes the buffer's last line the cursor is left on a line that no longer exists, and every later `dd` is a silent no-op returning 0; nvim clamps the cursor and keeps deleting. The benchmark fixture deliberately omits `G` before its dd run: with it the case would have measured one edit instead of 250 while still validating.",
-      "next": "Clamp the cursor to the new last line after a delete."
+      "evidence": "docs/opus-vi.md",
+      "note": "Last-line deletion and inclusive UTF-8 visual endpoints are corrected. Historical editing timings precede the UTF-8 correction and include external-process startup.",
+      "next": "Macros, named registers, text objects and additional motions remain deferred; no full vi conformance or current-code speed ratio is claimed."
     },
     "dmesg": {
       "note": "The former split-record loss is fixed. Fixture checks cover records crossing read boundaries and an unterminated final record; device fixtures also exercise input bounds.",
@@ -2149,7 +2164,8 @@
     "fold",
     "expand",
     "nl",
-    "pr"
+    "pr",
+    "vi"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
