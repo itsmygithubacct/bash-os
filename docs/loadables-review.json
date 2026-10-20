@@ -1010,6 +1010,14 @@
       "status": "Contract",
       "evidence": "tests/sol-crypto-check.py",
       "scope": "Independent primitive bytes, AEAD authenticated failure, state/output binding, cleanup and nonce-only/AAD-only rejection regressions."
+    },
+    {
+      "names": [
+        "unexpand"
+      ],
+      "status": "Parity",
+      "evidence": "tests/sol-unexpand-parity.py",
+      "scope": "C-locale byte conversion, tab-list/legacy options, cross-file state, closed-output recovery and descriptor ownership."
     }
   ],
   "sanitizer_groups": [
@@ -1353,6 +1361,12 @@
         "crypto"
       ],
       "evidence": "tests/sol-crypto-sanitize.sh"
+    },
+    {
+      "names": [
+        "unexpand"
+      ],
+      "evidence": "tests/sol-unexpand-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2019,7 +2033,9 @@
       "evidence": "tests/diff-safety.py"
     },
     "unexpand": {
-      "note": "Write-failure stop and GNU comparison are covered by tests/unexpand-check.sh."
+      "evidence": "docs/sol-unexpand.md",
+      "note": "Pending-space batching and retained GNU comparisons pass. Worker long-blank gains and tiny-input setup regression are separate workloads.",
+      "next": "Keep the 64-stop and INT_MAX tab limits explicit; other locales and unlimited GNU CLI scope are not qualified."
     },
     "wc": {
       "note": "Requested word-count assertions are covered by tests/wc-check.sh and tests/wc-tail-parity.sh."
@@ -2201,7 +2217,8 @@
     "pr",
     "vi",
     "more",
-    "crypto"
+    "crypto",
+    "unexpand"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

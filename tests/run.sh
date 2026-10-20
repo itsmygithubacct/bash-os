@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash
 check 'crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash
 check 'more paging contracts' python3 tests/sol-more-check.py out/bash
 check 'more shared key consumers' python3 tests/sol-more-helper-check.py out/bash
@@ -120,6 +121,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash-static
 check 'static crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash-static
 check 'static more paging contracts' python3 tests/sol-more-check.py out/bash-static
 check 'static vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python3 tests/opus-vi-dd.py out/bash-static
@@ -170,6 +172,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'unexpand under ASan+UBSan' bash tests/sol-unexpand-sanitize.sh out/bash
   check 'crypto independent contracts under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/crypto-contracts" bash tests/sol-crypto-sanitize.sh out/bash
   check 'more under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/more" bash tests/sol-more-sanitize.sh out/bash
   check 'vi deletion under ASan+UBSan' env OPUS_VI_REQUIRE_NVIM=1 bash tests/opus-vi-sanitize.sh out/bash
