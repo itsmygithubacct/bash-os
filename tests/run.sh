@@ -192,6 +192,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'ping boundary build' bash tests/sol-ping-build.sh "$scratch/ping-contracts"
+  check 'ping native echo contracts' python3 tests/sol-ping-check.py out/bash "$scratch/ping-contracts"
+  check 'ping injected sanitizer contracts' python3 tests/sol-ping-check.py out/bash "$scratch/ping-contracts" --sanitize
   check 'dmsetup independent ioctl oracle' python3 tests/opus-dmsetup-ioctl.py out/bash
   check 'dmsetup ioctl oracle under ASan+UBSan' bash tests/review-dmsetup-sanitize.sh out/bash
   check 'fstrim fixture build' env BASHOS_TASK_DIR="$scratch/fstrim-contracts" bash tests/opus-fstrim-build.sh

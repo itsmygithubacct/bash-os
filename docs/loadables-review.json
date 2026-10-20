@@ -1247,6 +1247,14 @@
       "status": "Contract",
       "evidence": "docs/opus-dmsetup.md",
       "scope": "Raw device-mapper ioctl ABI, payload validation, rollback ownership and open-failure cleanup against a closed private fixture. Real mapper devices, udev coordination and deployment behavior remain VM prerequisites."
+    },
+    {
+      "names": [
+        "ping"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-ping.md",
+      "scope": "Linux echo requests with complete payload/checksum validation, monotonic deadlines and same-shell recovery. Native owned loopback and injected raw-socket paths are distinct; no traceroute or external network qualification."
     }
   ],
   "sanitizer_groups": [
@@ -1745,6 +1753,12 @@
         "dmsetup"
       ],
       "evidence": "tests/opus-dmsetup-ioctl.py"
+    },
+    {
+      "names": [
+        "ping"
+      ],
+      "evidence": "tests/sol-ping-build.sh"
     }
   ],
   "fuzz": {
@@ -2666,6 +2680,11 @@
       "evidence": "docs/sol-hwclock.md",
       "note": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "ping": {
+      "evidence": "docs/sol-ping.md",
+      "note": "Linux echo requests with complete payload/checksum validation, monotonic deadlines and same-shell recovery. Native owned loopback and injected raw-socket paths are distinct; no traceroute or external network qualification.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2714,7 +2733,8 @@
     "mkfs",
     "swapoff",
     "hwclock",
-    "fstrim"
+    "fstrim",
+    "ping"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
