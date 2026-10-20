@@ -2,5 +2,6 @@
   "head": "head-stdin.patch",
   "tee": "tee-io.patch",
   "chmod": "chmod-umask.patch",
-  "mktemp": "mktemp-u.patch"
+  "mktemp": "mktemp-u.patch",
+  "setpgid": "setpgid-ids.patch"
 }
