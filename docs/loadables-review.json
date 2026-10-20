@@ -1304,6 +1304,14 @@
       "status": "Contract",
       "evidence": "tests/sol-ptybroker-streams.py",
       "scope": "Private Linux PTY metadata, bounded active-reader delivery, exact queue boundaries, history and owned-session cleanup. Nonreaders may be evicted; injected UID checks do not qualify real cross-account enforcement."
+    },
+    {
+      "names": [
+        "grep"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-grep-check.py",
+      "scope": "PCRE2 integration with record-end anchors, explicit UTF invalid-byte handling, match limits and persistent-shell recovery. Retain POSIX embedded-NUL/libc, non-UTF locale and accepted-but-no-color limitations."
     }
   ],
   "sanitizer_groups": [
@@ -1845,6 +1853,12 @@
         "ptybroker"
       ],
       "evidence": "tests/sol-ptybroker-build-checks.sh"
+    },
+    {
+      "names": [
+        "grep"
+      ],
+      "evidence": "tests/sol-grep-build-harness.sh"
     }
   ],
   "fuzz": {
@@ -2372,8 +2386,9 @@
   },
   "notes": {
     "grep": {
-      "note": "Default build disables -P; the separate pcre loadable supplies PCRE2 operations. See the source build switch.",
-      "evidence": "loadables/grep.c"
+      "evidence": "docs/sol-grep.md",
+      "note": "PCRE2 integration with record-end anchors, explicit UTF invalid-byte handling, match limits and persistent-shell recovery. Retain POSIX embedded-NUL/libc, non-UTF locale and accepted-but-no-color limitations.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "bc": {
       "evidence": "docs/bc.md",

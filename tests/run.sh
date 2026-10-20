@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'grep PCRE2 and persistent state' python3 tests/sol-grep-check.py out/bash
 check 'ptybroker bounded streams and ownership' env TMPDIR=/tmp python3 tests/sol-ptybroker-streams.py --bash out/bash --output "$scratch/ptybroker-streams.json"
 check 'rsync isolated push parity' python3 tests/opus-rsync-check.py out/bash
 check 'rsync merged source deletion' python3 tests/astra-rsync-delete.py out/bash
@@ -200,6 +201,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'grep sanitizer harness build' bash tests/sol-grep-build-harness.sh "$scratch/grep-contracts"
+  check 'grep PCRE2 sanitizer contracts' python3 tests/sol-grep-check.py out/bash --impl "$scratch/grep-contracts"
   check 'ptybroker sanitizer boundaries build' bash tests/sol-ptybroker-build-checks.sh "$scratch/ptybroker-contracts"
   check 'ptybroker native boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ptybroker-contracts/native-sanitize"
   check 'ptybroker bounded streams under UBSan' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ptybroker-streams.py --bash out/bash --loadable "$scratch/ptybroker-contracts/ptybroker-ubsan.so" --output "$scratch/ptybroker-ubsan.json"
@@ -356,7 +359,7 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
       echo "FAIL $h harness compilation"; fail=$((fail+1))
     fi
   done
-  if "$CC" -O1 -g -fsanitize=address,undefined "${INC[@]}" loadables/grep.c tests/grep-host.c -o "$scratch/grep"; then
+  if "$CC" -O1 -g -fsanitize=address,undefined "${INC[@]}" loadables/grep.c tests/grep-host.c -lpcre2-8 -o "$scratch/grep"; then
     check 'grep parity under ASan+UBSan' env GREP_IMPL="$scratch/grep" bash tests/grep-parity.sh out/bash
   else
     echo 'FAIL grep harness compilation'; fail=$((fail+1))
