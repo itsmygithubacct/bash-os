@@ -1296,6 +1296,14 @@
       "status": "Contract",
       "evidence": "tests/opus-rsync-check.py",
       "scope": "Local and isolated rsh-shim push parity, including multi-source deletion against the complete source union. Pull, native/daemon protocol, special files, ACLs and xattrs remain unqualified."
+    },
+    {
+      "names": [
+        "ptybroker"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-ptybroker-streams.py",
+      "scope": "Private Linux PTY metadata, bounded active-reader delivery, exact queue boundaries, history and owned-session cleanup. Nonreaders may be evicted; injected UID checks do not qualify real cross-account enforcement."
     }
   ],
   "sanitizer_groups": [
@@ -1831,6 +1839,12 @@
         "rsync"
       ],
       "evidence": "tests/opus-rsync-so.sh"
+    },
+    {
+      "names": [
+        "ptybroker"
+      ],
+      "evidence": "tests/sol-ptybroker-build-checks.sh"
     }
   ],
   "fuzz": {
@@ -2650,8 +2664,9 @@
       "evidence": "tests/expect-timeout.py"
     },
     "ptybroker": {
-      "note": "Private PTY fixtures cover broker lifecycle, binary I/O, backpressure and screen attachment. No broad command benchmark is recorded.",
-      "evidence": "tests/ptybroker-io.py"
+      "evidence": "docs/sol-ptybroker.md",
+      "note": "Private Linux PTY metadata, bounded active-reader delivery, exact queue boundaries, history and owned-session cleanup. Nonreaders may be evicted; injected UID checks do not qualify real cross-account enforcement.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "bashlogger": {
       "note": "Private AF_UNIX sender contract and validated 5000-message API workload measured on 2026-10-19. Timing includes shell loop and Python receiver; no external ratio or host daemon/persistence qualification.",
@@ -2831,7 +2846,8 @@
     "mail",
     "rtspcat",
     "sv",
-    "rsync"
+    "rsync",
+    "ptybroker"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

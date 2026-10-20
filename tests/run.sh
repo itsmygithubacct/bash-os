@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'ptybroker bounded streams and ownership' env TMPDIR=/tmp python3 tests/sol-ptybroker-streams.py --bash out/bash --output "$scratch/ptybroker-streams.json"
 check 'rsync isolated push parity' python3 tests/opus-rsync-check.py out/bash
 check 'rsync merged source deletion' python3 tests/astra-rsync-delete.py out/bash
 check 'sv owned readiness and backpressure' python3 tests/astra-sv-readiness.py out/bash
@@ -199,6 +200,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'ptybroker sanitizer boundaries build' bash tests/sol-ptybroker-build-checks.sh "$scratch/ptybroker-contracts"
+  check 'ptybroker native boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ptybroker-contracts/native-sanitize"
+  check 'ptybroker bounded streams under UBSan' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ptybroker-streams.py --bash out/bash --loadable "$scratch/ptybroker-contracts/ptybroker-ubsan.so" --output "$scratch/ptybroker-ubsan.json"
   check 'rsync sanitizer module' bash tests/opus-rsync-so.sh "$scratch/rsync-contracts.so" asan
   check 'rsync push under ASan+UBSan' python3 tests/opus-rsync-check.py out/bash --load "$scratch/rsync-contracts.so" --preload "$($CC -print-file-name=libasan.so)"
   check 'sv fault and sanitizer modules' bash tests/sol-sv-build-fixtures.sh "$scratch/sv-contracts"
