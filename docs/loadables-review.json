@@ -1018,6 +1018,14 @@
       "status": "Parity",
       "evidence": "tests/sol-unexpand-parity.py",
       "scope": "C-locale byte conversion, tab-list/legacy options, cross-file state, closed-output recovery and descriptor ownership."
+    },
+    {
+      "names": [
+        "wc"
+      ],
+      "status": "Parity",
+      "evidence": "tests/sol-wc-check.py",
+      "scope": "Native glibc C/C.UTF-8/en_US.utf8 bytes, characters, words and display widths, malformed boundaries and stream/output errors."
     }
   ],
   "sanitizer_groups": [
@@ -1367,6 +1375,12 @@
         "unexpand"
       ],
       "evidence": "tests/sol-unexpand-sanitize.sh"
+    },
+    {
+      "names": [
+        "wc"
+      ],
+      "evidence": "tests/sol-wc-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2038,7 +2052,9 @@
       "next": "Keep the 64-stop and INT_MAX tab limits explicit; other locales and unlimited GNU CLI scope are not qualified."
     },
     "wc": {
-      "note": "Requested word-count assertions are covered by tests/wc-check.sh and tests/wc-tail-parity.sh."
+      "evidence": "docs/sol-wc.md",
+      "note": "Direct-block UTF-8 decoding and filename-list bounds are qualified. Worker UTF-8 workload gains do not imply a current C-locale slowdown or universal speedup.",
+      "next": "Other encodings, libcs and complete option conformance remain unqualified."
     },
     "comm": {
       "note": "Selected-column GNU comparisons and write-failure contracts have a dedicated regression. The historical 2026-09-12 comm case measured 0.50 times the external runtime; current performance needs a new measurement.",
@@ -2218,7 +2234,8 @@
     "vi",
     "more",
     "crypto",
-    "unexpand"
+    "unexpand",
+    "wc"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
