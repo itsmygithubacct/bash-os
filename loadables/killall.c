@@ -3,7 +3,7 @@
  * Shares the /proc walker, the flag parser, and the signal-name table
  * with bashpgrep + bashpkill. The differentiator is the match semantic:
  * killall uses exact /proc/PID/comm strcmp (psmisc semantics) rather
- * than substring, so `killall sleep` terminates every sleep but does
+ * than a regular expression, so `killall sleep` terminates every sleep but does
  * not accidentally signal `gpg-agent-sleeper` or `sleepd`. Counterpart
  * binaries: psmisc killall (canonical), busybox killall, toybox killall —
  * all three exact-match by default.

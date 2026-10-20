@@ -15,12 +15,13 @@ shim never forwarded those requests. The killall wrapper now uses Bash's output
 error check and passes arguments directly to the backend, without rewriting
 Bash-owned word-list links to remove `--exact`.
 
-`loadables/pgrep.c` is a shared backend. These changes also tighten malformed
-input handling for pgrep, pkill and killall5; exact pgrep command-line searches
-skip overlong records, while substring searches keep their existing bounded
-prefix behavior. Integrators must reconcile this file with concurrent work on
-those commands. No common header, build metadata or test registry was changed.
-The build selection must explicitly include **killall,pgrep**.
+`loadables/pgrep.c` is a shared backend. The integrated regex-selector backend
+retains complete comm checks, canonical bounded PIDs and case-insensitive signal
+prefixes. Full command lines use a reusable growable buffer for both exact and
+regex selection. Only pkill accepts signal zero; killall requires a positive
+signal. UID fixtures contain complete four-field Uid and Gid records, while
+malformed-ID tests remain fail-closed. The build selection must explicitly
+include **killall,pgrep**.
 
 ## Validation and signal safety
 
@@ -89,13 +90,18 @@ syscall-shim timings; there is no external ratio or claimed optimization speedup
 
 This is the documented software scope, not full psmisc compatibility. `-f` is an
 extension with exact joined-line matching; regex, wait/age filters and process
-group broadcasting are not provided. The cmdline buffer accepts at most 4095
-file bytes for exact matching; longer records are skipped. Delivery tolerates
+group broadcasting are not provided. Command-line matching reads the complete
+record into an input-sized allocation; allocation or read failures skip the
+entry. Tests reject a truncated prefix and require a full 5000-byte exact match.
+Delivery tolerates
 exit/read races, but selection followed by `kill` does not pin process identity
 with pidfds and cannot eliminate the general PID-reuse race. There is no hardware
 qualification requirement.
 
-## Results
+## Original standalone results
+
+The measurements below describe the original standalone source and binary.
+They have not been rerun for the integrated regex-selector backend.
 
 The baseline build passed 36/51 cases. The final native build and the replacement
 ASan/UBSan module each passed 51/51. The baseline's 15 failures remain in separate

@@ -58,6 +58,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'pgrep complete regex and selector contracts' python3 tests/sol-pgrep-check.py out/bash
+check 'process matcher version output recovery' python3 tests/review-pgrep-output.py out/bash
 check 'ts resolved highlight and nano statusbar' env TS_REQUIRE_NANO_STATUSBAR=1 python3 tests/opus-ts-highlight.py out/bash
 check 'required nano oracle and termios tools' python3 -c 'import shutil; assert all(shutil.which(n,path="/usr/bin:/bin") for n in ("nano","stty")), "Required GNU nano or stty missing"'
 check 'nano private PTY and resolved highlight integration' env NANO_REQUIRE_RESOLVED_TS=1 python3 tests/opus-nano-pty.py out/bash
@@ -205,6 +207,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  mkdir -p "$scratch/pgrep-contracts"
+  check 'pgrep sanitizer harness build' sh tests/sol-pgrep-tools-build.sh "$scratch/pgrep-contracts"
+  check 'pgrep regex and selectors under ASan+UBSan' python3 tests/sol-pgrep-sanitize.py "$scratch/pgrep-contracts/pgrep-sanitize"
   mkdir -p "$scratch/killall-contracts"
   check 'killall guarded signal fixture build' "$CC" -O2 -g -fPIC -shared tests/sol-killall-shim.c -ldl -o "$scratch/killall-contracts/shim.so"
   check 'killall exact selection and owned signals' python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --report "$scratch/killall-native.json"

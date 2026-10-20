@@ -1345,6 +1345,16 @@
       "status": "Contract",
       "evidence": "docs/sol-killall.md",
       "scope": "Exact process-name selection with complete comm records, canonical bounded PIDs and fail-closed fixture roots. Native signal delivery targets individually verified owned children only. Shared backend keeps mode-specific behavior."
+    },
+    {
+      "names": [
+        "pgrep",
+        "pkill",
+        "killall5"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-pgrep-check.py",
+      "scope": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend."
     }
   ],
   "sanitizer_groups": [
@@ -1917,6 +1927,14 @@
         "killall"
       ],
       "evidence": "tests/sol-killall-shim.c"
+    },
+    {
+      "names": [
+        "pgrep",
+        "pkill",
+        "killall5"
+      ],
+      "evidence": "tests/sol-pgrep-tools-build.sh"
     }
   ],
   "fuzz": {
@@ -2479,12 +2497,14 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pgrep": {
-      "note": "Matching is substring-based unless exact matching is selected; not full procps regular-expression behavior.",
-      "evidence": "loadables/pgrep.c"
+      "evidence": "docs/sol-pgrep.md",
+      "note": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pkill": {
-      "note": "Shares pgrep matching and process traversal; validate signals only against owned child fixtures.",
-      "evidence": "loadables/pkill.c"
+      "evidence": "docs/sol-pgrep.md",
+      "note": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "su": {
       "evidence": "docs/sol-doas.md",
@@ -2878,6 +2898,11 @@
       "evidence": "docs/sol-killall.md",
       "note": "Exact process-name selection with complete comm records, canonical bounded PIDs and fail-closed fixture roots. Native signal delivery targets individually verified owned children only. Shared backend keeps mode-specific behavior.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "killall5": {
+      "evidence": "docs/sol-pgrep.md",
+      "note": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     }
   },
   "repeat_input_findings": [],
@@ -2938,7 +2963,8 @@
     "coreutils",
     "ts",
     "hl",
-    "killall"
+    "killall",
+    "killall5"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

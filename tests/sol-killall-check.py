@@ -27,7 +27,7 @@ def entry(root, pid, comm='target', cmdline=b'/bin/demo\0arg\0', uid=1234, statu
     d.mkdir(exist_ok=True)
     (d / 'comm').write_bytes(comm if isinstance(comm, bytes) else (comm + '\n').encode())
     (d / 'cmdline').write_bytes(cmdline)
-    (d / 'status').write_text(status if status is not None else f'Name:\tfixture\nUid:\t{uid}\t99\t99\t99\n')
+    (d / 'status').write_text(status if status is not None else f'Name:\tfixture\nUid:\t{uid}\t99\t99\t99\nGid:\t99\t99\t99\t99\n')
 
 
 class Runner:
@@ -130,11 +130,15 @@ def fixtures(binary, shim, directory):
     case('truncated-comm-not-exact', lambda: runner.run(['x' * 63], rc=1))
     entry(root, 213, 'longcmd', cmdline=b'y' * 5000)
     case('truncated-command-not-exact', lambda: runner.run(['-f', 'y' * 4095], rc=1))
+    case('complete-long-command-exact', lambda: runner.run(['-f', 'y' * 5000], calls=[(213,15,0)]))
     entry(root, 215, 'emptycmd', cmdline=b'')
     case('empty-command-line', lambda: runner.run(['-f', ''], rc=1))
     entry(root, 216, 'fifteencharname', cmdline=b'a\0\0b\0')
     case('kernel-comm-length', lambda: runner.run(['fifteencharname'], calls=[(216,15,0)]))
     case('full-command-empty-argument', lambda: runner.run(['-f', 'a  b'], calls=[(216,15,0)]))
+    entry(root, 217, 'newlinecmd', cmdline=b'a\nb\0')
+    case('full-command-literal-newline', lambda: runner.run(['-f', 'a\nb'], calls=[(217,15,0)]))
+    case('full-command-newline-not-space', lambda: runner.run(['-f', 'a b'], rc=1))
     case('companion-pgrep-exact', lambda: runner.run([], script='pgrep -x target', stdout='101\n'))
     case('companion-pgrep-substring-long-line', lambda: runner.run([], script='pgrep -f yyyyyyyy', stdout='213\n'))
     case('companion-pgrep-exact-long-line', lambda: runner.run([], rc=1,
