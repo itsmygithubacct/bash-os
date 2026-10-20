@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'join redirected stdin recovery' python3 tests/review-join-streams.py out/bash
 check 'nl binary BRE contracts' python3 tests/sol-nl-check.py out/bash
 check 'nl empty backreference branches' python3 tests/review-nl-backrefs.py out/bash
 check 'head options and input ownership' python3 tests/sol-head-options.py out/bash
@@ -185,6 +186,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'join stream ownership under ASan+UBSan' bash tests/review-join-sanitize.sh out/bash
   check 'nl native and fallback modules' bash tests/sol-nl-build-modules.sh "$scratch/nl-contracts"
   for mode in native fallback; do
     for suite in nl-parity sol-nl-check review-nl-backrefs; do

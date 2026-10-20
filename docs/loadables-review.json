@@ -1082,6 +1082,14 @@
       "status": "Contract",
       "evidence": "tests/sol-nl-check.py",
       "scope": "Native and forced no-REG_STARTEND C/C.UTF-8 byte/record/BRE paths with branch-local empty-backreference guards. Actual musl, collating locales and every regex extension remain unqualified."
+    },
+    {
+      "names": [
+        "join"
+      ],
+      "status": "Contract",
+      "evidence": "tests/review-join-streams.py",
+      "scope": "Newline records and C-locale byte fields with dynamic duplicate groups and invocation-owned stdin buffers. Repeated failed output cannot leak old input into redirected calls. Full locale/CLI and asynchronous-signal conformance remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1461,6 +1469,12 @@
         "nl"
       ],
       "evidence": "tests/sol-nl-build-modules.sh"
+    },
+    {
+      "names": [
+        "join"
+      ],
+      "evidence": "tests/review-join-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2147,7 +2161,9 @@
       "evidence": "tests/comm-check.sh"
     },
     "join": {
-      "note": "Write-failure stop and GNU comparison are covered by tests/join-check.sh."
+      "evidence": "docs/sol-join.md",
+      "note": "Newline records and C-locale byte fields with dynamic duplicate groups and invocation-owned stdin buffers. Repeated failed output cannot leak old input into redirected calls. Full locale/CLI and asynchronous-signal conformance remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "sort": {
       "note": "Write-failure handling and selected GNU comparisons have dedicated regressions. The historical 2026-09-12 sort-text case measured 0.91 times the external runtime; it is not an open confirmed performance defect.",
@@ -2328,7 +2344,8 @@
     "unexpand",
     "wc",
     "diff",
-    "pcre"
+    "pcre",
+    "join"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

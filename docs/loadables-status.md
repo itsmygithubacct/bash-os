@@ -278,7 +278,7 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | [`ip`](../loadables/ip.c) | D S F | [Bench checked](#case-ip) | ip; ip | 7.474 / ERROR / 167.878; [ip](#case-ip), 129 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`ipcctl`](../loadables/ipcctl.c) | D S F | Build/help | ipcs (not in build); ipcs / ipcrm | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`ipcmk`](../loadables/ipcmk.c) | D S F | Build/help | —; ipcmk | N/M | P3 | Add behavioral fixtures, then timing. |
-| [`join`](../loadables/join.c) | C D S T F | [Parity](../tests/text-tools-parity.sh) | —; join | 72.419 / — / 47.218; [join](#case-join), 18 passes | P3 | Remeasure join on the current build (1.53× external time in the historical snapshot). |
+| [`join`](../loadables/join.c) | C D S T F | [Parity](../tests/text-tools-parity.sh); [limited](#scope-notes); [S](../tests/review-join-sanitize.sh) | —; join | 72.419 / — / 47.218; [join](#case-join), 18 passes | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
 | [`jq`](../loadables/jq.c) | S T F | [Parity](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; jq | 76.858 / — / 110.380; [jq](#case-jq), 12 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`keyctl`](../loadables/keyctl.c) | S F | Build/help | —; keyctl (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`kgetch`](../loadables/kgetch.c) | T F | [Contract](../tests/terminal-smoke.py); [S](../tests/terminal-sanitize.sh) | —; API fixture | 4.173 / — / —; [kgetch](#case-kgetch), 127 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
@@ -531,7 +531,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `head` | Native GNU byte/count/header/NUL records plus exact-consumption and descriptor ownership. Signals, live input mutation and cross-libc behavior remain unqualified. [source](../docs/head-sed.md) |
 | `hexdump` | Repeated redirected stdin is fixed; tests/hexdump-check.sh matches GNU on three fresh redirections. |
 | `hostid` | Default is gethostid(3), matching hostid(1), including on this measured full binary. tests/hostid-check.sh covers override files and the machine-id fallback. [source](../docs/hostid.md) |
-| `join` | Write-failure stop and GNU comparison are covered by tests/join-check.sh. |
+| `join` | Newline records and C-locale byte fields with dynamic duplicate groups and invocation-owned stdin buffers. Repeated failed output cannot leak old input into redirected calls. Full locale/CLI and asynchronous-signal conformance remain unqualified. [source](../docs/sol-join.md) |
 | `ldap` | BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured. |
 | `lpr` | Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim. [source](../loadables/lpr.c) |
 | `lsattr` | The flag field is 14 columns where e2fsprogs prints 22 for the same file, so the two cannot be compared on exact bytes. |
