@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Test-only /proc redirection and fail-closed signal interception. */
 #define _GNU_SOURCE
 #include <sys/types.h>
