@@ -130,7 +130,7 @@ check ptybroker-io python3 tests/ptybroker-io.py --bash out/bash
 check screen-broker python3 tests/screen-broker.py --bash out/bash
 check pty-primitives python3 tests/pty-primitives.py out/bash
 check large-smoke python3 tests/large-smoke.py out/bash
-check 'uclampset setters and validation' python3 tests/opus-uclampset.py out/bash
+check 'uclampset setters and validation' python3 tests/sol-uclampset.py out/bash
 check 'bsdgames byte and stream contracts' python3 tests/sol-bsdgames-contracts.py out/bash
 check helper-smoke python3 tests/helper-smoke.py out/bash
 check procstat-smoke python3 tests/procstat-smoke.py out/bash
@@ -265,7 +265,7 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'terminal and buffer edges under ASan+UBSan' bash tests/vt-buf-sanitize.sh out/bash
   check 'graphics under ASan+UBSan' bash tests/gpu-sanitize.sh out/bash
   check 'git under ASan+UBSan' bash tests/git-sanitize.sh out/bash
-  check 'uclampset under ASan+UBSan' bash tests/opus-uclampset-sanitize.sh out/bash
+  check 'uclampset under ASan+UBSan' bash tests/sol-uclampset-sanitize.sh out/bash
   check 'process and device modules under ASan+UBSan' bash tests/system-process-sanitize.sh out/bash
   for name in nc http userdb spool crypto-state; do
     check "$name under ASan+UBSan" bash "tests/$name-sanitize.sh" out/bash

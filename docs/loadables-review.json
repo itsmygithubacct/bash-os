@@ -1141,6 +1141,14 @@
       "status": "Contract",
       "evidence": "tests/sol-setpgid-check.py",
       "scope": "Exact operand count, pid_t bounds and owned-child process-group contracts. No live host process groups are changed; cross-architecture pid_t qualification remains separate."
+    },
+    {
+      "names": [
+        "uclampset"
+      ],
+      "status": "Contract",
+      "evidence": "docs/sol-uclampset.md",
+      "scope": "Mutation preflight opens all destinations before writes, retains descriptors for rollback and checks verbose child output before exec. Tests retain predecessor assertions and use intercepted setters/private files."
     }
   ],
   "sanitizer_groups": [
@@ -2106,9 +2114,9 @@
       "next": "Define required mapper mutation verbs and add isolated device fixtures."
     },
     "uclampset": {
-      "note": "PID/system setters and command mode implemented. Effective single-clamp requests are preflighted against current limits; mixed-thread, reset and whitespace regressions covered. This host lacks CONFIG_UCLAMP_TASK: successful setters use a recording syscall emulator/private sysctl fixtures, and live acceptance remains unqualified.",
-      "evidence": "docs/opus-uclampset.md",
-      "next": "Qualify real task/sysctl setters on a kernel with CONFIG_UCLAMP_TASK. Hidden procfs can prevent disambiguating unsupported and supported 0/0 task clamps."
+      "evidence": "docs/sol-uclampset.md",
+      "note": "Mutation preflight opens all destinations before writes, retains descriptors for rollback and checks verbose child output before exec. Tests retain predecessor assertions and use intercepted setters/private files.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "lpr": {
       "note": "Submit copies into a spool and sleeps to simulate printing. No real printer throughput claim.",
