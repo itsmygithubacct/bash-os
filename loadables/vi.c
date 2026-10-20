@@ -444,6 +444,20 @@ bv_find_piece (const bv_pt_buffer *b, size_t pos, size_t *idx, size_t *inner)
     return pos == b->total_len ? 0 : -1;
 }
 
+/* Newlines in bytes [lo, hi) of piece `p`. Counts whichever is
+ * shorter, the span or its complement (subtracted from the cached
+ * piece total), so trimming a few bytes off a large mapped piece does
+ * not rescan the whole file. */
+static size_t
+bv_piece_nl (const bv_pt_buffer *b, const bv_pt_piece *p, size_t lo, size_t hi)
+{
+    const char *d = bv_piece_data (b, p);
+    if (hi - lo <= p->length / 2)
+        return bv_count_nl (d + lo, hi - lo);
+    return p->line_count - bv_count_nl (d, lo)
+                         - bv_count_nl (d + hi, p->length - hi);
+}
+
 static int
 bv_replace_span (bv_pt_buffer *b, size_t start, size_t end,
                  const char *ins, size_t ins_len)
@@ -458,8 +472,7 @@ bv_replace_span (bv_pt_buffer *b, size_t start, size_t end,
     if (si < b->n_pieces && so > 0) {
         newp[nn] = b->pieces[si];
         newp[nn].length = so;
-        newp[nn].line_count = bv_count_nl (bv_piece_data (b, &newp[nn]),
-                                           newp[nn].length);
+        newp[nn].line_count = bv_piece_nl (b, &b->pieces[si], 0, so);
         nn++;
     }
     if (ins_len) {
@@ -477,8 +490,8 @@ bv_replace_span (bv_pt_buffer *b, size_t start, size_t end,
         newp[nn] = b->pieces[ei];
         newp[nn].offset += eo;
         newp[nn].length -= eo;
-        newp[nn].line_count = bv_count_nl (bv_piece_data (b, &newp[nn]),
-                                           newp[nn].length);
+        newp[nn].line_count = bv_piece_nl (b, &b->pieces[ei], eo,
+                                           b->pieces[ei].length);
         nn++;
     }
 
@@ -743,7 +756,7 @@ bv_line_number (const bv_pt_buffer *b, size_t pos)
         if (cur + len <= pos) {
             n += b->pieces[i].line_count;
         } else {
-            n += bv_count_nl (bv_piece_data (b, &b->pieces[i]), pos - cur);
+            n += bv_piece_nl (b, &b->pieces[i], 0, pos - cur);
         }
         cur += len;
     }
@@ -977,7 +990,8 @@ bv_motion_G (size_t line)
 {
     size_t n = bv_nlines (&bv_st.pt);
     if (n == 0) return 0;
-    if (line == 0 || line > n) line = n;
+    if (line == 0 || line >= n)
+        return bv_first_nonblank (&bv_st.pt, bv_last_line_start (&bv_st.pt));
     return bv_first_nonblank (&bv_st.pt,
                               bv_line_to_pos (&bv_st.pt, line - 1));
 }
@@ -1081,16 +1095,15 @@ bv_delete_lines (size_t pos, size_t count)
     size_t ls = bv_line_start (b, pos);
     if (ls >= b->total_len) ls = bv_last_line_start (b);
     size_t end = bv_lines_end (ls, count);
-    size_t deleted = bv_line_number (b, end) - bv_line_number (b, ls);
     size_t start = ls;
     /* The final line has no newline: take the previous line's newline
      * with it so the remaining last line keeps the missing-EOL state. */
-    if (end == b->total_len && bv_byte_at (b, end - 1) != '\n') {
-        deleted++;
-        if (ls > 0) start = ls - 1;
-    }
+    if (end == b->total_len && bv_byte_at (b, end - 1) != '\n' && ls > 0)
+        start = ls - 1;
     if (bv_history_mark (&bv_st) < 0) return -1;
     if (bv_yank_lines (ls, end) < 0) return -1;
+    /* The register holds whole newline-terminated lines. */
+    size_t deleted = bv_count_nl (bv_st.yank, bv_st.yank_len);
     if (bv_replace_span (b, start, end, NULL, 0) < 0) return -1;
     bv_st.cur = start;
     bv_cursor_normalize ();
@@ -2371,6 +2384,28 @@ bv_selftest (void)
                      && bv_st.cur == 4,
                      "undo after dd at the end restores lines and cursor");
     free (flat);
+
+    /* 8b'. Split counts taken from the shorter side stay exact. */
+    {
+        char big[400];
+        for (int i = 0; i < 100; i++) memcpy (big + i * 4, "ab\nc", 4);
+        bv_reset_state ();
+        bv_pt_init_text (&bv_st.pt, big, sizeof big);
+        int nl_ok = 1;
+        size_t cuts[][2] = { { 390, 395 }, { 3, 9 }, { 200, 203 }, { 0, 1 },
+                             { 100, 300 } };
+        for (size_t i = 0; i < sizeof cuts / sizeof cuts[0]; i++) {
+            bv_replace_span (&bv_st.pt, cuts[i][0], cuts[i][1], NULL, 0);
+            flat = bv_flatten (&bv_st.pt, &flat_len);
+            nl_ok &= flat && bv_count_nl (flat, flat_len) == bv_st.pt.total_lines
+                     && bv_line_number (&bv_st.pt, flat_len)
+                        == bv_count_nl (flat, flat_len)
+                     && bv_line_number (&bv_st.pt, flat_len / 3)
+                        == bv_count_nl (flat, flat_len / 3);
+            free (flat);
+        }
+        fails += bv_tap (&n, nl_ok, "piece newline counts stay exact across splits");
+    }
 
     /* 8c. dd of a last line without a newline keeps the missing EOL. */
     bv_reset_state ();

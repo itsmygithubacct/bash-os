@@ -95,7 +95,7 @@ def main():
         'cpus': sorted(os.sched_getaffinity(0)), 'load_average_start': os.getloadavg(),
         'runs': args.runs,
         'method': 'One bash-os shell per batch, `passes` invocations in a loop; '
-                  'median batch wall time; stdout/stderr discarded; warm file cache; '
+                  'implementations interleaved per round; median batch wall time; stdout/stderr discarded; warm file cache; '
                   'every pass writes out.N and every out.N is checked against a '
                   'Python-computed expected value after every batch',
         'implementations': {}, 'cases': [],
@@ -173,6 +173,7 @@ def main():
                    'actual_deletes_per_pass': deletes,
                    'expected_bytes': len(want), 'expected_sha256': sha(want),
                    'expected_lines': want.count(b'\n'), 'results': {}}
+            accepted = {}
             for label, (kind, binary) in impls.items():
                 # Probe for calibration (one pass) and correctness.
                 prepare(name, keys, 1)
@@ -191,25 +192,40 @@ def main():
                     row['results'][label] = {'status': 'batch-mismatch', 'returncode': rc,
                                              'stderr': err, 'mismatches': bad[:5]}
                     continue
-                samples = []
-                failure = None
-                for _ in range(args.runs):
+                accepted[label] = passes
+            samples = {label: [] for label in accepted}
+            failed = {}
+            labels = list(accepted)
+            # Rounds interleave the implementations, rotating and reversing the
+            # order, so drifting host load does not land on one side.
+            for round_number in range(args.runs):
+                k = round_number % len(labels) if labels else 0
+                order = labels[k:] + labels[:k]
+                if round_number % 2:
+                    order.reverse()
+                for label in order:
+                    if label in failed:
+                        continue
+                    kind, binary = impls[label]
+                    passes = accepted[label]
                     prepare(name, keys, passes)
                     rc, ms, err = batch(kind, binary, name, fixture, keys, passes)
                     bad = validate(want, passes)
                     if rc or bad:
-                        failure = {'status': 'timed-batch-mismatch', 'returncode': rc,
-                                   'stderr': err, 'mismatches': bad[:5]}
-                        break
-                    samples.append(round(ms, 3))
-                if failure:
-                    row['results'][label] = failure
+                        failed[label] = {'status': 'timed-batch-mismatch', 'returncode': rc,
+                                         'stderr': err, 'mismatches': bad[:5]}
+                        continue
+                    samples[label].append(round(ms, 3))
+            for label, passes in accepted.items():
+                if label in failed:
+                    row['results'][label] = failed[label]
                     continue
-                med = statistics.median(samples)
+                values = samples[label]
+                med = statistics.median(values)
                 row['results'][label] = {
                     'status': 'ok', 'passes': passes, 'validated_passes': passes * (args.runs + 1),
-                    'median_ms': round(med, 3), 'min_ms': min(samples), 'max_ms': max(samples),
-                    'per_pass_median_ms': round(med / passes, 4), 'runs_ms': samples}
+                    'median_ms': round(med, 3), 'min_ms': min(values), 'max_ms': max(values),
+                    'per_pass_median_ms': round(med / passes, 4), 'runs_ms': values}
             report['cases'].append(row)
             print(name + ': ' + ', '.join(
                 f"{k}={v.get('per_pass_median_ms', v['status'])}"
