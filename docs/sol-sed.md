@@ -61,8 +61,8 @@ return 1; missing input operands return 2; read/write failures return 4.
 A quit code cannot erase an earlier I/O failure. Invocation resources are
 released before checking Bash's pending interrupt state.
 
-The command remains a GNU sed subset: `-z`, `--posix`, `--sandbox`, `--debug`
-and `--follow-symlinks` are not implemented, and execution still requires
+The command remains a GNU sed subset: `-z`, `--posix`, `--sandbox`, `--debug`,
+`--follow-symlinks` and `--version` are not implemented, and execution still requires
 `BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
 in-place backup suffixes remain bounded and literal. Script files containing
 literal NUL are not supported; use numeric escapes in regex and replacement
@@ -120,41 +120,59 @@ they do not measure or qualify subsequent corrections.
 The correction passes 977 head/sed parity checks, 276 focused cycle/regex
 checks, 312 framing/CLI/terminal checks, 1,008 binary regex comparisons, 12
 owned-process signal checks, 8 stream checks and 156 mixed-reader checks.
-These passed on the linked glibc binary, the forced portable regex/peek
-module, and ASan/UBSan modules for both backends. Sanitizer leak detection
-is disabled because the hosting Bash is not instrumented.
+These passed on linked glibc, static native musl 1.2.5, static RISC-V musl
+under QEMU user-mode emulation, the forced portable regex/peek module, and
+ASan/UBSan modules for both backends. Sanitizer leak detection is disabled
+because the hosting Bash is not instrumented. The native musl binary also
+passed `tests/sol-sed-rootfs.py` in a private root containing only that binary,
+with an empty PATH. No physical RISC-V hardware was used; QEMU 10.0.13 ran on
+the Linux x86-64 host. No non-Linux execution environment was available.
 
 The separate `tests/sol-sed-terminal-eof.py` oracle remains a strict failure:
 with a canonical EOF marker before already queued terminal bytes, `$` cannot
-classify the current line correctly through `poll`/`FIONREAD`. The ordinary
-canonical/raw terminal cases verify that subsequent readers retain every
+classify the current line correctly through `poll`/`FIONREAD`. It fails on
+all three final linked platform variants. The original stdio lookahead
+classified this EOF case correctly but lost ordinary lookahead bytes.
+The ordinary canonical/raw terminal cases verify that subsequent readers retain every
 byte, including NUL. These passing cases do not close the EOF-ordering gap.
 The forced portable peek checks run on Linux and do not qualify another
 kernel. Do not register the strict failure as a passing or skipped test.
 
 ## Corrected native measurements
 
-The corrected glibc binary was measured on the same Intel Core i7-9850H,
-Linux x86-64, CPU 11, GCC 14.2, Bash 5.3.15 and GNU sed 4.9 configuration.
-Each cell is milliseconds for eight calls: median and min–max across seven
-samples after a validated warmup. Every invocation's status and complete
-output bytes matched the independent oracle. The fixtures, regular-file
-output method and work units are described above.
+The final glibc and musl 1.2.5 binaries were measured on Intel Core i7-9850H,
+Linux x86-64, CPU 11, GCC 14.2, Bash 5.3.15 and GNU sed 4.9. Each cell is
+milliseconds for eight calls: median and min–max across seven samples after
+a validated warmup. Every invocation's status and complete output bytes
+matched the independent oracle. Fixtures, regular-file output and work units
+are described above. These are separate paired runs for each libc, not an
+interleaved libc comparison.
 
-| Workload | Builtin ms | GNU ms | Builtin / GNU |
-|---|---:|---:|---:|
-| Historical substitution | 23.199 (22.826–24.531) | 73.244 (71.289–78.486) | 0.317 |
-| Substitution/branch loop | 77.403 (72.576–82.200) | 146.388 (137.360–161.390) | 0.529 |
-| Multifile hold/range/substitution | 29.049 (28.199–47.275) | 55.507 (51.805–61.423) | 0.523 |
+| Backend | Workload | Builtin ms | GNU ms | Builtin / GNU |
+|---|---|---:|---:|---:|
+| glibc | Historical substitution | 36.259 (30.224–54.680) | 106.627 (102.215–131.960) | 0.340 |
+| glibc | Substitution/branch loop | 118.514 (105.865–196.926) | 205.216 (196.817–351.798) | 0.578 |
+| glibc | Multifile hold/range/substitution | 72.946 (53.979–83.483) | 120.170 (94.960–150.696) | 0.607 |
+| musl | Historical substitution | 66.975 (63.980–73.744) | 91.026 (87.923–94.015) | 0.736 |
+| musl | Substitution/branch loop | 222.865 (203.190–234.436) | 182.627 (176.288–224.732) | 1.220 |
+| musl | Multifile hold/range/substitution | 76.678 (69.931–82.457) | 75.934 (67.955–83.062) | 1.010 |
 
-The measured binary SHA-256 is
-`f2e01b08803fad68caaaab0526247eb717300321b426a54fea46a1a229ae4ec9`;
-`loadables/sed.c` SHA-256 is
-`e322db4675efbd0526037523634075bd07dea414249f5a47eca0284d9a3447df`.
-The raw report is `benchmark-final-native.json` in the correction receipt.
-The former slower-than-GNU result was not reproduced, so no speculative
-performance optimization was added. These measurements do not establish a
-before/after speedup against the separate historical runs.
+The glibc run has substantial timing spread. Musl's branch workload is slower
+than GNU, and its multifile workload is approximately even in this run.
+The original slower-than-GNU historical substitution result was not
+reproduced. No speculative performance optimization was added, and no
+before/after speedup is inferred from the separate historical runs.
+
+Final `loadables/sed.c` SHA-256:
+`cbb0ad6d7673b63669ad575750d430c6a10388d3db4e7f6516df26d6027234c0`.
+The glibc binary SHA-256 is
+`0ce393dfe426d3c935892c443f393ce6777622231ce88a3d2cb34124fdfb65a3`;
+the native musl binary SHA-256 is
+`dc0c3717c9a49ed0388556ccfec27b19c498ae1d5a71b9e78e51abbc20f82c82`.
+Raw distributions and per-pass validation are retained in
+`benchmark-v2-native.json` and `benchmark-v2-musl.json` in the correction
+receipt. Earlier measurements and failed checks are retained separately.
+No QEMU-to-native performance ratio is reported.
 
 ## Historical measurements before these corrections
 
