@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* zstd-host.c — the zstd loadable under AddressSanitizer+UBSan on the host:
  * the real loadables/zstd.c compiled against the built bash tree with the few
- * bash runtime symbols it calls stubbed. Exercises the buffer paths — a
+ * bash runtime symbols it calls stubbed. Exercises the streaming paths — a
  * round trip larger than the decoder's chunk, an empty input, a truncated
- * frame, garbage, the no-progress guard — and the library-absent path.
+ * frame, garbage, and the library-absent path. See sol-zstd-host.c for injected failures.
  *
  *   cc -fsanitize=address,undefined -DHAVE_CONFIG_H -Ibuild/bash-5.3 \
  *      -Ibuild/bash-5.3/include -Ibuild/bash-5.3/builtins -Ibuild/bash-5.3/examples/loadables \
@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <zstd.h>
 #include "loadables.h"
 
 /* ---- the bash runtime, stubbed -------------------------------------------- */
@@ -52,7 +53,9 @@ static int same (const char *a, const char *b)
 {
   FILE *fa = fopen (a, "rb"), *fb = fopen (b, "rb"); int ca, cb, eq = fa && fb;
   if (eq) do { ca = fgetc (fa); cb = fgetc (fb); if (ca != cb) eq = 0; } while (eq && ca != EOF);
-  if (fa) fclose (fa); if (fb) fclose (fb); return eq;
+  if (fa) fclose (fa);
+  if (fb) fclose (fb);
+  return eq;
 }
 
 int
@@ -63,10 +66,10 @@ main (void)
   int has_lib = run (0, "-q", "-c", "/dev/null", (char *) 0) == 0;
   if (!has_lib) { printf ("zstd-host: SKIP (no libzstd on this host: %s)\n", last_error); return 0; }
 
-  /* a text larger than the decoder's output chunk, so the growing buffer is exercised */
+  /* a text larger than the input/output chunks, so streaming is exercised */
   size_t n = 3 * 1024 * 1024; char *big = malloc (n); for (size_t i = 0; i < n; i++) big[i] = "abcdefgh\n"[i % 9]; put ("big", big, n);
   CHECK (run (0, "-q", "big", (char *) 0) == 0 && size_of ("big.zst") > 0 && size_of ("big.zst") < (long) n / 10, "compress: 3 MiB of text shrinks tenfold");
-  CHECK (run (0, "-d", "-o", "big.back", "big.zst", (char *) 0) == 0 && same ("big", "big.back"), "decompress through the growing buffer: identical");
+  CHECK (run (0, "-d", "-o", "big.back", "big.zst", (char *) 0) == 0 && same ("big", "big.back"), "decompress through fixed buffers: identical");
   CHECK (size_of ("big") == (long) n, "the source is kept");
   put ("empty", "", 0);
   CHECK (run (0, "empty", (char *) 0) == 0 && run (0, "-d", "-o", "empty.back", "empty.zst", (char *) 0) == 0 && size_of ("empty.back") == 0, "an empty file round-trips");
@@ -79,7 +82,20 @@ main (void)
   CHECK (run (0, "-d", "-c", "trunc.zst", (char *) 0) == EXECUTION_FAILURE && strstr (last_error, "truncated"), "truncated frame: named error");
   put ("garbage.zst", "this is not a zstd frame at all, not even close", 47);
   CHECK (run (0, "-d", "-c", "garbage.zst", (char *) 0) == EXECUTION_FAILURE, "garbage: error");
-  zb[10] ^= 0xff; put ("corrupt.zst", zb, z);
+  /* A body bit flip in a checksum-free frame can be valid data: its byte
+     offset is not a corruption oracle across different frame layouts.
+     Keep the flipped-byte assertion with a checksummed fixture. */
+  ZSTD_CCtx *cc = ZSTD_createCCtx ();
+  size_t bound = ZSTD_compressBound (n), cz;
+  char *checked = malloc (bound);
+  if (!cc || !checked || ZSTD_isError (ZSTD_CCtx_setParameter (cc, ZSTD_c_checksumFlag, 1))) return 1;
+  cz = ZSTD_compress2 (cc, checked, bound, big, n);
+  ZSTD_freeCCtx (cc);
+  if (ZSTD_isError (cz) || cz <= 10) return 1;
+  put ("checksum.zst", checked, cz);
+  CHECK (run (0, "-d", "-o", "checksum.back", "checksum.zst", (char *) 0) == 0 && same ("big.back", "checksum.back"), "independent checksummed fixture round-trips");
+  checked[10] ^= 0xff; put ("corrupt.zst", checked, cz);
+  free (checked);
   CHECK (run (0, "-d", "-c", "corrupt.zst", (char *) 0) == EXECUTION_FAILURE, "a flipped byte: error");
   CHECK (run (0, "-d", "-c", "big.zst", (char *) 0) == 0, "and the intact file still decodes");
   CHECK (run (1, "big.zst", (char *) 0) == 0, "zstdcat mode");
@@ -88,5 +104,8 @@ main (void)
   CHECK (run (0, "-d", "-c", "nope.zst", (char *) 0) == EXECUTION_FAILURE, "a missing input fails");
   free (big); free (zb);
   printf ("zstd-host: %s\n", fails ? "FAIL" : "all checks passed");
+  const char *files[] = { "big", "big.zst", "big.back", "empty", "empty.zst", "empty.back", "trunc.zst", "garbage.zst", "corrupt.zst", "checksum.zst", "checksum.back", NULL };
+  for (int i = 0; files[i]; i++) unlink (files[i]);
+  chdir ("/"); rmdir (dir);
   return fails ? 1 : 0;
 }

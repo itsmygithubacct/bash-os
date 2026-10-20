@@ -40,4 +40,18 @@ B zstd -d -c nonexistent.zst 2>err; [[ $? == 1 ]] && grep -q 'No such file' err 
 B zstd -q -d text 2>err; [[ $? == 1 ]] && grep -q 'unknown suffix' err && ok "-d on a file without .zst: named error" || no "suffix"
 BASHOS_ZSTD_LIB=/nonexistent/libzstd.so.1 "$BX" -c 'PATH=; zstd -c k' >/dev/null 2>err; [[ $? == 1 ]] && grep -q 'not available' err && ok "library absent: named error, exit 1, shell unaffected" || no "library absent: $(cat err)"
 B zstd -25 k 2>/dev/null; [[ $? == 2 ]] && ok "-25 rejected (levels 1..19)" || no "level range"
+echo "== streaming frames and atomic destinations =="
+zstd -q --no-content-size -c text > unknown.zst
+cat empty.zst unknown.zst unknown.zst > concat.zst
+cat text text > twice
+B zstd -dc concat.zst | cmp -s - twice && ok "concatenated unknown-size frames" || no "concatenated frames"
+printf 'old destination' > preserved; cp preserved sentinel
+head -c 100 unknown.zst > damaged.zst
+B zstd -df --rm -o preserved damaged.zst 2>err
+[[ $? == 1 && -f damaged.zst ]] && cmp -s preserved sentinel && ok "decode failure preserves forced destination and --rm source" || no "atomic decode failure"
+B zstd -o stdin-named.zst - < text && zstd -q -dc stdin-named.zst | cmp -s - text && ok "stdin to named destination" || no "stdin named destination"
+B zstd --rm -c text > /dev/full 2>err
+[[ $? == 1 && -f text ]] && ok "stdout write error preserves --rm source" || no "stdout write error"
+"$BX" -c 'PATH=; for ((i=0;i<10;i++)); do zstd -f -o repeated.zst text || exit; zstd -df -o repeated repeated.zst || exit; done' && cmp -s text repeated && ok "repeat invocations in one empty-PATH shell" || no "repeat invocations"
+[[ -z $(find . -name '*.tmp.*' -print) ]] && ok "no temporary files after successes and errors" || no "temporary cleanup"
 echo; echo "zstd-check: $pass passed, $fail failed"; exit $(( fail>0 ? 1 : 0 ))
