@@ -55,6 +55,24 @@ def esc(code, text):
     return b'\x1b[' + code.encode() + b'm' + text + b'\x1b[0m'
 
 
+# Failed handle publication must preserve the old tree, source and generation.
+for decl in ['readonly out=unchanged', 'declare -i out=0', 'declare -a out',
+             'declare -A out', 'declare -l out', 'declare -u out',
+             'readonly locked=unchanged; declare -n out=locked',
+             "declare -n out='array[1]'", 'declare -n out=out']:
+    out = sh(decl + "; ts parse-tree -L json -t T <<<'[1]'; old=$T; "
+             "ts edit $T 1 2 2 -t out <<<'[2]'; echo rc=$?; "
+             "echo $T $old; ts node-text $old; ts free $old").decode()
+    assert out == 'rc=1\nT0g1 T0g1\n[1]\n', (decl, out)
+    # Failed parse-tree bindings release their slots; failures cannot exhaust it.
+    out = sh(decl + "; for i in {1..40}; do "
+             "ts parse-tree -L json -t out <<<'[1]' && exit 90; done; "
+             "ts parse-tree -L json -t T <<<'[3]' || exit 91; "
+             "ts node-text $T; ts free $T").decode()
+    assert out == '[3]\n', (decl, out)
+assert sh("declare -n ref=T; ts parse-tree -L json -t ref <<<'[1]'; "
+          "ts edit $T 1 2 2 -t ref <<<'[2]'; ts node-text $T; ts free $T") == b'[2]\n'
+
 # ---- JSON object keys versus ordinary strings ------------------------------
 
 src = b'{"k":"v\\n"}'
@@ -336,5 +354,8 @@ for script in ['ts highlight -L json', 'ts highlight -L json -S', 'ts highlight 
 # nano's renderer uses the same resolver through bashts_compute_sgr_map;
 # its plain selftest ends in a bn_render of shell text that reaches it.
 assert b'not ok ' not in sh('nano selftest')
+# Enable on the combined corrected nano build, including its LSan cleanup fix.
+if os.environ.get('TS_REQUIRE_NANO_STATUSBAR') == '1':
+    assert b'not ok ' not in sh('nano selftest-statusbar')
 
 print(f'opus-ts-highlight: {checks} checks passed')

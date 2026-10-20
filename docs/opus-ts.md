@@ -168,3 +168,9 @@ fresh-shell invocation or the combined corrected nano/ts implementation.
 The incremental edit tests verify equality with a fresh parse, not subtree
 reuse. Historical ts-parse timings disagreed across harnesses; no new speedup
 is claimed and hardware performance-counter profiling was unavailable.
+
+Handle destinations must be writable text scalars (including namerefs to such
+scalars). Arrays, arithmetic/case-transforming attributes and dynamic variables
+are rejected. If publishing an edited tree handle fails, the original source,
+tree and generation remain usable. Failed parse-tree publication releases its
+slot. These corrections are not included in the historical measurements above.

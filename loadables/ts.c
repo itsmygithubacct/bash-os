@@ -194,6 +194,29 @@ bashts_finish_output (const char *verb, int rc)
     return EXECUTION_FAILURE;
 }
 
+/* Handles are text, so reject destinations that transform values or evaluate
+   array subscripts. Follow only scalar namerefs, with a cycle/depth bound. */
+static int
+bashts_bind_handle (const char *name, const char *value)
+{
+    const char *target = name;
+    for (int depth = 0; depth < 64; depth++) {
+        if (!target || !legal_identifier (target)) break;
+        SHELL_VAR *v = find_variable_noref (target);
+        if (v && (readonly_p (v) || noassign_p (v) || array_p (v) || assoc_p (v)
+                  || integer_p (v) || uppercase_p (v) || lowercase_p (v) || capcase_p (v)
+                  || v->dynamic_value || v->assign_func)) break;
+        if (v && nameref_p (v)) { target = nameref_cell (v); continue; }
+        char *copy = strdup (target);
+        if (!copy) return -1;
+        v = builtin_bind_variable (copy, (char *) value, 0);
+        free (copy);
+        return v && !readonly_p (v) && !noassign_p (v) ? 0 : -1;
+    }
+    builtin_error ("expected a writable text scalar variable: %s", name);
+    return -1;
+}
+
 /* Each vendored grammar exposes a single ts_<lang>(void) function
    that returns its TSLanguage*. Forward-declare here. The grammar
    itself lives in scripts/loadables/_ts_<lang>/grammar.c — the
@@ -1159,7 +1182,7 @@ bashts_parse_tree_cmd (WORD_LIST *args)
     }
     char buf[32];
     bashts_format_tree_handle (idx, buf, sizeof buf);
-    if (!builtin_bind_variable ((char *) var, buf, 0)) {
+    if (bashts_bind_handle (var, buf) < 0) {
         struct bashts_tree_slot *s = &bashts_tree_pool[idx];
         ts_tree_delete (tree);
         free (src);
@@ -1264,15 +1287,24 @@ bashts_edit_cmd (WORD_LIST *args)
         free (src);
         return EXECUTION_FAILURE;
     }
+    /* Publish the next handle before discarding the old state. A rejected
+       output variable must leave both old handles and source usable. */
+    uint32_t old_gen = s->gen;
+    bashts_bump_gen (s);
+    char buf[32];
+    bashts_format_tree_handle (t, buf, sizeof buf);
+    if (bashts_bind_handle (var, buf) < 0) {
+        s->gen = old_gen;
+        ts_tree_delete (tree);
+        free (src);
+        return EXECUTION_FAILURE;
+    }
     ts_tree_delete (s->tree);
     free (s->src);
     s->tree = tree;
     s->src = src;
     s->srclen = (uint32_t) srclen;
-    bashts_bump_gen (s);
-    char buf[32];
-    bashts_format_tree_handle (t, buf, sizeof buf);
-    return builtin_bind_variable ((char *) var, buf, 0) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    return EXECUTION_SUCCESS;
 }
 
 /* `ts root TREE -h NODE_VAR` — bind NODE_VAR to the tree's
@@ -1298,7 +1330,7 @@ bashts_root_cmd (WORD_LIST *args)
         builtin_error ("root: invalid tree handle: %s", tree_h);
         return EX_USAGE;
     }
-    return builtin_bind_variable ((char *) var, (char *) tree_h, 0)
+    return bashts_bind_handle (var, tree_h) == 0
         ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
