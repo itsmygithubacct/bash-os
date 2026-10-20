@@ -151,12 +151,13 @@ and the new build is `935015c`; both are `--include ts,hl,nano`.
 * **ts-render-bash:** the only highlight workload where the old engine
   happens to render correctly. It improves because the compiled query is
   cached and output is written in runs rather than with `putchar` per byte.
-* **nano selftest:** improves because the query cache removes the per-render
-  `ts_query_new`.
+* **nano selftest:** five calls share one shell; only the first compiles the
+  query. This is cross-call amortisation, not a fresh-shell editing latency.
 * **ts-parse and ts-query:** these paths differ only by one `fflush`. The
   unchanged `bench/loadables.py` run measured the opposite direction
   (`ts-query` 165.2 → 195.8, `ts-parse` 100.8 → 96.3). The differences are
-  host noise, not a change.
+  consistent with host noise, but these runs do not establish its cause.
+  No parser/query speedup is established by the conflicting measurements.
 * **Profiling:** `perf` is blocked here (`perf_event_paranoid=3`), so the
   stage split comes from these workloads. Over the same 39 KB object, parse
   plus query takes about 200 ms per 5 passes; resolving and writing spans
