@@ -21,7 +21,8 @@ highest/lowest PID respectively. These flags are mutually exclusive and cannot
 be combined with `-v`. Listing, custom delimiters, count, inversion, short option
 clusters and repeated invocations are covered. Command lines use a growable
 buffer rather than truncating at 4095 bytes; embedded newlines become spaces,
-as in procps. Output failures return 3, and a
+as in procps. Listing output failures return 3; version output failures return
+1 in all four shared-dispatch commands. In both cases a
 later invocation can write successfully after its output descriptor is restored.
 
 This is the documented selector surface, rather than a claim to implement every
@@ -60,7 +61,7 @@ with a deterministic 512-entry fixture rather than the host process list.
 
 Regex anchoring and selector meanings follow the [procps documentation](https://man7.org/linux/man-pages/man1/pgrep.1.html) and [upstream implementation](https://gitlab.com/procps-ng/procps/-/blob/master/src/pgrep.c).
 
-The final targeted run passed 101 native fixture, persistent-shell and owned-child
+The original implementation at `1a716f3` passed 101 native fixture, persistent-shell and owned-child
 checks. ASan/UBSan passed 21 cases, each repeated 100 times with leak detection.
 All five benchmark cases passed every warm-up and measured output/status check.
 The raw receipts and reports are kept in the task evidence directory, rather
@@ -70,7 +71,8 @@ On this native x86-64 run with procps-ng 4.0.4, CPU affinity was fixed to CPU 11
 Each cell below is the median of seven samples, with 34 calls per sample, after
 one warm-up batch. All process-selection cases use the identical 512-entry
 fixture (SHA-256 `7fcc59e9e5409f3b20322218bb00cda223acd9eb86a497ad6c78b4b765926130`).
-The final binary SHA-256 is
+These measurements precede the version-output error fix and do not measure the
+corrected source. The measured binary SHA-256 is
 `c0c792a4f1e01d1ffc21e889b89d45cded0fa257d69e6470ea668d8572427b55`.
 
 | Case | Builtin ms | Procps ms | Builtin / procps |

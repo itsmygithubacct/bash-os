@@ -13,4 +13,12 @@ static void builtin_usage(void) { }
 static void builtin_error(const char *format, ...) {
     va_list ap; va_start(ap, format); vfprintf(stderr, format, ap); va_end(ap); fputc('\n', stderr);
 }
+static int sh_chkwrite(int status) {
+    if (fflush(stdout) == EOF || ferror(stdout)) {
+        builtin_error("write error");
+        clearerr(stdout);
+        return EXECUTION_FAILURE;
+    }
+    return status;
+}
 #endif

@@ -682,7 +682,7 @@ bp_dispatch (WORD_LIST *list, int mode)
         }
         if (strcmp (w, "--version") == 0 || strcmp (w, "-V") == 0) {
             printf ("%s 1.0 (bash-loadable)\n", self);
-            return EXECUTION_SUCCESS;
+            return sh_chkwrite (EXECUTION_SUCCESS);
         }
     }
 
@@ -695,7 +695,7 @@ bp_dispatch (WORD_LIST *list, int mode)
         }
         if (!strcmp (w, "--version") || !strcmp (w, "-V")) {
             printf ("%s 1.0 (bash-loadable)\n", self);
-            return EXECUTION_SUCCESS;
+            return sh_chkwrite (EXECUTION_SUCCESS);
         }
         /* Signal names such as -USR1, -URG, -PIPE and -PWR overlap
            attached -U/-P selectors. Preserve whole-signal precedence. */
