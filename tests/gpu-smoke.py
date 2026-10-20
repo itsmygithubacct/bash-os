@@ -246,7 +246,7 @@ class Terminal:
         w,h,pixels = self.images[image_id]
         self.last_frame,self.last_size = bytes(pixels),(w,h)
 
-    def run(self,script,*,rc=0,env=None,controlling=False,signal_input=False):
+    def run(self,script,*,rc=0,env=None,controlling=False,signal_input=False,pass_fds=()):
         global checks
         child_env = environment({'GPU_TEST_TTY':self.tty,'TERM':'xterm-256color','LC_ALL':'C',
                                  'TERM_PROGRAM':None,'XTERM_VERSION':None,'TMUX':None,
@@ -260,7 +260,7 @@ class Terminal:
         p = subprocess.Popen([binary,'-e','-o','pipefail','-c',prefix+script],
                              stdin=self.slave if controlling else subprocess.DEVNULL,
                              preexec_fn=acquire_tty if controlling else None,
-                             stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=child_env)
+                             stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=child_env,pass_fds=pass_fds)
         deadline = time.monotonic()+20
         try:
             while p.poll() is None:

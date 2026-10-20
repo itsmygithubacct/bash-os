@@ -14,6 +14,8 @@ import time
 from PIL import Image
 
 root = Path(__file__).resolve().parents[1]
+artifacts = Path(os.environ.get('GPU_LIVE_OUTPUT',str(root/'out'))).resolve()
+artifacts.mkdir(parents=True,exist_ok=True)
 binary = str(Path(sys.argv[1] if len(sys.argv)>1 else root/'out/bash').resolve())
 kitty = os.environ.get('KILIX_TEST_BINARY')
 if not kitty or not os.environ.get('DISPLAY'):
@@ -105,7 +107,7 @@ printf done >"$GPU_LIVE_DIR/done"
                     time.sleep(0.05)
 
             def snapshot(suffix=''):
-                shot = root/'out'/('gpu-live-'+label+suffix+'.png')
+                shot = artifacts/('gpu-live-'+label+suffix+'.png')
                 shot.unlink(missing_ok=True)
                 control = next(path for path in d.glob('control*') if stat.S_ISSOCK(path.stat().st_mode))
                 result = subprocess.run([kitty,'@','--to','unix:'+str(control),'kitten',
@@ -155,9 +157,9 @@ printf done >"$GPU_LIVE_DIR/done"
                 wait_file('done')
                 assert not list((d/'session').glob('gpu-*'))
             finally:
-                (root/'out'/('gpu-live-'+label+'.log')).write_text((d/'terminal.log').read_text())
+                (artifacts/('gpu-live-'+label+'.log')).write_text((d/'terminal.log').read_text())
                 if (d/'info').exists():
-                    (root/'out'/('gpu-live-'+label+'.info')).write_text((d/'info').read_text())
+                    (artifacts/('gpu-live-'+label+'.info')).write_text((d/'info').read_text())
                 if p.poll() is None: p.terminate()
                 try: p.wait(timeout=5)
                 except subprocess.TimeoutExpired: p.kill(); p.wait()

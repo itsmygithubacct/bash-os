@@ -236,9 +236,12 @@ suite uses an independent terminal peer on a pseudo-terminal to replay frames,
 patches, scrolling, input, fallback, and cleanup. Native tests compare shader
 pixels and exported DMA-BUF bytes with the CPU readback, including rejected
 handoffs. The sanitizer harness instruments both the builtin and raster helper.
-`python3 bench/gpu.py out/bash` measures full-frame and retained-update traffic
-against the same peer; its timing includes that Python peer and is not terminal
-frame-rate or GPU performance evidence.
+`python3 bench/gpu.py out/bash --output /tmp/gpu-frames.json` validates full
+redraw, sparse patches, scrolling, resize and fallback frames before recording
+latency, traffic and memory. Add `--device /dev/dri/renderD…` for native shader
+workloads. Its timing includes the Python peer and is not terminal display
+latency. See [application frame validation](sol-gpu.md) for workload oracles,
+injected driver coverage, metrics and qualification limits.
 
 An optional live check launches its own Kilix windows and compares screenshots
 for full frames, patches, and scrolling. It exercises inline/shared-memory
