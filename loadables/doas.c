@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>		/* isatty / fork / _exit — v2 interactive vs UMH routing */
 
@@ -80,11 +81,33 @@ typedef struct {
  * kernel/bashos-auth/uapi/linux/bashos_auth.h. */
 #define BASHOS_AUTH_DEV          "/dev/bashos-auth"
 
-#define BDA_AUTH_UNAVAILABLE 125
+/* Internal routing sentinel: never collide with a child exit status. */
+#define BDA_AUTH_UNAVAILABLE (-2)
 #define BDA_PRIVCMD_MAX_ENVS 256
 #define BDA_ENV_CALLER_PREFIX "BASHOS_CALLER_"
 #define BDA_ENV_INLINE_PREFIX "BASHOS_INLINE_"
 #define BDA_SECURE_PATH "/bin:/bash-os:/usr/bin"
+
+static int bda_wait_status (pid_t pid);
+static void bda_child_reset_signals (void);
+static void bda_child_close_fds (void);
+
+/* Reject numeric target overflow before the shared resolver casts to uid_t. */
+static int
+bda_lookup_user (const char *target, bc_user_info *u)
+{
+  if (bc_pd_all_digits (target))
+    {
+      unsigned long id;
+      if (bc_pd_id (target, &id) < 0 || (unsigned long) (uid_t) id != id ||
+          (uid_t) id == (uid_t) -1)
+        {
+          errno = EINVAL;
+          return -1;
+        }
+    }
+  return bc_lookup_user (target, u);
+}
 
 static int
 bda_word_count (WORD_LIST *list)
@@ -458,11 +481,7 @@ bda_run_verify_once (int fd, const bda_opts *o,
     }
   if (pid == 0)
     bda_exec_verify_child (fd, o, r);
-  int status = 0;
-  while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-    ;
-  return WIFEXITED (status) ? WEXITSTATUS (status)
-       : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+  return bda_wait_status (pid);
 }
 
 static void
@@ -496,9 +515,9 @@ bda_group_to_gid (const char *spec, gid_t *out)
     return -1;
   if (spec[0] == '#')
     {
-      char *end = NULL;
-      unsigned long v = strtoul (spec + 1, &end, 10);
-      if (end == spec + 1 || !end || *end)
+      unsigned long v;
+      if (bc_pd_id (spec + 1, &v) < 0 ||
+          (unsigned long) (gid_t) v != v || (gid_t) v == (gid_t) -1)
         return -1;
       *out = (gid_t) v;
       return 0;
@@ -513,7 +532,7 @@ bda_group_to_gid (const char *spec, gid_t *out)
   while (getline (&line, &cap, f) >= 0)
     {
       char *p1 = strchr (line, ':');	/* after group name */
-      char *p2, *p3, *end = NULL;
+      char *p2, *p3;
       unsigned long g;
       if (!p1 || (size_t) (p1 - line) != strlen (spec) ||
           memcmp (line, spec, (size_t) (p1 - line)) != 0)
@@ -525,8 +544,8 @@ bda_group_to_gid (const char *spec, gid_t *out)
       if (!p3)
         continue;
       *p3 = '\0';
-      g = strtoul (p2 + 1, &end, 10);
-      if (end && end != p2 + 1 && *end == '\0' && g <= 0xffffffffUL)
+      if (bc_pd_id (p2 + 1, &g) == 0 &&
+          (unsigned long) (gid_t) g == g && (gid_t) g != (gid_t) -1)
         {
           *out = (gid_t) g;
           found = 0;
@@ -563,7 +582,7 @@ bda_spawn_editor (char **temps, int n)
 {
   const char *editor = bda_sudoedit_editor ();
   pid_t pid;
-  int status = 0, i;
+  int i;
   char **argv;
 
   if (n < 1)
@@ -587,17 +606,13 @@ bda_spawn_editor (char **temps, int n)
   if (pid == 0)
     {
       /* Caller creds are already in effect (non-root SUDOEDIT path). */
+      bda_child_reset_signals ();
+      bda_child_close_fds ();
       execvp (editor, argv);
       _exit (127);
     }
   free (argv);			/* child has its own (COW) copy; parent's is done */
-  while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-    ;
-  if (WIFEXITED (status))
-    return WEXITSTATUS (status);
-  if (WIFSIGNALED (status))
-    return 128 + WTERMSIG (status);
-  return -1;
+  return bda_wait_status (pid);
 }
 
 /*
@@ -840,7 +855,7 @@ bda_run_authority (const bda_opts *o)
 
   const char *target = o->target ? o->target : "root";
   bc_user_info u;
-  if (bc_lookup_user (target, &u) != 0)
+  if (bda_lookup_user (target, &u) != 0)
     {
       close (fd);
       builtin_error ("unknown user: %s", target);
@@ -1041,7 +1056,7 @@ bda_run_authority (const bda_opts *o)
                   bda_exec_verify_child (fd, o, &r);
                 }
               close (pfd[1]);
-              if (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_DENY || r.handle_id == 0)
+              if (r.decision != BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC || r.handle_id == 0)
                 { fprintf (stderr, "%s: v2 authority denied (%s)\n", o->is_sudo ? "sudo" : "doas", r.reason[0] ? r.reason : "denied"); _exit (125); }
               struct bashos_auth_exec_handoff_req hr;
               memset (&hr, 0, sizeof hr);
@@ -1064,11 +1079,7 @@ bda_run_authority (const bda_opts *o)
           close (pfd[1]);
           (void) read (pfd[0], &marker, 1);
           close (pfd[0]);
-          int status = 0;
-          while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-            ;
-          rc = WIFEXITED (status) ? WEXITSTATUS (status)
-             : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+          rc = bda_wait_status (pid);
           if (marker == 'V' && rc == 0 && !verified_once)
             {
               verified_once = 1;
@@ -1096,6 +1107,9 @@ bda_run_authority (const bda_opts *o)
       rc = bda_run_verify_once (fd, o, &r);
       if (rc != 0)
         goto out;
+      /* Successful verification is not authorization. Any retry failure or
+         denial must retain failure until an explicit successful response. */
+      rc = EXECUTION_FAILURE;
       bda_reset_authz_response (&r);
       if (ioctl (fd, BASHOS_AUTH_IOC_PRIVCMD_AUTHZ, &r) < 0)
         {
@@ -1117,21 +1131,26 @@ bda_run_authority (const bda_opts *o)
                      r.reason[0] ? r.reason : "denied");
       goto out;
     }
-  if (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_VALIDATE_OK ||
-      r.decision == BASHOS_AUTH_PRIVCMD_DECISION_RESET_OK)
+  if ((r.decision == BASHOS_AUTH_PRIVCMD_DECISION_VALIDATE_OK &&
+       req_mode == BASHOS_AUTH_PRIVCMD_MODE_VALIDATE) ||
+      (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_RESET_OK &&
+       req_mode == BASHOS_AUTH_PRIVCMD_MODE_RESET_TIMESTAMP))
     {
       rc = EXECUTION_SUCCESS;
       goto out;
     }
-  if (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EDIT)
+  if (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EDIT && o->edit_mode)
     {
       /* SUDOEDIT: two-call open/edit-as-caller/copyback orchestration. */
       rc = bda_run_sudoedit (fd, o, &r, argv_blob, argv_bytes, eff_cmdc);
       goto out;
     }
-  if (r.handle_id == 0)
+  if (r.decision != BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC || r.handle_id == 0 ||
+      (req_mode != BASHOS_AUTH_PRIVCMD_MODE_EXEC &&
+       req_mode != BASHOS_AUTH_PRIVCMD_MODE_SHELL &&
+       req_mode != BASHOS_AUTH_PRIVCMD_MODE_LOGIN))
     {
-      builtin_error ("v2 authority: allow without a handle");
+      builtin_error ("v2 authority: invalid exec decision or missing handle");
       goto out;
     }
   {
@@ -1148,7 +1167,8 @@ bda_run_authority (const bda_opts *o)
         builtin_error ("v2 authority EXEC_HANDOFF: %s", strerror (errno));
         goto out;
       }
-    if (hr.approval_status == BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_DENIED)
+    if (hr.approval_status != BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_ALLOWED &&
+        hr.approval_status != BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_FORCED_UMH)
       {
         builtin_error ("v2 authority handoff denied: reject_stage=%u", hr.reject_stage);
         goto out;
@@ -1380,6 +1400,12 @@ bda_child_reset_signals (void)
 static void
 bda_child_close_fds (void)
 {
+#ifdef SYS_close_range
+  /* One kernel operation avoids a million failed close calls on shells with a
+     large RLIMIT_NOFILE. Older kernels and syscall filters use the loop. */
+  if (syscall (SYS_close_range, 3U, ~0U, 0U) == 0)
+    return;
+#endif
   long maxfd = sysconf (_SC_OPEN_MAX);
   if (maxfd < 0 || maxfd > BDA_FD_CLOSE_MAX)
     maxfd = BDA_FD_CLOSE_MAX;
@@ -1412,9 +1438,10 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
       bda_child_reset_signals ();
       bda_child_close_fds ();
       execvp (path, argv);
+      int exec_errno = errno;
       fprintf (stderr, "%s: external doas: %s: %s\n",
                o->is_sudo ? "sudo" : "doas", path, strerror (errno));
-      _exit (errno == ENOENT ? 127 : 126);
+      _exit (exec_errno == ENOENT ? 127 : 126);
     }
   free (argv);
   return bda_wait_status (pid);
@@ -1426,9 +1453,15 @@ bda_run_root (const bda_opts *o)
   const char *target = o->target ? o->target : "root";
   bc_user_info u;
   char err[BC_PD_ERR_MAX];
-  if (bc_lookup_user (target, &u) != 0)
+  if (bda_lookup_user (target, &u) != 0)
     {
       builtin_error ("unknown user: %s", target);
+      return EXECUTION_FAILURE;
+    }
+
+  if (o->target_group && bda_group_to_gid (o->target_group, &u.gid) != 0)
+    {
+      builtin_error ("unknown group: %s", o->target_group);
       return EXECUTION_FAILURE;
     }
 
@@ -1465,6 +1498,19 @@ bda_run_root (const bda_opts *o)
       gid_t groups[BC_PD_GROUPS_MAX];
       int ngroups = 0;
       (void) bc_load_supplementary_groups (u.name, groups, &ngroups, BC_PD_GROUPS_MAX);
+      int have_primary = 0;
+      for (int i = 0; i < ngroups; i++)
+        if (groups[i] == u.gid) have_primary = 1;
+      if (!have_primary && ngroups < BC_PD_GROUPS_MAX)
+        groups[ngroups++] = u.gid;
+      /* Capture caller IDs in SUDO_UID/GID before changing credentials. */
+      char **env = bda_build_env (&u, o);
+      if (!env)
+        {
+          fprintf (stderr, "%s: env build: out of memory\n",
+                   o->is_sudo ? "sudo" : "doas");
+          _exit (126);
+        }
       if (u.uid != 0 && bc_no_new_privs (err, sizeof err) < 0)
         {
           fprintf (stderr, "%s: no_new_privs: %s\n",
@@ -1475,14 +1521,6 @@ bda_run_root (const bda_opts *o)
         {
           fprintf (stderr, "%s: privdrop: %s\n",
                    o->is_sudo ? "sudo" : "doas", err);
-          _exit (126);
-        }
-
-      char **env = bda_build_env (&u, o);
-      if (!env)
-        {
-          fprintf (stderr, "%s: env build: out of memory\n",
-                   o->is_sudo ? "sudo" : "doas");
           _exit (126);
         }
 
@@ -1512,9 +1550,10 @@ bda_run_root (const bda_opts *o)
             }
           argv[ai] = NULL;
           execve (u.shell, argv, env);
+          int exec_errno = errno;
           fprintf (stderr, "%s: exec %s: %s\n",
                    o->is_sudo ? "sudo" : "doas", u.shell, strerror (errno));
-          _exit (errno == ENOENT ? 127 : 126);
+          _exit (exec_errno == ENOENT ? 127 : 126);
         }
 
       char resolved_cmd[PATH_MAX];
@@ -1527,9 +1566,10 @@ bda_run_root (const bda_opts *o)
         }
       exec_cmd[0] = resolved_cmd;
       execve (exec_cmd[0], exec_cmd, env);
+      int exec_errno = errno;
       fprintf (stderr, "%s: exec %s: %s\n",
                o->is_sudo ? "sudo" : "doas", exec_cmd[0], strerror (errno));
-      _exit (errno == ENOENT ? 127 : 126);
+      _exit (exec_errno == ENOENT ? 127 : 126);
     }
   return bda_wait_status (pid);
 }
@@ -1657,6 +1697,7 @@ bda_parse_sudo (bda_opts *o, char **argv, int argc)
 int
 bashdoas_dispatch (int is_sudo, WORD_LIST *list)
 {
+  clearerr (stdout);
   int argc = 0;
   char **argv = bda_words_to_argv (list, &argc);
   if (!argv && argc) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
@@ -1673,13 +1714,13 @@ bashdoas_dispatch (int is_sudo, WORD_LIST *list)
       char **doc = is_sudo ? sudo_doc : doas_doc;
       for (char **d = doc; *d; d++) puts (*d);
       free (argv);
-      return EXECUTION_SUCCESS;
+      return fflush (stdout) == 0 && !ferror (stdout) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
     }
   if (strcmp (argv[0], "--version") == 0 || strcmp (argv[0], "-V") == 0)
     {
       puts (is_sudo ? "sudo 0.1" : "doas 0.1");
       free (argv);
-      return EXECUTION_SUCCESS;
+      return fflush (stdout) == 0 && !ferror (stdout) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
     }
 
   bda_opts o;
