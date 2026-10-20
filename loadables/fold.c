@@ -165,7 +165,8 @@ bf_reserve (char **buf, size_t *cap, size_t len, size_t extra)
 static FILE *
 bf_open_stdin (void)
 {
-    int fd = dup (STDIN_FILENO);
+    /* A closed standard descriptor must not become an alias of stdin. */
+    int fd = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3);
     FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
     if (!in) {
         int error = errno;

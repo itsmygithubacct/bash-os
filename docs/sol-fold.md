@@ -1,5 +1,11 @@
 # Fold completion qualification
 
+Stdin duplication reserves descriptors 0–2. `tests/review-fold-descriptors.py` checks that closed output fails without modifying read/write stdin, including repeated calls and descriptor cleanup.
+
+The measurements below predate this review correction. They describe the original
+worker implementation; they are not measurements of the corrected code. No new
+performance claim is made for this correction.
+
 This work qualifies strict UTF-8 decoding and incremental input delivery in
 `loadables/fold.c`. It retains the existing options, ASCII span processing,
 word wrapping, per-file column reset, descriptor ownership, and output error
