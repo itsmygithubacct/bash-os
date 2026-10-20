@@ -17,3 +17,5 @@ ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   python3 tests/fold-parity.py "$d/bash-os"
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   python3 tests/sol-fold-check.py "$d/bash-os"
+
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 REVIEW_MODULE="$d/fold.so" python3 tests/review-fold-descriptors.py "$d/bash-os"

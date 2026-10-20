@@ -1050,6 +1050,14 @@
       "status": "Contract",
       "evidence": "tests/sol-expand-options.py",
       "scope": "GNU byte-column and tab-stop behavior; closed output cannot overwrite read/write stdin. Native glibc scope, not display-width or cross-libc qualification."
+    },
+    {
+      "names": [
+        "fold"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-fold-check.py",
+      "scope": "Strict UTF-8 grouping, malformed-byte recovery, open-pipe delivery and descriptor ownership. Display widths depend on libc; help write errors and grapheme equivalence remain outside scope."
     }
   ],
   "sanitizer_groups": [
@@ -2071,8 +2079,9 @@
       "next": "Decide bounded-memory input and GNU regex scope; see the tac follow-up."
     },
     "fold": {
-      "note": "Buffered ASCII processing is validated; the existing permissive UTF-8 decoder and short-input fread lookahead behavior remain. Unicode and appliance throughput are not established.",
-      "evidence": "docs/fold.md"
+      "evidence": "docs/fold.md",
+      "note": "Strict UTF-8 grouping, malformed-byte recovery, open-pipe delivery and descriptor ownership. Display widths depend on libc; help write errors and grapheme equivalence remain outside scope.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "expand": {
       "evidence": "docs/expand.md",

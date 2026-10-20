@@ -58,6 +58,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'fold complete options' python3 tests/sol-fold-check.py out/bash
+check 'fold descriptor ownership' python3 tests/review-fold-descriptors.py out/bash
 check 'expand complete options' python3 tests/sol-expand-options.py out/bash
 check 'expand descriptor ownership' python3 tests/review-expand-descriptors.py out/bash
 check 'PCRE capture and error contracts' python3 tests/sol-pcre-check.py out/bash
