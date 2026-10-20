@@ -110,16 +110,20 @@ with tempfile.TemporaryDirectory(prefix='expand-parity-') as directory:
         expected = subprocess.run([gnu, *opts], capture_output=True)
         assert actual.returncode == 2 and expected.returncode != 0 and actual.stderr, (opts, actual)
         checks['GNU'] += 1
-    # Deliberate implementation limits: positive extension sizes (GNU accepts
-    # zero as no extension), 64 explicit stops and INT_MAX widths.
-    for stop in ['2147483648', '3,/2147483648', '3,+2147483648',
-                 '3,/0', '3,+0',
+    # Former limits now have positive GNU oracles: zero extensions are inert,
+    # lists grow beyond 64 stops, and widths use the signed allocation range.
+    for stop in ['2147483647', '3,/2147483647', '3,+2147483647',
+                 '2147483648', '3,/2147483648', '3,+2147483648',
+                 '9223372036854775807', '3,/9223372036854775807',
+                 '3,+9223372036854775807']:
+        compare(['-t', stop])  # no enormous padding needed to validate parsing
+    for stop in ['3,/0', '3,+0', '/0', '+0',
                  ','.join(str(i) for i in range(1, 66))]:
-        p = shell('expand -t "$1"', [stop])
-        assert p.returncode == 2 and p.stderr, (stop, p)
-        checks['state/error'] += 1
-    for stop in ['2147483647', '3,/2147483647', '3,+2147483647']:
-        compare(['-t', stop])  # no enormous output needed to validate parsing
+        compare(['-t', stop], b'\t' * 70)
+    for opts in [['-t3', '-t7'], ['-3', '-7'], ['-t3,/8', '-t12'],
+                 ['-t3,+8', '-t12'], ['--ta=4'], ['--ini'],
+                 ['-t3', '--tabs='], ['-t3,/0,/8']]:
+        compare(opts, b' \tA\t\b\tB\n' + b'\t' * 8)
 
     if busybox:
         for data in [b'', b'abc', b'\t', b' \t\tlead\ttrail\n',

@@ -9,5 +9,6 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
   -DHAVE_CONFIG_H -Iloadables/common -I"$BT" -I"$BT/include" -I"$BT/builtins" \
   -I"$BT/examples/loadables" loadables/expand.c -o "$d/expand.so"
-EXPAND_PRELOAD=$("$CC" -print-file-name=libasan.so) EXPAND_MODULE="$d/expand.so" \
-  python3 tests/expand-parity.py "${1:-out/bash}"
+export EXPAND_PRELOAD=$("$CC" -print-file-name=libasan.so) EXPAND_MODULE="$d/expand.so"
+python3 tests/expand-parity.py "${1:-out/bash}"
+python3 tests/sol-expand-options.py "${1:-out/bash}"

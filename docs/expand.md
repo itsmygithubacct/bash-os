@@ -26,7 +26,9 @@ Stdin has a private `FILE` buffer over a duplicated descriptor, reused for
 each `-` during the invocation and closed afterward. This prevents unread
 bytes left by an output failure from appearing after a later shell redirection.
 It requires one spare descriptor. Columns use checked `uintmax_t` arithmetic;
-tab values must fit a positive `int`, avoiding truncation of oversized options.
+tab values use checked arithmetic up to `PTRDIFF_MAX`, avoiding truncation of
+oversized options. Explicit stops use a dynamically allocated per-invocation list
+that is freed on success and on option failure.
 
 The change also corrects three existing GNU parity gaps: file continuation,
 backspace with `-i`, and a single stop followed by separators (`-t '8,'`).
@@ -61,13 +63,51 @@ EXPAND_MODULE="$PWD/out/expand-sanitize.so" \
   python3 tests/expand-parity.py out/bash-core
 ```
 
-BusyBox 1.37.0 accepts uniform intervals but lacks explicit lists and `/N`.
+BusyBox accepts uniform intervals but lacks explicit lists and `/N`.
 It differs on binary input, backspaces and unterminated file continuation, so
-those cases use GNU as the reference. Existing option limits remain: at most
-64 explicit stops, positive extension sizes (GNU also accepts zero), no GNU
-long-option abbreviations or `--version`, and successive `-t` options replace
-rather than append stops. This is byte-column behavior, not Unicode display
-width processing. These tests do not establish complete GNU CLI conformance.
+those cases use GNU as the reference.
+
+## Option and locale completion
+
+Repeated `-t`/`--tabs`/numeric shorthand options append stops. For example,
+`-t3 -t7` is the finite list `3,7`, while `-t3 -t7 -t+4` repeats every four
+columns after seven. An empty list adds nothing. Zero `/0` and `+0` extensions
+are inert: `3,/0` is the single interval three, and `/0` alone uses eight.
+Nonzero `/N` and `+N` are mutually exclusive. Within one argument the prefix
+continues across separators, so `3,/8,12` is invalid; a separate `-t12` appends
+an explicit stop. These rules match GNU coreutils 9.7, including repeated
+extensions and its final-stop grammar. Lists grow beyond the former 64-stop
+cap; individual values may reach `PTRDIFF_MAX` (on the qualified 64-bit build,
+9223372036854775807). Parsing never emits padding. Values or column arithmetic
+outside their checked range fail rather than wrap.
+
+Short clusters and attached arguments work, unambiguous long-option prefixes
+are accepted, and options may follow filenames. `--` ends option parsing;
+`POSIXLY_CORRECT` stops parsing at the first operand. `--help` prints builtin
+help and `--version` identifies the Bash-OS builtin and running Bash version. Help/version text and
+invalid-option diagnostics are native to Bash-OS; usage failures return 2.
+
+Columns count **bytes**, matching host GNU coreutils 9.7 in `C`, `C.utf8`, and
+`en_US.utf8`. This deliberately does not implement Unicode display-width
+alignment. At a default tab after `é`, the two UTF-8 bytes cause six spaces:
+`X` reaches byte column eight and display column seven. After `界`, three bytes
+cause five spaces: byte column eight, display column seven. After `e` plus
+U+0301, three bytes cause five spaces: byte column eight, display column six.
+Invalid UTF-8 survives exactly and consumes one column per byte. NUL, CR, FF,
+VT, escape and other control bytes likewise count as one, with only BS and LF
+special as described above. No decoding state crosses buffers, files, locales,
+or invocations. Later GNU releases may adopt different locale behavior; they
+are not the reference for this byte-column contract.
+
+`tests/sol-expand-options.py` supplies explicit padding and UTF-8 display-cell
+oracles, invalid-sequence/refill/file-boundary cases, generated repeated lists,
+option errors and recovery, pipelines, and persistent locale changes. The display
+model ignores C0/DEL controls except BS (back up) and CR/LF (reset), and counts
+each invalid UTF-8 byte as one replacement cell; actual terminal rendering of
+controls and invalid bytes is not claimed. Existing
+`tests/expand-parity.py` assertions remain, with the old intentional-limit
+rejections replaced by GNU success comparisons. `tests/expand-sanitize.sh`
+runs both suites with the production module instrumented by ASan/UBSan.
 
 ## Measurements, 2026-09-08
 
@@ -134,3 +174,87 @@ The size adapter changes only the `tabs` fixture and its recorded hash; timing,
 validation, calling pattern and reference selection remain in `loadables.py`.
 Use 20, 2,000 and 200,000 lines for the other sizes. Inspect every JSON result's
 `status`: harness exit zero alone does not mean validation passed.
+
+## Completion measurement protocol
+
+The task-owned size sweep uses `bench/sol-expand.py`. It checks every output
+byte and status in every warm-up and timed batch, including every repeated
+invocation. Output goes to a private regular file; validation runs after the
+timer. Batch timings include shell startup, a builtin identity probe, redirects,
+and private-file output. The external reference uses the same selected shell.
+These numbers must be labeled separately from historical `/dev/null`
+timings. Its independent expected record is `alpha   beta    gamma\n`.
+The 20,000-line catalog fixture uses 38 calls per batch; sizes of 20, 2,000,
+and 200,000 lines qualify tiny, medium, and large inputs. Each cell has seven
+samples after a full-batch warm-up. The gate fixes CPU affinity; implementation
+order rotates and reverses. Reports record fixture hashes, work counts, binary
+and source hashes, tool versions, environment, and sample distributions.
+
+Build the targeted selection through the build gate, then run the strict sweep
+through the bench gate. Its catalog-size cell uses the existing catalog work unit.
+Required build companions for `tests/input-lifetime.py` are `head,sed,fold,nl,pr,tac,bc`;
+`expand` itself needs no companion or shared helper. Run the sanitizer script
+through the build gate because it compiles the production module. Normal
+correctness scripts do not compile.
+
+## Completion qualification, 2026-10-19
+
+The targeted native build passed 282 GNU comparisons, 37 BusyBox comparisons,
+eight state/error checks, and 351 independent option/byte/display checks.
+The same 678 checks passed with the production expand module under ASan/UBSan.
+All three tested locales (`C`, `C.utf8`, `en_US.utf8`) were available; none were
+skipped. The mixed-reader suite passed 156 checks, and the two unchanged expand
+comparisons extracted from the shared text-tool suite passed. The new repeated
+`-t` regression fails against the baseline, confirming that it detects the gap.
+The broader shared text-tool suite and full catalog remain integration checks.
+
+Both native builds use the same eight-loadable selection, Bash 5.3.15 and
+GCC 14.2.0, with `-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2`, symbols
+retained. No shared helper changed. Binary SHA-256:
+
+- Baseline: `9e9637fa2cd0ea1869f4b1bb086e509daea413751b06dc49219bbea12a9d7b7f`
+- Completed: `a32b5668d542258b6cd97ddce59e11b52ed2e3b6c0c92708ae2681d53c8312d7`
+
+Primary-source SHA-256:
+
+- Baseline (unchanged from the campaign source baseline):
+  `3e74e5fc57fbbaba68560aa9c1e7a3702f46f2a7097622330f4606528a4b49d4`
+- Completed:
+  `82378e0307183c35728fea786f8c120e2a99e838450fe0b0b1f1d9c9a9774340`
+
+The strict sweep ran on the i7-9850H, CPU 11, Linux 6.12.111, glibc 2.41,
+with GNU coreutils 9.7. The paired run's one-minute load average moved from
+7.44 to 7.23. Every warm-up and timed pass passed the byte and status oracle.
+Each cell below is median **milliseconds per batch**, followed by min–max;
+batch counts differ as shown. These are private regular-file output timings.
+
+| input bytes | calls/batch | baseline ms | completed ms | GNU ms |
+|---:|---:|---:|---:|---:|
+| 340 | 38 | 3.877 (3.700–4.162) | 3.725 (3.653–5.076) | 32.038 (29.918–35.838) |
+| 34,000 | 10 | 6.157 (5.954–6.482) | 6.031 (5.859–6.308) | 12.225 (11.132–14.245) |
+| 340,000 | 38 | 89.151 (80.400–92.504) | 81.981 (76.232–99.677) | 113.728 (104.796–128.156) |
+| 3,400,000 | 10 | 273.056 (242.222–346.530) | 247.506 (217.951–282.002) | 274.200 (224.443–295.519) |
+
+The 340,000-byte row reproduces the catalog fixture/hash and `expand -t 8`
+work count. An earlier baseline-only run independently validated all four sizes;
+its baseline/GNU medians were 5.110/49.944, 9.015/18.339, 131.361/171.448,
+and 328.693/348.393 ms. It is retained separately from the paired run, because
+host conditions changed. The completed builtin's tiny-input advantage over GNU
+is established for this 38-call workload; the before/after implementation
+ranges overlap and do not establish a tiny-input improvement from these changes.
+The large-input ranges also overlap. No reproducible remaining slowdown
+motivated a transformation/output-loop optimization, so that loop was retained.
+
+Reproduce through the resource gate with the strict adapter (no build occurs):
+
+```sh
+python3 bench/sol-expand.py --binary before=out/bash-sol-expand-before \
+  --binary after=out/bash-sol-expand-after \
+  --source-for before=/path/to/baseline-expand.c \
+  --source-for after=loadables/expand.c --runs 7 --output /tmp/expand-paired.json
+```
+
+The report preserves all seven samples, source/binary/reference hashes,
+versions, environment, affinity, fixture hashes, work counts and validation
+statuses. Native x86-64 glibc is qualified here; these new changes were not
+rerun under RISC-V/musl. Historical cross-libc evidence remains separate.
