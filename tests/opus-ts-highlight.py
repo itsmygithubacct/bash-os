@@ -59,7 +59,7 @@ def esc(code, text):
 for decl in ['readonly out=unchanged', 'declare -i out=0', 'declare -a out',
              'declare -A out', 'declare -l out', 'declare -u out',
              'readonly locked=unchanged; declare -n out=locked',
-             "declare -n out='array[1]'", 'declare -n out=out']:
+             "declare -n out='array[1]'", 'declare -n out=other; declare -n other=out']:
     out = sh(decl + "; ts parse-tree -L json -t T <<<'[1]'; old=$T; "
              "ts edit $T 1 2 2 -t out <<<'[2]'; echo rc=$?; "
              "echo $T $old; ts node-text $old; ts free $old").decode()
