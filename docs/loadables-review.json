@@ -1002,6 +1002,14 @@
       "status": "Contract",
       "evidence": "tests/sol-more-check.py",
       "scope": "Forward newline-record paging, exact stream bytes, private PTY input, interruption and termios/signal/descriptor restoration."
+    },
+    {
+      "names": [
+        "crypto"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-crypto-check.py",
+      "scope": "Independent primitive bytes, AEAD authenticated failure, state/output binding, cleanup and nonce-only/AAD-only rejection regressions."
     }
   ],
   "sanitizer_groups": [
@@ -1339,6 +1347,12 @@
         "more"
       ],
       "evidence": "tests/sol-more-sanitize.sh"
+    },
+    {
+      "names": [
+        "crypto"
+      ],
+      "evidence": "tests/sol-crypto-sanitize.sh"
     }
   ],
   "fuzz": {
@@ -2022,8 +2036,9 @@
       "evidence": "tests/sort-check.sh"
     },
     "crypto": {
-      "note": "Failed writes return failure. Dedicated state fixtures cover handle cleanup, output binding and subsequent invocations.",
-      "evidence": "tests/crypto-state.py"
+      "evidence": "docs/sol-crypto.md",
+      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction.",
+      "next": "Retain independent cryptography oracles and bounded API coverage; no broad cryptographic security or uniform speedup claim."
     },
     "rev": {
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
@@ -2185,7 +2200,8 @@
     "nl",
     "pr",
     "vi",
-    "more"
+    "more",
+    "crypto"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
