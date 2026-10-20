@@ -58,6 +58,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'nl binary BRE contracts' python3 tests/sol-nl-check.py out/bash
+check 'nl empty backreference branches' python3 tests/review-nl-backrefs.py out/bash
 check 'head options and input ownership' python3 tests/sol-head-options.py out/bash
 check 'head closed output integrity' python3 tests/review-head-descriptors.py out/bash
 check 'bc language and declaration scope' python3 tests/opus-bc-language.py out/bash
@@ -183,6 +185,12 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'nl native and fallback modules' bash tests/sol-nl-build-modules.sh "$scratch/nl-contracts"
+  for mode in native fallback; do
+    for suite in nl-parity sol-nl-check review-nl-backrefs; do
+      check "nl $mode $suite under ASan+UBSan" env NL_MODULE="$scratch/nl-contracts/nl-$mode-sanitized.so" LD_PRELOAD="$(cat "$scratch/nl-contracts/asan-path.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 "tests/$suite.py" out/bash
+    done
+  done
   check 'head complete options under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/head-contracts" bash tests/sol-head-sanitize.sh out/bash
   check 'PCRE contract module build' env BASHOS_TASK_DIR="$scratch/pcre-contracts" bash tests/sol-pcre-sanitize-build.sh
   check 'PCRE contracts under ASan+UBSan' env SOL_PCRE_LOAD_ENV="$scratch/pcre-contracts/sanitize/load.sh" SOL_PCRE_ASAN_LIB="$(cat "$scratch/pcre-contracts/sanitize/asan-runtime.txt")" python3 tests/sol-pcre-check.py out/bash

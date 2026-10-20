@@ -1074,6 +1074,14 @@
       "status": "Contract",
       "evidence": "tests/sol-head-options.py",
       "scope": "Native GNU byte/count/header/NUL records plus exact-consumption and descriptor ownership. Signals, live input mutation and cross-libc behavior remain unqualified."
+    },
+    {
+      "names": [
+        "nl"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-nl-check.py",
+      "scope": "Native and forced no-REG_STARTEND C/C.UTF-8 byte/record/BRE paths with branch-local empty-backreference guards. Actual musl, collating locales and every regex extension remain unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -1447,6 +1455,12 @@
         "head"
       ],
       "evidence": "tests/sol-head-sanitize.sh"
+    },
+    {
+      "names": [
+        "nl"
+      ],
+      "evidence": "tests/sol-nl-build-modules.sh"
     }
   ],
   "fuzz": {
@@ -2075,8 +2089,9 @@
       "evidence": "docs/head-sed.md"
     },
     "nl": {
-      "note": "Repeated stdin, stale stream read-ahead and named-file descriptor ownership are fixed. BRE matching uses the host regex library; without REG_STARTEND, patterns cannot match past embedded NUL bytes.",
-      "evidence": "docs/nl.md"
+      "evidence": "docs/nl.md",
+      "note": "Native and forced no-REG_STARTEND C/C.UTF-8 byte/record/BRE paths with branch-local empty-backreference guards. Actual musl, collating locales and every regex extension remain unqualified.",
+      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pr": {
       "note": "Repeated stdin, paging and output failures are fixed for the tested subset. Numbered multi-column control bytes, merged unterminated records and several GNU options remain documented exclusions.",
