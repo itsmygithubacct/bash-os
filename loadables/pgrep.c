@@ -50,6 +50,7 @@
 #include <dirent.h>
 #include <signal.h>
 #include <ctype.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <pwd.h>
 
@@ -106,11 +107,22 @@ bp_proc_pid_path (char *buf, size_t bufsz, int pid, const char *name)
 }
 
 static int
-bp_read_file (const char *path, char *out, size_t cap)
+bp_read_file (const char *path, char *out, size_t cap, int complete)
 {
     int fd = open (path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) return -1;
-    ssize_t n = read (fd, out, cap - 1);
+    ssize_t n;
+    do n = read (fd, out, cap - 1); while (n < 0 && errno == EINTR);
+    if (n >= 0 && complete && (size_t)n == cap - 1) {
+        char extra;
+        ssize_t more;
+        do more = read (fd, &extra, 1); while (more < 0 && errno == EINTR);
+        if (more != 0) {
+            close (fd);
+            if (more > 0) errno = EOVERFLOW;
+            return -1;  /* never claim an exact match on a truncated prefix */
+        }
+    }
     close (fd);
     if (n < 0) return -1;
     out[n] = '\0';
@@ -125,8 +137,8 @@ bp_read_comm (int pid, char *out, size_t cap)
         errno = ENAMETOOLONG;
         return -1;
     }
-    int n = bp_read_file (path, out, cap);
-    if (n <= 0) return -1;
+    int n = bp_read_file (path, out, cap, 1);
+    if (n <= 0 || memchr (out, '\0', (size_t)n)) return -1;
     /* Strip trailing newline (always present). */
     if (out[n - 1] == '\n') out[n - 1] = '\0';
     return 0;
@@ -135,14 +147,14 @@ bp_read_comm (int pid, char *out, size_t cap)
 /* /proc/PID/cmdline is NUL-separated. Convert NULs (except the final one)
    to spaces in-place so substring search treats it as a single line. */
 static int
-bp_read_cmdline (int pid, char *out, size_t cap)
+bp_read_cmdline (int pid, char *out, size_t cap, int complete)
 {
     char path[BP_PATH_MAX];
     if (bp_proc_pid_path (path, sizeof path, pid, "cmdline") < 0) {
         errno = ENAMETOOLONG;
         return -1;
     }
-    int n = bp_read_file (path, out, cap);
+    int n = bp_read_file (path, out, cap, complete);
     if (n < 0) return -1;
     if (n == 0) { out[0] = '\0'; return 0; }
     /* Drop trailing NUL if cmdline ends with one (most kernels). */
@@ -161,7 +173,7 @@ bp_read_real_uid (int pid, uid_t *out)
         errno = ENAMETOOLONG;
         return -1;
     }
-    int n = bp_read_file (path, buf, sizeof buf);
+    int n = bp_read_file (path, buf, sizeof buf, 0);
     if (n <= 0) return -1;
     const char *p = strstr (buf, "\nUid:");
     if (!p) {
@@ -173,8 +185,11 @@ bp_read_real_uid (int pid, uid_t *out)
     p += 4; /* past "Uid:" */
     while (*p == ' ' || *p == '\t') p++;
     char *end = NULL;
+    if (!isdigit ((unsigned char)*p)) return -1;
+    errno = 0;
     unsigned long v = strtoul (p, &end, 10);
-    if (end == p) return -1;
+    if (errno == ERANGE || end == p || v > (uid_t)-1 ||
+        (*end && !isspace ((unsigned char)*end))) return -1;
     *out = (uid_t)v;
     return 0;
 }
@@ -187,7 +202,7 @@ bp_read_session_from_stat (int pid, pid_t *out)
         errno = ENAMETOOLONG;
         return -1;
     }
-    int n = bp_read_file (path, buf, sizeof buf);
+    int n = bp_read_file (path, buf, sizeof buf, 0);
     if (n <= 0) return -1;
 
     char *rp = strrchr (buf, ')');
@@ -234,8 +249,9 @@ bp_resolve_user (const char *spec, uid_t *out)
         if (!isdigit ((unsigned char)*q)) alldigit = 0;
     if (alldigit) {
         char *end = NULL;
+        errno = 0;
         unsigned long v = strtoul (spec, &end, 10);
-        if (end == spec || *end != '\0') return -1;
+        if (errno == ERANGE || end == spec || *end != '\0' || v > (uid_t)-1) return -1;
         *out = (uid_t)v;
         return 0;
     }
@@ -266,12 +282,13 @@ static int
 bp_parse_signal (const char *spec)
 {
     /* Strip leading SIG if present. */
-    if (strncmp (spec, "SIG", 3) == 0) spec += 3;
+    if (strncasecmp (spec, "SIG", 3) == 0) spec += 3;
     /* Numeric form. */
     if (isdigit ((unsigned char)spec[0])) {
         char *end = NULL;
+        errno = 0;
         unsigned long v = strtoul (spec, &end, 10);
-        if (end == spec || *end != '\0') return -1;
+        if (errno == ERANGE || end == spec || *end != '\0' || v == 0 || v >= NSIG) return -1;
         return (int)v;
     }
     for (int i = 0; bp_signals[i].name; i++)
@@ -371,16 +388,18 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
 
     /* Match against /proc/PID/cmdline: cmdline can be large (kernel
        allows up to ARG_MAX). 4 KiB is the conventional pgrep buffer
-       and avoids stack pressure; long cmdlines truncate, which mirrors
-       procps-ng's 4 KiB default in src/pgrep.c. */
+       and avoids stack pressure. Substring searches use a truncated prefix;
+       exact searches skip overlong cmdlines rather than matching a prefix. */
     char comm[64];
     char cmdline[4096];
 
     while ((de = readdir (d))) {
         if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
         char *end = NULL;
+        errno = 0;
         long lpid = strtol (de->d_name, &end, 10);
-        if (lpid <= 0 || (end && *end != '\0')) continue;
+        if (errno == ERANGE || lpid <= 0 || lpid > INT_MAX ||
+            de->d_name[0] == '0' || (end && *end != '\0')) continue;
         int pid = (int)lpid;
         if (pid == (int)self_pid) continue;  /* never match self */
 
@@ -392,7 +411,7 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
                 continue;
             if (sid == killall5_sid)
                 continue;
-            if (bp_read_cmdline (pid, cmdline, sizeof cmdline) < 0)
+            if (bp_read_cmdline (pid, cmdline, sizeof cmdline, 0) < 0)
                 continue;
             if (cmdline[0] == '\0')
                 continue;  /* kernel threads: empty cmdline */
@@ -408,7 +427,7 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         if (mode == BP_MODE_KILLALL5) {
             hay = "";
         } else if (by_cmdline) {
-            if (bp_read_cmdline (pid, cmdline, sizeof cmdline) < 0) continue;
+            if (bp_read_cmdline (pid, cmdline, sizeof cmdline, mode == BP_MODE_KILLALL || exact) < 0) continue;
             if (cmdline[0] == '\0') continue;  /* kernel threads: empty cmdline */
             hay = cmdline;
         } else {
@@ -445,7 +464,7 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
                         printf (" %s", cmdline);
                     else {
                         char cl[4096];
-                        if (bp_read_cmdline (pid, cl, sizeof cl) == 0 && cl[0])
+                        if (bp_read_cmdline (pid, cl, sizeof cl, 0) == 0 && cl[0])
                             printf (" %s", cl);
                     }
                 }
