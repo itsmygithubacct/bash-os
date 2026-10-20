@@ -80,8 +80,8 @@ def main():
         compare([first,root/'missing',second])
         compare([],b'a\nb\n',script='printf "before:"; "$@"; printf ":after"')
 
-        # Common patterns only: this loadable retains POSIX extended regex
-        # syntax, which is not the complete GNU tac regex dialect.
+        # Retain the original common-pattern checks. The GNU Emacs dialect,
+        # reverse matching and binary/anchor cases live in sol-tac-parity.py.
         for data in [b'a,b:c',b',a,,b:',b'a\nb\nlast',b'abc']:
             for pattern in ['[,:]','\n']:
                 compare(['-r','-s',pattern],data)

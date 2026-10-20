@@ -117,15 +117,10 @@ also wired into `tests/cross-smoke.sh`; these are execution checks, with no
 emulated timing comparison. An exact `tac`-only build skips the one regression
 that uses the stock `head` builtin to leave unread stdio input.
 
-Each input is still read completely before output, using memory proportional
-to file size. A seekable-file path that reads backward in bounded blocks,
-with a spool strategy for pipes, is future work. Multi-byte literal matching
-can also repeat comparisons for adversarial prefixes.
-
-Regex matching retains the existing forward POSIX extended-regex engine and
-record indexes. Its dialect, matching direction, newline and embedded-NUL
-behavior are not fully GNU-compatible. For example, `-r -s '[,:]+'` on
-`a,b::c` produces `cb::a,` here and `c:b:a,` with GNU; `-r -s .` also differs
-on newlines. Regex conformance needs its own explicit scope and fixtures.
-The selected literal performance work is complete; memory use and regex
-compatibility remain the next `tac` targets.
+The whole-input buffering and forward POSIX ERE behavior described by this
+historical run have been replaced in the [bounded-input and GNU regex
+follow-up](sol-tac.md). Literal input and selected regex atoms now use fixed
+backward read buffers; pipes use an owned, immediately unlinked spool. GNU
+regex direction, newline and NUL behavior are implemented and tested. The
+general regex matcher still has input-dependent memory use and requires the
+GNU API, so full bounded-memory and portable-regex completion remains open.
