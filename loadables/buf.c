@@ -59,7 +59,7 @@
  *   buf free HANDLE
  *       Release the buffer + slot.
  *
- * Mutation verbs (insert-line, delete-line, load) set the dirty flag.
+ * Editing verbs set the dirty flag; successful load/save clear it.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -74,6 +74,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -230,6 +231,31 @@ bb_iter_next (bb_iter *it, const char **ptr, size_t *len)
     it->idx++;
 }
 
+/* All public numbers are nonnegative decimal values. In particular an empty
+   string must never select slot/line zero, and overflow must not wrap an fd. */
+static long
+bb_number (const char *s, char **end_out)
+{
+    char *end;
+    errno = 0;
+    long n = strtol (s, &end, 10);
+    if (end_out) *end_out = end;
+    return end == s || *end || errno == ERANGE || n < 0 ? -1 : n;
+}
+
+/* Avoid Bash's fatal readonly-assignment path before publishing a handle. */
+static int
+bb_bind (const char *name, char *value)
+{
+    SHELL_VAR *v = find_variable (name);
+    if (v && (readonly_p (v) || noassign_p (v))) {
+        builtin_error ("%s: variable is not assignable", name);
+        return -1;
+    }
+    v = builtin_bind_variable ((char *) name, value, 0);
+    return !v || readonly_p (v) || noassign_p (v) ? -1 : 0;
+}
+
 static bb_buf *bb_handles[BB_HANDLES_MAX] = {0};
 
 static int
@@ -245,7 +271,7 @@ static bb_buf *
 bb_get (const char *s)
 {
     char *end;
-    long h = strtol (s, &end, 10);
+    long h = bb_number (s, &end);
     if (*end != '\0' || h < 0 || h >= BB_HANDLES_MAX) return NULL;
     return bb_handles[h];
 }
@@ -291,7 +317,7 @@ static int
 bb_get_index (const char *s)
 {
     char *end;
-    long h = strtol (s, &end, 10);
+    long h = bb_number (s, &end);
     if (*end != '\0' || h < 0 || h >= BB_HANDLES_MAX) return -1;
     return (int) h;
 }
@@ -390,9 +416,9 @@ bb_journal_write (int fd, char type, long line, long col,
     char *hex = bb_hex_encode (payload, paylen);
     if (!hex) return -1;
     int need_col = (type == 'A' || type == 'R');
-    int n = snprintf (NULL, 0, need_col ? "%c %ld %ld %s -X\n"
-                                        : "%c %ld %s -X\n",
-                      type, line, col, hex);
+    int n = need_col
+        ? snprintf (NULL, 0, "%c %ld %ld %s -X\n", type, line, col, hex)
+        : snprintf (NULL, 0, "%c %ld %s -X\n", type, line, hex);
     if (n < 0) { free (hex); return -1; }
     char *linebuf = malloc ((size_t) n + 1);
     if (!linebuf) { free (hex); return -1; }
@@ -662,42 +688,30 @@ bb_new_cmd (WORD_LIST *args)
     }
     char buf[16];
     snprintf (buf, sizeof buf, "%d", slot);
+    int rc = EXECUTION_SUCCESS;
     if (hvar) {
-        builtin_bind_variable ((char *) hvar, buf, 0);
+        if (bb_bind (hvar, buf) < 0) rc = EXECUTION_FAILURE;
     } else {
         printf ("%s\n", buf);
+        rc = sh_chkwrite (EXECUTION_SUCCESS);
     }
-    return EXECUTION_SUCCESS;
+    if (rc != EXECUTION_SUCCESS) {
+        bb_handles[slot] = NULL;
+        bb_free_buf (b);
+    }
+    return rc;
 }
 
+/* Build a replacement independently. The caller commits it only after every
+   read/allocation succeeds, preserving the old data, name and dirty flag. */
 static int
-bb_load_cmd (WORD_LIST *args)
+bb_load_into (bb_buf *b, const char *path)
 {
-    if (!args || !args->next) { builtin_error ("load: HANDLE PATH"); return EX_USAGE; }
-    bb_buf *b = bb_get (args->word->word);
-    if (!b) { builtin_error ("load: bad handle"); return EX_USAGE; }
-    const char *path = args->next->word->word;
-    int fd = open (path, O_RDONLY);
+    int fd = open (path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
         builtin_error ("load %s: %s", path, strerror (errno));
         return EXECUTION_FAILURE;
     }
-    /* Free existing lines and release any prior mapping / checkpoint index.
-       In the paged state b->lines is NULL (n_lines is the total), so guard the
-       per-line free on the array pointer. */
-    /* Drop the previous record array, not only its line bytes. Leaving
-       the array in place with dangling data pointers made a later free
-       release those bytes a second time. A paged buffer has no array. */
-    if (b->lines) {
-        for (size_t i = 0; i < b->n_lines; i++) free (b->lines[i].data);
-        free (b->lines);
-        b->lines = NULL;
-    }
-    b->n_lines = 0;
-    b->capacity = 0;
-    free (b->ckpt); b->ckpt = NULL; b->n_ckpt = 0; b->paged = 0;
-    if (b->map_base) { munmap (b->map_base, b->map_size); b->map_base = NULL; b->map_size = 0; }
-
     /* Fast path: memory-map a regular file read-only and build a SPARSE line
        index — the byte offset of every BB_CKPT_STRIDE-th line — instead of a
        per-line record array. Nothing is copied and the index is sublinear in
@@ -744,8 +758,6 @@ bb_load_cmd (WORD_LIST *args)
                 b->paged = 1;                                  /* lines[] stays empty */
                 b->had_trailing_nl = !trailing;
                 close (fd);
-                free (b->filename);
-                b->filename = strdup (path);
                 b->dirty = 0;
                 return EXECUTION_SUCCESS;
             }
@@ -814,10 +826,82 @@ done:
     close (fd);
     if (rc != EXECUTION_SUCCESS) return rc;
 
-    free (b->filename);
-    b->filename = strdup (path);
     b->dirty = 0;
     return EXECUTION_SUCCESS;
+}
+
+static int
+bb_load_cmd (WORD_LIST *args)
+{
+    if (!args || !args->next) { builtin_error ("load: HANDLE PATH"); return EX_USAGE; }
+    bb_buf *b = bb_get (args->word->word);
+    if (!b) { builtin_error ("load: bad handle"); return EX_USAGE; }
+    bb_buf *fresh = calloc (1, sizeof *fresh);
+    if (!fresh) { builtin_error ("load: alloc"); return EXECUTION_FAILURE; }
+    fresh->filename = strdup (args->next->word->word);
+    if (!fresh->filename) {
+        bb_free_buf (fresh);
+        builtin_error ("load: strdup");
+        return EXECUTION_FAILURE;
+    }
+    int rc = bb_load_into (fresh, fresh->filename);
+    if (rc == EXECUTION_SUCCESS) {
+        bb_buf old = *b;
+        *b = *fresh;
+        *fresh = old;
+    }
+    bb_free_buf (fresh);
+    return rc;
+}
+
+/* Shared raw emitter for text and atomic save. Bounded scratch space for
+   edited buffers; mapped buffers can write their existing byte span directly. */
+static int
+bb_write_range (bb_buf *b, size_t start, size_t count, int out_fd)
+{
+    /* An unedited mapped range already has the required separators. Resolve
+       just its boundaries and emit the span without rescanning every line.
+       A partial range excludes its final separator, matching the joined
+       representation; only the actual final line retains a trailing NL. */
+    if (b->paged && count) {
+        size_t begin = 0, end = b->map_size, len;
+        if (start) bb_span (b, start, &begin, &len);
+        if (start + count < b->n_lines) {
+            bb_span (b, start + count - 1, &end, &len);
+            end += len;
+        }
+        return bb_write_all (out_fd, (const char *) b->map_base + begin,
+                             end - begin);
+    }
+    bb_iter it;
+    bb_iter_init (&it, b, start);
+    char output[65536];
+    size_t used = 0;
+    for (size_t i = start; i < start + count; i++) {
+        const char *lp;
+        size_t len;
+        bb_iter_next (&it, &lp, &len);
+        if (len > sizeof output - used) {
+            if (bb_write_all (out_fd, output, used) < 0) return -1;
+            used = 0;
+        }
+        if (len >= sizeof output) {
+            if (bb_write_all (out_fd, lp, len) < 0) return -1;
+        } else if (len) {
+            memcpy (output + used, lp, len);
+            used += len;
+        }
+        if (i + 1 < start + count ||
+            (i + 1 == b->n_lines && b->had_trailing_nl)) {
+            if (used == sizeof output) {
+                if (bb_write_all (out_fd, output, used) < 0) return -1;
+                used = 0;
+            }
+            output[used++] = '\n';
+        }
+    }
+    if (bb_write_all (out_fd, output, used) < 0) return -1;
+    return 0;
 }
 
 static int
@@ -829,65 +913,38 @@ bb_save_cmd (WORD_LIST *args)
     const char *path = args->next ? args->next->word->word : b->filename;
     if (!path) { builtin_error ("save: no filename"); return EX_USAGE; }
 
-    /* Atomic: write to PATH.tmpXXXXXX, fchmod/fchown to match (or 0644
-       default for new files), fsync, rename. */
-    char tmp_path[4096];
-    snprintf (tmp_path, sizeof tmp_path, "%s.tmpXXXXXX", path);
+    /* Allocate the future name before touching the destination. path may be
+       the retained filename itself, which remains alive until commit. */
+    char *new_name = path == b->filename ? NULL : strdup (path);
+    if (path != b->filename && !new_name) {
+        builtin_error ("save: strdup");
+        return EXECUTION_FAILURE;
+    }
+    size_t pathlen = strlen (path);
+    char *tmp_path = malloc (pathlen + sizeof ".tmpXXXXXX");
+    if (!tmp_path) { free (new_name); builtin_error ("save: alloc"); return EXECUTION_FAILURE; }
+    memcpy (tmp_path, path, pathlen);
+    memcpy (tmp_path + pathlen, ".tmpXXXXXX", sizeof ".tmpXXXXXX");
     int fd = mkstemp (tmp_path);
     if (fd < 0) {
         builtin_error ("save mkstemp: %s", strerror (errno));
+        free (tmp_path);
+        free (new_name);
         return EXECUTION_FAILURE;
     }
-    /* Match original perms if file existed; else 0644. */
     struct stat st;
     mode_t mode = 0644;
     int have_st = (stat (path, &st) == 0);
     if (have_st) mode = st.st_mode & 07777;
-    fchmod (fd, mode);
-    if (have_st && geteuid () == 0)
-        (void) fchown (fd, st.st_uid, st.st_gid);
-
-    bb_iter sit;
-    bb_iter_init (&sit, b, 0);
-    for (size_t i = 0; i < b->n_lines; i++) {
-        const char *src;
-        size_t slen;
-        bb_iter_next (&sit, &src, &slen);   /* heap copy or mmap span, both states */
-        if (slen > 0) {
-            ssize_t off = 0;
-            while ((size_t) off < slen) {
-                ssize_t w = write (fd, src + off, slen - (size_t) off);
-                if (w < 0) {
-                    if (errno == EINTR) continue;
-                    builtin_error ("save write: %s", strerror (errno));
-                    close (fd); unlink (tmp_path);
-                    return EXECUTION_FAILURE;
-                }
-                off += w;
-            }
-        }
-        /* Newline between lines, and after last only if file had a
-           trailing newline at load (or if user explicitly added one).
-           EINTR-retry on the 1-byte write — the previous "if errno != EINTR
-           bail" arm silently dropped the newline on EINTR success exits. */
-        int emit_nl = (i + 1 < b->n_lines) || b->had_trailing_nl;
-        if (emit_nl) {
-            ssize_t w;
-            while ((w = write (fd, "\n", 1)) != 1) {
-                if (w < 0 && errno == EINTR) continue;
-                builtin_error ("save write: %s", strerror (errno));
-                close (fd); unlink (tmp_path);
-                return EXECUTION_FAILURE;
-            }
-        }
-    }
-    fdatasync (fd);
-    close (fd);
-    if (rename (tmp_path, path) < 0) {
-        builtin_error ("save rename %s -> %s: %s", tmp_path, path, strerror (errno));
-        unlink (tmp_path);
-        return EXECUTION_FAILURE;
-    }
+    if (have_st && geteuid () == 0 && fchown (fd, st.st_uid, st.st_gid) < 0)
+        goto save_error;
+    if (fchmod (fd, mode) < 0 ||
+        bb_write_range (b, 0, b->n_lines, fd) < 0 || fdatasync (fd) < 0)
+        goto save_error;
+    /* close can report delayed IO failure; do not publish that file. */
+    int close_rc = close (fd);
+    fd = -1;
+    if (close_rc < 0 || rename (tmp_path, path) < 0) goto save_error;
     /* fsync the containing directory so the rename itself is durable
        across power loss. Without this, POSIX permits a crash after a
        successful rename() return to roll back to the pre-rename state
@@ -918,19 +975,21 @@ bb_save_cmd (WORD_LIST *args)
             close (dfd);
         }
     }
-    /* path aliases b->filename when save is asked to keep the current
-       name. Freeing that string and then copying it reads freed memory. */
-    if (path != b->filename) {
-        char *copy = strdup (path);
-        if (!copy) {
-            builtin_error ("save: strdup");
-            return EXECUTION_FAILURE;
-        }
+    if (new_name) {
         free (b->filename);
-        b->filename = copy;
+        b->filename = new_name;
     }
+    free (tmp_path);
     b->dirty = 0;
     return EXECUTION_SUCCESS;
+
+save_error:
+    builtin_error ("save: %s", strerror (errno));
+    if (fd >= 0) close (fd);
+    unlink (tmp_path);
+    free (tmp_path);
+    free (new_name);
+    return EXECUTION_FAILURE;
 }
 
 static int
@@ -943,7 +1002,7 @@ bb_insert_line_cmd (WORD_LIST *args)
     bb_buf *b = bb_get (args->word->word);
     if (!b) { builtin_error ("insert-line: bad handle"); return EX_USAGE; }
     if (bb_realize (b) < 0) { builtin_error ("insert-line: realize"); return EXECUTION_FAILURE; }
-    long index = strtol (args->next->word->word, NULL, 10);
+    long index = bb_number (args->next->word->word, NULL);
     if (index < 0 || (size_t) index > b->n_lines) {
         builtin_error ("insert-line: index %ld out of range [0..%zu]", index, b->n_lines);
         return EX_USAGE;
@@ -985,7 +1044,7 @@ bb_delete_line_cmd (WORD_LIST *args)
     bb_buf *b = bb_get (args->word->word);
     if (!b) { builtin_error ("delete-line: bad handle"); return EX_USAGE; }
     if (bb_realize (b) < 0) { builtin_error ("delete-line: realize"); return EXECUTION_FAILURE; }
-    long index = strtol (args->next->word->word, NULL, 10);
+    long index = bb_number (args->next->word->word, NULL);
     if (index < 0 || (size_t) index >= b->n_lines) {
         builtin_error ("delete-line: index %ld out of range [0..%zu)", index, b->n_lines);
         return EX_USAGE;
@@ -1012,13 +1071,13 @@ bb_insert_at_cmd (WORD_LIST *args)
     if (!b || slot < 0) { builtin_error ("insert-at: bad handle"); return EX_USAGE; }
     if (bb_realize (b) < 0) { builtin_error ("insert-at: realize"); return EXECUTION_FAILURE; }
     char *end = NULL;
-    long lineno = strtol (args->next->word->word, &end, 10);
+    long lineno = bb_number (args->next->word->word, &end);
     if (*end || lineno < 0 || (size_t) lineno >= b->n_lines) {
         builtin_error ("insert-at: line out of range");
         return EX_USAGE;
     }
     end = NULL;
-    long col = strtol (args->next->next->word->word, &end, 10);
+    long col = bb_number (args->next->next->word->word, &end);
     if (*end || col < 0 || (size_t) col > b->lines[lineno].length) {
         builtin_error ("insert-at: column out of range");
         return EX_USAGE;
@@ -1058,19 +1117,19 @@ bb_delete_at_cmd (WORD_LIST *args)
     if (!b || slot < 0) { builtin_error ("delete-at: bad handle"); return EX_USAGE; }
     if (bb_realize (b) < 0) { builtin_error ("delete-at: realize"); return EXECUTION_FAILURE; }
     char *end = NULL;
-    long lineno = strtol (args->next->word->word, &end, 10);
+    long lineno = bb_number (args->next->word->word, &end);
     if (*end || lineno < 0 || (size_t) lineno >= b->n_lines) {
         builtin_error ("delete-at: line out of range");
         return EX_USAGE;
     }
     end = NULL;
-    long col = strtol (args->next->next->word->word, &end, 10);
+    long col = bb_number (args->next->next->word->word, &end);
     if (*end || col < 0) {
         builtin_error ("delete-at: bad column");
         return EX_USAGE;
     }
     end = NULL;
-    long n = strtol (args->next->next->next->word->word, &end, 10);
+    long n = bb_number (args->next->next->next->word->word, &end);
     if (*end || n < 0) {
         builtin_error ("delete-at: bad length");
         return EX_USAGE;
@@ -1092,8 +1151,8 @@ bb_mutate_cmd (WORD_LIST *args)
         const char *w = p->word->word;
         if (strcmp (w, "-j") == 0 && p->next) {
             char *end = NULL;
-            long fd = strtol (p->next->word->word, &end, 10);
-            if (*end || fd < 0) { builtin_error ("mutate: bad journal fd"); return EX_USAGE; }
+            long fd = bb_number (p->next->word->word, &end);
+            if (*end || fd < 0 || fd > INT_MAX) { builtin_error ("mutate: bad journal fd"); return EX_USAGE; }
             journal_fd = (int) fd;
             p = p->next;
         } else if (strcmp (w, "-h") == 0 && p->next) {
@@ -1121,7 +1180,7 @@ bb_mutate_cmd (WORD_LIST *args)
     if (strcmp (verb, "insert-line") == 0) {
         if (!a || !a->next) { builtin_error ("mutate insert-line: INDEX TEXT [-X]"); return EX_USAGE; }
         char *end = NULL;
-        long index = strtol (a->word->word, &end, 10);
+        long index = bb_number (a->word->word, &end);
         if (*end || index < 0 || (size_t) index > b->n_lines) {
             builtin_error ("mutate insert-line: index out of range");
             return EX_USAGE;
@@ -1157,7 +1216,7 @@ bb_mutate_cmd (WORD_LIST *args)
     if (strcmp (verb, "delete-line") == 0) {
         if (!a) { builtin_error ("mutate delete-line: INDEX"); return EX_USAGE; }
         char *end = NULL;
-        long index = strtol (a->word->word, &end, 10);
+        long index = bb_number (a->word->word, &end);
         if (*end || index < 0 || (size_t) index >= b->n_lines) {
             builtin_error ("mutate delete-line: index out of range");
             return EX_USAGE;
@@ -1188,13 +1247,13 @@ bb_mutate_cmd (WORD_LIST *args)
             return EX_USAGE;
         }
         char *end = NULL;
-        long lineno = strtol (a->word->word, &end, 10);
+        long lineno = bb_number (a->word->word, &end);
         if (*end || lineno < 0 || (size_t) lineno >= b->n_lines) {
             builtin_error ("mutate insert-at: line out of range");
             return EX_USAGE;
         }
         end = NULL;
-        long col = strtol (a->next->word->word, &end, 10);
+        long col = bb_number (a->next->word->word, &end);
         if (*end || col < 0 || (size_t) col > b->lines[lineno].length) {
             builtin_error ("mutate insert-at: column out of range");
             return EX_USAGE;
@@ -1233,19 +1292,19 @@ bb_mutate_cmd (WORD_LIST *args)
             return EX_USAGE;
         }
         char *end = NULL;
-        long lineno = strtol (a->word->word, &end, 10);
+        long lineno = bb_number (a->word->word, &end);
         if (*end || lineno < 0 || (size_t) lineno >= b->n_lines) {
             builtin_error ("mutate delete-at: line out of range");
             return EX_USAGE;
         }
         end = NULL;
-        long col = strtol (a->next->word->word, &end, 10);
+        long col = bb_number (a->next->word->word, &end);
         if (*end || col < 0 || (size_t) col > b->lines[lineno].length) {
             builtin_error ("mutate delete-at: column out of range");
             return EX_USAGE;
         }
         end = NULL;
-        long n = strtol (a->next->next->word->word, &end, 10);
+        long n = bb_number (a->next->next->word->word, &end);
         if (*end || n < 0 || (size_t) n > b->lines[lineno].length - (size_t) col) {
             builtin_error ("mutate delete-at: range out of bounds");
             return EX_USAGE;
@@ -1278,7 +1337,7 @@ bb_line_cmd (WORD_LIST *args)
     if (!args || !args->next) { builtin_error ("line: HANDLE INDEX [-V VAR] [-X]"); return EX_USAGE; }
     bb_buf *b = bb_get (args->word->word);
     if (!b) { builtin_error ("line: bad handle"); return EX_USAGE; }
-    long index = strtol (args->next->word->word, NULL, 10);
+    long index = bb_number (args->next->word->word, NULL);
     if (index < 0 || (size_t) index >= b->n_lines) {
         builtin_error ("line: index %ld out of range [0..%zu)", index, b->n_lines);
         return EX_USAGE;
@@ -1305,13 +1364,16 @@ bb_line_cmd (WORD_LIST *args)
         out[slen] = '\0';
     }
     if (var) {
-        builtin_bind_variable ((char *) var, out, 0);
+        if (bb_bind (var, out) < 0) {
+            free (out);
+            return EXECUTION_FAILURE;
+        }
     } else {
         if (slen > 0) fwrite (out, 1, hex_mode ? strlen (out) : slen, stdout);
         putchar ('\n');
     }
     free (out);
-    return EXECUTION_SUCCESS;
+    return var ? EXECUTION_SUCCESS : sh_chkwrite (EXECUTION_SUCCESS);
 }
 
 static int
@@ -1320,7 +1382,7 @@ bb_len_cmd (WORD_LIST *args)
     if (!args || !args->next) { builtin_error ("len: HANDLE INDEX"); return EX_USAGE; }
     bb_buf *b = bb_get (args->word->word);
     if (!b) { builtin_error ("len: bad handle"); return EX_USAGE; }
-    long index = strtol (args->next->word->word, NULL, 10);
+    long index = bb_number (args->next->word->word, NULL);
     if (index < 0 || (size_t) index >= b->n_lines) {
         builtin_error ("len: index out of range");
         return EX_USAGE;
@@ -1329,7 +1391,7 @@ bb_len_cmd (WORD_LIST *args)
     size_t slen;
     (void) bb_resolve (b, (size_t) index, &src, &slen);
     printf ("%zu\n", slen);
-    return EXECUTION_SUCCESS;
+    return sh_chkwrite (EXECUTION_SUCCESS);
 }
 
 static int
@@ -1339,7 +1401,7 @@ bb_lines_cmd (WORD_LIST *args)
     bb_buf *b = bb_get (args->word->word);
     if (!b) { builtin_error ("lines: bad handle"); return EX_USAGE; }
     printf ("%zu\n", b->n_lines);
-    return EXECUTION_SUCCESS;
+    return sh_chkwrite (EXECUTION_SUCCESS);
 }
 
 static int
@@ -1358,16 +1420,16 @@ bb_text_cmd (WORD_LIST *args)
         if (strcmp (w, "-X") == 0) hex_mode = 1;
         else if (strcmp (w, "-F") == 0 && p->next) {
             char *end = NULL;
-            long fd = strtol (p->next->word->word, &end, 10);
-            if (*end || fd < 0) { builtin_error ("text: bad fd"); return EX_USAGE; }
+            long fd = bb_number (p->next->word->word, &end);
+            if (*end || fd < 0 || fd > INT_MAX) { builtin_error ("text: bad fd"); return EX_USAGE; }
             out_fd = (int) fd;
             p = p->next;
         } else if (!have_range && p->next) {
             char *end = NULL;
-            start_l = strtol (w, &end, 10);
+            start_l = bb_number (w, &end);
             if (*end || start_l < 0) { builtin_error ("text: bad LINENO"); return EX_USAGE; }
             end = NULL;
-            count_l = strtol (p->next->word->word, &end, 10);
+            count_l = bb_number (p->next->word->word, &end);
             if (*end || count_l < 0) { builtin_error ("text: bad N"); return EX_USAGE; }
             have_range = 1;
             p = p->next;
@@ -1387,27 +1449,14 @@ bb_text_cmd (WORD_LIST *args)
         builtin_error ("text: -X and -F are mutually exclusive");
         return EX_USAGE;
     }
-    /* An unedited mapped range already has the required separators. Resolve
-       just its boundaries and emit the span without rescanning every line.
-       A partial range excludes its final separator, matching the joined
-       representation; only the actual final line retains a trailing NL. */
-    if (!hex_mode && b->paged && count) {
-        size_t begin = 0, end = b->map_size, len;
-        if (start) bb_span (b, start, &begin, &len);
-        if (start + count < b->n_lines) {
-            bb_span (b, start + count - 1, &end, &len);
-            end += len;
-        }
-        if (bb_write_all (out_fd, (const char *) b->map_base + begin,
-                          end - begin) < 0) {
+    if (!hex_mode) {
+        if (bb_write_range (b, start, count, out_fd) < 0) {
             builtin_error ("text: write: %s", strerror (errno));
             return EXECUTION_FAILURE;
         }
         return EXECUTION_SUCCESS;
     }
-    /* Edited/stream-loaded lines use a bounded output buffer. A long line
-       still goes out directly, so output never allocates a whole-buffer
-       copy. The hex path reuses one growable scratch buffer across lines. */
+    /* Hex output reuses one growable scratch buffer across lines. */
     bb_iter it;
     bb_iter_init (&it, b, start);
     if (hex_mode) {
@@ -1434,38 +1483,9 @@ bb_text_cmd (WORD_LIST *args)
         }
         putchar ('\n');                        /* terminate the hex string */
         free (hex);
-    } else {
-        char output[65536];
-        size_t used = 0;
-        for (size_t i = start; i < start + count; i++) {
-            const char *lp;
-            size_t len;
-            bb_iter_next (&it, &lp, &len);
-            if (len > sizeof output - used) {
-                if (bb_write_all (out_fd, output, used) < 0) goto write_error;
-                used = 0;
-            }
-            if (len >= sizeof output) {
-                if (bb_write_all (out_fd, lp, len) < 0) goto write_error;
-            } else if (len) {
-                memcpy (output + used, lp, len);
-                used += len;
-            }
-            if (i + 1 < start + count ||
-                (i + 1 == b->n_lines && b->had_trailing_nl)) {
-                if (used == sizeof output) {
-                    if (bb_write_all (out_fd, output, used) < 0) goto write_error;
-                    used = 0;
-                }
-                output[used++] = '\n';
-            }
-        }
-        if (bb_write_all (out_fd, output, used) < 0) goto write_error;
+        return sh_chkwrite (EXECUTION_SUCCESS);
     }
     return EXECUTION_SUCCESS;
-write_error:
-    builtin_error ("text: write: %s", strerror (errno));
-    return EXECUTION_FAILURE;
 }
 
 static int
@@ -1493,8 +1513,10 @@ bb_set_name_cmd (WORD_LIST *args)
     if (!args || !args->next) { builtin_error ("set-name: HANDLE PATH"); return EX_USAGE; }
     bb_buf *b = bb_get (args->word->word);
     if (!b) return EX_USAGE;
+    char *copy = strdup (args->next->word->word);
+    if (!copy) { builtin_error ("set-name: alloc"); return EXECUTION_FAILURE; }
     free (b->filename);
-    b->filename = strdup (args->next->word->word);
+    b->filename = copy;
     return EXECUTION_SUCCESS;
 }
 
@@ -1558,7 +1580,7 @@ char *buf_doc[] = {
     "",
     "Lines are NUL-safe (length tracked, never strlen on data).",
     "Save uses mkstemp + fdatasync(fd) + rename + fsync(parent-dir) —",
-    "atomic and durable across power loss.",
+    "atomic replacement; syncing the parent directory is best effort.",
     "",
     "UTF-8 / NUL policy:",
     "  - On-disk: byte-exact load/save. No transcoding, no BOM injection,",
