@@ -494,6 +494,11 @@ do_names (struct dm_ioctl *io)
     }
     io->data_size = (uint32_t) (io->data_start + off);
     if (malform ("names")) ((struct dm_name_list *) data)->next = 0x7ffffff0;
+    if (malform ("unaligned") && off + 1 <= room) {
+        memmove (data + 1, data, off);
+        io->data_start++;
+        io->data_size++;
+    }
     return 0;
 }
 
@@ -678,6 +683,10 @@ handle (unsigned nr, struct dm_ioctl *io)
         dev_status (io, d);
         io->data_size = sizeof *io;
         if (malform ("header")) io->data_size = 0x7fffffff;
+        if (malform ("header-strings")) {
+            memset (io->name, 'X', sizeof io->name);
+            memset (io->uuid, 'Y', sizeof io->uuid);
+        }
         return 0;
     case DM_TABLE_LOAD_CMD: {
         int r = do_load (io, d);

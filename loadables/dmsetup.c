@@ -271,8 +271,14 @@ dms_run (int fd, unsigned long req, const char *name, const char *uuid, uint32_t
             /* never trust a returned size beyond what was allocated */
             size_t have = bytes > sizeof (struct dm_ioctl) + payload_len
                 ? bytes : sizeof (struct dm_ioctl) + payload_len;
+            /* Name and UUID are fixed arrays. A missing NUL would make
+               later %s walks leave the header. Records and the next-offset
+               chain are 8-byte aligned; an odd data_start is not a record. */
             if (io->data_start < sizeof (struct dm_ioctl) || io->data_start > have
-                || io->data_size > have || io->data_size < io->data_start) {
+                || io->data_size > have || io->data_size < io->data_start
+                || (io->data_start & 7U)
+                || !memchr (io->name, '\0', sizeof io->name)
+                || !memchr (io->uuid, '\0', sizeof io->uuid)) {
                 fprintf (stderr, "dmsetup: malformed %s response (data_start %u, data_size %u)\n",
                          dms_cmd_name (req, flags), io->data_start, io->data_size);
                 free (io);
@@ -341,7 +347,7 @@ dms_each_name (const struct dm_ioctl *io, int fd, dms_name_cb cb, void *arg, int
         ++*count;
         if (cb (fd, nl->name, nl->dev, arg)) rc = 1;
         if (nl->next == 0) break;
-        if (nl->next < sizeof *nl || nl->next > (size_t) (end - p))
+        if (nl->next < sizeof *nl || nl->next > (size_t) (end - p) || (nl->next & 7U))
             return dms_bad_response (io, "names");
         p += nl->next;
     }
@@ -699,7 +705,7 @@ dms_table_print (int fd, const char *name, const struct dms_table_arg *a, int *o
         }
         if (i + 1 < io->target_count) {
             /* the kernel's next is measured from the start of the data area */
-            if (ts->next <= off) {
+            if (ts->next <= off || (ts->next & 7U)) {
                 dms_bad_response (io, dms_cmd_name (DM_TABLE_STATUS, flags));
                 rc = EXECUTION_FAILURE;
                 break;
@@ -831,7 +837,7 @@ dms_targets_cmd (int fd)
         if (tv->name[0])
             printf ("%-16s v%u.%u.%u\n", tv->name, tv->version[0], tv->version[1], tv->version[2]);
         if (tv->next == 0) break;
-        if (tv->next < sizeof *tv || tv->next > (size_t) (end - p)) {
+        if (tv->next < sizeof *tv || tv->next > (size_t) (end - p) || (tv->next & 7U)) {
             dms_bad_response (io, "versions");
             rc = EXECUTION_FAILURE;
             break;
@@ -899,7 +905,7 @@ dms_device_size (int fd, const char *name, const char *uuid)
         const struct dm_target_spec *ts = (const struct dm_target_spec *) (first + off);
         total += ts->length;
         if (i + 1 < io->target_count) {
-            if (ts->next <= off) {
+            if (ts->next <= off || (ts->next & 7U)) {
                 dms_bad_response (io, "table");
                 free (io);
                 return -1;

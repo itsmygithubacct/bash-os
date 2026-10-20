@@ -479,7 +479,9 @@ def t_malformed_responses(fx):
     for kind, script in (("names", "dmsetup ls"), ("table", "dmsetup table alpha"),
                          ("status", "dmsetup table alpha"), ("deps", "dmsetup deps alpha"),
                          ("versions", "dmsetup targets"), ("message", "dmsetup message alpha 0 ping"),
-                         ("header", "dmsetup info alpha")):
+                         ("header", "dmsetup info alpha"),
+                         ("header-strings", "dmsetup info alpha"),
+                         ("unaligned", "dmsetup ls")):
         r = fx.run(script, STATE, env={"DMSFIX_MALFORM": kind})
         check(r.rc == 1 and "malformed" in r.err and r.rc != 0, f"malformed {kind} response rejected",
               f"rc={r.rc} err={r.err!r} out={r.out[:80]!r}")
@@ -503,11 +505,11 @@ def t_permissions(fx):
 
 def t_shell(fx):
     print("== one shell: repeated calls, fd hygiene, output errors, usage ==")
-    script = ('n0=$(ls /proc/$$/fd | wc -l 2>/dev/null); before=$(cd /proc/$$/fd && echo *); '
+    script = ('before=(/proc/$$/fd/*); '
               'for i in {1..40}; do dmsetup create r$i --table "0 $i zero" || exit 9; dmsetup suspend r$i; '
               'dmsetup resume r$i; dmsetup message r$i 0 ping >/dev/null; dmsetup rename r$i s$i; '
               'dmsetup remove s$i x$i 2>/dev/null; done; dmsetup info nope 2>/dev/null; '
-              'after=$(cd /proc/$$/fd && echo *); [[ $before == "$after" ]] && echo fds-same; type -t dmsetup')
+              'after=(/proc/$$/fd/*); [[ ${before[*]} == "${after[*]}" ]] && echo fds-same; type -t dmsetup')
     r = fx.run(script, STATE)
     check(r.rc == 0 and r.out == "fds-same\nbuiltin\n", "40 lifecycles in one shell", r.out + r.err)
     check(r.stats["devices"] == 3 and r.stats["ioctls"] == 40 * 9 + 1, "fixture back to its start state",
