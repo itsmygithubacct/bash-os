@@ -125,25 +125,36 @@ suites).
 ### The historical 1.47× `clip-text` ratio
 
 The catalog case times `clip text 0` on a 4,000-line entry against
-`head -n 4000 text`. Both write the same 209,906 bytes, and the harness checks
-them on every pass. The work is not the same: `head` is forked, executed and
-reads the file on each pass, while `clip` writes from memory. On the unchanged
-shared harness the starting binary measured 11.358 ms for 57 passes against
-114.43 ms for `head` (0.099×). The historical 1.47× (2026-09-12 build) does not
-reproduce. The final binary measured 6.093 ms for 66 passes against 98.0 ms
-(0.062×). These two harness runs were calibrated separately and ran at
-different times, so they are not a paired comparison; the interleaved adapter
-below is.
+`head -n 4000 text`. Both can write the same 209,906 bytes. The shared harness
+in `bench/loadables.py` byte-compares a separate captured batch — one probe
+pass, then a captured batch of `validation_passes` — and then times further
+batches with stdout discarded. A timed pass checks the process status only.
+On the final report that captured batch is 66 passes, and each of the seven
+timed samples is also 66 passes; the bytes of those timed samples were not
+checked. The work is not the same: `head` is forked, executed and reads the
+file on each pass, while `clip` writes from memory. On that harness the
+starting binary measured 11.358 ms for 57 passes against 114.43 ms for `head`
+(0.099×). The historical 1.47× (2026-09-12 build) does not reproduce. The
+final binary measured 6.093 ms for 66 passes against 98.0 ms, a ratio of
+0.062× on that one report. The ratio is clip's median wall time divided by
+head's. It is not an equivalent-work comparison, and it is not a paired
+before/after gain: the two harness runs were calibrated separately (57 and
+66 passes) and ran at different times. Claims that timed text output was
+byte-checked use the adapter below, not this ratio.
 
 ### Region sizes
 
 `bench/sol-clip.py` interleaves baseline and final batches. Each batch is a fresh
 shell: untimed setup, then a timed loop (`$EPOCHREALTIME` inside the shell, so
-process start and setup are excluded), then untimed validation. Every pass must
-succeed. Its output, or its effect on the buffer, is compared byte for byte with
-an oracle built from the fixture, for the warmup and every sample. `text` is the
-catalog fixture (423,000 bytes, 8,062 lines, no final newline, generated exactly
-as `bench/loadables.py` does); `large` has 65,536 lines with UTF-8 words;
+process start and setup are excluded), then an untimed check. Every pass must
+exit 0. For `text`, the timed loop appends each pass's output and the check
+compares that concatenation with an oracle built from the fixture, for the
+warmup and every sample. For `copy-range`, each pass's ring slot is written
+after the batch and compared. For paste and cut-paste, the check is the
+buffer's final bytes after the whole batch, not each intermediate mutation.
+`text` is the catalog fixture (423,000 bytes, 8,062 lines, no final newline,
+generated exactly as `bench/loadables.py` does); `large` has 65,536 lines with
+UTF-8 words;
 `oneline` is one 4 MiB line. `head -n K` is the matched reference only where its
 bytes are identical; at 8,062 lines and above the fixture's last line has no
 newline, `head` emits one byte fewer, and those cases are self timings.

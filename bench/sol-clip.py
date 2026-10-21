@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""clip workloads at several region sizes, every pass byte-validated.
+"""clip workloads at several region sizes.
 
     bench/sol-clip.py --binary before=PATH --binary after=PATH --cpu 11 \
         --runs 7 --output REPORT.json
 
 Each sample is one fresh shell running one batch: untimed setup, then the
 timed loop measured with $EPOCHREALTIME inside the shell (process start and
-setup excluded), then untimed validation. Batches for the given binaries are
-interleaved, one discarded warmup each. Every pass must succeed, and its
-output (or its effect on the buffer) is compared byte for byte with an oracle
-built here from the fixture, for the warmup and every sample.
+setup excluded), then an untimed check. Batches for the given binaries are
+interleaved, one discarded warmup each. Every pass must exit 0.
+
+`text` appends each pass's output during the timed loop. The check compares
+that concatenation with an oracle built here from the fixture, for the warmup
+and every sample. `copy-range` writes each ring slot after the batch and
+compares those bytes. Paste and cut-paste compare the buffer's final bytes
+after the whole batch, not each intermediate mutation.
 
 The `text` fixture is generated exactly as bench/loadables.py generates its
 catalog `text` fixture (423,000 bytes, 8,062 lines, no final newline); its
@@ -171,7 +175,9 @@ def main():
             return dict(ok=ok, ms=ms, exit=p.returncode, bytes=len(data), stderr=p.stderr[-400:].decode('replace'))
 
         report = dict(
-            method='in-shell $EPOCHREALTIME around the timed loop; setup and validation untimed; '
+            method='in-shell $EPOCHREALTIME around the timed loop; setup untimed; '
+                   'text compares the concatenated timed output; copy compares each ring slot after the batch; '
+                   'paste and cut-paste compare the final buffer; '
                    'one discarded warmup per case and binary; batches interleaved across binaries',
             runs=args.runs, cpu=args.cpu, kernel=platform.release(), machine=platform.machine(),
             python=platform.python_version(),
