@@ -47,6 +47,11 @@ On the root route:
   keeps that passwd group and the selected `-g` group, dropping a non-required
   membership instead. If the required groups themselves do not fit, the child
   exits 126.
+- `sudo -s` uses `$SHELL` when it is absolute, otherwise the invoking
+  account's shell, otherwise the target shell. `sudo -i` keeps the target
+  login shell. With a command, sudo on both the root route and the authority
+  runs `shell [-l] -c` with the words quoted. doas does not wrap an explicit
+  command on the authority route and still uses the target shell.
 - `SUDO_USER` names the invoking account from the account database, not the
   caller's `$USER`.
 - `SUDO_COMMAND` is exported for sudo (not for doas). Its argument text is
@@ -226,12 +231,9 @@ thousand failed `fcntl` per child, are the fixture's own descriptor census.
 - The root route is exercised as namespace root over mapped ids. That uses
   the real syscalls and kernel checks, but not host root, a real account
   database or a setuid entry path.
-- `sudo -l` remains a usage error that names a `/bash-os/sudo.sh` wrapper,
-  which is not in this repository. The authority's `POLICY_INFO` exposes
-  policy metadata only, with no rule projection to render.
+- `sudo -l`, `-ll` and `--list` remain a usage error that names a
+  `/bash-os/sudo.sh` wrapper, which is not in this repository. The authority's
+  `POLICY_INFO` exposes policy metadata only, with no rule projection to render.
 - sudoedit copies back unchanged files: the copyback is one digest-bound
   request for every target, and skipping unchanged targets would need kernel
   support. The cross-target rename is not atomic (see above).
-- Through the authority, `-i COMMAND` passes the command to the kernel
-  unresolved and unwrapped; `-s` on the root route uses the target's shell,
-  not the caller's `$SHELL`.

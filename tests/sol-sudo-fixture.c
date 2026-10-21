@@ -1836,6 +1836,65 @@ status_tests (void)
   CHECK (sigprocmask (SIG_UNBLOCK, &block, NULL) == 0);
 }
 
+static void
+shell_tests (void)
+{
+  unsetenv ("SHELL");
+  setenv ("SHELL", "/usr/bin/env", 1);
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture") == 41);
+  CHECK (S->argc == 1 && !strcmp (S->argv[0], "/usr/bin/env") && !strcmp (S->path, "/usr/bin/env"));
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-i", "-u", "fixture") == 41);
+  CHECK (!strcmp (S->argv[0], "-sh") && !strcmp (S->path, "/bin/sh"));
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture", "echo", "it's") == 41);
+  CHECK (!strcmp (S->path, "/usr/bin/env") && S->argc == 3 && !strcmp (S->argv[0], "/usr/bin/env"));
+  CHECK (!strcmp (S->argv[1], "-c") && !strcmp (S->argv[2], "'echo' 'it'\\''s'"));
+  /* doas keeps the target shell. */
+  reset_state ();
+  root_route = 1;
+  CHECK (DOAS ("-s", "-u", "fixture") == 41);
+  CHECK (!strcmp (S->argv[0], "/bin/sh") && !strcmp (S->path, "/bin/sh"));
+
+  unsetenv ("SHELL");
+  reset_state ();
+  CHECK (SUDO ("-n", "-i", "-u", "fixture", "echo", "it's") == 37);
+  CHECK (AUTHZ (0)->p.mode == BASHOS_AUTH_PRIVCMD_MODE_LOGIN);
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-l", "-c", "'echo' 'it'\\''s'", NULL));
+  setenv ("SHELL", "/bin/sh", 1);
+  reset_state ();
+  CHECK (SUDO ("-n", "-s", "-u", "fixture", "not-a-path", "x y") == 37);
+  CHECK (AUTHZ (0)->p.mode == BASHOS_AUTH_PRIVCMD_MODE_SHELL);
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-c", "'not-a-path' 'x y'", NULL));
+  unsetenv ("SHELL");
+  reset_state ();
+  CHECK (DOAS ("-n", "-u", "fixture", "-s", "/bin/true") == 37);
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/true", NULL));
+
+  /* With $SHELL unset, sudo -s uses the invoking account's shell. */
+  caller_shell = "/bin/bash";
+  accounts ();
+  unsetenv ("SHELL");
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture") == 41);
+  CHECK (!strcmp (S->argv[0], "/bin/bash") && !strcmp (S->path, "/bin/bash"));
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-i", "-u", "fixture") == 41 && !strcmp (S->argv[0], "-sh"));
+  setenv ("SHELL", "bash", 1);		/* relative: not used */
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture") == 41 && !strcmp (S->argv[0], "/bin/bash"));
+  caller_shell = "/bin/sh";
+  accounts ();
+  unsetenv ("SHELL");
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1881,7 +1940,7 @@ main (int argc, char **argv)
   else
     {
       const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper",
-                               "command", "groups", "status", NULL };
+                               "command", "groups", "status", "shell", NULL };
       for (int g = 0; groups[g]; g++)
         {
           if (argc == 2 && strcmp (argv[1], groups[g])) continue;
@@ -1896,6 +1955,7 @@ main (int argc, char **argv)
           if (!strcmp (groups[g], "command")) command_tests ();
           if (!strcmp (groups[g], "groups")) group_tests ();
           if (!strcmp (groups[g], "status")) status_tests ();
+          if (!strcmp (groups[g], "shell")) shell_tests ();
           printf ("group %s: %d assertions passed\n", groups[g], checks - start);
           rc = 1;
         }

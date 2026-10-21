@@ -98,6 +98,7 @@ typedef struct {
 static int bda_wait_status (pid_t pid);
 static void bda_child_reset_signals (void);
 static void bda_child_close_fds (void);
+static char *bda_quote_join_cmd (char **cmd, int cmdc);
 
 /* Bash refreshes the C environ (its export_env) only when it next runs an
    external command, so after `export PATH=...` a raw execvp would search the
@@ -928,6 +929,35 @@ cleanup:
   return rc;
 }
 
+/* Absolute $SHELL, otherwise the invoking account's shell. -1 leaves the
+   caller free to keep the target account's shell. */
+static int
+bda_sudo_invoke_shell (char *out, size_t cap)
+{
+  const char *env = getenv ("SHELL");
+  const char *chosen = NULL;
+  bc_user_info me;
+  char id[32];
+
+  if (env && env[0] == '/')
+    chosen = env;
+  else
+    {
+      snprintf (id, sizeof id, "%lu", (unsigned long) getuid ());
+      if (bda_lookup_user (id, &me) == 0 && me.shell[0] == '/')
+        chosen = me.shell;
+    }
+  if (!chosen)
+    return -1;
+  if (strlen (chosen) >= cap)
+    {
+      errno = ENAMETOOLONG;
+      return -1;
+    }
+  memcpy (out, chosen, strlen (chosen) + 1);
+  return 0;
+}
+
 /* Read or write the one-byte interactive verification marker. EINTR is
    retried. Any other error means the parent cannot tell a verify-only child
    from one that executed, so the caller fails closed. */
@@ -1041,6 +1071,7 @@ bda_run_authority (const bda_opts *o)
   int fd = bda_open_authority_if_available ();
   if (fd < 0)
     return BDA_AUTH_UNAVAILABLE;
+  char *shell_quote = NULL;
 
   const char *target = o->target ? o->target : "root";
   bc_user_info u;
@@ -1102,33 +1133,59 @@ bda_run_authority (const bda_opts *o)
           }
     }
 
-  /* SHELL (-s) / LOGIN (-i) with no explicit command: run the TARGET's login
-   * shell AS the command. The kernel executes argv[0] for SHELL/LOGIN exactly
-   * like EXEC (the mode only labels env/audit) — so the front-end owns this UX
-   * translation and the kernel never resolves a shell of its own. The policy
-   * authorizes the shell's absolute path (e.g. a sudoers `... /bin/bash` rule), and LOGIN
-   * appends "-l" so bash sources the login profile. An explicit command with
-   * -s/-i is run as-is in v1 (not wrapped in `$SHELL -c`). */
-  char *synth_cmd[3];
+  /* SHELL (-s) / LOGIN (-i). The kernel executes argv[0], so the front-end
+     supplies the absolute shell. With no command, argv is that shell, and -i
+     appends "-l". sudo with a command runs `shell [-l] -c <quoted words>`
+     rather than handing the kernel an unresolved command path. doas keeps an
+     explicit command unwrapped. sudo -s uses $SHELL or the invoking account's
+     shell; -i and doas use the target account's shell. */
+  char *synth_cmd[5];
+  char invoke_shell[PATH_MAX];
   char **eff_cmd = o->cmd;
   int eff_cmdc = o->cmdc;
-  if ((o->shell_mode || o->login_mode) && o->cmdc == 0)
+  const char *mode_shell = u.shell;
+  if (o->is_sudo && o->shell_mode && !o->login_mode &&
+      bda_sudo_invoke_shell (invoke_shell, sizeof invoke_shell) == 0)
+    mode_shell = invoke_shell;
+  if (o->shell_mode || o->login_mode)
     {
-      if (u.shell[0] != '/')
+      if (mode_shell[0] != '/')
         {
           close (fd);
           builtin_error ("no valid login shell for %s", u.name);
           return EXECUTION_FAILURE;
         }
-      synth_cmd[0] = u.shell;
-      eff_cmdc = 1;
-      if (o->login_mode)
+      if (o->cmdc == 0)
         {
-          synth_cmd[1] = (char *) "-l";
-          eff_cmdc = 2;
+          synth_cmd[0] = (char *) mode_shell;
+          eff_cmdc = 1;
+          if (o->login_mode)
+            {
+              synth_cmd[1] = (char *) "-l";
+              eff_cmdc = 2;
+            }
+          synth_cmd[eff_cmdc] = NULL;
+          eff_cmd = synth_cmd;
         }
-      synth_cmd[eff_cmdc] = NULL;
-      eff_cmd = synth_cmd;
+      else if (o->is_sudo)
+        {
+          int ai = 0;
+          shell_quote = bda_quote_join_cmd (o->cmd, o->cmdc);
+          if (!shell_quote)
+            {
+              close (fd);
+              builtin_error ("shell command build: out of memory");
+              return EXECUTION_FAILURE;
+            }
+          synth_cmd[ai++] = (char *) mode_shell;
+          if (o->login_mode)
+            synth_cmd[ai++] = (char *) "-l";
+          synth_cmd[ai++] = (char *) "-c";
+          synth_cmd[ai++] = shell_quote;
+          synth_cmd[ai] = NULL;
+          eff_cmd = synth_cmd;
+          eff_cmdc = ai;
+        }
     }
 
   unsigned int argv_bytes = 0, env_bytes = 0, env_count = 0;
@@ -1147,6 +1204,7 @@ bda_run_authority (const bda_opts *o)
   char *argv_blob = bda_argv_blob (eff_cmd, eff_cmdc, &argv_bytes);
   if (!argv_blob && eff_cmdc)
     {
+      free (shell_quote);
       close (fd);
       builtin_error ("v2 authority argv build: %s", strerror (errno));
       return EXECUTION_FAILURE;
@@ -1154,6 +1212,7 @@ bda_run_authority (const bda_opts *o)
   char *env_blob = bda_authority_env_blob (o, req_mode, &env_bytes, &env_count);
   if (!env_blob && errno)
     {
+      free (shell_quote);
       free (argv_blob);
       close (fd);
       builtin_error ("v2 authority env build: %s", strerror (errno));
@@ -1199,9 +1258,9 @@ bda_run_authority (const bda_opts *o)
   /*
    * ROUTING: an EXEC command, or a SHELL (-s) / LOGIN (-i) request, with a
    * controlling tty (and no -n) runs via the INTERACTIVE in-context-execve path
-   * so it keeps the tty (editors, interactive root shells, etc.). EXEC carries a
-   * caller command; SHELL/LOGIN carry none — the kernel builds [shell] /
-   * [shell,"-l"] from the target's pinned login shell. Everything else
+   * so it keeps the tty (editors, interactive root shells, etc.). The front-end
+   * supplies the argv for every mode, including a sudo shell command wrapped as
+   * `shell [-l] -c`. Everything else
    * (piped/scripted, -n, SUDOEDIT) runs via the non-interactive UMH handoff. The
    * interactive path requires mint+redeem in the SAME task (kernel lineage
    * check) and replaces the task on success, so it FORKS and does AUTHZ +
@@ -1390,6 +1449,7 @@ bda_run_authority (const bda_opts *o)
   }
 
 out:
+  free (shell_quote);
   free (argv_blob);
   free (env_blob);
   close (fd);
@@ -1853,6 +1913,12 @@ bda_run_root (const bda_opts *o)
       return EX_USAGE;
     }
 
+  char invoke_shell[PATH_MAX];
+  const char *sudo_s_shell = NULL;
+  if (o->is_sudo && o->shell_mode && !o->login_mode &&
+      bda_sudo_invoke_shell (invoke_shell, sizeof invoke_shell) == 0)
+    sudo_s_shell = invoke_shell;
+
   bos_child_wait waiting;
   pid_t pid = bda_fork_owned (&waiting);
   if (pid < 0)
@@ -1901,6 +1967,8 @@ bda_run_root (const bda_opts *o)
                  o->is_sudo ? "sudo" : "doas", u.home, strerror (errno));
       if (o->shell_mode || o->login_mode || o->cmdc == 0)
         {
+          /* sudo -s runs the invoking shell. -i and doas keep the target shell. */
+          const char *shell_path = sudo_s_shell ? sudo_s_shell : u.shell;
           char *cmdstr = o->cmdc ? bda_quote_join_cmd (o->cmd, o->cmdc) : NULL;
           if (o->cmdc && !cmdstr)
             {
@@ -1910,18 +1978,18 @@ bda_run_root (const bda_opts *o)
             }
           char *shell_words[] = { (char *) "-c", cmdstr };
           if (o->is_sudo &&
-              bda_env_add_command (&env, u.shell, shell_words, cmdstr ? 2 : 0) < 0)
+              bda_env_add_command (&env, shell_path, shell_words, cmdstr ? 2 : 0) < 0)
             {
               fprintf (stderr, "sudo: env build: out of memory\n");
               _exit (126);
             }
-          /* A login shell is named "-" plus the shell's basename. */
+          /* A login shell is named "-" plus the target shell's basename. */
           char login_name[sizeof u.shell + 1];
           const char *base = strrchr (u.shell, '/');
           snprintf (login_name, sizeof login_name, "-%s", base ? base + 1 : u.shell);
           char *argv[5];
           int ai = 0;
-          argv[ai++] = o->login_mode ? login_name : u.shell;
+          argv[ai++] = o->login_mode ? login_name : (char *) shell_path;
           if (cmdstr)
             {
               if (o->login_mode) argv[ai++] = "-l";
@@ -1933,10 +2001,10 @@ bda_run_root (const bda_opts *o)
               argv[ai++] = "-l";
             }
           argv[ai] = NULL;
-          execve (u.shell, argv, env);
+          execve (shell_path, argv, env);
           int exec_errno = errno;
           fprintf (stderr, "%s: exec %s: %s\n",
-                   o->is_sudo ? "sudo" : "doas", u.shell, strerror (errno));
+                   o->is_sudo ? "sudo" : "doas", shell_path, strerror (errno));
           _exit (exec_errno == ENOENT ? 127 : 126);
         }
 

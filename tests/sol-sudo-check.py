@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 GROUPS = ['options', 'lookup', 'authority', 'translation', 'root', 'edit', 'helper',
-          'command', 'groups', 'status']
+          'command', 'groups', 'status', 'shell']
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--fixture', type=Path)
