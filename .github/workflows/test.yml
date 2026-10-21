@@ -201,6 +201,51 @@ jobs:
             out/deps/riscv64-linux-gnu/bash-os-dependencies.json
           retention-days: 14
 
+  aarch64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CC: aarch64-linux-gnu-gcc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-aarch64-linux-gnu cmake curl \
+            bison bc qemu-user qemu-user-binfmt binfmt-support python3-cryptography openssh-client
+          sudo update-binfmts --enable qemu-aarch64
+      - name: Build pinned target libraries and a static full executable
+        run: |
+          ./build-deps.sh | tee dependencies.log
+          ./build.sh --profile full --static --deps-prefix out/deps/aarch64-linux-gnu
+      - name: Run the AArch64 executable
+        run: QEMU_RISCV64=qemu-aarch64 bash tests/cross-smoke.sh out/aarch64-linux-gnu/bash-static | tee cross.log
+      # Ubuntu 24.04 uses GCC 13. These independent answers also catch wrong
+      # arithmetic when release builders use a different compiler (e.g. GCC 14).
+      - name: Check P-256 arithmetic and independent protocol fixtures
+        run: |
+          "$CC" -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -static \
+            tests/p256-m-check.c -o out/p256-m-check
+          qemu-aarch64 out/p256-m-check | tee p256-unit.log
+          BASH_OS_RUNNER=qemu-aarch64 python3 tests/p256-check.py \
+            out/aarch64-linux-gnu/bash-static --report p256.json | tee p256.log
+      - name: Preserve cross build evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: aarch64-logs
+          path: |
+            dependencies.log
+            cross.log
+            p256-unit.log
+            p256.log
+            p256.json
+            out/aarch64-linux-gnu/*.log
+            out/aarch64-linux-gnu/*.manifest.*
+            out/deps/aarch64-linux-gnu/bash-os-dependencies.json
+          retention-days: 14
+
   fuzz:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
