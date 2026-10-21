@@ -22,8 +22,13 @@ updwtmpx, pututline and pututxline without forwarding to the host. Tests assert
 zero accounting calls, the exact reboot command, sync count and call order.
 No real reboot, sync, accounting write or service command is invoked.
 
-`tests/sol-reboot-check.py` adds 208 checks:
+`tests/sol-reboot-check.py` adds 209 checks:
 
+- A fail-closed guard: ld.so ignores an LD_PRELOAD object it cannot load and
+  continues, while `enable -f` would still load the fixture privately. Every
+  reboot script, including benchmark batches, first confirms that the
+  interceptor (and ASan runtime) were mapped at startup and exits 93 before
+  `enable` otherwise; one check asserts that an unpreloaded shell stops there.
 - All 170 partitions of `f`/`n` strings of lengths one through four into
   clustered or separate option words, followed by `--`.
 - Twenty-three invalid argument/action forms, including empty operands,
@@ -38,7 +43,7 @@ No real reboot, sync, accounting write or service command is invoked.
 The retained halt suite supplies 108 checks across halt/reboot/poweroff,
 including `/dev/full`, closed stdout, output recovery, shell state and descriptor
 preservation. The retained poweroff suite supplies 94 checks including 2,800
-mixed sibling calls. All 410 checks pass natively and all 410 pass with
+mixed sibling calls. All 411 checks pass natively and all 411 pass with
 ASan/UBSan. Artifact inspection confirms sanitizer instrumentation, local builtin
 binding and interposable reboot/sync symbols. Run all three suites after
 subsequent shared-header edits.
