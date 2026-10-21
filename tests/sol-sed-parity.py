@@ -244,8 +244,12 @@ sed -n '$p' < "$1"''')
     try:
         os.close(slave)
         proc.stdin.write(b'a\n');proc.stdin.flush()
-        assert select.select([master],[],[],5)[0]
-        assert os.read(master,4096)==b'A\r\n'
+        # The terminal driver may deliver the text and the ONLCR-expanded
+        # newline to the master in separate pushes; collect the whole line.
+        line=b''
+        while not line.endswith(b'\n') and select.select([master],[],[],5)[0]:
+            line+=os.read(master,4096)
+        assert line==b'A\r\n', line
         assert proc.poll() is None
         proc.stdin.close();proc.stdin=None
         out,err=proc.communicate(timeout=5)

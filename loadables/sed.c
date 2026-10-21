@@ -1300,6 +1300,28 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
     }
 }
 
+/* Substitution output buffer, reused across calls and swapped with the
+   pattern space on success; released when the invocation ends. */
+static bs_string bs_s_scratch;
+
+/* Literal search. For short needles, memchr plus memcmp avoids the per-call
+   setup of some libcs' two-way memmem (musl), with at most nl comparisons per
+   candidate; longer needles keep memmem's linear bound. */
+static const char *
+bs_find (const char *h, size_t hl, const char *n, size_t nl)
+{
+    if (nl > hl) return NULL;
+    if (nl > 32) return memmem (h, hl, n, nl);
+    const char *end = h + (hl - nl) + 1;
+    while (h < end) {
+        const char *p = memchr (h, (unsigned char) n[0], (size_t) (end - h));
+        if (!p) return NULL;
+        if (!memcmp (p + 1, n + 1, nl - 1)) return p;
+        h = p + 1;
+    }
+    return NULL;
+}
+
 /* Apply s/// to pattern space. Returns 1 if matched (and substituted).
    s///e output loses one trailing record separator. GNU sed's shortcut for
    an empty replacement whose first match starts a non-global substitution
@@ -1311,7 +1333,6 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
     regmatch_t m[10];
     int matched_any = 0;
     size_t off = 0;
-    bs_string out;
     /* Effective regex: an empty s// reuses the last regex used at runtime. */
     regex_t *re = c->s_empty_re ? bs_last_re : &c->s_re;
     if (!re) { builtin_error ("no previous regular expression"); bs_runtime_error = 1; return -1; }
@@ -1319,7 +1340,13 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
     if ((size_t) c->s_needed_sub > re->re_nsub) {
         builtin_error ("invalid backreference in replacement"); bs_runtime_error = 1; return -1;
     }
-    bs_str_init (&out);
+    bs_string out = bs_s_scratch;
+    out.len = 0; out.failed = 0;
+    if (bs_str_reserve (&out, pat->len) < 0) {
+        bs_s_scratch = out; bs_s_scratch.failed = 0;
+        bs_runtime_error = 1; return -1;
+    }
+    out.str[0] = '\0';
     /* A byte search is equivalent for ASCII subjects in every locale and
        for arbitrary byte subjects in a single-byte locale. Keep the regex
        engine for multibyte text, including invalid encoding sequences. */
@@ -1344,8 +1371,8 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
     while (off <= pat->len)
     {
         if (literal) {
-            const char *hit = memmem (pat->str + off, pat->len - off,
-                                      c->s_literal, c->s_literal_len);
+            const char *hit = bs_find (pat->str + off, pat->len - off,
+                                       c->s_literal, c->s_literal_len);
             if (!hit) break;
             m[0].rm_so = (regoff_t) (hit - pat->str - off);
             m[0].rm_eo = m[0].rm_so + (regoff_t) c->s_literal_len;
@@ -1426,20 +1453,24 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
             if (c->s_exec) {
                 bs_string exec_out;
                 bs_str_init (&exec_out);
-                if (bs_exec_capture (out.str ? out.str : "", &exec_out, 1) < 0) {
-                    bs_str_free (&exec_out);
-                    bs_str_free (&out);
-                    return -1;
-                }
-                bs_str_set (pat, exec_out.str ? exec_out.str : "", exec_out.len);
+                int failed = bs_exec_capture (out.str, &exec_out, 1) < 0;
+                if (!failed) bs_str_set (pat, exec_out.str ? exec_out.str : "", exec_out.len);
                 bs_str_free (&exec_out);
+                bs_s_scratch = out;
+                if (failed) return -1;
                 if (completes) *chomped = 1;
-            } else {
-                bs_str_set (pat, out.str ? out.str : "", out.len);
+                return matched_any;
             }
+            bs_string old = *pat;
+            *pat = out;
+            out = old;
         }
     }
-    bs_str_free (&out);
+    /* An allocation failure must not pass for an unchanged pattern space. */
+    int failed = out.failed;
+    out.len = 0; out.failed = 0;
+    bs_s_scratch = out;
+    if (failed) { bs_runtime_error = 1; return -1; }
     return matched_any;
 }
 
@@ -2414,6 +2445,7 @@ sed_builtin (WORD_LIST *list)
     clearerr (stdout);
     clearerr (stderr);
     bs_close_rstreams ();   /* close any `R` input files */
+    bs_str_free (&bs_s_scratch);
     for (int i = 0; i < n_cmds; i++) bs_cmd_free (&cmds[i]);
     free (cmds);
     free (files);

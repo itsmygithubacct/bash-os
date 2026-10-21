@@ -233,6 +233,9 @@ for ((i=0;i<64;i++)); do
   sed -n '\\,a,p' t >/dev/null || exit 18
   sed --posix p t >/dev/null 2>&1 && exit 19
   sed 's1a1[\\1]1' t >/dev/null || exit 20
+  printf 'a\\0b' | sed -z p >/dev/full 2>/dev/null; [[ $? == 4 ]] || exit 22
+  BASHSED_ALLOW_EXEC=1 sed 'e printf X' t >/dev/full 2>/dev/null; [[ $? == 4 ]] || exit 23
+  sed --follow-symlinks -n 'F;p' l >/dev/full 2>/dev/null; [[ $? == 4 ]] || exit 24
 done
 [[ -L l ]] || exit 21
 sed -n '\\,b,p' l''')
