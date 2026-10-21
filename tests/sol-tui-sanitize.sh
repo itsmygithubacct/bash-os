@@ -14,7 +14,7 @@ cc -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
   -I"$BT/builtins" -I"$BT/examples/loadables" -Iloadables/common \
   loadables/tui.c "$dir/builtins/_bl_screen_screen.c" "$dir/builtins/_bl_key_bl_key.c" \
   -o "$dir/tui.so"
-printf 'enable -f %q tui\n' "$dir/tui.so" > "$dir/load.sh"
+printf 'enable -f %q tui || exit 91\n' "$dir/tui.so" > "$dir/load.sh"
 cat > "$dir/bash-tui" <<EOF
 #!/bin/bash
 export LD_PRELOAD=$(cc -print-file-name=libasan.so)
@@ -24,4 +24,6 @@ export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 exec $binary "\$@"
 EOF
 chmod +x "$dir/bash-tui"
+# A compiled-in builtin cannot be deleted; require the dynamic replacement.
+"$dir/bash-tui" -c 'enable -d tui'
 python3 tests/sol-tui-check.py "$dir/bash-tui"

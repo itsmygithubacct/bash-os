@@ -59,6 +59,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash
 check 'lpr private spool and configured backend' python3 tests/opus-lpr-delivery.py out/bash
 check 'git lifecycle wait and repository state' python3 tests/sol-git-lifecycle.py out/bash
 check 'git workload oracle corruption controls' python3 tests/sol-git-oracles.py
@@ -168,6 +169,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash-static
 check 'static vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash-static
 check 'static bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash-static
 check 'static pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash-static
@@ -227,6 +229,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'tui and shared helpers sanitizer contracts' env BASHOS_TASK_DIR="$scratch/tui-contracts" bash tests/sol-tui-sanitize.sh out/bash
   check 'lpr delivery and cancel SIGPIPE under ASan+UBSan' bash tests/opus-lpr-sanitize.sh out/bash
   mkdir -p "$scratch/gpu-frames"
   touch "$scratch/gpu-frames/render.fixture"

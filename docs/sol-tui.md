@@ -110,3 +110,11 @@ matched baseline: the baseline emits 14 cells for two changed cells on one row,
 so it fails the sparse traffic oracle, and no baseline samples were taken. No
 speedup is claimed. The full-screen maximum is one outlier; the other six
 samples are within 7% of the median.
+
+## Signal lifecycle limits
+
+Set TERM, HUP, and WINCH traps before initializing a screen. Teardown restores
+the dispositions saved at initialization; traps installed while the screen is
+active are not preserved. While active, the existing terminal cleanup handler
+for TERM/HUP restores terminal modes and re-raises the signal with its default
+action rather than invoking a shell trap. These are known lifecycle limits.

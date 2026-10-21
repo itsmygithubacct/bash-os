@@ -1459,6 +1459,14 @@
       "status": "Contract",
       "evidence": "tests/sol-reboot-check.py",
       "scope": "Original scope met: fixture-backed RB_AUTOBOOT/option/errno/privilege/repeat-state validation via the genuine builtin behind the closed boundary, halt/poweroff regression reruns, seven-sample validated parser+shim timings, hardware latency explicitly unmeasured. Production sources (loadables/reboot.c, common/reboot-impl.h) unchanged from base and from integration d77e24a. Ready with the correction commits applied."
+    },
+    {
+      "names": [
+        "tui"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-tui-check.py",
+      "scope": "The original scope is met: the private-PTY API contract, sanitizer, top/more revalidation and the seven-sample fixed-work API benchmark all pass on the corrected tree. No reduced scope. Wide/combining grapheme layout, terminal-emulator compatibility and allocator fault injection are documented qualification limits, not unmet acceptance criteria."
     }
   ],
   "sanitizer_groups": [
@@ -3022,6 +3030,11 @@
       "evidence": "docs/sol-top.md",
       "note": "The original brief's bounded software-path contract is met. It covers deterministic injected-proc batch snapshots and private-PTY fixtures for CPU deltas, memory, sorts and ties, PID churn and reuse, resize, keys and prompts, exit and termios/trap restoration, strict numeric parsing, and fixed-count benchmarks with terminal bytes. It does not claim procps parity.",
       "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
+    },
+    "tui": {
+      "evidence": "docs/sol-tui.md",
+      "note": "The original scope is met: the private-PTY API contract, sanitizer, top/more revalidation and the seven-sample fixed-work API benchmark all pass on the corrected tree. No reduced scope. Wide/combining grapheme layout, terminal-emulator compatibility and allocator fault injection are documented qualification limits, not unmet acceptance criteria.",
+      "next": "Retain documented software-path limits and preserve historical measurement provenance."
     }
   },
   "repeat_input_findings": [],
@@ -3087,7 +3100,8 @@
     "screen",
     "top",
     "buf",
-    "gpu"
+    "gpu",
+    "tui"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
