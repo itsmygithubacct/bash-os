@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Test-only proc adapter and fail-closed signal sink. There is deliberately
    no path to the real kill syscall. Native tests preload this; the sanitizer
    harness substitutes only these three production calls at compile time. */

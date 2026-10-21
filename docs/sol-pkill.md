@@ -104,3 +104,5 @@ The raw report retains all samples, source and adapter hashes, versions and
 environment details. There was no existing pkill timing to reproduce; these
 establish measured workloads without a speedup claim. Synchronous signal-log
 writes are included, so the figures do not estimate real kernel signal cost.
+
+Integration qualification: `-c` retains the existing count of successful delivery requests, which differs from procps matched-process counts when delivery fails. The supported option subset also excludes `-e/--echo`, `-i/--ignore-case`, `-A/--ignore-ancestors`, `-H/--require-handler`, and `-q/--queue`. Newest/oldest (`-n`/`-o`) selection now applies to pkill as well as pgrep.

@@ -1435,6 +1435,14 @@
       "status": "Contract",
       "evidence": "tests/sol-buf-check.py",
       "scope": "The assigned scope is met: transactional reload and save rollback, retained or aliased filenames, failed-publication cleanup, stale/empty handle and number validation, line/byte boundaries, repeated load/save, output-failure propagation, and save batching backed by profiling, with exact-output timed evidence at 423000 B, 4 MiB and 32 MiB including peak RSS. The historical buf-text 3.13x slowdown does not reproduce (bashos 3.25 ms vs cat 18-19 ms, both before and after). Qualification limits (not unresolved requirements): no power-loss or durability qualification, no concurrent external truncation of mmap sources, LeakSanitizer disabled, stale slot integers are recycled by design, and a mutate journal-write failure still applies the edit."
+    },
+    {
+      "names": [
+        "pkill"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-pkill-check.py",
+      "scope": "The brief's acceptance criteria are met for the documented software-path scope: owned children receive named/numeric signals with nonmatches verified alive, default TERM verified by wait status, injected EPERM/ESRCH/EINVAL statuses and diagnostics, invalid regex/args/user return 2 with zero intercepted delivery, grouped options and -n/-o delivery, and a fixed-work syscall-shim benchmark with delivered counts. Real signals are confined to owned children restricted by -P getpid(). Option coverage is a bounded procps subset with exclusions documented (F2 notes omissions in that list). The -c count divergence (F1) is pre-existing and documented, not a regression."
     }
   ],
   "sanitizer_groups": [
@@ -2588,9 +2596,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "pkill": {
-      "evidence": "docs/sol-pgrep.md",
-      "note": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-pkill.md",
+      "note": "The brief's acceptance criteria are met for the documented software-path scope: owned children receive named/numeric signals with nonmatches verified alive, default TERM verified by wait status, injected EPERM/ESRCH/EINVAL statuses and diagnostics, invalid regex/args/user return 2 with zero intercepted delivery, grouped options and -n/-o delivery, and a fixed-work syscall-shim benchmark with delivered counts. Real signals are confined to owned children restricted by -P getpid(). Option coverage is a bounded procps subset with exclusions documented (F2 notes omissions in that list). The -c count divergence (F1) is pre-existing and documented, not a regression.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "su": {
       "evidence": "docs/sol-doas.md",

@@ -221,6 +221,11 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  mkdir -p "$scratch/pkill-contracts"
+  check 'pkill interceptor build' "$CC" -std=gnu11 -Wall -Wextra -Werror -O2 -fPIC -shared tests/sol-pkill-intercept.c -ldl -o "$scratch/pkill-contracts/pkill-intercept.so"
+  check 'pkill sanitizer build' "$CC" -std=gnu11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -I tests/sol-pgrep-stubs tests/sol-pkill-harness.c -o "$scratch/pkill-contracts/pkill-sanitize"
+  check 'pkill owned-child and intercepted contracts' python3 tests/sol-pkill-check.py --binary out/bash --shim "$scratch/pkill-contracts/pkill-intercept.so"
+  check 'pkill sanitizer contracts' python3 tests/sol-pkill-check.py --binary "$scratch/pkill-contracts/pkill-sanitize" --sanitizer
   check 'buf probe build' bash tests/sol-buf-build-probe.sh "$scratch/buf-probe"
   check 'buf rollback contracts' env BUF_LOAD_ENV="$scratch/buf-probe/probe.sh" python3 tests/sol-buf-faults.py out/bash
   check 'buf sanitizer contracts' env BUF_LOAD_ENV="$scratch/buf-probe/sanitize.sh" BUF_ASAN_LIB="$(cat "$scratch/buf-probe/asan-runtime.txt")" python3 tests/sol-buf-check.py out/bash

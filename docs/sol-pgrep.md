@@ -16,7 +16,7 @@ caller's session/process group. `-u` now selects effective UID, as procps does;
 Numeric overflow, malformed lists and malformed proc records are rejected or
 skipped rather than wrapped into other identities.
 
-For pgrep, `-n/--newest` and `-o/--oldest` select by start time; equal times use
+For pgrep and pkill, `-n/--newest` and `-o/--oldest` select by start time; equal times use
 highest/lowest PID respectively. These flags are mutually exclusive and cannot
 be combined with `-v`. Listing, custom delimiters, count, inversion, short option
 clusters and repeated invocations are covered. Command lines use a growable
@@ -27,8 +27,7 @@ later invocation can write successfully after its output descriptor is restored.
 
 This is the documented selector surface, rather than a claim to implement every
 procps option. Terminal, namespace, pidfile, cgroup, environment, thread and
-run-state selectors are outside this task. Newest/oldest are exposed for pgrep
-only. As before, empty command lines are skipped under `-f`, and name matching
+run-state selectors are outside this task. Newest/oldest are exposed for pgrep and pkill. As before, empty command lines are skipped under `-f`, and name matching
 reads `/proc/PID/comm`. Procfs is a changing snapshot: already-open files can
 remain readable after the directory disappears, and unreadable records are
 skipped.

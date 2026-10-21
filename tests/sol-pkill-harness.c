@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Execute the real pkill entry point and shared backend with Bash ABI stubs.
    Build separately through the build gate. No actual signals are possible. */
 #define SOL_PKILL_LINKED
