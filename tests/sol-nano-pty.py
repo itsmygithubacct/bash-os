@@ -421,9 +421,10 @@ def signals(d):
           "with TERM ignored the editor keeps running, and the next call is unaffected")
 
     # A trapped signal ends only the current call: the next call in the same
-    # shell installs fresh handlers and starts clean.
+    # shell installs fresh handlers and starts clean.  The status is read
+    # with || so the check also holds under set -e (the sanitizer loader).
     (d / "u.txt").write_bytes(b"u\n")
-    s = ours_session(d, "trap 'echo CAUGHT' TERM; nano u.txt; echo FIRST=$?; nano u.txt; echo SECOND=$?")
+    s = ours_session(d, "trap 'echo CAUGHT' TERM; nano u.txt || echo FIRST=$?; nano u.txt; echo SECOND=$?")
     s.keys(b"1")
     os.kill(s.pid, signal.SIGTERM)
     s.wait_for(b"CAUGHT")
@@ -491,7 +492,7 @@ def justify(d):
 
 def spell(d):
     helper = d / "speller.sh"
-    helper.write_text("read -r -d '' text; printf '%s\\n' teh wrold\n")
+    helper.write_text("read -r -d '' text || :; printf '%s\\n' teh wrold\n")
     cmd = f"{binary} --norc {helper}"
     (d / "s.txt").write_bytes(b"teh wrold is teh best wrold\n")
     s = ours_session(d, f"nano --speller={q(cmd)} s.txt")
@@ -530,7 +531,7 @@ def spell(d):
     hang = d / "hang.sh"
     pidfile = d / "hang.pid"
     hang.write_text(f"echo $$ > {q(pidfile)}; while :; do :; done\n")
-    s = ours_session(d, f"trap 'echo GOT-TERM' TERM; nano --speller={q(f'{binary} --norc {hang}')} s.txt; echo RC=$?")
+    s = ours_session(d, f"trap 'echo GOT-TERM' TERM; nano --speller={q(f'{binary} --norc {hang}')} s.txt || echo RC=$?")
     os.write(s.fd, SPELL)
     end = time.monotonic() + 5
     while not pidfile.exists() and time.monotonic() < end:

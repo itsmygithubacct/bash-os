@@ -28,7 +28,7 @@ export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=
 fail=0
 for t in '' -piecetable -keybindings -saveprompt -replace -search -resize -statusbar \
          -yank-ring -atomic-save -undo-redo -justify -spell -complete -selection -linecache \
-         -input -display; do
+         -input -display -highlight; do
   out=$(env -i PATH= LANG=C.UTF-8 BASH_ENV="$BASH_ENV" LD_PRELOAD="$LD_PRELOAD" \
         ASAN_OPTIONS="$ASAN_OPTIONS" LSAN_OPTIONS="$LSAN_OPTIONS" UBSAN_OPTIONS="$UBSAN_OPTIONS" \
         "$target" -c "nano selftest$t" 2>&1) || { echo "FAIL selftest$t"; echo "$out" | tail -30; fail=1; continue; }
