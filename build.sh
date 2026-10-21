@@ -23,6 +23,8 @@ source config/versions.sh
 source config/loadables.sh
 
 die(){ echo "build.sh: $*" >&2; exit 1; }
+BASHOS_VERSION=$(<VERSION)
+[[ $BASHOS_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION must be MAJOR.MINOR.PATCH"
 say(){ echo "build.sh: $*"; }
 usage(){
   cat <<'HELP'
@@ -179,7 +181,7 @@ while read -r stock_name stock_patch; do
 done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION"; "$CC" --version;
-           cat config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
+           cat VERSION config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
@@ -346,6 +348,7 @@ STRIP_ARGS=(); [[ $STRIP != 1 ]] || STRIP_ARGS=("$STRIPTOOL")
 python3 "$HERE/config/publish-binary.py" bash "$OUTBIN" "${STRIP_ARGS[@]}"
 {
   echo "# bash-os manifest  $(date -u +%FT%TZ)"
+  echo "bash-os $BASHOS_VERSION"
   echo "bash $BASH_SRC_VERSION patchlevel $BASH_PATCHLEVEL  target=$TARGET static=$STATIC stripped=$STRIP"
   echo "cc=$($CC --version | head -1)"
   echo "cflags=$CFLAGS"
@@ -353,11 +356,11 @@ python3 "$HERE/config/publish-binary.py" bash "$OUTBIN" "${STRIP_ARGS[@]}"
   echo "injected builtins (${#NAMES[@]}): ${NAMES[*]}"
   ( cd "$OUTDIR" && sha256sum "$NAME" && wc -c "$NAME" )
 } | tee "$MANIFEST"
-python3 - "$OUTBIN" "$TARGET" "$STATIC" "$STRIP" <<'PYMANIFEST'
+python3 - "$OUTBIN" "$TARGET" "$STATIC" "$STRIP" "$BASHOS_VERSION" <<'PYMANIFEST'
 import hashlib, json, os, sys
 from pathlib import Path
 p = Path(sys.argv[1]); selection = json.loads(os.environ['SELECTION'])
-selection.update(target=sys.argv[2], static=sys.argv[3]=='1', stripped=sys.argv[4]=='1',
+selection.update(bashos_version=sys.argv[5], target=sys.argv[2], static=sys.argv[3]=='1', stripped=sys.argv[4]=='1',
                  binary_sha256=hashlib.sha256(p.read_bytes()).hexdigest(), bytes=p.stat().st_size)
 if os.environ.get('PERL_CONFIG'):
     selection['perl'] = json.loads(os.environ['PERL_CONFIG'])

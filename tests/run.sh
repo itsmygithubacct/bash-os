@@ -57,6 +57,7 @@ if ./build.sh >"$scratch/build.log" 2>&1; then
 else
   cat "$scratch/build.log"; echo 'FAIL default build'; exit 1
 fi
+check 'release version in build manifests' python3 tests/build-version.py out/bash
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
 check 'clip contract' python3 tests/sol-clip-check.py out/bash
