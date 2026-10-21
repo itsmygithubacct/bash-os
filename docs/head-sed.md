@@ -31,8 +31,14 @@ bytes to the shared descriptor position before closing. This lets a later
 shell `read` continue immediately after `head`'s last line or `sed`'s early
 quit. Simply closing a buffered duplicate would lose that data.
 
-Nonseekable input uses unbuffered stdio to avoid consuming a later reader's
-bytes. `sed` evaluates lookahead only for a reached `$` address. On Linux pipes
+Positive line-count `head` and `sed` use unbuffered stdio on nonseekable
+input to avoid consuming a later reader's bytes. Head byte counts use bounded
+reads; tail exclusion consumes through EOF. Ownership follows the opened
+operand or duplicated stdin, even when opening a file reuses descriptor zero
+because shell stdin was closed. Closing that file must close descriptor zero;
+closing a stdin duplicate must leave shell stdin open.
+
+`sed` evaluates lookahead only for a reached `$` address. On Linux pipes
 and FIFOs it uses `tee(2)` to inspect availability without removing a byte;
 sockets use `MSG_PEEK`. Thus even `sed '$!q'` leaves the complete next record
 for another reader. If the producer remains open with no following byte, a
@@ -46,17 +52,24 @@ indicator is cleared after recording failure so subsequent shell output works.
 
 ## Scope and compatibility
 
-These remain command subsets, with the following limits:
+Head supports the options described below; sed retains its command subset.
+The compatibility boundaries are:
 
-- `head` retains Bash's positive `-n N`, legacy `-N`, default ten lines, and
-  named-file headers. It does not implement GNU byte counts, zero/negative
-  counts, quiet/verbose flags or the `-` stdin operand. Its inherited `atoi`
-  count parsing is not a strict GNU numeric parser.
+- `head` supports byte counts, zero and negative (tail-excluding) counts,
+  quiet/verbose headers, `-` stdin operands, NUL-delimited records, long options
+  and GNU numeric suffixes, in addition to positive line counts and legacy
+  `-N`. See [the head completion report](sol-head.md) for semantics, focused
+  coverage and separate first-N/tail-exclusion measurements.
 - `sed` defaults to BRE; `-E`/`-r` select ERE. Numbering, hold space, address
   ranges and `n`/`N` span named operands by default. `-s` and `-i` start separate
   file cycles. The option parser and command set remain a GNU sed subset.
   Length-aware GNU regex matching supports embedded NUL subjects: glibc's
-  engine, or a private GNU sed 4.9 engine on other libcs. `-z`, `--sandbox`,
+  engine, or a private GNU sed 4.9 engine on other libcs. Bracket expressions
+  may contain the regex delimiter. `e` commands continue across a
+  backslash-newline. `v 4.9` is accepted and `v 4.9.0` is rejected. In-place
+  replacement is pinned to the parent directory. A repeated group that can
+  match empty and contains an anchor is matched directly when it is the whole
+  pattern, and refused otherwise, so the search cannot loop. `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
   `--debug` are rejected. See [the focused completion notes](sol-sed.md) and
   [the follow-up notes](opus-sed-followup.md) for the tested scope.
@@ -70,8 +83,11 @@ These remain command subsets, with the following limits:
   a shared descriptor. A canonical terminal EOF marker followed by already
   queued input is misclassified (the Linux terminal driver offers no
   nonconsuming way to see it); non-Linux kernels are unqualified.
-- Avoiding pipe read-ahead uses byte-at-a-time input syscalls on pipes and
-  terminals. The regular-file benchmark does not measure that throughput.
+- Avoiding pipe read-ahead uses byte-at-a-time input syscalls for positive
+  line-count `head` and ordinary `sed` input on pipes and terminals. Head byte
+  counts read bounded blocks, and tail exclusion consumes the complete pipe
+  using blocks. The historical regular-file benchmark does not measure pipe
+  throughput.
   Signal interruption and full GNU exit-code equivalence are outside the
   focused parity suite.
 

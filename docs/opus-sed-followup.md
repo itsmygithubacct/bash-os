@@ -29,12 +29,22 @@ delimiter for `s`, `y` or an address.
 
 `\cREGEXc` addresses accept any delimiter except newline, including
 backslash. They support the `I` and `M` flags, ranges, `!`, blocks and
-empty-regex reuse. `z` empties the pattern space. `v [VERSION]` accepts
-versions up to 4.9 and rejects later or malformed versions.
+empty-regex reuse. A delimiter inside a bracket expression is part of the
+expression, including after `[^` and inside `[:` `[=` `[.` names. The same
+scan is used for the regex half of `s///`. The replacement half and `y`
+still end at the first unescaped delimiter. `z` empties the pattern space.
+`v [VERSION]` compares components with GNU sed 4.9. A request that matches
+the known prefix is accepted (`v 4.9`, `v 4.8.99`, `v 3.9.0`). An extra
+component is newer even when it is zero (`v 4.9.0`), unless an earlier
+component already showed the request is older. A trailing dot or other junk
+is rejected.
 
-`e COMMAND` runs the rest of the line and writes its output before the
-cycle's output. Bare `e` replaces the pattern space with the output of
-running it. Both forms, and the `s///e` flag, still require
+`e COMMAND` runs the command and writes its output before the cycle's
+output. The command continues across a backslash-newline: the backslash is
+dropped, the newline is kept, and spaces or tabs on the next line are
+skipped. A semicolon does not end it. A blank command, or one that is only
+`;` or `}`, is the pattern-space form. Bare `e` replaces the pattern space
+with the output of running it. Both forms, and the `s///e` flag, still require
 `BASHSED_ALLOW_EXEC=1`. Output from `e` loses one trailing record separator,
 and the result is always a complete record. `s///e` also loses one trailing
 separator. When the replacement is empty and the first match either starts a
@@ -58,11 +68,18 @@ unterminated `a` prints `aa\na`.
 - `--follow-symlinks` resolves links one at a time. A relative target is
   joined to the link's directory, so `F` reports `sub/../file` as GNU does.
   `-i` then edits, and backs up, the final target. Dangling links and loops
-  fail with status 4.
+  fail with status 4. The walk uses `openat` and `readlinkat` from the held
+  parent: an absolute target restarts at `/`, and `..` stays relative to that
+  directory.
 - Without `--follow-symlinks`, `-i` reads through a symlink and replaces the
   link with the edited regular file, as GNU sed does. The builtin used to
-  refuse symlinks. Directories, FIFOs and devices are still refused (status
-  4). The source is opened without blocking and then checked with `fstat`.
+  refuse symlinks. The parent directory stays open for the temporary file,
+  the backup and the final `renameat`. Before those replacements, the
+  directory and the final directory entry are checked again; a changed
+  identity deletes the temporary file and returns status 4. A backup suffix
+  that contains `/` is rejected so the backup cannot leave that directory.
+  Directories, FIFOs and devices are still refused (status 4). The source is
+  opened without blocking and then checked with `fstat`.
 - `-b`/`--binary` is accepted and does nothing, as on other POSIX systems.
   `--version` prints a `sed (bash-os loadable)` line and returns 0.
 - `--posix` and `--debug` are **not implemented**. They, like any other
@@ -91,6 +108,20 @@ buffer lasts for the invocation and is swapped with the pattern space.
 Literals of up to 32 bytes use `memchr` and `memcmp`; longer needles keep
 `memmem`. If allocation fails while a result is being built, the command
 reports an error instead of leaving the pattern space unchanged.
+
+glibc's `set_regs` does not return when `re_search` is asked for registers
+and the pattern is a repeated group that can match empty and that contains
+an anchor. The global substitution retry is that call, including when an
+empty `s//` reuses an address regex. If the whole pattern is one capturing
+group of anchors and literals, sed matches it directly and never calls
+`re_search`. `s/(|^b)+/x/g` on `.b` therefore prints `x.xbx`, and the same
+shape with `` \` ``, `$`, `\<` or `\b` is handled the same way. Any other
+pattern of that shape is refused with `regex may hang; refusing pattern`
+before it is compiled. Ordinary patterns, including `(^a)+` and `\(a\)\+`,
+still use the regex engine. Word-boundary patterns in a multibyte locale are
+refused rather than guessed. Address searches pass no registers; they are
+the only other `re_search` call, and a refused pattern never reaches either
+call.
 
 `bench/opus-sed-followup.py` runs builtin variants and GNU sed 4.9 in one
 process. It uses the sol-sed fixtures and expected bytes computed in Python.
