@@ -864,6 +864,157 @@ bashts_compute_sgr_map (const char *lang, const char *src, size_t srclen,
     return 0;
 }
 
+/* Incremental highlighting for an editor that redraws after edits.
+ * *STATE (NULL at first) keeps the last tree for LANG and a copy of its
+ * source. SRC is the whole current text; the changed span is found by
+ * comparing it with the stored copy (shared prefix and suffix), so any
+ * sequence of edits, undo included, is one ts_tree_edit and an incremental
+ * reparse. Captures are then collected only for matches intersecting
+ * [LO, HI), and each byte in that range gets the SGR code of its winning
+ * capture in sgr_at[0 .. HI - LO) (zeroed by the caller), by the same
+ * precedence as bashts_compute_sgr_map, so a byte's colour equals the
+ * full map's. Returns 0, or -1 with *STATE released. */
+struct bashts_sgr_state {
+    const struct bashts_lang *lang;
+    TSTree *tree;
+    char *src;
+    uint32_t srclen;
+};
+
+void
+bashts_sgr_state_free (void **state)
+{
+    struct bashts_sgr_state *st = state ? *state : NULL;
+    if (!st) return;
+    if (st->tree) ts_tree_delete (st->tree);
+    free (st->src);
+    free (st);
+    *state = NULL;
+}
+
+static TSPoint
+bashts_point_fast (const char *src, uint32_t off)
+{
+    TSPoint pt = { 0, 0 };
+    const char *p = src, *end = src + off, *nl;
+    while (p < end && (nl = memchr (p, '\n', (size_t) (end - p)))) {
+        pt.row++;
+        p = nl + 1;
+    }
+    pt.column = (uint32_t) (end - p);
+    return pt;
+}
+
+int
+bashts_sgr_range (void **state, const char *lang, const char *src, size_t srclen,
+                  size_t lo, size_t hi, const char **sgr_at)
+{
+    if (!state || !lang || !src || !sgr_at || srclen > UINT32_MAX || lo > hi || hi > srclen)
+        return -1;
+    const struct bashts_lang *l = bashts_find_lang_entry (lang);
+    if (!l || !l->highlight_scm) { bashts_sgr_state_free (state); return -1; }
+    struct bashts_sgr_state *st = *state;
+    if (st && st->lang != l) { bashts_sgr_state_free (state); st = NULL; }
+    if (!st) {
+        st = calloc (1, sizeof *st);
+        if (!st) return -1;
+        st->lang = l;
+        *state = st;
+    }
+    uint32_t n = (uint32_t) srclen;
+    int same = st->tree && st->srclen == n && memcmp (st->src, src, n) == 0;
+    if (!same) {
+        TSTree *old = NULL;
+        if (st->tree) {
+            uint32_t pre = 0, max = st->srclen < n ? st->srclen : n;
+            while (pre + 4096 <= max && memcmp (st->src + pre, src + pre, 4096) == 0)
+                pre += 4096;
+            while (pre < max && st->src[pre] == src[pre]) pre++;
+            uint32_t suf = 0;
+            while (suf + 4096 <= max - pre
+                   && memcmp (st->src + st->srclen - suf - 4096, src + n - suf - 4096, 4096) == 0)
+                suf += 4096;
+            while (suf < max - pre
+                   && st->src[st->srclen - 1 - suf] == src[n - 1 - suf]) suf++;
+            TSInputEdit e;
+            e.start_byte    = pre;
+            e.old_end_byte  = st->srclen - suf;
+            e.new_end_byte  = n - suf;
+            e.start_point   = bashts_point_fast (src, pre);
+            e.old_end_point = bashts_point_fast (st->src, e.old_end_byte);
+            e.new_end_point = bashts_point_fast (src, e.new_end_byte);
+            old = st->tree;
+            st->tree = NULL;
+            ts_tree_edit (old, &e);
+        }
+        char *copy = malloc ((size_t) n + 1);
+        TSTree *tree = copy ? bashts_parse_with (l, old, src, n) : NULL;
+        if (old) ts_tree_delete (old);
+        if (!tree) { free (copy); bashts_sgr_state_free (state); return -1; }
+        memcpy (copy, src, n);
+        free (st->src);
+        st->src = copy;
+        st->srclen = n;
+        st->tree = tree;
+    }
+    if (hi == lo) return 0;
+
+    uint32_t off = 0;
+    TSQueryError qerr = TSQueryErrorNone;
+    TSQuery *query = bashts_highlight_query (l, &off, &qerr);
+    if (!query) return -1;
+    size_t nc = 0, cap = 256;
+    struct bashts_cap *v = malloc (cap * sizeof *v);
+    TSQueryCursor *cursor = ts_query_cursor_new ();
+    uint32_t ncap = ts_query_capture_count (query);
+    const char **sgr_by_id = calloc ((size_t) ncap + 1, sizeof *sgr_by_id);
+    if (!v || !cursor || !sgr_by_id) {
+        free (v); free (sgr_by_id);
+        if (cursor) ts_query_cursor_delete (cursor);
+        return -1;
+    }
+    ts_query_cursor_set_byte_range (cursor, (uint32_t) lo, (uint32_t) hi);
+    ts_query_cursor_exec (cursor, query, ts_tree_root_node (st->tree));
+    TSQueryMatch match;
+    int rc = 0;
+    while (rc == 0 && ts_query_cursor_next_match (cursor, &match)) {
+        for (uint16_t i = 0; i < match.capture_count; i++) {
+            TSNode node = match.captures[i].node;
+            uint32_t sb = ts_node_start_byte (node), eb = ts_node_end_byte (node);
+            if (eb > n) eb = n;
+            if (sb >= eb) continue;
+            if (nc == cap) {
+                struct bashts_cap *nv = realloc (v, 2 * cap * sizeof *v);
+                if (!nv) { rc = -1; break; }
+                v = nv; cap *= 2;
+            }
+            v[nc].sb = sb; v[nc].eb = eb;
+            v[nc].pattern = match.pattern_index;
+            v[nc].id = match.captures[i].index;
+            nc++;
+        }
+    }
+    ts_query_cursor_delete (cursor);
+    if (rc == 0) {
+        for (uint32_t id = 0; id < ncap; id++) {
+            uint32_t len = 0;
+            const char *name = ts_query_capture_name_for_id (query, id, &len);
+            sgr_by_id[id] = bashts_sgr_for_capture (name, len);
+        }
+        /* Weakest first, so the strongest capture covering a byte paints
+           it last: the order bashts_resolve_owners uses. */
+        qsort (v, nc, sizeof *v, bashts_cap_weakest_first);
+        for (size_t i = 0; i < nc; i++) {
+            uint32_t a = v[i].sb > lo ? v[i].sb : (uint32_t) lo;
+            uint32_t b = v[i].eb < hi ? v[i].eb : (uint32_t) hi;
+            for (uint32_t k = a; k < b; k++) sgr_at[k - lo] = sgr_by_id[v[i].id];
+        }
+    }
+    free (v);
+    free (sgr_by_id);
+    return rc;
+}
+
 #define BASHTS_HL_RENDER 0
 #define BASHTS_HL_SPANS  1   /* -S: resolved, non-overlapping spans */
 #define BASHTS_HL_ALL    2   /* -A: every capture, source order */
