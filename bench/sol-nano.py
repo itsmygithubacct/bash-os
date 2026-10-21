@@ -24,8 +24,8 @@ Workloads (fixture of W bytes):
   settle-sh   the .sh fixture, ^_ to the middle line, type "#" (the line becomes
               a comment), ^S, quit; settle_ms is the time from writing "#" until
               the terminal shows that line in the comment colour, which is
-              later than the keystroke's frame when the reparse outruns
-              nano's frame budget
+              later than the keystroke's frame (edit_frame_ms) when the
+              reparse outruns nano's frame budget
 
 On .sh workloads no key is sent until the screen shows syntax colour
 (ready_ms, from spawn): a reparse that outruns the frame budget finishes
@@ -197,6 +197,7 @@ def session(argv, cwd, chunks, paced, cpu, timeout=900, ready=None, settle=None)
             wait_frames(frames_at + 1)
             latencies.append((time.perf_counter() - t) * 1000)
             if settle and i == settle[0]:
+                extra["edit_frame_ms"] = latencies[-1]
                 while settle[1] not in out[mark:]:
                     if time.monotonic() > deadline:
                         raise RuntimeError("timed out waiting for the settled colour")
@@ -289,7 +290,7 @@ def main():
                             "fixture_sha256": sha(data), "expected_sha256": sha(want),
                             "work": desc, "keys": len(chunks) if paced else len(chunks[0]),
                             "samples_ms": [], "warmup_ms": [], "terminal_bytes": [], "frames": [],
-                            "key_latency_ms": [], "ready_ms": [], "settle_ms": [],
+                            "key_latency_ms": [], "ready_ms": [], "settle_ms": [], "edit_frame_ms": [],
                             "status": "ok", "errors": []}
                     ready = SH_READY if kind == "sh" and paced else None
                     settle = settle_needle(wl, data)
@@ -317,7 +318,7 @@ def main():
                         case["frames"].append(frames)
                         if lat:
                             case["key_latency_ms"].append([round(x, 3) for x in lat])
-                        for k in ("ready_ms", "settle_ms"):
+                        for k in ("ready_ms", "settle_ms", "edit_frame_ms"):
                             if k in extra:
                                 case[k].append(round(extra[k], 3))
                     s = case["samples_ms"]
@@ -329,13 +330,13 @@ def main():
                             q = statistics.quantiles(flat, n=20)
                             case["key_latency_median_ms"] = round(statistics.median(flat), 3)
                             case["key_latency_p95_ms"] = round(q[18], 3)
-                        for k in ("ready_ms", "settle_ms"):
+                        for k in ("ready_ms", "settle_ms", "edit_frame_ms"):
                             if case[k]:
                                 case[k + "_median"] = round(statistics.median(case[k]), 3)
                     report["cases"].append(case)
                     print(json.dumps({k: case.get(k) for k in ("workload", "size", "impl", "status",
                                      "median_ms", "key_latency_median_ms", "ready_ms_median",
-                                     "settle_ms_median", "errors")}), flush=True)
+                                     "edit_frame_ms_median", "settle_ms_median", "errors")}), flush=True)
     report["host"]["loadavg_end"] = os.getloadavg()
     Path(a.output).write_text(json.dumps(report, indent=1))
     bad = [c for c in report["cases"] if c["status"] != "ok"]
