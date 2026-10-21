@@ -165,6 +165,8 @@ fi
 for name in wc-tail-parity text-tools-parity util-linux-smoke system-smoke seq-parity sort-parity zstd-check hostid-check free-check timeout-check uptime-check truncate-check cp-check tail-check mv-check chmod-check du-check crypto-check ar-check diff-check split-check csplit-check col-check colrm-check column-check strings-check od-check hexdump-check tee-check join-check comm-check unexpand-check rev-check sort-check wc-check grep-parity cut-parity stat-parity repeat-input-check col-newline-check nproc-check; do
   check "$name" bash "tests/$name.sh" out/bash
 done
+check 'expr hang guard' python3 tests/grok-expr-hang.py out/bash
+check 'expr end-list realloc' python3 tests/grok-expr-ends.py out/bash
 check network-smoke python3 tests/network-smoke.py out/bash
 check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
@@ -208,6 +210,7 @@ check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 check 'static tac anchor-plus parity' python3 tests/grok-tac-c1-parity.py out/bash-static --timeout 5
 check 'static tac regex hang' python3 tests/grok-tac-fix-hang.py out/bash-static --timeout 5
 check 'static tac follow-up regex' python3 tests/opus-tac-followup-regex.py out/bash-static --cases 4000
+check 'static expr hang guard' python3 tests/grok-expr-hang.py out/bash-static
 for name in head-sed fold expand bc nl pr; do
   check "static $name parity" python3 "tests/$name-parity.py" out/bash-static
 done
