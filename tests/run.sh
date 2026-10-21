@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash
 check 'bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash
 check 'pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash
 check 'pr sol-pr-formfeed contracts' python3 tests/sol-pr-formfeed.py out/bash
@@ -159,6 +160,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash-static
 check 'static bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash-static
 check 'static pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash-static
 check 'static pr sol-pr-formfeed contracts' python3 tests/sol-pr-formfeed.py out/bash-static

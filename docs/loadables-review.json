@@ -1395,6 +1395,14 @@
       "status": "Contract",
       "evidence": "tests/opus-payload-installer.py",
       "scope": "The original brief's software scope (installer argv boundary with a private INDEX/root and a recording fake helper, docs on the helper contract and trust model, controlled measurements) is met. The real image bl-pkg.sh, real archives and image installation are qualification limits, not unresolved requirements of this brief."
+    },
+    {
+      "names": [
+        "vi"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-vi-delete.py",
+      "scope": "The original brief's bounded software contract is met: G+dd clamping through the empty-buffer state, counts, undo/redo, motions after deletion, final-newline/binary/UTF-8 cases through --keys and ex, compared with nvim; an exact-byte assertion after 250 real deletes; save/error cleanup preserved; G+dd and full save measured separately with historical numbers kept. This is not full vi conformance; deferred features (gg, macros, registers, text objects) stay deferred."
     }
   ],
   "sanitizer_groups": [
@@ -2752,9 +2760,9 @@
       "evidence": "tests/passwd-fields.py"
     },
     "vi": {
-      "evidence": "docs/opus-vi.md",
-      "note": "Last-line deletion and inclusive UTF-8 visual endpoints are corrected. Historical editing timings precede the UTF-8 correction and include external-process startup.",
-      "next": "Macros, named registers, text objects and additional motions remain deferred; no full vi conformance or current-code speed ratio is claimed."
+      "evidence": "docs/sol-vi.md",
+      "note": "The original brief's bounded software contract is met: G+dd clamping through the empty-buffer state, counts, undo/redo, motions after deletion, final-newline/binary/UTF-8 cases through --keys and ex, compared with nvim; an exact-byte assertion after 250 real deletes; save/error cleanup preserved; G+dd and full save measured separately with historical numbers kept. This is not full vi conformance; deferred features (gg, macros, registers, text objects) stay deferred.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "dmesg": {
       "note": "The former split-record loss is fixed. Fixture checks cover records crossing read boundaries and an unterminated final record; device fixtures also exercise input bounds.",
