@@ -119,8 +119,11 @@ consumer. The global substitution retry is that call, including when an
 empty `s//` reuses an address regex. If the whole pattern is one capturing
 group of anchors, literals and the GNU classes `\s` `\S` `\w` `\W`, sed
 matches it directly and never calls `re_search`. `s/(|^b)+/x/g` on `.b`
-therefore prints `x.xbx`. The same shape with `` \` ``, `$` or `\<` is
-handled the same way. `\b` and `\B` are not: `re_search` returns for them,
+therefore prints `x.xbx`. A finite upper bound does not record that empty
+iteration when the next byte is a consumer the anchor rejected, and the
+search stops, so `s/(|^b){1,3}/<\1>/` on `bb` stays `bb` and with `g` on
+`.b` prints `<>.b`. An unlimited `+` or `*` is unchanged. The same shape
+with `` \` ``, `$` or `\<` is handled the same way. `\b` and `\B` are not: `re_search` returns for them,
 and the direct matcher does not reproduce its spans, so `s/(|\bb)+/[&]/g`
 on `ab` is run by the engine and prints `[]a[b]`. `s/(|\Bb)+/[&]/g` on
 `.b` prints `[].[b]`. `\>` followed by a literal uses the span glibc

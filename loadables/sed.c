@@ -626,12 +626,12 @@ bs_anchor_ok (const bs_prog *prog, int kind, const char *str,
 }
 
 static int
-bs_alt_len (const bs_prog *prog, int alt, const char *str, size_t beg, size_t end,
+bs_alt_len (const bs_prog *prog, int alt, int from, const char *str, size_t beg, size_t end,
             size_t pos, size_t *out)
 {
     size_t cur = pos;
     int n = prog->natoms[alt];
-    for (int i = 0; i < n; i++) {
+    for (int i = from; i < n; i++) {
         unsigned char kind = prog->atoms[alt][i].kind;
         if (kind == BS_ATOM_LIT) {
             if (cur >= end) return -1;
@@ -665,9 +665,36 @@ bs_alt_len (const bs_prog *prog, int alt, const char *str, size_t beg, size_t en
     return 0;
 }
 
+/* True when an anchor rejects this position but that alternative's
+   consuming suffix still matches. A finite repeat must fail the search
+   there: glibc's register fill does not accept the empty completion, and
+   it does not then match at a later position. */
+static int
+bs_consumer_blocked (const bs_prog *prog, const char *str, size_t beg, size_t end,
+                     size_t pos)
+{
+    for (int a = 0; a < prog->nalts; a++) {
+        int n = prog->natoms[a];
+        int i = 0;
+        while (i < n) {
+            unsigned char k = prog->atoms[a][i].kind;
+            if (k == BS_ATOM_LIT || k >= BS_ATOM_SPACE) break;
+            i++;
+        }
+        if (i == 0 || i >= n) continue;
+        size_t full = 0, tail = 0;
+        if (bs_alt_len (prog, a, 0, str, beg, end, pos, &full) == 0) continue;
+        if (bs_alt_len (prog, a, i, str, beg, end, pos, &tail) == 0 && tail > 0)
+            return 1;
+    }
+    return 0;
+}
+
 /* Greedy leftmost match of the one group at pos. Empty repetitions stop:
    an unlimited quantifier does not take a trailing empty iteration once the
-   minimum is met, and a finite one records that empty iteration as the group. */
+   minimum is met, and a finite one records that empty iteration as the group.
+   Returns -1 when a finite repeat hits a blocked consumer: that attempt and
+   every later position fail. 0 is no match at this position. 1 is a match. */
 static int
 bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t pos,
             size_t *mend, size_t *gso, size_t *geo, int *gset)
@@ -680,11 +707,13 @@ bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t
         int best = -1;
         for (int a = 0; a < prog->nalts; a++) {
             size_t len = 0;
-            if (bs_alt_len (prog, a, str, beg, end, cur, &len) == 0 && (int) len > best)
+            if (bs_alt_len (prog, a, 0, str, beg, end, cur, &len) == 0 && (int) len > best)
                 best = (int) len;
         }
         if (best < 0) break;
         if (best == 0) {
+            if (prog->qmax >= 0 && bs_consumer_blocked (prog, str, beg, end, cur))
+                return -1;
             if (reps >= prog->qmin && prog->qmax < 0) break;
             so = cur; eo = cur; group = 1;
             if (prog->qmax >= 0 && reps >= prog->qmin) { reps = prog->qmax; break; }
@@ -709,7 +738,9 @@ bs_prog_find (const bs_prog *prog, const char *str, size_t beg, size_t start, si
     for (size_t pos = start; ; pos++) {
         size_t mend = pos, gso = 0, geo = 0;
         int gset = 0;
-        if (bs_prog_at (prog, str, beg, end, pos, &mend, &gso, &geo, &gset)) {
+        int at = bs_prog_at (prog, str, beg, end, pos, &mend, &gso, &geo, &gset);
+        if (at < 0) return REG_NOMATCH;
+        if (at > 0) {
             if (nmatch > 0 && matches) {
                 matches[0].rm_so = (regoff_t) pos - (regoff_t) off;
                 matches[0].rm_eo = (regoff_t) mend - (regoff_t) off;
