@@ -2600,9 +2600,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "lpr": {
-      "evidence": "tests/opus-lpr-delivery.py",
-      "note": "Submit copies a job into an owner-only spool opened with O_NOFOLLOW and runs BASHLPR_BACKEND as an absolute path with a literal argv. The job counts only when the backend exits 0 and stdin reached the job size. A missing or relative backend fails before spooling. Cancel writes one byte to the control FIFO and does not signal a pid from a sidecar file. Listing refuses a symlink or a group or other writable directory. SIGPIPE is ignored only around the cancel write and the caller disposition is restored.",
-      "next": "No real printer delivery and no timing claim. The default spool directory is not created by these tests."
+      "evidence": "tests/sol-lpr-list-readdir.py",
+      "note": "Submit copies a job into an owner-only spool opened with O_NOFOLLOW and runs BASHLPR_BACKEND as an absolute path with a literal argv. The job counts only when the backend exits 0 and stdin reached the job size. A missing or relative backend fails before spooling. Cancel writes one byte to the control FIFO and does not signal a pid from a sidecar file. Listing refuses a symlink or a group or other writable directory. A readdir error closes the directory and fails the list, so unread jobs are not reported as an empty spool. SIGPIPE is ignored only around the cancel write and the caller disposition is restored.",
+      "next": "No real printer delivery and no new timing claim. The injected directory-read failure was not repeated under ASan."
     },
     "payload": {
       "evidence": "docs/sol-payload.md",
