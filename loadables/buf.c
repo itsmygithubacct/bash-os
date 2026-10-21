@@ -291,6 +291,12 @@ int bb_pub_insert_at (int slot, size_t index, size_t col,
                       const unsigned char *bytes, size_t len);
 int bb_pub_delete_at (int slot, size_t index, size_t col, size_t n);
 int bb_pub_set_dirty (int slot, int dirty);
+int bb_pub_dirty (int slot);
+int bb_pub_get_lines (int slot, size_t start, size_t count,
+                      const unsigned char **out_bytes, size_t *out_lens);
+int bb_pub_insert_lines (int slot, size_t index, size_t count,
+                         const unsigned char *block, size_t start, const size_t *ends);
+int bb_pub_delete_lines (int slot, size_t index, size_t count);
 
 int
 bb_pub_n_lines (int slot)
@@ -647,6 +653,97 @@ bb_pub_set_dirty (int slot, int dirty)
 {
     if (slot < 0 || slot >= BB_HANDLES_MAX || !bb_handles[slot]) return -1;
     bb_handles[slot]->dirty = dirty ? 1 : 0;
+    return 0;
+}
+
+/* 1 if dirty, 0 if clean, -1 for a bad slot; lets a caller that undoes a
+   failed multi-step edit restore the flag it found. */
+int
+bb_pub_dirty (int slot)
+{
+    if (slot < 0 || slot >= BB_HANDLES_MAX || !bb_handles[slot]) return -1;
+    return bb_handles[slot]->dirty;
+}
+
+/* Resolve lines [start, start+count) in one sequential walk. Repeated
+   bb_pub_get_line calls rescan from a checkpoint in the paged state, which
+   costs O(count * stride). Pointers stay valid until the buffer changes. */
+int
+bb_pub_get_lines (int slot, size_t start, size_t count,
+                  const unsigned char **out_bytes, size_t *out_lens)
+{
+    if (slot < 0 || slot >= BB_HANDLES_MAX || !bb_handles[slot]) return -1;
+    bb_buf *b = bb_handles[slot];
+    if (start > b->n_lines || count > b->n_lines - start) return -1;
+    if (!count) return 0;
+    bb_iter it;
+    bb_iter_init (&it, b, start);
+    for (size_t i = 0; i < count; i++) {
+        const char *ptr;
+        bb_iter_next (&it, &ptr, &out_lens[i]);
+        out_bytes[i] = (const unsigned char *) ptr;
+    }
+    return 0;
+}
+
+/* Insert COUNT lines at INDEX with one shift of the record array; per-line
+   inserts shift it COUNT times. Line j is BLOCK[s_j, ENDS[j]) with s_0 = START
+   and s_j = ENDS[j-1] + 1, i.e. consecutive lines one separator byte apart.
+   All or nothing: on failure the buffer is unchanged. */
+int
+bb_pub_insert_lines (int slot, size_t index, size_t count,
+                     const unsigned char *block, size_t start, const size_t *ends)
+{
+    if (slot < 0 || slot >= BB_HANDLES_MAX || !bb_handles[slot]) return -1;
+    bb_buf *b = bb_handles[slot];
+    if (bb_realize (b) < 0) return -1;
+    if (index > b->n_lines) return -1;
+    if (!count) return 0;
+    if (count > SIZE_MAX / sizeof (bb_line) - b->n_lines) return -1;
+    size_t need = b->n_lines + count;
+    if (need > b->capacity) {
+        size_t cap = b->capacity ? b->capacity : 16;
+        while (cap < need)
+            cap = cap > SIZE_MAX / 2 / sizeof (bb_line) ? need : cap * 2;
+        bb_line *nl = realloc (b->lines, cap * sizeof (bb_line));
+        if (!nl) return -1;
+        b->lines = nl;
+        b->capacity = cap;
+    }
+    size_t tail = b->n_lines - index;
+    if (tail)
+        memmove (b->lines + index + count, b->lines + index, tail * sizeof (bb_line));
+    for (size_t j = 0; j < count; j++) {
+        bb_line *L = &b->lines[index + j];
+        size_t s = j ? ends[j - 1] + 1 : start;
+        L->data = NULL; L->map = NULL; L->length = 0; L->capacity = 0;
+        if (bb_line_set (L, block + s, ends[j] - s) < 0) {
+            while (j--) free (b->lines[index + j].data);
+            if (tail)
+                memmove (b->lines + index, b->lines + index + count, tail * sizeof (bb_line));
+            return -1;
+        }
+    }
+    b->n_lines += count;
+    b->dirty = 1;
+    return 0;
+}
+
+/* Remove lines [INDEX, INDEX+COUNT) with one shift of the record array. Fails
+   only for a bad range or when realizing a paged buffer fails, unchanged. */
+int
+bb_pub_delete_lines (int slot, size_t index, size_t count)
+{
+    if (slot < 0 || slot >= BB_HANDLES_MAX || !bb_handles[slot]) return -1;
+    bb_buf *b = bb_handles[slot];
+    if (bb_realize (b) < 0) return -1;
+    if (index > b->n_lines || count > b->n_lines - index) return -1;
+    if (!count) return 0;
+    for (size_t j = 0; j < count; j++) free (b->lines[index + j].data);
+    memmove (b->lines + index, b->lines + index + count,
+             (b->n_lines - index - count) * sizeof (bb_line));
+    b->n_lines -= count;
+    b->dirty = 1;
     return 0;
 }
 
