@@ -31,6 +31,13 @@ from cryptography.x509.oid import NameOID
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
 selected = set(sys.argv[2:])
 checks = 0
+# Cross smoke sets this explicitly for emulation; native commands retain 30s.
+try:
+    timeout_scale = int(os.environ.get('BASH_OS_TIMEOUT_SCALE', '1'))
+    if timeout_scale < 1:
+        raise ValueError
+except ValueError:
+    raise SystemExit('BASH_OS_TIMEOUT_SCALE must be a positive integer')
 
 def run(*args, data=None, rc=0, env=None, stderr=None):
     global checks
@@ -40,7 +47,7 @@ def run(*args, data=None, rc=0, env=None, stderr=None):
                          ASAN_OPTIONS='detect_leaks=0:abort_on_error=1',
                          UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')
     p = subprocess.run([binary, '-e', '-o', 'pipefail', '-c', 'PATH=; "$@"', '_', *map(str, args)],
-                       input=data, capture_output=True, timeout=30, env=child_env, start_new_session=True)
+                       input=data, capture_output=True, timeout=30 * timeout_scale, env=child_env, start_new_session=True)
     assert b'AddressSanitizer' not in p.stderr and b'runtime error:' not in p.stderr, (args, p.stderr)
     assert p.returncode == rc, (args, p.returncode, p.stdout[:300], p.stderr[:4000])
     if stderr is not None and not os.environ.get('FINAL_LOAD_ENV'):
@@ -483,6 +490,8 @@ with tempfile.TemporaryDirectory() as temporary:
         # beside group-writable files, which a umask of 0002 would otherwise give.
         d = Path(temporary)/group.__name__; d.mkdir(mode=0o700)
         before = checks
+        started = time.monotonic()
         group(d)
-        print(f'final-smoke/{group.__name__}: {checks-before} checks passed',flush=True)
+        print(f'final-smoke/{group.__name__}: {checks-before} checks passed '
+              f'({time.monotonic()-started:.3f} seconds)',flush=True)
 print(f'final-smoke: {checks} checks passed')
