@@ -928,6 +928,53 @@ cleanup:
   return rc;
 }
 
+/* Read or write the one-byte interactive verification marker. EINTR is
+   retried. Any other error means the parent cannot tell a verify-only child
+   from one that executed, so the caller fails closed. */
+static int
+bda_status_write (int fd, const void *buf, size_t n)
+{
+  const char *p = buf;
+  size_t off = 0;
+
+  while (off < n)
+    {
+      ssize_t w = write (fd, p + off, n - off);
+      if (w < 0)
+        {
+          if (errno == EINTR)
+            continue;
+          return -1;
+        }
+      if (w == 0)
+        return -1;
+      off += (size_t) w;
+    }
+  return 0;
+}
+
+/* 1 = one byte read, 0 = EOF (no marker), -1 = error with errno set. */
+static int
+bda_status_read (int fd, char *marker)
+{
+  for (;;)
+    {
+      ssize_t n = read (fd, marker, 1);
+      if (n < 0)
+        {
+          if (errno == EINTR)
+            continue;
+          return -1;
+        }
+      if (n == 0)
+        {
+          *marker = 0;
+          return 0;
+        }
+      return 1;
+    }
+}
+
 static int
 bda_run_authority (const bda_opts *o)
 {
@@ -1148,7 +1195,13 @@ bda_run_authority (const bda_opts *o)
                 { fprintf (stderr, "%s: v2 AUTHZ: %s\n", o->is_sudo ? "sudo" : "doas", strerror (errno)); _exit (125); }
               if (r.decision == BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED)
                 {
-                  (void) write (pfd[1], "V", 1);
+                  /* A verify-only child must deliver the marker before it
+                     can exit 0. A failed write is not verification. */
+                  if (bda_status_write (pfd[1], "V", 1) < 0)
+                    {
+                      close (pfd[1]);
+                      _exit (125);
+                    }
                   close (pfd[1]);
                   bda_exec_verify_child (fd, o, &r);
                 }
@@ -1174,9 +1227,19 @@ bda_run_authority (const bda_opts *o)
               _exit (126);
             }
           close (pfd[1]);
-          (void) read (pfd[0], &marker, 1);
+          marker = 0;
+          int status_rc = bda_status_read (pfd[0], &marker);
+          int status_errno = errno;
           close (pfd[0]);
+          /* Reap the child and restore the parent's signals even when the
+             marker itself cannot be read. */
           rc = bda_wait_owned (pid, &waiting);
+          if (status_rc < 0)
+            {
+              builtin_error ("v2 authority status: %s", strerror (status_errno));
+              rc = EXECUTION_FAILURE;
+              break;
+            }
           if (marker == 'V' && rc == 0 && !verified_once)
             {
               verified_once = 1;

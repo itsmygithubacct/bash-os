@@ -18,7 +18,7 @@ resource.setrlimit(resource.RLIMIT_CORE,(0,0))
 assert a.fixture or a.shell, 'select --fixture and/or --shell'
 if a.fixture:
     fixture=a.fixture.resolve()
-    for case in ['root','authority','edit','copyback']:
+    for case in ['root','authority','edit','copyback','status']:
         with tempfile.TemporaryDirectory(prefix='sol-doas-check-') as scratch:
             proc=subprocess.run([str(fixture),case],env={**os.environ,'SOL_DOAS_TMPDIR':scratch},capture_output=True,timeout=60)
         print(case, 'exit', proc.returncode, proc.stdout.decode(), proc.stderr.decode(),flush=True)

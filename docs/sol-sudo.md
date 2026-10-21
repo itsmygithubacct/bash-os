@@ -30,7 +30,11 @@ and runs the command; if the reset fails, nothing runs. `-g GROUP` without
 
 On the interactive authority route, a request that the policy still answers
 "authentication required" after one successful verification used to return 0,
-although the command had not run. It now fails with status 1.
+although the command had not run. It now fails with status 1. A read error on
+the one-byte verification marker also fails closed (status 1) after the child
+is reaped and the parent's signals are restored; `EINTR` is retried. EOF still
+means the child was not verify-only. A child that cannot write the marker
+exits 125 and does not call the verifier.
 
 On the root route:
 

@@ -47,6 +47,7 @@ static int *verified;
 static int emit_digest;
 static int post_verify_deny;
 static int checks;
+static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL %s:%d: %s\n",__FILE__,__LINE__,#x); abort(); } checks++; } while (0)
 
 static FILE *fixture_fopen(const char *path, const char *mode)
@@ -122,6 +123,16 @@ static const char *find_env(char **env,const char *name) {
 static void assert_blob(const void *blob,unsigned bytes,unsigned argc) {
   CHECK(bytes==expected_bytes && argc==expected_argc);
   CHECK(!bytes || !memcmp(blob,expected_argv,bytes));
+}
+static ssize_t fixture_status_read(int fd,void *buf,size_t n) {
+  if(io_read_eintr>0){io_read_eintr--;errno=EINTR;return -1;}
+  if(io_read_fail>0){char sink; io_read_fail--; for(;;){ssize_t nread=read(fd,&sink,1); if(nread<0 && errno==EINTR) continue; break;} errno=EIO; return -1;}
+  return read(fd,buf,n);
+}
+static ssize_t fixture_status_write(int fd,const void *buf,size_t n) {
+  if(io_write_eintr>0){io_write_eintr--;errno=EINTR;return -1;}
+  if(io_write_fail>0){io_write_fail--;errno=EIO;return -1;}
+  return write(fd,buf,n);
 }
 static int fixture_execve(const char *p,char *const *a,char *const *e) {
   if(!check_exec) {
@@ -236,6 +247,8 @@ static int fixture_execvp(const char *file,char *const *args) {
 #define fork fixture_fork
 #define execve fixture_execve
 #define syscall fixture_syscall
+#define read fixture_status_read
+#define write fixture_status_write
 /* Keep the genuine no-new-privileges helper; inject its failure at the
  * boundary while credential syscall substitutions above stay inside the helper. */
 static int fixture_nnp(char *err,size_t len) { if(fail_step==5){errno=EPERM;snprintf(err,len,"injected nnp failure");return -1;} return bc_no_new_privs(err,len); }
@@ -252,6 +265,8 @@ static int fixture_nnp(char *err,size_t len) { if(fail_step==5){errno=EPERM;snpr
 #undef execve
 #undef execvp
 #undef syscall
+#undef read
+#undef write
 #undef geteuid
 #undef bc_no_new_privs
 #include "../loadables/sudo.c"
@@ -280,6 +295,7 @@ static void defaults(void) {
   post_verify_deny=0;*verified=0;auth_calls=handoff_calls=verify_calls=copyback_calls=0;decision=BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC;
   auth_error=handoff_error=missing_handle=bad_version=tty_mode=wait_error=fork_error=fail_step=edit_case=0;
   approval=BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_ALLOWED;expected_flags=0;expected_group=4343;expected_mode=BASHOS_AUTH_PRIVCMD_MODE_EXEC;expected_exit=37;
+  io_read_fail=io_write_fail=io_read_eintr=io_write_eintr=0;
 }
 static void root_tests(void) {
   root_route=1;check_exec=1;
@@ -390,9 +406,26 @@ static void copyback_tests(void) {
   }
   close(bad_source);close(source);unlink(target);unlink(other);unlink(src);
 }
+static void status_tests(void) {
+  const char *av[]={"/bin/true","literal ' ; $(no)\n",""};
+  char *interactive[]={"-u","fixture","/bin/true","literal ' ; $(no)\n",""};
+  root_route=0;blob(3,av);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_read_fail=1;
+  CHECK(dispatch(0,5,interactive)==1 && *verified==1);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_read_fail=1;
+  CHECK(dispatch(1,5,interactive)==1 && *verified==1);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_read_eintr=1;
+  CHECK(dispatch(0,5,interactive)==37 && *verified==1);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_write_fail=1;
+  CHECK(dispatch(0,5,interactive)==125 && !*verified);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_write_fail=1;
+  CHECK(dispatch(1,5,interactive)==125 && !*verified);
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_write_eintr=1;
+  CHECK(dispatch(0,5,interactive)==37 && *verified==1);
+}
 int main(int argc,char **argv) {
   parent_pid=getpid();verified=mmap(NULL,sizeof *verified,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(verified!=MAP_FAILED);
-  snprintf(private_dir,sizeof private_dir,"%s/sol-doas-XXXXXX",getenv("SOL_DOAS_TMPDIR")?getenv("SOL_DOAS_TMPDIR"):"/tmp");CHECK(mkdtemp(private_dir));setenv("PATH","",1);
+  snprintf(private_dir,sizeof private_dir,"%s/sol-doas-XXXXXX",getenv("SOL_DOAS_TMPDIR")?getenv("SOL_DOAS_TMPDIR"):"/tmp");CHECK(mkdtemp(private_dir));setenv("PATH","",1);unsetenv("SHELL");
   char *exports[]={"SAFE=caller","LD_PRELOAD=caller","BASH_ENV=caller",NULL};export_env=exports;
   if(argc==3 && !strcmp(argv[1],"--work")) {
     quiet=1;int n=atoi(argv[2]);CHECK(n>0);
@@ -405,11 +438,12 @@ int main(int argc,char **argv) {
     defaults();root_route=0;quiet=1;emit_digest=1;const char *av[]={"/bin/true"};blob(1,av);
     CHECK(call(0,"-n","-u","fixture","/bin/true",NULL)==37);CHECK(rmdir(private_dir)==0);return 0;
   }
-  CHECK(argc==1 || (argc==2 && (!strcmp(argv[1],"root") || !strcmp(argv[1],"authority") || !strcmp(argv[1],"edit") || !strcmp(argv[1],"copyback"))));
+  CHECK(argc==1 || (argc==2 && (!strcmp(argv[1],"root") || !strcmp(argv[1],"authority") || !strcmp(argv[1],"edit") || !strcmp(argv[1],"copyback") || !strcmp(argv[1],"status"))));
   if(argc==1 || !strcmp(argv[1],"root")){defaults();root_tests();}
   if(argc==1 || !strcmp(argv[1],"authority")){defaults();authority_tests();}
   if(argc==1 || !strcmp(argv[1],"edit")){defaults();edit_tests();}
   if(argc==1 || !strcmp(argv[1],"copyback")){defaults();copyback_tests();}
+  if(argc==1 || !strcmp(argv[1],"status")){defaults();status_tests();}
   CHECK(rmdir(private_dir)==0);
   printf("sol-doas: %d parent assertions passed; child assertions fail through status; no skipped fixtures\n",checks);return 0;
 }

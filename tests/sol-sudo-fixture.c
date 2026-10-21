@@ -1673,6 +1673,98 @@ command_tests (void)
   free (args);
 }
 
+static void
+status_reaped (void)
+{
+  int st = 0;
+  sigset_t mask;
+  pid_t w = waitpid (-1, &st, WNOHANG);
+  /* The owned child is gone. SIGCHLD was only blocked for the wait, and the
+     SIGUSR1 block this test installed is still the caller's mask. */
+  CHECK (w == -1 && errno == ECHILD);
+  CHECK (sigprocmask (SIG_SETMASK, NULL, &mask) == 0);
+  CHECK (!sigismember (&mask, SIGCHLD));
+  CHECK (sigismember (&mask, SIGUSR1));
+}
+
+static void
+status_tests (void)
+{
+  sigset_t block;
+  unsetenv ("SHELL");
+  sigemptyset (&block);
+  sigaddset (&block, SIGUSR1);
+  CHECK (sigprocmask (SIG_BLOCK, &block, NULL) == 0);
+
+  /* A failed status read must not treat a verify-only exit 0 as success. */
+  reset_state ();
+  tty_mode = 1;
+  io_read_fail = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (SUDO ("/bin/true") == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  CHECK (count_op (BASHOS_AUTH_IOC_PRIVCMD_AUTHZ) == 1);
+  CHECK (strstr (last_error, "v2 authority status"));
+  status_reaped ();
+  reset_state ();
+  tty_mode = 1;
+  io_read_fail = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (DOAS ("/bin/true") == 1 && count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  status_reaped ();
+
+  /* EINTR is retried; the marker still starts the real command. */
+  reset_state ();
+  tty_mode = 1;
+  io_read_eintr = 1;
+  script (2, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED, BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC);
+  CHECK (SUDO ("/bin/true") == 37);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 1);
+  status_reaped ();
+  reset_state ();
+  tty_mode = 1;
+  io_read_eintr = 1;
+  script (2, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED, BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC);
+  CHECK (DOAS ("/bin/true") == 37 && count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 1);
+  status_reaped ();
+
+  /* A failed marker write never reaches the verifier. */
+  reset_state ();
+  tty_mode = 1;
+  io_write_fail = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (SUDO ("/bin/true") == 125);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 0);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  status_reaped ();
+  reset_state ();
+  tty_mode = 1;
+  io_write_fail = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (DOAS ("/bin/true") == 125 && count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 0);
+  status_reaped ();
+
+  /* One interrupted write is retried and the command still runs. */
+  reset_state ();
+  tty_mode = 1;
+  io_write_eintr = 1;
+  script (2, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED, BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC);
+  CHECK (SUDO ("/bin/true") == 37 && count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 1);
+  status_reaped ();
+  reset_state ();
+  tty_mode = 1;
+  io_write_eintr = 1;
+  script (2, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED, BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC);
+  CHECK (DOAS ("/bin/true") == 37 && count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 1);
+  status_reaped ();
+
+  CHECK (sigprocmask (SIG_UNBLOCK, &block, NULL) == 0);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1718,7 +1810,7 @@ main (int argc, char **argv)
   else
     {
       const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper",
-                               "command", NULL };
+                               "command", "status", NULL };
       for (int g = 0; groups[g]; g++)
         {
           if (argc == 2 && strcmp (argv[1], groups[g])) continue;
@@ -1731,6 +1823,7 @@ main (int argc, char **argv)
           if (!strcmp (groups[g], "edit")) edit_tests ();
           if (!strcmp (groups[g], "helper")) helper_tests ();
           if (!strcmp (groups[g], "command")) command_tests ();
+          if (!strcmp (groups[g], "status")) status_tests ();
           printf ("group %s: %d assertions passed\n", groups[g], checks - start);
           rc = 1;
         }
