@@ -374,6 +374,12 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'doas delegation and owned-child wait' python3 tests/sol-doas-check.py --fixture "$scratch/doas-native/fixture" --shell out/bash
   check 'doas sanitized fixture build' python3 tests/sol-doas-build.py "$scratch/doas-sanitize" --sanitize
   check 'doas boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-doas-check.py --fixture "$scratch/doas-sanitize/fixture"
+  check 'sudo private fixture build' python3 tests/sol-sudo-build.py "$scratch/sudo-native"
+  check 'sudo fixture and shell contracts' python3 tests/sol-sudo-check.py --fixture "$scratch/sudo-native/fixture" --shell out/bash
+  check 'sudo native list projection' python3 tests/astra-sudo-list-check.py --shell out/bash --preload "$scratch/sudo-native/list-preload.so"
+  check 'sudo sanitized fixture build' python3 tests/sol-sudo-build.py "$scratch/sudo-sanitize" --sanitize
+  check 'sudo boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 python3 tests/sol-sudo-check.py --fixture "$scratch/sudo-sanitize/fixture"
+  check 'sudo namespace final smoke' python3 tests/sol-sudo-userns.py --shell out/bash --final-smoke --report "$scratch/sudo-userns.json"
   check 'payload module build' bash tests/opus-payload-build-sanitizer.sh "$scratch/payload-contracts"
   check 'payload protocol under ASan+UBSan' python3 tests/opus-payload-installer.py out/bash --module "$scratch/payload-contracts/payload-sanitize.so" --asan-runtime "$(cat "$scratch/payload-contracts/libasan.path")"
   check 'cluster staged production build' ./build.sh --include cluster --name cluster-contracts --no-strip
