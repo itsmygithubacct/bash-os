@@ -660,9 +660,10 @@ done:
     return rc;
 }
 
-/* List entries currently in the spool dir, one per line. Missing dir =
- * silent empty list (rc 0). With -l, each job's state is probed through
- * its control FIFO without writing to it. */
+/* List entries currently in the spool dir, one per line. A missing dir
+ * is a silent empty list (rc 0). A symlink or a directory other people
+ * can write is refused, same as submit. With -l, each job's state is
+ * probed through its control FIFO without writing to it. */
 static int
 blpr_cmd_list (WORD_LIST *args)
 {
@@ -674,8 +675,26 @@ blpr_cmd_list (WORD_LIST *args)
         return EX_USAGE;
     }
     const char *spool_root = blpr_spool_root ();
-    DIR *d = opendir (spool_root);
-    if (!d) return EXECUTION_SUCCESS;   /* empty list */
+    int dfd = open (spool_root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (dfd < 0) {
+        if (errno == ENOENT) return EXECUTION_SUCCESS;
+        builtin_error ("cannot open spool %s: %s", spool_root, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    struct stat rst;
+    if (fstat (dfd, &rst) < 0 || rst.st_uid != geteuid ()
+        || (rst.st_mode & (S_IWGRP | S_IWOTH))) {
+        builtin_error ("spool %s is not private (must be owned by uid %ld "
+                       "and not group/other writable)", spool_root, (long) geteuid ());
+        close (dfd);
+        return EXECUTION_FAILURE;
+    }
+    DIR *d = fdopendir (dfd);
+    if (!d) {
+        builtin_error ("cannot open spool %s: %s", spool_root, strerror (errno));
+        close (dfd);
+        return EXECUTION_FAILURE;
+    }
     struct dirent *de;
     while ((de = readdir (d)) != NULL) {
         size_t nl = strlen (de->d_name);

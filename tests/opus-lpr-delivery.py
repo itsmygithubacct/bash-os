@@ -284,6 +284,18 @@ class Delivery(LprFixture):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(list(real.iterdir()), [])
         self.assertFalse((self.fake / "info.json").exists())
+        (real / "0123456789abcdef.lpr").write_bytes(b"secret")
+        r = self.run_shell('lpr list', env=self.env | {"BASHLPR_SPOOL": str(link)})
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertNotIn(b"0123456789abcdef", r.stdout)
+        self.assertEqual(self.run_shell('lpr list -l', env=self.env | {"BASHLPR_SPOOL": str(link)}).returncode, 1)
+        shared = self.dir / "shared-list"
+        shared.mkdir(mode=0o700)
+        shared.chmod(0o777)
+        (shared / "0123456789abcdef.lpr").write_bytes(b"x")
+        r = self.run_shell('lpr list', env=self.env | {"BASHLPR_SPOOL": str(shared)})
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn(b"0123456789abcdef", r.stdout)
 
     def test_timeout_fails_and_terminates_owned_backend(self):
         p = self.spawn('lpr submit "$1"', self.input,
