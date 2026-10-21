@@ -80,15 +80,25 @@ Everything else goes to the glibc matcher:
 - other locales;
 - oversized patterns.
 
-Before that search, a `+` whose operand contains an anchor
-(`` \` ^ $ \' \< \> \b \B ``) is rewritten to the `XX*` spelling and
-compiled again. glibc copies the tree for `X+` and then mis-evaluates
-anchors in the copy; with an empty alternative that walk does not return.
-The spelled pattern is the one GNU tac finishes, and it is the result the
-bounded matcher already produces in the C locale. A pattern that also
-contains a back-reference is left unchanged, because duplicating a group
-would renumber captures. A rewrite that cannot be finished is refused
+glibc copies the tree for `X+` and then mis-evaluates anchors in the
+copy. With an empty alternative beside `` \` ^ \< \> ``, that walk does
+not return. Only that nullable shape, and a `+` of `$`, is rewritten to
+the `XX*` spelling before `re_search`. `` \' \b \B `` finish on the
+original pattern, and the spelled span can disagree, so those pluses are
+not rewritten. A hang-anchor `+` that GNU finishes, including one whose
+operand is not a pure empty alternative, stays as written too. The
+bounded matcher declines those unwritten pluses in every locale, so the
+glibc search sees the original pattern. In the C locale the nullable
+`` \` ^ \< \> `` shape beside an empty alternative stays in the bounded
+matcher: its Thompson span is the `XX*` result. In UTF-8 the same shape
+is already declined as nullable, and the fallback searches the spelling.
+A `+` of `$` stays in the matcher when the rest of the pattern does; on
+the glibc fallback it is the `XX*` spelling, which matches GNU. A
+nullable `+` that mixes a hang anchor with `` \' \b \B `` is refused
 with `this regex separator cannot be matched safely` and is not searched.
+A pattern that also contains a back-reference is left unchanged, because
+duplicating a group would renumber captures. A rewrite that cannot be
+finished uses the same refusal.
 
 The glibc matcher runs `re_search` over GNU's own buffer: the current window
 plus the unprinted record. It no longer maps the whole file, and its memory
@@ -125,19 +135,22 @@ builtin against an independent oracle.
 1. **Anchors in a `+` group.** glibc copies the tree for `X+` (as `X X*`)
    and mis-evaluates anchors inside the copy. GNU gives `.b` for
    `tac -r -s "\(\|\'b\)+"` on `.b`, but `b.` for the equivalent
-   `\(\|\'b\)\(\|\'b\)*`. For `` \(\|\`b\)+ ``, `\(\|^b\)+` and
-   `\(\|\<b\)+` on `.b\nab\n`, that copy does not return in a UTF-8
-   locale: the bounded matcher declines the nullable pattern (and the
-   word anchor), and the old glibc fallback searched the original `+`.
-   `\'`, `\b` and `\B` in the same shape returned a span that disagreed
-   with the spelled form. The builtin now matches the spelled-out form
-   on every locale it runs. In the C locale the bounded matcher does
-   that itself. On the glibc fallback the `+` is rewritten to `XX*`
-   before `re_search`. `tests/grok-tac-fix-hang.py` bounds each of those
-   probes with `timeout`. The random-pattern test uses the same spelling
-   as the oracle whenever a group is repeated with `+`, and accepts a
-   disagreement with GNU's original spelling only when an anchor is
-   inside the group.
+   `\(\|\'b\)\(\|\'b\)*`. For that pattern the builtin matches GNU on the
+   original, in every locale. The C-locale matcher declines that plus, so
+   it does not return the Thompson span, and the glibc fallback searches
+   the original. `` \(\|\`b\)+ ``, `\(\|^b\)+`, `\(\|\<b\)+` and
+   `\(\|\>b\)+` on `.b\nab\n` do not return. The bounded matcher keeps
+   that nullable shape beside an empty alternative; in UTF-8 it is
+   declined and the fallback searches the `XX*` spelling, which is the
+   span that returns. A hang-anchor plus that GNU finishes, such as
+   `` \(\`+?\|\s\)+ ``, stays on the original pattern: the spelling can
+   disagree (`:\n\n` against `\n\n:`). A nullable plus that mixes a hang
+   anchor with `\'`, `\b` or `\B` is refused rather than searched.
+   `tests/grok-tac-c1-parity.py` is the witness for those results.
+   `tests/grok-tac-fix-hang.py` bounds every probe with `timeout` and
+   uses the spelling only when GNU does not return. The random-pattern
+   test does the same: a finished GNU result that differs from `XX*`
+   fails the case.
 
 2. **Stale buffer bytes in the literal search.** After a window widens, the
    pending record can be shorter than the separator. This typically happens
@@ -265,8 +278,9 @@ The back-reference rows use the glibc matcher over GNU's own buffer. Their
 time and memory match GNU's, including memory growth with the pending
 record: 20 MiB for an unmatched 16 MiB input. That is the documented
 limit of the glibc fallback, not a bounded path. None of these separators
-is a `+` whose operand contains an anchor, so the `XX*` spelling does
-not run on this hot path and the table was not re-measured for it.
+is an anchor plus, so neither the `XX*` spelling nor a search of a
+declined plus runs on this hot path. The table was not re-measured for
+that change.
 
 The raw report `bench-opus-tac-followup.json` and its log are in the task
 evidence directory, with every sample, binary and source hashes, fixtures,

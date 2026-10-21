@@ -40,11 +40,15 @@ the process's previous regex syntax, preserving Bash's own regex operations.
 
 The general regex path described here mapped the complete file. The
 [regex follow-up](opus-tac-followup.md) replaces it with a bounded streaming
-matcher and GNU's own read windows. Only back-references, collating and
-equivalence elements and some UTF-8 constructs still use glibc, over GNU's
-window and pending-record buffer. A `+` that contains an anchor is
-rewritten to `XX*` before that search, so glibc is not asked to copy the
-anchor. The [regex follow-up](opus-tac-followup.md) records the result.
+matcher and GNU's own read windows. Back-references, collating and
+equivalence elements, some UTF-8 constructs, and an anchor plus the
+bounded matcher declines still use glibc, over GNU's window and
+pending-record buffer. A nullable `+` of `` \` ^ \< \> ``
+beside an empty alternative, and a `+` of `$`, are rewritten to `XX*`
+before that search. Other anchor pluses stay as written: GNU finishes
+them, and the spelled span can differ. The
+[regex follow-up](opus-tac-followup.md) records which shapes are
+rewritten, refused, or searched unchanged.
 
 Multi-byte literal matching can still repeat comparisons for adversarial
 separator prefixes. Concurrently truncated or modified regular files are
