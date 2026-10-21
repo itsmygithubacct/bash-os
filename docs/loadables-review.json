@@ -1467,6 +1467,14 @@
       "status": "Contract",
       "evidence": "tests/sol-tui-check.py",
       "scope": "The original scope is met: the private-PTY API contract, sanitizer, top/more revalidation and the seven-sample fixed-work API benchmark all pass on the corrected tree. No reduced scope. Wide/combining grapheme layout, terminal-emulator compatibility and allocator fault injection are documented qualification limits, not unmet acceptance criteria."
+    },
+    {
+      "names": [
+        "clip"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-clip-check.py",
+      "scope": "All-or-nothing cut, copy, and paste; identifier rejection; a line index compared with the line count before addition; ring replacement; empty regions."
     }
   ],
   "sanitizer_groups": [
@@ -2053,6 +2061,14 @@
         "ss"
       ],
       "evidence": "tests/sol-ss-build-fixtures.sh"
+    },
+    {
+      "names": [
+        "clip",
+        "buf"
+      ],
+      "evidence": "tests/sol-clip-build-probe.sh",
+      "scope": "Clip functional checks on an ASan and UBSan plain module, the LONG_MAX index check on the sanitized probe, and clip fault injection on the native and sanitized probes."
     }
   ],
   "fuzz": {
@@ -3035,6 +3051,11 @@
       "evidence": "docs/sol-tui.md",
       "note": "The original scope is met: the private-PTY API contract, sanitizer, top/more revalidation and the seven-sample fixed-work API benchmark all pass on the corrected tree. No reduced scope. Wide/combining grapheme layout, terminal-emulator compatibility and allocator fault injection are documented qualification limits, not unmet acceptance criteria.",
       "next": "Retain documented software-path limits and preserve historical measurement provenance."
+    },
+    "clip": {
+      "evidence": "tests/sol-clip-check.py",
+      "note": "Cut, copy, and paste are all-or-nothing. Each ring entry is one block. A full ring replaces the oldest entry. New handles reject an empty name and any destination that is not an identifier, before allocation. Readonly and nameref-to-readonly destinations fail and release the slot. Copy and cut compare a line index with the line count before adding one, so a LONG_MAX index does not overflow. Empty regions are defined. bb_pub_dirty, bb_pub_get_lines, bb_pub_insert_lines, and bb_pub_delete_lines stay exported, and the first paged line is resolved once.",
+      "next": "Do not record 0.062x as an equivalent-work speedup or a paired before/after gain. Timed catalog passes discard stdout. Byte-checked timed text output is the adapter in bench/sol-clip.py. Full terminal-smoke and terminal-sanitize stay coordinator-owned. Clip fault coverage does not qualify nano."
     }
   },
   "repeat_input_findings": [],

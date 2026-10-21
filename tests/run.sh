@@ -59,6 +59,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'clip contract' python3 tests/sol-clip-check.py out/bash
 check 'lpr list readdir error' python3 tests/sol-lpr-list-readdir.py out/bash
 check 'tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash
 check 'lpr private spool and configured backend' python3 tests/opus-lpr-delivery.py out/bash
@@ -230,6 +231,11 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+check 'clip probe build' bash tests/sol-clip-build-probe.sh "$scratch/clip-probe"
+check 'clip rollback contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/probe.sh" python3 tests/sol-clip-faults.py out/bash
+check 'clip sanitizer contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/plain.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-check.py out/bash
+check 'clip sanitizer rollback contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/sanitize.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-faults.py out/bash
+check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/clip-probe/sanitize.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-check.py out/bash
   check 'su injected fixture build' python3 tests/sol-su-build.py "$scratch/su-native"
   check 'su authentication boundaries' env PYTHONPATH=/home/pleb/research/bash-os/loadable-completion-20261019/tasks/sol-su/oracle python3 tests/sol-su-check.py --fixture "$scratch/su-native/fixture" --shell out/bash --oracle
   check 'su sanitized fixture build' python3 tests/sol-su-build.py "$scratch/su-sanitize" --sanitize
