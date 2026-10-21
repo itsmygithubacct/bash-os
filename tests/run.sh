@@ -59,6 +59,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'lpr private spool and configured backend' python3 tests/opus-lpr-delivery.py out/bash
 check 'git lifecycle wait and repository state' python3 tests/sol-git-lifecycle.py out/bash
 check 'git workload oracle corruption controls' python3 tests/sol-git-oracles.py
 check 'gpu independent oracle controls' python3 tests/sol-gpu-oracle-check.py
@@ -226,6 +227,7 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'lpr delivery and cancel SIGPIPE under ASan+UBSan' bash tests/opus-lpr-sanitize.sh out/bash
   mkdir -p "$scratch/gpu-frames"
   touch "$scratch/gpu-frames/render.fixture"
   check 'gpu ABI fixture build' bash tests/sol-gpu-build-fixture.sh "$scratch/gpu-frames/driver.so"
