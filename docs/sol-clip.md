@@ -39,7 +39,14 @@ keeps, what changed to get there, and how it was checked and measured.
   reallocated. Integers are reused, as in `buf`, with no generation number.
   Entries are copies, so freeing or reloading the source buffer does not affect
   them. `new` reports output failures and readonly-variable failures, and
-  releases the handle when it cannot publish it.
+  releases the handle when it cannot publish it. `new -h HVAR` publishes
+  only to a legal shell identifier: a letter or underscore, then letters,
+  digits and underscores. An empty name, a hyphen, a leading digit or an
+  array subscript is rejected with status 2 before a handle is allocated,
+  so the next valid `new` still receives the first free slot. A readonly
+  scalar, and a nameref to a readonly variable, still fail with status 1
+  after allocation and the handle is released. A nameref to an assignable
+  variable receives the handle.
 - **Arguments.** Every verb rejects missing and extra arguments with status 2.
   `paste` on an empty ring and `yank-*` on an empty ring return 1. Output
   failures from `text`, `text -X` and `text -F` return 1 with a message.
@@ -74,7 +81,10 @@ independent Python model of the buffer and the ring supplies the expected bytes.
   entry survives `buf free` and `buf load` of its source.
 - Invalid input for every verb, with no change to buffer or ring.
 - Output failures to `/dev/full` and a closed FD, a failed binding and
-  handle-table exhaustion.
+  handle-table exhaustion. An empty name, `bad-name`, a leading digit, an
+  array subscript and a name containing a space are rejected before
+  allocation; the next valid handle is still the first free slot. Readonly
+  scalars and namerefs to readonly variables still fail and release the slot.
 - A 9,000-line binary fixture with a 1 MiB line. Its paged copies start past
   the first and second checkpoints and end on the final line.
 - A seeded 500-step sequence of every verb, compared after each step: status,

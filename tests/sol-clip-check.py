@@ -384,6 +384,28 @@ clip new -h n; [[ $n == 1 ]]; clip free "$n"
 clip free "$c"; buf free "$b"''', stderr_has=[b'text: write: No space left on device',
                                              b'RO: variable is not assignable'])
 
+    # Invalid destinations are rejected before a handle is allocated, so the
+    # next valid publication still receives the first free slot. Readonly
+    # scalars and namerefs keep failing after allocation and release it.
+    run('invalid-hvar-destination', '''
+reject 2 clip new -h ''
+reject 2 clip new -h bad-name
+reject 2 clip new -h 1bad
+reject 2 clip new -h 'a[0]'
+reject 2 clip new -h 'has space'
+clip new -h h; [[ $h == 0 ]]; clip free "$h"
+readonly RO=1
+reject 1 clip new -h RO
+declare -n ref=RO
+reject 1 clip new -h ref
+declare -n ok=target
+clip new -h ok; [[ $target == 0 && $ok == 0 ]]
+clip free "$target"
+unset -n ok
+clip new -h h; [[ $h == 0 ]]; clip free "$h"
+''', stderr_has=[b'not a valid identifier', b'RO: variable is not assignable',
+                 b'ref: variable is not assignable'])
+
     # ---- large entries, embedded newlines/NULs, -F ----------------------
     big = d / 'big'
     rnd = random.Random(1907)

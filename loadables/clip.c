@@ -58,6 +58,9 @@
  * sequence; the bytes still move exactly, so pasting a cut back at the same
  * place restores the original. Handles are reused integers, as in buf:
  * a freed buf or clip handle is rejected until the slot is reallocated.
+ * `new -h` publishes only to a legal shell identifier. An empty name, a
+ * hyphenated name, a leading digit or an array subscript is rejected before
+ * a handle is allocated.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -295,7 +298,10 @@ bc_push (bc_state *s, bc_slot *entry)
 
 /* ---- verb implementations ---- */
 
-/* Avoid Bash's fatal readonly-assignment path before publishing a handle. */
+/* Avoid Bash's fatal readonly-assignment path before publishing a handle.
+   builtin_bind_variable creates a shell variable for any string, including
+   "" and "bad-name", so the caller must already have required a legal
+   identifier. */
 static int
 bc_bind (const char *name, char *value)
 {
@@ -316,6 +322,11 @@ bc_new_cmd (WORD_LIST *args)
         const char *w = p->word->word;
         if (strcmp (w, "-h") == 0 && p->next) { hvar = p->next->word->word; p = p->next; }
         else { builtin_error ("new: unexpected arg '%s'", w); return EX_USAGE; }
+    }
+    /* Reject before allocation. A bad destination must not consume a slot. */
+    if (hvar && legal_identifier (hvar) == 0) {
+        sh_invalidid (hvar);
+        return EX_USAGE;
     }
     bc_state *s = calloc (1, sizeof (bc_state));
     if (!s) { builtin_error ("new: %s", strerror (ENOMEM)); return EXECUTION_FAILURE; }
