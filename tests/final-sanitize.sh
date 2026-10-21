@@ -41,5 +41,7 @@ PY
 target=$(realpath "${1:-out/bash}")
 printf '[[ $BASH == %q ]] || return 0\nset -e\n' "$target" > "$d/load.sh"
 for name in "${names[@]}"; do printf 'enable -f %q %q\n' "$d/final.so" "$name" >> "$d/load.sh"; done
+# The nano highlight selftest exceeds 30s under ASan. A scale of 4 makes that 120s.
+export BASH_OS_TIMEOUT_SCALE=${BASH_OS_TIMEOUT_SCALE:-4}
 FINAL_LOAD_ENV="$d/load.sh" FINAL_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
   python3 tests/final-smoke.py "${1:-out/bash}"
