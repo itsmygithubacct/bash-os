@@ -192,17 +192,25 @@ fi
 # --- 1. bash source and its patch set, pinned by sha256 --------------------
 # Every file here is checked against its pin, so a download that fails on
 # the way — a host that will not answer today — is worth asking again for.
+# ftp.gnu.org can stay unreachable for longer than the retries, and the pins
+# make GNU's mirror redirector an equally trustworthy second source.
 CURL_FETCH=(-fL --connect-timeout 30 --retry 3 --retry-delay 2 --retry-connrefused)
+fetch(){
+  local mirror=${2/#https:\/\/ftp.gnu.org\/gnu\//https://ftpmirror.gnu.org/}
+  curl "${CURL_FETCH[@]}" -o "$1" "$2" && return
+  [[ "$mirror" != "$2" ]] || return 1
+  say "trying $mirror"; curl "${CURL_FETCH[@]}" -o "$1" "$mirror"
+}
 TARBALL="$DL/bash-$BASH_SRC_VERSION.tar.gz"
 if [[ ! -f "$TARBALL" ]]; then
   if [[ -n "${BASH_TARBALL:-}" ]]; then cp "$BASH_TARBALL" "$TARBALL"
-  else say "downloading $BASH_URL"; curl "${CURL_FETCH[@]}" -o "$TARBALL" "$BASH_URL"; fi
+  else say "downloading $BASH_URL"; fetch "$TARBALL" "$BASH_URL"; fi
 fi
 echo "$BASH_SRC_SHA256  $TARBALL" | sha256sum -c - >/dev/null || die "bash tarball sha256 mismatch"
 mkdir -p "$DL/patches"
 for entry in "${BASH_PATCHES[@]}"; do
   pname=${entry%% *}; psha=${entry##* }; pfile="$DL/patches/$pname"
-  [[ -f "$pfile" ]] || { say "downloading $pname"; curl "${CURL_FETCH[@]}" -o "$pfile" "$BASH_PATCH_URL/$pname"; }
+  [[ -f "$pfile" ]] || { say "downloading $pname"; fetch "$pfile" "$BASH_PATCH_URL/$pname"; }
   echo "$psha  $pfile" | sha256sum -c - >/dev/null || die "$pname sha256 mismatch"
 done
 

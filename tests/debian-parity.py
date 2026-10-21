@@ -15,11 +15,13 @@ wording is not required to match, but rejected input must produce a diagnostic.
 """
 
 import argparse
+import functools
 import grp
 import itertools
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
 import subprocess
 import tempfile
@@ -35,6 +37,35 @@ BINARY = str(Path(args.binary).resolve())
 ENV = {**os.environ, "LC_ALL": "C", "TZ": "UTC"}
 for key in ("BASH_ENV", "ENV"):
     ENV.pop(key, None)
+
+
+@functools.cache
+def coreutils_version(program):
+    """Return the GNU coreutils release of a /usr/bin reference, or None."""
+    try:
+        result = subprocess.run([f"/usr/bin/{program}", "--version"], env=ENV,
+                                capture_output=True, timeout=10)
+    except OSError:
+        return None
+    match = re.search(rb"\(GNU coreutils\) (\d+)\.(\d+)", result.stdout)
+    return (int(match[1]), int(match[2])) if match else None
+
+
+# The builtins follow coreutils 9.7 as Debian 13 ships it. GNU has changed
+# some exit statuses since 9.1, so a reference from another release is held to
+# what that release documents, and the builtin is still held to Debian's.
+def reference_no_clobber(program):
+    """Return (status, diagnosed) when -n skips an existing destination."""
+    version = coreutils_version(program)
+    if version and (9, 2) <= version < (9, 5):
+        return 1, version >= (9, 3)
+    return 0, False
+
+
+def reference_declined(program):
+    """Return the status when -i is declined; nonzero since coreutils 9.2."""
+    version = coreutils_version(program)
+    return 0 if version and version < (9, 2) else 1
 
 
 def snapshot(root, metadata=None):
@@ -76,7 +107,7 @@ class DebianParity(unittest.TestCase):
                               capture_output=True, timeout=10)
 
     def compare(self, program, arguments, data=b"", setup=None, status=0, script=None,
-                metadata=None):
+                metadata=None, reference_status=None):
         results = []
         for builtin in (False, True):
             with tempfile.TemporaryDirectory(prefix="bash-os-debian-") as directory:
@@ -86,14 +117,19 @@ class DebianParity(unittest.TestCase):
                 result = self.run_command(program, arguments, root, builtin, data, script)
                 results.append((result, snapshot(root, metadata) if setup else None))
         expected, actual = results
-        self.assertEqual(expected[0].returncode, status,
+        if reference_status is None:
+            reference_status = status
+        if args.reference_only:
+            status = reference_status
+        self.assertEqual(expected[0].returncode, reference_status,
                          f"reference failed: {expected[0].stderr!r}")
-        if status:
+        if reference_status:
             self.assertTrue(expected[0].stderr, "reference omitted error diagnostic")
+        if status:
             self.assertTrue(actual[0].stderr, "builtin accepted invalid input silently")
-        else:
+        elif not reference_status:
             self.assertEqual(actual[0].stderr, expected[0].stderr)
-        self.assertEqual(actual[0].returncode, expected[0].returncode,
+        self.assertEqual(actual[0].returncode, status,
                          f"builtin stderr: {actual[0].stderr!r}")
         self.assertEqual(actual[0].stdout, expected[0].stdout)
         self.assertEqual(actual[1], expected[1])
@@ -286,8 +322,10 @@ class DebianParity(unittest.TestCase):
                                "dst": ("st_mtime_ns",)})
 
     def compare_move(self, setup, sources, flags=(), cross_device=False, status=0,
-                     script=None):
+                     script=None, reference_status=None, reference_diagnosed=None):
         results = []
+        if reference_status is None:
+            reference_status, reference_diagnosed = status, bool(status)
         if cross_device and (not Path("/dev/shm").is_dir() or
                              not os.access("/dev/shm", os.W_OK)):
             self.skipTest("need a writable second filesystem")
@@ -300,8 +338,12 @@ class DebianParity(unittest.TestCase):
                 setup(root, dest)
                 result = self.run_command("mv", [*flags, *sources, str(dest)], root, builtin,
                                           script=script)
-                self.assertEqual(result.returncode, status, result.stderr)
-                if status:
+                if builtin and not args.reference_only:
+                    want, diagnosed = status, bool(status)
+                else:
+                    want, diagnosed = reference_status, reference_diagnosed
+                self.assertEqual(result.returncode, want, result.stderr)
+                if diagnosed:
                     self.assertTrue(result.stderr)
                 else:
                     self.assertEqual(result.stderr, b"")
@@ -316,8 +358,14 @@ class DebianParity(unittest.TestCase):
         for cross in (False, True):
             for flags in ([], ["-f"], ["-n"]):
                 with self.subTest(cross_device=cross, flags=flags):
-                    self.compare_move(setup, ["a/file", "b/file"], flags, cross,
-                                      status=0 if flags == ["-n"] else 1)
+                    if flags == ["-n"]:
+                        reference_status, diagnosed = reference_no_clobber("mv")
+                        self.compare_move(setup, ["a/file", "b/file"], flags, cross,
+                                          reference_status=reference_status,
+                                          reference_diagnosed=diagnosed)
+                    else:
+                        self.compare_move(setup, ["a/file", "b/file"], flags, cross,
+                                          status=1)
 
     def test_move_cross_device_special_modes(self):
         for directory in (False, True):
@@ -375,9 +423,11 @@ class DebianParity(unittest.TestCase):
         for answer in (b"n\n", b"y\n"):
             with self.subTest(answer=answer):
                 # Prompt wording differs; compare resulting state and status.
+                declined = answer == b"n\n"
                 self.compare("cp", ["-ai", "src", "dst"], setup=setup,
-                             data=answer, status=1 if answer == b"n\n" else 0,
-                             script=None if answer == b"n\n" else '"$@" 2>/dev/null')
+                             data=answer, status=1 if declined else 0,
+                             reference_status=reference_declined("cp") if declined else 0,
+                             script=None if declined else '"$@" 2>/dev/null')
 
     def test_move_cross_device_hardlinks(self):
         if not Path("/dev/shm").is_dir() or not os.access("/dev/shm", os.W_OK):
