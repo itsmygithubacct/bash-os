@@ -27,7 +27,7 @@
  *   ^Y/M-E  Redo
  *   M-W     Toggle soft-wrap rendering
  *   M-{ / M-} Rotate older/newer yank-ring entries
- *   ←→↑↓    Cursor movement
+ *   ←→↑↓    Cursor movement (up/down keep the screen column)
  *   Home/End — start / end of line
  *   PgUp/Dn  — viewport navigation
  *   Backspace — delete char before cursor (joins lines if at col 0)
@@ -168,6 +168,8 @@ static int bn_status_until = 0;         /* clear after N more keypresses */
 static volatile sig_atomic_t bn_winch_pending = 0;
 static struct sigaction bn_old_winch;
 static int bn_winch_installed = 0;
+/* SIGHUP or SIGTERM received during a session (0 if none). */
+static volatile sig_atomic_t bn_term_signal = 0;
 
 /* Stage 2 — search (^W). Pattern persists across invocations so the next
    ^W pre-fills with the last query (matches GNU nano). */
@@ -1274,6 +1276,97 @@ bn_out_flush (bn_outbuf *out)
     memset (out, 0, sizeof *out);
 }
 
+/* ---- display form of text ----
+
+   Text from the buffer, a file name or a prompt never reaches the terminal
+   as a control sequence.  As in GNU nano, a tab expands to the next
+   multiple of BN_TABSIZE columns, C0 controls and DEL show in caret form
+   (^[, ^?), the C1 controls U+0080..U+009F as ^` .. ^~ and ^=, and each
+   malformed UTF-8 sequence as U+FFFD.  Everything else is copied as is. */
+
+#define BN_TABSIZE 8
+
+static int
+bn_cp_is_control (uint_least32_t cp)
+{
+    return cp < 0x20 || (cp >= 0x7f && cp < 0xa0);
+}
+
+/* Width in columns of the cluster S[0..ADV) drawn at screen column COL;
+   when OUT is set, append the bytes that draw it. */
+static int
+bn_cluster_cells (const char *s, size_t adv, long col, bn_outbuf *out)
+{
+    if (adv == 1 && (unsigned char) s[0] >= 0x20 && (unsigned char) s[0] < 0x7f) {
+        if (out) bn_out_append (out, s, 1);
+        return 1;
+    }
+    if (adv == 1 && s[0] == '\t') {
+        int w = BN_TABSIZE - (int) (col % BN_TABSIZE);
+        if (out) bn_out_append (out, "        ", (size_t) w);
+        return w;
+    }
+    uint_least32_t first = 0;
+    int clean = 1;
+    for (size_t p = 0; p < adv && clean; ) {
+        uint_least32_t cp;
+        size_t k = grapheme_decode_utf8 (s + p, adv - p, &cp);
+        if (k == 0 || k > adv - p
+            || (cp == GRAPHEME_INVALID_CODEPOINT
+                && !(k == 3 && memcmp (s + p, "\xef\xbf\xbd", 3) == 0))
+            || bn_cp_is_control (cp))
+            clean = 0;
+        if (p == 0) first = cp;
+        p += k ? k : 1;
+    }
+    if (clean) {
+        if (out) bn_out_append (out, s, adv);
+        return bgr_cell_width (first);
+    }
+    int w = 0;
+    for (size_t p = 0; p < adv; ) {
+        uint_least32_t cp;
+        size_t k = grapheme_decode_utf8 (s + p, adv - p, &cp);
+        if (k == 0) k = 1;
+        if (k > adv - p) k = adv - p;
+        if (cp == GRAPHEME_INVALID_CODEPOINT
+            && !(k == 3 && memcmp (s + p, "\xef\xbf\xbd", 3) == 0)) {
+            if (out) bn_out_append (out, "\xef\xbf\xbd", 3);
+            w += 1;
+        } else if (bn_cp_is_control (cp)) {
+            char rep[2] = { '^', 0 };
+            if (cp < 0x20)        rep[1] = (char) (cp + 0x40);
+            else if (cp == 0x7f)  rep[1] = '?';
+            else if (cp == 0x9f)  rep[1] = '=';
+            else                  rep[1] = (char) (cp - 0x80 + 0x60);
+            if (out) bn_out_append (out, rep, 2);
+            w += 2;
+        } else {
+            if (out) bn_out_append (out, s + p, k);
+            w += bgr_cell_width (cp);
+        }
+        p += k;
+    }
+    return w;
+}
+
+/* Append the display form of S[0..N) using at most MAX_CELLS columns. */
+static void
+bn_out_text (bn_outbuf *out, const char *s, size_t n, long max_cells)
+{
+    long col = 0;
+    size_t pos = 0;
+    while (pos < n) {
+        size_t adv = grapheme_next_character_break_utf8 (s + pos, n - pos);
+        if (adv == 0) adv = 1;
+        int w = bn_cluster_cells (s + pos, adv, col, NULL);
+        if (col + w > max_cells) break;
+        bn_cluster_cells (s + pos, adv, col, out);
+        col += w;
+        pos += adv;
+    }
+}
+
 static void
 bn_set_raw (void)
 {
@@ -1334,6 +1427,83 @@ bn_restore_winch (void)
         sigaction (SIGWINCH, &bn_old_winch, NULL);
     bn_winch_installed = 0;
     bn_winch_pending = 0;
+}
+
+/* SIGHUP and SIGTERM end the session the way GNU nano does: the terminal
+   is restored and a modified buffer is written to FILE.save (or
+   nano.save), never over an existing file.  The signal is then raised
+   again under the shell's own disposition, so a trap, or the default
+   action, still happens.  A signal the shell ignores stays ignored. */
+static const int bn_term_sigs[] = { SIGHUP, SIGTERM };
+static struct sigaction bn_old_term[2];
+static int bn_term_installed[2];
+
+static void
+bn_on_term (int sig)
+{
+    bn_term_signal = sig;
+}
+
+static void
+bn_install_term (void)
+{
+    bn_term_signal = 0;
+    for (int i = 0; i < 2; i++) {
+        bn_term_installed[i] = 0;
+        if (sigaction (bn_term_sigs[i], NULL, &bn_old_term[i]) < 0
+            || bn_old_term[i].sa_handler == SIG_IGN)
+            continue;
+        struct sigaction sa;
+        memset (&sa, 0, sizeof sa);
+        sa.sa_handler = bn_on_term;     /* no SA_RESTART: interrupt read */
+        sigemptyset (&sa.sa_mask);
+        if (sigaction (bn_term_sigs[i], &sa, NULL) == 0)
+            bn_term_installed[i] = 1;
+    }
+}
+
+static void
+bn_restore_term (void)
+{
+    for (int i = 0; i < 2; i++)
+        if (bn_term_installed[i])
+            sigaction (bn_term_sigs[i], &bn_old_term[i], NULL);
+    bn_term_installed[0] = bn_term_installed[1] = 0;
+}
+
+/* Write the buffer to the first free NAME.save, NAME.save.1, ...; on
+   success return the malloc'd name, otherwise NULL with errno set. */
+static char *
+bn_emergency_save (void)
+{
+    const char *base = bn_b.path && bn_b.path[0] ? bn_b.path : "nano";
+    size_t len = 0;
+    char *data = bn_pt_flatten (&bn_b.pt, &len);
+    if (!data) { errno = ENOMEM; return NULL; }
+    size_t nsz = strlen (base) + 32;
+    char *name = malloc (nsz);
+    if (!name) { free (data); errno = ENOMEM; return NULL; }
+    int fd = -1;
+    for (int i = 0; i < 1000 && fd < 0; i++) {
+        if (i == 0) snprintf (name, nsz, "%s.save", base);
+        else        snprintf (name, nsz, "%s.save.%d", base, i);
+        fd = open (name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+        if (fd < 0 && errno != EEXIST) break;
+    }
+    int err = 0;
+    if (fd < 0) err = errno ? errno : EEXIST;
+    for (size_t off = 0; fd >= 0 && off < len; ) {
+        ssize_t w = write (fd, data + off, len - off);
+        if (w < 0 && errno == EINTR) continue;
+        if (w <= 0) { err = w < 0 ? errno : EIO; break; }
+        off += (size_t) w;
+    }
+    if (fd >= 0 && !err && fsync (fd) < 0) err = errno;
+    if (fd >= 0 && close (fd) < 0 && !err) err = errno;
+    if (err && fd >= 0) unlink (name);
+    free (data);
+    if (err) { free (name); errno = err; return NULL; }
+    return name;
 }
 
 static void
@@ -1425,15 +1595,18 @@ bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
         size_t adv = grapheme_next_character_break_utf8 (
             L->data + pos, L->len - pos);
         if (adv == 0) adv = 1;
-        uint_least32_t cp = 0xFFFD;
-        grapheme_decode_utf8 (L->data + pos, adv, &cp);
-        int w = bgr_cell_width (cp);
+        int w = bn_cluster_cells (L->data + pos, adv, col_acc, NULL);
         if (col_acc + w <= start_col) {
             col_acc += w;
             pos += adv;
             continue;
         }
-        if (cells + w > viewport_cols) break;
+        /* A tab, wide character or caret form cut by the left edge shows
+           its visible columns as blanks, so the text stays aligned with
+           the cursor. */
+        int cut = col_acc < start_col;
+        int vis = cut ? (int) (col_acc + w - start_col) : w;
+        if (cells + vis > viewport_cols) break;
         /* Stage 7.E — SGR transition for this cluster's first byte, if
            highlighting is on.  The marked region is drawn in reverse video
            on top of any highlight colour. */
@@ -1450,8 +1623,9 @@ bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
             cur_sgr = want;
             cur_sel = want_sel;
         }
-        bn_out_append (out, L->data + pos, adv);
-        cells += w;
+        if (cut) for (int i = 0; i < vis; i++) bn_out_append (out, " ", 1);
+        else     bn_cluster_cells (L->data + pos, adv, col_acc, out);
+        cells += vis;
         col_acc += w;
         pos += adv;
     }
@@ -1513,12 +1687,20 @@ bn_render (void)
     /* Hide cursor, home. */
     bn_out_cstr (&out, "\033[?25l\033[H");
 
-    /* Top status line */
-    bn_out_fmt (&out,
-                "\033[7m nano  %s%s  L %ld/%zu C %ld \033[K\033[m\r\n",
-                bn_b.path ? bn_b.path : "(no file)",
-                bn_b.dirty ? " [Modified]" : "",
-                bn_cy + 1, bn_b.n_lines, bn_cx + 1);
+    /* Top status line.  The name is shown in display form and shortened
+       so the line never wraps. */
+    {
+        char pos_text[96];
+        snprintf (pos_text, sizeof pos_text, "%s  L %ld/%zu C %ld ",
+                  bn_b.dirty ? " [Modified]" : "",
+                  bn_cy + 1, bn_b.n_lines, bn_cx + 1);
+        const char *name = bn_b.path ? bn_b.path : "(no file)";
+        long room = (long) bn_cols - 8 - (long) strlen (pos_text);
+        bn_out_cstr (&out, "\033[7m nano  ");
+        bn_out_text (&out, name, strlen (name), room > 1 ? room : 1);
+        bn_out_cstr (&out, pos_text);
+        bn_out_cstr (&out, "\033[K\033[m\r\n");
+    }
 
     const char **sgr_at = NULL;
     size_t      total_bytes = 0;
@@ -1571,11 +1753,15 @@ bn_render (void)
             bn_out_cstr (&out, "\r\n");
         }
     }
-    /* Hint line */
-    bn_out_fmt (&out,
-                "\033[7m %s \033[K\033[m",
-                bn_status[0] ? bn_status :
-                "^O Save  ^X Exit  ^K Cut  ^U Paste  ^Z Undo  ^Y/M-E Redo  ^G Help");
+    /* Hint line, cut to the terminal width: writing past the last column
+       of the bottom row would scroll the whole frame. */
+    {
+        const char *hint = bn_status[0] ? bn_status :
+            "^O Save  ^X Exit  ^K Cut  ^U Paste  ^Z Undo  ^Y/M-E Redo  ^G Help";
+        bn_out_cstr (&out, "\033[7m ");
+        bn_out_text (&out, hint, strlen (hint), bn_cols > 3 ? bn_cols - 3 : 1);
+        bn_out_cstr (&out, " \033[K\033[m");
+    }
 
     /* Position cursor (adjust for status line at top, so +2). v2 — column
        is sum of cell widths, not byte count. Stage 4: account for the
@@ -1669,9 +1855,7 @@ bn_screen_col (const char *s, size_t len, long byte_idx)
     while (pos < byte_idx && (size_t) pos < len) {
         size_t adv = grapheme_next_character_break_utf8 (s + pos, len - pos);
         if (adv == 0) adv = 1;
-        uint_least32_t cp = 0xFFFD;
-        grapheme_decode_utf8 (s + pos, adv, &cp);
-        col += bgr_cell_width (cp);
+        col += bn_cluster_cells (s + pos, adv, col, NULL);
         pos += (long) adv;
     }
     return col;
@@ -1690,6 +1874,44 @@ bn_clamp_cx (void)
         long snapped = bn_line_grapheme_prev (L, bn_cx + 1);
         bn_cx = snapped;
     }
+}
+
+/* Vertical movement keeps a screen column, as GNU nano does: the column
+   is taken from the cursor on the first up/down key, and any other key
+   forgets it, so passing through a short line returns to the same column.
+   The cursor lands after the last cluster that ends at or before the
+   column, never inside a wide character. */
+static long bn_want_col = -1;
+
+static long
+bn_byte_at_col (const bn_line *L, long want)
+{
+    long col = 0;
+    size_t pos = 0;
+    while (L && pos < L->len) {
+        size_t adv = grapheme_next_character_break_utf8 (L->data + pos, L->len - pos);
+        if (adv == 0) adv = 1;
+        int w = bn_cluster_cells (L->data + pos, adv, col, NULL);
+        if (col + w > want) break;
+        col += w;
+        pos += adv;
+    }
+    return (long) pos;
+}
+
+static void
+bn_move_vertical (long dy)
+{
+    bn_line *L = bn_curline ();
+    if (bn_want_col < 0)
+        bn_want_col = L ? bn_screen_col (L->data, L->len, bn_cx) : 0;
+    long ny = bn_cy + dy;
+    if (ny < 0) ny = 0;
+    if (bn_b.n_lines == 0 || ny > (long) bn_b.n_lines - 1)
+        ny = bn_b.n_lines ? (long) bn_b.n_lines - 1 : 0;
+    if (ny == bn_cy) return;
+    bn_cy = ny;
+    bn_cx = bn_byte_at_col (bn_curline (), bn_want_col);
 }
 
 /* Stage 44.A — splice rlen bytes of `repl` over plen bytes at (line,col).
@@ -2014,7 +2236,8 @@ bn_modal_prompt (const char *label, char *dest, size_t dest_size)
 
         char k[8];
         int klen = bn_read_key (k, sizeof k);
-        if (klen == 0) continue;            /* interrupted read */
+        if (klen == 0 && !bn_term_signal) continue;     /* interrupted read */
+        if (klen == 0) klen = -1;           /* SIGHUP/SIGTERM: cancel */
         if (klen < 0) {                     /* input closed: cancel */
             memcpy (bn_status, saved_status, sizeof bn_status);
             bn_status_until = saved_until;
@@ -2118,6 +2341,45 @@ bn_keyq_set (const char *const *keys, size_t n)
     bn_keyq_pos = 0;
 }
 
+/* One byte of terminal input.  TIMEOUT_MS < 0 blocks.  A byte pushed
+   back by the key framer comes first. */
+#define BN_BYTE_EOF     (-1)
+#define BN_BYTE_TIMEOUT (-2)
+#define BN_BYTE_INTR    (-3)
+#define BN_ESC_WAIT_MS  100
+static int bn_unread = -1;
+
+static int
+bn_next_byte (int timeout_ms)
+{
+    if (bn_unread >= 0) {
+        int c = bn_unread;
+        bn_unread = -1;
+        return c;
+    }
+    if (timeout_ms >= 0) {
+        struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
+        int r;
+        while ((r = poll (&p, 1, timeout_ms)) < 0 && errno == EINTR) {
+            if (bn_term_signal) return BN_BYTE_INTR;
+        }
+        if (r == 0) return BN_BYTE_TIMEOUT;
+        if (r < 0) return BN_BYTE_EOF;
+    }
+    unsigned char b;
+    for (;;) {
+        ssize_t n = read (STDIN_FILENO, &b, 1);
+        if (n == 1) return b;
+        if (n < 0 && errno == EINTR) {
+            /* The first byte of a key reports the interruption so the
+               caller can redraw or stop; inside a key, keep reading. */
+            if (timeout_ms < 0 || bn_term_signal) return BN_BYTE_INTR;
+            continue;
+        }
+        return BN_BYTE_EOF;
+    }
+}
+
 static int
 bn_read_key (char *buf, size_t bufsz)
 {
@@ -2129,52 +2391,53 @@ bn_read_key (char *buf, size_t bufsz)
         memcpy (buf, key, n);
         return (int) n;
     }
-    /* Read one key. ESC sequences: read up to 6 bytes. UTF-8 multi-byte
-       sequences (high bit set, not ESC): read continuation bytes per
-       leading-bits length. */
-    ssize_t n = read (STDIN_FILENO, buf, 1);
-    if (n < 0 && errno == EINTR)
-        return 0;
-    if (n <= 0)
-        return -1;
-    if (buf[0] == 0x1b) {
-        /* Try to read the rest of an escape sequence (non-blocking). */
-        struct termios old, t;
-        tcgetattr (STDIN_FILENO, &old);
-        t = old;
-        t.c_cc[VMIN] = 0; t.c_cc[VTIME] = 1;  /* 100 ms */
-        tcsetattr (STDIN_FILENO, TCSANOW, &t);
-        size_t total = 1;
-        while (total < bufsz - 1) {
-            ssize_t r = read (STDIN_FILENO, buf + total, 1);
-            if (r < 0 && errno == EINTR)
-                continue;
-            if (r <= 0) break;
-            total++;
+    int c0 = bn_next_byte (-1);
+    if (c0 == BN_BYTE_INTR) return 0;
+    if (c0 < 0) return -1;
+    buf[0] = (char) c0;
+    size_t total = 1;
+    if (c0 == 0x1b) {
+        /* Frame exactly one key, so keys that arrive in the same burst as
+           an escape sequence are not swallowed with it: ESC alone (after a
+           pause), ESC [ params final (CSI), ESC O final (SS3), ESC followed
+           by one UTF-8 character (Alt+key), or ESC ESC, which yields the
+           first ESC and keeps the second for the next key. */
+        int c1 = bn_next_byte (BN_ESC_WAIT_MS);
+        if (c1 < 0) return 1;
+        if (c1 == 0x1b) { bn_unread = c1; return 1; }
+        buf[total++] = (char) c1;
+        if (c1 == '[' || c1 == 'O') {
+            for (;;) {
+                int c = bn_next_byte (BN_ESC_WAIT_MS);
+                if (c < 0) break;
+                if (c < 0x20 || c > 0x7e) { bn_unread = c; break; }
+                if (total < bufsz - 1) buf[total++] = (char) c;
+                /* Parameter and intermediate bytes are 0x20..0x3f; a CSI
+                   ends at the first byte from 0x40, SS3 after one byte. */
+                if (c >= 0x40 || c1 == 'O') break;
+            }
+            return (int) total;
         }
-        tcsetattr (STDIN_FILENO, TCSANOW, &old);
-        return (int) total;
+        if ((unsigned char) c1 < 0x80) return (int) total;
+        /* Alt + a multibyte character: fall through and collect it. */
     }
-    /* v2 — multi-byte UTF-8: accumulate continuation bytes. */
-    unsigned char b0 = (unsigned char) buf[0];
-    if (b0 >= 0x80) {
+    unsigned char lead = (unsigned char) buf[total - 1];
+    if (lead >= 0x80) {
         int expect = 1;
-        if      ((b0 & 0xE0) == 0xC0) expect = 2;
-        else if ((b0 & 0xF0) == 0xE0) expect = 3;
-        else if ((b0 & 0xF8) == 0xF0) expect = 4;
-        else return 1;   /* invalid lead — treat as single byte */
-        size_t total = 1;
-        while ((int) total < expect && total < bufsz) {
-            ssize_t r = read (STDIN_FILENO, buf + total, 1);
-            if (r < 0 && errno == EINTR)
-                continue;
-            if (r <= 0) break;
-            if (((unsigned char) buf[total] & 0xC0) != 0x80) break;
-            total++;
+        if      ((lead & 0xE0) == 0xC0) expect = 2;
+        else if ((lead & 0xF0) == 0xE0) expect = 3;
+        else if ((lead & 0xF8) == 0xF0) expect = 4;
+        size_t want = total - 1 + (size_t) expect;
+        while (total < want && total < bufsz - 1) {
+            int c = bn_next_byte (BN_ESC_WAIT_MS);
+            if (c < 0) break;
+            /* A byte that does not continue the sequence starts the next
+               key instead of being lost. */
+            if ((c & 0xC0) != 0x80) { bn_unread = c; break; }
+            buf[total++] = (char) c;
         }
-        return (int) total;
     }
-    return 1;
+    return (int) total;
 }
 
 /* ---- justify (^J, M-J) ----
@@ -2652,6 +2915,7 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
         pfd[np].fd = rfd; pfd[np].events = POLLIN; pfd[np].revents = 0; np++;
         if (wfd >= 0) { pfd[np].fd = wfd; pfd[np].events = POLLOUT; pfd[np].revents = 0; np++; }
         int pr = poll (pfd, (nfds_t) np, (int) (bn_spell_timeout_ms - elapsed));
+        if (bn_term_signal) { problem = "interrupted"; break; }
         if (pr < 0) {
             if (errno == EINTR) continue;
             problem = "poll failed";
@@ -2696,6 +2960,7 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
         long elapsed = (long) ((now.tv_sec - t0.tv_sec) * 1000
                                + (now.tv_nsec - t0.tv_nsec) / 1000000);
         if (elapsed >= bn_spell_timeout_ms) { problem = "timed out"; break; }
+        if (bn_term_signal) { problem = "interrupted"; break; }
         nanosleep (&nap, NULL);
     }
     if (problem) {
@@ -2941,14 +3206,42 @@ bn_complete (void)
 }
 
 static int
+bn_key_is_vertical (const char *k, int klen)
+{
+    if (klen == 1) return k[0] == 0x10 || k[0] == 0x0e;
+    if (klen >= 3 && k[0] == 0x1b && k[1] == '[')
+        return k[2] == 'A' || k[2] == 'B'
+            || (klen == 4 && (k[2] == '5' || k[2] == '6') && k[3] == '~');
+    return 0;
+}
+
+static int bn_dispatch_key (const char *k, int klen);
+
+static int
 bn_dispatch (const char *k, int klen)
+{
+    /* SS3 cursor keys (ESC O A, sent in application cursor mode) mean
+       the same as their CSI forms. */
+    char csi[3];
+    if (klen == 3 && k[0] == 0x1b && k[1] == 'O' && strchr ("ABCDHF", k[2])) {
+        csi[0] = 0x1b; csi[1] = '['; csi[2] = k[2];
+        k = csi;
+    }
+    int vertical = bn_key_is_vertical (k, klen);
+    int rc = bn_dispatch_key (k, klen);
+    if (!vertical) bn_want_col = -1;
+    return rc;
+}
+
+static int
+bn_dispatch_key (const char *k, int klen)
 {
     /* ESC sequence first (3+ bytes starting ESC [). */
     if (klen >= 3 && k[0] == 0x1b && k[1] == '[') {
         char c = k[2];
         switch (c) {
-        case 'A':  /* up */    if (bn_cy > 0) { bn_cy--; bn_clamp_cx (); } break;
-        case 'B':  /* down */  if ((size_t) bn_cy + 1 < bn_b.n_lines) { bn_cy++; bn_clamp_cx (); } break;
+        case 'A':  /* up */    bn_move_vertical (-1); break;
+        case 'B':  /* down */  bn_move_vertical (1); break;
         case 'C':  /* right */ {
             bn_line *L = bn_curline ();
             if (L && bn_cx < (long) L->len)
@@ -2966,13 +3259,20 @@ bn_dispatch (const char *k, int klen)
             break;
         case 'H':  /* home */  bn_cx = 0; break;
         case 'F':  /* end */   { bn_line *L = bn_curline (); bn_cx = L ? (long) L->len : 0; break; }
+        case '1': case '7':    /* Home: ESC [ 1 ~ (VT220), ESC [ 7 ~ (rxvt) */
+            if (klen == 4 && k[3] == '~') bn_cx = 0;
+            break;
+        case '4': case '8':    /* End: ESC [ 4 ~, ESC [ 8 ~ */
+            if (klen == 4 && k[3] == '~') {
+                bn_line *L = bn_curline ();
+                bn_cx = L ? (long) L->len : 0;
+            }
+            break;
         case '3':  /* Delete: ESC [ 3 ~ */
             if (klen >= 4 && k[3] == '~') bn_delete_forward ();
             break;
-        case '5':  /* PgUp */  bn_cy -= (bn_rows - 2); if (bn_cy < 0) bn_cy = 0; bn_clamp_cx (); break;
-        case '6':  /* PgDn */  bn_cy += (bn_rows - 2);
-            if ((size_t) bn_cy >= bn_b.n_lines) bn_cy = (long) bn_b.n_lines - 1;
-            bn_clamp_cx (); break;
+        case '5':  /* PgUp */  bn_move_vertical (-(long) (bn_rows > 3 ? bn_rows - 2 : 1)); break;
+        case '6':  /* PgDn */  bn_move_vertical ((long) (bn_rows > 3 ? bn_rows - 2 : 1)); break;
         }
         return 0;
     }
@@ -3076,10 +3376,10 @@ bn_dispatch (const char *k, int klen)
             }
             return 0;
         case 0x10:  /* ^P — GNU nano legacy Up */
-            if (bn_cy > 0) { bn_cy--; bn_clamp_cx (); }
+            bn_move_vertical (-1);
             return 0;
         case 0x0e:  /* ^N — GNU nano legacy Down */
-            if ((size_t) bn_cy + 1 < bn_b.n_lines) { bn_cy++; bn_clamp_cx (); }
+            bn_move_vertical (1);
             return 0;
         case 0x02:  /* ^B — GNU nano left */
             if (bn_cx > 0) {
@@ -3733,8 +4033,10 @@ bn_selftest_keybindings (void)
     BN_KEYTEST_ASSERT ("^P dispatches to previous line",
                        bn_cy == 0 && bn_cx == 2);
     bn_dispatch (down_key, 1);
-    BN_KEYTEST_ASSERT ("^N dispatches to next line",
-                       bn_cy == 1 && bn_cx == 2);
+    /* Like GNU nano, ^P then ^N returns to the column ^P started from. */
+    BN_KEYTEST_ASSERT ("^N dispatches to next line, back at the remembered column",
+                       bn_cy == 1 && bn_cx == 3);
+    bn_cx = 2;
     bn_dispatch (left_key, 1);
     BN_KEYTEST_ASSERT ("^B dispatches to left",
                        bn_cy == 1 && bn_cx == 1);
@@ -4890,6 +5192,7 @@ bn_st_reset (void)
     bn_status[0] = '\0';
     bn_status_until = 0;
     bn_rows = 24; bn_cols = 80;
+    bn_want_col = -1;
     bn_fill = -8;
     bn_trimblanks = 0;
     bn_complete_reset ();
@@ -5469,12 +5772,38 @@ bn_selftest_selection (void)
     BN_ST_ASSERT ("copy after edits covers the intended text",
                   bn_clip && bn_clip_len == 1 && bn_clip[0] == 'l');
 
-    /* Vertical movement onto a line of wide clusters snaps to a boundary. */
+    /* Vertical movement keeps the screen column (GNU nano 8.4 lands after
+       the second CJK character from column 4) and never splits a wide
+       cluster: from column 3 it stops after the first one. */
     bn_st_load ("abcdef\n\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\n");
     bn_cx = 4;
     BN_ST_KEYS ("\x1b[B");
-    BN_ST_ASSERT ("down onto CJK snaps the cursor to a cluster start",
+    BN_ST_ASSERT ("down onto CJK keeps screen column 4 (after two wide clusters)",
+                  bn_cy == 1 && bn_cx == 6);
+    bn_cy = 0; bn_cx = 3;
+    bn_want_col = -1;           /* the cursor was placed, not moved */
+    BN_ST_KEYS ("\x0e");
+    BN_ST_ASSERT ("^N from column 3 stops before the wide cluster spanning it",
                   bn_cy == 1 && bn_cx == 3);
+    bn_st_load ("abcdefgh\nab\n\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87\n\tx\n");
+    bn_cx = 6;
+    BN_ST_KEYS ("\x1b[B");
+    BN_ST_ASSERT ("a short line clamps the cursor to its end", bn_cy == 1 && bn_cx == 2);
+    BN_ST_KEYS ("\x1b[B");
+    BN_ST_ASSERT ("the next line restores the remembered column 6",
+                  bn_cy == 2 && bn_cx == 9);
+    BN_ST_KEYS ("\x1b[B");
+    BN_ST_ASSERT ("a tab spans columns 0..7, so column 6 lands before it",
+                  bn_cy == 3 && bn_cx == 0);
+    BN_ST_KEYS ("\x1b[A", "\x1b[A", "\x1b[A");
+    BN_ST_ASSERT ("moving back up returns to column 6 on the first line",
+                  bn_cy == 0 && bn_cx == 6);
+    BN_ST_KEYS ("\x1b[B", "\x1b[D", "\x1b[B");
+    BN_ST_ASSERT ("a horizontal move resets the remembered column (1 is inside a wide cluster)",
+                  bn_cy == 2 && bn_cx == 0);
+    BN_ST_KEYS ("\x1bOA");
+    BN_ST_ASSERT ("SS3 up (application cursor mode) moves like CSI up",
+                  bn_cy == 1 && bn_cx == 1);
 
     free (bn_clip); bn_clip = NULL; bn_clip_len = 0;
     bn_yank_ring_clear ();
@@ -5573,6 +5902,251 @@ bn_selftest_linecache (void)
     return bn_st_fails ? 1 : 0;
 }
 
+/* Render one frame to a temporary file and return its bytes (NUL
+   terminated; *N receives the length). */
+static char *
+bn_st_capture_render (size_t *n)
+{
+    fflush (stdout);
+    char tmpl[] = "/tmp/nano-render.XXXXXX";
+    int fd = mkstemp (tmpl);
+    if (fd < 0) return NULL;
+    unlink (tmpl);
+    int saved = dup (STDOUT_FILENO);
+    dup2 (fd, STDOUT_FILENO);
+    bn_render ();
+    dup2 (saved, STDOUT_FILENO);
+    close (saved);
+    off_t len = lseek (fd, 0, SEEK_END);
+    char *buf = malloc ((size_t) (len > 0 ? len : 0) + 1);
+    ssize_t r = buf && len > 0 ? pread (fd, buf, (size_t) len, 0) : 0;
+    close (fd);
+    if (!buf) return NULL;
+    if (r < 0) r = 0;
+    buf[r] = '\0';
+    *n = (size_t) r;
+    return buf;
+}
+
+/* The terminal input path: bytes written to a pipe on stdin go through
+   bn_read_key's poll/read framing, exactly as from a terminal. */
+static int
+bn_selftest_input (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    int saved_in = dup (STDIN_FILENO);
+    int p[2];
+    if (saved_in < 0 || pipe (p) < 0) {
+        printf ("not ok 1 - pipe\n1..1\n");
+        return 1;
+    }
+    dup2 (p[0], STDIN_FILENO);
+    close (p[0]);
+    static const char burst[] =
+        "\x1b[C\x1b[Cab\x1b[Dc"         /* arrows and text in one write */
+        "\x1bOA" "\x1bj"                /* SS3 up, Alt-j */
+        "\x1b\x1b[B"                    /* ESC ESC [ B */
+        "\xc3\xa9" "\xc3" "A"           /* e-acute, broken lead then A */
+        "\x1b[1;5C" "\x1b\xc3\xa9"      /* CSI with parameters, Alt+e-acute */
+        "\x1b[1;2;3;4;5;6Hz"            /* CSI longer than a prompt buffer */
+        "\x1b";                         /* lone ESC, then end of input */
+    static const char *const want[] = {
+        "\x1b[C", "\x1b[C", "a", "b", "\x1b[D", "c", "\x1bOA", "\x1bj",
+        "\x1b", "\x1b[B", "\xc3\xa9", "\xc3", "A", "\x1b[1;5C", "\x1b\xc3\xa9",
+        "\x1b[1;2;3", "z", "\x1b",
+    };
+    size_t nwant = sizeof want / sizeof want[0];
+    ssize_t wr = write (p[1], burst, sizeof burst - 1);
+    close (p[1]);
+    int ok = wr == (ssize_t) (sizeof burst - 1);
+    size_t got = 0;
+    char k[16];
+    int klen;
+    for (;;) {
+        /* The long CSI is read with a prompt-sized buffer. */
+        size_t sz = got == 15 ? 8 : sizeof k;
+        klen = bn_read_key (k, sz);
+        if (klen < 0) break;
+        if (got >= nwant || (size_t) klen != strlen (want[got])
+            || memcmp (k, want[got], (size_t) klen) != 0) {
+            printf ("# key %zu: got %d bytes \"", got, klen);
+            for (int i = 0; i < klen; i++) printf ("\\x%02x", (unsigned char) k[i]);
+            printf ("\"\n");
+            ok = 0;
+        }
+        got++;
+    }
+    BN_ST_ASSERT ("a mixed burst splits into exactly one key per sequence", ok && got == nwant);
+    BN_ST_ASSERT ("nothing is left pushed back at end of input", bn_unread < 0);
+
+    /* The same framing feeds dispatch: GNU nano 8.4 turns this burst on
+       0123456789 into 01acb23456789. */
+    bn_st_load ("0123456789\n");
+    if (pipe (p) == 0) {
+        dup2 (p[0], STDIN_FILENO);
+        close (p[0]);
+        wr = write (p[1], "\x1b[C\x1b[Cab\x1b[Dc\x1b[B\x1b[A\x05!", 20);
+        close (p[1]);
+        fflush (stdout);
+        int so = dup (STDOUT_FILENO), dn = open ("/dev/null", O_WRONLY);
+        if (dn >= 0) { dup2 (dn, STDOUT_FILENO); close (dn); }
+        while ((klen = bn_read_key (k, sizeof k)) > 0)
+            bn_dispatch (k, klen);
+        if (so >= 0) { dup2 (so, STDOUT_FILENO); close (so); }
+    }
+    BN_ST_ASSERT ("burst edits apply in order with no key lost",
+                  wr == 20 && bn_st_text_is ("01acb23456789!\n"));
+
+    dup2 (saved_in, STDIN_FILENO);
+    close (saved_in);
+    bn_unread = -1;
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
+/* Display form: tabs, controls and malformed UTF-8 in text, names and
+   status messages, and the emergency save used on SIGHUP/SIGTERM. */
+static int
+bn_selftest_display (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    size_t n = 0;
+    char *out;
+
+    bn_st_load ("\tx\n");
+    BN_ST_KEYS ("\x05");
+    out = bn_st_capture_render (&n);
+    BN_ST_ASSERT ("a leading tab is drawn as eight spaces",
+                  out && strstr (out, "\033[K        x\r\n") != NULL);
+    BN_ST_ASSERT ("the cursor after the tab and x is at screen column 10",
+                  out && strstr (out, "\033[2;10H") != NULL);
+    BN_ST_ASSERT ("no raw tab reaches the terminal", out && !memchr (out, '\t', n));
+    free (out);
+
+    bn_st_load ("ab\tc\n");
+    BN_ST_KEYS ("\x05");
+    out = bn_st_capture_render (&n);
+    BN_ST_ASSERT ("a tab after two columns expands to the next stop",
+                  out && strstr (out, "ab      c") && strstr (out, "\033[2;10H"));
+    free (out);
+
+    bn_st_load ("a\x1b]0;PWNED\x07" "b\xc2\x9b" "31m\x80\x7f\n");
+    BN_ST_KEYS ("\x05");
+    out = bn_st_capture_render (&n);
+    BN_ST_ASSERT ("controls in text show in caret form, C1 as ^{, bad UTF-8 as U+FFFD",
+                  out && strstr (out, "a^[]0;PWNED^Gb^{31m\xef\xbf\xbd^?") != NULL);
+    BN_ST_ASSERT ("no OSC, BEL or C1 from the file reaches the terminal",
+                  out && !memmem (out, n, "\x1b]", 2) && !memchr (out, '\a', n)
+                  && !memmem (out, n, "\xc2\x9b", 2) && !memmem (out, n, "\x80\x7f", 2));
+    BN_ST_ASSERT ("the cursor column counts each caret form as two cells",
+                  out && strstr (out, "\033[2;23H") != NULL);
+    free (out);
+
+    bn_st_load ("x\n");
+    bn_b.path = strdup ("evil\x1b[2J\x1b]0;t\x07name");
+    out = bn_st_capture_render (&n);
+    BN_ST_ASSERT ("a file name is shown in display form in the title",
+                  out && strstr (out, "evil^[[2J^[]0;t^Gname") != NULL
+                  && !memmem (out, n, "\x1b[2J", 4) && !memchr (out, '\a', n));
+    free (out);
+
+    bn_st_load ("x\n");
+    bn_cols = 40;
+    bn_set_status ("%s", "0123456789012345678901234567890123456789TAIL\x1b[2J");
+    out = bn_st_capture_render (&n);
+    BN_ST_ASSERT ("a long status is cut to the terminal width, never wrapped",
+                  out && strstr (out, "\033[7m 0123456789012345678901234567890123456 \033[K")
+                  && !strstr (out, "TAIL") && !memmem (out, n, "\x1b[2J", 4));
+    free (out);
+    bn_cols = 80;
+
+    /* Horizontal scrolling past a tab draws only its visible part. */
+    bn_st_load ("\tabcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123ABCDEFGH\n");
+    BN_ST_KEYS ("\x05");
+    out = bn_st_capture_render (&n);
+    {
+        const char *row = out ? strstr (out, "\r\n\033[K") : NULL;
+        size_t cells = 0;
+        if (row) {
+            row += 5;
+            for (const char *c = row; *c && *c != '\r' && *c != '\033'; c++) cells++;
+        }
+        /* Width 82, so the view starts at column 4: half the tab shows. */
+        BN_ST_ASSERT ("a tab cut by the left edge draws only its visible part",
+                      row && cells == 78 && strncmp (row, "    abc", 7) == 0
+                      && strstr (out, "ABCDEFGH\r\n") && strstr (out, "\033[2;79H"));
+    }
+    free (out);
+
+    /* Width 80 starts the view at column 2, inside the CJK character. */
+    {
+        char line[128] = "a\xe4\xb8\xad";
+        memset (line + 4, 'x', 77);
+        strcpy (line + 81, "\n");
+        bn_st_load (line);
+        BN_ST_KEYS ("\x05");
+        out = bn_st_capture_render (&n);
+        const char *row = out ? strstr (out, "\r\n\033[K") : NULL;
+        char want[96] = " ";
+        memset (want + 1, 'x', 77);
+        strcpy (want + 78, "\r\n");
+        BN_ST_ASSERT ("a wide character cut by the left edge shows a blank cell",
+                      row && strncmp (row + 5, want, 80) == 0 && strstr (out, "\033[2;79H"));
+        free (out);
+    }
+
+    /* Emergency save. */
+    char dir[] = "/tmp/nano-rescue.XXXXXX";
+    if (mkdtemp (dir)) {
+        char doc[256], p0[300], p1[300], p2[300], tgt[300];
+        snprintf (doc, sizeof doc, "%s/doc.txt", dir);
+        snprintf (p0, sizeof p0, "%s.save", doc);
+        snprintf (p1, sizeof p1, "%s.save.1", doc);
+        snprintf (p2, sizeof p2, "%s.save.2", doc);
+        snprintf (tgt, sizeof tgt, "%s/target", dir);
+        int fd = open (p0, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd >= 0) { (void) write (fd, "old", 3); close (fd); }
+        (void) symlink (tgt, p1);
+        bn_st_load ("rescued text\n");
+        bn_b.path = strdup (doc);
+        bn_b.dirty = 1;
+        char *name = bn_emergency_save ();
+        struct stat st;
+        char buf[64] = {0};
+        int ok = name && strcmp (name, p2) == 0 && stat (p2, &st) == 0
+                 && (st.st_mode & 0777) == 0600;
+        fd = open (p2, O_RDONLY);
+        if (fd >= 0) { (void) read (fd, buf, sizeof buf - 1); close (fd); }
+        BN_ST_ASSERT ("emergency save skips an existing .save and a symlinked .save.1",
+                      ok && strcmp (buf, "rescued text\n") == 0);
+        memset (buf, 0, sizeof buf);
+        fd = open (p0, O_RDONLY);
+        if (fd >= 0) { (void) read (fd, buf, sizeof buf - 1); close (fd); }
+        BN_ST_ASSERT ("the existing .save and the symlink target are untouched",
+                      strcmp (buf, "old") == 0 && access (tgt, F_OK) != 0);
+        free (name);
+        free (bn_b.path);
+        snprintf (p0, sizeof p0, "%s/missing/doc.txt", dir);
+        bn_b.path = strdup (p0);
+        errno = 0;
+        name = bn_emergency_save ();
+        BN_ST_ASSERT ("an unwritable location fails with errno, writing nothing",
+                      name == NULL && errno == ENOENT);
+        free (name);
+        unlink (p2); unlink (p1);
+        snprintf (p0, sizeof p0, "%s.save", doc);
+        unlink (p0);
+        rmdir (dir);
+    } else {
+        BN_ST_ASSERT ("mkdtemp for the emergency-save fixture", 0);
+    }
+
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
 #undef BN_ST_ASSERT
 #undef BN_ST_KEYS
 
@@ -5612,6 +6186,10 @@ nano_builtin (WORD_LIST *list)
         return bn_selftest_selection () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     if (list && list->word && strcmp (list->word->word, "selftest-linecache") == 0)
         return bn_selftest_linecache () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-input") == 0)
+        return bn_selftest_input () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-display") == 0)
+        return bn_selftest_display () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 
     /* Options are reset on every call: the builtin's state lives in the
        shell process and must not leak into the next invocation. */
@@ -5683,6 +6261,9 @@ nano_builtin (WORD_LIST *list)
 
     bn_get_size ();
     bn_install_winch ();
+    bn_install_term ();
+    bn_unread = -1;
+    bn_want_col = -1;
     bn_set_raw ();
 
     /* Switch to alt screen so we don't trash the user's scrollback. */
@@ -5696,17 +6277,33 @@ nano_builtin (WORD_LIST *list)
         struct pollfd pending = { STDIN_FILENO, POLLIN, 0 };
         if (poll (&pending, 1, 0) <= 0 || !(pending.revents & POLLIN))
             bn_render ();
+        if (bn_term_signal) break;
         int k = bn_read_key (keybuf, sizeof keybuf);
-        if (k < 0) break;
+        if (bn_term_signal || k < 0) break;
         if (k == 0) continue;
         if (bn_dispatch (keybuf, k) < 0) break;
+        if (bn_term_signal) break;
         bn_get_size ();  /* in case window resized */
     }
 
     /* Cleanup */
+    int term_sig = bn_term_signal;
+    char *rescued = NULL;
+    int rescue_errno = 0;
+    if (term_sig && bn_b.dirty) {
+        rescued = bn_emergency_save ();
+        if (!rescued) rescue_errno = errno;
+    }
     bn_write ("\033[?1049l");  /* main screen */
     bn_restore_tio ();
     bn_restore_winch ();
+    bn_unread = -1;
+    if (term_sig && bn_b.dirty) {
+        if (rescued) fprintf (stderr, "nano: buffer written to %s\n", rescued);
+        else fprintf (stderr, "nano: buffer not written: %s\n", strerror (rescue_errno));
+        fflush (stderr);
+    }
+    free (rescued);
 
     /* Free buffer + clipboard. */
     bn_highlight_cache_clear ();
@@ -5725,6 +6322,13 @@ nano_builtin (WORD_LIST *list)
     bn_speller = NULL;
     memset (&bn_b, 0, sizeof bn_b);
 
+    bn_restore_term ();
+    bn_term_signal = 0;
+    if (term_sig) {
+        /* Deliver the signal again, now under the shell's disposition. */
+        kill (getpid (), term_sig);
+        return 128 + term_sig;
+    }
     return EXECUTION_SUCCESS;
 }
 
@@ -5737,7 +6341,9 @@ char *nano_doc[] = {
     "      terminal width; default -8, as in GNU nano); -M/--trimblanks drops",
     "      the blanks at justified line breaks; --speller names the spell helper.",
     "",
-    "Keys: arrows / Home / End / PgUp / PgDn — move",
+    "Keys: arrows / Home / End / PgUp / PgDn — move; up/down keep the screen",
+    "      column across short lines, as in GNU nano. Keys that arrive in one",
+    "      burst (paste, key repeat) are still read one key at a time.",
     "      ^O Write-Out (prompts for filename, prefilled with current path)",
     "      ^S Save (direct if filename known, else prompts)",
     "      ^X exit — if buffer is modified, prompts Y=save / N=discard / ESC=cancel",
@@ -5748,8 +6354,8 @@ char *nano_doc[] = {
     "      ^T spell check (marked region or buffer): a word-list helper --",
     "         --speller=CMD, else $NANO_SPELLER, else spell -- reads the text on",
     "         stdin and prints misspelled words; it is run with execvp, without",
-    "         GNU interactive alternate-speller support ($SPELL is not used);",
     "         a shell or the terminal, capped at 1 MiB / 4096 words / 10 s.",
+    "         GNU interactive alternate spellers and $SPELL are not supported.",
     "         Each word opens \"Edit a replacement\": Enter replaces every",
     "         whole-word occurrence, Enter unchanged skips, Esc stops",
     "      ^] complete the word before the cursor from the buffer's words;",
@@ -5758,6 +6364,16 @@ char *nano_doc[] = {
     "      M-W toggle soft-wrap rendering for overlong lines",
     "      M-{ / M-} rotate older/newer yank-ring entries",
     "      Backspace, Enter, printable ASCII — edit",
+    "",
+    "Display: tabs expand to 8-column stops; control characters show as ^X,",
+    "      C1 controls as ^` .. ^~, malformed UTF-8 as U+FFFD, so no file,",
+    "      file name or message can send escape sequences to the terminal.",
+    "Signals: SIGHUP or SIGTERM restores the terminal, writes a modified",
+    "      buffer to FILE.save (or FILE.save.N; nano.save without a name),",
+    "      never replacing a file, then lets the shell's trap or default",
+    "      action take the signal. Ignored signals stay ignored.",
+    "Saved files hold exactly the typed text; no final newline is added",
+    "      (GNU nano's --nonewlines behaviour).",
     "",
     "v2 — UTF-8 read + grapheme-cluster cursor (left/right arrows step",
     "by clusters not bytes) + cell-width-aware render via libgrapheme.",
@@ -5784,6 +6400,9 @@ char *nano_doc[] = {
     "  + fsync(parent-dir); `nano selftest-atomic-save` pins no-residue,",
     "  byte-exact round-trip, dirfd-no-leak (two consecutive saves), the",
     "  dirpath=\".\" fallback for relative paths, and clean missing-dir failure.",
+    "Selftests: selftest-justify, -spell, -complete, -selection, -linecache,",
+    "  -input (terminal key framing through a pipe) and -display (display",
+    "  forms, tab layout, emergency save).",
     "G03 UNDO-REDO — selftest-undo-redo pins the snapshot LIFO contract:",
     "  edit pushes undo + clears redo, undo pops undo + pushes redo, redo",
     "  reverses, new edit after undo clears the redo stack, dirty flag",

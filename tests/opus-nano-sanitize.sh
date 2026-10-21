@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build nano and its ts companion with ASan/UBSan as loadable objects, load
-# them into the tested shell, and run every nano selftest and the PTY suite.
+# them into the tested shell, and run every nano selftest and both PTY suites.
 # Usage: tests/opus-nano-sanitize.sh [BASH-OS-BINARY]
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
@@ -27,7 +27,8 @@ export LSAN_OPTIONS="suppressions=$d/lsan.supp"
 export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 fail=0
 for t in '' -piecetable -keybindings -saveprompt -replace -search -resize -statusbar \
-         -yank-ring -atomic-save -undo-redo -justify -spell -complete -selection -linecache; do
+         -yank-ring -atomic-save -undo-redo -justify -spell -complete -selection -linecache \
+         -input -display; do
   out=$(env -i PATH= LANG=C.UTF-8 BASH_ENV="$BASH_ENV" LD_PRELOAD="$LD_PRELOAD" \
         ASAN_OPTIONS="$ASAN_OPTIONS" LSAN_OPTIONS="$LSAN_OPTIONS" UBSAN_OPTIONS="$UBSAN_OPTIONS" \
         "$target" -c "nano selftest$t" 2>&1) || { echo "FAIL selftest$t"; echo "$out" | tail -30; fail=1; continue; }
@@ -39,4 +40,5 @@ for t in '' -piecetable -keybindings -saveprompt -replace -search -resize -statu
 done
 # Sessions under ASan are slower but the suite waits on frames, not delays.
 ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 python3 tests/opus-nano-pty.py "$target" || fail=1
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 python3 tests/sol-nano-pty.py "$target" || fail=1
 exit $fail
