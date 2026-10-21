@@ -546,6 +546,70 @@ bs_number (const char **pp, long *out)
     return 0;
 }
 
+/* A bracket expression in an address or s/// regex. The caller is at '['.
+   Returns the byte after the closing ']', or NULL if the class runs into a
+   newline or the end of the script. A delimiter inside the class is data.
+   ']' right after '[' or '[^' is literal; a named class [:.= runs until the
+   matching :] .] =] and does not close early. A backslash does not protect
+   ']' here, matching GNU sed. */
+static const char *
+bs_scan_bracket (const char *p)
+{
+    if (*p != '[') return NULL;
+    p++;
+    if (*p == '^') p++;
+    int first = 1, state = 0;
+    char marker = 0;
+    for (;;) {
+        unsigned char c = (unsigned char) *p;
+        if (c == 0 || c == '\n') return NULL;
+        if (state == 0) {
+            if (c == ']' && !first) return p + 1;
+            if (c == '[') state = 1;
+            first = 0;
+            p++;
+        } else if (state == 1) {
+            if (c == ':' || c == '.' || c == '=') { marker = (char) c; state = 2; p++; }
+            else if (c == ']') return p + 1;
+            else { state = 0; p++; }
+        } else if (state == 2) {
+            if (c == (unsigned char) marker) state = 3;
+            p++;
+        } else if (c == ']') { state = 0; p++; }
+        else if (c == (unsigned char) marker) p++;
+        else { state = 2; p++; }
+    }
+}
+
+/* Scan a regex until an unescaped delimiter that is not inside a bracket
+   expression. On success *pp is the delimiter and *start is the regex.
+   A newline ends the script text and is unterminated, as in GNU sed. */
+static int
+bs_scan_regex_delim (const char **pp, char delim, const char **start)
+{
+    const char *p = *pp;
+    *start = p;
+    while (*p && *p != '\n') {
+        /* The delimiter ends the regex even when it is a backslash
+           (`s\a\b\` and `\a\p`). An escaped delimiter is a backslash
+           followed by that delimiter, so the escape test comes second. */
+        if (*p == delim) { *pp = p; return 0; }
+        if (*p == '\\') {
+            if (!p[1] || p[1] == '\n') return -1;
+            p += 2;
+            continue;
+        }
+        if (*p == '[') {
+            const char *end = bs_scan_bracket (p);
+            if (!end) return -1;
+            p = end;
+            continue;
+        }
+        p++;
+    }
+    return -1;
+}
+
 static int
 bs_parse_addr (const char **psp, bs_addr *a, int extended)
 {
@@ -588,11 +652,9 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (!delim || delim == '\n') { builtin_error ("unterminated address regex"); return -1; }
         p += *p == '/' ? 1 : 2;
         const char *start = p;
-        while (*p && *p != delim) {
-            if (*p == '\\' && p[1]) p++;     /* skip escaped char */
-            p++;
+        if (bs_scan_regex_delim (&p, delim, &start) < 0) {
+            builtin_error ("unterminated regex address"); return -1;
         }
-        if (*p != delim) { builtin_error ("unterminated regex address"); return -1; }
         size_t rlen = (size_t) (p - start);
         char *pat_raw = strndup (start, rlen);
         if (!pat_raw) return -1;
@@ -798,7 +860,7 @@ bs_cmd_free (bs_cmd *c)
 static int
 bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended)
 {
-    int cap = 16, n = 0;
+    int cap = 16, n = 0, status = -1;
     bs_cmd *cmds = calloc ((size_t) cap + 1, sizeof *cmds);
     if (!cmds) return -1;
     const char *p = script;
@@ -852,13 +914,11 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->kind = BS_S;
                 if (!*p || *p == '\n') { builtin_error ("s/// missing delimiter"); goto err; }
                 char delim = *p++;
-                /* regex */
+                /* regex: brackets hide the delimiter; the replacement does not */
                 const char *re_start = p;
-                while (*p && *p != delim) {
-                    if (*p == '\\' && p[1]) p++;
-                    p++;
+                if (bs_scan_regex_delim (&p, delim, &re_start) < 0) {
+                    builtin_error ("s/// unterminated regex"); goto err;
                 }
-                if (*p != delim) { builtin_error ("s/// unterminated regex"); goto err; }
                 size_t rlen = (size_t) (p - re_start);
                 char *pat = strndup (re_start, rlen);
                 if (!pat) goto err;
@@ -1175,6 +1235,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
             }
             if (found < 0) {
                 builtin_error ("undefined label: %s", cmds[i].label);
+                status = -4;   /* GNU sed exits 4 when the branch target is missing */
                 goto err;
             }
             cmds[i].target_idx = found;
@@ -1212,7 +1273,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
 err:
     for (int i = 0; i <= n; i++) bs_cmd_free (&cmds[i]);
     free (cmds);
-    return -1;
+    return status;
 }
 
 /* Append a buffer to `out` applying GNU sed replacement case conversion.
@@ -2372,9 +2433,10 @@ sed_builtin (WORD_LIST *list)
         builtin_error ("no input files"); free (files); free (script); return 4;
     }
     bs_cmd *cmds = NULL; int n_cmds = 0;
-    if (bs_parse_script (script, &cmds, &n_cmds, extended) < 0) {
+    int parsed = bs_parse_script (script, &cmds, &n_cmds, extended);
+    if (parsed < 0) {
         free (files); free (script);
-        return EXECUTION_FAILURE;
+        return -parsed;
     }
 
     /* A script that only uses its main input/output can buffer regular
