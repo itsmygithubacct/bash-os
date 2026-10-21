@@ -109,7 +109,9 @@ jobs:
           grep -q "^$(id -un):" /etc/subuid || sudo usermod --add-subuids 200000-265535 --add-subgids 200000-265535 "$(id -un)"
           sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
       - name: Record the runner toolchain
+        # Report every fact, even when one is missing; the checks below fail on it.
         run: |
+          set +e +o pipefail
           locale -a
           id
           grep "^$(id -un):" /etc/subuid
@@ -119,6 +121,7 @@ jobs:
           gcc -dM -E -O2 - </dev/null | grep FORTIFY
           git --version
           python3 --version
+          exit 0
       - name: Build and check full, pure, static and runtime modules
         run: |
           python3 bench/catalog.py --check
