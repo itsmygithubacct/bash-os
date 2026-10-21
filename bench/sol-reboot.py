@@ -19,6 +19,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 helper = runpy.run_path(str(ROOT / 'tests/sol-halt-check.py'))
+guard = runpy.run_path(str(ROOT / 'tests/sol-reboot-check.py'))['preload_guard']
 
 
 def sha(data):
@@ -54,7 +55,7 @@ def main():
             binary_version=subprocess.check_output([str(binary), '--version'], text=True)),
         method=dict(warmups=1, samples=args.runs, passes=args.passes,
                     clock='perf_counter_ns', units='milliseconds per batch',
-                    reset='fresh shell per batch; reset interceptor before each request',
+                    reset='fresh shell per batch; preload verified before enable; reset interceptor before each request',
                     includes='startup, shell loop, shim reset, status assertion, per-call trace and capture',
                     oracle='every call: fixed expected status, output, sync count/order, RB_AUTOBOOT or no request, zero accounting'),
         cases=[])
@@ -70,7 +71,7 @@ def main():
     ]
     for name, options, error, status, output, boundary in cases:
         expected = (output + boundary) * args.passes
-        script = helper['setup'](shim) + (
+        script = guard(shim) + helper['setup'](shim) + (
             f'for ((i=0;i<{args.passes};i++)); do\n'
             f'halt_fixture reset; halt_fixture errno {error}\n'
             f'reboot {options} {"2>/dev/null" if status else ""}; rc=$?\n'

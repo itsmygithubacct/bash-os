@@ -21,6 +21,20 @@ FORCE = 'sync=0 reboot=1 accounting=0 cmd=RB_AUTOBOOT order=R\n'
 DRY = 'reboot: would reboot (dry run)\n'
 
 
+def preload_guard(*libraries):
+    """Shell prefix that exits 93 before enable or any builtin runs unless the
+    dynamic loader mapped every library at startup. ld.so ignores an object it
+    cannot preload and continues, and enable -f would still load the fixture
+    privately, leaving reboot/sync bound to libc; this guard fails closed."""
+    code = "read -r -d '' maps < /proc/$$/maps\n"
+    for library in map(str, libraries):
+        if not library.startswith('/') or any(c in library for c in ': \t\n'):
+            raise ValueError(f'LD_PRELOAD cannot carry this path verbatim: {library!r}')
+        mapped = os.path.realpath(library)  # /proc maps names the resolved file
+        code += f"[[ $maps$'\\n' == *' '{shlex.quote(mapped)}$'\\n'* ]] || exit 93\n"
+    return code
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
@@ -37,17 +51,18 @@ def main():
             parser.error(f'required prebuilt artifact missing: {path}')
     asan = Path((modules / 'asan-path.txt').read_text().strip()) if modules else None
     shim = args.shim.resolve()
-    prefix = helper['setup'](shim, modules)
+    guard = preload_guard(*([asan] if asan else []), shim)
+    prefix = guard + helper['setup'](shim, modules)
     env = helper['environment'](shim, asan)
     failures, count = [], 0
 
-    def check(label, script, expected, diagnostic=None):
+    def check(label, script, expected, diagnostic=None, status=0, environ=None):
         nonlocal count
         count += 1
         result = subprocess.run(
             [str(args.binary.resolve()), '--noprofile', '--norc'],
-            input=prefix + script, env=env, capture_output=True, text=True, timeout=30)
-        ok = (result.returncode == 0 and result.stdout == expected and
+            input=prefix + script, env=environ or env, capture_output=True, text=True, timeout=30)
+        ok = (result.returncode == status and result.stdout == expected and
               (diagnostic in result.stderr if diagnostic else not result.stderr) and
               'AddressSanitizer' not in result.stderr and 'runtime error:' not in result.stderr)
         print(('PASS ' if ok else 'FAIL ') + label)
@@ -55,6 +70,13 @@ def main():
             failures.append(label)
             print(f'exit={result.returncode} stdout={result.stdout[:4000]!r} '
                   f'stderr={result.stderr!r} expected={expected[:4000]!r}')
+
+    # The guard must stop a shell whose interceptor was not preloaded before
+    # enable or any builtin. The probe is a dry run, which requests nothing.
+    unloaded = dict(env)
+    unloaded.pop('LD_PRELOAD')
+    check('fails closed without a preloaded boundary',
+          'reboot -n; halt_fixture report\n', '', status=93, environ=unloaded)
 
     # Every partition of every f/n string through length four: options may be
     # clustered or split across words. The oracle derives only from the flags.
