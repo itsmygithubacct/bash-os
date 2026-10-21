@@ -99,7 +99,8 @@ cases = [
     (['-E', r's/(|^b)+/<\1>/'], b'b\n', None),
     (['-E', r's/(|^b){1,3}/<\1>/'], b'b\n', None),
     # A finite repeat does not keep an empty completion on a consumer the
-    # anchor rejected, and the search stops. Unlimited +/* stay as they are.
+    # anchor rejected, and a substitution stops. An address asks for no
+    # registers, so the same pattern still matches. Unlimited +/* stay.
     (['-E', r's/(|^b){1,3}/<\1>/'], b'bb\n', b'bb\n'),
     (['-E', r's/(|^b){1,3}/<\1>/g'], b'bb\n', b'bb\n'),
     (['-E', r's/(|^b){1,3}/[&]/g'], b'bb\n', b'bb\n'),
@@ -113,6 +114,18 @@ cases = [
     (['-E', r's/(|^b){1,3}/<\1>/g'], b'bx\n', b'<>x<>\n'),
     (['-E', r's/(|^\s){1,3}/[&]/g'], b'  a\n', b'  a\n'),
     (['-E', r's/(|^\s){1,3}/[&]/'], b' a\n', b'[ ]a\n'),
+    (['-E', r'/(|^b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|^b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|^b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
     (['-E', r'/(|^b)+/s//x/g'], b'.b\n', b'x.xbx\n'),
     # \' is an end anchor the engine can finish. It must not be a literal.
     (['-E', r"s/(|\'b)+/[&]/g"], b'.b\n', None),

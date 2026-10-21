@@ -690,9 +690,10 @@ bs_alt_len (const bs_prog *prog, int alt, int from, const char *str, size_t beg,
 }
 
 /* True when an anchor rejects this position but that alternative's
-   consuming suffix still matches. A finite repeat must fail the search
-   there: glibc's register fill does not accept the empty completion, and
-   it does not then match at a later position. */
+   consuming suffix still matches. A substitution asks for registers, and
+   a finite repeat must fail there: glibc's register fill does not accept
+   the empty completion, and it does not then match at a later position.
+   An address passes no registers, so it must not use this result. */
 static int
 bs_consumer_blocked (const bs_prog *prog, const char *str, size_t beg, size_t end,
                      size_t pos)
@@ -717,11 +718,14 @@ bs_consumer_blocked (const bs_prog *prog, const char *str, size_t beg, size_t en
 /* Greedy leftmost match of the one group at pos. Empty repetitions stop:
    an unlimited quantifier does not take a trailing empty iteration once the
    minimum is met, and a finite one records that empty iteration as the group.
-   Returns -1 when a finite repeat hits a blocked consumer: that attempt and
-   every later position fail. 0 is no match at this position. 1 is a match. */
+   registers is true when the caller asked for match offsets (nmatch > 0).
+   Returns -1 only then, when a finite repeat hits a blocked consumer: that
+   attempt and every later position fail. An address passes registers 0 and
+   keeps the empty iteration, which is the nmatch 0 match. 0 is no match at
+   this position. 1 is a match. */
 static int
 bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t pos,
-            size_t *mend, size_t *gso, size_t *geo, int *gset)
+            size_t *mend, size_t *gso, size_t *geo, int *gset, int registers)
 {
     size_t cur = pos;
     int reps = 0, group = 0;
@@ -736,7 +740,8 @@ bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t
         }
         if (best < 0) break;
         if (best == 0) {
-            if (prog->qmax >= 0 && bs_consumer_blocked (prog, str, beg, end, cur))
+            if (registers && prog->qmax >= 0
+                && bs_consumer_blocked (prog, str, beg, end, cur))
                 return -1;
             if (reps >= prog->qmin && prog->qmax < 0) break;
             so = cur; eo = cur; group = 1;
@@ -773,7 +778,8 @@ bs_prog_find (const bs_prog *prog, const char *str, size_t beg, size_t start, si
     for (size_t pos = start; ; pos++) {
         size_t mend = pos, gso = 0, geo = 0;
         int gset = 0;
-        int at = bs_prog_at (prog, str, beg, end, pos, &mend, &gso, &geo, &gset);
+        int at = bs_prog_at (prog, str, beg, end, pos, &mend, &gso, &geo, &gset,
+                             nmatch > 0);
         if (at < 0) return REG_NOMATCH;
         if (at > 0) {
             if (nmatch > 0 && matches) {

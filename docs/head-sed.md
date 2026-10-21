@@ -78,8 +78,9 @@ The compatibility boundaries are:
   case-insensitive match. Any other pattern of that shape is searched with
   one register: no match is unchanged, and a match is refused because
   filling the other registers may not return. An address passes no
-  registers and runs. A repeated group the engine can finish is left to
-  the engine.
+  registers and runs. A finite repeat that hits a blocked consumer fails
+  only a substitution: `/(|^b){1,3}/p` on `bb` prints the line twice.
+  A repeated group the engine can finish is left to the engine.
   `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
   `--debug` are rejected. See [the focused completion notes](sol-sed.md) and

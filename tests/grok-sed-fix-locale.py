@@ -3,8 +3,9 @@
 
 Usage: grok-sed-fix-locale.py BASH [BASH ...]
 
-GNU sed 4.9 finishes the first five patterns at once and times out on the
-icase pattern. The builtin must print the same bytes in each locale.
+GNU sed 4.9 finishes these patterns at once except the case-insensitive
+row, which does not return. The builtin must print the same bytes in each
+locale, including a finite-repeat address.
 A pattern-space byte at or above 0x80 is refused for a word or
 case-insensitive direct match, because that matcher classifies bytes.
 """
@@ -27,6 +28,19 @@ rows = [
     (['-E', r's/(|\Bb)+/[&]/g'], b'ab\n', b'[]a[b]\n'),
     (['-E', r's/(|^\s)+/X/'], b' abc\n', b'Xabc\n'),
     (['-E', r's/(|^b)+/x/gI'], b'.B\n', b'x.xBx\n'),
+    # Finite-repeat addresses match. GNU sed's address uses no registers.
+    (['-E', r'/(|^b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|^b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|^b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\`b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\<b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){2}/p'], b'bb\n', b'bb\nbb\n'),
+    (['-E', r'/(|\>b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
 ]
 # Word and icase direct matches. The engine path (word-boundary repeats)
 # is compared with GNU sed instead, including when the subject is multibyte.
