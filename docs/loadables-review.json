@@ -1403,6 +1403,14 @@
       "status": "Contract",
       "evidence": "tests/sol-vi-delete.py",
       "scope": "The original brief's bounded software contract is met: G+dd clamping through the empty-buffer state, counts, undo/redo, motions after deletion, final-newline/binary/UTF-8 cases through --keys and ex, compared with nvim; an exact-byte assertion after 250 real deletes; save/error cleanup preserved; G+dd and full save measured separately with historical numbers kept. This is not full vi conformance; deferred features (gg, macros, registers, text objects) stay deferred."
+    },
+    {
+      "names": [
+        "poweroff"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-poweroff-check.py",
+      "scope": "The assigned scope is met for the intercepted software contract. RB_POWER_OFF dispatch, flags, parsing, help, privilege failure and errno propagation, output failures, zero boundary calls on invalid, help and dry-run paths, repeated mixed calls and halt/reboot regressions all pass natively and under ASan/UBSan on the merged snapshot. There is no live shutdown, kernel capability or platform qualification; these are qualification limits, not unresolved requirements."
     }
   ],
   "sanitizer_groups": [
@@ -2895,9 +2903,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "poweroff": {
-      "evidence": "docs/sol-halt.md",
-      "note": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-poweroff.md",
+      "note": "The assigned scope is met for the intercepted software contract. RB_POWER_OFF dispatch, flags, parsing, help, privilege failure and errno propagation, output failures, zero boundary calls on invalid, help and dry-run paths, repeated mixed calls and halt/reboot regressions all pass natively and under ASan/UBSan on the merged snapshot. There is no live shutdown, kernel capability or platform qualification; these are qualification limits, not unresolved requirements.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "fsfreeze": {
       "evidence": "docs/sol-fsfreeze.md",
