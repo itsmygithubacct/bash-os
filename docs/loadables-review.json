@@ -1371,6 +1371,14 @@
       "status": "Contract",
       "evidence": "docs/sol-ss.md",
       "scope": "Numeric TCP/UDP/Unix snapshots and the shared netstat backend, including the unpadded netlink remainder check. Not full iproute2 compatibility and not a live kernel qualification beyond owned loopback sockets."
+    },
+    {
+      "names": [
+        "bc"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-bc-regression.py",
+      "scope": "The original brief's language scope is met: functions/local state, obase, control flow, quit/halt, comments, strings and file operands are implemented and GNU-differentially tested, and the final-newline and exit-status contracts are documented and asserted. Accept it as the documented bounded contract, not as full GNU option or interactive conformance."
     }
   ],
   "sanitizer_groups": [
@@ -2489,9 +2497,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "bc": {
-      "evidence": "docs/bc.md",
-      "note": "Bounded GNU 1.07 language corpus, scalar/array scope restoration and duplicate declaration rejection. Preserve explicit POSIX-option, read/newline/status and stack-bounded recursion differences.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-bc.md",
+      "note": "The original brief's language scope is met: functions/local state, obase, control flow, quit/halt, comments, strings and file operands are implemented and GNU-differentially tested, and the final-newline and exit-status contracts are documented and asserted. Accept it as the documented bounded contract, not as full GNU option or interactive conformance.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "dmsetup": {
       "evidence": "docs/opus-dmsetup.md",
