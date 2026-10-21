@@ -83,7 +83,12 @@ class Terminal:
     def tty_fd(self):
         target = os.ttyname(self.slave)
         fds = Path('/proc')/str(self.proc.pid)/'fd'
-        return max(int(p.name) for p in fds.iterdir() if os.readlink(p) == target)
+        # This child owns the private PTY as its controlling terminal. The
+        # screen helper opens /dev/tty because stdin carries test commands.
+        matches = [int(p.name) for p in fds.iterdir()
+                   if os.readlink(p) in (target, '/dev/tty')]
+        assert len(matches) == 1, ('expected one owned tty descriptor', matches)
+        return matches[0]
 
     def close(self, expected=0):
         if self.proc.poll() is None:
