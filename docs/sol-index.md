@@ -155,3 +155,9 @@ for those records. The harness checks this on every run and records the
 unsorted file's refusal. Sorting the entries in `build_indexrepo` would make
 the catalog case valid again. That file is shared, so the change is only
 proposed here.
+
+A non-removal entry with the null object ID is refused at final write, before
+replacement. An intermediate null-ID record removed later in the same
+`--index-info` stream is allowed; mode-0 removal remains a valid no-op for
+an absent path. Failed final validation preserves the old index and releases
+the command's lock.

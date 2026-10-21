@@ -8,7 +8,7 @@ import tempfile
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--binary', required=True)
-p.add_argument('--case', choices=['stages'], required=True)
+p.add_argument('--case', choices=['stages', 'null-id'], required=True)
 a = p.parse_args()
 binary = str(Path(a.binary).resolve())
 env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null')
@@ -47,4 +47,19 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
         assert index('write direct', expected).returncode == 0
         read = index('read direct')
         assert read.returncode == 0 and read.stdout == expected
+    if a.case == 'null-id':
+        before = (root/'ours').read_bytes()
+        null = b'100644 '+b'0'*40+b'\tnew\n'
+        remove = b'0 '+b'0'*40+b'\tnew\n'
+        assert git('update-index', '--index-info', data=null, index='oracle').returncode != 0
+        assert index('--index-info ours', null).returncode != 0, 'final null object ID must fail'
+        assert (root/'ours').read_bytes() == before, 'failure must preserve the old index'
+        assert not (root/'ours.lock').exists()
+        assert not list(root.glob('ours.tmp*'))
+        for stream in [remove, null+remove]:
+            assert git('update-index', '--index-info', data=stream, index='oracle').returncode == 0
+            assert index('--index-info ours', stream).returncode == 0
+            assert (root/'ours').read_bytes() == (root/'oracle').read_bytes()
+        assert index('write ours', b'100644 '+b'0'*40+b' 0 f\n').returncode != 0
+        assert (root/'ours').read_bytes() == before
     print('PASS', a.case)

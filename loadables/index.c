@@ -837,6 +837,17 @@ static int
 bidx_store (const char *path, bgit_index_entry *entries, size_t n,
             const bidx_undo *undo, bidx_lock *lock)
 {
+    /* Validate the final state: an index-info stream may insert a null ID
+       and remove it again before committing. Never install a null entry. */
+    static const unsigned char null_oid[20] = {0};
+    for (size_t i = 0; i < n; i++) {
+        if (memcmp (entries[i].sha, null_oid, sizeof null_oid) == 0) {
+            builtin_error ("%s: cache entry has null sha1: %s", path,
+                           entries[i].path);
+            bidx_lock_drop (lock);
+            return EXECUTION_FAILURE;
+        }
+    }
     size_t ext_len;
     int failed = 0;
     unsigned char *ext = bidx_undo_ext (undo, &ext_len, &failed);
