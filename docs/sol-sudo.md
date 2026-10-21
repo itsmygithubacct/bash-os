@@ -32,9 +32,11 @@ On the interactive authority route, a request that the policy still answers
 "authentication required" after one successful verification used to return 0,
 although the command had not run. It now fails with status 1. A read error on
 the one-byte verification marker also fails closed (status 1) after the child
-is reaped and the parent's signals are restored; `EINTR` is retried. EOF still
-means the child was not verify-only. A child that cannot write the marker
-exits 125 and does not call the verifier.
+is reaped and the parent's signals are restored; `EINTR` is retried. A
+status byte other than `V` also fails closed with status 1, for both sudo
+and doas, after the child is reaped. EOF (no byte) still means the child
+was not verify-only and still returns the child's command status. A child
+that cannot write the marker exits 125 and does not call the verifier.
 
 On the root route:
 

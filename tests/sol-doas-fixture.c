@@ -47,7 +47,8 @@ static int *verified;
 static int emit_digest;
 static int post_verify_deny;
 static int checks;
-static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr;
+static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr, io_read_garbage;
+static int *interactive_calls;
 static int group_probe;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL %s:%d: %s\n",__FILE__,__LINE__,#x); abort(); } checks++; } while (0)
 
@@ -137,6 +138,7 @@ static void assert_blob(const void *blob,unsigned bytes,unsigned argc) {
 static ssize_t fixture_status_read(int fd,void *buf,size_t n) {
   if(io_read_eintr>0){io_read_eintr--;errno=EINTR;return -1;}
   if(io_read_fail>0){char sink; io_read_fail--; for(;;){ssize_t nread=read(fd,&sink,1); if(nread<0 && errno==EINTR) continue; break;} errno=EIO; return -1;}
+  if(io_read_garbage>0){char sink; ssize_t nread; io_read_garbage--; do nread=read(fd,&sink,1); while(nread<0 && errno==EINTR); CHECK(nread==1 && n>=1); ((char *)buf)[0]='X'; return 1;}
   return read(fd,buf,n);
 }
 static ssize_t fixture_status_write(int fd,const void *buf,size_t n) {
@@ -226,6 +228,7 @@ static int fixture_ioctl(int fd,unsigned long op,...) {
     struct bashos_auth_exec_handoff_req *r=v;
     CHECK(r->mode==BASHOS_AUTH_EXEC_HANDOFF_MODE_INTERACTIVE);
     assert_blob((void *)(uintptr_t)r->argv_user_ptr,r->argv_bytes,r->argc);
+    if(interactive_calls) (*interactive_calls)++;
     _exit(expected_exit); /* model kernel replacement, only in owned child */
   }
   if(op==BASHOS_AUTH_IOC_EXEC_HANDOFF) {
@@ -316,7 +319,8 @@ static void defaults(void) {
   post_verify_deny=0;*verified=0;auth_calls=handoff_calls=verify_calls=copyback_calls=0;decision=BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC;
   auth_error=handoff_error=missing_handle=bad_version=tty_mode=wait_error=fork_error=fail_step=edit_case=0;
   approval=BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_ALLOWED;expected_flags=0;expected_group=4343;expected_mode=BASHOS_AUTH_PRIVCMD_MODE_EXEC;expected_exit=37;
-  io_read_fail=io_write_fail=io_read_eintr=io_write_eintr=0;group_probe=0;
+  io_read_fail=io_write_fail=io_read_eintr=io_write_eintr=io_read_garbage=0;group_probe=0;
+  if(interactive_calls) *interactive_calls=0;
 }
 static void root_tests(void) {
   root_route=1;check_exec=1;
@@ -454,9 +458,18 @@ static void status_tests(void) {
   CHECK(dispatch(1,5,interactive)==125 && !*verified);
   defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_write_eintr=1;
   CHECK(dispatch(0,5,interactive)==37 && *verified==1);
+  /* X is not V. The child verified through the injected ioctl and exited 0
+     without the interactive handoff. That ioctl is not authentication. */
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_read_garbage=1;
+  CHECK(dispatch(0,5,interactive)==1 && *verified==1 && *interactive_calls==0 && handoff_calls==0);
+  {int st=0; errno=0; pid_t w=waitpid(-1,&st,WNOHANG); CHECK(w==-1 && errno==ECHILD);}
+  defaults();tty_mode=1;decision=BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED;io_read_garbage=1;
+  CHECK(dispatch(1,5,interactive)==1 && *verified==1 && *interactive_calls==0 && handoff_calls==0);
+  {int st=0; errno=0; pid_t w=waitpid(-1,&st,WNOHANG); CHECK(w==-1 && errno==ECHILD);}
 }
 int main(int argc,char **argv) {
   parent_pid=getpid();verified=mmap(NULL,sizeof *verified,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(verified!=MAP_FAILED);
+  interactive_calls=mmap(NULL,sizeof *interactive_calls,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(interactive_calls!=MAP_FAILED);
   snprintf(private_dir,sizeof private_dir,"%s/sol-doas-XXXXXX",getenv("SOL_DOAS_TMPDIR")?getenv("SOL_DOAS_TMPDIR"):"/tmp");CHECK(mkdtemp(private_dir));setenv("PATH","",1);unsetenv("SHELL");
   char *exports[]={"SAFE=caller","LD_PRELOAD=caller","BASH_ENV=caller",NULL};export_env=exports;
   if(argc==3 && !strcmp(argv[1],"--work")) {

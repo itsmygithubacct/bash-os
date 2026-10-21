@@ -88,7 +88,7 @@ static int open_mode, copyback_drift, exec_real, capture_exit;
 static char scratch[PATH_MAX], passwd_path[PATH_MAX], group_path[PATH_MAX];
 static char last_error[1024];
 static int quiet;
-static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr;
+static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr, io_read_garbage;
 static int big_expect_on, big_expect_argc;
 static const char *big_expect_word;
 static const char *caller_shell = "/bin/sh";
@@ -209,6 +209,21 @@ fixture_status_read (int fd, void *buf, size_t n)
         }
       errno = EIO;
       return -1;
+    }
+  if (io_read_garbage > 0)
+    {
+      char sink;
+      ssize_t nread;
+      io_read_garbage--;
+      /* Drain the child's real byte, then report X. A short read would
+         SIGPIPE the writer and hide the marker check. */
+      do
+        nread = read (fd, &sink, 1);
+      while (nread < 0 && errno == EINTR);
+      CHECK (nread == 1);
+      CHECK (n >= 1);
+      ((char *) buf)[0] = 'X';
+      return 1;
     }
   return read (fd, buf, n);
 }
@@ -531,7 +546,7 @@ reset_state (void)
   handoff_exit = 37;
   capture_exit = 41;
   open_n = 0;
-  io_read_fail = io_write_fail = io_read_eintr = io_write_eintr = 0;
+  io_read_fail = io_write_fail = io_read_eintr = io_write_eintr = io_read_garbage = 0;
   big_expect_on = big_expect_argc = 0;
   big_expect_word = NULL;
 }
@@ -1784,6 +1799,26 @@ status_tests (void)
   script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
   CHECK (DOAS ("/bin/true") == 1 && count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
   CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  status_reaped ();
+
+  /* A byte other than V is not verification and not a finished command.
+     The verify ioctl is the fixture injection, not an authentication. */
+  reset_state ();
+  tty_mode = 1;
+  io_read_garbage = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (SUDO ("/bin/true") == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  CHECK (strstr (last_error, "unexpected marker"));
+  status_reaped ();
+  reset_state ();
+  tty_mode = 1;
+  io_read_garbage = 1;
+  script (1, BASHOS_AUTH_PRIVCMD_DECISION_AUTH_REQUIRED);
+  CHECK (DOAS ("/bin/true") == 1 && count_op (BASHOS_AUTH_IOC_EXEC_VERIFY) == 1);
+  CHECK (count_op (BASHOS_AUTH_IOC_EXEC_INTERACTIVE) == 0);
+  CHECK (strstr (last_error, "unexpected marker"));
   status_reaped ();
 
   /* EINTR is retried; the marker still starts the real command. */

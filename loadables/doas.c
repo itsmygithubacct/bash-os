@@ -1347,6 +1347,15 @@ bda_run_authority (const bda_opts *o)
               rc = EXECUTION_FAILURE;
               break;
             }
+          /* A byte other than V is not a verify-only child and not a
+             finished command. EOF (status_rc 0) still returns the wait
+             status. The writer only emits V; anything else fails closed. */
+          if (status_rc == 1 && marker != 'V')
+            {
+              builtin_error ("v2 authority status: unexpected marker");
+              rc = EXECUTION_FAILURE;
+              break;
+            }
           if (marker == 'V' && rc == 0 && !verified_once)
             {
               verified_once = 1;

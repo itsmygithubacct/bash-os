@@ -12,7 +12,9 @@ group by dropping a non-required membership. It captures caller IDs before the
 drop for `SUDO_UID/GID`, rejects overflowing numeric target IDs and malformed numeric groups, propagates wait errors,
 and fails closed on unknown or mode-inconsistent authority decisions and
 approvals. A successful verifier launch no longer masks a denied or failed
-reauthorization. An internal negative availability sentinel keeps an interactive
+reauthorization. On the shared interactive authority loop, a verification
+status byte other than `V` fails closed for doas and sudo; EOF still returns
+the child's command status. An internal negative availability sentinel keeps an interactive
 policy denial (exit 125) from triggering external fallback. Help/version
 writes report output errors and recover on the next call. Child descriptor
 cleanup first uses Linux `close_range`, retaining the loop for unavailable or
