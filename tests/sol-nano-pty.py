@@ -19,6 +19,7 @@ types through the real terminal input path.  Groups:
              hung helper stopped by SIGTERM
   complete   UTF-8 fragment, cycling, wrap and undo
   selection  the marked text survives edits before it, undo and redo
+  highlight  syntax colours follow an edit and its undo, also deep in a 1 MiB script
   restore    termios and the alternate screen after normal exit
 
 GNU nano (/usr/bin/nano) is the oracle where one is used.  Without it those
@@ -588,6 +589,38 @@ def selection(d):
           "the mark follows its text through an edit before it, undo and redo; M-^ copies the same clusters")
 
 
+# ---- syntax colours follow edits -----------------------------------------
+
+def highlight(d):
+    (d / "h.sh").write_bytes(b"echo hi # note\nls -l\n")
+    s = ours_session(d, "nano h.sh")
+    first = s.out
+    s.keys(b"#")
+    commented = s.out[len(first):]
+    mark = len(s.out)
+    s.keys(UNDO)
+    undone = s.out[mark:]
+    s.key(EXIT, frame=False)
+    check(s.finish() == 0 and b"\x1b[36mecho" in first and b"\x1b[90m# note" in first
+          and b"\x1b[90m#echo hi # note" in commented and b"\x1b[36mecho" in undone,
+          "typing # recolours the line as a comment and ^Z restores the command colour")
+
+    lines = [f'echo "item {i:07d}" | grep -q item  # c\n'.encode() for i in range(24000)]
+    (d / "big.sh").write_bytes(b"".join(lines))
+    s = ours_session(d, "nano big.sh")
+    s.keys(b"\x1f", *[bytes([c]) for c in b"12000"], ENTER)
+    s.wait_for(b"L 12000/")
+    mark = len(s.out)
+    s.keys(b"#")
+    frame = s.out[mark:]
+    s.keys(SAVE)
+    s.key(EXIT, frame=False)
+    got = (d / "big.sh").read_bytes().split(b"\n")
+    check(s.finish() == 0 and b'\x1b[90m#echo "item 0011999"' in frame
+          and b'\x1b[36mecho\x1b[0m' in frame and got[11999].startswith(b"#echo"),
+          "in a 1 MiB script the edited line 12000 is recoloured and its neighbours keep theirs")
+
+
 # ---- terminal restoration on normal exit ----------------------------------
 
 def restore(d):
@@ -610,7 +643,7 @@ def restore(d):
 
 with tempfile.TemporaryDirectory(prefix="sol-nano-pty.") as tmp:
     root = Path(tmp)
-    groups = (burst, movement, display, signals, justify, spell, completion, selection, restore)
+    groups = (burst, movement, display, signals, justify, spell, completion, selection, highlight, restore)
     wanted = sys.argv[2:] or [g.__name__ for g in groups]
     unknown = set(wanted) - {g.__name__ for g in groups}
     if unknown:
