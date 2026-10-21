@@ -21,10 +21,10 @@ ANCHORS = ['^', '$', '\\`', "\\'", '\\<', '\\>', '\\b', '\\B']
 def pattern(rng, depth=0):
     """A random GNU Emacs regex, including context-dependent characters.
 
-    Returns (text, expanded, flagged). EXPANDED spells every repeated group
-    X+ as XX*, the same language. glibc duplicates the tree for X+ and then
-    mis-evaluates anchors inside the copy; FLAGGED marks a '+' applied to a
-    group that may contain an anchor, where GNU can contradict EXPANDED."""
+    Returns (text, expanded, flagged). EXPANDED spells a repeated group
+    X+ as XX*. That spelling is only an oracle when GNU does not finish
+    TEXT. Where GNU finishes, the oracle is TEXT, including when the two
+    disagree. FLAGGED marks a '+' on a group that may contain an anchor."""
     def atom():
         r = rng.random()
         if r < .32:
@@ -159,9 +159,24 @@ def gnu_literal(files, sep, before, stale=True):
 UNSUPPORTED = b'requires the GNU regex API'
 
 
+def anchor_plus_needs_gnu(text):
+    """A '+' near an anchor may be declined by the bounded matcher.
+
+    This is a superset. The portable run accepts the GNU-regex error for
+    these patterns. A glibc run still compares them with GNU, so an
+    over-refusal fails that run.
+    """
+    if '+' not in text:
+        return False
+    return any(anchor in text for anchor in
+               ('\\`', "\\'", '\\<', '\\>', '\\b', '\\B', '^', '$'))
+
+
 def needs_glibc(text):
-    """Collating or equivalence elements, "---" in a bracket, or a
-    back-reference: constructs only the glibc matcher implements."""
+    """Collating or equivalence elements, "---" in a bracket, a
+    back-reference, or an anchor-plus the bounded matcher declines."""
+    if anchor_plus_needs_gnu(text):
+        return True
     i = 0
     while i < len(text):
         if text[i] == '\\':
@@ -256,10 +271,9 @@ def main():
 
         # 1. Random patterns. File cases run in one persistent shell per
         # implementation (state carries across calls); pipe cases run alone.
-        # The oracle is GNU on the pattern, or on its XX* spelling when a
-        # group is repeated with '+'. GNU may disagree with itself on such a
-        # pair only when an anchor is inside the repeated group (a glibc
-        # defect); every other disagreement fails.
+        # Where GNU finishes the original pattern, that result is the oracle.
+        # The XX* spelling is the oracle only when GNU does not return. A
+        # finished GNU result that differs from XX* must fail the case.
         rng = random.Random(args.seed)
         cases = []
         for i in range(args.cases):
@@ -294,20 +308,26 @@ done
             def result(tag):
                 return (work / f'{i}.{tag}').read_bytes(), (work / f'{i}.{tag}.rc').read_text()
             got, ref, xref = result('got'), result('ref'), result('xref')
-            oracle = xref if xoptions != options else ref
             if args.portable and needs_glibc(options[-1]) and got[1].strip() == '1' \
                     and UNSUPPORTED in (work / f'{i}.got.err').read_bytes():
                 unsupported += 1
                 checks += 1
                 continue
+            if ref[1].strip() == '137' and xoptions != options and xref[1].strip() != '137':
+                oracle = xref
+            elif ref[1].strip() == '137':
+                timeouts += 1
+                print('NO ORACLE (GNU timed out):', options, len(payload))
+                continue
+            else:
+                oracle = ref
             if oracle[1].strip() == '137':
                 timeouts += 1
                 print('NO ORACLE (GNU timed out):', options, len(payload))
                 continue
             assert got == oracle, ('random', i, options, xoptions, payload[:80], got[1],
                                    oracle[1], got[0][:120], oracle[0][:120])
-            if got != ref:
-                assert flagged, ('GNU disagrees with its own XX* spelling', options, payload[:80])
+            if ref[1].strip() != '137' and xref[1].strip() != '137' and ref != xref:
                 defects += 1
             accepted += oracle[1].strip() == '0'
             if xoptions == options:
@@ -318,21 +338,35 @@ done
         for options, payload in valid[:400]:
             compare(options, payload, 'pipe', label='random-pipe', glibc=needs_glibc(options[-1]))
 
-        # The minimized glibc defects: X+ is X X* by definition; GNU agrees
-        # with the builtin on the spelled-out form only.
-        for text, expanded, payload in [
-                ("\\(\\|\\'b\\)+", "\\(\\|\\'b\\)\\(\\|\\'b\\)*", b'.b'),
-                ('\\(\\>**\\|\n\\)+', '\\(\\>**\\|\n\\)\\(\\>**\\|\n\\)*', b'\n\xff'),
-                ('\\(\\`+?\\|\\s\\)+', '\\(\\`+?\\|\\s\\)\\(\\`+?\\|\\s\\)*', b'\n\n:')]:
+        # Minimized anchor-plus cases. Where GNU finishes the original
+        # pattern, the builtin must match that result. The spelled form is
+        # checked only to show a real disagreement, and only for the shapes
+        # where the spans differ. 'or before' used to make that assert dead:
+        # after this loop, before was ['-b'].
+        for text, expanded, payload, differ in [
+                ("\\(\\|\\'b\\)+", "\\(\\|\\'b\\)\\(\\|\\'b\\)*", b'.b', 'plain'),
+                ('\\(\\>**\\|\n\\)+', '\\(\\>**\\|\n\\)\\(\\>**\\|\n\\)*', b'\n\xff', 'agree'),
+                ('\\(\\`+?\\|\\s\\)+', '\\(\\`+?\\|\\s\\)\\(\\`+?\\|\\s\\)*', b'\n\n:', 'both')]:
             for before in [[], ['-b']]:
                 source = root / 'input'
                 source.write_bytes(payload)
-                got = run('tac', [*before, '-r', '-s', text, str(source)])
-                ref = run(REFERENCE, [*before, '-r', '-s', expanded, str(source)])
-                assert (got.returncode, got.stdout) == (ref.returncode, ref.stdout), (text, before)
+                got = run('tac', [*before, '-r', '-s', text, str(source)], timeout=20)
+                if args.portable:
+                    assert got.returncode == 1 and not got.stdout and UNSUPPORTED in got.stderr, (
+                        text, before, got.returncode, got.stderr)
+                    checks += 1
+                    continue
+                gnu = run(REFERENCE, [*before, '-r', '-s', text, str(source)], timeout=20)
+                spell = run(REFERENCE, [*before, '-r', '-s', expanded, str(source)], timeout=20)
+                if gnu.returncode in (124, 137):
+                    assert (got.returncode, got.stdout) == (spell.returncode, spell.stdout), (
+                        text, before, 'hang-guard')
+                else:
+                    assert (got.returncode, got.stdout) == (gnu.returncode, gnu.stdout), (
+                        text, before, got.stdout[:40], gnu.stdout[:40])
+                    if differ == 'both' or (differ == 'plain' and not before):
+                        assert spell.stdout != gnu.stdout, (text, before, spell.stdout, gnu.stdout)
                 checks += 1
-            contradiction = run(REFERENCE, ['-r', '-s', text, str(source)])
-            assert contradiction.stdout != ref.stdout or before, text  # still a GNU defect
 
         # 2. Directed cases: GNU's regex windows differ from its literal
         # scanner, so a metacharacter-free -r separator must not reuse it.
