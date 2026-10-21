@@ -61,9 +61,10 @@ return 1; missing input operands return 2; read/write failures return 4.
 A quit code cannot erase an earlier I/O failure. Invocation resources are
 released before checking Bash's pending interrupt state.
 
-The command remains a GNU sed subset: `-z`, `--posix`, `--sandbox`, `--debug`,
-`--follow-symlinks` and `--version` are not implemented, and execution still requires
-`BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
+The command remains a GNU sed subset. `-z`, `--sandbox`, `--follow-symlinks`,
+`--version`, `\cREGEXc` addresses, `z`, `v` and `e COMMAND` were added later
+(see [the follow-up](opus-sed-followup.md)). `--posix` and `--debug` are
+rejected, and execution still requires `BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
 in-place backup suffixes remain bounded and literal. Script files containing
 literal NUL are not supported; use numeric escapes in regex and replacement
 text. This is not a full GNU command-line or locale-collation equivalence claim.
