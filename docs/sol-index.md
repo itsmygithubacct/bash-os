@@ -90,17 +90,34 @@ die as `cache_tree_update` when a subtree consumes no entries. A mode
 These fatals print the `fatal:` line and no listing. The status is 1, the
 status this command uses for a reported error.
 
-An `UNTR` extension whose declared body is longer than one byte and whose
-declared end is past the mapped page is refused with no listing.
+An `UNTR` extension is refused, with no listing, in three measured shapes.
 `read_untracked_extension` sets `end` to the declared size and loads
-`end[-1]`. The measured case is an `UNTR` size of 1795293976 in a
-1984-byte index: `git ls-files --stage` dies with SIGSEGV on every run,
-with empty output. A declared size that ends inside the zero-filled page
-tail is not refused. `TREE`, `REUC`, `link` and `FSMN` stop on a remaining
-size, and a sparse listing discards `TREE` before reuse, so a large
-declared size on those extensions is not a refusal by itself. `sdir`,
-`EOIE`, `IEOT` and unknown `A`–`Z` extensions are not read past their
-header.
+`end[-1]` whenever the size is longer than one byte.
+
+- The loaded byte is 256 KiB or more past the mapped page. An `UNTR` size
+  of 1795293976 in a 1984-byte index makes `git ls-files --stage` die with
+  SIGSEGV on every run, with empty output. On a one-page index the same
+  load is still a listing when the declared end is 262144, and it is a
+  SIGSEGV when the declared end is 270000 or more. A declared end inside
+  the zero-filled page tail is not refused. A declared end of 6005 on that
+  one-page index is a listing.
+- The SHA-1 bitmap is a 1-run of more than 2^28 words. `ewah_each_bit`
+  calls its callback once per bit and does not finish. The measured file
+  is `tests/fixtures/sol-index-parity/indexes/v3-untr-hang/m01655.index`:
+  `git ls-files --stage` is still running after 40 seconds, using a full
+  core, with empty output. A 1-run is the run bit. A 0-run of the same
+  length only adds to the bit position and is listed.
+- A literal count past the copied words is above 2^20. That is the
+  SIGSEGV from the same bitmap when the literal count is about 10^9.
+  A literal count of 75 past a one-word bitmap is listed
+  (`tests/fixtures/sol-index-parity/indexes/v3-untr-list/n1739.index`).
+
+A soft failure of this parse, a missing trailing NUL, or a bitmap that
+does not have one of those shapes is not a refusal. `TREE`, `REUC`,
+`link` and `FSMN` stop on a remaining size, and a sparse listing discards
+`TREE` before reuse, so a large declared size on those extensions is not
+a refusal by itself. `sdir`, `EOIE`, `IEOT` and unknown `A`–`Z` extensions
+are not read past their header.
 
 Split indexes resolve `link` against `sharedindex.<hash>` in the repository,
 apply the replacement bitmap and then the deletion bitmap, and merge local

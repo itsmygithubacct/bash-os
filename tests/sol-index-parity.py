@@ -16,7 +16,8 @@ from pathlib import Path
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--binary', required=True)
-p.add_argument('--case', choices=['v1-over-refusal', 'v2-mismatch', 'v3-split-literal'], required=True)
+p.add_argument('--case', choices=['v1-over-refusal', 'v2-mismatch',
+                                 'v3-split-literal', 'v3-untr'], required=True)
 a = p.parse_args()
 binary = str(Path(a.binary).resolve())
 FIX = Path(__file__).resolve().parent / 'fixtures' / 'sol-index-parity'
@@ -156,7 +157,15 @@ def check_v2(work, env, failures, groups=None):
         for src in sorted((FIX / 'indexes' / folder).glob('*.index')):
             dst = mutants / src.name
             dst.write_bytes(src.read_bytes())
-            git = git_ls(repo, dst, env)
+            if kind == 'hang':
+                git_env = dict(env)
+                git_env['GIT_INDEX_FILE'] = str(dst)
+                git = subprocess.run(
+                    ['timeout', '2', '/usr/bin/git', '-C', str(repo),
+                     'ls-files', '--stage', '-z'],
+                    env=git_env, capture_output=True)
+            else:
+                git = git_ls(repo, dst, env)
             got = run_index(repo, dst, env)
             if kind == 'list':
                 expected = listing_of(git.stdout)
@@ -171,6 +180,11 @@ def check_v2(work, env, failures, groups=None):
                 # index path length. Both sides must fail with no listing.
                 ok = (git.returncode == 128 and git.stdout == b'' and
                       b'fatal: position for ' in git.stderr and
+                      got.returncode == 1 and got.stdout == b'' and
+                      got.returncode < 128)
+            elif kind == 'hang':
+                # ewah_each_bit does not return. Bound git; do not list.
+                ok = (git.returncode == 124 and git.stdout == b'' and
                       got.returncode == 1 and got.stdout == b'' and
                       got.returncode < 128)
             else:
@@ -198,6 +212,11 @@ def main():
         elif a.case == 'v3-split-literal':
             check_v2(work, env, failures, [
                 ('v3-split-literal', 'r-split', 'overrun'),
+            ])
+        elif a.case == 'v3-untr':
+            check_v2(work, env, failures, [
+                ('v3-untr-list', 'r-work', 'list'),
+                ('v3-untr-hang', 'r-work', 'hang'),
             ])
         else:
             check_v2(work, env, failures)

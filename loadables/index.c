@@ -861,6 +861,144 @@ done:
     return rc;
 }
 
+/* A directory record in an untracked-cache extension: file count, directory
+   count, a name, that many file names, then the child directories. A count
+   this parser does not trust is not a refusal. */
+#define BIDX_UNTR_MAX 10000
+
+static int
+bidx_untr_varint (const unsigned char **pp, const unsigned char *limit, size_t *out)
+{
+    const unsigned char *p = *pp;
+    unsigned c;
+    size_t val;
+    if (p >= limit) return -1;
+    c = *p++;
+    val = c & 0x7f;
+    while (c & 0x80) {
+        if (val >= (SIZE_MAX >> 7)) return -1;
+        if (p >= limit) return -1;
+        c = *p++;
+        val = ((val + 1) << 7) + (c & 0x7f);
+    }
+    *pp = p;
+    *out = val;
+    return 0;
+}
+
+static int
+bidx_untr_dir (const unsigned char **pp, const unsigned char *limit,
+               size_t *seen, int depth)
+{
+    const unsigned char *p = *pp, *eos;
+    size_t files, dirs, i;
+    if (depth > 64) return -1;
+    if (bidx_untr_varint (&p, limit, &files) < 0) return -1;
+    if (bidx_untr_varint (&p, limit, &dirs) < 0) return -1;
+    if (files > BIDX_UNTR_MAX || dirs > BIDX_UNTR_MAX) return -1;
+    eos = memchr (p, 0, (size_t) (limit - p));
+    if (!eos) return -1;
+    p = eos + 1;
+    for (i = 0; i < files; i++) {
+        eos = memchr (p, 0, (size_t) (limit - p));
+        if (!eos) return -1;
+        p = eos + 1;
+    }
+    if (*seen >= BIDX_UNTR_MAX) return -1;
+    (*seen)++;
+    for (i = 0; i < dirs; i++)
+        if (bidx_untr_dir (&p, limit, seen, depth + 1) < 0) return -1;
+    *pp = p;
+    return 0;
+}
+
+/* 1 when ewah_each_bit would spin on a 1-run or walk far past the words
+   it copied. 0 when this header is not that shape. VISIBLE and DECLARED
+   are byte counts from P, not pointers, so a declared end past the file
+   is never formed as an address. */
+static int
+bidx_ewah_spins (const unsigned char *p, size_t visible, size_t declared)
+{
+    size_t words, need, see, word;
+    if (visible < 8 || declared < 8) return 0;
+    words = bgit_be32 (p, 4);
+    if (words > (SIZE_MAX - 12) / 8) return 0;
+    need = 12 + words * 8;
+    /* ewah_read_mmap fails, and each_bit is not called, when the declared
+       extension does not hold the words and the RLW index. */
+    if (declared < need) return 0;
+    see = (visible - 8) / 8;
+    if (see > words) see = words;
+    word = 0;
+    while (word < see) {
+        uint64_t rlw = bidx_be64 (p + 8 + 8 * word);
+        uint32_t run = (uint32_t) ((rlw >> 1) & 0xffffffffu);
+        uint32_t literals = (uint32_t) (rlw >> 33);
+        word++;
+        /* A 1-run calls the callback once per bit. Past 2^28 words of
+           run this does not finish: the measured hangs are runs of about
+           2^31. A 0-run only adds to the position. */
+        if ((rlw & 1) && run > (1u << 28)) return 1;
+        /* A literal count past the copied words reads off the allocation.
+           Counts at or below 2^20 were listed; the measured SIGSEGV is
+           hundreds of millions of literals. */
+        if (literals > (1u << 20) && (size_t) literals > words - word) return 1;
+        if ((size_t) literals > see - word) break;
+        word += literals;
+    }
+    return 0;
+}
+
+/* BODY is the in-file prefix of an UNTR body, IN_FILE bytes of it.
+   DECLARED is the size field. Returns 1 only when the extension parses
+   and one of its three bitmaps is a measured hang or SIGSEGV. */
+static int
+bidx_untr_spins (const unsigned char *body, size_t in_file, size_t declared)
+{
+    const unsigned char *p, *limit, *eos;
+    size_t ident, total, seen, guard, at;
+    int i;
+    if (declared <= 1 || !in_file) return 0;
+    if (declared - 1 < in_file) {
+        if (body[declared - 1] != 0) return 0;
+        guard = declared - 1;
+    } else {
+        guard = in_file;
+    }
+    limit = body + guard;
+    p = body;
+    if (bidx_untr_varint (&p, limit, &ident) < 0) return 0;
+    if (ident > (size_t) (limit - p)) return 0;
+    p += ident;
+    /* Two on-disk stat records and dir_flags are 76 bytes, then two
+       SHA-1 ids. The exclude string follows. */
+    if ((size_t) (limit - p) < 117) return 0;
+    p += 116;
+    eos = memchr (p, 0, (size_t) (limit - p));
+    if (!eos) return 0;
+    p = eos + 1;
+    if (bidx_untr_varint (&p, limit, &total) < 0) return 0;
+    if (!total || total > BIDX_UNTR_MAX) return 0;
+    seen = 0;
+    if (bidx_untr_dir (&p, limit, &seen, 0) < 0) return 0;
+    if (seen != total) return 0;
+    at = (size_t) (p - body);
+    for (i = 0; i < 3; i++) {
+        size_t words, need, visible, declared_left;
+        if (at > in_file || at > declared - 1) return 0;
+        visible = in_file - at;
+        declared_left = (declared - 1) - at;
+        if (bidx_ewah_spins (body + at, visible, declared_left)) return 1;
+        if (visible < 8 || declared_left < 8) return 0;
+        words = bgit_be32 (body + at, 4);
+        if (words > (SIZE_MAX - 12) / 8) return 0;
+        need = 12 + words * 8;
+        if (declared_left < need || need > SIZE_MAX - at) return 0;
+        at += need;
+    }
+    return 0;
+}
+
 static int
 bidx_read_format (const char *path, int for_edit, int depth,
                    const unsigned char *expected_checksum, bgit_index_entry **out, size_t *n_out, bidx_undo *undo)
@@ -884,15 +1022,25 @@ bidx_read_format (const char *path, int for_edit, int depth,
         const unsigned char *sig = raw + off;
         size_t size = bgit_be32 (sig, 4), available = length - off - 8;
         /* read_untracked_extension sets end = data + sz and loads end[-1]
-           whenever sz > 1. A size past the mapped page is a SIGSEGV.
-           TREE, REUC, link and FSMN stop on their own remaining-size
-           checks, and a sparse listing frees TREE before it is reused, so
-           a large declared size there is not by itself a refusal. A size
-           that ends in the zero-filled tail stays. */
-        if (!memcmp (sig, "UNTR", 4) && size > 1 &&
-            (size > SIZE_MAX - 8 || off > SIZE_MAX - 8 - size ||
-             off + 8 + size > map_end))
-            goto bad;
+           whenever sz > 1. That load is a SIGSEGV once the byte is 256 KiB
+           past the mapped page. A load in the mappings after the page,
+           including a declared end of 262144 on a one-page file, is a
+           listing. A 1-run longer than 2^28 words does not finish, and a
+           literal count past the copied words above 2^20 is the SIGSEGV
+           measured when the trailer lands in that bitmap. TREE, REUC, link
+           and FSMN stop on their own remaining-size checks. */
+        if (!memcmp (sig, "UNTR", 4) && size > 1) {
+            int far = size > SIZE_MAX - 8 || off > SIZE_MAX - 8 - size;
+            if (!far) {
+                size_t touch = off + 8 + size - 1;
+                far = touch >= map_end && touch - map_end >= 262144;
+            }
+            if (far) goto bad;
+            {
+                size_t in_file = size < available ? size : available;
+                if (bidx_untr_spins (sig + 8, in_file, size)) goto bad;
+            }
+        }
         if (!memcmp (sig, "link", 4)) {
             if (link || size > available) goto bad;
             link = sig + 8; linklen = size;
