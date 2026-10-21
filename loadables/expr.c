@@ -1100,13 +1100,6 @@ el_parse (el_node *pool, const char *pat, int *backref, int *err)
     return root;
 }
 
-/* Groups call el_parse_alt, which still uses the old branch parser.
-   Redirect that name by making el_parse_alt call the top parser.
-   The group path in el_parse_atom calls el_parse_alt. Override it. */
-
-/* Fix group parsing: el_parse_atom calls el_parse_alt. Rebuild atom's group
-   path by not using the old parser. We wrap el_parse_alt now. */
-
 static int
 el_crude_dangerous (const char *pat)
 {
