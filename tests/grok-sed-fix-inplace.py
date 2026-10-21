@@ -28,7 +28,7 @@ def check(label, actual, expected):
 
 so = Path(tempfile.mkdtemp(prefix='grok-sed-preload-')) / 'inplace.so'
 built = subprocess.run(
-    ['gcc', '-shared', '-fPIC', '-O2', '-o', str(so), str(here / 'grok-sed-fix-inplace-preload.c'), '-ldl'],
+    ['gcc', '-shared', '-fPIC', '-O2', '-U_FORTIFY_SOURCE', '-o', str(so), str(here / 'grok-sed-fix-inplace-preload.c'), '-ldl'],
     capture_output=True, text=True)
 if built.returncode != 0:
     print(built.stderr)

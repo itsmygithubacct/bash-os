@@ -12,7 +12,7 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
   -fsanitize=address,undefined,float-cast-overflow -fno-sanitize-recover=undefined -DHAVE_CONFIG_H \
   -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" -Iloadables/common \
   loadables/dmsetup.c -o "$d/dmsetup.so"
-"$CC" -std=gnu11 -O1 -g -fPIC -shared -o "$d/dmsfix.so" tests/opus-dmsetup-fixture.c -ldl
+"$CC" -std=gnu11 -O1 -U_FORTIFY_SOURCE -g -fPIC -shared -o "$d/dmsfix.so" tests/opus-dmsetup-fixture.c -ldl
 printf 'enable -f %q dmsetup || exit\n' "$d/dmsetup.so" > "$d/load.sh"
 printf '#!/bin/bash\nexport LD_PRELOAD=%q${LD_PRELOAD:+:$LD_PRELOAD}\nexport BASH_ENV=%q\nexec %q "$@"\n' \
   "$("$CC" -print-file-name=libasan.so)" "$d/load.sh" \

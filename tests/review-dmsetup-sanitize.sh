@@ -6,7 +6,7 @@ bin=$(realpath "${1:-out/bash}")
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 bt="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 cc -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined -DHAVE_CONFIG_H -I"$bt" -I"$bt/include" -I"$bt/builtins" -I"$bt/examples/loadables" loadables/dmsetup.c -o "$d/dmsetup.so"
-cc -std=gnu11 -O2 -Wall -Wextra -fPIC -shared tests/opus-dmsetup-fixture.c -ldl -o "$d/fixture.so"
+cc -std=gnu11 -O2 -U_FORTIFY_SOURCE -Wall -Wextra -fPIC -shared tests/opus-dmsetup-fixture.c -ldl -o "$d/fixture.so"
 printf 'enable -f %q dmsetup || exit
 ' "$d/dmsetup.so" > "$d/load.sh"
 # The fixture supplies LD_PRELOAD; put libasan first in the executed shell.

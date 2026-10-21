@@ -320,8 +320,8 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'gpu sanitizer ABI error contracts' env GPU_MODULE="$scratch/gpu-frames/gpu-asan.so" GPU_ASAN_LIB="$("$CC" -print-file-name=libasan.so)" python3 tests/sol-gpu-errors.py out/bash "$scratch/gpu-frames/driver-asan.so"
   check 'gpu sanitizer ABI frame contracts' env GPU_MODULE="$scratch/gpu-frames/gpu-asan.so" GPU_ASAN_LIB="$("$CC" -print-file-name=libasan.so)" python3 tests/sol-gpu-frames.py out/bash --device "$scratch/gpu-frames/render.fixture" --driver-fixture "$scratch/gpu-frames/driver-asan.so"
   mkdir -p "$scratch/pkill-contracts"
-  check 'pkill interceptor build' "$CC" -std=gnu11 -Wall -Wextra -Werror -O2 -fPIC -shared tests/sol-pkill-intercept.c -ldl -o "$scratch/pkill-contracts/pkill-intercept.so"
-  check 'pkill sanitizer build' "$CC" -std=gnu11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -I tests/sol-pgrep-stubs tests/sol-pkill-harness.c -o "$scratch/pkill-contracts/pkill-sanitize"
+  check 'pkill interceptor build' "$CC" -std=gnu11 -Wall -Wextra -Werror -O2 -U_FORTIFY_SOURCE -fPIC -shared tests/sol-pkill-intercept.c -ldl -o "$scratch/pkill-contracts/pkill-intercept.so"
+  check 'pkill sanitizer build' "$CC" -std=gnu11 -Wall -Wextra -Werror -g -O1 -U_FORTIFY_SOURCE -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -I tests/sol-pgrep-stubs tests/sol-pkill-harness.c -o "$scratch/pkill-contracts/pkill-sanitize"
   check 'pkill owned-child and intercepted contracts' python3 tests/sol-pkill-check.py --binary out/bash --shim "$scratch/pkill-contracts/pkill-intercept.so"
   check 'pkill sanitizer contracts' python3 tests/sol-pkill-check.py --binary "$scratch/pkill-contracts/pkill-sanitize" --sanitizer
   check 'buf probe build' bash tests/sol-buf-build-probe.sh "$scratch/buf-probe"

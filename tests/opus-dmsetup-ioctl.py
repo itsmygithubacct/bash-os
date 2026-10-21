@@ -635,7 +635,7 @@ def main():
         so = os.environ.get("DMSETUP_FIXTURE_SO")
         if not so:
             so = os.path.join(tmp, "dmsfix.so")
-            subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-O1", "-g", "-fPIC", "-shared",
+            subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-O1", "-U_FORTIFY_SOURCE", "-g", "-fPIC", "-shared",
                             "-o", so, os.path.join(HERE, "opus-dmsetup-fixture.c"), "-ldl"], check=True)
         fx = Fixture(bash, os.path.abspath(so), tmp)
         for t in (t_policy, t_create, t_malformed_tables, t_load_cycle, t_suspend_remove, t_rename,

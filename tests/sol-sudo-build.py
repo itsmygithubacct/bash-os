@@ -51,7 +51,7 @@ inputs = hashes()
 compiler = subprocess.check_output(['cc', '--version'], text=True).splitlines()[0]
 subprocess.run(command, check=True)
 assert hashes() == inputs, 'fixture inputs changed during compilation'
-preload_command = ['cc', '-std=gnu11', '-O2', '-g', '-fPIC', '-shared',
+preload_command = ['cc', '-std=gnu11', '-O2', '-U_FORTIFY_SOURCE', '-g', '-fPIC', '-shared',
                    'tests/astra-sudo-list-preload.c', 'loadables/_mbedtls/sha256.c',
                    '-ldl', '-o', str(a.output/'list-preload.so')]
 subprocess.run(preload_command, check=True)
