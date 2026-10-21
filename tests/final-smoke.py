@@ -141,8 +141,11 @@ def formats(d):
     assert host('git', '-C', repo, 'ls-files', '--stage') == f'100755 {sha} 0\talpha\n100644 {sha} 0\tzeta\n'.encode()
     assert run('index', 'read', idx) == b'\n'.join(sorted(entries.splitlines(), key=lambda x:x.split()[-1]))+b'\n'
     host('git', '-C', repo, 'update-index', '--index-info', data=f'100644 {sha}\tfrom-git\n'.encode())
-    assert b'from-git' in run('index', 'read', idx)
-    raw = idx.read_bytes(); idx.write_bytes(raw[:-1]+bytes([raw[-1]^1])); run('index', 'read', idx, rc=1)
+    listed = run('index', 'read', idx)
+    assert b'from-git' in listed
+    raw = idx.read_bytes(); idx.write_bytes(raw[:-1]+bytes([raw[-1]^1]))
+    # Ordinary listing matches Git's ls-files and does not authenticate the trailer.
+    assert run('index', 'read', idx) == listed
     run('index', 'write', idx, data=b''); assert run('index', 'read', idx) == b''
     assert host('git', '-C', repo, 'ls-files') == b''
     long_path = 'x'*5000
@@ -150,9 +153,17 @@ def formats(d):
     assert run('index', 'read', idx).endswith(long_path.encode()+b'\n')
     assert host('git', '-C', repo, 'ls-files').strip() == long_path.encode()
     run('index', 'write', idx, data=f'garbage {sha} 0 x\n'.encode(), rc=2)
-    # A valid checksum must not make a missing terminator/padding acceptable.
+    # The listing reader follows git ls-files: a recomputed trailer does not
+    # reject this body, and both sides print the same entries.
     raw = idx.read_bytes(); body = bytearray(raw[:-20]); body[74:] = b'x'*(len(body)-74)
-    idx.write_bytes(body+hashlib.sha1(body).digest()); run('index', 'read', idx, rc=1)
+    idx.write_bytes(body+hashlib.sha1(body).digest())
+    rows = []
+    for row in host('git', '-C', repo, 'ls-files', '--stage', '-z').split(b'\0'):
+        if not row:
+            continue
+        meta, pathb = row.split(b'\t', 1)
+        rows.append(meta + b' ' + pathb + b'\n')
+    assert run('index', 'read', idx) == b''.join(rows)
     packed, paired = d/'objects.pack', d/'objects.idx'
     run('pack', 'create', packed, '--idx', paired, '-r', repo, sha)
     assert sha.encode() in host('git', 'verify-pack', '-v', paired)
