@@ -45,6 +45,18 @@ Where Git 2.47.3's listing is deterministic, the reader matches it.
   walks the words from the start and never reads those fields. A set bit
   at or past the shared index is Git's `fatal: position for delete` or
   `fatal: position for replacement`, with no listing.
+- A literal count past the words stored in the extension is the read
+  `ewah_each_bit` performs past the bitmap it copied. On a two-word
+  bitmap that copy is 16 bytes, and the position in Git's
+  `fatal: position for delete` or `position for replacement` is the
+  first set bit of the allocator word that follows. It is not a field
+  of the index. The delete bitmap in
+  `tests/fixtures/sol-index-parity/indexes/v3-split-literal/` prints
+  position 69 when the index path is 46 bytes and position 72 when
+  that path is 80 bytes; repeated runs at one path length stay on one
+  position. Git prints no listing and exits 128. Once the walk has
+  already reached the shared index, that overrun is refused and the
+  bytes are not read. Any other literal overrun stops the walk.
 - An entry marked both deleted and replaced is replaced and then dropped.
   Git lists that index; it does not die on the pair.
 - A sparse directory whose tree object cannot be read is omitted. The

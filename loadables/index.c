@@ -557,9 +557,14 @@ bidx_be64 (const unsigned char *p)
    the stored RLW index are not consulted: Git ignores both while reading.
    WHICH is "delete" or "replacement". A set bit at or past COUNT is the
    fatal Git prints for that bitmap. Returns -2 after printing it, or -1
-   when the declared words do not fit in the extension. A literal count
-   that would read past the declared words stops the walk; those words are
-   not in the mapping Git was given. */
+   when the declared words do not fit in the extension. A literal past
+   the copied words is the read ewah_each_bit performs past that buffer.
+   On a two-word bitmap the position Git prints is the first set bit of
+   the allocator word after the 16-byte copy. That position is not in the
+   index: the same delete bitmap was "position for delete 69" for one
+   index path and "position for delete 72" for a longer path. The read is
+   not performed. When the walk has already reached COUNT, the overrun is
+   refused. Any other overrun stops the walk. */
 static int
 bidx_bitmap_fatal (const char *which, size_t pos, size_t count)
 {
@@ -597,7 +602,11 @@ bidx_bitmap (const unsigned char **cursor, size_t *remaining,
             pos += (size_t) run_bits;
         }
         for (uint32_t lit = 0; lit < literals; lit++) {
-            if (word >= words) goto consume;
+            if (word >= words) {
+                if (words == 2 && pos >= count)
+                    return -1;
+                goto consume;
+            }
             uint64_t value = bidx_be64 (p + 8 + 8 * word);
             word++;
             for (int bit = 0; bit < 64; bit++) {

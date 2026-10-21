@@ -16,7 +16,7 @@ from pathlib import Path
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--binary', required=True)
-p.add_argument('--case', choices=['v1-over-refusal', 'v2-mismatch'], required=True)
+p.add_argument('--case', choices=['v1-over-refusal', 'v2-mismatch', 'v3-split-literal'], required=True)
 a = p.parse_args()
 binary = str(Path(a.binary).resolve())
 FIX = Path(__file__).resolve().parent / 'fixtures' / 'sol-index-parity'
@@ -135,16 +135,22 @@ def check_v1(work, env, failures):
             print('match', name, len(got.stdout))
 
 
-def check_v2(work, env, failures):
+def check_v2(work, env, failures, groups=None):
     mutants = work / 'mutants'
     mutants.mkdir(exist_ok=True)
-    groups = [
-        ('v2-expand', 'r-sparse', 'list'),
-        ('v2-link-zero', 'r-split', 'fatal'),
-        ('v2-link-nonzero', 'r-split', 'fatal'),
-        ('v2-empty-subtree', 'r-sparse', 'fatal'),
-        ('v2-untr-page', 'r-work', 'crash'),
-    ]
+    shared = FIX / 'indexes' / 'v3-split-literal' / (
+        'sharedindex.a7ea1d81ba0bd4f843cf259a78e3211a2e520135')
+    gitdir = work / 'r-split' / '.git'
+    if shared.is_file() and gitdir.is_dir():
+        (gitdir / shared.name).write_bytes(shared.read_bytes())
+    if groups is None:
+        groups = [
+            ('v2-expand', 'r-sparse', 'list'),
+            ('v2-link-zero', 'r-split', 'fatal'),
+            ('v2-link-nonzero', 'r-split', 'fatal'),
+            ('v2-empty-subtree', 'r-sparse', 'fatal'),
+            ('v2-untr-page', 'r-work', 'crash'),
+        ]
     for folder, repo_name, kind in groups:
         repo = work / repo_name
         for src in sorted((FIX / 'indexes' / folder).glob('*.index')):
@@ -160,6 +166,13 @@ def check_v2(work, env, failures):
                 ok = (git.returncode == 128 and git.stdout == b'' and
                       got.returncode == 1 and got.stdout == b'' and
                       fatal and fatal in got.stderr.splitlines())
+            elif kind == 'overrun':
+                # Git's position is allocator metadata and changes with the
+                # index path length. Both sides must fail with no listing.
+                ok = (git.returncode == 128 and git.stdout == b'' and
+                      b'fatal: position for ' in git.stderr and
+                      got.returncode == 1 and got.stdout == b'' and
+                      got.returncode < 128)
             else:
                 ok = (git.returncode != 0 and git.stdout == b'' and
                       got.returncode == 1 and got.stdout == b'' and
@@ -182,6 +195,10 @@ def main():
         failures = []
         if a.case == 'v1-over-refusal':
             check_v1(work, env, failures)
+        elif a.case == 'v3-split-literal':
+            check_v2(work, env, failures, [
+                ('v3-split-literal', 'r-split', 'overrun'),
+            ])
         else:
             check_v2(work, env, failures)
         assert not failures, failures
