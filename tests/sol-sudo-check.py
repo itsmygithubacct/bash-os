@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 GROUPS = ['options', 'lookup', 'authority', 'translation', 'root', 'edit', 'helper',
-          'command', 'groups', 'status', 'shell']
+          'command', 'groups', 'status', 'shell', 'list']
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--fixture', type=Path)
@@ -115,10 +115,16 @@ sys.exit(int(os.environ.get('DELEGATE_EXIT', '0')))
             case('native:builtins-with-empty-path', ok and proc.stdout == b'builtin\nbuiltin\nbuiltin\n', repr(proc.stdout))
             # Usage errors are decided before any delegate runs.
             for words in ['--invalid-fixture-option', '-nE /bin/true', '-K /bin/true', '-v /bin/true', '-s -i',
-                          '-is', '-e -s /tmp/x', 'A=1', '-u', '--preserve-env=PATH /bin/true', '-l']:
+                          '-is', '-e -s /tmp/x', 'A=1', '-u', '--preserve-env=PATH /bin/true']:
                 ok, proc, rows = run(f'sudo {words}', 2, {'BASHSUDO_EXTERNAL': str(tmp / 'explicit')})
                 case(f'native:usage:{words}', ok and not rows and proc.stderr and not proc.stdout,
                      f'rc={proc.returncode} rows={rows} err={proc.stderr!r}')
+            for option in ['-l', '-ll', '--list']:
+                ok, proc, rows = run(f'sudo {option}', 0, {'BASHSUDO_EXTERNAL': str(tmp / 'explicit')})
+                case(f'native:list-delegate:{option}', ok and rows == [dict(name='explicit', argv=[option], fds=[])],
+                     f'rc={proc.returncode} rows={rows} err={proc.stderr!r}')
+            ok, proc, rows = run('sudo -l', 1, {'BASHSUDO_EXTERNAL': '', 'BASHDOAS_EXTERNAL': str(tmp / 'explicit')})
+            case('native:list-unavailable', ok and not rows and not proc.stdout and b'listing requires' in proc.stderr)
             # An explicit delegate receives the original words; FDs are closed.
             script = ('exec 200</dev/null; sudo -nu root -- /bin/echo "literal ; $(printf no)" ""; '
                       'sudo -nk A=1 /bin/echo again; [[ -r /proc/$$/fd/200 ]]')

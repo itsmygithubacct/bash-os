@@ -10,6 +10,7 @@ p = argparse.ArgumentParser()
 p.add_argument('output', type=Path)
 p.add_argument('--source', type=Path, default=Path('loadables/doas.c'))
 p.add_argument('--sudoedit', type=Path, default=Path('loadables/_bashauth/sudoedit.c'))
+p.add_argument('--auth-source', type=Path, default=Path('loadables/auth.c'))
 p.add_argument('--sanitize', action='store_true')
 a = p.parse_args()
 a.output.mkdir(parents=True, exist_ok=True)
@@ -25,14 +26,20 @@ struct builtin { char *name; int (*function)(WORD_LIST *); int flags; char **doc
 #define EXECUTION_FAILURE 1
 #define EX_USAGE 2
 void builtin_error(const char *, ...);
+void builtin_warning(const char *, ...);
+void builtin_usage(void);
+void *builtin_bind_variable(char *, char *, int);
 #endif
 ''')
 (a.output/'_mbedtls_sha256.h').write_text('#include "'+str(Path('loadables/_mbedtls/sha256.h').resolve())+'"\n')
-flags = ['-std=gnu11', '-D_GNU_SOURCE', '-O2', '-g', '-Wall', '-Wextra', '-Wno-unused-function', '-Wno-unused-variable', '-Wno-unused-parameter', '-I'+str(a.output.resolve()), '-Iloadables/common', '-Iloadables']
+for directory in ['_bashauth', '_bashos_authcrypto', '_monocypher']:
+    for header in Path('loadables', directory).glob('*.h'):
+        (a.output/(directory+'_'+header.name)).write_text('#include "'+str(header.resolve())+'"\n')
+flags = ['-std=gnu11', '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-D_GNU_SOURCE', '-O2', '-g', '-Wall', '-Wextra', '-Wno-unused-function', '-Wno-unused-variable', '-Wno-unused-parameter', '-I'+str(a.output.resolve()), '-Iloadables/common', '-Iloadables']
 if a.sanitize:
     flags += ['-O1', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-fno-pie', '-no-pie']
-command = ['cc', *flags, '-DDOAS_SOURCE="'+str(a.source.resolve())+'"', '-DSUDOEDIT_SOURCE="'+str(a.sudoedit.resolve())+'"', 'tests/sol-doas-fixture.c', 'loadables/_mbedtls/sha256.c', '-o', str(a.output/'fixture')]
-paths = [a.source, a.sudoedit, Path('tests/sol-doas-fixture.c'), Path('loadables/common/bashcred_privdrop.h'), Path('loadables/_mbedtls/sha256.c'), Path('loadables/sudo.c')]
+command = ['cc', *flags, '-DAUTH_SOURCE="'+str(a.auth_source.resolve())+'"', '-DDOAS_SOURCE="'+str(a.source.resolve())+'"', '-DSUDOEDIT_SOURCE="'+str(a.sudoedit.resolve())+'"', 'tests/sol-doas-fixture.c', 'loadables/_mbedtls/sha256.c', '-o', str(a.output/'fixture')]
+paths = [a.auth_source, a.source, a.sudoedit, Path('tests/sol-doas-fixture.c'), Path('loadables/common/bashcred_privdrop.h'), Path('loadables/_mbedtls/sha256.c'), Path('loadables/sudo.c')]
 hashes = lambda: {str(f.resolve()): hashlib.sha256(f.read_bytes()).hexdigest() for f in paths}
 inputs = hashes()
 subprocess.run(command, check=True)

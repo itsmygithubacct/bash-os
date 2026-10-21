@@ -24,8 +24,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
 #include "_bashos_auth_uapi.h"
 #include "_bashauth/sudoedit.h"
+#include "_mbedtls_sha256.h"
 
 static int checks;
 #define CHECK(x) do { if (!(x)) { fprintf (stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); abort (); } checks++; } while (0)
@@ -152,6 +155,39 @@ static int fixture_getresgid (gid_t *r, gid_t *e, gid_t *s) { *r = *e = *s = S->
 #undef getresuid
 #undef getresgid
 
+static char list_path[PATH_MAX];
+static int list_fault, list_calls, list_fd = -1;
+static const char *list_text;
+static int fixture_list_fstat (int fd, struct stat *st)
+{
+  int rc = fstat (fd, st);
+  if (!rc && fd == list_fd) st->st_uid = 0; /* private file stands in for root ownership */
+  return rc;
+}
+static int fixture_policy_info (struct bashos_auth_policy_info *p)
+{
+  struct stat st;
+  list_calls++;
+  if (list_fault == 1) { errno = EIO; return -1; }
+  CHECK (stat (list_path, &st) == 0);
+  p->status = list_fault == 2 ? BASHOS_AUTH_POLICY_STATUS_UNSAFE : BASHOS_AUTH_POLICY_STATUS_OK;
+  p->mode = st.st_mode;
+  p->uid = 0;
+  p->gid = st.st_gid;
+  p->ino = st.st_ino;
+  p->size_bytes = strlen (list_text);
+  p->mtime_sec = st.st_mtime;
+  p->ctime_sec = st.st_ctime;
+  p->generation = 7 + (list_fault == 4 && list_calls > 1);
+  snprintf (p->path, sizeof p->path, "%s", list_path);
+  CHECK (mbedtls_sha256 ((const unsigned char *) list_text, strlen (list_text), p->policy_digest, 0) == 0);
+  if (list_fault == 3) p->policy_digest[0] ^= 1;
+  if (list_fault == 6) p->size_bytes = 1024 * 1024 + 1;
+  if (list_fault == 7) memset (p->path, '/', sizeof p->path);
+  if (list_fault == 8) p->ino++;
+  return 0;
+}
+
 static int count_open_fds (void)
 {
   int n = 0;
@@ -167,6 +203,12 @@ fixture_open (const char *p, int flags, ...)
     {
       if (auth_absent) { errno = ENOENT; return -1; }
       return open ("/dev/null", flags);
+    }
+  if (list_path[0] && !strcmp (p, list_path))
+    {
+      if (list_fault == 5) { errno = EACCES; return -1; }
+      list_fd = open (p, flags);
+      return list_fd;
     }
   return open (p, flags);
 }
@@ -188,6 +230,8 @@ capture_strings (char dst[][256], int max, int *countp, char *const *src)
 static ssize_t
 fixture_status_read (int fd, void *buf, size_t n)
 {
+  if (fd == list_fd && list_fault == 9) { errno = EIO; return -1; }
+  if (fd == list_fd && list_fault == 10 && n > 3) n = 3;
   if (io_read_eintr > 0)
     {
       io_read_eintr--;
@@ -418,6 +462,8 @@ fixture_ioctl (int fd, unsigned long op, ...)
       r->features = BASHOS_AUTH_FEAT_PRIVCMD;
       return 0;
     }
+  if (op == BASHOS_AUTH_IOC_POLICY_INFO)
+    return fixture_policy_info (v);
   req_t *q = record (op);
   q->fd_cloexec = (fcntl (fd, F_GETFD) & FD_CLOEXEC) != 0;
   if (op == BASHOS_AUTH_IOC_PRIVCMD_AUTHZ)
@@ -469,6 +515,7 @@ fixture_ioctl (int fd, unsigned long op, ...)
   return -1;
 }
 
+#define fstat fixture_list_fstat
 #define open fixture_open
 #define ioctl fixture_ioctl
 #define isatty fixture_isatty
@@ -483,6 +530,7 @@ static int fixture_nnp (char *err, size_t len)
 }
 #define bc_no_new_privs fixture_nnp
 #include DOAS_SOURCE
+#undef fstat
 #undef open
 #undef ioctl
 #undef isatty
@@ -494,6 +542,43 @@ static int fixture_nnp (char *err, size_t len)
 #undef geteuid
 #undef bc_no_new_privs
 #include "../loadables/sudo.c"
+/* The real policy parser/renderer is linked; account lookups stay injected.
+   Exact user entries and ALL need no NSS; group fixtures use a private row. */
+static struct group *fixture_policy_getgrnam (const char *name)
+{
+  static char *members[] = { "caller", NULL };
+  static struct group group = { .gr_name = "reviewers", .gr_gid = 999,
+                                .gr_mem = members };
+  return !strcmp (name, "reviewers") ? &group : NULL;
+}
+static struct passwd *fixture_policy_getpwnam (const char *name)
+{
+  (void) name;
+  return NULL;
+}
+#define getgrnam fixture_policy_getgrnam
+#define getpwnam fixture_policy_getpwnam
+#include AUTH_SOURCE
+/* Unused auth CLI/secret paths must never run in these list fixtures.
+   ASan retains the builtin registration table, so give its unrelated symbols
+   aborting stubs instead of linking a password/credential implementation. */
+void builtin_usage (void) { abort (); }
+void builtin_warning (const char *fmt, ...) { (void) fmt; abort (); }
+void *builtin_bind_variable (char *name, char *value, int flags)
+{ (void) name; (void) value; (void) flags; abort (); }
+int bashos_auth_argon2id_raw (const unsigned char *pass, size_t plen,
+                            const unsigned char *salt, size_t slen,
+                            uint32_t passes, uint32_t mem, uint32_t lanes,
+                            unsigned char *out, size_t olen, int quiet,
+                            const char *prefix)
+{
+  (void) pass; (void) plen; (void) salt; (void) slen; (void) passes; (void) mem;
+  (void) lanes; (void) out; (void) olen; (void) quiet; (void) prefix; abort ();
+}
+
+
+#undef getgrnam
+#undef getpwnam
 #include SUDOEDIT_SOURCE
 
 char **export_env;
@@ -549,6 +634,8 @@ reset_state (void)
   io_read_fail = io_write_fail = io_read_eintr = io_write_eintr = io_read_garbage = 0;
   big_expect_on = big_expect_argc = 0;
   big_expect_word = NULL;
+  list_calls = list_fault = 0;
+  list_fd = -1;
 }
 static void
 script (int n, ...)
@@ -732,7 +819,7 @@ option_tests (void)
     { "-nh", NULL }, { "-nV", NULL }, { "--preserve-env", "/bin/true", NULL },
     { "--preserve-env=PATH", "/bin/true", NULL }, { "--prompt=x", "/bin/true", NULL },
     { "--non", "/bin/true", NULL }, { "--login=x", NULL }, { "--chdir=/", "/bin/true", NULL },
-    { "-l", NULL }, { "-ll", NULL }, { "--list", NULL },
+    { "-l", "-u", "fixture", NULL }, { "-l", "/bin/true", NULL }, { "-l", "A=1", NULL },
   };
   for (size_t u = 0; u < sizeof usage / sizeof usage[0]; u++)
     {
@@ -1983,6 +2070,95 @@ shell_tests (void)
   unsetenv ("SHELL");
 }
 
+static int
+capture_list (char **args, char *out, size_t cap)
+{
+  FILE *stream = tmpfile ();
+  CHECK (stream);
+  fflush (stdout);
+  int saved = dup (STDOUT_FILENO);
+  CHECK (saved >= 0 && dup2 (fileno (stream), STDOUT_FILENO) == STDOUT_FILENO);
+  int rc = dispatchv (1, args);
+  CHECK (fflush (stdout) == 0);
+  CHECK (dup2 (saved, STDOUT_FILENO) == STDOUT_FILENO);
+  close (saved);
+  rewind (stream);
+  size_t n = fread (out, 1, cap - 1, stream);
+  CHECK (!ferror (stream) && feof (stream));
+  out[n] = 0;
+  fclose (stream);
+  return rc;
+}
+
+static void
+list_tests (void)
+{
+  char out[8192];
+  snprintf (list_path, sizeof list_path, "%s/list-policy", scratch);
+  list_text = "User_Alias OPS = caller\n"
+    "Cmnd_Alias CMDS = /bin/true, /bin/echo\n"
+    "OPS ALL = (root) NOPASSWD: CMDS\n"
+    "other ALL = (root) /private/other-only\n";
+  write_file (list_path, list_text);
+  CHECK (chmod (list_path, 0644) == 0);
+  int before = count_open_fds ();
+  for (int root = 0; root < 2; root++)
+    for (int mode = 0; mode < 3; mode++)
+      {
+        reset_state ();
+        root_route = root;
+        char *args[] = { mode == 0 ? "-l" : mode == 1 ? "-ll" : "--list", NULL };
+        CHECK (capture_list (args, out, sizeof out) == 0);
+        CHECK (list_calls == 2 && S->nreq == 0 && S->execs == 0 && S->spawns == 0);
+        CHECK (strstr (out, "not an execution approval") && strstr (out, "/bin/true"));
+        CHECK (!strstr (out, "other-only"));
+        CHECK (strstr (out, mode == 1 ? "entry user=caller" : "list user=caller"));
+        CHECK (strstr (out, mode == 1 ? "summary entries=2" : "summary entries=1"));
+        CHECK (count_open_fds () == before);
+      }
+  for (int fault = 1; fault <= 9; fault++)
+    {
+      reset_state ();
+      list_fault = fault;
+      CHECK (capture_list ((char *[]) { "-nl", NULL }, out, sizeof out) == 1);
+      CHECK (!out[0] && S->nreq == 0 && S->execs == 0 && count_open_fds () == before);
+    }
+  reset_state ();
+  list_fault = 10;
+  CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 0);
+  CHECK (strstr (out, "summary entries=1") && count_open_fds () == before);
+  reset_state ();
+  io_read_eintr = 1;
+  CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 0);
+  CHECK (strstr (out, "summary entries=1") && count_open_fds () == before);
+  /* Malformed text and unrelated policy never become permission claims. */
+  const char *texts[] = { "invalid policy\n", "other ALL = (root) /bin/true\n", "", NULL };
+  for (int i = 0; texts[i]; i++)
+    {
+      list_text = texts[i]; write_file (list_path, list_text); reset_state ();
+      CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 1);
+      CHECK (!strstr (out, "list user=") && !strstr (out, "entry user="));
+      CHECK (count_open_fds () == before);
+    }
+  list_text = "%reviewers ALL = (root) /bin/true\n";
+  write_file (list_path, list_text); reset_state ();
+  CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 0);
+  CHECK (strstr (out, "list user=caller"));
+  CHECK (chmod (list_path, 0666) == 0); reset_state ();
+  CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 1 && !out[0]);
+  CHECK (chmod (list_path, 0644) == 0);
+  /* Output failure must not report a successful list; the next call recovers. */
+  int saved = dup (1), full = open ("/dev/full", O_WRONLY);
+  CHECK (saved >= 0 && full >= 0 && dup2 (full, 1) == 1); close (full);
+  reset_state ();
+  CHECK (SUDO ("-l") == 1);
+  CHECK (dup2 (saved, 1) == 1); close (saved); clearerr (stdout);
+  reset_state ();
+  CHECK (capture_list ((char *[]) { "-l", NULL }, out, sizeof out) == 0);
+  CHECK (count_open_fds () == before);
+  unlink (list_path); list_path[0] = 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -2028,7 +2204,7 @@ main (int argc, char **argv)
   else
     {
       const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper",
-                               "command", "groups", "status", "shell", NULL };
+                               "command", "groups", "status", "shell", "list", NULL };
       for (int g = 0; groups[g]; g++)
         {
           if (argc == 2 && strcmp (argv[1], groups[g])) continue;
@@ -2044,6 +2220,7 @@ main (int argc, char **argv)
           if (!strcmp (groups[g], "groups")) group_tests ();
           if (!strcmp (groups[g], "status")) status_tests ();
           if (!strcmp (groups[g], "shell")) shell_tests ();
+          if (!strcmp (groups[g], "list")) list_tests ();
           printf ("group %s: %d assertions passed\n", groups[g], checks - start);
           rc = 1;
         }

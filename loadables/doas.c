@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>		/* isatty / fork / _exit — v2 interactive vs UMH routing */
 
@@ -39,6 +40,8 @@ extern char **export_env;
 extern void maybe_make_export_env (void);
 extern char *doas_doc[];
 extern char *sudo_doc[];
+/* auth is a required companion of sudo. The renderer owns its input stream. */
+extern int bashos_auth_policy_list (FILE *, const char *, int, FILE *, unsigned int *);
 
 #ifndef BDA_FD_CLOSE_MAX
 #  define BDA_FD_CLOSE_MAX 1048576
@@ -64,7 +67,7 @@ typedef struct {
   int shell_mode;
   int login_mode;
   int edit_mode;		/* sudo -e / sudoedit: edit a file via the SUDOEDIT flow */
-  int list_mode;		/* sudo -l/-ll: wrapper-rendered, read-only policy projection */
+  int list_mode;		/* sudo -l/-ll: authority-bound, read-only policy projection */
   int validate;
   int reset;
   int reset_all;
@@ -1957,6 +1960,145 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
   return bda_wait_owned (pid, &waiting);
 }
 
+/* A list is a caller-filtered policy projection, never an authorization.
+   Read only the path advertised by the authority, bind the exact bytes to its
+   digest, and render a private snapshot. No host sudoers convention, untrusted
+   override path, authentication, token, or command execution is involved. */
+static int
+bda_run_list (const bda_opts *o, char **orig, int origc)
+{
+  int authority = bda_open_authority_if_available ();
+  if (authority < 0)
+    {
+      /* Only an explicitly selected sudo-compatible delegate can list.
+         The default external doas cannot express this operation. */
+      const char *delegate = getenv ("BASHSUDO_EXTERNAL");
+      if (delegate && *delegate)
+        return bda_run_external (o, orig, origc);
+      builtin_error ("listing requires the bash-os authority or BASHSUDO_EXTERNAL");
+      return EXECUTION_FAILURE;
+    }
+
+  int rc = EXECUTION_FAILURE, fd = -1;
+  FILE *input = NULL, *output = NULL;
+  char *bytes = NULL, *rendered = NULL;
+  size_t rendered_len = 0;
+  struct bashos_auth_policy_info p, after;
+  struct stat st;
+  bc_user_info caller;
+  unsigned char digest[32];
+  unsigned int entries = 0;
+
+  /* Native listing is a read-only projection for the caller. Do not silently
+     discard command, runas, assignment or timestamp modifiers. */
+  if (o->cmdc || o->envc || o->target_set || o->target_group ||
+      o->reset || o->reset_first)
+    {
+      builtin_error ("native listing accepts only -l/-ll/--list and -n");
+      rc = EX_USAGE;
+      goto out;
+    }
+  if (bc_lookup_user_by_uid (getuid (), &caller) < 0)
+    {
+      builtin_error ("listing: cannot resolve caller");
+      goto out;
+    }
+  memset (&p, 0, sizeof p);
+  p.size = sizeof p;
+  if (ioctl (authority, BASHOS_AUTH_IOC_POLICY_INFO, &p) < 0)
+    {
+      builtin_error ("listing: policy info: %s", strerror (errno));
+      goto out;
+    }
+  if (p.status != BASHOS_AUTH_POLICY_STATUS_OK || p.path[0] != '/' ||
+      !memchr (p.path, 0, sizeof p.path) || p.size_bytes > 1024 * 1024 ||
+      p.uid != 0 || (p.mode & 022))
+    {
+      builtin_error ("listing: unavailable or unsafe policy metadata");
+      goto out;
+    }
+  fd = open (p.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+  if (fd < 0)
+    {
+      builtin_error ("listing: open policy: %s", strerror (errno));
+      goto out;
+    }
+  if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode) || st.st_uid != p.uid ||
+      st.st_gid != p.gid || (st.st_mode & 07777) != (p.mode & 07777) ||
+      st.st_ino != p.ino || st.st_size < 0 ||
+      (unsigned long long) st.st_size != p.size_bytes ||
+      st.st_mtime != p.mtime_sec || st.st_ctime != p.ctime_sec)
+    {
+      builtin_error ("listing: policy metadata changed or not a regular file");
+      goto out;
+    }
+  size_t size = (size_t) p.size_bytes, used = 0;
+  bytes = malloc (size + 1);
+  if (!bytes) goto out;
+  /* Include one extra byte in the read to reject a growing file. */
+  while (used < size + 1)
+    {
+      ssize_t n = read (fd, bytes + used, size + 1 - used);
+      if (n < 0 && errno == EINTR) continue;
+      if (n < 0)
+        {
+          builtin_error ("listing: read policy: %s", strerror (errno));
+          goto out;
+        }
+      if (n == 0) break;
+      used += (size_t) n;
+    }
+  close (fd);
+  fd = -1;
+  if (used != size || memchr (bytes, 0, size) ||
+      mbedtls_sha256 ((const unsigned char *) bytes, size, digest, 0) != 0 ||
+      memcmp (digest, p.policy_digest, sizeof digest))
+    {
+      builtin_error ("listing: policy content does not match authority digest");
+      goto out;
+    }
+  bytes[size] = 0;
+  /* fmemopen rejects an empty buffer on some libcs; the NUL terminator gives
+     an empty policy a portable readable stream. Nonempty input uses its size. */
+  input = fmemopen (bytes, size ? size : 1, "r");
+  output = open_memstream (&rendered, &rendered_len);
+  if (!input || !output) goto out;
+  rc = bashos_auth_policy_list (input, caller.name, o->list_mode > 1,
+                               output, &entries);
+  input = NULL;                 /* renderer closed it */
+  if (fclose (output) != 0) rc = EXECUTION_FAILURE;
+  output = NULL;
+  if (rc != EXECUTION_SUCCESS) goto out;
+  rc = EXECUTION_FAILURE;
+  memset (&after, 0, sizeof after);
+  after.size = sizeof after;
+  if (ioctl (authority, BASHOS_AUTH_IOC_POLICY_INFO, &after) < 0 ||
+      after.status != BASHOS_AUTH_POLICY_STATUS_OK ||
+      after.generation != p.generation ||
+      memcmp (after.policy_digest, p.policy_digest, sizeof p.policy_digest) ||
+      memcmp (after.normalized_policy_digest, p.normalized_policy_digest,
+              sizeof p.normalized_policy_digest) ||
+      memcmp (after.path, p.path, sizeof p.path))
+    {
+      builtin_error ("listing: authority policy changed while listing");
+      goto out;
+    }
+  printf ("Policy projection for %s (generation %u; not an execution approval):\n",
+          caller.name, p.generation);
+  if (fwrite (rendered, 1, rendered_len, stdout) != rendered_len ||
+      fflush (stdout) != 0 || ferror (stdout))
+    goto out;
+  rc = entries ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+out:
+  if (input) fclose (input);
+  if (output) fclose (output);
+  if (fd >= 0) close (fd);
+  close (authority);
+  free (bytes);
+  free (rendered);
+  return rc;
+}
+
 static int
 bda_run_root (const bda_opts *o)
 {
@@ -2360,10 +2502,7 @@ bashdoas_dispatch (int is_sudo, WORD_LIST *list)
   if (rc == EXECUTION_SUCCESS)
     {
       if (is_sudo && o.list_mode)
-        {
-          builtin_error ("sudo -l is rendered by the /bash-os/sudo.sh wrapper");
-          rc = EX_USAGE;
-        }
+        rc = bda_run_list (&o, argv, argc);
       else if (geteuid () == 0)
         rc = bda_run_root (&o);
       else

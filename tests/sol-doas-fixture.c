@@ -22,6 +22,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
 #include "_bashos_auth_uapi.h"
 
 static int root_route = 1, owned, fail_step, transition_step;
@@ -294,6 +296,43 @@ static int fixture_nnp(char *err,size_t len) { if(fail_step==5){errno=EPERM;snpr
 #undef geteuid
 #undef bc_no_new_privs
 #include "../loadables/sudo.c"
+/* The real policy parser/renderer is linked; account lookups stay injected.
+   Exact user entries and ALL need no NSS; group fixtures use a private row. */
+static struct group *fixture_policy_getgrnam (const char *name)
+{
+  static char *members[] = { "caller", NULL };
+  static struct group group = { .gr_name = "reviewers", .gr_gid = 999,
+                                .gr_mem = members };
+  return !strcmp (name, "reviewers") ? &group : NULL;
+}
+static struct passwd *fixture_policy_getpwnam (const char *name)
+{
+  (void) name;
+  return NULL;
+}
+#define getgrnam fixture_policy_getgrnam
+#define getpwnam fixture_policy_getpwnam
+#include AUTH_SOURCE
+/* Unused auth CLI/secret paths must never run in these list fixtures.
+   ASan retains the builtin registration table, so give its unrelated symbols
+   aborting stubs instead of linking a password/credential implementation. */
+void builtin_usage (void) { abort (); }
+void builtin_warning (const char *fmt, ...) { (void) fmt; abort (); }
+void *builtin_bind_variable (char *name, char *value, int flags)
+{ (void) name; (void) value; (void) flags; abort (); }
+int bashos_auth_argon2id_raw (const unsigned char *pass, size_t plen,
+                            const unsigned char *salt, size_t slen,
+                            uint32_t passes, uint32_t mem, uint32_t lanes,
+                            unsigned char *out, size_t olen, int quiet,
+                            const char *prefix)
+{
+  (void) pass; (void) plen; (void) salt; (void) slen; (void) passes; (void) mem;
+  (void) lanes; (void) out; (void) olen; (void) quiet; (void) prefix; abort ();
+}
+
+
+#undef getgrnam
+#undef getpwnam
 #include SUDOEDIT_SOURCE
 
 char **export_env;

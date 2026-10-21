@@ -245,9 +245,55 @@ thousand failed `fcntl` per child, are the fixture's own descriptor census.
 - The root route is exercised as namespace root over mapped ids. That uses
   the real syscalls and kernel checks, but not host root, a real account
   database or a setuid entry path.
-- `sudo -l`, `-ll` and `--list` remain a usage error that names a
-  `/bash-os/sudo.sh` wrapper, which is not in this repository. The authority's
-  `POLICY_INFO` exposes policy metadata only, with no rule projection to render.
+- Native listing needs a live authority and a policy file readable by the
+  caller. The current ABI publishes metadata, not policy contents or a
+  privileged listing service. An unreadable policy is a failure, never an
+  empty successful list. Deployments requiring authenticated listing of a
+  private policy can select a sudo-compatible `BASHSUDO_EXTERNAL` delegate
+  when the authority is unavailable. No live authority listing was exercised
+  by the injected tests.
 - sudoedit copies back unchanged files: the copyback is one digest-bound
   request for every target, and skipping unchanged targets would need kernel
   support. The cross-target rename is not atomic (see above).
+
+## Read-only policy listing
+
+`sudo -l`, `--list` and `-ll` now render the invoking account's matching policy
+entries using the existing `auth` policy parser. `-ll` prints one entry per
+command; the other forms print one per rule. The output preserves host, runas,
+group and password conditions and explicitly labels itself a policy
+projection, not an execution approval. It does not authenticate, mint a token,
+reset timestamps, or run a command. A valid projection with no matching entries
+returns 1 and reports zero entries. Native list mode rejects command operands,
+assignments, runas modifiers and timestamp modifiers rather than ignoring them.
+
+The authority supplies the policy path and raw digest. The frontend opens the
+path without following a final symlink, requires a regular root-owned file
+that is not group/world writable, checks its advertised metadata and bounded
+size (at most 1 MiB), and verifies its complete bytes against that digest.
+It renders a private in-memory snapshot and rechecks the authority generation,
+path and digests before publishing output. Malformed policy, embedded NUL,
+read failure, metadata/content drift and output failure return failure. The
+file is read with the caller's credentials; listing grants no extra read access.
+
+Without an authority, only an explicitly configured `BASHSUDO_EXTERNAL`
+delegate receives the original list arguments. The default external doas and
+`BASHDOAS_EXTERNAL` are not used for listing. The `auth` loadable is now a
+required companion of `sudo`; the selection dependency records that requirement.
+No `/bash-os/sudo.sh` wrapper is needed.
+
+The `list` production-source fixture links the real renderer and uses private
+policy/account files, mocked authority metadata and mocked root ownership.
+It covers both caller routes, short/long listing, alias expansion, caller and
+group filtering, no matches, malformed and unsafe input, drift, read/open
+failures, output failure recovery and descriptor cleanup. Existing tests for
+the old unconditional list usage error are replaced by successful listings
+and explicit unavailable/unsupported cases. This is fixture coverage, not a
+claim that a live authority accepted or authenticated a caller.
+
+`tests/astra-sudo-list-check.py --shell SHELL --preload LIST-PRELOAD.SO`
+checks the linked native builtin with a private passwd file and an injected
+metadata interface. The shim refuses unexpected credential/authorization
+operations and never opens a real authority. It also tests embedded NUL,
+symlink rejection and repeated native lists. `sol-sudo-build.py` builds the
+shim alongside the fixture; the checker does not compile.

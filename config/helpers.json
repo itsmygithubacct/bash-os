@@ -332,7 +332,8 @@
         "_mbedtls"
       ],
       "requires": [
-        "doas"
+        "doas",
+        "auth"
       ]
     },
     "killall": {
