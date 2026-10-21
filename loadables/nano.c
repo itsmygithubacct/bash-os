@@ -182,27 +182,34 @@ static int  bn_mark_active = 0;
 static long bn_mark_cy = 0, bn_mark_cx = 0;
 
 /* Stage 7.E — tree-sitter highlight overlay. Detected from filename
-   extension on bn_load; NULL means "no highlighting". The render path
-   uses a cached per-byte SGR-code map keyed by bn_text_rev, mirroring
-   GNU nano's approach of doing expensive color work only when text
-   changes rather than on every cursor-only repaint. */
+   extension on bn_load; NULL means "no highlighting".  The ts companion
+   keeps the parse tree between frames and reparses incrementally after
+   edits (bashts_sgr_range), and colours are resolved only for the lines
+   on screen plus a screen above and below.  The window is cached by
+   bn_text_rev, so cursor-only repaints reuse it, as GNU nano does
+   colour work only when text changes. */
 static const char *bn_lang = NULL;
 static unsigned long bn_text_rev = 1;
 
 typedef struct {
     const char *lang;
     unsigned long rev;
-    const char **sgr_at;
-    long *line_off;
-    size_t total_bytes;
+    size_t lo, hi;              /* buffer bytes covered by sgr_at */
+    const char **sgr_at;        /* sgr_at[b - lo], NULL = uncoloured */
+    void *ts_state;             /* tree and source kept by ts.c */
 } bn_highlight_cache;
 
 static bn_highlight_cache bn_hl_cache;
+static char *bn_pt_flatten (const bn_pt_buffer *b, size_t *out_len);
 
-/* Forward decl — defined in ts.c, both end up in libbuiltins.a
-   so cross-file calls resolve at link time. */
+/* Defined in ts.c (the required ts companion); both end up in
+   libbuiltins.a, so cross-file calls resolve at link time. */
 extern int bashts_compute_sgr_map (const char *lang, const char *src,
                                    size_t srclen, const char **sgr_at);
+extern int bashts_sgr_range (void **state, const char *lang, const char *src,
+                             size_t srclen, size_t lo, size_t hi,
+                             const char **sgr_at);
+extern void bashts_sgr_state_free (void **state);
 
 static void
 bn_detect_language (const char *path)
@@ -219,62 +226,55 @@ bn_detect_language (const char *path)
           || !strcmp (dot, ".markdown")) bn_lang = "markdown";
 }
 
+/* Drop the colour window (text changed); the parse tree is kept. */
 static void
 bn_highlight_cache_clear (void)
 {
     free (bn_hl_cache.sgr_at);
-    free (bn_hl_cache.line_off);
-    memset (&bn_hl_cache, 0, sizeof bn_hl_cache);
+    bn_hl_cache.sgr_at = NULL;
+    bn_hl_cache.lang = NULL;
+    bn_hl_cache.rev = 0;
+    bn_hl_cache.lo = bn_hl_cache.hi = 0;
 }
 
+/* Drop everything, including the parse tree (end of session). */
+static void
+bn_highlight_release (void)
+{
+    bn_highlight_cache_clear ();
+    bashts_sgr_state_free (&bn_hl_cache.ts_state);
+}
+
+/* Make sgr_at cover the buffer bytes [LO, HI).  Returns 0 when colours
+   are available, -1 otherwise (no language, or a parse failure: the
+   text is then drawn uncoloured). */
 static int
-bn_highlight_cache_ensure (void)
+bn_highlight_cache_ensure (size_t lo, size_t hi)
 {
     if (!bn_lang) {
-        bn_highlight_cache_clear ();
-        return 0;
+        bn_highlight_release ();
+        return -1;
     }
-    if (bn_hl_cache.sgr_at && bn_hl_cache.line_off &&
-        bn_hl_cache.lang == bn_lang && bn_hl_cache.rev == bn_text_rev)
+    if (bn_hl_cache.sgr_at && bn_hl_cache.lang == bn_lang
+        && bn_hl_cache.rev == bn_text_rev
+        && bn_hl_cache.lo <= lo && hi <= bn_hl_cache.hi)
         return 0;
-
     bn_highlight_cache_clear ();
+    if (hi <= lo) return -1;
+    size_t len = 0;
+    char *src = bn_pt_flatten (&bn_b.pt, &len);
+    if (!src) return -1;
+    if (hi > len) hi = len;
+    const char **map = hi > lo ? calloc (hi - lo, sizeof *map) : NULL;
+    int rc = map ? bashts_sgr_range (&bn_hl_cache.ts_state, bn_lang, src, len,
+                                     lo, hi, map) : -1;
+    free (src);
+    if (rc < 0) { free (map); return -1; }
+    bn_hl_cache.sgr_at = map;
     bn_hl_cache.lang = bn_lang;
     bn_hl_cache.rev = bn_text_rev;
-
-    long off = 0;
-    bn_hl_cache.line_off = calloc (bn_b.n_lines + 1, sizeof *bn_hl_cache.line_off);
-    if (!bn_hl_cache.line_off) return -1;
-    for (size_t i = 0; i < bn_b.n_lines; i++) {
-        bn_hl_cache.line_off[i] = off;
-        off += (long) bn_b.lines[i].len + 1;  /* +1 for synthetic newline */
-    }
-    bn_hl_cache.line_off[bn_b.n_lines] = off;
-    bn_hl_cache.total_bytes = (size_t) off;
-
-    char *src = malloc (bn_hl_cache.total_bytes + 1);
-    if (!src) {
-        bn_highlight_cache_clear ();
-        return -1;
-    }
-    size_t k = 0;
-    for (size_t i = 0; i < bn_b.n_lines; i++) {
-        if (bn_b.lines[i].len)
-            memcpy (src + k, bn_b.lines[i].data, bn_b.lines[i].len);
-        k += bn_b.lines[i].len;
-        src[k++] = '\n';
-    }
-    src[k] = '\0';
-
-    bn_hl_cache.sgr_at = calloc (bn_hl_cache.total_bytes + 1, sizeof *bn_hl_cache.sgr_at);
-    if (!bn_hl_cache.sgr_at) {
-        free (src);
-        bn_highlight_cache_clear ();
-        return -1;
-    }
-    /* Best-effort: a parse failure leaves all entries NULL -> no color. */
-    bashts_compute_sgr_map (bn_lang, src, bn_hl_cache.total_bytes, bn_hl_cache.sgr_at);
-    free (src);
+    bn_hl_cache.lo = lo;
+    bn_hl_cache.hi = hi;
     return 0;
 }
 
@@ -1583,8 +1583,8 @@ bn_clamp_view_left (long cur_line_width, int viewport_cols)
 static void
 bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
                       long start_col, int viewport_cols,
-                      const char **sgr_at, long *line_off,
-                      size_t total_bytes, size_t sel_lo, size_t sel_hi)
+                      const char **sgr_at, size_t sgr_lo, size_t sgr_hi,
+                      size_t sel_lo, size_t sel_hi)
 {
     const char *cur_sgr = NULL;
     int cur_sel = 0;
@@ -1611,9 +1611,9 @@ bn_render_line_chunk (bn_outbuf *out, bn_line *L, long lineno,
            highlighting is on.  The marked region is drawn in reverse video
            on top of any highlight colour. */
         const char *want = NULL;
-        if (sgr_at && line_off) {
-            long gb = line_off[lineno] + (long) pos;
-            want = (gb >= 0 && (size_t) gb < total_bytes) ? sgr_at[gb] : NULL;
+        if (sgr_at) {
+            size_t gb = bn_labs ((size_t) lineno) + pos;
+            want = gb >= sgr_lo && gb < sgr_hi ? sgr_at[gb - sgr_lo] : NULL;
         }
         int want_sel = pos >= sel_lo && pos < sel_hi;
         if (want != cur_sgr || want_sel != cur_sel) {
@@ -1702,14 +1702,34 @@ bn_render (void)
         bn_out_cstr (&out, "\033[K\033[m\r\n");
     }
 
+    /* Colours for the lines that can be drawn, plus a screen of margin
+       above and below so short scrolls reuse the window. */
     const char **sgr_at = NULL;
-    size_t      total_bytes = 0;
-    long       *line_off = NULL;       /* global byte offset of each line */
-    if (bn_highlight_cache_ensure () == 0) {
-        sgr_at = bn_hl_cache.sgr_at;
-        line_off = bn_hl_cache.line_off;
-        total_bytes = bn_hl_cache.total_bytes;
-    }
+    size_t sgr_lo = 0, sgr_hi = 0;
+    if (bn_lang && bn_b.n_lines > 0) {
+        long first = bn_view_top;
+        if (bn_softwrap) {
+            long visual = 0;
+            first = 0;
+            while ((size_t) first + 1 < bn_b.n_lines) {
+                long rows = bn_softwrap_rows_for_line (&bn_b.lines[first], viewport_cols);
+                if (visual + rows > bn_view_top) break;
+                visual += rows;
+                first++;
+            }
+        }
+        long a = first - viewport_rows, z = first + 2L * viewport_rows;
+        if (a < 0) a = 0;
+        if (z > (long) bn_b.n_lines) z = (long) bn_b.n_lines;
+        size_t lo = bn_labs ((size_t) a);
+        size_t hi = (size_t) z < bn_b.n_lines ? bn_labs ((size_t) z) : bn_b.pt.total_len;
+        if (bn_highlight_cache_ensure (lo, hi) == 0) {
+            sgr_at = bn_hl_cache.sgr_at;
+            sgr_lo = bn_hl_cache.lo;
+            sgr_hi = bn_hl_cache.hi;
+        }
+    } else if (!bn_lang)
+        bn_highlight_release ();
 
     size_t sel_a = 0, sel_b = 0;
     if (bn_mark_active) {
@@ -1731,8 +1751,8 @@ bn_render (void)
                 size_t lo, hi;
                 bn_selection_on_line (lineno, sel_a, sel_b, &lo, &hi);
                 bn_render_line_chunk (&out, L, lineno, chunk * viewport_cols,
-                                      viewport_cols, sgr_at, line_off,
-                                      total_bytes, lo, hi);
+                                      viewport_cols, sgr_at, sgr_lo,
+                                      sgr_hi, lo, hi);
                 bn_out_cstr (&out, "\r\n");
                 outrow++;
             }
@@ -1748,7 +1768,7 @@ bn_render (void)
                 bn_selection_on_line (lineno, sel_a, sel_b, &lo, &hi);
                 bn_render_line_chunk (&out, &bn_b.lines[lineno], lineno,
                                       bn_view_left, viewport_cols,
-                                      sgr_at, line_off, total_bytes, lo, hi);
+                                      sgr_at, sgr_lo, sgr_hi, lo, hi);
             }
             bn_out_cstr (&out, "\r\n");
         }
@@ -3776,21 +3796,21 @@ bn_selftest (void)
     if (devnull >= 0) { dup2 (devnull, STDOUT_FILENO); close (devnull); }
     bn_render ();
     const char **first_sgr = bn_hl_cache.sgr_at;
-    long *first_offsets = bn_hl_cache.line_off;
+    void *first_tree = bn_hl_cache.ts_state;
     unsigned long first_rev = bn_hl_cache.rev;
     bn_cx = 1;
     bn_render ();
     if (saved_stdout >= 0) { dup2 (saved_stdout, STDOUT_FILENO); close (saved_stdout); }
     asserts++;
-    if (first_sgr && first_offsets && bn_hl_cache.sgr_at == first_sgr &&
-        bn_hl_cache.line_off == first_offsets && bn_hl_cache.rev == first_rev)
+    if (first_sgr && first_tree && bn_hl_cache.sgr_at == first_sgr &&
+        bn_hl_cache.ts_state == first_tree && bn_hl_cache.rev == first_rev)
         printf ("ok %d - syntax highlight cache survives cursor-only render\n", asserts);
     else { fails++; printf ("not ok %d - syntax highlight cache was rebuilt on cursor-only render\n", asserts); }
     bn_free_lines ();
     bn_pt_free (&bn_b.pt);
     bn_pt_stack_free (&bn_b.undo);
     bn_pt_stack_free (&bn_b.redo);
-    bn_highlight_cache_clear ();
+    bn_highlight_release ();
     bn_lang = NULL;
     memset (&bn_b, 0, sizeof bn_b);
 
@@ -6147,6 +6167,153 @@ bn_selftest_display (void)
     return bn_st_fails ? 1 : 0;
 }
 
+/* Incremental, windowed highlighting must colour every drawn byte exactly
+   as a from-scratch parse of the whole text does (bashts_compute_sgr_map,
+   the oracle), after random edits, undo and redo through the production
+   edit and render paths. */
+static int
+bn_selftest_highlight (void)
+{
+    bn_st_fails = bn_st_asserts = 0;
+    static const struct { const char *lang, *name, *text; } fx[] = {
+        { "bash", "t.sh",
+          "#!/bin/sh\n# comment\nfor i in 1 2 3; do\n  echo \"item $i\" | grep -q x && n=$((n + i))\ndone\n"
+          "cat <<EOF\nheredoc $HOME line\nEOF\nf() { local v='single'; printf '%s\\n' \"$v\"; }\n"
+          "case $1 in a) echo A ;; *) echo other ;; esac\nx=${y:-default} # trailing\n" },
+        { "json", "t.json",
+          "{\n  \"name\": \"value\",\n  \"n\": 12.5,\n  \"list\": [true, false, null, \"s\"],\n"
+          "  \"obj\": {\"k\": \"v\", \"deep\": {\"a\": [1, 2, {\"b\": \"c\"}]}}\n}\n" },
+        { "markdown", "t.md",
+          "# Title\n\nSome *text* and `code` here.\n\n## Section\n\n- item one\n- item two\n\n"
+          "```sh\necho hi\n```\n\n> quote line\n\n1. first\n2. second\n" },
+    };
+    static const char *const snippets[] = {
+        "\"", "'", "#", "$(", ")", "<<EOF\n", "\nEOF\n", "echo x ", "\n", "{", "}",
+        "[", "]", ",", ": ", "*", "`", "```\n", "# ", "- ", "\\", "x", "  ",
+    };
+    unsigned long seed = 20261020;
+#define BN_RAND() (seed = seed * 6364136223846793005UL + 1442695040888963407UL, (size_t) (seed >> 33))
+    int saved = dup (STDOUT_FILENO);
+    for (size_t f = 0; f < sizeof fx / sizeof fx[0]; f++) {
+        bn_st_load (fx[f].text);
+        bn_detect_language (fx[f].name);
+        bn_rows = 6;                     /* windows cover part of the text */
+        int frames = 0, equal = 0, reused = 1, covered = 1, stale_differs = 0;
+        size_t coloured = 0, partial = 0;
+        void *tree = NULL;
+        const char **prev = NULL;       /* full map of the previous text */
+        size_t prev_len = 0;
+        for (int step = 0; step < 160; step++) {
+            size_t len = bn_b.pt.total_len;
+            size_t r = BN_RAND () % 10;
+            if (r < 6 || len == 0) {
+                const char *ins = snippets[BN_RAND () % (sizeof snippets / sizeof snippets[0])];
+                size_t pos = len ? BN_RAND () % (len + 1) : 0;
+                bn_piece_replace (pos, pos, ins, strlen (ins), pos + strlen (ins));
+            } else if (r < 8) {
+                size_t pos = BN_RAND () % len, n = 1 + BN_RAND () % 6;
+                if (pos + n > len) n = len - pos;
+                bn_piece_replace (pos, pos + n, NULL, 0, pos);
+            } else if (r == 8) {
+                bn_undo ();
+            } else {
+                bn_redo ();
+            }
+            bn_cy = (long) (BN_RAND () % bn_b.n_lines);
+            bn_cx = 0;
+            fflush (stdout);
+            int dn = open ("/dev/null", O_WRONLY);
+            if (dn >= 0) { dup2 (dn, STDOUT_FILENO); close (dn); }
+            bn_render ();
+            fflush (stdout);
+            dup2 (saved, STDOUT_FILENO);
+            frames++;
+            if (tree && bn_hl_cache.ts_state != tree) reused = 0;
+            tree = bn_hl_cache.ts_state;
+            size_t flen = 0;
+            char *flat = bn_pt_flatten (&bn_b.pt, &flen);
+            const char **full = calloc (flen + 1, sizeof *full);
+            if (!flat || !full || !bn_hl_cache.sgr_at) { free (flat); free (full); continue; }
+            bashts_compute_sgr_map (bn_lang, flat, flen, full);
+            int same = 1, stale_same = 1;
+            for (size_t b = bn_hl_cache.lo; b < bn_hl_cache.hi; b++) {
+                const char *got = bn_hl_cache.sgr_at[b - bn_hl_cache.lo];
+                if (got != full[b]) same = 0;
+                if (got) coloured++;
+                /* Negative control: the previous text's map, as a window
+                   that missed the edit would show. */
+                if (!prev || b >= prev_len || prev[b] != got) stale_same = 0;
+            }
+            if (!stale_same) stale_differs++;
+            if (bn_hl_cache.hi - bn_hl_cache.lo < flen) partial++;
+            free (prev);
+            prev = full;
+            prev_len = flen;
+            full = NULL;
+            /* The cursor line is always inside the window. */
+            size_t cl = bn_labs ((size_t) bn_cy);
+            if (!(bn_hl_cache.lo <= cl && cl <= bn_hl_cache.hi)) covered = 0;
+            if (same) equal++;
+            else printf ("# %s step %d: window %zu-%zu differs from the full parse\n",
+                         fx[f].lang, step, bn_hl_cache.lo, bn_hl_cache.hi);
+            free (flat);
+            free (full);
+        }
+        char desc[160];
+        snprintf (desc, sizeof desc, "%s: %d/%d windows after random edits, undo and redo equal a full parse",
+                  fx[f].lang, equal, frames);
+        BN_ST_ASSERT (desc, frames == 160 && equal == frames);
+        snprintf (desc, sizeof desc, "%s: one parse tree is kept and edited across all frames", fx[f].lang);
+        BN_ST_ASSERT (desc, reused && tree != NULL);
+        snprintf (desc, sizeof desc, "%s: the colour window always covers the cursor line", fx[f].lang);
+        BN_ST_ASSERT (desc, covered);
+        snprintf (desc, sizeof desc, "%s: the comparison is not vacuous (%zu coloured bytes, %zu partial "
+                  "windows, %d frames where the previous text's colours differ)",
+                  fx[f].lang, coloured, partial, stale_differs);
+        BN_ST_ASSERT (desc, coloured >= 1000 && partial >= 100 && stale_differs >= 40);
+        free (prev);
+        bn_highlight_release ();
+        bn_lang = NULL;
+    }
+    close (saved);
+#undef BN_RAND
+
+    /* A 2 MiB buffer is coloured only around the screen. */
+    {
+        size_t big = 2u << 20, used = 0;
+        char *text = malloc (big + 64);
+        while (text && used < big) {
+            int n = snprintf (text + used, 64, "echo \"line %zu\" # c\n", used);
+            used += (size_t) n;
+        }
+        if (text) {
+            bn_st_load (text);
+            free (text);
+            bn_detect_language ("big.sh");
+            bn_cy = (long) bn_b.n_lines / 2;
+            fflush (stdout);
+            int so = dup (STDOUT_FILENO), dn = open ("/dev/null", O_WRONLY);
+            if (dn >= 0) { dup2 (dn, STDOUT_FILENO); close (dn); }
+            bn_render ();
+            bn_insert_bytes ("x", 1);
+            bn_render ();
+            fflush (stdout);
+            if (so >= 0) { dup2 (so, STDOUT_FILENO); close (so); }
+            BN_ST_ASSERT ("a 2 MiB buffer is coloured in a window of a few screens, not whole",
+                          bn_hl_cache.sgr_at && bn_hl_cache.hi - bn_hl_cache.lo < 8192
+                          && bn_hl_cache.lo <= bn_labs ((size_t) bn_cy)
+                          && bn_labs ((size_t) bn_cy) < bn_hl_cache.hi);
+            bn_highlight_release ();
+            bn_lang = NULL;
+        } else {
+            BN_ST_ASSERT ("2 MiB fixture allocation", 0);
+        }
+    }
+    bn_st_reset ();
+    printf ("1..%d\n", bn_st_asserts);
+    return bn_st_fails ? 1 : 0;
+}
+
 #undef BN_ST_ASSERT
 #undef BN_ST_KEYS
 
@@ -6190,6 +6357,8 @@ nano_builtin (WORD_LIST *list)
         return bn_selftest_input () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     if (list && list->word && strcmp (list->word->word, "selftest-display") == 0)
         return bn_selftest_display () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    if (list && list->word && strcmp (list->word->word, "selftest-highlight") == 0)
+        return bn_selftest_highlight () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 
     /* Options are reset on every call: the builtin's state lives in the
        shell process and must not leak into the next invocation. */
@@ -6249,6 +6418,7 @@ nano_builtin (WORD_LIST *list)
     bn_status[0] = '\0';
     bn_status_until = 0;
     bn_mark_active = 0;
+    bn_lang = NULL;             /* set again by bn_load from the name */
     bn_keyq_set (NULL, 0);
     bn_complete_reset ();
     free (bn_clip);
@@ -6306,7 +6476,7 @@ nano_builtin (WORD_LIST *list)
     free (rescued);
 
     /* Free buffer + clipboard. */
-    bn_highlight_cache_clear ();
+    bn_highlight_release ();
     bn_free_lines ();
     free (bn_b.path);
     bn_pt_free (&bn_b.pt);
@@ -6401,8 +6571,9 @@ char *nano_doc[] = {
     "  byte-exact round-trip, dirfd-no-leak (two consecutive saves), the",
     "  dirpath=\".\" fallback for relative paths, and clean missing-dir failure.",
     "Selftests: selftest-justify, -spell, -complete, -selection, -linecache,",
-    "  -input (terminal key framing through a pipe) and -display (display",
-    "  forms, tab layout, emergency save).",
+    "  -input (terminal key framing through a pipe), -display (display",
+    "  forms, tab layout, emergency save) and -highlight (incremental colour",
+    "  windows against a full parse).",
     "G03 UNDO-REDO — selftest-undo-redo pins the snapshot LIFO contract:",
     "  edit pushes undo + clears redo, undo pops undo + pushes redo, redo",
     "  reverses, new edit after undo clears the redo stack, dirty flag",
