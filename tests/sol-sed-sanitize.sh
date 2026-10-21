@@ -23,7 +23,7 @@ for backend in system portable; do
   chmod +x "$d/bash-os"
   export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1
   export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
-  for suite in head-sed-parity sol-sed-parity sol-sed-complete sol-sed-binary-regex sol-sed-signals; do
+  for suite in head-sed-parity sol-sed-parity sol-sed-complete sol-sed-binary-regex sol-sed-signals opus-sed-followup-gnu; do
     printf '%s %s\n' "$backend" "$suite"
     python3 "tests/$suite.py" "$d/bash-os"
   done

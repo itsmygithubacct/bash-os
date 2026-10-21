@@ -55,18 +55,21 @@ These remain command subsets, with the following limits:
 - `sed` defaults to BRE; `-E`/`-r` select ERE. Numbering, hold space, address
   ranges and `n`/`N` span named operands by default. `-s` and `-i` start separate
   file cycles. The option parser and command set remain a GNU sed subset.
-  On glibc, length-aware GNU regex matching supports embedded NUL subjects;
-  the portable POSIX backend retains its libc's binary-regex limitations.
-  See [the focused completion notes](sol-sed.md) for the tested scope.
-- `sed q` preserves an unterminated line like BusyBox; GNU sed 4.9 adds a
-  newline for this command. Conversely, `sed -n p` preserves it like GNU;
-  BusyBox 1.37 adds a newline for some explicit print commands. These are
-  separate reference differences, not byte-equivalence claims for those cases.
-- The existing `sed l` long-line wrap width differs from GNU. `R` still adds
-  a newline to an unterminated line read from its auxiliary file.
-- Non-Linux pipe and terminal `$` lookahead falls back to stdio `ungetc`;
-  only seekable input can return that fallback byte to a shared descriptor.
-  The exact nonconsuming pipe contract is Linux-specific.
+  Length-aware GNU regex matching supports embedded NUL subjects: glibc's
+  engine, or a private GNU sed 4.9 engine on other libcs. `-z`, `--sandbox`,
+  `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
+  `--debug` are rejected. See [the focused completion notes](sol-sed.md) and
+  [the follow-up notes](opus-sed-followup.md) for the tested scope.
+- `sed q` and `l` follow GNU framing, including an unterminated last pattern;
+  `R` preserves an unterminated auxiliary record. BusyBox 1.37 differs for
+  these and for some explicit `-n` prints, so the suite compares those cases
+  with GNU only.
+- Linux pipes, FIFOs and sockets have a nonconsuming `$` lookahead. Terminals
+  and other platforms use `poll` and `FIONREAD` where available, and stdio
+  `ungetc` otherwise; only seekable input can return such a fallback byte to
+  a shared descriptor. A canonical terminal EOF marker followed by already
+  queued input is misclassified (the Linux terminal driver offers no
+  nonconsuming way to see it); non-Linux kernels are unqualified.
 - Avoiding pipe read-ahead uses byte-at-a-time input syscalls on pipes and
   terminals. The regular-file benchmark does not measure that throughput.
   Signal interruption and full GNU exit-code equivalence are outside the

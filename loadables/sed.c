@@ -24,6 +24,9 @@
  *   [ADDR] D                 delete to first \n in pattern, restart cycle
  *   [ADDR] P                 print to first \n in pattern
  *   [ADDR] l [WIDTH]         print pattern space with escapes
+ *   [ADDR] z                 empty the pattern space
+ *   [ADDR] e [COMMAND]       run pattern space / COMMAND (gated, see below)
+ *   v [VERSION]              require GNU sed 4.9 compatibility level
  *   [ADDR] :LABEL            label
  *   [ADDR] b LABEL           unconditional branch
  *   [ADDR] t LABEL           branch if last s/// matched
@@ -32,7 +35,7 @@
  * Addresses:
  *   $          last line
  *   N          line number
- *   /REGEX/    regex match
+ *   /REGEX/    regex match (also \cREGEXc with any delimiter c)
  *   ADDR1,ADDR2  range
  *
  * Replace string supports & (whole match) and \1..\9 (capture groups).
@@ -46,6 +49,11 @@
  *   -n            suppress default print
  *   -u            unbuffered output
  *   -l WIDTH      default l-command width (zero disables wrapping)
+ *   -z            NUL-separated records (--null-data)
+ *   -b            accepted for GNU compatibility (no text mode on POSIX)
+ *   --sandbox     reject e, r, R, w and W commands
+ *   --follow-symlinks  -i edits, and F names, the final symlink target
+ *   --posix and --debug are not implemented and are rejected.
  *
  * Security: e / s///e shell execution is disabled unless
  * BASHSED_ALLOW_EXEC=1 is set.
@@ -121,7 +129,8 @@ typedef enum {
     BS_Y,                 /* y/SET1/SET2/ transliterate */
     BS_N_CMD, BS_NUP_CMD, /* n / N: refill or append next input line */
     BS_D_LO, BS_P_LO,     /* D / P: head-line delete / print (multi-line ops) */
-    BS_L_CMD              /* l: print pattern with escapes */
+    BS_L_CMD,             /* l: print pattern with escapes */
+    BS_Z                  /* z: empty the pattern space */
 } bs_cmdkind;
 
 typedef struct {
@@ -169,8 +178,14 @@ typedef struct {
 
 static int bs_runtime_error;
 static long bs_list_width;
+/* Record separator: newline, or NUL with -z. GNU also uses it to join
+   N/G/H, split P/D/W, and end =, l, i, c and F output; a text stays
+   newline-terminated. */
+static char bs_delim = '\n';
 static int bs_io_error;
 static int bs_unbuffered;
+static int bs_sandbox;          /* --sandbox: reject e, r, R, w, W at parse time */
+static int bs_follow_symlinks;  /* --follow-symlinks: edit and name link targets */
 static int bs_interrupt_signal;
 
 static int
@@ -199,7 +214,11 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
         ? RE_SYNTAX_POSIX_EXTENDED : RE_SYNTAX_POSIX_BASIC;
     syntax &= ~(RE_DOT_NOT_NULL | RE_UNMATCHED_RIGHT_PAREN_ORD);
     syntax |= RE_NO_POSIX_BACKTRACKING;
+    /* GNU sed gives case-sensitive patterns a fastmap: searches then skip
+       positions whose first byte cannot start a match. */
+    re->buffer = NULL; re->allocated = 0; re->translate = NULL; re->fastmap = NULL;
     if (flags & REG_ICASE) syntax |= RE_ICASE;
+    else if (!(re->fastmap = malloc (256))) return -1;
     if (flags & REG_NEWLINE) {
         syntax &= ~RE_DOT_NEWLINE;
         syntax |= RE_HAT_LISTS_NOT_NEWLINE;
@@ -207,7 +226,9 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
     reg_syntax_t saved = re_set_syntax (syntax);
     const char *error = re_compile_pattern (pat, len, re);
     re_set_syntax (saved);
-    re->newline_anchor = !!(flags & REG_NEWLINE);
+    /* With -z, bs_search emulates M by searching each NUL-terminated
+       record; newline is then ordinary for the anchors (GNU sed). */
+    re->newline_anchor = (flags & REG_NEWLINE) && bs_delim == '\n';
     if (error) { regfree (re); memset (re, 0, sizeof *re); return -1; }
     return 0;
 
@@ -225,13 +246,31 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
     for (int i = 0; i < 10; i++) starts[i] = ends[i] = -1;
     struct re_registers regs = { 10, starts, ends };
     re->regs_allocated = REGS_FIXED;
-    regoff_t result = re_search (re, str, (regoff_t) len, (regoff_t) off,
-                                (regoff_t) (len - off), nmatch ? &regs : NULL);
-    if (result == -2) { bs_runtime_error = 1; return REG_ESPACE; }
+    size_t beg = 0, start = off, end = len;
+    regoff_t result;
+    /* The M flag compiles with RE_HAT_LISTS_NOT_NEWLINE (and only then).
+       Under -z, GNU sed matches such a regex within one NUL-separated record
+       at a time, so ^ and $ anchor at record boundaries. */
+    int split = bs_delim != '\n' && (re->syntax & RE_HAT_LISTS_NOT_NEWLINE);
+    if (split && off > 0) {
+        const char *eol = memrchr (str, bs_delim, off);
+        if (eol) beg = (size_t) (eol - str) + 1;
+    }
+    for (;;) {
+        if (split) {
+            const char *e = memchr (str + start, bs_delim, len - start);
+            end = e ? (size_t) (e - str) : len;
+        }
+        result = re_search (re, str + beg, (regoff_t) (end - beg), (regoff_t) (start - beg),
+                            (regoff_t) (end - start), nmatch ? &regs : NULL);
+        if (result == -2) { bs_runtime_error = 1; return REG_ESPACE; }
+        if (result >= 0 || end == len) break;
+        beg = start = end + 1;
+    }
     if (result < 0) return REG_NOMATCH;
     for (size_t i = 0; i < nmatch; i++) {
-        matches[i].rm_so = starts[i] < 0 ? -1 : starts[i] - (regoff_t) off;
-        matches[i].rm_eo = ends[i] < 0 ? -1 : ends[i] - (regoff_t) off;
+        matches[i].rm_so = starts[i] < 0 ? -1 : starts[i] + (regoff_t) beg - (regoff_t) off;
+        matches[i].rm_eo = ends[i] < 0 ? -1 : ends[i] + (regoff_t) beg - (regoff_t) off;
     }
     return 0;
 
@@ -267,17 +306,21 @@ bs_numeric_escape (const char **pp, unsigned char *value)
 }
 
 /* Script text cannot contain NUL. Decode common sed regex escapes without
-   changing BRE/ERE operators. An escaped delimiter is stripped, so that
-   character keeps its regex meaning, matching GNU sed. */
+   changing BRE/ERE operators. An escaped delimiter is stripped before any
+   other escape is considered, so that character keeps its plain regex
+   meaning (`s.a\.b.X.` has an active dot; `sn\nnXn` matches a letter n),
+   matching GNU sed. */
 static char *
 bs_regex_text (const char *pat, char delim, int extended, size_t *len)
 {
+    (void) extended;
     char *out = strdup (pat);
     if (!out) return NULL;
     size_t j = 0;
     for (size_t i = 0; pat[i]; i++) {
         if (pat[i] == '\\' && pat[i + 1]) {
             char ch = pat[++i];
+            if (ch == delim) { out[j++] = ch; continue; }
             const char *end = pat + i;
             unsigned char value;
             if (bs_numeric_escape (&end, &value)) {
@@ -291,13 +334,31 @@ bs_regex_text (const char *pat, char delim, int extended, size_t *len)
                 case 'f': out[j++] = '\f'; continue;
                 case 'v': out[j++] = '\v'; continue;
             }
-            if (ch != delim) out[j++] = '\\';
+            out[j++] = '\\';
             out[j++] = ch;
         } else out[j++] = pat[i];
     }
     out[j] = 0;
     *len = j;
     return out;
+}
+
+/* In a replacement, an escaped delimiter is that literal character rather
+   than an escape (`s1a1[\1]1` inserts "1", `snan\nn` inserts "n"), except
+   `\&`, which already denotes a literal ampersand. Returns the new length. */
+static size_t
+bs_repl_text (char *repl, char delim)
+{
+    char *w = repl;
+    for (const char *r = repl; *r; r++) {
+        if (*r == '\\' && r[1]) {
+            if (r[1] == delim && delim != '&') { *w++ = delim; r++; continue; }
+            *w++ = *r++;
+        }
+        *w++ = *r;
+    }
+    *w = '\0';
+    return (size_t) (w - repl);
 }
 
 static void
@@ -348,15 +409,18 @@ typedef struct {
 } bs_output;
 
 static bs_output bs_stdout, bs_stderr;
+/* `w /dev/stdout` shares the stream but, as in GNU sed, keeps its own
+   pending-newline state. */
+static bs_output bs_wstdout, bs_wstderr;
 
 /* An unterminated pattern stays unterminated until another record is printed
    to the same output during this invocation (for example, p plus auto-print). */
 static void
 bs_emit (bs_output *out, const char *data, size_t len, int newline)
 {
-    if (out->missing_newline) fputc ('\n', out->fp);
+    if (out->missing_newline) fputc (bs_delim, out->fp);
     if (len) fwrite (data, 1, len, out->fp);
-    if (newline) fputc ('\n', out->fp);
+    if (newline) fputc (bs_delim, out->fp);
     out->missing_newline = !newline;
     if (bs_unbuffered) fflush (out->fp);
 }
@@ -366,7 +430,7 @@ bs_emit (bs_output *out, const char *data, size_t len, int newline)
 static void
 bs_flush_queue (bs_output *out, bs_string *queue, int *pending)
 {
-    if (out->missing_newline) fputc ('\n', out->fp);
+    if (out->missing_newline) fputc (bs_delim, out->fp);
     if (queue->len) fwrite (queue->str, 1, queue->len, out->fp);
     out->missing_newline = 0;
     *pending = 0;
@@ -380,7 +444,8 @@ bs_l_emit_token (FILE *out, const char *tok, size_t len, size_t *col, long width
 {
     if (width > 0 && *col + len >= (size_t) width)
     {
-        fputs ("\\\n", out);
+        fputc ('\\', out);
+        fputc (bs_delim, out);
         *col = 0;
     }
     fwrite (tok, 1, len, out);
@@ -419,7 +484,8 @@ bs_l_emit (FILE *out, const char *s, size_t len, long width)
         }
         bs_l_emit_token (out, tok, strlen (tok), &col, width);
     }
-    fputs ("$\n", out);
+    fputc ('$', out);
+    fputc (bs_delim, out);
     if (bs_unbuffered) fflush (out);
 }
 
@@ -435,7 +501,9 @@ bs_y_decode (const char **pp, char delim, unsigned char *out, size_t cap, size_t
     size_t n = 0;
     while (*p && *p != delim) {
         unsigned char ch;
-        if (*p == '\\' && p[1]) {
+        if (*p == '\\' && p[1] == delim) {
+            ch = (unsigned char) delim; p += 2;
+        } else if (*p == '\\' && p[1]) {
             p++;
             switch (*p) {
                 case 'n': ch = '\n'; break;
@@ -513,18 +581,22 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         *psp = p;
         return 1;
     }
-    if (*p == '/')
+    /* /REGEX/ or \cREGEXc with any delimiter c except newline. */
+    if (*p == '/' || *p == '\\')
     {
-        const char *start = ++p;
-        while (*p && *p != '/') {
+        char delim = *p == '/' ? '/' : p[1];
+        if (!delim || delim == '\n') { builtin_error ("unterminated address regex"); return -1; }
+        p += *p == '/' ? 1 : 2;
+        const char *start = p;
+        while (*p && *p != delim) {
             if (*p == '\\' && p[1]) p++;     /* skip escaped char */
             p++;
         }
-        if (*p != '/') { builtin_error ("unterminated regex address"); return -1; }
+        if (*p != delim) { builtin_error ("unterminated regex address"); return -1; }
         size_t rlen = (size_t) (p - start);
         char *pat_raw = strndup (start, rlen);
         if (!pat_raw) return -1;
-        char *pat = bs_regex_text (pat_raw, '/', extended, &rlen);
+        char *pat = bs_regex_text (pat_raw, delim, extended, &rlen);
         free (pat_raw);
         if (!pat) return -1;
         int flags = extended ? REG_EXTENDED : 0;
@@ -568,7 +640,7 @@ bs_exec_allowed (void)
 }
 
 static int
-bs_exec_capture (const char *cmd, bs_string *out)
+bs_exec_capture (const char *cmd, bs_string *out, int strip)
 {
     FILE *fp;
     char buf[4096];
@@ -592,7 +664,8 @@ bs_exec_capture (const char *cmd, bs_string *out)
         bs_str_append (out, buf, got);
     pclose (fp);
 
-    if (out->len > 0 && out->str[out->len - 1] == '\n')
+    /* GNU sed drops one trailing record separator (NUL with -z). */
+    if (strip && out->len > 0 && out->str[out->len - 1] == bs_delim)
         out->str[--out->len] = '\0';
     if (out->failed) {
         bs_runtime_error = 1;
@@ -612,8 +685,8 @@ static bs_output *
 bs_get_wstream (const char *path)
 {
     if (!path || !*path) return NULL;
-    if (!strcmp (path, "/dev/stdout")) return &bs_stdout;
-    if (!strcmp (path, "/dev/stderr")) return &bs_stderr;
+    if (!strcmp (path, "/dev/stdout")) return &bs_wstdout;
+    if (!strcmp (path, "/dev/stderr")) return &bs_wstderr;
     for (int i = 0; i < bs_n_wstreams; i++)
         if (!strcmp (bs_wstreams[i].path, path)) return &bs_wstreams[i].out;
     if (bs_n_wstreams >= BS_MAX_WSTREAMS) { bs_io_error = 4; bs_runtime_error = 1; return NULL; }
@@ -769,12 +842,15 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
         if (!*p) { builtin_error ("missing command"); goto err; }
         /* Command character. */
         char op = *p++;
+        if (bs_sandbox && strchr ("erRwW", op)) {
+            builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
+        }
         switch (op)
         {
             case 's':
             {
                 c->kind = BS_S;
-                if (!*p) { builtin_error ("s/// missing delimiter"); goto err; }
+                if (!*p || *p == '\n') { builtin_error ("s/// missing delimiter"); goto err; }
                 char delim = *p++;
                 /* regex */
                 const char *re_start = p;
@@ -797,6 +873,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 size_t replen = (size_t) (p - rep_start);
                 c->s_repl = strndup (rep_start, replen);
                 if (!c->s_repl) { free (pat); goto err; }
+                replen = bs_repl_text (c->s_repl, delim);
                 for (const char *r = c->s_repl; *r; r++) {
                     if (*r == '\\' && r[1]) {
                         r++;
@@ -814,6 +891,9 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     else if (*p == 'p') c->s_print = 1;
                     else if (*p == 'i' || *p == 'I') c->s_icase = 1;
                     else if (*p == 'm' || *p == 'M') c->s_multiline = 1;
+                    else if ((*p == 'e' || *p == 'w') && bs_sandbox) {
+                        free (pat); builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
+                    }
                     else if (*p == 'e') c->s_exec = 1;
                     else if (*p == 'w') {
                         /* w FILE must be the LAST flag: rest of line = filename. */
@@ -890,7 +970,40 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 break;
             case '=': c->kind = BS_EQ; break;
             case 'F': c->kind = BS_F; break;   /* print current input filename */
-            case 'e': c->kind = BS_E; break;   /* execute pattern space */
+            case 'e': {
+                /* e: execute the pattern space; e COMMAND: run COMMAND (the
+                   rest of the line) and output its result before the cycle
+                   ends. Whitespace alone selects the pattern-space form. */
+                c->kind = BS_E;
+                while (*p == ' ' || *p == '\t') p++;
+                const char *s = p;
+                while (*p && *p != '\n') p++;
+                if (p > s && !(c->text = strndup (s, (size_t) (p - s)))) goto err;
+                break;
+            }
+            case 'z': c->kind = BS_Z; break;
+            case 'v': {
+                /* v [VERSION]: fail unless this sed is at least VERSION. The
+                   GNU sed 4.9 command set is the compatibility target. */
+                static const long have[] = { 4, 9 };
+                c->kind = BS_LABEL;
+                while (*p == ' ' || *p == '\t') p++;
+                if (!*p || *p == ';' || *p == '\n' || *p == '}') break;
+                int newer = 0, decided = 0;
+                for (size_t part = 0; ; part++) {
+                    long want;
+                    if (bs_number (&p, &want) < 0) { newer = 1; break; }
+                    long cur = part < 2 ? have[part] : 0;
+                    if (!decided && want != cur) { newer = want > cur; decided = 1; }
+                    if (*p != '.') break;
+                    p++;
+                }
+                while (*p == ' ' || *p == '\t') p++;
+                if (newer || (*p && *p != ';' && *p != '\n' && *p != '}')) {
+                    builtin_error ("expected newer version of sed"); goto err;
+                }
+                break;
+            }
             case 'h': c->kind = BS_H; break;
             case 'H': c->kind = BS_HUP; break;
             case 'g': c->kind = BS_G; break;
@@ -958,7 +1071,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     /* y/SET1/SET2/ — sets (with POSIX escapes decoded) must be
                        the same length. */
                     char delim = *p;
-                    if (!delim) { builtin_error ("y: missing delimiter"); goto err; }
+                    if (!delim || delim == '\n') { builtin_error ("y: missing delimiter"); goto err; }
                     p++;
                     unsigned char set1[256], set2[256];
                     size_t l1 = 0, l2 = 0;
@@ -1187,9 +1300,13 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
     }
 }
 
-/* Apply s/// to pattern space. Returns 1 if matched (and substituted). */
+/* Apply s/// to pattern space. Returns 1 if matched (and substituted).
+   s///e output loses one trailing record separator. GNU sed's shortcut for
+   an empty replacement whose first match starts a non-global substitution
+   or ends the pattern space also marks the result as a complete record;
+   *chomped mirrors that. */
 static int
-bs_apply_s (bs_cmd *c, bs_string *pat)
+bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
 {
     regmatch_t m[10];
     int matched_any = 0;
@@ -1221,6 +1338,8 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     int start = c->s_n > 0 ? c->s_n : 1;
     int idx = 0;                       /* 1-based occurrence counter */
     size_t last_end = (size_t) -1;     /* abs end of previous match (none yet) */
+    int completes = 0;                 /* GNU empty-replacement shortcut */
+    int first = 1;
 
     while (off <= pat->len)
     {
@@ -1235,6 +1354,11 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
         }
         else if (bs_search (re, pat->str, pat->len, off, 10, m) != 0)
             break;
+        if (first) {
+            first = 0;
+            completes = c->s_repl_len == 0 && c->s_n <= 1
+                && ((m[0].rm_so == 0 && !c->s_global) || (size_t) m[0].rm_eo == pat->len);
+        }
         /* GNU/POSIX: an empty match is suppressed when it sits exactly at the
            end of the previous match (prevents a spurious extra replacement
            when a star-quantified pattern matches non-empty then empty at the
@@ -1302,13 +1426,14 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
             if (c->s_exec) {
                 bs_string exec_out;
                 bs_str_init (&exec_out);
-                if (bs_exec_capture (out.str ? out.str : "", &exec_out) < 0) {
+                if (bs_exec_capture (out.str ? out.str : "", &exec_out, 1) < 0) {
                     bs_str_free (&exec_out);
                     bs_str_free (&out);
                     return -1;
                 }
                 bs_str_set (pat, exec_out.str ? exec_out.str : "", exec_out.len);
                 bs_str_free (&exec_out);
+                if (completes) *chomped = 1;
             } else {
                 bs_str_set (pat, out.str ? out.str : "", out.len);
             }
@@ -1316,6 +1441,55 @@ bs_apply_s (bs_cmd *c, bs_string *pat)
     }
     bs_str_free (&out);
     return matched_any;
+}
+
+/* --follow-symlinks: resolve PATH one link at a time the way GNU sed names
+   it: a relative target is taken relative to the link's directory, so F can
+   report "sub/../file". Returns a malloc'd name, or NULL after reporting. */
+static char *
+bs_follow (const char *path)
+{
+    char *cur = strdup (path);
+    for (int depth = 0; cur; depth++) {
+        struct stat sb;
+        if (lstat (cur, &sb) != 0) {
+            builtin_error ("couldn't follow symlink %s: %s", cur, strerror (errno));
+            break;
+        }
+        if (!S_ISLNK (sb.st_mode)) return cur;
+        if (depth >= 40) {
+            builtin_error ("couldn't follow symlink %s: %s", path, strerror (ELOOP));
+            break;
+        }
+        size_t cap = 128;
+        char *target = NULL;
+        ssize_t n;
+        for (;;) {
+            char *bigger = cap <= SIZE_MAX / 2 ? realloc (target, cap) : NULL;
+            if (!bigger) { n = -1; errno = ENOMEM; break; }
+            target = bigger;
+            n = readlink (cur, target, cap);
+            if (n < 0 || (size_t) n < cap) break;
+            cap *= 2;
+        }
+        if (n < 0) {
+            builtin_error ("couldn't readlink %s: %s", cur, strerror (errno));
+            free (target); break;
+        }
+        target[n] = '\0';
+        const char *slash = strrchr (cur, '/');
+        char *next = target;
+        if (target[0] != '/' && slash) {
+            size_t dir = (size_t) (slash - cur) + 1;
+            next = malloc (dir + (size_t) n + 1);
+            if (next) { memcpy (next, cur, dir); memcpy (next + dir, target, (size_t) n + 1); }
+            free (target);
+        }
+        free (cur);
+        cur = next;
+    }
+    free (cur);
+    return NULL;
 }
 
 /* One invocation edits a concatenation of operands. Only -s and -i start
@@ -1326,6 +1500,7 @@ typedef struct {
     const char **files;
     int count, next, owned, use_stdin, seekable, error, buffer_output;
     const char *name;
+    char *resolved;      /* --follow-symlinks name of the current operand */
     bs_output *out;
     FILE *buffered;
 } bs_input;
@@ -1356,6 +1531,11 @@ bs_input_open (bs_input *in)
     while (in->next < in->count && !bs_interrupted ()) {
         in->name = in->files[in->next++];
         in->use_stdin = !strcmp (in->name, "-");
+        free (in->resolved); in->resolved = NULL;
+        if (bs_follow_symlinks && !in->use_stdin) {
+            if (!(in->resolved = bs_follow (in->name))) { in->error = 4; return 0; }
+            in->name = in->resolved;
+        }
         int fd = in->use_stdin ? dup (STDIN_FILENO) : open (in->name, O_RDONLY);
         in->fp = fd < 0 ? NULL : fdopen (fd, "r");
         if (!in->fp) {
@@ -1388,7 +1568,7 @@ bs_input_read (bs_input *in, char **line, size_t *cap)
         if (bs_interrupted () || in->error >= 4) return -1;
         if (ferror (in->out->fp)) { bs_io_error = 4; return -1; }
         if (!in->fp && !bs_input_open (in)) return -1;
-        ssize_t n = getline (line, cap, in->fp);
+        ssize_t n = getdelim (line, cap, bs_delim, in->fp);
         if (n >= 0) return n;
         bs_input_close (in);
     }
@@ -1522,7 +1702,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
     while ((rd = bs_input_read (in, &cur, &cur_cap)) >= 0)
     {
         lineno++;
-        pat_nl = rd > 0 && cur[rd - 1] == '\n';
+        pat_nl = rd > 0 && cur[rd - 1] == bs_delim;
         int is_last = -1;
         bs_str_set (&pat, cur, (size_t) rd - pat_nl);
 
@@ -1594,7 +1774,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
             {
                 case BS_S:
                 {
-                    int substituted = bs_apply_s (c, &pat);
+                    int substituted = bs_apply_s (c, &pat, &pat_nl);
                     if (substituted < 0) goto done;
                     last_subst |= substituted;
                     if (substituted && c->s_print) {
@@ -1628,8 +1808,9 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     bs_quit_signaled = 1; bs_quit_code = c->q_code;
                     goto done;
                 case BS_EQ:
-                    if (out->missing_newline) fputc ('\n', out->fp);
-                    fprintf (out->fp, "%ld\n", lineno);
+                    if (out->missing_newline) fputc (bs_delim, out->fp);
+                    fprintf (out->fp, "%ld", lineno);
+                    fputc (bs_delim, out->fp);
                     if (bs_unbuffered) fflush (out->fp);
                     out->missing_newline = 0;
                     break;
@@ -1641,20 +1822,36 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                 case BS_E: {
                     bs_string exec_out;
                     bs_str_init (&exec_out);
-                    if (bs_exec_capture (pat.str ? pat.str : "", &exec_out) < 0) {
+                    if (bs_exec_capture (c->text ? c->text : pat.str ? pat.str : "",
+                                         &exec_out, !c->text) < 0) {
                         bs_str_free (&exec_out);
                         goto done;
                     }
-                    bs_str_set (&pat, exec_out.str ? exec_out.str : "", exec_out.len);
+                    if (c->text) {
+                        /* e COMMAND: its output precedes this cycle's output. */
+                        if (out->missing_newline) fputc (bs_delim, out->fp);
+                        out->missing_newline = 0;
+                        if (exec_out.len) fwrite (exec_out.str, 1, exec_out.len, out->fp);
+                        if (bs_unbuffered) fflush (out->fp);
+                    } else {
+                        /* The result is a complete record even if the input
+                           record was not (GNU sed). */
+                        bs_str_set (&pat, exec_out.str ? exec_out.str : "", exec_out.len);
+                        pat_nl = 1;
+                    }
                     bs_str_free (&exec_out);
                     break;
                 }
+                case BS_Z:
+                    pat.len = 0;
+                    if (pat.str) pat.str[0] = '\0';
+                    break;
                 case BS_H:
                     bs_str_set (&hold, pat.str, pat.len);
                     hold_nl = pat_nl;
                     break;
                 case BS_HUP:
-                    bs_str_append (&hold, "\n", 1);
+                    bs_str_append (&hold, &bs_delim, 1);
                     bs_str_append (&hold, pat.str, pat.len);
                     hold_nl = pat_nl;
                     break;
@@ -1663,7 +1860,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     pat_nl = hold_nl;
                     break;
                 case BS_GUP:
-                    bs_str_append (&pat, "\n", 1);
+                    bs_str_append (&pat, &bs_delim, 1);
                     bs_str_append (&pat, hold.str ? hold.str : "", hold.len);
                     pat_nl = hold_nl;
                     break;
@@ -1713,14 +1910,14 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     /* Print pattern up to first \n (or whole pattern if none). */
                     if (pat.str) {
                         size_t i = 0;
-                        while (i < pat.len && pat.str[i] != '\n') i++;
+                        while (i < pat.len && pat.str[i] != bs_delim) i++;
                         bs_emit (out, pat.str, i, i < pat.len || pat_nl);
                     }
                     break;
                 case BS_L_CMD:
                     /* Print pattern with sed l-command escapes. */
                     if (pat.str) {
-                        if (out->missing_newline) fputc ('\n', out->fp);
+                        if (out->missing_newline) fputc (bs_delim, out->fp);
                         bs_l_emit (out->fp, pat.str, pat.len,
                                    c->l_width < 0 ? bs_list_width : c->l_width);
                         out->missing_newline = 0;
@@ -1734,7 +1931,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) goto done;
                     lineno++;
-                    pat_nl = rd > 0 && cur[rd - 1] == '\n';
+                    pat_nl = rd > 0 && cur[rd - 1] == bs_delim;
                     is_last = -1;
                     last_subst = 0;
                     bs_str_set (&pat, cur, (size_t) rd - pat_nl);
@@ -1755,8 +1952,8 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                         if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         goto done;
                     }
-                    bs_str_append (&pat, "\n", 1);
-                    pat_nl = rd > 0 && cur[rd - 1] == '\n';
+                    bs_str_append (&pat, &bs_delim, 1);
+                    pat_nl = rd > 0 && cur[rd - 1] == bs_delim;
                     bs_str_append (&pat, cur, (size_t) rd - pat_nl);
                     lineno++;
                     is_last = -1;
@@ -1764,7 +1961,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     break;
                 case BS_D_LO:
                     if (pat.str) {
-                        char *nl = memchr (pat.str, '\n', pat.len);
+                        char *nl = memchr (pat.str, bs_delim, pat.len);
                         if (nl) {
                             size_t drop = (size_t) (nl - pat.str) + 1;
                             size_t rest = pat.len - drop;
@@ -1813,7 +2010,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                        (up to the first embedded newline). */
                     bs_output *wf = bs_get_wstream (c->text);
                     if (wf) {
-                        const char *nl = memchr (pat.str, '\n', pat.len);
+                        const char *nl = memchr (pat.str, bs_delim, pat.len);
                         size_t flen = nl ? (size_t) (nl - pat.str) : pat.len;
                         bs_emit (wf, pat.str, flen, nl != NULL || pat_nl);
                     }
@@ -1826,7 +2023,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     FILE *rf = bs_get_rstream (c->text);
                     if (rf) {
                         char *rl = NULL; size_t rcap = 0;
-                        ssize_t rn = getline (&rl, &rcap, rf);
+                        ssize_t rn = getdelim (&rl, &rcap, bs_delim, rf);
                         if (rn > 0) {
                             append_pending = 1;
                             bs_str_append (&a_queue, rl, (size_t) rn);
@@ -1871,37 +2068,57 @@ done:
 }
 
 /* In-place edit of a single FILE: write result to a tempfile, then
-   atomic-rename. If suffix given, save backup. */
+   atomic-rename. If suffix given, save backup. Like GNU sed, a symlink is
+   read through and then replaced by the edited file, unless
+   --follow-symlinks selects its final target for editing. */
 static int
 bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int suppress_default)
 {
-    /* Refuse to edit non-regular files (symlinks, fifos, devices). */
+    char *resolved = NULL;
+    if (bs_follow_symlinks) {
+        if (!(resolved = bs_follow (path))) { bs_io_error = 4; return -1; }
+        path = resolved;
+    }
+    /* Nonblocking open cannot wait for a FIFO writer; only regular files
+       are edited (fifos and devices are refused). */
+    int infd = open (path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (infd < 0) {
+        builtin_error ("%s: %s", path, strerror (errno));
+        if (bs_io_error < 2) bs_io_error = 2;
+        free (resolved); return -1;
+    }
     struct stat src_st;
-    if (lstat (path, &src_st) != 0)
-        { builtin_error ("%s: %s", path, strerror (errno));
-          if (bs_io_error < 2) bs_io_error = 2; return -1; }
-    if (!S_ISREG (src_st.st_mode))
-        { builtin_error ("-i: not a regular file: %s", path); bs_io_error = 4; return -1; }
+    if (fstat (infd, &src_st) != 0 || !S_ISREG (src_st.st_mode)) {
+        builtin_error ("-i: not a regular file: %s", path);
+        close (infd); bs_io_error = 4; free (resolved); return -1;
+    }
+    int infl = fcntl (infd, F_GETFL);
+    FILE *in = infl < 0 || fcntl (infd, F_SETFL, infl & ~O_NONBLOCK) < 0
+        ? NULL : fdopen (infd, "r");
+    if (!in) {
+        builtin_error ("%s: %s", path, strerror (errno));
+        close (infd); bs_io_error = 4; free (resolved); return -1;
+    }
 
-    FILE *in = fopen (path, "r");
-    if (!in) { builtin_error ("%s: %s", path, strerror (errno));
-          if (bs_io_error < 2) bs_io_error = 2; return -1; }
-
+    int rc = -1, fd = -1;
+    FILE *out = NULL;
     char tmp[4096];
     int written = snprintf (tmp, sizeof tmp, "%s.bsedXXXXXX", path);
     if (written < 0 || (size_t) written >= sizeof tmp)
-        { fclose (in); builtin_error ("path too long: %s", path); bs_io_error = 4; return -1; }
-    int fd = mkstemp (tmp);
-    if (fd < 0) { fclose (in); builtin_error ("mkstemp: %s", strerror (errno)); bs_io_error = 4; return -1; }
-    FILE *out = fdopen (fd, "w");
-    if (!out) { close (fd); fclose (in); unlink (tmp); bs_io_error = 4; return -1; }
+        { builtin_error ("path too long: %s", path); bs_io_error = 4; goto done; }
+    fd = mkstemp (tmp);
+    if (fd < 0) { builtin_error ("mkstemp: %s", strerror (errno)); bs_io_error = 4; goto done; }
+    out = fdopen (fd, "w");
+    if (!out) { close (fd); unlink (tmp); bs_io_error = 4; goto done; }
 
     bs_output output = { out, 0 };
     bs_input input = { .fp = in, .name = path, .out = &output };
-    int rc = bs_run (cmds, n_cmds, &input, &output, suppress_default);
+    rc = bs_run (cmds, n_cmds, &input, &output, suppress_default);
     if (input.error) bs_io_error = input.error;
     bs_close_rstreams ();
-    if (fclose (in) != 0) { rc = -1; bs_io_error = 4; }
+    int close_failed = fclose (in) != 0;
+    in = NULL;
+    if (close_failed) { rc = -1; bs_io_error = 4; }
     /* Preserve owner+mode via the open fd before closing. fchown/fchmod are
        symlink-safe and avoid TOCTOU on the path. */
     if (fchmod (fd, src_st.st_mode & 07777) < 0)
@@ -1909,25 +2126,30 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
     if (fchown (fd, src_st.st_uid, src_st.st_gid) < 0 && errno != EPERM)
         builtin_warning ("fchown %s: %s", tmp, strerror (errno));
     if (fclose (out) != 0) { rc = -1; bs_io_error = 4; }
-    if (rc < 0) { unlink (tmp); return -1; }
+    if (rc < 0) { unlink (tmp); goto done; }
 
+    rc = -1;
     if (suffix && *suffix)
     {
         char bak[4096];
         int bw = snprintf (bak, sizeof bak, "%s%s", path, suffix);
         if (bw < 0 || (size_t) bw >= sizeof bak)
-            { unlink (tmp); builtin_error ("backup path too long"); bs_io_error = 4; return -1; }
+            { unlink (tmp); builtin_error ("backup path too long"); bs_io_error = 4; goto done; }
         if (rename (path, bak) != 0) {
             builtin_error ("rename %s -> %s: %s", path, bak, strerror (errno));
-            unlink (tmp); bs_io_error = 4; return -1;
+            unlink (tmp); bs_io_error = 4; goto done;
         }
     }
     if (rename (tmp, path) != 0) {
         builtin_error ("rename %s: %s", path, strerror (errno));
         unlink (tmp); bs_io_error = 4;
-        return -1;
+        goto done;
     }
-    return 0;
+    rc = 0;
+done:
+    if (in) fclose (in);
+    free (resolved);
+    return rc;
 }
 
 int
@@ -1936,6 +2158,7 @@ sed_builtin (WORD_LIST *list)
     int suppress_default = 0, extended = 0, separate = 0;
     int inplace = 0, unbuffered = 0;
     bs_list_width = 70; bs_io_error = 0; bs_unbuffered = 0; bs_interrupt_signal = 0;
+    bs_delim = '\n'; bs_sandbox = 0; bs_follow_symlinks = 0;
     char inplace_suffix[64] = {0};
     char *script = NULL;
     FILE *script_file = NULL;
@@ -1973,9 +2196,15 @@ sed_builtin (WORD_LIST *list)
         if (options && !strcmp (w, "--")) { options = 0; goto next_word; }
         if (options && w[0] == '-' && w[1] != '\0')
         {
-            if (!strcmp (w, "--help")) {
-                puts ("bashsed: stream editor");
-                puts ("Usage: bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
+            if (!strcmp (w, "--help") || !strcmp (w, "--version")) {
+                if (w[2] == 'v')
+                    puts ("sed (bash-os loadable) 1.0\n"
+                          "GNU sed 4.9 command subset; see sed --help.");
+                else {
+                    puts ("bashsed: stream editor");
+                    puts ("Usage: bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
+                    puts ("Long options: --sandbox --follow-symlinks --null-data --version");
+                }
                 free (files); free (script);
                 int failed = fflush (stdout) == EOF || ferror (stdout);
                 clearerr (stdout);
@@ -1995,6 +2224,17 @@ sed_builtin (WORD_LIST *list)
             else if (!strncmp (w, "--line-length=", 14)) { long_value = w + 14; w = "-l"; }
             else if (!strcmp (w, "--in-place")) w = "-i";
             else if (!strncmp (w, "--in-place=", 11)) { long_value = w + 11; w = "-i"; }
+            else if (!strcmp (w, "--null-data") || !strcmp (w, "--zero-terminated")) w = "-z";
+            else if (!strcmp (w, "--binary")) w = "-b";
+            else if (!strcmp (w, "--sandbox")) { bs_sandbox = 1; goto next_word; }
+            else if (!strcmp (w, "--follow-symlinks")) { bs_follow_symlinks = 1; goto next_word; }
+            else if (w[1] == '-') {
+                /* Includes --posix and --debug, which are not implemented. */
+                builtin_error ("unsupported option: %s", w);
+                builtin_usage ();
+                free (files); free (script);
+                return 1;
+            }
             for (const char *c = w + 1; *c; c++)
             {
                 switch (*c)
@@ -2003,6 +2243,8 @@ sed_builtin (WORD_LIST *list)
                     case 'E': case 'r': extended = 1; break;
                     case 's': separate = 1; break;
                     case 'u': unbuffered = 1; break;
+                    case 'z': bs_delim = '\0'; break;
+                    case 'b': break;   /* --binary: no text mode on POSIX */
                     case 'i': {
                         inplace = 1;
                         const char *suffix = long_value ? long_value : c + 1;
@@ -2121,6 +2363,8 @@ sed_builtin (WORD_LIST *list)
     int rc = EXECUTION_SUCCESS;
     bs_stdout = (bs_output) { stdout, 0 };
     bs_stderr = (bs_output) { stderr, 0 };
+    bs_wstdout = (bs_output) { stdout, 0 };
+    bs_wstderr = (bs_output) { stderr, 0 };
     bs_quit_signaled = 0; bs_quit_code = 0; bs_last_re = NULL;
     /* GNU opens write destinations even when no input or no match reaches
        their command. Keep handles invocation-owned for error recovery. */
@@ -2152,6 +2396,7 @@ sed_builtin (WORD_LIST *list)
             if (bs_run (cmds, n_cmds, &input, &bs_stdout, suppress_default) < 0)
                 rc = EXECUTION_FAILURE;
             bs_input_close (&input);
+            free (input.resolved);
             if (input.error) rc = input.error;
             if (bs_quit_signaled) {
                 if (rc == EXECUTION_SUCCESS) rc = bs_quit_code;
@@ -2186,13 +2431,13 @@ sed_builtin (WORD_LIST *list)
 char *sed_doc[] = {
     "POSIX-shape sed(1) — stream editor.",
     "",
-    "    bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "    bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     "",
-    "Commands: s/// (capture groups), d p q =, h H g G x,",
+    "Commands: s/// (capture groups), d p q Q =, h H g G x z,",
     "          a/i/c TEXT, y/SET1/SET2/, n N D P l [WIDTH],",
-    "          r/R FILE, w/W FILE, F, e (gated),",
-    "          :LABEL, b LABEL, t LABEL, { ... }, ! prefix.",
-    "Addresses: $, N, /REGEX/, ADDR1,ADDR2.",
+    "          r/R FILE, w/W FILE, F, e [COMMAND] (gated), v,",
+    "          :LABEL, b LABEL, t/T LABEL, { ... }, ! prefix.",
+    "Addresses: $, N, FIRST~STEP, /REGEX/, \\cREGEXc, ADDR1,ADDR2, ADDR1,+N, ADDR1,~N.",
     "Replace: & = whole match; \\1..\\9 = capture groups.",
     "",
     "Flags:",
@@ -2204,6 +2449,9 @@ char *sed_doc[] = {
     "    -f FILE       read commands from FILE",
     "    -E / -r       extended regex (default BRE)",
     "    -s            separate input files (implied by -i)",
+    "    -z            NUL-separated records (--null-data)",
+    "    --sandbox     reject e, r, R, w and W commands",
+    "    --follow-symlinks  edit and name symlink targets",
     "",
     "Security: e and s///e shell execution require BASHSED_ALLOW_EXEC=1.",
     (char *)NULL
@@ -2214,6 +2462,6 @@ struct builtin bashsed_struct = {
     sed_builtin,
     BUILTIN_ENABLED,
     sed_doc,
-    "bashsed [-nsiEu] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
+    "bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     0
 };
