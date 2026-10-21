@@ -2746,89 +2746,241 @@ done:
     return bs_runtime_error ? -1 : 0;
 }
 
-/* In-place edit of a single FILE: write result to a tempfile, then
-   atomic-rename. If suffix given, save backup. Like GNU sed, a symlink is
-   read through and then replaced by the edited file, unless
-   --follow-symlinks selects its final target for editing. */
+/* Parent directory of an in-place edit, pinned by descriptor. Every temp,
+   backup and replacement uses this dirfd, and the entry's identity is checked
+   again before those names are changed. */
+typedef struct {
+    int dirfd;
+    char *name;
+    dev_t dir_dev, ent_dev;
+    ino_t dir_ino, ent_ino;
+} bs_anchor;
+
+static char *
+bs_readlink_dup (int dirfd, const char *name)
+{
+    size_t cap = 128;
+    char *target = NULL;
+    for (;;) {
+        if (cap > SIZE_MAX / 2) { free (target); errno = ENOMEM; return NULL; }
+        char *bigger = realloc (target, cap);
+        if (!bigger) { free (target); errno = ENOMEM; return NULL; }
+        target = bigger;
+        ssize_t n = readlinkat (dirfd, name, target, cap);
+        if (n < 0) { int err = errno; free (target); errno = err; return NULL; }
+        if ((size_t) n < cap) { target[n] = '\0'; return target; }
+        cap *= 2;
+    }
+}
+
+/* Walk PATH from dirfd. dirfd is consumed. Intermediate symlinks are resolved
+   with readlinkat against the directory that holds them: an absolute target
+   restarts at /, a relative target (including "..") continues from that
+   directory. The final component is followed only when follow_final is set.
+   depth counts symlink hops. */
+static int
+bs_walk (int dirfd, const char *path, int follow_final, int depth, bs_anchor *out)
+{
+    if (path[0] == '/') {
+        close (dirfd);
+        dirfd = openat (AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        if (dirfd < 0) return -1;
+        while (*path == '/') path++;
+    }
+    const char *p = path;
+    if (!*p) { close (dirfd); errno = EINVAL; return -1; }
+    for (;;) {
+        while (*p == '/') p++;
+        if (!*p) { close (dirfd); errno = EINVAL; return -1; }
+        const char *start = p;
+        while (*p && *p != '/') p++;
+        size_t len = (size_t) (p - start);
+        if (len > 255) { close (dirfd); errno = ENAMETOOLONG; return -1; }
+        char comp[256];
+        memcpy (comp, start, len);
+        comp[len] = '\0';
+        while (*p == '/') p++;
+        int is_last = *p == '\0';
+        if (comp[0] == '.' && comp[1] == '\0') {
+            if (is_last) { close (dirfd); errno = EINVAL; return -1; }
+            continue;
+        }
+        struct stat st;
+        if (fstatat (dirfd, comp, &st, AT_SYMLINK_NOFOLLOW) != 0) {
+            int err = errno; close (dirfd); errno = err; return -1;
+        }
+        if (S_ISLNK (st.st_mode) && (!is_last || follow_final)) {
+            if (depth >= 40) { close (dirfd); errno = ELOOP; return -1; }
+            char *target = bs_readlink_dup (dirfd, comp);
+            if (!target) { int err = errno; close (dirfd); errno = err; return -1; }
+            if (*p) {
+                size_t tlen = strlen (target), rlen = strlen (p);
+                if (tlen > SIZE_MAX - rlen - 2) {
+                    free (target); close (dirfd); errno = ENAMETOOLONG; return -1;
+                }
+                char *joined = malloc (tlen + 1 + rlen + 1);
+                if (!joined) { free (target); close (dirfd); errno = ENOMEM; return -1; }
+                memcpy (joined, target, tlen);
+                joined[tlen] = '/';
+                memcpy (joined + tlen + 1, p, rlen + 1);
+                free (target);
+                int rc = bs_walk (dirfd, joined, follow_final, depth + 1, out);
+                free (joined);
+                return rc;
+            }
+            int rc = bs_walk (dirfd, target, follow_final, depth + 1, out);
+            free (target);
+            return rc;
+        }
+        if (!is_last) {
+            int next = openat (dirfd, comp, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+            if (next < 0) { int err = errno; close (dirfd); errno = err; return -1; }
+            close (dirfd);
+            dirfd = next;
+            continue;
+        }
+        struct stat ds;
+        if (fstat (dirfd, &ds) != 0) { int err = errno; close (dirfd); errno = err; return -1; }
+        out->name = strdup (comp);
+        if (!out->name) { close (dirfd); errno = ENOMEM; return -1; }
+        out->dirfd = dirfd;
+        out->dir_dev = ds.st_dev; out->dir_ino = ds.st_ino;
+        out->ent_dev = st.st_dev; out->ent_ino = st.st_ino;
+        return 0;
+    }
+}
+
+static int
+bs_anchor_same (const bs_anchor *a)
+{
+    struct stat ds, es;
+    if (fstat (a->dirfd, &ds) != 0) return 0;
+    if (ds.st_dev != a->dir_dev || ds.st_ino != a->dir_ino) return 0;
+    if (fstatat (a->dirfd, a->name, &es, AT_SYMLINK_NOFOLLOW) != 0) return 0;
+    if (es.st_dev != a->ent_dev || es.st_ino != a->ent_ino) return 0;
+    return 1;
+}
+
+/* In-place edit of one operand. The parent directory is held open and every
+   replacement is descriptor-relative, so renaming that directory cannot
+   redirect the write. --follow-symlinks resolves the final link the same way
+   and still reports GNU's logical name. Without it, the final symlink is read
+   through and the directory entry itself is replaced. */
 static int
 bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int suppress_default)
 {
-    char *resolved = NULL;
+    char *logical = NULL;
+    const char *display = path;
     if (bs_follow_symlinks) {
-        if (!(resolved = bs_follow (path))) { bs_io_error = 4; return -1; }
-        path = resolved;
+        if (!(logical = bs_follow (path))) { bs_io_error = 4; return -1; }
+        display = logical;
     }
-    /* Nonblocking open cannot wait for a FIFO writer; only regular files
-       are edited (fifos and devices are refused). */
-    int infd = open (path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    if (infd < 0) {
+    bs_anchor anc = { .dirfd = -1 };
+    int root = openat (AT_FDCWD, path[0] == '/' ? "/" : ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (root < 0) {
         builtin_error ("%s: %s", path, strerror (errno));
+        bs_io_error = 4; free (logical); return -1;
+    }
+    if (bs_walk (root, path[0] == '/' ? path + 1 : path, bs_follow_symlinks, 0, &anc) < 0) {
+        int err = errno;
+        builtin_error ("%s: %s", path, strerror (err));
+        /* Opening a missing operand is status 2; other path errors are 4. */
+        bs_io_error = (err == ENOENT || err == EACCES) ? 2 : 4;
+        free (logical); return -1;
+    }
+
+    /* Nonblocking open cannot wait for a FIFO writer. The final component is
+       followed for the read even when the directory entry is the symlink that
+       will be replaced. */
+    int infd = openat (anc.dirfd, anc.name, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (infd < 0) {
+        builtin_error ("%s: %s", display, strerror (errno));
         if (bs_io_error < 2) bs_io_error = 2;
-        free (resolved); return -1;
+        goto fail;
     }
     struct stat src_st;
     if (fstat (infd, &src_st) != 0 || !S_ISREG (src_st.st_mode)) {
-        builtin_error ("-i: not a regular file: %s", path);
-        close (infd); bs_io_error = 4; free (resolved); return -1;
+        builtin_error ("-i: not a regular file: %s", display);
+        close (infd); bs_io_error = 4; goto fail;
     }
     int infl = fcntl (infd, F_GETFL);
     FILE *in = infl < 0 || fcntl (infd, F_SETFL, infl & ~O_NONBLOCK) < 0
         ? NULL : fdopen (infd, "r");
     if (!in) {
-        builtin_error ("%s: %s", path, strerror (errno));
-        close (infd); bs_io_error = 4; free (resolved); return -1;
+        builtin_error ("%s: %s", display, strerror (errno));
+        close (infd); bs_io_error = 4; goto fail;
     }
 
     int rc = -1, fd = -1;
     FILE *out = NULL;
-    char tmp[4096];
-    int written = snprintf (tmp, sizeof tmp, "%s.bsedXXXXXX", path);
-    if (written < 0 || (size_t) written >= sizeof tmp)
-        { builtin_error ("path too long: %s", path); bs_io_error = 4; goto done; }
-    fd = mkstemp (tmp);
-    if (fd < 0) { builtin_error ("mkstemp: %s", strerror (errno)); bs_io_error = 4; goto done; }
+    char tmpname[64] = "";
+    for (int n = 0; n < 1000; n++) {
+        snprintf (tmpname, sizeof tmpname, ".bsed%d-%d", (int) getpid (), n);
+        fd = openat (anc.dirfd, tmpname, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd >= 0 || errno != EEXIST) break;
+    }
+    if (fd < 0) {
+        builtin_error ("%s: %s", display, strerror (errno));
+        bs_io_error = 4; goto done;
+    }
     out = fdopen (fd, "w");
-    if (!out) { close (fd); unlink (tmp); bs_io_error = 4; goto done; }
+    if (!out) { close (fd); unlinkat (anc.dirfd, tmpname, 0); bs_io_error = 4; goto done; }
 
     bs_output output = { out, 0 };
-    bs_input input = { .fp = in, .name = path, .out = &output };
+    bs_input input = { .fp = in, .name = display, .out = &output };
     rc = bs_run (cmds, n_cmds, &input, &output, suppress_default);
     if (input.error) bs_io_error = input.error;
     bs_close_rstreams ();
     int close_failed = fclose (in) != 0;
     in = NULL;
     if (close_failed) { rc = -1; bs_io_error = 4; }
-    /* Preserve owner+mode via the open fd before closing. fchown/fchmod are
-       symlink-safe and avoid TOCTOU on the path. */
     if (fchmod (fd, src_st.st_mode & 07777) < 0)
-        builtin_warning ("fchmod %s: %s", tmp, strerror (errno));
+        builtin_warning ("fchmod %s: %s", display, strerror (errno));
     if (fchown (fd, src_st.st_uid, src_st.st_gid) < 0 && errno != EPERM)
-        builtin_warning ("fchown %s: %s", tmp, strerror (errno));
+        builtin_warning ("fchown %s: %s", display, strerror (errno));
     if (fclose (out) != 0) { rc = -1; bs_io_error = 4; }
-    if (rc < 0) { unlink (tmp); goto done; }
+    out = NULL;
+    if (rc < 0) { unlinkat (anc.dirfd, tmpname, 0); goto done; }
 
     rc = -1;
-    if (suffix && *suffix)
-    {
-        char bak[4096];
-        int bw = snprintf (bak, sizeof bak, "%s%s", path, suffix);
-        if (bw < 0 || (size_t) bw >= sizeof bak)
-            { unlink (tmp); builtin_error ("backup path too long"); bs_io_error = 4; goto done; }
-        if (rename (path, bak) != 0) {
-            builtin_error ("rename %s -> %s: %s", path, bak, strerror (errno));
-            unlink (tmp); bs_io_error = 4; goto done;
+    if (!bs_anchor_same (&anc)) {
+        unlinkat (anc.dirfd, tmpname, 0);
+        builtin_error ("%s: changed while editing", display);
+        bs_io_error = 4; goto done;
+    }
+    if (suffix && *suffix) {
+        if (strchr (suffix, '/')) {
+            unlinkat (anc.dirfd, tmpname, 0);
+            builtin_error ("backup suffix must stay in the same directory");
+            bs_io_error = 4; goto done;
+        }
+        char bak[320];
+        int bw = snprintf (bak, sizeof bak, "%s%s", anc.name, suffix);
+        if (bw < 0 || (size_t) bw >= sizeof bak) {
+            unlinkat (anc.dirfd, tmpname, 0);
+            builtin_error ("backup path too long"); bs_io_error = 4; goto done;
+        }
+        if (renameat (anc.dirfd, anc.name, anc.dirfd, bak) != 0) {
+            builtin_error ("rename %s -> %s: %s", display, bak, strerror (errno));
+            unlinkat (anc.dirfd, tmpname, 0); bs_io_error = 4; goto done;
         }
     }
-    if (rename (tmp, path) != 0) {
-        builtin_error ("rename %s: %s", path, strerror (errno));
-        unlink (tmp); bs_io_error = 4;
-        goto done;
+    if (renameat (anc.dirfd, tmpname, anc.dirfd, anc.name) != 0) {
+        builtin_error ("rename %s: %s", display, strerror (errno));
+        unlinkat (anc.dirfd, tmpname, 0); bs_io_error = 4; goto done;
     }
     rc = 0;
 done:
     if (in) fclose (in);
-    free (resolved);
+    if (anc.dirfd >= 0) close (anc.dirfd);
+    free (anc.name);
+    free (logical);
     return rc;
+fail:
+    if (anc.dirfd >= 0) close (anc.dirfd);
+    free (anc.name);
+    free (logical);
+    return -1;
 }
 
 int
