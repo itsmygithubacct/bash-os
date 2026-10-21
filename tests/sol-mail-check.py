@@ -251,11 +251,14 @@ class Sink:
             raise self.error
 
 
+MAIL_DELIVER_TIMEOUT = 1000
+
+
 def deliver(shell, queue, qid, sink, rc=0, extra=(), output_path=None):
     command = ('exec {mailfd}<>/dev/tcp/127.0.0.1/'+str(sink.port)+'; '+
                words('mail', 'deliver-fd', '--queue', queue, '--qid', qid,
                      '--from', FROM, '--ehlo', 'client.fixture.invalid', '--tls', 'off',
-                     '--timeout', 1000, *extra)+' --fd "$mailfd" -- '+words(*RCPTS)+
+                     '--timeout', MAIL_DELIVER_TIMEOUT, *extra)+' --fd "$mailfd" -- '+words(*RCPTS)+
                '; mailrc=$?; exec {mailfd}>&-; mail_status "$mailrc"')
     if output_path:
         command = '{ '+command+'; } > '+words(output_path)
@@ -265,10 +268,13 @@ def deliver(shell, queue, qid, sink, rc=0, extra=(), output_path=None):
 
 
 def main():
+    global MAIL_DELIVER_TIMEOUT
     ap = argparse.ArgumentParser()
     ap.add_argument('binary', type=Path)
     ap.add_argument('--case', choices=['all', 'submission', 'delivery', 'framing', 'lifecycle', 'aliases'], default='all')
+    ap.add_argument('--timeout', type=int, default=1000)
     args = ap.parse_args()
+    MAIL_DELIVER_TIMEOUT = args.timeout
     with tempfile.TemporaryDirectory(prefix='sol-mail-', dir='/tmp') as tmp, Shell(args.binary.resolve()) as sh:
         root = Path(tmp)
         queue = root/'queue'

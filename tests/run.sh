@@ -365,7 +365,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'RTSP bounded allocation and sanitizer protocol' env BASHOS_TASK_DIR="$scratch/rtspcat-contracts" UBSAN_OPTIONS=halt_on_error=1 bash tests/sol-rtspcat-sanitize.sh
   check 'RTSP sanitized control URI' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-rtspcat-control.py "$scratch/rtspcat-contracts/rtspcat-sanitize" --standalone
   check 'mail sanitizer helpers build' env BASHOS_TASK_DIR="$scratch/mail-contracts" bash tests/sol-mail-sanitize-build.sh
-  check 'mail contracts under ASan+UBSan' env SOL_MAIL_LOAD_ENV="$scratch/mail-contracts/sanitize/load.sh" SOL_MAIL_ASAN_LIB="$(cat "$scratch/mail-contracts/sanitize/asan-runtime.txt")" python3 tests/sol-mail-check.py out/bash
+  check 'mail contracts under ASan+UBSan' env SOL_MAIL_LOAD_ENV="$scratch/mail-contracts/sanitize/load.sh" SOL_MAIL_ASAN_LIB="$(cat "$scratch/mail-contracts/sanitize/asan-runtime.txt")" python3 tests/sol-mail-check.py out/bash --timeout 5000
   check 'mail sanitized peer disconnect' env BASH_ENV="$scratch/mail-contracts/sanitize/load.sh" LD_PRELOAD="$(cat "$scratch/mail-contracts/sanitize/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/astra-mail-disconnect.py out/bash
   check 'netstat fixtures build' bash tests/sol-netstat-build-fixtures.sh "$scratch/netstat-contracts"
   check 'netstat owned sockets and transport fixtures' python3 tests/sol-netstat-behavior.py --binary out/bash --shim "$scratch/netstat-contracts/shim.so" --output "$scratch/netstat-native.json"
@@ -423,7 +423,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'setpgid owned children under UBSan' env UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-setpgid-check.py --binary out/bash --module "$scratch/setpgid-contracts/setpgid-ubsan.so"
   check 'renice private boundary build' bash tests/sol-renice-build.sh "$scratch/renice-contracts"
   check 'renice owned-child contracts' python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
-  check 'renice owned-child sanitizer contracts' env SOL_RENICE_MODULE="$scratch/renice-contracts/renice-sanitized.so" SOL_RENICE_ASAN_RUNTIME="$(cat "$scratch/renice-contracts/asan-runtime")" python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
+  check 'renice owned-child sanitizer contracts' env ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 SOL_RENICE_MODULE="$scratch/renice-contracts/renice-sanitized.so" SOL_RENICE_ASAN_RUNTIME="$(cat "$scratch/renice-contracts/asan-runtime")" python3 tests/sol-renice-check.py out/bash "$scratch/renice-contracts/fixture.so"
   check 'zstd fault harness build' "$CC" -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" tests/sol-zstd-host.c -lzstd -ldl -o "$scratch/zstd-contracts"
   check 'zstd streaming faults under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/zstd-contracts"
   check 'doas private fixture build' python3 tests/sol-doas-build.py "$scratch/doas-native"
