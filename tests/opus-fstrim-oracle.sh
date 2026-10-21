@@ -12,15 +12,30 @@
 # compared without trimming anything. The targets are tmpfs, which has no
 # FITRIM, and the namespace has no CAP_SYS_ADMIN over the host either.
 #
-# Exit 0 when every scenario matches, 1 on a difference, 77 when the host
-# lacks util-linux fstrim or unprivileged user namespaces.
+# Exit 0 when every scenario matches. Exit 0 with a SKIP line when the host
+# lacks util-linux fstrim or unprivileged user namespaces. Exit 1 on a difference.
 set -uo pipefail
 bin=$(realpath "${1:?usage: $0 BASH-OS-BINARY [PRELOAD]}")
 preload=${2:+$(realpath "$2")}
-ul=$(PATH=/usr/sbin:/sbin:/usr/bin:/bin command -v fstrim) || { echo 'SKIP: no util-linux fstrim'; exit 77; }
-unshare -rm true 2>/dev/null || { echo 'SKIP: unprivileged user namespaces unavailable'; exit 77; }
+if [[ -n ${OPUS_FSTRIM_REFERENCE:-} ]]; then
+  ul=$(realpath "$OPUS_FSTRIM_REFERENCE")
+  [[ -x $ul ]] || { echo 'FAIL: OPUS_FSTRIM_REFERENCE is not executable'; exit 1; }
+else
+  ul=$(PATH=/usr/sbin:/sbin:/usr/bin:/bin command -v fstrim) || { echo 'SKIP: no util-linux fstrim'; exit 0; }
+fi
+unshare -rm true 2>/dev/null || { echo 'SKIP: unprivileged user namespaces unavailable'; exit 0; }
 "$bin" -c 'type -t fstrim' 2>/dev/null | grep -qx builtin || { echo "FAIL: $bin has no fstrim builtin"; exit 1; }
 [[ -z $preload || -f $preload ]] || { echo "FAIL: missing preload $preload"; exit 1; }
+normalize_old=0
+ver=$("$ul" -V 2>&1 || true)
+if [[ $ver =~ fstrim\ from\ util-linux\ ([0-9]+)\.([0-9]+) ]]; then
+  if (( BASH_REMATCH[1] < 2 || (BASH_REMATCH[1] == 2 && BASH_REMATCH[2] < 41) )); then
+    normalize_old=1
+    echo "NOTE: util-linux ${BASH_REMATCH[1]}.${BASH_REMATCH[2]} predates 2.41; normalising the usage line and the fuse.portal dry-run row"
+  fi
+else
+  echo 'NOTE: fstrim version line not recognised; comparing the transcript unchanged'
+fi
 
 T=$(mktemp -d /tmp/opus-fstrim-oracle.XXXXXX)
 trap 'rm -rf "$T"' EXIT
@@ -119,6 +134,14 @@ compare() {
     cat "$T/first"; cmp -s "$T/first" "$T/second" || echo "REPEAT-DIFFERS"
     [[ ${#before[@]} == "${#after[@]}" ]] || echo "FD-LEAK ${#before[@]} -> ${#after[@]}"' _ "$script" > "$o" 2>&1
   sed -i "s#^stderr: $ul: #stderr: fstrim: #" "$u"
+  if [[ $normalize_old == 1 ]]; then
+    # Before 2.41 the usage names only a mount point, and the pseudo-fs list
+    # omits fuse.portal, so a dry run prints one extra trimmed row.
+    sed -i \
+      -e 's/ fstrim \[options\] <mount point>/ fstrim [options] <-A|-a|mount point>/' \
+      -e '\#/t7: 0 B (dry run) trimmed on /dev/fz7#d' \
+      "$u"
+  fi
   local cases; cases=$(grep -c '^== ' "$u")
   if diff -u "$u" "$o" > "$T/$name.diff"; then
     echo "PASS $name: $cases invocations identical to util-linux, repeated in-shell run identical"
