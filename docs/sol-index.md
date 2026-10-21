@@ -13,12 +13,10 @@ bytes, git's path rules and the SHA-1 trailer. The command then refuses:
 
 - an extended-flags bit in a version 2 entry, or a version 3 second flags
   word with bits other than skip-worktree and intent-to-add;
-- entries out of path order, a repeated (path, stage), stages out of order,
-  and a stage 0 next to another stage of the same path. gitformat-index
-  requires path then stage order; git's own order check calls the last
-  "multiple stage entries for merged file". git's readers do not check order
-  on an ordinary read, so `git ls-files` lists such files, but no git writes
-  them;
+- entries out of path order, a repeated (path, stage), or stages out of
+  order. Stage 0 beside a later conflict stage is accepted: Git's
+  `update-index --index-info` can produce it, and subsequent reads and
+  removals must consume it;
 - extension records that do not exactly fill the space before the trailer;
 - an extension whose signature does not start with a capital letter, which
   git marks as required. That covers a split index (`link`) and a sparse

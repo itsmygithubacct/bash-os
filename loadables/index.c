@@ -510,13 +510,11 @@ bidx_check (const char *path, const bgit_index_view *views, size_t n,
             }
         }
         if (i) {
-            /* A path is either merged, one stage-0 entry, or in conflict,
-               stages 1 to 3 each at most once and in order; git's own
-               order check calls a stage 0 beside others "multiple stage
-               entries for merged file". */
+            /* update-index --index-info can add a conflict stage beside
+               stage 0. Preserve that state, requiring unique sorted stages. */
             int prev = BIDX_STAGE (bgit_be16 (views[i - 1].disk, 60));
             int r = strcmp (views[i - 1].path, views[i].path);
-            if (r > 0 || (r == 0 && (prev == 0 || prev >= BIDX_STAGE (flags)))) {
+            if (r > 0 || (r == 0 && prev >= BIDX_STAGE (flags))) {
                 builtin_error ("%s: %s at '%s'", path,
                                r > 0 ? "unordered index entries"
                                      : "repeated or unordered stages",

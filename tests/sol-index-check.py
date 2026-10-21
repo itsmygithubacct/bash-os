@@ -470,9 +470,6 @@ def _():
         'repeated-stage': craft([entry('a', 2), entry('a', 2)]),
         'stage-down': craft([entry('a', 3), entry('a', 1)]),
         'stage-zero-after': craft([entry('a', 2), entry('a', 0)]),
-        # git ls-files lists this one, but git's check_ce_order names it
-        # "multiple stage entries for merged file" and no git writes it
-        'stage-zero-then-two': craft([entry('a', 0), entry('a', 2)]),
         'ext-truncated': craft([entry('a')], ext=b'TREE'+struct.pack('>I', 40)+b'\0'*8),
         'ext-short-header': craft([entry('a')], ext=b'TRE'),
         'ext-lowercase': craft([entry('a')], ext=b'zzzz'+struct.pack('>I', 0)),
@@ -492,7 +489,8 @@ def _():
         'magic': b'DIRX'+craft([entry('a')])[4:-20],
     }
     variants['magic'] += hashlib.sha1(variants['magic']).digest()
-    accepted = {'ext-upper-unknown': craft([entry('a')], ext=b'ZZZZ'+struct.pack('>I', 3)+b'abc'),
+    accepted = {'stage-zero-then-two': craft([entry('a', 0), entry('a', 2)]),
+                'ext-upper-unknown': craft([entry('a')], ext=b'ZZZZ'+struct.pack('>I', 3)+b'abc'),
                 'v3-skip-worktree': craft([entry('a', flags_extra=0x4000, flags2=0x4000)], 3),
                 'empty': craft([])}
     paths = {}
