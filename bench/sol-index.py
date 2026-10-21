@@ -7,23 +7,15 @@ Every fixture is written by the host git itself (`git update-index
 
   small    100 entries
   large    20000 entries, the paths and ids of bench/loadables.py's
-           index-read fixture. That harness writes them in the order it
-           generates them, which is not path order (dir000/file-00256
-           follows dir255/file-00255), and the index format requires path
-           order; the builtin refuses that file, and git, which does not
-           check order on a read, lists it. The file here is checked to be
-           byte-identical to the same entries sorted, which is what git
-           writes. The unsorted file's refusal is recorded, untimed.
-  xlarge   110000 entries, past the 8 MiB checksum snapshot, so every read
-           verifies the trailer
+           index-read fixture, sorted as git update-index writes them.
+           The historical unsorted fixture is checked separately, untimed.
+  xlarge   110000 entries
 
-`index read` is timed warm (the same file every pass, so after the first
-the trailer check is a comparison with the verified snapshot) and cold
-(alternating between two files of the same size that differ in one id, so
-every pass computes the SHA-1). The reference is `git ls-files --stage`,
-which does not verify the trailer at all. `index --index-info` is timed on
-the large fixture's 20000 records against `git update-index --index-info`,
-both writing a new index each pass; the two files must be byte-identical.
+Warm repeats the same file. Cold continuously alternates two same-sized
+files differing in one ID, including across batch boundaries. These names
+identify the access schedule, not a dropped OS page cache. Both the builtin
+and git ls-files omit ordinary index trailer verification. --index-info
+writes a new index each pass; both implementations must produce identical bytes.
 
 Each case first runs a validation batch whose every pass is checked
 against the git oracle (output bytes, or the written index) and exit
@@ -179,6 +171,7 @@ historical_unsorted = {'bytes': unsorted.stat().st_size, 'sha256': sha256(unsort
                        'builtin_status': r.returncode, 'builtin_stdout_bytes': len(r.stdout),
                        'builtin_stderr': r.stderr.decode(errors='replace').strip()[-200:],
                        'git_ls_files_status': g.returncode, 'git_ls_files_lines': g.stdout.count(b'\n')}
+assert r.returncode == g.returncode == 0 and r.stdout == oracle_listing(repo, unsorted)
 print(f'historical unsorted fixture: builtin {r.returncode}, git ls-files {g.returncode}', flush=True)
 
 cases = []
@@ -211,7 +204,7 @@ def validate_git(fx):
 
 for name, fx in fixtures.items():
     a, b = q(str(fx['a'])), q(str(fx['b']))
-    work_unit = (f"{fx['bytes']}-byte git index v2 with {fx['entries']} entries parsed and trailer-checked; "
+    work_unit = (f"{fx['bytes']}-byte git index v2 with {fx['entries']} entries parsed; "
                  f"{fx['entries']} '<mode> <sha> <stage> <path>' lines / {fx['output_bytes']} bytes emitted")
     for variant in ('warm', 'cold'):
         cid = f'index-read-{name}-{variant}'
@@ -243,14 +236,12 @@ for name, fx in fixtures.items():
                           external_command=f'GIT_INDEX_FILE={name}-a/b.index git ls-files --stage' if alternate else f'GIT_INDEX_FILE={name}-a.index git ls-files --stage',
                           work_unit=work_unit, validation_passes=validated, external_validation_passes=validated_git,
                           captured_passes_per_implementation=total,
-                          checksum_misses=(total if alternate or fx['bytes'] > 8*1024*1024 else 1),
+                          ordinary_read_checksum_verifications=0,
                           validation='exact output and zero status on every warm-up and timed pass',
                           cold_sequence=('A/B continuously, including warm-up' if alternate else None),
                           bashos=stats(builtin), external=stats(external),
                           bashos_over_external=round(statistics.median(builtin)/statistics.median(external), 4),
-                          equivalence=('same entries and fields; git does not verify the trailer, the builtin '
-                                       + ('compares with its verified snapshot' if variant == 'warm'
-                                          else 'computes the SHA-1 on every pass'))))
+                          equivalence='same entries and fields; neither ordinary listing verifies the trailer'))
         print(f'{cid}: bashos {cases[-1]["bashos"]["median_ms"]} ms, git {cases[-1]["external"]["median_ms"]} ms '
               f'({cases[-1]["bashos_over_external"]}x) per {args.passes} passes', flush=True)
 

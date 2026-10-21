@@ -6,21 +6,29 @@ the command surface and adds the checks, edits and locking described here.
 
 ## What it reads
 
-An index is read whole and checked before anything is printed or changed.
-The shared reader checks the header (`DIRC`, version 2 or 3, entry count),
-each entry's framing, the 0xFFF path-length field, NUL padding to eight
-bytes, git's path rules and the SHA-1 trailer. The command then refuses:
+The listing reader accepts versions 2, 3 and 4 and follows Git 2.47.3's
+leniency for padding, name-length fields, entry order, duplicate stages,
+paths, ordinary trailers and optional extension sizes. Unknown mandatory
+extensions and unknown extended entry flags fail before output. Bounds
+checks use owned memory; the zero-filled tail of Git's mapped final page
+is represented explicitly, without an out-of-bounds read. Entries reaching
+past that page are refused: Git can read unrelated adjacent mappings there,
+so its output and even its success status are not a deterministic oracle.
+The mutation report lists these cases separately; universal acceptance
+parity is not claimed for them.
 
-- an extended-flags bit in a version 2 entry, or a version 3 second flags
-  word with bits other than skip-worktree and intent-to-add;
-- entries out of path order, a repeated (path, stage), or stages out of
-  order. Stage 0 beside a later conflict stage is accepted: Git's
-  `update-index --index-info` can produce it, and subsequent reads and
-  removals must consume it;
-- extension records that do not exactly fill the space before the trailer;
-- an extension whose signature does not start with a capital letter, which
-  git marks as required. That covers a split index (`link`) and a sparse
-  index (`sdir`), which this command cannot honour. Version 4 is refused.
+Split indexes resolve `link` against `sharedindex.<hash>` in the repository,
+apply its EWAH deletion/replacement bitmaps, then merge local additions.
+Missing or corrupt shared files fail before output or replacement. Sparse
+indexes expand directory tree IDs through the existing object database,
+including packed objects, and retain skip-worktree on expanded entries.
+Repository-dependent formats use repository discovery or the index's parent
+git directory; no external Git command is invoked.
+
+Changing verbs validate the resulting paths, flags and sorted unique stages.
+A change writes an ordinary v2/v3 index containing the expanded entries;
+an unchanged import preserves the original split/sparse representation.
+`--index-info` also accepts directory records and emits `sdir`, as Git does.
 
 Optional extensions (TREE, REUC, UNTR, EOIE, IEOT, FSMN) are allowed when
 reading. `read`/`list` print `<mode> <sha> <stage> <path>` with the mode in
@@ -60,7 +68,8 @@ temporary file.
 
 | test | what it holds the command to |
 | --- | --- |
-| `tests/sol-index-check.py` | 26 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; refusal of split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, with both acceptance directions recorded; accepted output must equal Git; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
+| `tests/sol-index-check.py` | 26 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; Git-written split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, requiring agreement in both acceptance directions; accepted output must equal Git; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
+| `tests/sol-index-formats.py` | Git-written split, core.splitIndex, cone sparse and v4 indexes through every changing verb; shared-file failures preserve bytes and release locks |
 | `tests/sol-index-faults.c` | LD_PRELOAD shim that fails write, short write, fdatasync, close or rename on the index's temporary file |
 | `tests/sol-index-fuzz.c` | libFuzzer over the production `index.c`: reader → checks → write → reread round trip, `--index-info` application (order and path invariants, REUC round trip) and `write` line parsing |
 | `tests/sol-index-sha1.c` | the trailer SHA-1 against the FIPS 180-2 vectors and against SHA1DC at every length 0–4100 and over 1 MiB at each alignment 0–7, under ASan/UBSan |
@@ -82,7 +91,7 @@ The historical catalog row put `index read` at 1.93× `git ls-files
 --stage` (78.7 ms against 40.9 ms per five reads, 2026-09-12 snapshot,
 another build). That is not a paired result with anything here.
 
-### Where the time went
+### Historical measurements before listing compatibility
 
 `bench/sol-index-prof.c` includes the production `_git/index.c` and times
 its phases. Medians of 101 repetitions on CPU 11, for a git-ordered 20000-entry,
@@ -100,8 +109,8 @@ its phases. Medians of 101 repetitions on CPU 11, for a git-ordered 20000-entry,
 
 The trailer hash was most of a cold read, and SHA1DC added about 3 ms
 of collision detection to a checksum that authenticates nothing. git does
-not verify that checksum on an ordinary read at all. The trailer is still
-verified, now with a plain FIPS 180-4 SHA-1. `tests/sol-index-sha1.c`
+not verify that checksum on an ordinary read at all. At that revision the trailer was still
+verified, using a plain FIPS 180-4 SHA-1. `tests/sol-index-sha1.c`
 checks it against the FIPS vectors and SHA1DC. Object ids still use SHA1DC.
 The rest came from output. The builtin used to hand 64 KiB chunks to
 bash's line-buffered stdout, which glibc still flushes in small pieces:
@@ -145,17 +154,12 @@ attributed further, because the host forbids `perf` (`perf_event_paranoid`
 
 ### The historical fixture
 
-`bench/loadables.py` builds its `index-read` fixture in generation order.
-That is not path order (`dir000/file-00256.txt` follows
-`dir255/file-00255.txt`), and gitformat-index requires path order. git reads
-the file without checking. This command now refuses it with "unordered index
-entries", so that harness reports `bashos=error` for the case. The
-`large` fixture here holds the same 20000 entries, ids and file size,
-byte-identical to that fixture sorted. It is also exactly what git writes
-for those records. The harness checks this on every run and records the
-unsorted file's refusal. Sorting the entries in `build_indexrepo` would make
-the catalog case valid again. That file is shared, so the change is only
-proposed here.
+`bench/loadables.py` builds its index fixture in generation order, not path
+order. Earlier revisions refused it; the listing-compatible reader now
+accepts it and the dedicated benchmark verifies its output against Git.
+The shared benchmark file remains unchanged. Sorting its fixture is an
+optional coordinator change to model writer-produced indexes, no longer a
+requirement for this command to read it.
 
 A non-removal entry with the null object ID is refused at final write, before
 replacement. An intermediate null-ID record removed later in the same
@@ -163,14 +167,12 @@ replacement. An intermediate null-ID record removed later in the same
 an absent path. Failed final validation preserves the old index and releases
 the command's lock.
 
-The command-specific suite distinguishes strict integrity validation from
-Git listing compatibility. Structural and mutation reports include both
-exit statuses and `parity_complete`; strict-read differences and unsupported
-required extensions are visible differences, not parity passes. Successful
-imports are also read back by the builtin and compared with Git. The
-`sol-index-regressions.py` cases cover sequential stage edits, atomic null-ID
-refusal, and preservation of both v3 flags. Output failures use the injected
-write interface on an owned regular file.
+The command-specific suite requires listing parity in both directions.
+The 33 structural cases include the 20 former strict-read differences and
+the two formerly unsupported required extensions. Successful imports are
+also read back and compared with Git. The regression suite retains stage,
+null-ID and extended-flag coverage. Output failures use an injected write
+interface on owned regular files.
 
 ### Correction to the historical cold measurements
 
@@ -186,3 +188,9 @@ timing, so these new measurements must not be compared directly with old
 `/dev/null` timings as a code speedup. The 110000-entry index exceeds the
 checksum snapshot limit and computes its checksum on every pass in either
 schedule.
+
+The preceding measurements and checksum counts describe the preserved
+historical revisions. The listing-compatible revision omits ordinary-read
+checksum work, as Git does; shared-index verification and outgoing trailers
+still use the index-only plain SHA-1. Object IDs continue to use SHA1DC.
+New measurements retain the same continuous A/B schedule and output checks.

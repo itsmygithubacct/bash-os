@@ -84,6 +84,14 @@ int bgit_index_read_views_len (const char *path, bgit_index_view **out,
                                size_t *n_out, unsigned char **backing,
                                size_t *len_out);
 
+/* Git-compatible listing parser, including v4 names. No trailer, path,
+   padding or order validation: mutation callers validate decoded entries.
+   BACKING retains the raw file for extensions; EXTENSIONS is their offset. */
+int bgit_index_read_listing (const char *path, bgit_index_entry **out,
+                             size_t *n_out, unsigned char **backing,
+                             size_t *len_out, size_t *extensions);
+int bgit_index_verify_checksum (const unsigned char *buf, size_t len);
+
 /* The same, decoded into entries that own their paths, for editing. */
 int bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out);
 
@@ -97,6 +105,7 @@ int bgit_index_decode_views (const char *path, bgit_index_view *views,
 /* Forget the timestamp of the last index read, before writing an index
    that was not read in this call. */
 void bgit_index_unstamp (void);
+void bgit_index_stamp (const char *path);
 
 /* Write ENTRIES to PATH as index v2, atomically, with the SHA-1 trailer. */
 int bgit_index_write (const char *path, bgit_index_entry *entries, size_t n);

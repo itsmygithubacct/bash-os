@@ -103,7 +103,17 @@ with tempfile.TemporaryDirectory(prefix='git-integrity-') as directory:
     for path in bad_paths:
         index.write_bytes(index_bytes(path, blob))
         result = run('read', index, command='index')
-        check(result.returncode != 0, 'index reader accepted unsafe path', path)
+        oracle = subprocess.run([GIT, 'ls-files', '--stage', '-z'],
+                                cwd=repo, env=env, capture_output=True, check=True)
+        expected = b''.join(row.replace(b'\t', b' ', 1)+b'\n'
+                            for row in oracle.stdout.split(b'\0') if row)
+        check(result.returncode == 0 and result.stdout == expected,
+              'index listing must match Git without using the path', path)
+        check(index.read_bytes() == index_bytes(path, blob), 'listing changed index', path)
+        result = run('remove', index, 'kept', command='index')
+        check(result.returncode != 0, 'index edit accepted unsafe existing path', path)
+        check(index.read_bytes() == index_bytes(path, blob), 'refused edit changed index', path)
+        check(not Path(str(index)+'.lock').exists(), 'refused edit leaked lock', path)
         result = run('restore', '--worktree', '--', '.')
         check(result.returncode != 0, 'restore accepted unsafe index', path)
         check(escaped.read_bytes() == b'outside sentinel\n', 'escaped index', path)

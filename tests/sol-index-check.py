@@ -7,13 +7,11 @@ the index format written here, never from the builtin's own earlier output:
 
   read      `git ls-files --stage -z` over indexes git wrote (small, 20000
             and 110000 entries, long and unusual paths, conflict stages,
-            version 3, every optional extension), and refusal of what git
-            cannot read without support this command lacks (split, sparse,
-            version 4)
+            versions 3/4, optional extensions and Git-written split/sparse
+            indexes)
   integrity every truncation and every single-byte change of a small index,
             structural damage under a recomputed trailer, and a seeded
-            mutation run comparing both acceptance directions. Strict
-            validation differences are reported, not counted as Git parity
+            mutation run requiring both acceptance directions and exact output
   write     byte-identical files to git's for the same entries, path
             bytes kept exactly, git's mode normalization, refusals
   index-info  scripted and seeded random record streams applied by git and
@@ -34,6 +32,7 @@ import json
 import os
 from pathlib import Path
 import random
+import resource
 import shlex
 import shutil
 import stat
@@ -98,8 +97,12 @@ def git(root, *argv, data=None, index=None, check_rc=True, extra_env=None):
         env['GIT_INDEX_FILE'] = str(index)
     if extra_env:
         env.update(extra_env)
+    def limits():
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        resource.setrlimit(resource.RLIMIT_AS, (512*1024*1024, 512*1024*1024))
+        resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
     r = subprocess.run([GIT, '-C', str(root), *map(str, argv)], input=data,
-                       capture_output=True, timeout=120, env=env)
+                       capture_output=True, timeout=120, env=env, preexec_fn=limits if not check_rc else None)
     if check_rc:
         check(r.returncode == 0, (argv, r.stderr[:2000]))
     return r
@@ -347,7 +350,7 @@ def _():
     return {'extensions': sorted(found)}
 
 
-@case('read: split index, sparse index and version 4 are refused, not misread')
+@case('read: split index, sparse index and version 4 match git')
 def _():
     out = {}
     repo = work/'splitrepo'
@@ -357,7 +360,7 @@ def _():
     git(repo, 'update-index', '--split-index')
     check(any(p.name.startswith('sharedindex.') for p in (repo/'.git').iterdir()), 'split index made')
     r = bash('index read .git/index', repo)
-    check(r.returncode == 1 and r.stdout == b'' and r.stderr.strip(), r.stderr)
+    check(r.returncode == 0 and r.stdout == listing(ls_files(repo, repo/'.git/index')), r.stderr)
     out['split_message'] = r.stderr.decode(errors='replace').strip()[-120:]
     repo = work/'sparserepo'
     git(work, 'init', '-q', repo)
@@ -369,14 +372,14 @@ def _():
     git(repo, 'sparse-checkout', 'init', '--cone', '--sparse-index')
     git(repo, 'sparse-checkout', 'set', 'd')
     r = bash('index read .git/index', repo)
-    check(r.returncode == 1 and r.stdout == b'', r.stderr)
+    check(r.returncode == 0 and r.stdout == listing(ls_files(repo, repo/'.git/index')), r.stderr)
     out['sparse_message'] = r.stderr.decode(errors='replace').strip()[-120:]
     idx = work/'v4.index'
     git(root, '-c', 'index.version=4', 'update-index', '--index-info',
         data=rec(100644, SHA[0], b'a/b')+b'\n', index=idx)
     check(struct.unpack('>I', idx.read_bytes()[4:8])[0] == 4, 'git wrote v4')
     r = bash(f'index read {q(idx)}', work)
-    check(r.returncode == 1 and r.stdout == b'' and b'version 4' in r.stderr, r.stderr)
+    check(r.returncode == 0 and r.stdout == listing(ls_files(root, idx)), r.stderr)
     return out
 
 
@@ -415,7 +418,7 @@ def run_reads(paths, cwd):
     return {p: (int(Path(str(p)+'.rc').read_text()), Path(str(p)+'.out').read_bytes()) for p in paths}
 
 
-@case('integrity: every truncation and every single-byte change of a small index is refused')
+@case('integrity: truncations and single-byte changes agree with git in both directions')
 def _():
     good = make_index(root, work/'tiny.index', [rec(100644, SHA[0], b'alpha'),
                                                  rec(100755, SHA[1], b'dir/beta', 0),
@@ -437,8 +440,13 @@ def _():
     p.write_bytes(good+b'\0')
     paths.append(p)
     results_ = run_reads(paths, work)
-    bad = [str(p) for p, (rc, out) in results_.items() if rc != 1 or out]
-    check(not bad, bad[:5])
+    bad = []
+    for p, (rc, out) in results_.items():
+        oracle = git(root, 'ls-files', '--stage', '-z', index=p, check_rc=False)
+        expected = b''.join(row.replace(b'\t', b' ', 1)+b'\n' for row in oracle.stdout.split(b'\0') if row)
+        if (rc == 0) != (oracle.returncode == 0) or (rc == 0 and out != expected):
+            bad.append((p.name, rc, oracle.returncode, out[:160], expected[:160]))
+    check(not bad, bad[:30])
     return {'variants': len(paths)}
 
 
@@ -463,7 +471,7 @@ def entry(path, stage=0, mode=0o100644, flags_extra=0, flags2=None, pathlen=None
     return e
 
 
-@case('integrity: structural damage under a valid trailer is refused')
+@case('integrity: all 33 structural cases match git in both directions')
 def _():
     d = work/'crafted'
     d.mkdir()
@@ -509,30 +517,49 @@ def _():
         p.write_bytes(raw)
         paths[name] = p
     got = run_reads(list(paths.values()), work)
-    wrong = [n for n in variants if got[paths[n]] != (1, b'')]
-    check(not wrong, wrong)
-    for n in accepted:
-        rc, out = got[paths[n]]
-        check(rc == 0, n)
-        check(out == listing(ls_files(root, paths[n])), n)
     comparisons = []
+    wrong = []
     for name, path in paths.items():
         oracle = git(root, 'ls-files', '--stage', '-z', index=path, check_rc=False)
         builtin_rc, out = got[path]
-        if builtin_rc == 0:
-            check(oracle.returncode == 0, (name, oracle.stderr))
-            classification = 'accepted_by_both'
-        elif oracle.returncode != 0:
-            classification = 'rejected_by_both'
-        elif name in ('ext-link', 'ext-sdir'):
-            classification = 'unsupported_required_extension'
-        else:
-            classification = 'strict_integrity_difference'
-        comparisons.append(dict(case=name, builtin_exit=builtin_rc,
-                                git_exit=oracle.returncode, classification=classification))
-    return {'refused': len(variants), 'accepted': len(accepted),
-            'acceptance_comparisons': comparisons,
-            'parity_complete': all(c['classification'].endswith('_by_both') for c in comparisons)}
+        expected = b''.join(row.replace(b'\t', b' ', 1)+b'\n' for row in oracle.stdout.split(b'\0') if row)
+        agrees = (builtin_rc == 0) == (oracle.returncode == 0) and (builtin_rc != 0 or out == expected)
+        if not agrees: wrong.append((name, builtin_rc, oracle.returncode, out, expected))
+        comparisons.append(dict(case=name, builtin_exit=builtin_rc, git_exit=oracle.returncode, agrees=agrees))
+    check(not wrong, wrong)
+    return {'acceptance_comparisons': comparisons, 'parity_complete': True}
+
+
+
+def mapped_read_is_bounded(raw):
+    """Independently identify reads that leave Git's mapped final page.
+
+    Such files have no stable oracle: adjacent mappings vary between runs.
+    Do not execute Git on them or compare arbitrary process-memory contents.
+    """
+    if len(raw) < 32 or raw[:4] != b'DIRC': return True
+    version, count = struct.unpack('>II', raw[4:12])
+    if version not in (2, 3): return True
+    limit = (len(raw)+4095)//4096*4096
+    if count > (limit-12)//64: return False
+    padded = raw+b'\0'*(limit-len(raw))
+    off = 12
+    for _ in range(count):
+        start = off
+        if off+62 > limit: return False
+        flags = int.from_bytes(padded[off+60:off+62], 'big'); off += 62
+        if flags & 0x4000:
+            if off+2 > limit: return False
+            flags2 = int.from_bytes(padded[off:off+2], 'big'); off += 2
+            if flags2 & ~0x6000: return True  # Git refuses before using the name
+        size = flags & 0xfff
+        if size == 0xfff:
+            end = padded.find(b'\0', off)
+            if end < 0: return False
+            size = end-off
+        if off+size+1 > limit: return False
+        off = start+((off-start+size+8)//8)*8
+    return True
 
 
 @case('integrity: seeded mutations with both acceptance directions recorded')
@@ -562,8 +589,13 @@ def _():
     got = run_reads(paths, work)
     accepted = 0
     differences = []
+    unsafe_oracle = []
     for p in paths:
         rc, out = got[p]
+        if not mapped_read_is_bounded(p.read_bytes()):
+            check(rc == 1 and out == b'', ('unbounded mapped read must fail safely', p, rc))
+            unsafe_oracle.append(p.name)
+            continue
         check(rc in (0, 1), (p, rc))
         r = git(root, 'ls-files', '--stage', '-z', index=p, check_rc=False)
         if rc == 0:
@@ -574,8 +606,10 @@ def _():
             check(out == b'', p)
             if r.returncode == 0:
                 differences.append(dict(case=p.name, builtin_exit=rc, git_exit=0))
+    check(not differences, differences[:30])
     return {'mutations': len(paths), 'accepted': accepted,
-            'strict_read_differences': differences, 'parity_complete': not differences}
+            'strict_read_differences': differences, 'bounded_parity_complete': not differences,
+            'unsafe_oracle_not_executed': unsafe_oracle, 'universal_parity_claimed': False}
 
 
 # ---- write -------------------------------------------------------------------
@@ -636,7 +670,7 @@ def _():
     bad = [b'garbage %s 0 x\n' % SHA[0], b'100644 %s 0 x\n' % SHA[0][:39], b'100644 %s 4 x\n' % SHA[0],
            b'100644 %s 0\n' % SHA[0], b'100644 %s 0 \n' % SHA[0], b'0 %s 0 x\n' % SHA[0],
            b'100644 %s 0 .git/x\n' % SHA[0], b'100644 %s 0 a/../b\n' % SHA[0],
-           b'100644 %s 0 a//b\n' % SHA[0], b'40000 %s 0 d\n' % SHA[0], b'100644 %s 0 git~1/x\n' % SHA[0],
+           b'100644 %s 0 a//b\n' % SHA[0], b'100644 %s 0 git~1/x\n' % SHA[0],
            b'100644 %s 0 x\n100644 %s 0 x\n' % (SHA[0], SHA[1]),
            b'100644 %s 2 x\n100755 %s 2 x\n' % (SHA[0], SHA[1]), b'100644 zz%s 0 x\n' % SHA[0][2:]]
     script = ''
@@ -759,12 +793,14 @@ def _():
     return {'scripts': len(scripts)+2, 'git_accepted': sum(outcomes.values())}
 
 
-@case('index-info: refusal of sparse directory entries leaves the index untouched')
+@case('index-info: directory entries and trailing-slash path handling match git')
 def _():
     start = make_index(root, work/'sp.index', [rec(100644, SHA[0], b'a')])
-    gr, br, g, b = apply_both(start, rec(40000, SHA[1], b'd')+b'\n', name='sparse')
-    check(br.returncode == 2 and b'sparse directory' in br.stderr and b.read_bytes() == start, br.stderr)
-    return {'git_status': gr.returncode}
+    for name in (b'd', b'd/'):
+        gr, br, g, b = apply_both(start, rec(40000, SHA[1], name)+b'\n', name='sparse')
+        check(gr.returncode == br.returncode == 0, (gr.stderr, br.stderr))
+        check(g.read_bytes() == b.read_bytes(), (name, g.read_bytes(), b.read_bytes()))
+    return {'paths': 2}
 
 
 @case('index-info: seeded random streams match git byte for byte')

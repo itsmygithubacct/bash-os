@@ -435,7 +435,7 @@ bgit_index_racy (const bgit_index_entry *entry)
     return entry->mtime_sec >= bgit_index_stamp_sec;
 }
 
-static void
+void
 bgit_index_stamp (const char *path)
 {
     struct stat st;
@@ -460,6 +460,120 @@ bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
     unsigned char *backing;
     if (bgit_index_read_views (path, &views, &n, &backing) < 0) return -1;
     return bgit_index_decode_views (path, views, n, backing, out, n_out);
+}
+
+/* Git's listing reader deliberately does not check the trailer, padding,
+   path safety or entry order. Keep it separate from the strict shared API.
+   mmap readers can see zeroes through the end of the last page; emulate
+   those bytes in owned memory, without ever reading beyond an allocation. */
+int
+bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out,
+                         unsigned char **backing, size_t *flen_out,
+                         size_t *extensions_out)
+{
+    size_t flen;
+    unsigned char *buf = bgit_index_slurp (path, &flen);
+    if (!buf) { builtin_error ("read %s: %s", path, strerror (errno)); return -1; }
+    if (flen < 32 || memcmp (buf, "DIRC", 4)) goto invalid;
+    uint32_t version = bgit_be32 (buf, 4), count = bgit_be32 (buf, 8);
+    if (version < 2 || version > 4) goto invalid;
+    long pagesize = sysconf (_SC_PAGESIZE);
+    size_t page = pagesize > 0 ? (size_t) pagesize : 4096;
+    if (flen > SIZE_MAX - page) goto invalid;
+    size_t limit = ((flen + page - 1) / page) * page;
+    if (count > (limit - 12) / 64) goto invalid;
+    unsigned char *padded = realloc (buf, limit);
+    if (!padded) { free (buf); return -1; }
+    buf = padded;
+    memset (buf + flen, 0, limit - flen);
+    bgit_index_entry *entries = calloc (count ? count : 1, sizeof *entries);
+    if (!entries) { free (buf); return -1; }
+    size_t off = 12, parsed = 0;
+    for (; parsed < count; parsed++) {
+        size_t start = off;
+        if (off > limit || limit - off < 62) goto bad_entries;
+        const unsigned char *disk = buf + off;
+        bgit_index_entry *e = &entries[parsed];
+        e->ctime_sec = bgit_be32 (disk, 0);
+        e->ctime_nsec = bgit_be32 (disk, 4);
+        e->mtime_sec = bgit_be32 (disk, 8);
+        e->mtime_nsec = bgit_be32 (disk, 12);
+        e->dev = bgit_be32 (disk, 16);
+        e->ino = bgit_be32 (disk, 20);
+        e->mode = bgit_be32 (disk, 24);
+        e->uid = bgit_be32 (disk, 28);
+        e->gid = bgit_be32 (disk, 32);
+        e->size = bgit_be32 (disk, 36);
+        memcpy (e->sha, disk + 40, 20);
+        e->flags = bgit_be16 (disk, 60);
+        off += 62;
+        if (e->flags & 0x4000) {
+            if (limit - off < 2) goto bad_entries;
+            e->flags2 = bgit_be16 (buf, off); off += 2;
+            if (e->flags2 & ~0x6000) goto bad_entries;
+        }
+        size_t namelen = e->flags & 0xfff, prefix = 0;
+        if (version == 4) {
+            /* OFS_DELTA-style integer: bytes already read represent one
+               less than the high part whenever another byte follows. */
+            if (off == limit) goto bad_entries;
+            unsigned c = buf[off++];
+            size_t strip = c & 0x7f;
+            while (c & 0x80) {
+                if (off == limit || strip >= (SIZE_MAX >> 7)) goto bad_entries;
+                c = buf[off++]; strip = ((strip + 1) << 7) + (c & 0x7f);
+            }
+            size_t previous = parsed ? strlen (entries[parsed - 1].path) : 0;
+            if (strip > previous) goto bad_entries;
+            prefix = previous - strip;
+            const unsigned char *nul = memchr (buf + off, 0, limit - off);
+            if (!nul) goto bad_entries;
+            namelen = (size_t) (nul - buf - off);
+        } else if (namelen == 0xfff) {
+            const unsigned char *nul = memchr (buf + off, 0, limit - off);
+            if (!nul) goto bad_entries;
+            namelen = (size_t) (nul - buf - off);
+        }
+        if (namelen >= limit - off || prefix > SIZE_MAX - namelen - 2)
+            goto bad_entries;
+        e->path = malloc (prefix + namelen + 2);
+        if (!e->path) goto bad_entries;
+        if (prefix) memcpy (e->path, entries[parsed - 1].path, prefix);
+        memcpy (e->path + prefix, buf + off, namelen + 1);
+        e->path[prefix + namelen + 1] = 0;
+        off += namelen + 1;
+        if (version != 4) {
+            size_t consumed = off - start;
+            if (consumed > SIZE_MAX - 7) goto bad_entries;
+            size_t padded_size = (consumed + 7) & ~(size_t) 7;
+            if (padded_size > limit - start) goto bad_entries;
+            off = start + padded_size;
+        }
+    }
+    bgit_index_stamp (path);
+    *out = entries; *n_out = count; *backing = buf;
+    *flen_out = flen; *extensions_out = off;
+    return 0;
+bad_entries:
+    bgit_index_free_entries (entries, count);
+invalid:
+    builtin_error ("%s: invalid or truncated index", path);
+    free (buf);
+    return -1;
+}
+
+/* A shared index is named by this checksum. Verify its contents before
+   trusting that name, even though ordinary ls-files does not hash trailers. */
+int
+bgit_index_verify_checksum (const unsigned char *buf, size_t len)
+{
+    if (len < 32) return -1;
+    if (bgit_index_checksum_cached (buf, len)) return 0;
+    unsigned char computed[20];
+    bgit_index_sha1 (buf, len - 20, computed);
+    if (memcmp (computed, buf + len - 20, 20)) return -1;
+    bgit_index_remember_verified (buf, len);
+    return 0;
 }
 
 int

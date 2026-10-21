@@ -38,6 +38,16 @@ int bgit_slurp_fd (int fd, unsigned char **out, size_t *len) { (void) fd; *out =
 int bgit_write_object (const char *dir, const char *type, const unsigned char *c, size_t n,
                        int w, char hex[41]) { (void) dir; (void) type; (void) c; (void) n; (void) w; hex[0] = 0; return -1; }
 
+/* Repository-dependent formats use actual private repositories in
+   sol-index-formats.py. The flat parser harness has no repository. */
+int bgit_repo_discover (const char *p, bgit_repo *r) { (void) p; (void) r; return -1; }
+int bgit_repo_open (const char *p, bgit_repo *r) { (void) p; (void) r; return -1; }
+void bgit_repo_release (bgit_repo *r) { (void) r; }
+int bgit_odb_open (const bgit_repo *r, bgit_odb *o) { (void) r; (void) o; return -1; }
+void bgit_odb_release (bgit_odb *o) { (void) o; }
+int bgit_read_tree (bgit_odb *o, const char *id, bgit_index_entry **e, size_t *n)
+{ (void) o; (void) id; (void) e; (void) n; return -1; }
+
 int
 bgit_hex_to_sha (const char *hex, unsigned char *sha)
 {
@@ -145,7 +155,7 @@ fuzz_index_info (const uint8_t *data, size_t size)
     }
     for (size_t i = 0; i < set.n; i++) {
         const bgit_index_entry *e = BIDX_AT (&set, i);
-        if (!bidx_path_ok (e->path, e->mode) || e->mode == S_IFDIR ||
+        if (!bidx_path_ok (e->path, e->mode) ||
             bidx_canonical_mode (e->mode) != e->mode)
             __builtin_trap ();
         if (i && bidx_cmp (BIDX_AT (&set, i - 1)->path, strlen (BIDX_AT (&set, i - 1)->path),

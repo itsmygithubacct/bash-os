@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 /* The index trailer's plain SHA-1, held against FIPS 180 vectors and SHA1DC.
  *
- * loadables/_git/index.c computes the 20-byte trailer of every index it
- * reads or writes with its own SHA-1. This includes that file, checks the
+ * loadables/_git/index.c computes outgoing trailers and verifies them for
+ * strict shared callers and shared-index files with its own SHA-1. This includes that file, checks the
  * published FIPS 180-2 digests, then compares it with the independent SHA1DC
  * implementation over every length from 0 to 4100 bytes of seeded
  * pseudo-random data, which crosses each padding boundary (55/56/63/64 mod

@@ -35,23 +35,10 @@
  *
  * An index is read whole and checked before anything is printed or
  * changed: first by _git/index.c (header, entry framing, padding, paths,
- * trailer), then here for what git's reader also refuses or its writer
- * never produces — entry flags the version cannot carry, entries out of
- * order or repeated, extension records that do not fill the space before
- * the trailer, and an extension git marks as required (a split or sparse
- * index), which this command cannot honour. The verbs that change an index
- * hold "<PATH>.lock", created exclusively as git creates it, from before
- * the read until the new file is in place, so this command and a
- * concurrent git cannot lose each other's update.
- *
- * A rewritten index is version 2. It keeps the resolve-undo records (REUC)
- * of the index it replaces and adds those for the conflict stages the
- * change removes, as git does; the other extensions git writes — the
- * cache tree, untracked cache, fsmonitor and end-of-index records — are
- * caches git rebuilds, and are not carried over.
- *
- * --- LICENSE ---
- * MIT License — same boilerplate as binhex.c.
+ * trailer) for shared callers. This command uses a separate listing reader
+ * matching Git's leniency, with split-index and sparse-index expansion.
+ * Editing validates the outgoing paths, order, flags and IDs and holds the
+ * index lock through atomic replacement. Object IDs retain SHA1DC.
  */
 
 #include <config.h>
@@ -76,6 +63,7 @@
 
 #include "_git_index.h"
 #include "_git_odb.h"
+#include "_git_tree.h"
 
 /* Static builds retain the checksum snapshot until replacement or exit. */
 void
@@ -543,6 +531,239 @@ bidx_check (const char *path, const bgit_index_view *views, size_t n,
     return 0;
 }
 
+/* Resolve repository-dependent index formats without invoking external git. */
+static int
+bidx_repo_for_index (const char *path, bgit_repo *repo)
+{
+    if (bgit_repo_discover (".", repo) == 0) return 0;
+    char *dir = strdup (path);
+    if (!dir) return -1;
+    char *slash = strrchr (dir, '/');
+    if (slash) *slash = 0;
+    else strcpy (dir, ".");
+    int rc = bgit_repo_open (*dir ? dir : "/", repo);
+    free (dir);
+    if (rc < 0) builtin_error ("%s: repository required for split/sparse index", path);
+    return rc;
+}
+
+static uint64_t
+bidx_be64 (const unsigned char *p)
+{
+    return ((uint64_t) bgit_be32 (p, 0) << 32) | bgit_be32 (p, 4);
+}
+
+/* EWAH words are little-bit-order within big-endian 64-bit words. Expand
+   only into the already bounded shared-entry count, checking every run. */
+static int
+bidx_bitmap (const unsigned char **cursor, size_t *remaining,
+              unsigned char *bits, size_t count)
+{
+    const unsigned char *p = *cursor;
+    if (*remaining < 12) return -1;
+    size_t size = bgit_be32 (p, 0), words = bgit_be32 (p, 4);
+    if (size > count || words > (*remaining - 12) / 8) return -1;
+    size_t bytes = 12 + words * 8;
+    if (!words || bgit_be32 (p, 8 + words * 8) >= words) return -1;
+    size_t word = 0, position = 0;
+    while (word < words) {
+        uint64_t rlw = bidx_be64 (p + 8 + 8 * word++);
+        size_t run = (size_t) ((rlw >> 1) & 0xffffffff);
+        size_t literals = (size_t) (rlw >> 33);
+        size_t max_words = count / 64 + (count % 64 != 0);
+        if (position > max_words || run > max_words - position ||
+            literals > words - word || literals > max_words - position - run)
+            return -1;
+        for (size_t r = 0; r < run; r++, position++)
+            if (rlw & 1)
+                for (size_t bit = 0; bit < 64 && position * 64 + bit < size; bit++)
+                    bits[position * 64 + bit] = 1;
+        for (size_t l = 0; l < literals; l++, position++) {
+            uint64_t value = bidx_be64 (p + 8 + 8 * word++);
+            for (size_t bit = 0; bit < 64; bit++) {
+                size_t index = position * 64 + bit;
+                if ((value >> bit) & 1) {
+                    if (index >= size) return -1;
+                    bits[index] = 1;
+                }
+            }
+        }
+    }
+    *cursor += bytes; *remaining -= bytes;
+    return 0;
+}
+
+static int bidx_read_format (const char *, int, int, const unsigned char *,
+                             bgit_index_entry **, size_t *, bidx_undo *);
+
+static int
+bidx_split (const char *path, const unsigned char *link, size_t length,
+             bgit_index_entry **entries, size_t *n, int depth)
+{
+    static const unsigned char zero[20] = {0};
+    if (length < 20 || depth) return -1;
+    if (!memcmp (link, zero, 20)) return 0;
+    bgit_repo repo;
+    if (bidx_repo_for_index (path, &repo) < 0) return -1;
+    char hex[41]; bgit_sha_to_hex (link, hex);
+    size_t dirlen = strlen (repo.git_dir);
+    char *shared = malloc (dirlen + 54);
+    if (!shared) { bgit_repo_release (&repo); return -1; }
+    snprintf (shared, dirlen + 54, "%s/sharedindex.%s", repo.git_dir, hex);
+    bgit_repo_release (&repo);
+    bgit_index_entry *base = NULL;
+    size_t nb = 0;
+    bidx_undo unused = {0};
+    int rc = bidx_read_format (shared, 1, depth + 1, link, &base, &nb, &unused);
+    bidx_undo_free (&unused);
+    if (rc < 0) { free (shared); return -1; }
+    free (shared);
+    unsigned char *deleted = calloc (nb ? nb : 1, 1);
+    unsigned char *replaced = calloc (nb ? nb : 1, 1);
+    if (!deleted || !replaced) goto fail;
+    const unsigned char *cursor = link + 20;
+    size_t remaining = length - 20;
+    if (bidx_bitmap (&cursor, &remaining, deleted, nb) < 0 ||
+        bidx_bitmap (&cursor, &remaining, replaced, nb) < 0 || remaining)
+        goto fail;
+    size_t replacements = 0;
+    for (size_t i = 0; i < nb; i++) {
+        if (deleted[i] && replaced[i]) goto fail;
+        replacements += replaced[i];
+    }
+    if (replacements > *n || nb > SIZE_MAX / sizeof *base - *n) goto fail;
+    bgit_index_entry *joined = calloc (nb + *n ? nb + *n : 1, sizeof *joined);
+    if (!joined) goto fail;
+    size_t used = 0, source = 0;
+    for (size_t i = 0; i < nb; i++) {
+        if (replaced[i]) {
+            char *name = base[i].path;
+            base[i] = (*entries)[source];
+            free (base[i].path);
+            base[i].path = name;
+            (*entries)[source++].path = NULL;
+        }
+        if (!deleted[i]) { joined[used++] = base[i]; base[i].path = NULL; }
+    }
+    for (; source < *n; source++) {
+        joined[used++] = (*entries)[source]; (*entries)[source].path = NULL;
+    }
+    bgit_index_free_entries (base, nb);
+    bgit_index_free_entries (*entries, *n);
+    free (deleted); free (replaced);
+    if (used > 1) qsort (joined, used, sizeof *joined, bgit_index_path_cmp);
+    *entries = joined; *n = used;
+    return 0;
+fail:
+    free (deleted); free (replaced);
+    bgit_index_free_entries (base, nb);
+    return -1;
+}
+
+static int
+bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
+{
+    size_t dirs = 0;
+    for (size_t i = 0; i < *n; i++) dirs += S_ISDIR ((*entries)[i].mode);
+    if (!dirs) return 0;
+    bgit_repo repo;
+    if (bidx_repo_for_index (path, &repo) < 0) return -1;
+    bgit_odb odb;
+    if (bgit_odb_open (&repo, &odb) < 0) { bgit_repo_release (&repo); return -1; }
+    bgit_repo_release (&repo);
+    bgit_index_entry *expanded = NULL;
+    size_t used = 0;
+    int rc = -1;
+    for (size_t i = 0; i < *n; i++) {
+        bgit_index_entry *entry = &(*entries)[i], *tree = NULL;
+        size_t count = 1;
+        if (S_ISDIR (entry->mode)) {
+            size_t prefix = strlen (entry->path);
+            if (!prefix) goto done;
+            char id[41]; bgit_sha_to_hex (entry->sha, id);
+            if (bgit_read_tree (&odb, id, &tree, &count) < 0) goto done;
+            for (size_t j = 0; j < count; j++) {
+                size_t tail = strlen (tree[j].path);
+                if (prefix > SIZE_MAX - tail - 1) { bgit_index_free_entries (tree, count); goto done; }
+                char *name = malloc (prefix + tail + 1);
+                if (!name) { bgit_index_free_entries (tree, count); goto done; }
+                memcpy (name, entry->path, prefix);
+                memcpy (name + prefix, tree[j].path, tail + 1);
+                free (tree[j].path); tree[j].path = name;
+                tree[j].flags2 = 0x4000;
+            }
+        }
+        if (count > SIZE_MAX / sizeof *expanded - used) { bgit_index_free_entries (tree, count); goto done; }
+        bgit_index_entry *grown = realloc (expanded, (used + count ? used + count : 1) * sizeof *expanded);
+        if (!grown) { bgit_index_free_entries (tree, count); goto done; }
+        expanded = grown;
+        if (tree) {
+            memcpy (expanded + used, tree, count * sizeof *tree);
+            free (tree);
+        } else if (count) {
+            expanded[used] = *entry; entry->path = NULL;
+        }
+        used += count;
+    }
+    bgit_index_free_entries (*entries, *n);
+    *entries = expanded; *n = used; expanded = NULL; used = 0;
+    if (*n > 1) qsort (*entries, *n, sizeof **entries, bgit_index_path_cmp);
+    rc = 0;
+done:
+    bgit_odb_release (&odb);
+    bgit_index_free_entries (expanded, used);
+    return rc;
+}
+
+static int
+bidx_read_format (const char *path, int for_edit, int depth,
+                   const unsigned char *expected_checksum, bgit_index_entry **out, size_t *n_out, bidx_undo *undo)
+{
+    bgit_index_entry *entries = NULL;
+    unsigned char *raw = NULL;
+    size_t n = 0, length, off;
+    if (bgit_index_read_listing (path, &entries, &n, &raw, &length, &off) < 0) return -1;
+    /* Corrupt shared files must never be silently used. Ordinary listing
+       follows Git and does not treat the trailer as authentication. */
+    if (depth && (bgit_index_verify_checksum (raw, length) < 0 ||
+                  memcmp (raw + length - 20, expected_checksum, 20))) goto bad;
+    const unsigned char *link = NULL;
+    size_t linklen = 0;
+    int sparse = 0;
+    while (off <= length - 20 && length - 20 - off >= 8) {
+        const unsigned char *sig = raw + off;
+        size_t size = bgit_be32 (sig, 4), available = length - off - 8;
+        if (!memcmp (sig, "link", 4)) {
+            if (link || size > available) goto bad;
+            link = sig + 8; linklen = size;
+        } else if (!memcmp (sig, "sdir", 4)) {
+            sparse = 1;
+        } else if (sig[0] < 'A' || sig[0] > 'Z') {
+            goto bad;
+        } else if (for_edit && !memcmp (sig, "REUC", 4)) {
+            if (size > available || bidx_undo_parse (undo, sig + 8, size) < 0) goto bad;
+        }
+        if (size > length - off - 8) break;
+        off += 8 + size;
+    }
+    if (link && bidx_split (path, link, linklen, &entries, &n, depth) < 0) goto bad;
+    if (sparse && bidx_sparse (path, &entries, &n) < 0) goto bad;
+    if (for_edit) {
+        for (size_t i = 0; i < n; i++) {
+            if (!bidx_path_ok (entries[i].path, entries[i].mode) || S_ISDIR (entries[i].mode) ||
+                (i && bgit_index_path_cmp (&entries[i - 1], &entries[i]) >= 0)) goto bad;
+        }
+    }
+    free (raw);
+    bgit_index_stamp (path);
+    *out = entries; *n_out = n;
+    return 0;
+bad:
+    builtin_error ("%s: invalid index or shared/sparse index data", path);
+    free (raw); bgit_index_free_entries (entries, n);
+    return -1;
+}
+
 /* Read and check PATH for a change, with its resolve-undo records in
    UNDO. With MISSING_OK, a PATH that does not exist is an empty index. */
 static int
@@ -557,30 +778,7 @@ bidx_load (const char *path, int missing_ok, bgit_index_entry **out,
         *out = calloc (1, sizeof **out);
         return *out ? 0 : -1;
     }
-    bgit_index_view *views;
-    unsigned char *backing;
-    size_t n, flen;
-    if (bgit_index_read_views_len (path, &views, &n, &backing, &flen) < 0)
-        return -1;
-    if (bidx_check (path, views, n, backing, flen, 1) < 0) {
-        free (views);
-        free (backing);
-        return -1;
-    }
-    /* bidx_check has made sure the records fill the space exactly */
-    for (size_t off = bidx_entries_end (views, n, backing); off < flen - 20; ) {
-        size_t size = bgit_be32 (backing, off + 4);
-        if (memcmp (backing + off, "REUC", 4) == 0 &&
-            bidx_undo_parse (undo, backing + off + 8, size) < 0) {
-            builtin_error ("%s: malformed resolve-undo extension", path);
-            bidx_undo_free (undo);
-            free (views);
-            free (backing);
-            return -1;
-        }
-        off += 8 + size;
-    }
-    if (bgit_index_decode_views (path, views, n, backing, out, n_out) < 0) {
+    if (bidx_read_format (path, 1, 0, NULL, out, n_out, undo) < 0) {
         bidx_undo_free (undo);
         return -1;
     }
@@ -845,6 +1043,15 @@ bidx_store (const char *path, bgit_index_entry *entries, size_t n,
     size_t ext_len;
     int failed = 0;
     unsigned char *ext = bidx_undo_ext (undo, &ext_len, &failed);
+    for (size_t i = 0; !failed && i < n; i++) {
+        if (!S_ISDIR (entries[i].mode)) continue;
+        unsigned char *grown = realloc (ext, ext_len + 8);
+        if (!grown) { failed = 1; break; }
+        ext = grown;
+        memcpy (ext + ext_len, "sdir\0\0\0\0", 8);
+        ext_len += 8;
+        break;
+    }
     int rc = failed ? -1 : bgit_index_write_ext (path, entries, n, ext, ext_len);
     free (ext);
     bidx_lock_drop (lock);
@@ -903,16 +1110,11 @@ bidx_read_cmd (WORD_LIST *args)
         if (rc != EXECUTION_SUCCESS) return rc;
     }
 
-    bgit_index_view *entries;
-    unsigned char *backing;
-    size_t n, flen;
-    if (bgit_index_read_views_len (path, &entries, &n, &backing, &flen) < 0)
+    bgit_index_entry *entries = NULL;
+    size_t n = 0;
+    bidx_undo undo = {0};
+    if (bidx_read_format (path, 0, 0, NULL, &entries, &n, &undo) < 0)
         return EXECUTION_FAILURE;
-    if (bidx_check (path, entries, n, backing, flen, 0) < 0) {
-        free (entries);
-        free (backing);
-        return EXECUTION_FAILURE;
-    }
 
     int rc = EXECUTION_SUCCESS;
     if (var) {
@@ -921,57 +1123,56 @@ bidx_read_cmd (WORD_LIST *args)
         arr = find_or_make_array_variable ((char *) var, 1);
         if (!arr || !array_p (arr)) {
             builtin_error ("read: %s: cannot make an array", var);
-            free (entries);
-            free (backing);
+            bgit_index_free_entries (entries, n);
             return EXECUTION_FAILURE;
         }
         ARRAY *a = array_cell (arr);
         size_t cap = 0;
         char *line = NULL;
         for (size_t i = 0; i < n; i++) {
-            size_t pathlen = strlen (entries[i].path);
+            const char *name = *entries[i].path ? entries[i].path : "./";
+            size_t pathlen = strlen (name);
             if (pathlen + BIDX_PREFIX_MAX + 1 > cap) {
                 cap = pathlen + BIDX_PREFIX_MAX + 1;
                 char *grown = realloc (line, cap);
                 if (!grown) { rc = EXECUTION_FAILURE; break; }
                 line = grown;
             }
-            uint16_t flags = bgit_be16 (entries[i].disk, 60);
-            size_t len = bidx_prefix (line, bgit_be32 (entries[i].disk, 24),
-                                      entries[i].disk + 40, BIDX_STAGE (flags));
-            memcpy (line + len, entries[i].path, pathlen + 1);
+            uint16_t flags = entries[i].flags;
+            size_t len = bidx_prefix (line, entries[i].mode,
+                                      entries[i].sha, BIDX_STAGE (flags));
+            memcpy (line + len, name, pathlen + 1);
             array_insert (a, (arrayind_t) i, line);
         }
         free (line);
     } else {
         bidx_out *o = malloc (sizeof *o);
-        if (!o) { free (entries); free (backing); return EXECUTION_FAILURE; }
+        if (!o) { bgit_index_free_entries (entries, n); return EXECUTION_FAILURE; }
         fflush (stdout);
         o->fd = fileno (stdout);
         o->failed = 0;
         o->used = 0;
         for (size_t i = 0; i < n && !o->failed; i++) {
-            const unsigned char *disk = entries[i].disk;
-            uint16_t flags = bgit_be16 (disk, 60);
-            size_t pathlen = flags & 0xFFF;
-            if (pathlen == 0xFFF) pathlen = strlen (entries[i].path);
-            uint32_t mode = bgit_be32 (disk, 24);
+            uint16_t flags = entries[i].flags;
+            const char *name = *entries[i].path ? entries[i].path : "./";
+            size_t pathlen = strlen (name);
+            uint32_t mode = entries[i].mode;
             if (sizeof o->buf - o->used < pathlen + BIDX_PREFIX_MAX + 1) {
                 if (bidx_flush (o) < 0) break;
                 if (sizeof o->buf < pathlen + BIDX_PREFIX_MAX + 1) {
                     /* a path longer than the buffer goes through in pieces */
                     char prefix[BIDX_PREFIX_MAX];
-                    size_t len = bidx_prefix (prefix, mode, disk + 40, BIDX_STAGE (flags));
+                    size_t len = bidx_prefix (prefix, mode, entries[i].sha, BIDX_STAGE (flags));
                     if (bidx_put (o, prefix, len) < 0 ||
-                        bidx_put (o, entries[i].path, pathlen) < 0 ||
+                        bidx_put (o, name, pathlen) < 0 ||
                         bidx_put (o, "\n", 1) < 0)
                         break;
                     continue;
                 }
             }
             char *line = o->buf + o->used;
-            size_t len = bidx_prefix (line, mode, disk + 40, BIDX_STAGE (flags));
-            memcpy (line + len, entries[i].path, pathlen);
+            size_t len = bidx_prefix (line, mode, entries[i].sha, BIDX_STAGE (flags));
+            memcpy (line + len, name, pathlen);
             len += pathlen;
             line[len++] = '\n';
             o->used += len;
@@ -980,8 +1181,7 @@ bidx_read_cmd (WORD_LIST *args)
         if (o->failed) rc = EXECUTION_FAILURE;
         free (o);
     }
-    free (entries);
-    free (backing);
+    bgit_index_free_entries (entries, n);
     return rc;
 }
 
@@ -1012,7 +1212,7 @@ bidx_write_line (char *line, bgit_index_entry *out)
         return -1;
     if (bgit_index_parse_stage (fields[2], &stage) < 0) return -2;
     out->mode = bidx_canonical_mode (mode);
-    if (out->mode == S_IFDIR || !bidx_path_ok (p, out->mode)) return -3;
+    if (!bidx_path_ok (p, out->mode) || p[strlen (p) - 1] == '/') return -3;
     size_t pl = strlen (p);
     out->flags = (uint16_t) ((stage << 12) | (pl > 0xFFF ? 0xFFF : pl));
     out->path = strdup (p);
@@ -1076,6 +1276,17 @@ bidx_write_cmd (WORD_LIST *args)
         bgit_index_free_entries (entries, n);
         return EXECUTION_FAILURE;
     }
+    bgit_index_entry *previous = NULL;
+    size_t previous_n = 0;
+    bidx_undo undo = {0};
+    if (bidx_load (path, 1, &previous, &previous_n, &undo) < 0) {
+        bidx_lock_drop (&lock);
+        bgit_index_free_entries (entries, n);
+        return EXECUTION_FAILURE;
+    }
+    bgit_index_free_entries (previous, previous_n);
+    bidx_undo_free (&undo);
+    bgit_index_unstamp ();
     int rc = bidx_store (path, entries, n, NULL, &lock);
     bgit_index_free_entries (entries, n);
     return rc;
@@ -1182,7 +1393,7 @@ bidx_info_apply (bidx_set *s, char *line, int nul_terminated)
         return EX_USAGE;
     }
     if (parsed != BIDX_INFO_OK) return EXECUTION_FAILURE;
-    if (!bidx_path_ok (name, mode)) {
+    if (!*name || !bidx_path_ok (name, mode) || name[strlen (name) - 1] == '/') {
         builtin_error ("--index-info: ignoring path '%s'", name);
         free (name);
         return EXECUTION_SUCCESS;
@@ -1196,11 +1407,6 @@ bidx_info_apply (bidx_set *s, char *line, int nul_terminated)
     memset (&e, 0, sizeof e);
     memcpy (e.sha, sha, sizeof e.sha);
     e.mode = bidx_canonical_mode (mode);
-    if (e.mode == S_IFDIR) {
-        builtin_error ("--index-info: '%s': sparse directory entries are not supported", name);
-        free (name);
-        return EX_USAGE;
-    }
     size_t pl = strlen (name);
     e.flags = (uint16_t) ((stage << 12) | (pl > 0xFFF ? 0xFFF : pl));
     e.path = name;

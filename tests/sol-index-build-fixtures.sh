@@ -21,7 +21,7 @@ bt="build/bash-$BASH_SRC_VERSION"
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/helpers/builtins" "$stage/helpers/examples/loadables"
 python3 config/stage-helpers.py --stage "$PWD" "$stage/helpers" index >/dev/null
-inc=(-DHAVE_CONFIG_H -I"$bt" -I"$bt/include" -I"$bt/builtins"
+inc=(-I"$stage/helpers/builtins" -DHAVE_CONFIG_H -I"$bt" -I"$bt/include" -I"$bt/builtins"
      -I"$bt/examples/loadables" -I"$stage/helpers/builtins" -Iloadables/common)
 
 "$CC" -O2 -Wall -Wextra -Werror -fPIC -shared tests/sol-index-faults.c -ldl \
