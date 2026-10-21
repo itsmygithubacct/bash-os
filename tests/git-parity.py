@@ -61,6 +61,12 @@ ENV = {
     'GIT_COMMITTER_EMAIL': 'committer@bash-os.test',
     'GIT_COMMITTER_DATE': '1750000100 +0000',
 }
+# A sanitized bash is started with this fixed environment. Leak detection
+# stays at the caller's setting; the default would print bash getopt leaks
+# into the compared output.
+for _sanitizer_option in ('ASAN_OPTIONS', 'UBSAN_OPTIONS'):
+    if _sanitizer_option in os.environ:
+        ENV[_sanitizer_option] = os.environ[_sanitizer_option]
 
 
 def scenarios():
