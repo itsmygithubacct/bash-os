@@ -40,6 +40,8 @@ bl_pushback (unsigned char b)
     bl_pushback_valid = 1;
 }
 
+int bl_key_pending (void) { return bl_pushback_valid; }
+
 void
 bl_key_reset (void)
 {

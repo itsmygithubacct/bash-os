@@ -87,4 +87,7 @@ void bl_pushback (unsigned char b);
 /* Clear any pushback state. Call at session start. */
 void bl_key_reset (void);
 
+/* True when a decoded ESC left a byte queued; check before polling the fd. */
+int bl_key_pending (void);
+
 #endif /* _BL_KEY_BL_KEY_H */
