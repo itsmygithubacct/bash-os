@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <regex.h>
@@ -6585,7 +6586,15 @@ nano_builtin (WORD_LIST *list)
     bn_restore_winch ();
     bn_unread = -1;
     if (term_sig && bn_b.dirty) {
-        if (rescued) fprintf (stderr, "nano: buffer written to %s\n", rescued);
+        if (rescued) {
+            bn_outbuf name = { 0 };
+            bn_out_text (&name, rescued, strlen (rescued), LONG_MAX);
+            fputs ("nano: buffer written to ", stderr);
+            if (name.failed) fputs ("[filename unavailable]", stderr);
+            else if (name.len) fwrite (name.data, 1, name.len, stderr);
+            fputc ('\n', stderr);
+            free (name.data);
+        }
         else fprintf (stderr, "nano: buffer not written: %s\n", strerror (rescue_errno));
         fflush (stderr);
     }
