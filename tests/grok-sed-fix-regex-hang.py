@@ -8,8 +8,10 @@ classes is matched directly when an anchor is followed by a consumer,
 including on subjects where GNU sed times out. \' is left to the engine.
 A repeated anchor with no consumer in that alternative is left to the
 engine too. \\b and \\B are left to the engine: re_search returns, and the
-direct matcher does not reproduce its spans. Every other pattern of the
-hanging shape is refused.
+direct matcher does not reproduce its spans. A hanging shape that is not
+direct-matched is searched with one register. No match is kept, because
+set_regs cannot run. A one-register hit is refused. Addresses pass no
+registers and run.
 """
 import os
 from pathlib import Path
@@ -150,6 +152,15 @@ cases = [
     (['-E', r's/(|\>)+/[&]/g'], b'ab\n', None),
     # \> on .b makes nmatch 10 hang. The direct matcher still has to return.
     (['-E', r's/(|\>b)+/X/g'], b'.b\n', b'X.XbX\n'),
+    # One register misses, so the register walk cannot run. GNU sed prints
+    # the line. A hit, including on ab, stays in the refused list.
+    (['-E', r's/a(|^b)+/X/'], b'.b\n', b'.b\n'),
+    (['-E', r's/a(|^b)+/X/g'], b'.b\n', b'.b\n'),
+    (['-E', r's/a(|^b)+/X/'], b'b\n', b'b\n'),
+    ([r's/a\(\|^b\)\+/X/'], b'.b\n', b'.b\n'),
+    ([r's/a\(\|^b\)\+/X/g'], b'.b\n', b'.b\n'),
+    # An address passes no registers. GNU sed prints the line twice.
+    (['-E', r'/a(|^b)+/p'], b'ab\n', b'ab\nab\n'),
 ]
 
 refused = [
@@ -158,7 +169,10 @@ refused = [
     ([r's/a\(\|^b\)\+/X/g'], b'ab\n'),
     ([r's/a\(\|^b\)\+/X/'], b'ab\n'),
     (['-E', r's/(|^.)+/X/'], b'ab\n'),
-    (['-E', r'/a(|^b)+/p'], b'ab\n'),
+    # One register matches here. Filling the others does not return on ab,
+    # and this span is not the substitution GNU sed prints for a or aa.
+    (['-E', r's/a(|^b)+/X/'], b'a\n'),
+    (['-E', r's/a(|^b)+/X/'], b'aa\n'),
 ]
 
 

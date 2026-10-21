@@ -133,8 +133,15 @@ prints `[]a[b]`) and still does not call `re_search` where it does not.
 engine and prints `[].[b]`. A repeated group glibc can finish, such as
 `s/([a]|^)+/X/g` or `s/b(|^)+/X/g`, is also run by the engine. Any other
 pattern of the hanging shape, including `a(|^b)+`, `((|^b))+` and
-`a\(\|^b\)\+`, is refused with `regex may hang; refusing pattern` before
-it is compiled. Ordinary patterns, including `(^a)+` and `\(a\)\+`, still
+`a\(\|^b\)\+`, is compiled. An address passes no registers, so
+`/a(|^b)+/p` runs. A substitution searches with one register first. No
+match cannot enter the register walk, so `s/a\(\|^b\)\+/X/` on `.b` prints
+`.b` and exits 0. A one-register hit is refused with `regex may hang;
+refusing pattern`: filling the other registers does not return on `ab`,
+and the one-register span is not the text GNU sed prints for a subject
+such as `a` or `aa`, where that fill does return. Those subjects stay
+refused because the miss and the hit are not distinguishable without
+entering the walk. Ordinary patterns, including `(^a)+` and `\(a\)\+`, still
 use the regex engine. In a multibyte locale that direct match still runs
 when every pattern-space byte is below 0x80, so `s/(|\<b)+/x/g` on `.b`
 prints `x.x` under C.UTF-8 and `s/(|^b)+/x/gI` on `.B` prints `x.xBx`.

@@ -214,8 +214,12 @@ bs_interrupted (void)
    classes \s \S \w \W is matched here, so that call is never made. \b and \B
    are not anchors for this test: re_search returns, and this matcher does
    not reproduce its spans. The same shape with a consumer this matcher
-   cannot reproduce, and every nested or prefixed form of it, is refused.
-   \' is not one of those anchors. One table,
+   cannot reproduce, and every nested or prefixed form of it, is compiled
+   and marked unsafe. A substitution searches an unsafe pattern with one
+   register. No match cannot enter set_regs. A one-register hit is refused:
+   filling the other registers does not return on subjects such as ab, and
+   that span is not the substitution. An address passes no registers and
+   runs. \' is not one of those anchors. One table,
    filled after the command array stops moving, lets an empty s// reuse the
    program stored for the last regex. */
 #define BS_ATOM_LIT    0
@@ -243,6 +247,23 @@ struct bs_prog {
 
 static struct { const regex_t *re; bs_prog *prog; } bs_prog_map[BS_PROG_MAX];
 static int bs_prog_n, bs_prog_made;
+/* Patterns whose register fill may not return. Searched with one register. */
+static const regex_t *bs_unsafe_re[BS_PROG_MAX];
+static int bs_unsafe_n;
+
+static void
+bs_unsafe_note (const regex_t *re)
+{
+    if (bs_unsafe_n < BS_PROG_MAX) bs_unsafe_re[bs_unsafe_n++] = re;
+}
+
+static int
+bs_unsafe_p (const regex_t *re)
+{
+    for (int i = 0; i < bs_unsafe_n; i++)
+        if (bs_unsafe_re[i] == re) return 1;
+    return 0;
+}
 
 static void
 bs_prog_bind (bs_cmd *cmds, int n)
@@ -591,9 +612,10 @@ bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
         *out = copy;
         return 1;
     }
-    /* Refuse only the shape whose register fill does not return. A repeated
-       anchor with no consumer, such as ([a]|^)+ or b(|^)+, still finishes. */
-    if (sc.hang) return -1;
+    /* 2: compile it, but a substitution must not fill more than one register.
+       A repeated anchor with no consumer, such as ([a]|^)+ or b(|^)+, still
+       finishes and returns 0. */
+    if (sc.hang) return 2;
     return 0;
 }
 
@@ -808,6 +830,16 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **pr
     re->newline_anchor = (flags & REG_NEWLINE) && bs_delim == '\n';
     if (error) { free (prog); regfree (re); memset (re, 0, sizeof *re); return -1; }
     if (prog) bs_prog_made++;
+    if (guard == 2) {
+        if (bs_unsafe_n >= BS_PROG_MAX) {
+            free (prog);
+            regfree (re);
+            memset (re, 0, sizeof *re);
+            builtin_error ("regex may hang; refusing pattern: %s", pat);
+            return -2;
+        }
+        bs_unsafe_note (re);
+    }
     *prog_out = prog;
     return 0;
 
@@ -847,6 +879,26 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
         if (prog) {
             int found = bs_prog_find (prog, str, beg, start, end, nmatch, matches, off);
             if (bs_runtime_error || found == 0 || end == len) return found;
+            beg = start = end + 1;
+            continue;
+        }
+        /* One register does not enter set_regs. No match is a real miss
+           (the walk cannot run). A hit is refused: the one-register span is
+           not the group's match, and filling the other registers may not
+           return. nmatch 0, used by addresses, never takes this path. */
+        if (nmatch > 1 && bs_unsafe_p (re)) {
+            regoff_t one_so = -1, one_eo = -1;
+            struct re_registers one = { 1, &one_so, &one_eo };
+            re->regs_allocated = REGS_FIXED;
+            result = re_search (re, str + beg, (regoff_t) (end - beg),
+                                (regoff_t) (start - beg), (regoff_t) (end - start), &one);
+            if (result == -2) { bs_runtime_error = 1; return REG_ESPACE; }
+            if (result >= 0) {
+                builtin_error ("regex may hang; refusing pattern");
+                bs_runtime_error = 1;
+                return REG_ESPACE;
+            }
+            if (end == len) return REG_NOMATCH;
             beg = start = end + 1;
             continue;
         }
@@ -1529,6 +1581,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
 {
     int cap = 16, n = 0, status = -1;
     bs_prog_made = 0;
+    bs_unsafe_n = 0;
     bs_cmd *cmds = calloc ((size_t) cap + 1, sizeof *cmds);
     if (!cmds) return -1;
     const char *p = script;

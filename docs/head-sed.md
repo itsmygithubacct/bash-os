@@ -72,8 +72,14 @@ The compatibility boundaries are:
   replacement is pinned to the parent directory. A
   repeated group that can match empty and contains an anchor followed by a
   consumer is matched directly when it is one capturing group of anchors,
-  literals and GNU classes, and refused otherwise, so the search cannot
-  loop. A repeated group the engine can finish is left to the engine.
+  literals and GNU classes. `\b` and `\B` are left to the engine. In a
+  multibyte locale that direct match runs for bytes below 0x80 and is
+  refused for a higher byte when the pattern uses a word class or
+  case-insensitive match. Any other pattern of that shape is searched with
+  one register: no match is unchanged, and a match is refused because
+  filling the other registers may not return. An address passes no
+  registers and runs. A repeated group the engine can finish is left to
+  the engine.
   `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
   `--debug` are rejected. See [the focused completion notes](sol-sed.md) and
