@@ -156,6 +156,18 @@ check 'git over http' python3 tests/git-http.py out/bash
 check 'git over ssh' python3 tests/git-ssh.py out/bash
 check 'git signing against ssh-keygen' python3 tests/git-signing.py out/bash
 check 'git parity against real git' python3 tests/git-parity.py out/bash
+check 'index fault shim' "$CC" -O2 -Wall -Wextra -Werror -fPIC -shared tests/sol-index-faults.c -ldl -o "$scratch/index-faults.so"
+check 'index formats' python3 tests/sol-index-formats.py --binary out/bash
+check 'index contracts' python3 tests/sol-index-check.py --binary out/bash --shim "$scratch/index-faults.so" --output "$scratch/index-check.json"
+check 'index regression stages' python3 tests/sol-index-regressions.py --binary out/bash --case stages
+check 'index regression null-id' python3 tests/sol-index-regressions.py --binary out/bash --case null-id
+check 'index regression v3' python3 tests/sol-index-regressions.py --binary out/bash --case v3
+check 'index regression bounds' python3 tests/sol-index-regressions.py --binary out/bash --case bounds
+check 'index parity v1-over-refusal' python3 tests/sol-index-parity.py --binary out/bash --case v1-over-refusal
+check 'index parity v2-mismatch' python3 tests/sol-index-parity.py --binary out/bash --case v2-mismatch
+check 'index parity v3-split-literal' python3 tests/sol-index-parity.py --binary out/bash --case v3-split-literal
+check 'index parity v3-untr' python3 tests/sol-index-parity.py --binary out/bash --case v3-untr
+check 'index benchmark scheduler' python3 tests/sol-index-bench-check.py
 check 'builds out/bash-pure' ./build.sh --list config/bash-loadables-pure.list
 check 'host-smoke (pure list)' bash tests/host-smoke.sh out/bash-pure config/bash-loadables-pure.list
 if [[ "$(out/bash-pure -c 'type -t ls' 2>/dev/null)" != builtin ]]; then
@@ -239,6 +251,16 @@ check 'static bsdgames byte and stream contracts' python3 tests/sol-bsdgames-con
 check 'static git parity' python3 tests/git-parity.py out/bash-static \
   basic-commit branches log-diff packs
 check 'static git untrusted objects and paths' python3 tests/git-integrity.py out/bash-static
+# The fault shim is LD_PRELOAD and does not attach to this static bash.
+check 'static index formats' python3 tests/sol-index-formats.py --binary out/bash-static
+check 'static index regression stages' python3 tests/sol-index-regressions.py --binary out/bash-static --case stages
+check 'static index regression null-id' python3 tests/sol-index-regressions.py --binary out/bash-static --case null-id
+check 'static index regression v3' python3 tests/sol-index-regressions.py --binary out/bash-static --case v3
+check 'static index regression bounds' python3 tests/sol-index-regressions.py --binary out/bash-static --case bounds
+check 'static index parity v1-over-refusal' python3 tests/sol-index-parity.py --binary out/bash-static --case v1-over-refusal
+check 'static index parity v2-mismatch' python3 tests/sol-index-parity.py --binary out/bash-static --case v2-mismatch
+check 'static index parity v3-split-literal' python3 tests/sol-index-parity.py --binary out/bash-static --case v3-split-literal
+check 'static index parity v3-untr' python3 tests/sol-index-parity.py --binary out/bash-static --case v3-untr
 check 'static git apply path preflight' python3 tests/git-apply-paths.py out/bash-static
 check 'static graphics' python3 tests/gpu-smoke.py out/bash-static
 check 'static FIFO queue contracts' python3 tests/sol-fifo-check.py out/bash-static
@@ -482,6 +504,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'terminal and buffer edges under ASan+UBSan' bash tests/vt-buf-sanitize.sh out/bash
   check 'graphics under ASan+UBSan' bash tests/gpu-sanitize.sh out/bash
   check 'git under ASan+UBSan' bash tests/git-sanitize.sh out/bash
+  check 'index under ASan+UBSan' bash tests/sol-index-sanitize.sh out/bash
   check 'uclampset under ASan+UBSan' bash tests/sol-uclampset-sanitize.sh out/bash
   check 'process and device modules under ASan+UBSan' bash tests/system-process-sanitize.sh out/bash
   for name in nc http userdb spool crypto-state; do

@@ -667,6 +667,38 @@
     },
     {
       "names": [
+        "index"
+      ],
+      "status": "Parity",
+      "evidence": "tests/sol-index-check.py",
+      "scope": "Listings compared with git ls-files --stage on deterministic Git 2.47.3 cases, including writer round trips. Fault injection covers lock and write failures."
+    },
+    {
+      "names": [
+        "index"
+      ],
+      "status": "Parity",
+      "evidence": "tests/sol-index-parity.py",
+      "scope": "Split, sparse and version-4 listings compared with git ls-files --stage where git's own result is deterministic. Mapped-page overruns, one split-bitmap literal and three untracked-cache shapes are refused."
+    },
+    {
+      "names": [
+        "index"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-index-regressions.py",
+      "scope": "Stage zero beside conflict stages, final null object IDs, version-3 flag preservation and mapped-page bounds."
+    },
+    {
+      "names": [
+        "index"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-index-formats.py",
+      "scope": "Git-written split, sparse and version-4 indexes across read, write, add, remove, update-stat and index-info."
+    },
+    {
+      "names": [
         "crypto",
         "claude",
         "ldap",
@@ -1868,7 +1900,6 @@
         "doas",
         "cksum",
         "obj",
-        "index",
         "pack",
         "ssh",
         "pkg",
@@ -1895,6 +1926,13 @@
         "gpu"
       ],
       "evidence": "tests/gpu-sanitize.sh"
+    },
+    {
+      "names": [
+        "index"
+      ],
+      "evidence": "tests/sol-index-sanitize.sh",
+      "scope": "index, git and obj and their staged helpers under ASan and UBSan. Leak detection is disabled. The fault shim is preloaded only by sol-index-check.py, after libasan."
     },
     {
       "names": [
@@ -2746,6 +2784,11 @@
     }
   },
   "notes": {
+    "index": {
+      "evidence": "docs/sol-index.md",
+      "note": "Listings match git 2.47.3 wherever git's own ls-files --stage result is deterministic. Errors exit 1, where git exits 128. Three index shapes are refused, where git's result varies or does not finish: mapped-page overruns, a two-word split bitmap literal that has already reached the shared index, and three untracked-cache shapes. The version-4 overlap listing for tests/fixtures/sol-index-parity/indexes/m00895.index follows a measured allocator placement, which another host can place differently. No valgrind or ASan git was used. FSMN, sha256 repositories and mutating sharedindex.* are not covered. There is no new performance result.",
+      "next": "Remeasure index-read on the current build (1.93× external time in the historical snapshot)."
+    },
     "grep": {
       "evidence": "docs/sol-grep.md",
       "note": "PCRE2 integration with record-end anchors, explicit UTF invalid-byte handling, match limits and persistent-shell recovery. Retain POSIX embedded-NUL/libc, non-UTF locale and accepted-but-no-color limitations.",
@@ -3227,6 +3270,7 @@
     "grep",
     "tac",
     "head",
+    "index",
     "sed",
     "fold",
     "expand",
