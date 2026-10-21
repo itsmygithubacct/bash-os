@@ -230,6 +230,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'su injected fixture build' python3 tests/sol-su-build.py "$scratch/su-native"
+  check 'su authentication boundaries' env PYTHONPATH=/home/pleb/research/bash-os/loadable-completion-20261019/tasks/sol-su/oracle python3 tests/sol-su-check.py --fixture "$scratch/su-native/fixture" --shell out/bash --oracle
+  check 'su sanitized fixture build' python3 tests/sol-su-build.py "$scratch/su-sanitize" --sanitize
+  check 'su boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 PYTHONPATH=/home/pleb/research/bash-os/loadable-completion-20261019/tasks/sol-su/oracle python3 tests/sol-su-check.py --fixture "$scratch/su-sanitize/fixture" --oracle
   check 'tui and shared helpers sanitizer contracts' env BASHOS_TASK_DIR="$scratch/tui-contracts" bash tests/sol-tui-sanitize.sh out/bash
   check 'lpr delivery and cancel SIGPIPE under ASan+UBSan' bash tests/opus-lpr-sanitize.sh out/bash
   mkdir -p "$scratch/gpu-frames"

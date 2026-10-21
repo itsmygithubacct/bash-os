@@ -2625,9 +2625,9 @@
       "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "su": {
-      "evidence": "docs/sol-doas.md",
-      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "tests/sol-su-check.py",
+      "note": "Production su is exercised through an injected credential check, private passwd and shadow files, and an owned PTY. A readdir error during descriptor cleanup fails the command instead of continuing with unread descriptors open. A missing kernel auth device is a denial. No host account, shadow, or PAM change is made. Live kernel authority and privileged UID and GID transition remain unqualified.",
+      "next": "Do not report an authentication result that did not run. No new timing claim."
     },
     "sudo": {
       "evidence": "docs/sol-doas.md",
