@@ -39,7 +39,9 @@ printf '%s\n' "$asan" > "$d/asan-path"
   printf 'enable -f %q index || exit 1\n' "$d/index.so"
   printf 'enable -f %q git || exit 1\n' "$d/index.so"
   printf 'enable -f %q obj || exit 1\n' "$d/index.so"
-  printf 'if [[ -n ${SOL_INDEX_MAP_DIR:-} ]]; then cat /proc/self/maps > "${SOL_INDEX_MAP_DIR}/$$.maps" || true; fi\n'
+  # sol-index-check.py drops every SOL_INDEX_* variable, so the directory is
+  # written into this script. The dump is the process that just enabled index.
+  printf 'cat /proc/self/maps > %q/$$.maps || true\n' "$d/maps"
 } > "$d/load.sh"
 "$CC" -O2 -Wall -Wextra -Werror -fPIC -shared tests/sol-index-faults.c -ldl -o "$d/faults.so"
 
