@@ -13,6 +13,16 @@ binary = str(Path(sys.argv[1]).resolve())
 env = dict(os.environ, PATH='', LC_ALL='C', TZ='UTC')
 prefix = 'if [[ -n ${SOL_HEAD_MODULE:-} ]]; then enable -f "$SOL_HEAD_MODULE" head || exit; fi\n'
 checks = 0
+gnu = str(Path(os.environ.get('HEAD_REFERENCE', '/usr/bin/head')).resolve())
+# Counts whose value is at least 2**64. GNU 9.4 exits 1. GNU 9.6 and later
+# saturate and still exit 0. The builtin matches the later result.
+OVERFLOW_SAMPLE = b'ab\n' * 2000
+PINNED_OVERFLOW = {
+    '1Q': (0, OVERFLOW_SAMPLE),
+    '1QiB': (0, OVERFLOW_SAMPLE),
+    '18446744073709551616': (0, OVERFLOW_SAMPLE),
+    '-999999999999999999999999999999': (0, b''),
+}
 
 
 def run(args, data=b'', script='"$@"', **kwargs):
@@ -23,15 +33,38 @@ def run(args, data=b'', script='"$@"', **kwargs):
     return p
 
 
+def reference_head(args, data=b''):
+    return subprocess.run([gnu, *map(str, args)], input=data,
+                          capture_output=True, env=env, timeout=20)
+
+
 def parity(args, data=b''):
     global checks
     actual = run(args, data)
-    reference = subprocess.run(['/usr/bin/head', *map(str, args)], input=data,
-                               capture_output=True, env=env, timeout=20)
-    assert (actual.returncode, actual.stdout) == (reference.returncode, reference.stdout), (
-        args, len(data), actual.returncode, reference.returncode,
-        actual.stdout[:200], reference.stdout[:200], actual.stderr)
+    pinned = (not head_saturates and len(args) == 2 and args[0] in ('-n', '-c')
+              and str(args[1]) in PINNED_OVERFLOW and data == OVERFLOW_SAMPLE)
+    if pinned:
+        expected_rc, expected_out = PINNED_OVERFLOW[str(args[1])]
+        assert (actual.returncode, actual.stdout) == (expected_rc, expected_out), (
+            args, len(data), actual.returncode, actual.stdout[:200], actual.stderr)
+    else:
+        reference = reference_head(args, data)
+        assert (actual.returncode, actual.stdout) == (reference.returncode, reference.stdout), (
+            args, len(data), actual.returncode, reference.returncode,
+            actual.stdout[:200], reference.stdout[:200], actual.stderr)
     checks += 1
+
+
+probe = reference_head(['-c', '18446744073709551616'], b'')
+if probe.returncode == 0:
+    head_saturates = True
+elif probe.returncode == 1 and probe.stdout == b'':
+    head_saturates = False
+else:
+    sys.exit('head reference probe failed: rc=%s out=%r err=%r' % (
+        probe.returncode, probe.stdout[:80], probe.stderr[:200]))
+print('head reference saturates overflow counts' if head_saturates else
+      'head reference refuses overflow counts; pinning the 9.6 results', flush=True)
 
 
 with tempfile.TemporaryDirectory(prefix='sol-head-') as directory:
@@ -108,7 +141,7 @@ with tempfile.TemporaryDirectory(prefix='sol-head-') as directory:
     for args in (['-n', '-1'], ['-c', '-2'], ['-n', '-9999999'], ['-c', '-9999999'], ['-n', '-0']):
         for offset in (0, 3, len(fixture), len(fixture)+5):
             results = []
-            for command in ([binary, '-c', prefix+'head "$@"', '_'], ['/usr/bin/head']):
+            for command in ([binary, '-c', prefix+'head "$@"', '_'], [gnu]):
                 with a.open('rb', buffering=0) as source:
                     source.seek(offset)
                     p = subprocess.run([*command, *args], stdin=source, capture_output=True, env=env, timeout=20)
