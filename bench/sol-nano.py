@@ -30,7 +30,9 @@ Workloads (fixture of W bytes):
 On .sh workloads no key is sent until the screen shows syntax colour
 (ready_ms, from spawn): a reparse that outruns the frame budget finishes
 while input is idle, and typing into a buffer that has never been parsed
-would measure only the uncoloured path.  Before each paced key, output
+would measure only the uncoloured path.  Passes alternate between the
+implementations (rotating which goes first), so drifting host load is
+shared rather than landing on one of them.  Before each paced key, output
 already waiting is read, so a late settled frame is not taken for the
 next key's frame.
 
@@ -278,6 +280,9 @@ def main():
                 data = fixture(kind, size)
                 chunks, paced, want, desc = workload(wl, data)
                 name = f"f.{kind}"
+                ready = SH_READY if kind == "sh" and paced else None
+                settle = settle_needle(wl, data)
+                runs = []
                 for lab, path, gnu in impls:
                     if gnu and paced:
                         continue
@@ -292,9 +297,15 @@ def main():
                             "samples_ms": [], "warmup_ms": [], "terminal_bytes": [], "frames": [],
                             "key_latency_ms": [], "ready_ms": [], "settle_ms": [], "edit_frame_ms": [],
                             "status": "ok", "errors": []}
-                    ready = SH_READY if kind == "sh" and paced else None
-                    settle = settle_needle(wl, data)
-                    for i in range(a.warmup + a.runs):
+                    runs.append((lab, argv, case))
+                # Passes alternate between implementations, starting with a
+                # different one each pass, so load that drifts during a case
+                # falls on all of them alike.
+                for i in range(a.warmup + a.runs):
+                    for j in range(len(runs)):
+                        lab, argv, case = runs[(i + j) % len(runs)]
+                        if case["status"] != "ok":
+                            continue
                         work = root / f"{lab}-{wl}-{size}"
                         work.mkdir(exist_ok=True)
                         (work / name).write_bytes(data)
@@ -304,12 +315,12 @@ def main():
                         except RuntimeError as e:
                             case["status"] = "failed"
                             case["errors"].append(f"pass {i}: {e}")
-                            break
+                            continue
                         got = (work / name).read_bytes()
                         if rc != 0 or sha(got) != case["expected_sha256"]:
                             case["status"] = "failed"
                             case["errors"].append(f"pass {i}: exit {rc}, sha256 {sha(got)}")
-                            break
+                            continue
                         if i < a.warmup:
                             case["warmup_ms"].append(round(ms, 3))
                             continue
@@ -321,6 +332,7 @@ def main():
                         for k in ("ready_ms", "settle_ms", "edit_frame_ms"):
                             if k in extra:
                                 case[k].append(round(extra[k], 3))
+                for lab, argv, case in runs:
                     s = case["samples_ms"]
                     if s and case["status"] == "ok":
                         case["median_ms"] = round(statistics.median(s), 3)
