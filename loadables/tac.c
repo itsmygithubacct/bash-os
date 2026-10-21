@@ -15,10 +15,12 @@
  * Seekable inputs are scanned backward; pipes use an owned temporary spool.
  * Literal and regex separators follow GNU tac's read windows. Regexes use a
  * bounded streaming matcher; on glibc, constructs it cannot match exactly
- * use re_search over GNU's window-plus-pending-record buffer. A '+' whose
- * operand contains an anchor is spelled XX* before that call: glibc's own
- * copy of the '+' can loop, or return a different span, and the spelled
- * pattern is the one it finishes.
+ * use re_search over GNU's window-plus-pending-record buffer. A nullable
+ * '+' whose anchors are \` ^ \< \> is spelled XX* before that call, because
+ * glibc does not return on the original. A '+' that contains \' \b or \B
+ * stays as written: GNU finishes it, and the spelled span can differ. A
+ * nullable '+' that contains both is refused. A back-reference keeps the
+ * original pattern.
  * Output is batched without changing Bash's stdio state.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
@@ -289,9 +291,9 @@ tac_regex_atom (tac_input *in, const tac_atom *atom, int before, bl_output *out)
    It only accepts what it can match exactly. Back-references, collating and
    equivalence elements, non-C collation ranges and the remaining multibyte
    constructs are reported as unsupported; on glibc those use re_search.
-   A '+' whose operand contains an anchor is spelled XX* first. Searching
-   the original '+' asks glibc for subexpression registers, and that walk
-   does not return for an anchor inside a repeated empty alternative. */
+   A nullable '+' whose anchors are \` ^ \< or \> is spelled XX* first:
+   the original does not return. \' \b and \B stay on the original, which
+   GNU finishes. A nullable '+' that mixes both is refused. */
 
 #define TAC_RE_TREE_MAX 4096
 #define TAC_RE_NEST_MAX 200
@@ -304,6 +306,10 @@ enum {
     TC_NEXT_ENDBUF = 0x100, TC_PREV_BEGBUF = 0x200,
     TC_WORD_DELIM = 0x400, TC_NOT_WORD_DELIM = 0x800
 };
+/* How a '+' that contains one of those anchors has to be searched.
+   TM_DIFF: GNU finishes the original and XX* can disagree (\' \b \B).
+   TM_HANG: a nullable '+' does not return (\` ^ \< \>). '$' is neither. */
+enum { TM_DIFF = 1, TM_HANG = 2 };
 enum { TX_WORD = 1, TX_NEWLINE = 2, TX_BEGBUF = 4, TX_ENDBUF = 8 };
 /* Byte classes; TB_BUF stands for the start or end of the search buffer. */
 enum { TB_OTHER, TB_WORD, TB_NEWLINE, TB_BUF };
@@ -1339,11 +1345,15 @@ static const struct { const char *name; int arg, id; } tac_longopts[] = {
 
 #ifdef __GLIBC__
 /* glibc compiles X+ by copying X and then mis-evaluates anchors in the
-   copy. The copy is also where set_regs fails to finish when X can match
-   empty. XX* is the same language and is the pattern GNU tac finishes.
-   Duplicating a group renumbers captures, so a back-reference keeps the
-   original pattern. Returns 1 and a malloc'd pattern, 0 to keep the
-   original, or -1 when a rewrite cannot be finished. */
+   copy. That copy is where set_regs fails to finish when X can match empty
+   and contains \` ^ \< or \>. Those nullable pluses are spelled XX*.
+   \' \b and \B finish on the original pattern, and XX* can disagree, so
+   they are not rewritten. A nullable '+' that contains both is refused:
+   the original may not return, and the spelling can disagree when it does.
+   A non-nullable '+' of \` ^ \< \> is also left as written; GNU finishes
+   it and can disagree with XX*. Duplicating a group renumbers captures,
+   so a back-reference keeps the original pattern. Returns 1 and a malloc'd
+   pattern, 0 to keep the original, or -1 when a rewrite cannot be finished. */
 #define TAC_SPELL_MAX (1 << 20)
 #define TAC_SPELL_DEPTH 2000
 
@@ -1353,7 +1363,20 @@ typedef struct {
     int changed, backref, failed, depth;
 } tac_spell;
 
-typedef struct { int nullable, anchor, atom; } tac_spell_piece;
+typedef struct { int nullable, anchor, atom; unsigned marks; } tac_spell_piece;
+
+static unsigned
+tac_anchor_class (unsigned short anchor)
+{
+    if (anchor == TC_NEXT_ENDBUF || anchor == TC_WORD_DELIM
+        || anchor == TC_NOT_WORD_DELIM)
+        return TM_DIFF;
+    if (anchor == TC_PREV_BEGBUF || anchor == TC_PREV_NEWLINE
+        || anchor == (TC_PREV_NOTWORD | TC_NEXT_WORD)
+        || anchor == (TC_PREV_WORD | TC_NEXT_NOTWORD))
+        return TM_HANG;
+    return 0;
+}
 
 static int spell_expr (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
 static int spell_branch (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
@@ -1471,22 +1494,25 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     if (++sp->depth > TAC_SPELL_DEPTH) { sp->failed = 1; return -1; }
     size_t start = sp->len;
     int nullable = 0, anchor = 0, atom = 1, early = 0;
+    unsigned marks = 0;
     if (t->type == TK_ALT || t->type == TK_END) {
         nullable = 1;
         early = 1;
     } else if (t->type == TK_CLOSE || t->type == TK_BACKSLASH) {
         sp->failed = 1;
     } else if (t->type == TK_ANCHOR) {
+        unsigned short kind = t->anchor;
         if (!spell_emit_token (sp, ps, t)) spell_fetch (ps, t, 0);
         nullable = 1;
         anchor = 1;
+        marks = tac_anchor_class (kind);
         early = 1;              /* A following '*+?' is a literal atom. */
     } else if (t->type == TK_BRACKET) {
         if (spell_bracket (sp, ps, t)) sp->failed = 1;
     } else if (t->type == TK_OPEN) {
         if (!spell_emit_token (sp, ps, t)) {
             spell_fetch (ps, t, 1);
-            tac_spell_piece inner = { 1, 0, 1 };
+            tac_spell_piece inner = { 1, 0, 1, 0 };
             if (t->type != TK_CLOSE && spell_alts (sp, ps, t, nest + 1, &inner))
                 sp->failed = 1;
             else if (t->type != TK_CLOSE)
@@ -1495,6 +1521,7 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
                 spell_fetch (ps, t, 0);
             nullable = inner.nullable;
             anchor = inner.anchor;
+            marks = inner.marks;
         }
     } else {
         if (t->type == TK_BACKREF) sp->backref = 1;
@@ -1508,10 +1535,25 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
                 atom = 1;
             }
             if (op == TK_PLUS && anchor) {
-                /* X+ becomes XX*. Nullable iff X is: the first copy must match. */
-                if (spell_dup (sp, start) || spell_put (sp, "*", 1)) break;
-                sp->changed = 1;
-                atom = 0;
+                int diff = (marks & TM_DIFF) != 0;
+                int hang = (marks & TM_HANG) != 0;
+                if (nullable && diff && hang) {
+                    /* The original can fail to return, and XX* can disagree. */
+                    sp->failed = 1;
+                    break;
+                }
+                if (diff || (hang && !nullable)) {
+                    /* GNU finishes this '+'. Keep it so the search sees it. */
+                    char ch = '+';
+                    if (spell_put (sp, &ch, 1)) break;
+                    atom = 1;
+                } else {
+                    /* Nullable \` ^ \< \> or a '$' plus: XX* is what returns.
+                       Nullable iff X is: the first copy must match. */
+                    if (spell_dup (sp, start) || spell_put (sp, "*", 1)) break;
+                    sp->changed = 1;
+                    atom = 0;
+                }
             } else {
                 char ch = op == TK_STAR ? '*' : op == TK_PLUS ? '+' : '?';
                 if (spell_put (sp, &ch, 1)) break;
@@ -1525,6 +1567,7 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     out->nullable = nullable;
     out->anchor = anchor;
     out->atom = atom;
+    out->marks = marks;
     return sp->failed ? -1 : 0;
 }
 
@@ -1534,16 +1577,19 @@ spell_branch (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_p
     tac_spell_piece part;
     if (spell_expr (sp, ps, t, nest, &part)) return -1;
     int nullable = part.nullable, anchor = part.anchor, count = 1;
+    unsigned marks = part.marks;
     while (!sp->failed && t->type != TK_ALT && t->type != TK_END
            && !(nest && t->type == TK_CLOSE)) {
         if (spell_expr (sp, ps, t, nest, &part)) return -1;
         nullable = nullable && part.nullable;
         anchor = anchor || part.anchor;
+        marks |= part.marks;
         count++;
     }
     out->nullable = nullable;
     out->anchor = anchor;
     out->atom = count == 1;
+    out->marks = marks;
     return sp->failed ? -1 : 0;
 }
 
@@ -1554,12 +1600,13 @@ spell_alts (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     while (!sp->failed && t->type == TK_ALT) {
         if (spell_emit_token (sp, ps, t)) return -1;
         spell_fetch (ps, t, 1);
-        tac_spell_piece right = { 1, 0, 1 };
+        tac_spell_piece right = { 1, 0, 1, 0 };
         if (t->type != TK_ALT && t->type != TK_END && !(nest && t->type == TK_CLOSE)) {
             if (spell_branch (sp, ps, t, nest, &right)) return -1;
         }
         out->nullable = out->nullable || right.nullable;
         out->anchor = out->anchor || right.anchor;
+        out->marks |= right.marks;
         out->atom = 0;
     }
     return sp->failed ? -1 : 0;
