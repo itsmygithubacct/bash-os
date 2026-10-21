@@ -111,18 +111,26 @@ Literals of up to 32 bytes use `memchr` and `memcmp`; longer needles keep
 reports an error instead of leaving the pattern space unchanged.
 
 glibc's `set_regs` does not return when `re_search` is asked for registers
-and the pattern is a repeated group that can match empty and that contains
-an anchor. The global substitution retry is that call, including when an
+and the pattern is a repeated group that can match empty and that contains,
+in one alternative, an anchor (`^`, `` \` ``, `\<` or `\>`) followed by a
+consumer. The global substitution retry is that call, including when an
 empty `s//` reuses an address regex. If the whole pattern is one capturing
-group of anchors and literals, sed matches it directly and never calls
-`re_search`. `s/(|^b)+/x/g` on `.b` therefore prints `x.xbx`, and the same
-shape with `` \` ``, `$`, `\<` or `\b` is handled the same way. Any other
-pattern of that shape is refused with `regex may hang; refusing pattern`
-before it is compiled. Ordinary patterns, including `(^a)+` and `\(a\)\+`,
-still use the regex engine. Word-boundary patterns in a multibyte locale are
-refused rather than guessed. Address searches pass no registers; they are
-the only other `re_search` call, and a refused pattern never reaches either
-call.
+group of anchors, literals and the GNU classes `\s` `\S` `\w` `\W`, sed
+matches it directly and never calls `re_search`. `s/(|^b)+/x/g` on `.b`
+therefore prints `x.xbx`. The same shape with `` \` ``, `$`, `\<` or `\b`
+is handled the same way. `\>` followed by a literal uses the span glibc
+returns on subjects where that search finishes (`s/(|\>b)+/[&]/g` on `ab`
+prints `[]a[b]`) and still does not call `re_search` where it does not.
+`\'` is not one of those anchors, so `s/(|\'b)+/[&]/g` is run by the regex
+engine and prints `[].[b]`. A repeated group glibc can finish, such as
+`s/([a]|^)+/X/g` or `s/b(|^)+/X/g`, is also run by the engine. Any other
+pattern of the hanging shape, including `a(|^b)+`, `((|^b))+` and
+`a\(\|^b\)\+`, is refused with `regex may hang; refusing pattern` before
+it is compiled. Ordinary patterns, including `(^a)+` and `\(a\)\+`, still
+use the regex engine. Word-boundary and class patterns in a multibyte
+locale are refused rather than guessed. Address searches pass no registers;
+they are the only other `re_search` call, and a refused pattern never
+reaches either call.
 
 `bench/opus-sed-followup.py` runs builtin variants and GNU sed 4.9 in one
 process. It uses the sol-sed fixtures and expected bytes computed in Python.

@@ -68,10 +68,12 @@ The compatibility boundaries are:
   may contain the regex delimiter. `e` commands continue across a
   backslash-newline. A `v` token is accepted when it is not newer than 4.9,
   so `v 4.9` and `v 4.09.0` are accepted and `v 4.9.0` and `v 4.10` are
-  rejected. In-place
-  replacement is pinned to the parent directory. A repeated group that can
-  match empty and contains an anchor is matched directly when it is the whole
-  pattern, and refused otherwise, so the search cannot loop. `-z`, `--sandbox`,
+  rejected. In-place replacement is pinned to the parent directory. A
+  repeated group that can match empty and contains an anchor followed by a
+  consumer is matched directly when it is one capturing group of anchors,
+  literals and GNU classes, and refused otherwise, so the search cannot
+  loop. A repeated group the engine can finish is left to the engine.
+  `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
   `--debug` are rejected. See [the focused completion notes](sol-sed.md) and
   [the follow-up notes](opus-sed-followup.md) for the tested scope.

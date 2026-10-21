@@ -207,12 +207,15 @@ bs_interrupted (void)
     return bs_interrupt_signal != 0;
 }
 
-/* A repeated group that can match empty and contains an anchor makes glibc
-   set_regs loop when re_search is called with registers (nmatch > 1). The
-   global-substitute retry is that call. Only a single capturing group whose
-   alternatives are anchors and literals is matched here; every other pattern
-   of that shape is refused. One table, filled after the command array stops
-   moving, lets an empty s// reuse the program stored for the last regex. */
+/* A repeated group that can match empty makes glibc set_regs loop when
+   re_search is called with registers (nmatch > 1) and one alternative is an
+   anchor (^, \`, \<, \>) followed by a consumer. The global-substitute retry
+   is that call. A single capturing group of anchors, literals and the GNU
+   classes \s \S \w \W is matched here, so that call is never made. The same
+   shape with a consumer this matcher cannot reproduce, and every nested or
+   prefixed form of it, is refused. \' is not one of those anchors. One table,
+   filled after the command array stops moving, lets an empty s// reuse the
+   program stored for the last regex. */
 #define BS_ATOM_LIT    0
 #define BS_ATOM_BOL    1
 #define BS_ATOM_EOL    2
@@ -222,6 +225,10 @@ bs_interrupted (void)
 #define BS_ATOM_WEND   6
 #define BS_ATOM_WB     7
 #define BS_ATOM_WNB    8
+#define BS_ATOM_SPACE  9   /* \s */
+#define BS_ATOM_NSPACE 10  /* \S */
+#define BS_ATOM_WORD   11  /* \w */
+#define BS_ATOM_NWORD  12  /* \W */
 #define BS_MAX_ATOMS   24
 #define BS_MAX_ALTS    12
 #define BS_PROG_MAX    64
@@ -261,7 +268,7 @@ bs_prog_lookup (const regex_t *re)
 typedef struct {
     const char *s;
     size_t n, i;
-    int ext, dangerous, bad, record, simple, word;
+    int ext, dangerous, bad, record, simple, word, hang;
     bs_prog prog;
 } bs_re_scan;
 
@@ -361,7 +368,12 @@ bs_re_quant (bs_re_scan *sc, int *qmin, int *qmax)
     return 1;
 }
 
-typedef struct { int nullable, anchor; } bs_re_info;
+typedef struct {
+    int nullable, anchor;
+    int hang;         /* hang-anchor followed by a consumer, or a nested one */
+    int hang_anchor;  /* ^, \`, \< or \> */
+    int consumed;     /* this atom can consume a byte */
+} bs_re_info;
 
 static bs_re_info bs_re_expr (bs_re_scan *sc);
 
@@ -378,6 +390,20 @@ bs_re_push (bs_re_scan *sc, int alt, int kind, unsigned char lit)
     return 0;
 }
 
+static int
+bs_re_hang_group (bs_re_scan *sc, bs_re_info *info, bs_re_info inner)
+{
+    int qmin, qmax, present = bs_re_quant (sc, &qmin, &qmax);
+    int repeating = present && (qmax < 0 || qmax > 1);
+    if (repeating && inner.nullable && inner.anchor) sc->dangerous = 1;
+    if (repeating && inner.nullable && inner.hang) sc->hang = 1;
+    info->anchor = inner.anchor;
+    info->hang = inner.hang;
+    info->nullable = qmin == 0 || inner.nullable;
+    info->consumed = 1;
+    return 0;
+}
+
 static bs_re_info
 bs_re_atom (bs_re_scan *sc, int alt, int first)
 {
@@ -389,6 +415,7 @@ bs_re_atom (bs_re_scan *sc, int alt, int first)
     if (c == '[') {
         if (bs_re_skip_class (sc) < 0) sc->bad = 1;
         sc->simple = 0;
+        info.consumed = 1;
     } else if (c == '(' && sc->ext) {
         sc->i++;
         int rec = sc->record, simple = sc->simple;
@@ -398,11 +425,7 @@ bs_re_atom (bs_re_scan *sc, int alt, int first)
         if (!bs_re_group_end (sc)) { sc->bad = 1; return info; }
         sc->i++;
         sc->simple = 0;
-        int qmin, qmax, present = bs_re_quant (sc, &qmin, &qmax);
-        int repeating = present && (qmax < 0 || qmax > 1);
-        if (repeating && inner.nullable && inner.anchor) sc->dangerous = 1;
-        info.anchor = inner.anchor;
-        info.nullable = qmin == 0 || inner.nullable;
+        bs_re_hang_group (sc, &info, inner);
         return info;
     } else if (!sc->ext && c == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == '(') {
         sc->i += 2;
@@ -414,46 +437,51 @@ bs_re_atom (bs_re_scan *sc, int alt, int first)
         sc->i += 2;
         sc->simple = 0;
         (void) simple;
-        int qmin, qmax, present = bs_re_quant (sc, &qmin, &qmax);
-        int repeating = present && (qmax < 0 || qmax > 1);
-        if (repeating && inner.nullable && inner.anchor) sc->dangerous = 1;
-        info.anchor = inner.anchor;
-        info.nullable = qmin == 0 || inner.nullable;
+        bs_re_hang_group (sc, &info, inner);
         return info;
     } else if (c == '\\' && sc->i + 1 < sc->n) {
         char e = sc->s[sc->i + 1];
-        int kind = 0;
-        if (e == '`') kind = BS_ATOM_BOS;
-        else if (e == '\'') kind = BS_ATOM_EOS;
-        else if (e == '<') kind = BS_ATOM_WSTART;
-        else if (e == '>') kind = BS_ATOM_WEND;
-        else if (e == 'b') kind = BS_ATOM_WB;
-        else if (e == 'B') kind = BS_ATOM_WNB;
-        else if (e >= '1' && e <= '9') { sc->i += 2; sc->simple = 0; info.nullable = 1; }
-        else { sc->i += 2; bs_re_push (sc, alt, BS_ATOM_LIT, (unsigned char) e); }
-        if (kind) {
+        if (e == '\'') {
+            /* \' is an end anchor in the regex engine. It does not make
+               set_regs loop, and matching it as a literal is wrong. */
+            sc->i += 2;
+            sc->simple = 0;
+        } else if (e == 's' || e == 'S' || e == 'w' || e == 'W') {
+            int ck = e == 's' ? BS_ATOM_SPACE : e == 'S' ? BS_ATOM_NSPACE
+                   : e == 'w' ? BS_ATOM_WORD : BS_ATOM_NWORD;
+            sc->i += 2;
+            sc->word = 1; /* multibyte class width is not guessed here */
+            info.consumed = 1;
+            bs_re_push (sc, alt, ck, 0);
+        } else if (e >= '1' && e <= '9') {
+            sc->i += 2; sc->simple = 0; info.nullable = 1; info.consumed = 1;
+        } else if (e == '`' || e == '<' || e == '>' || e == 'b' || e == 'B') {
+            int kind = e == '`' ? BS_ATOM_BOS : e == '<' ? BS_ATOM_WSTART
+                     : e == '>' ? BS_ATOM_WEND : e == 'b' ? BS_ATOM_WB : BS_ATOM_WNB;
             sc->i += 2; info.nullable = 1; info.anchor = 1;
+            if (kind == BS_ATOM_BOS || kind == BS_ATOM_WSTART || kind == BS_ATOM_WEND)
+                info.hang_anchor = 1;
             if (kind >= BS_ATOM_WSTART) sc->word = 1;
             bs_re_push (sc, alt, kind, 0);
-        }
-        if (!kind && !(e >= '1' && e <= '9') && e != '`') {
-            /* literal already pushed */
+        } else {
+            sc->i += 2; info.consumed = 1;
+            bs_re_push (sc, alt, BS_ATOM_LIT, (unsigned char) e);
         }
     } else if (c == '\\') { sc->bad = 1; return info; }
     else if (c == '^' && first) {
-        sc->i++; info.nullable = 1; info.anchor = 1;
+        sc->i++; info.nullable = 1; info.anchor = 1; info.hang_anchor = 1;
         bs_re_push (sc, alt, BS_ATOM_BOL, 0);
     } else if (c == '$') {
         bs_re_scan look = *sc; look.i++;
         if (bs_re_end (&look) || bs_re_alt (&look) || bs_re_group_end (&look)) {
             sc->i++; info.nullable = 1; info.anchor = 1;
             bs_re_push (sc, alt, BS_ATOM_EOL, 0);
-        } else { sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, '$'); }
-    } else if (c == '.' ) { sc->i++; sc->simple = 0; }
+        } else { sc->i++; info.consumed = 1; bs_re_push (sc, alt, BS_ATOM_LIT, '$'); }
+    } else if (c == '.' ) { sc->i++; sc->simple = 0; info.consumed = 1; }
     else if (c == '*' || (sc->ext && (c == '+' || c == '?' || c == '{'))) {
-        sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, c);
+        sc->i++; info.consumed = 1; bs_re_push (sc, alt, BS_ATOM_LIT, c);
     } else {
-        sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, c);
+        sc->i++; info.consumed = 1; bs_re_push (sc, alt, BS_ATOM_LIT, c);
     }
     int qmin, qmax;
     if (bs_re_quant (sc, &qmin, &qmax)) {
@@ -467,7 +495,7 @@ static bs_re_info
 bs_re_branch (bs_re_scan *sc, int alt)
 {
     bs_re_info info = { 1, 0 };
-    int first = 1, any = 0;
+    int first = 1, any = 0, seen_hang = 0;
     if (sc->record) sc->prog.natoms[alt] = 0;
     while (!bs_re_end (sc) && !bs_re_alt (sc) && !bs_re_group_end (sc) && !sc->bad) {
         bs_re_info atom = bs_re_atom (sc, alt, first);
@@ -475,6 +503,8 @@ bs_re_branch (bs_re_scan *sc, int alt)
         any = 1; first = 0;
         info.nullable = info.nullable && atom.nullable;
         info.anchor = info.anchor || atom.anchor;
+        if (atom.hang || (seen_hang && atom.consumed)) info.hang = 1;
+        if (atom.hang_anchor) seen_hang = 1;
         if (sc->bad) break;
         /* An empty atom result at a delimiter means the branch ended. */
         if (bs_re_end (sc) || bs_re_alt (sc) || bs_re_group_end (sc)) break;
@@ -494,6 +524,7 @@ bs_re_expr (bs_re_scan *sc)
         bs_re_info more = bs_re_branch (sc, alt < BS_MAX_ALTS ? alt : 0);
         info.nullable = info.nullable || more.nullable;
         info.anchor = info.anchor || more.anchor;
+        info.hang = info.hang || more.hang;
     }
     if (sc->record) sc->prog.nalts = sc->simple ? alt + 1 : 0;
     return info;
@@ -521,6 +552,7 @@ bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
         if (closed && sc.i == len && !sc.bad) {
             whole = 1;
             if (repeating && inner.nullable && inner.anchor) sc.dangerous = 1;
+            if (repeating && inner.nullable && inner.hang) sc.hang = 1;
             if (sc.dangerous && sc.simple) {
                 sc.prog.qmin = qmin; sc.prog.qmax = qmax;
                 sc.prog.icase = (flags & REG_ICASE) != 0;
@@ -535,13 +567,14 @@ bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
             all.s = pat; all.n = len; all.ext = sc.ext; all.simple = 1;
             bs_re_expr (&all);
             if (all.dangerous) sc.dangerous = 1;
+            if (all.hang) sc.hang = 1;
             if (all.bad) sc.bad = 1;
             sc.simple = 0;
         }
     } else {
         bs_re_expr (&sc);
     }
-    if (sc.bad && !sc.dangerous) return 0;
+    if (sc.bad && !sc.dangerous && !sc.hang) return 0;
     if (sc.dangerous && whole && sc.simple && !sc.bad) {
         if ((sc.prog.word || sc.prog.icase) && MB_CUR_MAX > 1) return -1;
         if (bs_prog_made >= BS_PROG_MAX) return -1;
@@ -551,7 +584,9 @@ bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
         *out = copy;
         return 1;
     }
-    if (sc.dangerous) return -1;
+    /* Refuse only the shape whose register fill does not return. A repeated
+       anchor with no consumer, such as ([a]|^)+ or b(|^)+, still finishes. */
+    if (sc.hang) return -1;
     return 0;
 }
 
@@ -601,6 +636,24 @@ bs_alt_len (const bs_prog *prog, int alt, const char *str, size_t beg, size_t en
                 if (!prog->icase || tolower (got) != tolower (want)) return -1;
             }
             cur++;
+        } else if (kind == BS_ATOM_SPACE || kind == BS_ATOM_NSPACE
+                   || kind == BS_ATOM_WORD || kind == BS_ATOM_NWORD) {
+            if (cur >= end) return -1;
+            unsigned char got = (unsigned char) str[cur];
+            int ok = kind == BS_ATOM_SPACE ? isspace (got)
+                   : kind == BS_ATOM_NSPACE ? !isspace (got)
+                   : kind == BS_ATOM_WORD ? bs_isword (got) : !bs_isword (got);
+            if (!ok) return -1;
+            cur++;
+        } else if (kind == BS_ATOM_WEND && i + 1 < n
+                   && (prog->atoms[alt][i + 1].kind == BS_ATOM_LIT
+                       || prog->atoms[alt][i + 1].kind >= BS_ATOM_SPACE)
+                   && cur > beg && bs_isword ((unsigned char) str[cur - 1])
+                   && !bs_anchor_ok (prog, kind, str, beg, end, cur)) {
+            /* glibc still consumes the next atom when \> fails between two
+               word characters. A final \> stays zero-width, so (|\>)+ does
+               not take this path. \< and ^ keep the strict test. */
+            continue;
         } else if (!bs_anchor_ok (prog, kind, str, beg, end, cur)) return -1;
     }
     *out = cur - pos;

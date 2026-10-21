@@ -3,8 +3,11 @@
 
 Usage: grok-sed-fix-regex-hang.py BASH [BASH ...]
 Each binary is a dynamic or static build. Patterns GNU sed finishes are
-compared with it. Patterns that make GNU sed time out have a fixed result:
-the whole-pattern form is matched directly, and any other shape is refused.
+compared with it. A whole-pattern group of anchors, literals and GNU
+classes is matched directly when an anchor is followed by a consumer,
+including on subjects where GNU sed times out. \' is left to the engine.
+A repeated anchor with no consumer in that alternative is left to the
+engine too. Every other pattern of the hanging shape is refused.
 """
 import os
 from pathlib import Path
@@ -82,12 +85,52 @@ cases = [
     (['-E', r's/(|^b)+/<\1>/'], b'b\n', None),
     (['-E', r's/(|^b){1,3}/<\1>/'], b'b\n', None),
     (['-E', r'/(|^b)+/s//x/g'], b'.b\n', b'x.xbx\n'),
+    # \' is an end anchor the engine can finish. It must not be a literal.
+    (['-E', r"s/(|\'b)+/[&]/g"], b'.b\n', None),
+    (['-E', r"s/(|\'b)+/X/g"], b'.b\n', None),
+    (['-E', r"s/(|\'b)+/[&]/g"], b'ab\n', None),
+    (['-E', r"s/((|\'b))+/[&]/g"], b'.b\n', None),
+    # GNU classes. Finishing subjects match GNU sed. \d and \D stay literals.
+    (['-E', r's/(|^\s)+/X/'], b' abc\n', None),
+    (['-E', r's/(|^\s)+/[&]/g'], b' abc\n', None),
+    (['-E', r's/(|^\s)+/X/'], b'ab\n', None),
+    (['-E', r's/(|^\w)+/X/'], b'a\n', None),
+    (['-E', r's/(|^\w)+/[&]/g'], b'a\n', None),
+    (['-E', r's/(|^\S)+/X/'], b'a\n', None),
+    (['-E', r's/(|^\W)+/X/'], b'.a\n', None),
+    (['-E', r's/(|^\W)+/[&]/g'], b'.a\n', None),
+    (['-E', r's/(|^\d)+/X/'], b'12\n', None),
+    (['-E', r's/(|^\D)+/X/'], b'ab\n', None),
+    # These subjects make GNU sed time out. One class byte is consumed, which
+    # is not the result of treating the escape as a literal.
+    (['-E', r's/(|^\w)+/X/'], b'abc\n', b'Xbc\n'),
+    (['-E', r's/(|^\S)+/X/'], b'ab c\n', b'Xb c\n'),
+    (['-E', r's/(|^\s)+/X/'], b'  a\n', b'X a\n'),
+    # A consumer in another alternative still finishes under nmatch 10.
+    (['-E', r's/([a]|^)+/X/g'], b'ab\n', None),
+    (['-E', r's/(.|^)+/X/'], b'ab\n', None),
+    (['-E', r's/([[:alpha:]]|^)+/X/'], b'ab\n', None),
+    (['-E', r's/b(|^)+/X/g'], b'ba\n', None),
+    (['-E', r's/([^]a]|^)+/X/'], b']\n', None),
+    ([r's/b\(\|^\)\+/X/g'], b'ba\n', None),
+    # \> followed by a literal uses the span glibc returns when it returns.
+    (['-E', r's/(|\>b)+/[&]/g'], b'ab\n', None),
+    (['-E', r's/(|\>b)+/X/g'], b'ab\n', None),
+    (['-E', r's/(|\>b)+/X/g'], b'abc\n', None),
+    (['-E', r's/(|\>b)+/[&]/g'], b'abb\n', None),
+    (['-E', r's/(|\>b)+/<&\1>/g'], b'ab\n', None),
+    (['-E', r's/(|\>b)+/<&\1>/g'], b'abb\n', None),
+    (['-E', r's/(|\>)+/[&]/g'], b'ab\n', None),
+    # \> on .b makes nmatch 10 hang. The direct matcher still has to return.
+    (['-E', r's/(|\>b)+/X/g'], b'.b\n', b'X.XbX\n'),
 ]
 
 refused = [
     (['-E', r's/a(|^b)+/X/g'], b'ab\n'),
     (['-E', r's/((|^b))+/X/g'], b'.b\n'),
     ([r's/a\(\|^b\)\+/X/g'], b'ab\n'),
+    ([r's/a\(\|^b\)\+/X/'], b'ab\n'),
+    (['-E', r's/(|^.)+/X/'], b'ab\n'),
     (['-E', r'/a(|^b)+/p'], b'ab\n'),
 ]
 
