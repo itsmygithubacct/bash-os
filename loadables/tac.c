@@ -15,7 +15,10 @@
  * Seekable inputs are scanned backward; pipes use an owned temporary spool.
  * Literal and regex separators follow GNU tac's read windows. Regexes use a
  * bounded streaming matcher; on glibc, constructs it cannot match exactly
- * use re_search over GNU's window-plus-pending-record buffer.
+ * use re_search over GNU's window-plus-pending-record buffer. A '+' whose
+ * operand contains an anchor is spelled XX* before that call: glibc's own
+ * copy of the '+' can loop, or return a different span, and the spelled
+ * pattern is the one it finishes.
  * Output is batched without changing Bash's stdio state.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
@@ -285,7 +288,10 @@ tac_regex_atom (tac_input *in, const tac_atom *atom, int before, bl_output *out)
    buffer anchors, and brackets without character classes or intervals.
    It only accepts what it can match exactly. Back-references, collating and
    equivalence elements, non-C collation ranges and the remaining multibyte
-   constructs are reported as unsupported; on glibc those use re_search. */
+   constructs are reported as unsupported; on glibc those use re_search.
+   A '+' whose operand contains an anchor is spelled XX* first. Searching
+   the original '+' asks glibc for subexpression registers, and that walk
+   does not return for an anchor inside a repeated empty alternative. */
 
 #define TAC_RE_TREE_MAX 4096
 #define TAC_RE_NEST_MAX 200
@@ -1331,6 +1337,283 @@ static const struct { const char *name; int arg, id; } tac_longopts[] = {
     { "help", 0, 'h' }, { "version", 0, 'V' }, { NULL, 0, 0 }
 };
 
+#ifdef __GLIBC__
+/* glibc compiles X+ by copying X and then mis-evaluates anchors in the
+   copy. The copy is also where set_regs fails to finish when X can match
+   empty. XX* is the same language and is the pattern GNU tac finishes.
+   Duplicating a group renumbers captures, so a back-reference keeps the
+   original pattern. Returns 1 and a malloc'd pattern, 0 to keep the
+   original, or -1 when a rewrite cannot be finished. */
+#define TAC_SPELL_MAX (1 << 20)
+#define TAC_SPELL_DEPTH 2000
+
+typedef struct {
+    char *buf;
+    size_t len, cap;
+    int changed, backref, failed, depth;
+} tac_spell;
+
+typedef struct { int nullable, anchor, atom; } tac_spell_piece;
+
+static int spell_expr (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
+static int spell_branch (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
+static int spell_alts (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
+
+static int
+spell_reserve (tac_spell *sp, size_t more)
+{
+    if (sp->failed) return -1;
+    if (more > TAC_SPELL_MAX || sp->len > TAC_SPELL_MAX - more) {
+        sp->failed = 1;
+        return -1;
+    }
+    if (sp->len + more <= sp->cap) return 0;
+    size_t cap = sp->cap ? sp->cap : 64;
+    while (cap < sp->len + more) {
+        if (cap > TAC_SPELL_MAX / 2) { cap = TAC_SPELL_MAX; break; }
+        cap *= 2;
+    }
+    if (cap < sp->len + more) { sp->failed = 1; return -1; }
+    char *buf = realloc (sp->buf, cap);
+    if (!buf) { sp->failed = 1; return -1; }
+    sp->buf = buf;
+    sp->cap = cap;
+    return 0;
+}
+
+static int
+spell_put (tac_spell *sp, const void *bytes, size_t n)
+{
+    if (spell_reserve (sp, n)) return -1;
+    if (n) memcpy (sp->buf + sp->len, bytes, n);
+    sp->len += n;
+    return 0;
+}
+
+static int
+spell_emit_token (tac_spell *sp, const tac_parser *ps, const tac_token *t)
+{
+    if (!t->len || ps->pos < t->len) { sp->failed = 1; return -1; }
+    return spell_put (sp, ps->s + (ps->pos - t->len), t->len);
+}
+
+/* A previous rewrite left a concatenation. A following quantifier must
+   bind to all of it, not to the trailing '*'. */
+static int
+spell_wrap (tac_spell *sp, size_t start)
+{
+    size_t len = sp->len - start;
+    if (spell_reserve (sp, 4)) return -1;
+    memmove (sp->buf + start + 2, sp->buf + start, len);
+    sp->buf[start] = '\\';
+    sp->buf[start + 1] = '(';
+    sp->buf[start + 2 + len] = '\\';
+    sp->buf[start + 3 + len] = ')';
+    sp->len += 4;
+    return 0;
+}
+
+static int
+spell_dup (tac_spell *sp, size_t start)
+{
+    size_t len = sp->len - start;
+    if (spell_reserve (sp, len)) return -1;
+    if (len) memcpy (sp->buf + sp->len, sp->buf + start, len);
+    sp->len += len;
+    return 0;
+}
+
+static void
+spell_fetch (tac_parser *ps, tac_token *t, int caret)
+{
+    tac_peek (ps, t, caret);
+    if (t->type != TK_END && !t->len) t->len = 1;
+    ps->pos += t->len;
+}
+
+/* Copy a bracket glibc has already accepted. '^', '*', '+' and anchors
+   inside it are literals. '[.' and '[=' run to their closers; '---' is
+   three literal minuses, which is the case the bounded matcher declines. */
+static int
+spell_bracket (tac_spell *sp, tac_parser *ps, tac_token *t)
+{
+    if (spell_emit_token (sp, ps, t)) return -1;
+    const unsigned char *s = ps->s;
+    size_t n = ps->len, i = ps->pos;
+    if (i < n && s[i] == '^') i++;
+    if (i < n && s[i] == ']') i++;
+    while (i < n && s[i] != ']') {
+        if (s[i] == '[' && i + 1 < n && (s[i + 1] == '.' || s[i + 1] == '=')) {
+            unsigned char kind = s[i + 1];
+            i += 2;
+            while (i + 1 < n && !(s[i] == kind && s[i + 1] == ']')) i++;
+            if (i + 1 >= n) { sp->failed = 1; return -1; }
+            i += 2;
+            continue;
+        }
+        if (s[i] == '-' && i + 2 < n && s[i + 1] == '-' && s[i + 2] == '-') {
+            i += 3;
+            continue;
+        }
+        i++;
+    }
+    if (i >= n || s[i] != ']') { sp->failed = 1; return -1; }
+    i++;
+    if (spell_put (sp, s + ps->pos, i - ps->pos)) return -1;
+    ps->pos = i;
+    spell_fetch (ps, t, 0);
+    return 0;
+}
+
+static int
+spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_piece *out)
+{
+    if (++sp->depth > TAC_SPELL_DEPTH) { sp->failed = 1; return -1; }
+    size_t start = sp->len;
+    int nullable = 0, anchor = 0, atom = 1, early = 0;
+    if (t->type == TK_ALT || t->type == TK_END) {
+        nullable = 1;
+        early = 1;
+    } else if (t->type == TK_CLOSE || t->type == TK_BACKSLASH) {
+        sp->failed = 1;
+    } else if (t->type == TK_ANCHOR) {
+        if (!spell_emit_token (sp, ps, t)) spell_fetch (ps, t, 0);
+        nullable = 1;
+        anchor = 1;
+        early = 1;              /* A following '*+?' is a literal atom. */
+    } else if (t->type == TK_BRACKET) {
+        if (spell_bracket (sp, ps, t)) sp->failed = 1;
+    } else if (t->type == TK_OPEN) {
+        if (!spell_emit_token (sp, ps, t)) {
+            spell_fetch (ps, t, 1);
+            tac_spell_piece inner = { 1, 0, 1 };
+            if (t->type != TK_CLOSE && spell_alts (sp, ps, t, nest + 1, &inner))
+                sp->failed = 1;
+            else if (t->type != TK_CLOSE)
+                sp->failed = 1;
+            else if (!spell_emit_token (sp, ps, t))
+                spell_fetch (ps, t, 0);
+            nullable = inner.nullable;
+            anchor = inner.anchor;
+        }
+    } else {
+        if (t->type == TK_BACKREF) sp->backref = 1;
+        if (!spell_emit_token (sp, ps, t)) spell_fetch (ps, t, 0);
+    }
+    if (!early && !sp->failed) {
+        while (t->type == TK_STAR || t->type == TK_PLUS || t->type == TK_QUESTION) {
+            int op = t->type;
+            if (!atom) {
+                if (spell_wrap (sp, start)) break;
+                atom = 1;
+            }
+            if (op == TK_PLUS && anchor) {
+                /* X+ becomes XX*. Nullable iff X is: the first copy must match. */
+                if (spell_dup (sp, start) || spell_put (sp, "*", 1)) break;
+                sp->changed = 1;
+                atom = 0;
+            } else {
+                char ch = op == TK_STAR ? '*' : op == TK_PLUS ? '+' : '?';
+                if (spell_put (sp, &ch, 1)) break;
+                if (op != TK_PLUS) nullable = 1;
+                atom = 1;
+            }
+            spell_fetch (ps, t, 0);
+        }
+    }
+    sp->depth--;
+    out->nullable = nullable;
+    out->anchor = anchor;
+    out->atom = atom;
+    return sp->failed ? -1 : 0;
+}
+
+static int
+spell_branch (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_piece *out)
+{
+    tac_spell_piece part;
+    if (spell_expr (sp, ps, t, nest, &part)) return -1;
+    int nullable = part.nullable, anchor = part.anchor, count = 1;
+    while (!sp->failed && t->type != TK_ALT && t->type != TK_END
+           && !(nest && t->type == TK_CLOSE)) {
+        if (spell_expr (sp, ps, t, nest, &part)) return -1;
+        nullable = nullable && part.nullable;
+        anchor = anchor || part.anchor;
+        count++;
+    }
+    out->nullable = nullable;
+    out->anchor = anchor;
+    out->atom = count == 1;
+    return sp->failed ? -1 : 0;
+}
+
+static int
+spell_alts (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_piece *out)
+{
+    if (spell_branch (sp, ps, t, nest, out)) return -1;
+    while (!sp->failed && t->type == TK_ALT) {
+        if (spell_emit_token (sp, ps, t)) return -1;
+        spell_fetch (ps, t, 1);
+        tac_spell_piece right = { 1, 0, 1 };
+        if (t->type != TK_ALT && t->type != TK_END && !(nest && t->type == TK_CLOSE)) {
+            if (spell_branch (sp, ps, t, nest, &right)) return -1;
+        }
+        out->nullable = out->nullable || right.nullable;
+        out->anchor = out->anchor || right.anchor;
+        out->atom = 0;
+    }
+    return sp->failed ? -1 : 0;
+}
+
+/* True when a parse we could not finish might still be the looping shape.
+   A false positive refuses the separator; a search is not attempted. */
+static int
+spell_might_loop (const char *s)
+{
+    int plus = 0, anchor = 0;
+    for (const unsigned char *p = (const unsigned char *) s; *p; p++) {
+        if (*p == '+' || *p == '^' || *p == '$') {
+            if (*p == '+') plus = 1;
+            else anchor = 1;
+        } else if (*p == '\\' && p[1]) {
+            if (strchr ("`'<bB>", p[1])) anchor = 1;
+            p++;
+        }
+    }
+    return plus && anchor;
+}
+
+static int
+tac_spell_anchor_plus (const char *pattern, char **out)
+{
+    *out = NULL;
+    tac_spell sp;
+    memset (&sp, 0, sizeof sp);
+    tac_parser ps;
+    memset (&ps, 0, sizeof ps);
+    ps.s = (const unsigned char *) pattern;
+    ps.len = strlen (pattern);
+    if (MB_CUR_MAX > 1) {
+        const char *codeset = nl_langinfo (CODESET);
+        if (codeset && !strcmp (codeset, "UTF-8")) ps.utf8 = 1;
+    }
+    tac_token t;
+    spell_fetch (&ps, &t, 1);
+    tac_spell_piece piece;
+    int rc = spell_alts (&sp, &ps, &t, 0, &piece);
+    int bad = rc < 0 || sp.failed || t.type != TK_END;
+    if (bad || !sp.changed || sp.backref) {
+        int refuse = !sp.backref && ((bad && sp.changed) || (bad && spell_might_loop (pattern)));
+        free (sp.buf);
+        return refuse ? -1 : 0;
+    }
+    if (spell_reserve (&sp, 1)) { free (sp.buf); return -1; }
+    sp.buf[sp.len] = '\0';
+    *out = sp.buf;
+    return 1;
+}
+#endif
+
 /* Select the matcher once per invocation. Returns 0 or an exit status. */
 static int
 tac_prepare (tac_job *job, int regex, regex_t *re)
@@ -1353,6 +1636,33 @@ tac_prepare (tac_job *job, int regex, regex_t *re)
     if (status == TE_OK) { job->mode = TAC_ENGINE; return 0; }
     if (status == TE_ESPACE) { builtin_error ("memory exhausted"); return EXECUTION_FAILURE; }
 #ifdef __GLIBC__
+    /* The original pattern is already compiled. Replace it only when the
+       spelling differs, and do not search a '+' the spelling could not
+       finish: that is the call that does not return. */
+    if (status == TE_UNSUPPORTED) {
+        char *spelled = NULL;
+        int spell = tac_spell_anchor_plus (job->sep, &spelled);
+        if (spell < 0) {
+            builtin_error ("this regex separator cannot be matched safely");
+            return EXECUTION_FAILURE;
+        }
+        if (spell > 0) {
+            regfree (re);
+            memset (re, 0, sizeof *re);
+            re->fastmap = malloc (256);
+            if (!re->fastmap) {
+                free (spelled);
+                builtin_error ("out of memory");
+                return EXECUTION_FAILURE;
+            }
+            reg_syntax_t saved = re_set_syntax (RE_SYNTAX_EMACS);
+            const char *error = re_compile_pattern (spelled, strlen (spelled), re);
+            re_set_syntax (saved);
+            free (spelled);
+            if (error) { builtin_error ("%s", error); return EXECUTION_FAILURE; }
+            job->gnu.re = re;
+        }
+    }
     job->mode = TAC_GNU;
     return 0;
 #else

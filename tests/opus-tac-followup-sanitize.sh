@@ -21,3 +21,4 @@ export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=
 python3 tests/tac-parity.py "$D/bash-tac"
 python3 tests/sol-tac-parity.py "$D/bash-tac" --module "$D/tac.so"
 python3 tests/opus-tac-followup-regex.py "$D/bash-tac" --module "$D/tac.so" --cases "$CASES"
+python3 tests/grok-tac-fix-hang.py "$D/bash-tac" --module "$D/tac.so"
