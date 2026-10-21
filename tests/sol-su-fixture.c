@@ -157,6 +157,10 @@ static pid_t fixture_fork(void) { if(fail==12){errno=EAGAIN;return -1;}return fo
 static pid_t fixture_waitpid(pid_t p,int *status,int flags) {
   if(fail==13){fail=0;errno=EINTR;return -1;}return waitpid(p,status,flags);
 }
+static struct dirent *fixture_readdir(DIR *d) {
+  if(fail==14 && getpid()!=owner){errno=EIO;return NULL;}
+  return readdir(d);
+}
 #define getuid fixture_getuid
 #define fopen fixture_fopen
 #define open fixture_open
@@ -166,6 +170,7 @@ static pid_t fixture_waitpid(pid_t p,int *status,int flags) {
 #define syscall fixture_syscall
 #define fork fixture_fork
 #define waitpid fixture_waitpid
+#define readdir fixture_readdir
 #define crypto_wipe fixture_crypto_wipe
 #define tcgetattr fixture_tcgetattr
 #define tcsetattr fixture_tcsetattr
@@ -182,6 +187,7 @@ static pid_t fixture_waitpid(pid_t p,int *status,int flags) {
 #undef syscall
 #undef fork
 #undef waitpid
+#undef readdir
 
 static void fixture_crypto_wipe(void *p,size_t n) {
   crypto_wipe(p,n);
@@ -258,6 +264,11 @@ static void run_checks(void) {
     CHECK(fcntl(511,F_GETFD)>=0);CHECK(getuid()==1000 || getuid()==0);
   }
   range_fallback=0;CHECK(!sigprocmask(SIG_SETMASK,&old,NULL));signal(SIGPIPE,SIG_DFL);close(511);close(fd);
+  reset();fail=14;range_fallback=1;
+  fd=open("/dev/null",O_RDONLY);CHECK(fd>=3);
+  CHECK(call()==1);CHECK(!events[EXEC]);CHECK(fcntl(fd,F_GETFD)>=0);
+  close(fd);CHECK(fd_count()==before);
+  range_fallback=0;
   for(int f=1;f<=13;f++) {
     if(f==8)continue;
     reset();fail=f;int rc=call();CHECK(rc==(f==10||f==11?2:f==13?37:1));

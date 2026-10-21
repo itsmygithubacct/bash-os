@@ -434,16 +434,24 @@ bsu_close_fds (void)
   /* Enumerate actual descriptors, including ones above a lowered rlimit. */
   DIR *d = opendir ("/proc/self/fd");
   if (!d) return -1;
-  struct dirent *ent;
-  while ((ent = readdir (d)))
+  for (;;)
     {
+      /* A read error is not end-of-directory: executing now could leak any
+         descriptors not yet visited. Ignore errno left by an earlier close. */
+      errno = 0;
+      struct dirent *ent = readdir (d);
+      if (!ent)
+        {
+          int saved = errno;
+          closedir (d);
+          if (saved) { errno = saved; return -1; }
+          return 0;
+        }
       char *end;
       long fd = strtol (ent->d_name, &end, 10);
       if (*ent->d_name && !*end && fd >= 3 && fd != dirfd (d))
         close ((int) fd);
     }
-  closedir (d);
-  return 0;
 }
 
 static int
