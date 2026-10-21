@@ -135,8 +135,13 @@ engine and prints `[].[b]`. A repeated group glibc can finish, such as
 pattern of the hanging shape, including `a(|^b)+`, `((|^b))+` and
 `a\(\|^b\)\+`, is refused with `regex may hang; refusing pattern` before
 it is compiled. Ordinary patterns, including `(^a)+` and `\(a\)\+`, still
-use the regex engine. Word-boundary and class patterns in a multibyte
-locale are refused rather than guessed. Address searches pass no registers;
+use the regex engine. In a multibyte locale that direct match still runs
+when every pattern-space byte is below 0x80, so `s/(|\<b)+/x/g` on `.b`
+prints `x.x` under C.UTF-8 and `s/(|^b)+/x/gI` on `.B` prints `x.xBx`.
+A byte at or above 0x80 is refused for a word or case-insensitive direct
+match, because the matcher classifies bytes and that is not GNU sed's
+multibyte word or case class. `\b` and `\B` stay with the engine in every
+locale. Address searches pass no registers;
 they are the only other `re_search` call, and a refused pattern never
 reaches either call.
 

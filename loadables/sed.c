@@ -581,7 +581,9 @@ bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
     }
     if (sc.bad && !sc.dangerous && !sc.hang) return 0;
     if (sc.dangerous && whole && sc.simple && !sc.bad) {
-        if ((sc.prog.word || sc.prog.icase) && MB_CUR_MAX > 1) return -1;
+        /* A multibyte locale still runs this matcher. A pattern-space byte
+           at or above 0x80 is refused at search time for a word or
+           case-insensitive program, whose classes are single bytes. */
         if (bs_prog_made >= BS_PROG_MAX) return -1;
         bs_prog *copy = malloc (sizeof *copy);
         if (!copy) return -1;
@@ -735,6 +737,17 @@ bs_prog_find (const bs_prog *prog, const char *str, size_t beg, size_t start, si
               size_t nmatch, regmatch_t *matches, size_t off)
 {
     if (start > end) return REG_NOMATCH;
+    /* Byte classes are not GNU sed's multibyte word or case classes.
+       ASCII text matches the C locale. A higher byte is refused. */
+    if ((prog->word || prog->icase) && MB_CUR_MAX > 1) {
+        for (size_t i = beg; i < end; i++) {
+            if ((unsigned char) str[i] >= 0x80) {
+                builtin_error ("regex may hang; refusing pattern");
+                bs_runtime_error = 1;
+                return REG_ESPACE;
+            }
+        }
+    }
     for (size_t pos = start; ; pos++) {
         size_t mend = pos, gso = 0, geo = 0;
         int gset = 0;
@@ -833,7 +846,7 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
         }
         if (prog) {
             int found = bs_prog_find (prog, str, beg, start, end, nmatch, matches, off);
-            if (found == 0 || end == len) return found;
+            if (bs_runtime_error || found == 0 || end == len) return found;
             beg = start = end + 1;
             continue;
         }
@@ -2143,8 +2156,14 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
             if (!c->s_repl_literal)
                 for (int i = 1; i < 10; i++) m[i].rm_so = m[i].rm_eo = -1;
         }
-        else if (bs_search (re, pat->str, pat->len, off, 10, m) != 0)
+        else if (bs_search (re, pat->str, pat->len, off, 10, m) != 0) {
+            if (bs_runtime_error) {
+                out.len = 0; out.failed = 0;
+                bs_s_scratch = out;
+                return -1;
+            }
             break;
+        }
         if (first) {
             first = 0;
             completes = c->s_repl_len == 0 && c->s_n <= 1
