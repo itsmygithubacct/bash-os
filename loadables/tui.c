@@ -103,7 +103,7 @@ btui_glyph (const char *s, uint32_t *cp)
         v = (v << 6) | (p[i] & 63);
     }
     if ((bytes == 3 && v < 0x800) || (bytes == 4 && v < 0x10000) ||
-        (v >= 0xd800 && v <= 0xdfff) || v > 0x10ffff) return 0;
+        (v >= 0x80 && v < 0xa0) || (v >= 0xd800 && v <= 0xdfff) || v > 0x10ffff) return 0;
     *cp = v; return 1;
 }
 

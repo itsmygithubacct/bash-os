@@ -11,7 +11,9 @@ import signal
 import struct
 import subprocess
 import sys
+import tempfile
 import termios
+import threading
 import time
 
 
@@ -232,7 +234,7 @@ def check(binary):
         bad = ['init extra','end extra','refresh extra','move x 0','move 0', 'move 0 0 extra',
                'move 99999999999999999999999 0', 'timeout junk','timeout -2','fg nope','fg "#zz00ff"',
                'fg 256','bg 256,0,0','fg 1,2,3junk','attr bogus','hline -1','hline xy 3',
-               'hline "" 2','vline 2 extra extra','addstr','addstr -y x hi','addstr -x',
+               'hline "" 2',"hline $'\\xc2\\x85' 3",'vline 2 extra extra','addstr','addstr -y x hi','addstr -x',
                'addstr hi extra','getstr a b','getkey extra','colormode 8','colormode 16 extra',
                'attr normal normal normal normal normal normal normal normal bogus']
         snapshot = [row[:] for row in t.decoder.cells]
@@ -307,6 +309,21 @@ def check(binary):
         # Subshell query must not tear down the parent's active terminal.
         assert t.command('value=$(tui cols); printf "%s\\n" "$value"')[0] == b'24\n'
         assert not termios.tcgetattr(t.slave)[3] & termios.ICANON
+        # A resize must not fail a builtin blocked writing to a slow pipe.
+        fifo = Path(tempfile.mkdtemp(prefix='sol-tui-'))/'fifo'
+        os.mkfifo(fifo)
+        drained = []
+        def drain():
+            fd = os.open(fifo, os.O_RDONLY)
+            time.sleep(.3); os.kill(t.proc.pid, signal.SIGWINCH); time.sleep(.3)
+            n = 0
+            while chunk := os.read(fd, 65536): n += len(chunk)
+            os.close(fd); drained.append(n)
+        reader = threading.Thread(target=drain); reader.start()
+        assert t.command(f'printf "%0200000d" 0 > {fifo}; echo $?')[0] == b'0\n'
+        reader.join(5)
+        assert drained == [200000], drained
+        os.unlink(fifo); fifo.parent.rmdir()
         fdcount = len(list((Path('/proc')/str(t.proc.pid)/'fd').iterdir()))
         for _ in range(10): t.command('tui end; tui init')
         assert len(list((Path('/proc')/str(t.proc.pid)/'fd').iterdir())) == fdcount

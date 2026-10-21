@@ -439,7 +439,9 @@ bls_init(void)
     ob_flush();
 
     struct sigaction sa;
-    memset(&sa, 0, sizeof sa); sigemptyset(&sa.sa_mask);
+    /* SA_RESTART keeps signal()'s BSD semantics: a resize must not fail a
+       blocked builtin read/write. poll() in bls_getch still sees EINTR. */
+    memset(&sa, 0, sizeof sa); sigemptyset(&sa.sa_mask); sa.sa_flags = SA_RESTART;
     sa.sa_handler = winch_handler; sigaction(SIGWINCH, &sa, &S.old_winch);
     sa.sa_handler = fatal_handler; sigaction(SIGTERM, &sa, &S.old_term);
     sigaction(SIGHUP, &sa, &S.old_hup);
