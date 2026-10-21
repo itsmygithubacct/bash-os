@@ -33,6 +33,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <time.h>
+#include <stdbool.h>
 
 #include "loadables.h"
 #include "_tree_sitter_api.h"
@@ -873,12 +875,24 @@ bashts_compute_sgr_map (const char *lang, const char *src, size_t srclen,
  * [LO, HI), and each byte in that range gets the SGR code of its winning
  * capture in sgr_at[0 .. HI - LO) (zeroed by the caller), by the same
  * precedence as bashts_compute_sgr_map, so a byte's colour equals the
- * full map's. Returns 0, or -1 with *STATE released. */
+ * full map's. Returns 0, or -1 with *STATE released.
+ *
+ * bashts_sgr_range_budget bounds the reparse to BUDGET_US microseconds
+ * (< 0: no bound). The bash grammar marks top-level statements fragile,
+ * so tree-sitter cannot reuse anything after an edit and a reparse costs
+ * the rest of the file. When the budget runs out, *PENDING is set and the
+ * colours come from the old tree with the edits applied to its positions
+ * (unchanged text keeps its colour, inserted text takes its enclosing
+ * node's); before any tree exists they are all zero. bashts_sgr_continue
+ * resumes the halted parse, and once it returns 1 the next call gives
+ * the full map's colours again. A new text abandons a halted parse. */
 struct bashts_sgr_state {
     const struct bashts_lang *lang;
-    TSTree *tree;
-    char *src;
+    TSTree *tree;               /* parsed tree, or the edited old one if pending */
+    char *src;                  /* the text the tree's positions refer to */
     uint32_t srclen;
+    TSParser *parser;           /* holds a halted parse while pending */
+    int pending;
 };
 
 void
@@ -886,6 +900,7 @@ bashts_sgr_state_free (void **state)
 {
     struct bashts_sgr_state *st = state ? *state : NULL;
     if (!st) return;
+    if (st->parser) ts_parser_delete (st->parser);
     if (st->tree) ts_tree_delete (st->tree);
     free (st->src);
     free (st);
@@ -905,10 +920,85 @@ bashts_point_fast (const char *src, uint32_t off)
     return pt;
 }
 
+static const char *
+bashts_state_read (void *payload, uint32_t byte, TSPoint pt, uint32_t *got)
+{
+    const struct bashts_sgr_state *st = payload;
+    (void) pt;
+    if (byte >= st->srclen) { *got = 0; return ""; }
+    *got = st->srclen - byte;
+    return st->src + byte;
+}
+
+static int64_t
+bashts_now_us (void)
+{
+    struct timespec ts;
+    clock_gettime (CLOCK_MONOTONIC, &ts);
+    return (int64_t) ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+
+struct bashts_deadline { int64_t at; int fired; };
+
+static bool
+bashts_past_deadline (TSParseState *ps)
+{
+    struct bashts_deadline *d = ps->payload;
+    if (bashts_now_us () < d->at) return false;
+    d->fired = 1;
+    return true;
+}
+
+/* Run (or resume) the pending parse for at most BUDGET_US (< 0: to the
+   end). Returns 1 when it finished, 0 when the deadline halted it, -1
+   on failure (which no later call would cure). */
+static int
+bashts_state_advance (struct bashts_sgr_state *st, long budget_us)
+{
+    if (!st->pending) return 1;
+    if (!st->parser) {
+        st->parser = ts_parser_new ();
+        if (!st->parser) return -1;
+        if (!ts_parser_set_language (st->parser, st->lang->get ())) return -1;
+    }
+    struct bashts_deadline dl = { bashts_now_us () + (budget_us < 0 ? 0 : budget_us), 0 };
+    TSParseOptions opt = { &dl, budget_us < 0 ? NULL : bashts_past_deadline };
+    TSInput in = { st, bashts_state_read, TSInputEncodingUTF8, NULL };
+    TSTree *tree = ts_parser_parse_with_options (st->parser, st->tree, in, opt);
+    if (!tree) return dl.fired ? 0 : -1;
+    if (st->tree) ts_tree_delete (st->tree);
+    st->tree = tree;
+    st->pending = 0;
+    return 1;
+}
+
+int
+bashts_sgr_continue (void **state, long budget_us)
+{
+    struct bashts_sgr_state *st = state ? *state : NULL;
+    if (!st) return -1;
+    int r = bashts_state_advance (st, budget_us);
+    if (r < 0) bashts_sgr_state_free (state);
+    return r;
+}
+
+int bashts_sgr_range_budget (void **state, const char *lang, const char *src,
+                             size_t srclen, size_t lo, size_t hi,
+                             const char **sgr_at, long budget_us, int *pending);
+
 int
 bashts_sgr_range (void **state, const char *lang, const char *src, size_t srclen,
                   size_t lo, size_t hi, const char **sgr_at)
 {
+    return bashts_sgr_range_budget (state, lang, src, srclen, lo, hi, sgr_at, -1, NULL);
+}
+
+int
+bashts_sgr_range_budget (void **state, const char *lang, const char *src,
+                         size_t srclen, size_t lo, size_t hi,
+                         const char **sgr_at, long budget_us, int *pending)
+{
+    if (pending) *pending = 0;
     if (!state || !lang || !src || !sgr_at || srclen > UINT32_MAX || lo > hi || hi > srclen)
         return -1;
     const struct bashts_lang *l = bashts_find_lang_entry (lang);
@@ -922,9 +1012,13 @@ bashts_sgr_range (void **state, const char *lang, const char *src, size_t srclen
         *state = st;
     }
     uint32_t n = (uint32_t) srclen;
-    int same = st->tree && st->srclen == n && memcmp (st->src, src, n) == 0;
+    int same = st->src && st->srclen == n && memcmp (st->src, src, n) == 0;
     if (!same) {
-        TSTree *old = NULL;
+        char *copy = malloc ((size_t) n + 1);
+        if (!copy) { bashts_sgr_state_free (state); return -1; }
+        memcpy (copy, src, n);
+        /* A halted parse read the old text; start over from the tree. */
+        if (st->parser) ts_parser_reset (st->parser);
         if (st->tree) {
             uint32_t pre = 0, max = st->srclen < n ? st->srclen : n;
             while (pre + 4096 <= max && memcmp (st->src + pre, src + pre, 4096) == 0)
@@ -943,21 +1037,17 @@ bashts_sgr_range (void **state, const char *lang, const char *src, size_t srclen
             e.start_point   = bashts_point_fast (src, pre);
             e.old_end_point = bashts_point_fast (st->src, e.old_end_byte);
             e.new_end_point = bashts_point_fast (src, e.new_end_byte);
-            old = st->tree;
-            st->tree = NULL;
-            ts_tree_edit (old, &e);
+            ts_tree_edit (st->tree, &e);
         }
-        char *copy = malloc ((size_t) n + 1);
-        TSTree *tree = copy ? bashts_parse_with (l, old, src, n) : NULL;
-        if (old) ts_tree_delete (old);
-        if (!tree) { free (copy); bashts_sgr_state_free (state); return -1; }
-        memcpy (copy, src, n);
         free (st->src);
         st->src = copy;
         st->srclen = n;
-        st->tree = tree;
+        st->pending = 1;
     }
-    if (hi == lo) return 0;
+    int adv = bashts_state_advance (st, budget_us);
+    if (adv < 0) { bashts_sgr_state_free (state); return -1; }
+    if (pending) *pending = st->pending;
+    if (hi == lo || !st->tree) return 0;
 
     uint32_t off = 0;
     TSQueryError qerr = TSQueryErrorNone;
