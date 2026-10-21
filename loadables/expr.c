@@ -183,8 +183,15 @@ typedef struct {
 
 typedef struct {
     el_end *p;
+    int *ix; /* 1-based index of pos, or NULL while the list is short */
     int n, cap;
 } el_ends;
+
+typedef struct {
+    int *pos;
+    unsigned char *bad;
+    int n, cap;
+} el_front;
 
 typedef struct {
     const unsigned char *s;
@@ -195,6 +202,9 @@ typedef struct {
     int uncertain;
     el_node *pool;
     int np;
+    int *mark; /* generation last written for this offset */
+    int *slot; /* index in the frontier being built; valid when mark matches */
+    int gen;
 } el_mx;
 
 typedef struct {
@@ -204,6 +214,7 @@ typedef struct {
     int dup_ok;
     int err;
     int backref;
+    int depth;
     el_node *pool;
     int np;
 } el_ps;
@@ -225,18 +236,42 @@ el_new (el_ps *ps, int kind)
 }
 
 static void
-el_ends_add (el_ends *e, int pos, int bad)
+el_ends_add (el_mx *m, el_ends *e, int pos, int bad)
 {
     int i;
     /* A failed realloc stores n == -1 and leaves p unchanged. The next
        call must not write p[-1]. Callers treat n < 0 as uncertain. */
     if (e->n < 0)
         return;
-    for (i = 0; i < e->n; i++) {
-        if (e->p[i].pos == pos) {
-            if (!bad)
-                e->p[i].bad = 0;
+    /* The first thirty-two inserts stay a linear scan. That keeps the
+       16-slot growth (128 bytes) on the same realloc the failure test
+       intercepts. Past that, an index makes a long subject cheap. */
+    if (e->n >= 32 && !e->ix && m->n >= 0 && pos >= 0 && pos <= m->n) {
+        int *ix = calloc ((size_t) m->n + 1, sizeof (int));
+        if (!ix) {
+            e->n = -1;
+            m->uncertain = 1;
             return;
+        }
+        for (i = 0; i < e->n; i++) {
+            int p = e->p[i].pos;
+            if (p >= 0 && p <= m->n)
+                ix[p] = i + 1;
+        }
+        e->ix = ix;
+    }
+    if (e->ix && pos >= 0 && pos <= m->n && e->ix[pos]) {
+        if (!bad)
+            e->p[e->ix[pos] - 1].bad = 0;
+        return;
+    }
+    if (!e->ix) {
+        for (i = 0; i < e->n; i++) {
+            if (e->p[i].pos == pos) {
+                if (!bad)
+                    e->p[i].bad = 0;
+                return;
+            }
         }
     }
     if (e->n >= e->cap) {
@@ -244,6 +279,7 @@ el_ends_add (el_ends *e, int pos, int bad)
         el_end *np = realloc (e->p, (size_t) ncap * sizeof (el_end));
         if (!np) {
             e->n = -1;
+            m->uncertain = 1;
             return;
         }
         e->p = np;
@@ -252,13 +288,17 @@ el_ends_add (el_ends *e, int pos, int bad)
     e->p[e->n].pos = pos;
     e->p[e->n].bad = (unsigned char) (bad ? 1 : 0);
     e->n++;
+    if (e->ix && pos >= 0 && pos <= m->n)
+        e->ix[pos] = e->n;
 }
 
 static void
 el_ends_free (el_ends *e)
 {
     free (e->p);
+    free (e->ix);
     e->p = NULL;
+    e->ix = NULL;
     e->n = e->cap = 0;
 }
 
@@ -369,71 +409,174 @@ el_hang_bad (el_mx *m, int anch, int pos)
 
 static void el_match (el_mx *m, int id, int pos, el_ends *out);
 
+static int
+el_front_grow (el_front *f)
+{
+    int ncap = f->cap ? f->cap * 2 : 8;
+    int *np = realloc (f->pos, (size_t) ncap * sizeof (int));
+    unsigned char *nb;
+    if (!np)
+        return -1;
+    f->pos = np;
+    nb = realloc (f->bad, (size_t) ncap);
+    if (!nb)
+        return -1;
+    f->bad = nb;
+    f->cap = ncap;
+    return 0;
+}
+
+static void
+el_front_free (el_front *f)
+{
+    free (f->pos);
+    free (f->bad);
+    f->pos = NULL;
+    f->bad = NULL;
+    f->n = f->cap = 0;
+}
+
+static int
+el_front_push (el_front *f, int pos, int bad)
+{
+    if (f->n >= f->cap && el_front_grow (f) < 0)
+        return -1;
+    f->pos[f->n] = pos;
+    f->bad[f->n] = (unsigned char) (bad ? 1 : 0);
+    f->n++;
+    return 0;
+}
+
+static int
+el_front_same (const el_front *a, const el_front *b)
+{
+    int i;
+    if (a->n != b->n)
+        return 0;
+    for (i = 0; i < a->n; i++) {
+        if (a->pos[i] != b->pos[i] || a->bad[i] != b->bad[i])
+            return 0;
+    }
+    return 1;
+}
+
+static int
+el_gen_fresh (el_mx *m)
+{
+    /* Signed overflow is undefined. Wrap by clearing the stamps. */
+    if (m->gen >= INT_MAX) {
+        memset (m->mark, 0, (size_t) (m->n + 1) * sizeof (int));
+        m->gen = 1;
+    } else {
+        m->gen++;
+    }
+    return m->gen;
+}
+
+static void el_rep_run (el_mx *m, el_node *nd, el_front *seed, el_ends *out);
+
 static void
 el_match_rep (el_mx *m, el_node *nd, int pos, el_ends *out)
 {
-    unsigned char *clean, *bad, *nclean, *nbad;
-    int k, i, guard;
-    int min = nd->min;
-    int max = nd->max;
-    size_t bytes;
-
-    if (pos < 0 || pos > m->n)
+    el_front seed;
+    memset (&seed, 0, sizeof seed);
+    if (pos < 0 || pos > m->n || m->uncertain)
         return;
-    bytes = (size_t) (m->n + 1);
-    clean = calloc (bytes, 1);
-    bad = calloc (bytes, 1);
-    nclean = calloc (bytes, 1);
-    nbad = calloc (bytes, 1);
-    if (!clean || !bad || !nclean || !nbad) {
+    if (el_front_push (&seed, pos, 0) < 0) {
         m->uncertain = 1;
-        free (clean); free (bad); free (nclean); free (nbad);
+        el_front_free (&seed);
         return;
     }
-    clean[pos] = 1;
+    el_rep_run (m, nd, &seed, out);
+    el_front_free (&seed);
+}
+
+static void
+el_rep_run (el_mx *m, el_node *nd, el_front *seed, el_ends *out)
+{
+    el_front cur, nxt;
+    int k, guard, si;
+    int min = nd->min;
+    int max = nd->max;
+
+    if (m->uncertain)
+        return;
+    if (!m->mark || !m->slot) {
+        m->uncertain = 1;
+        return;
+    }
+    memset (&cur, 0, sizeof cur);
+    memset (&nxt, 0, sizeof nxt);
+    for (si = 0; si < seed->n; si++) {
+        if (seed->pos[si] < 0 || seed->pos[si] > m->n)
+            continue;
+        if (el_front_push (&cur, seed->pos[si], seed->bad[si]) < 0) {
+            m->uncertain = 1;
+            goto rep_done;
+        }
+    }
     guard = m->n + (min > 0 ? min : 0) + 3;
     for (k = 0; k <= guard; k++) {
-        int any = 0, grew = 0;
+        int fi, grew = 0;
+        int mygen;
         if (k >= min) {
-            for (i = 0; i <= m->n; i++) {
-                if (clean[i])
-                    el_ends_add (out, i, 0);
-                else if (bad[i])
-                    el_ends_add (out, i, 1);
-            }
+            for (fi = 0; fi < cur.n; fi++)
+                el_ends_add (m, out, cur.pos[fi], cur.bad[fi]);
+            if (m->uncertain)
+                goto rep_done;
         }
         if (max >= 0 && k >= max)
             break;
-        memset (nclean, 0, bytes);
-        memset (nbad, 0, bytes);
-        for (i = 0; i <= m->n; i++) {
+        if (cur.n == 0)
+            break;
+        nxt.n = 0;
+        mygen = el_gen_fresh (m);
+        for (fi = 0; fi < cur.n; fi++) {
             el_ends body;
             int bi;
-            int src_bad;
-            if (!clean[i] && !bad[i])
-                continue;
-            any = 1;
-            src_bad = clean[i] ? 0 : 1;
+            int src_bad = cur.bad[fi] ? 1 : 0;
+            int ri;
             memset (&body, 0, sizeof body);
-            el_match (m, nd->a, i, &body);
+            el_match (m, nd->a, cur.pos[fi], &body);
             if (body.n < 0 || m->uncertain) {
                 el_ends_free (&body);
                 m->uncertain = 1;
                 goto rep_done;
+            }
+            /* A nested repeat reuses mark[]. The frontier list is the
+               record of this round; restamp it under a fresh generation. */
+            if (m->gen != mygen) {
+                mygen = el_gen_fresh (m);
+                for (ri = 0; ri < nxt.n; ri++) {
+                    int np = nxt.pos[ri];
+                    if (np >= 0 && np <= m->n) {
+                        m->mark[np] = mygen;
+                        m->slot[np] = ri;
+                    }
+                }
             }
             for (bi = 0; bi < body.n; bi++) {
                 int np = body.p[bi].pos;
                 int tainted = src_bad || body.p[bi].bad;
                 if (np < 0 || np > m->n)
                     continue;
-                if (tainted) {
-                    if (!nclean[np] && !nbad[np])
-                        grew = 1;
-                    nbad[np] = 1;
-                } else {
-                    if (!nclean[np])
-                        grew = 1;
-                    nclean[np] = 1;
+                if (m->mark[np] != mygen) {
+                    if (nxt.n >= nxt.cap && el_front_grow (&nxt) < 0) {
+                        el_ends_free (&body);
+                        m->uncertain = 1;
+                        goto rep_done;
+                    }
+                    m->mark[np] = mygen;
+                    m->slot[np] = nxt.n;
+                    nxt.pos[nxt.n] = np;
+                    nxt.bad[nxt.n] = (unsigned char) (tainted ? 1 : 0);
+                    nxt.n++;
+                    grew = 1;
+                } else if (!tainted && nxt.bad[m->slot[np]]) {
+                    /* A clean path upgrades a bad one and counts as growth.
+                       A second bad path does not. */
+                    nxt.bad[m->slot[np]] = 0;
+                    grew = 1;
                 }
             }
             el_ends_free (&body);
@@ -442,27 +585,34 @@ el_match_rep (el_mx *m, el_node *nd, int pos, el_ends *out)
                 goto rep_done;
             }
         }
-        if (!any)
-            break;
         if (!grew) {
-            /* Further copies do not reach a new offset. Empty copies can
-               still satisfy a minimum, and cannot make the match longer. */
+            /* No new offset. Empty copies can still meet a minimum, and
+               they cannot make the match longer. */
             if (k < min && (max < 0 || max >= min)) {
-                memcpy (clean, nclean, bytes);
-                memcpy (bad, nbad, bytes);
+                cur.n = 0;
                 k = min - 1;
                 continue;
             }
             break;
         }
-        memcpy (clean, nclean, bytes);
-        memcpy (bad, nbad, bytes);
+        if (el_front_same (&cur, &nxt)) {
+            if (k >= min)
+                break;
+            if (max < 0 || max >= min) {
+                k = min - 1;
+                continue;
+            }
+            break;
+        }
+        {
+            el_front tmp = cur;
+            cur = nxt;
+            nxt = tmp;
+        }
     }
 rep_done:
-    free (clean);
-    free (bad);
-    free (nclean);
-    free (nbad);
+    el_front_free (&cur);
+    el_front_free (&nxt);
 }
 
 static void
@@ -478,17 +628,17 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
     nd = &m->pool[id];
     switch (nd->kind) {
     case EL_EMPTY:
-        el_ends_add (out, pos, 0);
+        el_ends_add (m, out, pos, 0);
         break;
     case EL_LIT:
         if (pos < m->n && m->s[pos] == nd->lit)
-            el_ends_add (out, pos + 1, 0);
+            el_ends_add (m, out, pos + 1, 0);
         break;
     case EL_DOT:
         if (pos < m->n && m->s[pos] != '\0') {
             int e = el_char_end (m, pos);
             if (e > pos)
-                el_ends_add (out, e, 0);
+                el_ends_add (m, out, e, 0);
         }
         break;
     case EL_CLASS:
@@ -514,14 +664,14 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
                 if (nd->neg)
                     on = !on;
                 if (on)
-                    el_ends_add (out, end, 0);
+                    el_ends_add (m, out, end, 0);
             } else {
                 unsigned char c = m->s[pos];
                 on = (nd->bits[c >> 3] >> (c & 7)) & 1;
                 if (nd->neg)
                     on = !on;
                 if (on)
-                    el_ends_add (out, pos + 1, 0);
+                    el_ends_add (m, out, pos + 1, 0);
             }
         }
         break;
@@ -557,7 +707,7 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
             else
                 ok = !sp;
             if (ok)
-                el_ends_add (out, e, 0);
+                el_ends_add (m, out, e, 0);
         }
         break;
     }
@@ -585,17 +735,56 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
             break;
         }
         if (ok)
-            el_ends_add (out, pos, bad);
+            el_ends_add (m, out, pos, bad);
         break;
     }
     case EL_CAT: {
         el_ends left;
         int li;
+        int batched = 0;
         memset (&left, 0, sizeof left);
         el_match (m, nd->a, pos, &left);
+        if (left.n < 0) {
+            m->uncertain = 1;
+            el_ends_free (&left);
+            break;
+        }
+        /* One repeat over every clean left end is the same set as repeating
+           from each end, and it stays linear when .* feeds the group. */
+        if (nd->b >= 0 && m->pool[nd->b].kind == EL_REP && left.n > 1
+            && m->mark && m->slot) {
+            el_front seed;
+            int bi, mygen;
+            memset (&seed, 0, sizeof seed);
+            mygen = el_gen_fresh (m);
+            for (bi = 0; bi < left.n && !m->uncertain; bi++) {
+                int p;
+                if (left.p[bi].bad)
+                    continue;
+                p = left.p[bi].pos;
+                if (p < 0 || p > m->n || m->mark[p] == mygen)
+                    continue;
+                if (el_front_push (&seed, p, 0) < 0) {
+                    m->uncertain = 1;
+                    break;
+                }
+                m->mark[p] = mygen;
+                m->slot[p] = seed.n - 1;
+            }
+            if (!m->uncertain && seed.n)
+                el_rep_run (m, &m->pool[nd->b], &seed, out);
+            el_front_free (&seed);
+            batched = 1;
+            if (m->uncertain) {
+                el_ends_free (&left);
+                break;
+            }
+        }
         for (li = 0; li < left.n; li++) {
             el_ends right;
             int ri;
+            if (batched && !left.p[li].bad)
+                continue;
             memset (&right, 0, sizeof right);
             el_match (m, nd->b, left.p[li].pos, &right);
             for (ri = 0; ri < right.n; ri++) {
@@ -605,7 +794,7 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
                     m->bad_refused = 1;
                     continue;
                 }
-                el_ends_add (out, right.p[ri].pos,
+                el_ends_add (m, out, right.p[ri].pos,
                              left.p[li].bad || right.p[ri].bad);
             }
             el_ends_free (&right);
@@ -891,8 +1080,19 @@ el_parse_atom (el_ps *ps)
         ps->i += 2;
         if (n == '(') {
             int id, body;
+            /* Node storage already stops a nest that fits in EL_NODE_MAX.
+               A deeper nest overflows the C stack before that. 256 is above
+               every nest the node table can hold, so a pattern that parses
+               today still parses. A deeper one fails closed to the same
+               crude check as any other parse error. */
+            if (ps->depth >= 256) {
+                ps->err = 1;
+                return -1;
+            }
+            ps->depth++;
             ps->caret_ok = 1;
             body = el_parse_alt_top (ps);
+            ps->depth--;
             if (ps->err)
                 return -1;
             if (!(ps->i + 1 < ps->n && ps->s[ps->i] == '\\' && ps->s[ps->i + 1] == ')')) {
@@ -1261,6 +1461,15 @@ el_predict (const char *pat, const char *subj, struct el_pred *pr)
     }
     mx.mb = MB_CUR_MAX > 1;
     mx.pool = pool;
+    mx.mark = calloc ((size_t) mx.n + 1, sizeof (int));
+    mx.slot = calloc ((size_t) mx.n + 1, sizeof (int));
+    if (!mx.mark || !mx.slot) {
+        free (mx.mark);
+        free (mx.slot);
+        pr->uncertain = 1;
+        pr->refuse = 1;
+        return;
+    }
     memset (&ends, 0, sizeof ends);
     el_match (&mx, root, pr->so, &ends);
     best = -1;
@@ -1269,6 +1478,10 @@ el_predict (const char *pat, const char *subj, struct el_pred *pr)
             best = ends.p[i].pos;
     }
     el_ends_free (&ends);
+    free (mx.mark);
+    free (mx.slot);
+    mx.mark = NULL;
+    mx.slot = NULL;
     pr->safe_end = best;
     pr->bad_refused = mx.bad_refused;
     pr->uncertain = mx.uncertain;

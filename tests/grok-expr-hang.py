@@ -98,6 +98,11 @@ CASES = [
     (b" abc", br"a\(\|\`b\)\+"),
     (b" abc", br"a\(\|\<b\)\+"),
     (b" a\xe9", br"a\(\|^[[:alpha:]]\)\+"),
+    # Thousands of bytes. GNU expr returns at once. The unfixed simulator
+    # walks every offset and does not return inside the timeout. The second
+    # pattern also has a consumer glibc can finish, so it must not be refused.
+    (b"a" * 8000 + b"b", br".*\(\|^b\)\+"),
+    (b"a" * 8000 + b"b", br".*\(\|^b\|a\)\+"),
     # Wide characters. Word class differs between C and C.UTF-8.
     (b"\xc3\xa9 b", br".\(\|\< \)\+"),
     (b"a\xc3\xa9b", br".\(\|\<.\)\+"),
