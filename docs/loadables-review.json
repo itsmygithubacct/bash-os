@@ -1379,6 +1379,14 @@
       "status": "Contract",
       "evidence": "tests/sol-bc-regression.py",
       "scope": "The original brief's language scope is met: functions/local state, obase, control flow, quit/halt, comments, strings and file operands are implemented and GNU-differentially tested, and the final-newline and exit-status contracts are documented and asserted. Accept it as the documented bounded contract, not as full GNU option or interactive conformance."
+    },
+    {
+      "names": [
+        "dmsetup"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-dmsetup-ioctl.py",
+      "scope": "Brief scope met for the software/ioctl path. All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing, against an injected fixture whose reply sizes now match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. Coverage includes the explicit root+opt-in mutation policy, aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. Measurements are labeled syscall-shim. Actual-device qualification is a documented qualification limit, not an unresolved requirement of this brief. The catalog must say fixture-verified, not hardware-qualified."
     }
   ],
   "sanitizer_groups": [
@@ -2502,9 +2510,9 @@
       "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "dmsetup": {
-      "evidence": "docs/opus-dmsetup.md",
-      "note": "Raw device-mapper ioctl ABI, payload validation, rollback ownership and open-failure cleanup against a closed private fixture. Real mapper devices, udev coordination and deployment behavior remain VM prerequisites.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-dmsetup.md",
+      "note": "Brief scope met for the software/ioctl path. All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing, against an injected fixture whose reply sizes now match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. Coverage includes the explicit root+opt-in mutation policy, aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. Measurements are labeled syscall-shim. Actual-device qualification is a documented qualification limit, not an unresolved requirement of this brief. The catalog must say fixture-verified, not hardware-qualified.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "uclampset": {
       "evidence": "docs/sol-uclampset.md",
