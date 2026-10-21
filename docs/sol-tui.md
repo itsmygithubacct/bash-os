@@ -1,11 +1,21 @@
 # tui API validation and traffic workloads
 
-Validation is incomplete. The baseline build and targeted regression probes ran,
-but the updated build was deferred by the campaign resource gate for sustained
-host load and I/O pressure. The updated C changes have not been compiled; the
-new PTY suite has not passed end to end. Sanitizer checks, updated top/more
-revalidation and seven-sample latency measurements remain required. There are
-no measured latency results or speedup claims in this report.
+Status: the updated build, PTY suite, sanitizer run, top/more revalidation and
+seven-sample API benchmark have all passed on one build host (Intel i7-10700F,
+GCC 14.2, glibc 2.41). History is kept below: the first implementation pass was
+committed uncompiled because the campaign resource gate deferred its build, and
+validation then exposed two further defects, both fixed before the results here.
+
+1. The test located the screen descriptor by the PTY slave path, but with
+   command input on a pipe the screen helper opens `/dev/tty`. The locator now
+   accepts the owned controlling terminal and requires exactly one match.
+2. Review found that installing the handlers with `sigaction` and no flags
+   dropped the `SA_RESTART` behavior of the former `signal` calls. A resize
+   during an active screen then failed a builtin `printf` blocked on a slow pipe
+   after 64 KiB (status 1); the baseline binary wrote all 200,000 bytes. The
+   handlers use `SA_RESTART` again and the suite asserts the full write. Polling
+   in `bls_getch` still returns on a resize because `poll` is never restarted.
+   Line glyphs also now reject the C1 controls U+0080..U+009F.
 
 `tui` is a persistent cell API. It has no equivalent external command suitable
 for a command-speed ratio. `tests/sol-tui-check.py` drives the production builtin
@@ -80,3 +90,23 @@ The baseline correctness probe emitted 14 character cells for two changed cells
 on one row and accepted malformed coordinates, colors and extra arguments. The
 baseline PTY test also exposed stale colors after a color-mode change. Invalid
 baseline workloads must not receive a speedup claim.
+
+## Measured results
+
+One validated warm-up and seven samples per case, pinned to one CPU, 200
+draw/refresh calls per sample. Every sample matched the exact expected bytes,
+printed-cell count and every decoded frame above. Latency is per draw/refresh
+call, including Bash dispatch, the `addstr` draws, pipe acknowledgement and PTY
+draining:
+
+| Workload | Median ns | Min ns | Max ns | Samples (ns) |
+|---|---:|---:|---:|---|
+| no-op | 33,467 | 32,982 | 34,460 | 33,731 32,982 34,460 33,467 33,000 33,230 33,687 |
+| sparse | 40,773 | 39,587 | 43,897 | 41,921 39,587 40,549 40,055 43,897 42,080 40,773 |
+| full | 82,827 | 81,642 | 116,470 | 82,666 82,827 116,470 84,938 81,642 87,518 82,433 |
+
+These are self/API timings with no external reference or ratio. There is no
+matched baseline: the baseline emits 14 cells for two changed cells on one row,
+so it fails the sparse traffic oracle, and no baseline samples were taken. No
+speedup is claimed. The full-screen maximum is one outlier; the other six
+samples are within 7% of the median.
