@@ -6,7 +6,9 @@ an external doas executable. Root runs a forked credential drop. These are
 separate execution paths and must be tested separately.
 
 This change makes the root path honor explicit runas groups, includes the
-primary group with supplementary memberships, captures caller IDs before the
+primary group with supplementary memberships, and when that list already
+fills all 64 slots still keeps the passwd primary group and an explicit `-g`
+group by dropping a non-required membership. It captures caller IDs before the
 drop for `SUDO_UID/GID`, rejects overflowing numeric target IDs and malformed numeric groups, propagates wait errors,
 and fails closed on unknown or mode-inconsistent authority decisions and
 approvals. A successful verifier launch no longer masks a denied or failed

@@ -48,6 +48,7 @@ static int emit_digest;
 static int post_verify_deny;
 static int checks;
 static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr;
+static int group_probe;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"FAIL %s:%d: %s\n",__FILE__,__LINE__,#x); abort(); } checks++; } while (0)
 
 static FILE *fixture_fopen(const char *path, const char *mode)
@@ -59,7 +60,16 @@ static FILE *fixture_fopen(const char *path, const char *mode)
   }
   if (!strcmp(path,"/etc/group")) {
     FILE *f = tmpfile(); CHECK(f);
-    if(owned) { snprintf(rows,sizeof rows,"owned:x:%u:fixture\n",target_gid);CHECK(fputs(rows,f)>=0); }
+    if(group_probe) {
+      int n = group_probe==2 ? 63 : 64;
+      for(int i=0;i<n;i++) {
+        unsigned g = 8000u+(unsigned)i;
+        if(group_probe==3 && i==0) g=(unsigned)target_gid;
+        if(group_probe==3 && i==1) g=7000u;
+        CHECK(fprintf(f,"g%d:x:%u:fixture\n",i,g)>0);
+      }
+    }
+    else if(owned) { snprintf(rows,sizeof rows,"owned:x:%u:fixture\n",target_gid);CHECK(fputs(rows,f)>=0); }
     else CHECK(fputs("extra:x:4444:fixture\nchosen:x:4545:fixture\n",f)>=0);
     rewind(f); return f;
   }
@@ -135,6 +145,17 @@ static ssize_t fixture_status_write(int fd,const void *buf,size_t n) {
   return write(fd,buf,n);
 }
 static int fixture_execve(const char *p,char *const *a,char *const *e) {
+  if(group_probe) {
+    int have_pw=0,have_sel=0;
+    CHECK(transition_step==3); CHECK(fake_gid==(gid_t)expected_group);
+    CHECK(seen_ngroups>0 && seen_ngroups<=64);
+    for(size_t i=0;i<seen_ngroups;i++) {
+      if(seen_groups[i]==target_gid) have_pw=1;
+      if(seen_groups[i]==(gid_t)expected_group) have_sel=1;
+    }
+    CHECK(have_pw && have_sel);
+    _exit(expected_exit);
+  }
   if(!check_exec) {
     if(owned) {
       CHECK(fake_uid==getuid() && fake_gid==getgid());CHECK(seen_ngroups==1 && seen_groups[0]==getgid());
@@ -295,7 +316,7 @@ static void defaults(void) {
   post_verify_deny=0;*verified=0;auth_calls=handoff_calls=verify_calls=copyback_calls=0;decision=BASHOS_AUTH_PRIVCMD_DECISION_ALLOW_EXEC;
   auth_error=handoff_error=missing_handle=bad_version=tty_mode=wait_error=fork_error=fail_step=edit_case=0;
   approval=BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_ALLOWED;expected_flags=0;expected_group=4343;expected_mode=BASHOS_AUTH_PRIVCMD_MODE_EXEC;expected_exit=37;
-  io_read_fail=io_write_fail=io_read_eintr=io_write_eintr=0;
+  io_read_fail=io_write_fail=io_read_eintr=io_write_eintr=0;group_probe=0;
 }
 static void root_tests(void) {
   root_route=1;check_exec=1;
@@ -406,6 +427,17 @@ static void copyback_tests(void) {
   }
   close(bad_source);close(source);unlink(target);unlink(other);unlink(src);
 }
+static void group_tests(void) {
+  char *args[]={"-u","fixture","-g","#7000","/bin/true"};
+  root_route=1;check_exec=0;expected_group=7000;
+  group_probe=1;
+  for(int sudo=0;sudo<2;sudo++) CHECK(dispatch(sudo,5,args)==37);
+  group_probe=2;
+  for(int sudo=0;sudo<2;sudo++) CHECK(dispatch(sudo,5,args)==37);
+  group_probe=3;
+  for(int sudo=0;sudo<2;sudo++) CHECK(dispatch(sudo,5,args)==37);
+  group_probe=0;expected_group=4343;
+}
 static void status_tests(void) {
   const char *av[]={"/bin/true","literal ' ; $(no)\n",""};
   char *interactive[]={"-u","fixture","/bin/true","literal ' ; $(no)\n",""};
@@ -438,11 +470,12 @@ int main(int argc,char **argv) {
     defaults();root_route=0;quiet=1;emit_digest=1;const char *av[]={"/bin/true"};blob(1,av);
     CHECK(call(0,"-n","-u","fixture","/bin/true",NULL)==37);CHECK(rmdir(private_dir)==0);return 0;
   }
-  CHECK(argc==1 || (argc==2 && (!strcmp(argv[1],"root") || !strcmp(argv[1],"authority") || !strcmp(argv[1],"edit") || !strcmp(argv[1],"copyback") || !strcmp(argv[1],"status"))));
+  CHECK(argc==1 || (argc==2 && (!strcmp(argv[1],"root") || !strcmp(argv[1],"authority") || !strcmp(argv[1],"edit") || !strcmp(argv[1],"copyback") || !strcmp(argv[1],"groups") || !strcmp(argv[1],"status"))));
   if(argc==1 || !strcmp(argv[1],"root")){defaults();root_tests();}
   if(argc==1 || !strcmp(argv[1],"authority")){defaults();authority_tests();}
   if(argc==1 || !strcmp(argv[1],"edit")){defaults();edit_tests();}
   if(argc==1 || !strcmp(argv[1],"copyback")){defaults();copyback_tests();}
+  if(argc==1 || !strcmp(argv[1],"groups")){defaults();group_tests();}
   if(argc==1 || !strcmp(argv[1],"status")){defaults();status_tests();}
   CHECK(rmdir(private_dir)==0);
   printf("sol-doas: %d parent assertions passed; child assertions fail through status; no skipped fixtures\n",checks);return 0;

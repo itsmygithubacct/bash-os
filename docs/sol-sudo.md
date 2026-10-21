@@ -43,7 +43,10 @@ On the root route:
   its basename (it used to be `-bash` for every shell).
 - The group vector keeps the target account's passwd primary group when `-g`
   selects another primary group, as sudo's runas group list does. Before, that
-  group was dropped.
+  group was dropped. A membership list that already fills all 64 slots still
+  keeps that passwd group and the selected `-g` group, dropping a non-required
+  membership instead. If the required groups themselves do not fit, the child
+  exits 126.
 - `SUDO_USER` names the invoking account from the account database, not the
   caller's `$USER`.
 - `SUDO_COMMAND` is exported for sudo (not for doas). Its argument text is

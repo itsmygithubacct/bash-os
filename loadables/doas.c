@@ -975,6 +975,52 @@ bda_status_read (int fd, char *marker)
     }
 }
 
+/* Required gids stay in the vector. Supplementary groups fill the remaining
+   slots. A full list loses a non-required membership before a required gid.
+   Returns -1 only when the required gids themselves do not fit. */
+static int
+bda_ensure_groups (gid_t *groups, int *ngroups, gid_t passwd_gid, gid_t primary)
+{
+  gid_t required[2];
+  int nreq = 0;
+
+  required[nreq++] = passwd_gid;
+  if (primary != passwd_gid)
+    required[nreq++] = primary;
+  for (int r = 0; r < nreq; r++)
+    {
+      int have = 0;
+      for (int i = 0; i < *ngroups; i++)
+        if (groups[i] == required[r])
+          have = 1;
+      if (have)
+        continue;
+      if (*ngroups >= BC_PD_GROUPS_MAX)
+        {
+          int drop = -1;
+          for (int i = *ngroups - 1; i >= 0; i--)
+            {
+              int keep = 0;
+              for (int k = 0; k < nreq; k++)
+                if (groups[i] == required[k])
+                  keep = 1;
+              if (!keep)
+                {
+                  drop = i;
+                  break;
+                }
+            }
+          if (drop < 0)
+            return -1;
+          for (int i = drop; i < *ngroups - 1; i++)
+            groups[i] = groups[i + 1];
+          (*ngroups)--;
+        }
+      groups[(*ngroups)++] = required[r];
+    }
+  return 0;
+}
+
 static int
 bda_run_authority (const bda_opts *o)
 {
@@ -1776,7 +1822,8 @@ bda_run_root (const bda_opts *o)
     }
 
   /* The target keeps its account's primary group as a supplementary group
-     when -g selects another primary group, as sudo's runas group vector does. */
+     when -g selects another primary group, as sudo's runas group vector does.
+     That gid is required: a full membership list must not drop it. */
   gid_t passwd_gid = u.gid;
   if (o->target_group && bda_group_to_gid (o->target_group, &u.gid) != 0)
     {
@@ -1818,14 +1865,11 @@ bda_run_root (const bda_opts *o)
       gid_t groups[BC_PD_GROUPS_MAX];
       int ngroups = 0;
       (void) bc_load_supplementary_groups (u.name, groups, &ngroups, BC_PD_GROUPS_MAX);
-      gid_t required[2] = { passwd_gid, u.gid };
-      for (int r = 0; r < 2; r++)
+      if (bda_ensure_groups (groups, &ngroups, passwd_gid, u.gid) < 0)
         {
-          int have = 0;
-          for (int i = 0; i < ngroups; i++)
-            if (groups[i] == required[r]) have = 1;
-          if (!have && ngroups < BC_PD_GROUPS_MAX)
-            groups[ngroups++] = required[r];
+          fprintf (stderr, "%s: group vector cannot hold the required groups\n",
+                   o->is_sudo ? "sudo" : "doas");
+          _exit (126);
         }
       /* Capture caller IDs in SUDO_UID/GID before changing credentials. */
       char **env = bda_build_env (&u, o);

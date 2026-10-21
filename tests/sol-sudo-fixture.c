@@ -1673,6 +1673,77 @@ command_tests (void)
   free (args);
 }
 
+static int
+groups_hold (gid_t passwd_gid, gid_t selected)
+{
+  int have_pw = 0, have_sel = 0;
+  if (S->ngroups <= 0 || S->ngroups > 64)
+    return 0;
+  for (int i = 0; i < S->ngroups; i++)
+    {
+      if (S->groups[i] == passwd_gid)
+        have_pw = 1;
+      if (S->groups[i] == selected)
+        have_sel = 1;
+    }
+  return have_pw && have_sel;
+}
+
+static void
+write_memberships (int n, int include_required)
+{
+  FILE *f = fopen (group_path, "w");
+  CHECK (f);
+  for (int i = 0; i < n; i++)
+    {
+      unsigned g = 8000u + (unsigned) i;
+      if (include_required && i == 0)
+        g = 4343;
+      if (include_required && i == 1)
+        g = 7000;
+      CHECK (fprintf (f, "g%d:x:%u:fixture\n", i, g) > 0);
+    }
+  CHECK (fclose (f) == 0);
+}
+
+static void
+group_tests (void)
+{
+  char *args[] = { "-u", "fixture", "-g", "#7000", "/bin/true", NULL };
+  unsetenv ("SHELL");
+  /* 64 memberships omit both required gids. */
+  write_memberships (64, 0);
+  for (int sudo = 0; sudo < 2; sudo++)
+    {
+      reset_state ();
+      root_route = 1;
+      CHECK (dispatchv (sudo, args) == 41);
+      if (!groups_hold (4343, 7000))
+        fprintf (stderr, "full vector sudo=%d ngroups=%d gid=%u first=%u last=%u\n",
+                 sudo, S->ngroups, (unsigned) S->gid,
+                 S->ngroups ? (unsigned) S->groups[0] : 0,
+                 S->ngroups ? (unsigned) S->groups[S->ngroups - 1] : 0);
+      CHECK (S->gid == 7000 && groups_hold (4343, 7000));
+    }
+  /* 63 memberships used to accept the passwd gid and drop -g from the vector. */
+  write_memberships (63, 0);
+  reset_state ();
+  root_route = 1;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->gid == 7000 && groups_hold (4343, 7000));
+  reset_state ();
+  root_route = 1;
+  CHECK (dispatchv (0, args) == 41);
+  CHECK (S->gid == 7000 && groups_hold (4343, 7000));
+  /* Both required gids already in the 64 stay there, once each. */
+  write_memberships (64, 1);
+  reset_state ();
+  root_route = 1;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->ngroups == 64 && S->gid == 7000 && groups_hold (4343, 7000));
+  accounts ();
+}
+
 static void
 status_reaped (void)
 {
@@ -1810,7 +1881,7 @@ main (int argc, char **argv)
   else
     {
       const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper",
-                               "command", "status", NULL };
+                               "command", "groups", "status", NULL };
       for (int g = 0; groups[g]; g++)
         {
           if (argc == 2 && strcmp (argv[1], groups[g])) continue;
@@ -1823,6 +1894,7 @@ main (int argc, char **argv)
           if (!strcmp (groups[g], "edit")) edit_tests ();
           if (!strcmp (groups[g], "helper")) helper_tests ();
           if (!strcmp (groups[g], "command")) command_tests ();
+          if (!strcmp (groups[g], "groups")) group_tests ();
           if (!strcmp (groups[g], "status")) status_tests ();
           printf ("group %s: %d assertions passed\n", groups[g], checks - start);
           rc = 1;
