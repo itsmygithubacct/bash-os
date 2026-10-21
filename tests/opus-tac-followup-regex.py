@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """GNU tac regex parity: random Emacs-syntax patterns, window geometry,
-UTF-8 locale, bounded memory and option parsing, byte-compared with GNU."""
+UTF-8 locale, bounded memory, read counts and option parsing, byte-compared
+with GNU."""
 import argparse
 import os
 from pathlib import Path
 import random
 import resource
+import shutil
 import subprocess
 import tempfile
 
@@ -463,7 +465,37 @@ done
             checks += 1
             big.unlink()
 
-        # 5. GNU getopt: clustering, abbreviations, permutation, errors.
+        # 5. Read counts: 65,536 short records in 1 MiB. Searching and
+        # printing reuse one block, so positional reads scale with input
+        # blocks and GNU windows, not with records (one reread per record
+        # was a 16x literal regression).
+        strace = shutil.which('strace', path='/usr/bin:/bin')
+        if args.emulated or not strace:
+            print('SKIP read-count checks: needs a native strace')
+        else:
+            unit = b'alpha 0123456789\nbeta 9876543210\n'
+            many = root / 'many'
+            many.write_bytes((unit * (1024 * 1024 // len(unit) + 1))[:1024 * 1024])
+            trace = root / 'trace'
+            for options in [[], ['-b'], ['-s', '\nbeta'], ['-b', '-s', '89'], ['-r', '-s', '[0-9]'],
+                            ['-r', '-s', '\n\\(alpha\\|beta\\)'], ['-r', '-s', '^b'],
+                            ['-b', '-r', '-s', '\\(9\\)\\1']]:
+                if args.portable and needs_glibc(options[-1]):
+                    continue
+                for mode in ['file', 'pipe']:
+                    opts = [*options, str(many)] if mode == 'file' else options
+                    stdin = many.read_bytes() if mode == 'pipe' else None
+                    p = subprocess.run([strace, '-f', '-qq', '-e', 'trace=pread64', '-o', str(trace),
+                                        args.binary, '--noprofile', '--norc', '-c', prefix + '"$@"',
+                                        '_', 'tac', *opts], input=stdin, env=env, capture_output=True)
+                    ref = run(REFERENCE, opts, stdin)
+                    assert (p.returncode, p.stdout) == (ref.returncode, ref.stdout), (options, mode)
+                    reads = len(trace.read_text().splitlines())
+                    assert reads <= 2 * 128 + 64, (options, mode, reads)
+                    checks += 1
+            many.unlink()
+
+        # 6. GNU getopt: clustering, abbreviations, permutation, errors.
         source = root / 'input'
         source.write_bytes(b'a:b,c\nd:e\n')
         option_sets = [['-br'], ['-rb', '-s:'], ['-brs', ':'], ['-brs:'], ['-bs', ','],

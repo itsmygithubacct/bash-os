@@ -105,15 +105,23 @@ tac_find_literal (tac_input *in, const char *needle, size_t slen,
         if (read_end > past) read_end = past;
         if (read_end <= start) { hi = start; continue; }
         size_t n = (size_t) (read_end - start);
-        if (tac_read_at (in->fd, in->data, n, start) < 0) return -1;
-        in->base = start;
-        in->used = n;
+        /* Successive records search leftwards through the same block, so
+           reread only when the span leaves it, and then a whole block. */
+        if (start < in->base || read_end > in->base + (off_t) in->used) {
+            off_t base = read_end > (off_t) in->capacity
+                ? read_end - (off_t) in->capacity : 0;
+            if (tac_read_at (in->fd, in->data, (size_t) (read_end - base), base) < 0)
+                return -1;
+            in->base = base;
+            in->used = (size_t) (read_end - base);
+        }
+        char *data = in->data + (size_t) (start - in->base);
         size_t limit = (size_t) (hi - start);
         if (limit > n) limit = n;
         while (limit) {
-            char *match = memrchr (in->data, (unsigned char) needle[0], limit);
+            char *match = memrchr (data, (unsigned char) needle[0], limit);
             if (!match) break;
-            size_t pos = (size_t) (match - in->data);
+            size_t pos = (size_t) (match - data);
             if (slen <= n && pos <= n - slen
                 && (slen == 1 || !memcmp (match, needle, slen))) {
                 *found = start + (off_t) pos;
