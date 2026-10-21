@@ -7,8 +7,13 @@ Every fixture is written by the host git itself (`git update-index
 
   small    100 entries
   large    20000 entries, the paths and ids of bench/loadables.py's
-           index-read fixture; the file is checked to be byte-identical to
-           the one that harness builds in Python
+           index-read fixture. That harness writes them in the order it
+           generates them, which is not path order (dir000/file-00256
+           follows dir255/file-00255), and the index format requires path
+           order; the builtin refuses that file, and git, which does not
+           check order on a read, lists it. The file here is checked to be
+           byte-identical to the same entries sorted, which is what git
+           writes. The unsorted file's refusal is recorded, untimed.
   xlarge   110000 entries, past the 8 MiB checksum snapshot, so every read
            verifies the trailer
 
@@ -73,9 +78,9 @@ def git(root, *argv, data=None, index=None):
     return r.stdout
 
 
-def historical(count=20000):
-    """bench/loadables.py's build_indexrepo, for the byte comparison."""
-    body = b'DIRC'+struct.pack('>II', 2, count)
+def historical(count=20000, ordered=False):
+    """bench/loadables.py's build_indexrepo, in its order or in path order."""
+    entries = []
     for i in range(count):
         path = ('dir%03d/file-%05d.txt' % (i % 256, i)).encode()
         sha = hashlib.sha1(b'entry %d' % i).digest()
@@ -83,7 +88,10 @@ def historical(count=20000):
         entry += sha+struct.pack('>H', len(path))+path+b'\0'
         while len(entry) % 8:
             entry += b'\0'
-        body += entry
+        entries.append((path, entry))
+    if ordered:
+        entries.sort()
+    body = b'DIRC'+struct.pack('>II', 2, count)+b''.join(e for _, e in entries)
     return body+hashlib.sha1(body).digest()
 
 
@@ -156,8 +164,19 @@ for name, count in (('small', 100), ('large', 20000), ('xlarge', 110000)):
     fixtures[name] = dict(entries=count, a=a, b=b, listing=listing, listing_b=listing_b,
                           bytes=a.stat().st_size, sha256_a=sha256(a), sha256_b=sha256(b),
                           output_bytes=len(listing))
-large_matches_historical = fixtures['large']['a'].read_bytes() == historical()
-assert large_matches_historical, 'git-written large fixture differs from the historical one'
+large_matches_historical = fixtures['large']['a'].read_bytes() == historical(ordered=True)
+assert large_matches_historical, 'git-written large fixture differs from the historical entries in path order'
+unsorted = work/'historical-unsorted.index'
+unsorted.write_bytes(historical())
+r = subprocess.run([str(BINARY), '--noprofile', '--norc', '-c', f'PATH=; index read {q(str(unsorted))}'],
+                   capture_output=True)
+g = subprocess.run([GIT, '-C', str(repo), 'ls-files', '--stage'], capture_output=True,
+                   env={**os.environ, 'GIT_INDEX_FILE': str(unsorted)})
+historical_unsorted = {'bytes': unsorted.stat().st_size, 'sha256': sha256(unsorted),
+                       'builtin_status': r.returncode, 'builtin_stdout_bytes': len(r.stdout),
+                       'builtin_stderr': r.stderr.decode(errors='replace').strip()[-200:],
+                       'git_ls_files_status': g.returncode, 'git_ls_files_lines': g.stdout.count(b'\n')}
+print(f'historical unsorted fixture: builtin {r.returncode}, git ls-files {g.returncode}', flush=True)
 
 cases = []
 wanted = set(filter(None, args.only.split(',')))
@@ -267,7 +286,8 @@ report = {
     'cpu_model': next((l.split(':', 1)[1].strip() for l in open('/proc/cpuinfo') if l.startswith('model name')), ''),
     'load_average_start': load_start, 'method': ('batch wall time from $EPOCHREALTIME in one bash-os shell; '
                                            'stdout /dev/null; warm page cache; warm-up batch discarded'),
-    'large_fixture_matches_bench_loadables': large_matches_historical,
+    'large_fixture_matches_bench_loadables_sorted': large_matches_historical,
+    'bench_loadables_unsorted_fixture': historical_unsorted,
     'fixtures': {n: {k: fx[k] for k in ('entries', 'bytes', 'sha256_a', 'sha256_b', 'output_bytes')}
                  for n, fx in fixtures.items()},
     'cases': cases,
