@@ -105,11 +105,14 @@ typedef enum { BS_ADDR_NONE, BS_ADDR_LINE, BS_ADDR_LAST, BS_ADDR_REGEX,
                BS_ADDR_MULT    /* addr2 only: ,~N  -> end = next multiple of N after start */
              } bs_addrkind;
 
+typedef struct bs_prog bs_prog;
+
 typedef struct {
     bs_addrkind kind;
     long        line;        /* for ADDR_LINE; "first" for ADDR_STEP */
     long        step;        /* for ADDR_STEP (GNU first~step) */
     regex_t     re;          /* for ADDR_REGEX */
+    bs_prog    *prog;        /* bounded matcher; kept off glibc set_regs */
     int         re_ok;
 } bs_addr;
 
@@ -141,6 +144,7 @@ typedef struct {
     int        negate;       /* ! prefix */
     /* s/// */
     regex_t    s_re;
+    bs_prog   *s_prog;
     int        s_re_ok;
     char      *s_literal;    /* nonempty ASCII regex without operators */
     size_t     s_literal_len, s_repl_len;
@@ -203,13 +207,484 @@ bs_interrupted (void)
     return bs_interrupt_signal != 0;
 }
 
+/* A repeated group that can match empty and contains an anchor makes glibc
+   set_regs loop when re_search is called with registers (nmatch > 1). The
+   global-substitute retry is that call. Only a single capturing group whose
+   alternatives are anchors and literals is matched here; every other pattern
+   of that shape is refused. One table, filled after the command array stops
+   moving, lets an empty s// reuse the program stored for the last regex. */
+#define BS_ATOM_LIT    0
+#define BS_ATOM_BOL    1
+#define BS_ATOM_EOL    2
+#define BS_ATOM_BOS    3
+#define BS_ATOM_EOS    4
+#define BS_ATOM_WSTART 5
+#define BS_ATOM_WEND   6
+#define BS_ATOM_WB     7
+#define BS_ATOM_WNB    8
+#define BS_MAX_ATOMS   24
+#define BS_MAX_ALTS    12
+#define BS_PROG_MAX    64
+
+struct bs_prog {
+    struct { unsigned char kind, lit; } atoms[BS_MAX_ALTS][BS_MAX_ATOMS];
+    unsigned char natoms[BS_MAX_ALTS];
+    int nalts, qmin, qmax, icase, newline, word;
+};
+
+static struct { const regex_t *re; bs_prog *prog; } bs_prog_map[BS_PROG_MAX];
+static int bs_prog_n, bs_prog_made;
+
+static void
+bs_prog_bind (bs_cmd *cmds, int n)
+{
+    bs_prog_n = 0;
+    for (int i = 0; i < n; i++) {
+        bs_cmd *c = &cmds[i];
+        if (c->addr1.prog && bs_prog_n < BS_PROG_MAX)
+            bs_prog_map[bs_prog_n++] = (typeof (bs_prog_map[0])) { &c->addr1.re, c->addr1.prog };
+        if (c->addr2.prog && bs_prog_n < BS_PROG_MAX)
+            bs_prog_map[bs_prog_n++] = (typeof (bs_prog_map[0])) { &c->addr2.re, c->addr2.prog };
+        if (c->s_prog && bs_prog_n < BS_PROG_MAX)
+            bs_prog_map[bs_prog_n++] = (typeof (bs_prog_map[0])) { &c->s_re, c->s_prog };
+    }
+}
+
+static bs_prog *
+bs_prog_lookup (const regex_t *re)
+{
+    for (int i = 0; i < bs_prog_n; i++)
+        if (bs_prog_map[i].re == re) return bs_prog_map[i].prog;
+    return NULL;
+}
+
+typedef struct {
+    const char *s;
+    size_t n, i;
+    int ext, dangerous, bad, record, simple, word;
+    bs_prog prog;
+} bs_re_scan;
+
+static int bs_re_end (const bs_re_scan *sc)
+{
+    return sc->i >= sc->n;
+}
+static int bs_re_alt (const bs_re_scan *sc)
+{
+    if (bs_re_end (sc)) return 0;
+    if (sc->ext) return sc->s[sc->i] == '|';
+    return sc->s[sc->i] == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == '|';
+}
+static int bs_re_group_end (const bs_re_scan *sc)
+{
+    if (bs_re_end (sc)) return 0;
+    if (sc->ext) return sc->s[sc->i] == ')';
+    return sc->s[sc->i] == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == ')';
+}
+
+/* Bracket expression in a length-bounded pattern. 0 closes, -1 runs off the end. */
+static int
+bs_re_skip_class (bs_re_scan *sc)
+{
+    size_t i = sc->i + 1;
+    if (i < sc->n && sc->s[i] == '^') i++;
+    int first = 1, state = 0;
+    char marker = 0;
+    for (;;) {
+        if (i >= sc->n) return -1;
+        unsigned char c = (unsigned char) sc->s[i];
+        if (state == 0) {
+            if (c == ']' && !first) { sc->i = i + 1; return 0; }
+            if (c == '[') state = 1;
+            first = 0; i++;
+        } else if (state == 1) {
+            if (c == ':' || c == '.' || c == '=') { marker = (char) c; state = 2; i++; }
+            else if (c == ']') { sc->i = i + 1; return 0; }
+            else { state = 0; i++; }
+        } else if (state == 2) {
+            if (c == (unsigned char) marker) state = 3;
+            i++;
+        } else if (c == ']') { state = 0; i++; }
+        else if (c == (unsigned char) marker) i++;
+        else { state = 2; i++; }
+    }
+}
+
+static int
+bs_re_quant (bs_re_scan *sc, int *qmin, int *qmax)
+{
+    *qmin = 1; *qmax = 1;
+    if (bs_re_end (sc)) return 0;
+    size_t save = sc->i;
+    int bre_brace = 0;
+    char c = sc->s[sc->i];
+    if (!sc->ext && c == '\\' && sc->i + 1 < sc->n) {
+        char e = sc->s[sc->i + 1];
+        if (e == '+') { *qmin = 1; *qmax = -1; sc->i += 2; return 1; }
+        if (e == '?') { *qmin = 0; *qmax = 1; sc->i += 2; return 1; }
+        if (e == '{') { bre_brace = 1; sc->i += 2; }
+        else return 0;
+    } else if (sc->ext && c == '*') { *qmin = 0; *qmax = -1; sc->i++; return 1; }
+    else if (sc->ext && c == '+') { *qmin = 1; *qmax = -1; sc->i++; return 1; }
+    else if (sc->ext && c == '?') { *qmin = 0; *qmax = 1; sc->i++; return 1; }
+    else if (sc->ext && c == '{') sc->i++;
+    else if (!sc->ext && c == '*') { *qmin = 0; *qmax = -1; sc->i++; return 1; }
+    else return 0;
+    if (sc->i >= sc->n || !isdigit ((unsigned char) sc->s[sc->i])) {
+        sc->i = save; return 0;
+    }
+    int lo = 0, hi = 0, any = 0;
+    while (sc->i < sc->n && isdigit ((unsigned char) sc->s[sc->i])) {
+        lo = lo * 10 + (sc->s[sc->i++] - '0');
+        if (lo > 1000000) { sc->bad = 1; return 0; }
+    }
+    hi = lo;
+    if (sc->i < sc->n && sc->s[sc->i] == ',') {
+        sc->i++;
+        if (sc->i < sc->n && isdigit ((unsigned char) sc->s[sc->i])) {
+            hi = 0;
+            while (sc->i < sc->n && isdigit ((unsigned char) sc->s[sc->i])) {
+                hi = hi * 10 + (sc->s[sc->i++] - '0');
+                if (hi > 1000000) { sc->bad = 1; return 0; }
+            }
+        } else { hi = -1; any = 1; }
+    }
+    int closed = 0;
+    if (bre_brace) {
+        if (sc->i + 1 < sc->n && sc->s[sc->i] == '\\' && sc->s[sc->i + 1] == '}') {
+            sc->i += 2; closed = 1;
+        }
+    } else if (sc->i < sc->n && sc->s[sc->i] == '}') { sc->i++; closed = 1; }
+    if (!closed || (hi >= 0 && hi < lo)) { sc->i = save; sc->bad = 1; return 0; }
+    *qmin = lo; *qmax = any ? -1 : hi;
+    (void) any;
+    return 1;
+}
+
+typedef struct { int nullable, anchor; } bs_re_info;
+
+static bs_re_info bs_re_expr (bs_re_scan *sc);
+
+static int
+bs_re_push (bs_re_scan *sc, int alt, int kind, unsigned char lit)
+{
+    if (!sc->record) return 0;
+    if (alt >= BS_MAX_ALTS || sc->prog.natoms[alt] >= BS_MAX_ATOMS) {
+        sc->simple = 0; return -1;
+    }
+    int k = sc->prog.natoms[alt]++;
+    sc->prog.atoms[alt][k].kind = (unsigned char) kind;
+    sc->prog.atoms[alt][k].lit = lit;
+    return 0;
+}
+
+static bs_re_info
+bs_re_atom (bs_re_scan *sc, int alt, int first)
+{
+    bs_re_info info = { 0, 0 };
+    if (bs_re_end (sc) || bs_re_alt (sc) || bs_re_group_end (sc)) {
+        info.nullable = 1; return info;
+    }
+    unsigned char c = (unsigned char) sc->s[sc->i];
+    if (c == '[') {
+        if (bs_re_skip_class (sc) < 0) sc->bad = 1;
+        sc->simple = 0;
+    } else if (c == '(' && sc->ext) {
+        sc->i++;
+        int rec = sc->record, simple = sc->simple;
+        sc->record = 0;
+        bs_re_info inner = bs_re_expr (sc);
+        sc->record = rec; sc->simple = simple ? sc->simple : 0;
+        if (!bs_re_group_end (sc)) { sc->bad = 1; return info; }
+        sc->i++;
+        sc->simple = 0;
+        int qmin, qmax, present = bs_re_quant (sc, &qmin, &qmax);
+        int repeating = present && (qmax < 0 || qmax > 1);
+        if (repeating && inner.nullable && inner.anchor) sc->dangerous = 1;
+        info.anchor = inner.anchor;
+        info.nullable = qmin == 0 || inner.nullable;
+        return info;
+    } else if (!sc->ext && c == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == '(') {
+        sc->i += 2;
+        int rec = sc->record, simple = sc->simple;
+        sc->record = 0;
+        bs_re_info inner = bs_re_expr (sc);
+        sc->record = rec;
+        if (!bs_re_group_end (sc)) { sc->bad = 1; return info; }
+        sc->i += 2;
+        sc->simple = 0;
+        (void) simple;
+        int qmin, qmax, present = bs_re_quant (sc, &qmin, &qmax);
+        int repeating = present && (qmax < 0 || qmax > 1);
+        if (repeating && inner.nullable && inner.anchor) sc->dangerous = 1;
+        info.anchor = inner.anchor;
+        info.nullable = qmin == 0 || inner.nullable;
+        return info;
+    } else if (c == '\\' && sc->i + 1 < sc->n) {
+        char e = sc->s[sc->i + 1];
+        int kind = 0;
+        if (e == '`') kind = BS_ATOM_BOS;
+        else if (e == '\'') kind = BS_ATOM_EOS;
+        else if (e == '<') kind = BS_ATOM_WSTART;
+        else if (e == '>') kind = BS_ATOM_WEND;
+        else if (e == 'b') kind = BS_ATOM_WB;
+        else if (e == 'B') kind = BS_ATOM_WNB;
+        else if (e >= '1' && e <= '9') { sc->i += 2; sc->simple = 0; info.nullable = 1; }
+        else { sc->i += 2; bs_re_push (sc, alt, BS_ATOM_LIT, (unsigned char) e); }
+        if (kind) {
+            sc->i += 2; info.nullable = 1; info.anchor = 1;
+            if (kind >= BS_ATOM_WSTART) sc->word = 1;
+            bs_re_push (sc, alt, kind, 0);
+        }
+        if (!kind && !(e >= '1' && e <= '9') && e != '`') {
+            /* literal already pushed */
+        }
+    } else if (c == '\\') { sc->bad = 1; return info; }
+    else if (c == '^' && first) {
+        sc->i++; info.nullable = 1; info.anchor = 1;
+        bs_re_push (sc, alt, BS_ATOM_BOL, 0);
+    } else if (c == '$') {
+        bs_re_scan look = *sc; look.i++;
+        if (bs_re_end (&look) || bs_re_alt (&look) || bs_re_group_end (&look)) {
+            sc->i++; info.nullable = 1; info.anchor = 1;
+            bs_re_push (sc, alt, BS_ATOM_EOL, 0);
+        } else { sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, '$'); }
+    } else if (c == '.' ) { sc->i++; sc->simple = 0; }
+    else if (c == '*' || (sc->ext && (c == '+' || c == '?' || c == '{'))) {
+        sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, c);
+    } else {
+        sc->i++; bs_re_push (sc, alt, BS_ATOM_LIT, c);
+    }
+    int qmin, qmax;
+    if (bs_re_quant (sc, &qmin, &qmax)) {
+        sc->simple = 0;
+        if (qmin == 0) info.nullable = 1;
+    }
+    return info;
+}
+
+static bs_re_info
+bs_re_branch (bs_re_scan *sc, int alt)
+{
+    bs_re_info info = { 1, 0 };
+    int first = 1, any = 0;
+    if (sc->record) sc->prog.natoms[alt] = 0;
+    while (!bs_re_end (sc) && !bs_re_alt (sc) && !bs_re_group_end (sc) && !sc->bad) {
+        bs_re_info atom = bs_re_atom (sc, alt, first);
+        if (bs_re_end (sc) && !any && atom.nullable && !atom.anchor && first) break;
+        any = 1; first = 0;
+        info.nullable = info.nullable && atom.nullable;
+        info.anchor = info.anchor || atom.anchor;
+        if (sc->bad) break;
+        /* An empty atom result at a delimiter means the branch ended. */
+        if (bs_re_end (sc) || bs_re_alt (sc) || bs_re_group_end (sc)) break;
+    }
+    return info;
+}
+
+static bs_re_info
+bs_re_expr (bs_re_scan *sc)
+{
+    int alt = 0;
+    bs_re_info info = bs_re_branch (sc, alt);
+    while (bs_re_alt (sc) && !sc->bad) {
+        sc->i += sc->ext ? 1 : 2;
+        alt++;
+        if (sc->record && alt >= BS_MAX_ALTS) sc->simple = 0;
+        bs_re_info more = bs_re_branch (sc, alt < BS_MAX_ALTS ? alt : 0);
+        info.nullable = info.nullable || more.nullable;
+        info.anchor = info.anchor || more.anchor;
+    }
+    if (sc->record) sc->prog.nalts = sc->simple ? alt + 1 : 0;
+    return info;
+}
+
+/* 1: *out is a bounded program. 0: the engine can run it. -1: refuse. */
+static int
+bs_regex_guard (const char *pat, size_t len, int flags, bs_prog **out)
+{
+    *out = NULL;
+    bs_re_scan sc;
+    memset (&sc, 0, sizeof sc);
+    sc.s = pat; sc.n = len; sc.ext = (flags & REG_EXTENDED) != 0; sc.simple = 1;
+    int whole = 0;
+    if ((sc.ext && len && pat[0] == '(') ||
+        (!sc.ext && len > 1 && pat[0] == '\\' && pat[1] == '(')) {
+        sc.record = 1;
+        sc.i = sc.ext ? 1 : 2;
+        bs_re_info inner = bs_re_expr (&sc);
+        int closed = bs_re_group_end (&sc);
+        if (closed) sc.i += sc.ext ? 1 : 2;
+        int qmin = 1, qmax = 1, present = 0;
+        if (closed && !sc.bad) present = bs_re_quant (&sc, &qmin, &qmax);
+        int repeating = present && (qmax < 0 || qmax > 1);
+        if (closed && sc.i == len && !sc.bad) {
+            whole = 1;
+            if (repeating && inner.nullable && inner.anchor) sc.dangerous = 1;
+            if (sc.dangerous && sc.simple) {
+                sc.prog.qmin = qmin; sc.prog.qmax = qmax;
+                sc.prog.icase = (flags & REG_ICASE) != 0;
+                sc.prog.newline = (flags & REG_NEWLINE) && bs_delim == '\n';
+                sc.prog.word = sc.word;
+            } else sc.simple = 0;
+        } else sc.simple = 0;
+        if (!(whole && sc.dangerous && sc.simple)) {
+            /* Nested or surrounding pieces still need a danger pass. */
+            bs_re_scan all;
+            memset (&all, 0, sizeof all);
+            all.s = pat; all.n = len; all.ext = sc.ext; all.simple = 1;
+            bs_re_expr (&all);
+            if (all.dangerous) sc.dangerous = 1;
+            if (all.bad) sc.bad = 1;
+            sc.simple = 0;
+        }
+    } else {
+        bs_re_expr (&sc);
+    }
+    if (sc.bad && !sc.dangerous) return 0;
+    if (sc.dangerous && whole && sc.simple && !sc.bad) {
+        if ((sc.prog.word || sc.prog.icase) && MB_CUR_MAX > 1) return -1;
+        if (bs_prog_made >= BS_PROG_MAX) return -1;
+        bs_prog *copy = malloc (sizeof *copy);
+        if (!copy) return -1;
+        *copy = sc.prog;
+        *out = copy;
+        return 1;
+    }
+    if (sc.dangerous) return -1;
+    return 0;
+}
+
+static int
+bs_isword (unsigned char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z')
+        || (c >= 'a' && c <= 'z') || c == '_';
+}
+
+static int
+bs_anchor_ok (const bs_prog *prog, int kind, const char *str,
+              size_t beg, size_t end, size_t pos)
+{
+    int has_prev = pos > beg, has_cur = pos < end;
+    unsigned char prev = has_prev ? (unsigned char) str[pos - 1] : 0;
+    unsigned char cur = has_cur ? (unsigned char) str[pos] : 0;
+    int wordprev = has_prev && bs_isword (prev);
+    int wordcur = has_cur && bs_isword (cur);
+    int boundary = (!wordprev && wordcur) || (wordprev && !wordcur);
+    switch (kind) {
+        case BS_ATOM_BOL: return pos == beg || (prog->newline && has_prev && prev == '\n');
+        case BS_ATOM_EOL: return pos == end || (prog->newline && has_cur && cur == '\n');
+        case BS_ATOM_BOS: return pos == beg;
+        case BS_ATOM_EOS: return pos == end;
+        case BS_ATOM_WSTART: return !wordprev && wordcur;
+        case BS_ATOM_WEND: return wordprev && !wordcur;
+        case BS_ATOM_WB: return boundary;
+        case BS_ATOM_WNB: return !boundary;
+        default: return 0;
+    }
+}
+
+static int
+bs_alt_len (const bs_prog *prog, int alt, const char *str, size_t beg, size_t end,
+            size_t pos, size_t *out)
+{
+    size_t cur = pos;
+    int n = prog->natoms[alt];
+    for (int i = 0; i < n; i++) {
+        unsigned char kind = prog->atoms[alt][i].kind;
+        if (kind == BS_ATOM_LIT) {
+            if (cur >= end) return -1;
+            unsigned char got = (unsigned char) str[cur];
+            unsigned char want = prog->atoms[alt][i].lit;
+            if (got != want) {
+                if (!prog->icase || tolower (got) != tolower (want)) return -1;
+            }
+            cur++;
+        } else if (!bs_anchor_ok (prog, kind, str, beg, end, cur)) return -1;
+    }
+    *out = cur - pos;
+    return 0;
+}
+
+/* Greedy leftmost match of the one group at pos. Empty repetitions stop:
+   an unlimited quantifier does not take a trailing empty iteration once the
+   minimum is met, and a finite one records that empty iteration as the group. */
+static int
+bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t pos,
+            size_t *mend, size_t *gso, size_t *geo, int *gset)
+{
+    size_t cur = pos;
+    int reps = 0, group = 0;
+    size_t so = pos, eo = pos;
+    for (;;) {
+        if (prog->qmax >= 0 && reps >= prog->qmax) break;
+        int best = -1;
+        for (int a = 0; a < prog->nalts; a++) {
+            size_t len = 0;
+            if (bs_alt_len (prog, a, str, beg, end, cur, &len) == 0 && (int) len > best)
+                best = (int) len;
+        }
+        if (best < 0) break;
+        if (best == 0) {
+            if (reps >= prog->qmin && prog->qmax < 0) break;
+            so = cur; eo = cur; group = 1;
+            if (prog->qmax >= 0 && reps >= prog->qmin) { reps = prog->qmax; break; }
+            reps++;
+            if (prog->qmax < 0 && reps >= prog->qmin) break;
+            continue;
+        }
+        so = cur; eo = cur + (size_t) best; group = 1;
+        cur = eo; reps++;
+    }
+    if (reps < prog->qmin) return 0;
+    *mend = cur; *gset = group;
+    if (group) { *gso = so; *geo = eo; }
+    return 1;
+}
+
+static int
+bs_prog_find (const bs_prog *prog, const char *str, size_t beg, size_t start, size_t end,
+              size_t nmatch, regmatch_t *matches, size_t off)
+{
+    if (start > end) return REG_NOMATCH;
+    for (size_t pos = start; ; pos++) {
+        size_t mend = pos, gso = 0, geo = 0;
+        int gset = 0;
+        if (bs_prog_at (prog, str, beg, end, pos, &mend, &gso, &geo, &gset)) {
+            if (nmatch > 0 && matches) {
+                matches[0].rm_so = (regoff_t) pos - (regoff_t) off;
+                matches[0].rm_eo = (regoff_t) mend - (regoff_t) off;
+            }
+            if (nmatch > 1 && matches) {
+                matches[1].rm_so = gset ? (regoff_t) gso - (regoff_t) off : -1;
+                matches[1].rm_eo = gset ? (regoff_t) geo - (regoff_t) off : -1;
+            }
+            for (size_t i = 2; i < nmatch && matches; i++)
+                matches[i].rm_so = matches[i].rm_eo = -1;
+            return 0;
+        }
+        if (pos == end) break;
+    }
+    return REG_NOMATCH;
+}
+
 /* Compile the selected sed dialect. GNU libc exposes the same length-aware
    regex interface used by GNU sed, including dot matching embedded NULs.
    Other libcs use the private, vendored GNU engine. Never leave process-global regex
-   syntax changed: later shell expressions and loadables share this process. */
+   syntax changed: later shell expressions and loadables share this process.
+   Returns -2 when the pattern is refused; the refusal is already reported. */
 static int
-bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
+bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **prog_out)
 {
+    bs_prog *prog = NULL;
+    *prog_out = NULL;
+    int guard = bs_regex_guard (pat, len, flags, &prog);
+    if (guard < 0) {
+        free (prog);
+        builtin_error ("regex may hang; refusing pattern: %s", pat);
+        return -2;
+    }
     reg_syntax_t syntax = flags & REG_EXTENDED
         ? RE_SYNTAX_POSIX_EXTENDED : RE_SYNTAX_POSIX_BASIC;
     syntax &= ~(RE_DOT_NOT_NULL | RE_UNMATCHED_RIGHT_PAREN_ORD);
@@ -218,7 +693,7 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
        positions whose first byte cannot start a match. */
     re->buffer = NULL; re->allocated = 0; re->translate = NULL; re->fastmap = NULL;
     if (flags & REG_ICASE) syntax |= RE_ICASE;
-    else if (!(re->fastmap = malloc (256))) return -1;
+    else if (!(re->fastmap = malloc (256))) { free (prog); return -1; }
     if (flags & REG_NEWLINE) {
         syntax &= ~RE_DOT_NEWLINE;
         syntax |= RE_HAT_LISTS_NOT_NEWLINE;
@@ -229,7 +704,9 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags)
     /* With -z, bs_search emulates M by searching each NUL-terminated
        record; newline is then ordinary for the anchors (GNU sed). */
     re->newline_anchor = (flags & REG_NEWLINE) && bs_delim == '\n';
-    if (error) { regfree (re); memset (re, 0, sizeof *re); return -1; }
+    if (error) { free (prog); regfree (re); memset (re, 0, sizeof *re); return -1; }
+    if (prog) bs_prog_made++;
+    *prog_out = prog;
     return 0;
 
 }
@@ -256,10 +733,20 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
         const char *eol = memrchr (str, bs_delim, off);
         if (eol) beg = (size_t) (eol - str) + 1;
     }
+    /* The only sed search with nmatch > 1 is s/// (ten registers). Address
+       matches pass nmatch 0. A bounded program replaces both, so set_regs is
+       never entered for a pattern that can loop there. */
+    bs_prog *prog = bs_prog_lookup (re);
     for (;;) {
         if (split) {
             const char *e = memchr (str + start, bs_delim, len - start);
             end = e ? (size_t) (e - str) : len;
+        }
+        if (prog) {
+            int found = bs_prog_find (prog, str, beg, start, end, nmatch, matches, off);
+            if (found == 0 || end == len) return found;
+            beg = start = end + 1;
+            continue;
         }
         result = re_search (re, str + beg, (regoff_t) (end - beg), (regoff_t) (start - beg),
                             (regoff_t) (end - start), nmatch ? &regs : NULL);
@@ -705,8 +1192,9 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (!rlen && (flags & (REG_ICASE | REG_NEWLINE))) {
             builtin_error ("cannot specify modifiers on empty regexp"); free (pat); return -1;
         }
-        if (rlen && bs_compile_re (&a->re, pat, rlen, flags) != 0) {
-            builtin_error ("bad regex in address: %s", pat);
+        int cre = rlen ? bs_compile_re (&a->re, pat, rlen, flags, &a->prog) : 0;
+        if (cre != 0) {
+            if (cre != -2) builtin_error ("bad regex in address: %s", pat);
             free (pat); return -1;
         }
         free (pat);
@@ -879,6 +1367,9 @@ bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line, size_t le
 static void
 bs_cmd_free (bs_cmd *c)
 {
+    free (c->addr1.prog);
+    free (c->addr2.prog);
+    free (c->s_prog);
     if (c->addr1.re_ok) regfree (&c->addr1.re);
     if (c->addr2.re_ok) regfree (&c->addr2.re);
     if (c->s_re_ok)     regfree (&c->s_re);
@@ -896,6 +1387,7 @@ static int
 bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended)
 {
     int cap = 16, n = 0, status = -1;
+    bs_prog_made = 0;
     bs_cmd *cmds = calloc ((size_t) cap + 1, sizeof *cmds);
     if (!cmds) return -1;
     const char *p = script;
@@ -1028,8 +1520,9 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 char *pat_compat = bs_regex_text (pat, delim, extended, &rlen);
                 free (pat);
                 if (!pat_compat) goto err;
-                if (bs_compile_re (&c->s_re, pat_compat, rlen, rflags) != 0) {
-                    builtin_error ("s/// bad regex: %s", pat_compat);
+                int cre = bs_compile_re (&c->s_re, pat_compat, rlen, rflags, &c->s_prog);
+                if (cre != 0) {
+                    if (cre != -2) builtin_error ("s/// bad regex: %s", pat_compat);
                     free (pat_compat); goto err;
                 }
                 c->s_re_ok = 1;
@@ -2532,6 +3025,7 @@ sed_builtin (WORD_LIST *list)
         free (files); free (script);
         return -parsed;
     }
+    bs_prog_bind (cmds, n_cmds);
 
     /* A script that only uses its main input/output can buffer regular
        file output. Auxiliary streams and execution retain their original
