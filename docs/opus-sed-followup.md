@@ -33,11 +33,12 @@ empty-regex reuse. A delimiter inside a bracket expression is part of the
 expression, including after `[^` and inside `[:` `[=` `[.` names. The same
 scan is used for the regex half of `s///`. The replacement half and `y`
 still end at the first unescaped delimiter. `z` empties the pattern space.
-`v [VERSION]` compares components with GNU sed 4.9. A request that matches
-the known prefix is accepted (`v 4.9`, `v 4.8.99`, `v 3.9.0`). An extra
-component is newer even when it is zero (`v 4.9.0`), unless an earlier
-component already showed the request is older. A trailing dot or other junk
-is rejected.
+`v [VERSION]` reads one version token the way GNU sed reads a label.
+Leading blanks are skipped. The token ends at the next blank, semicolon,
+`}`, newline or `#`, and that character stays for the next command. An
+empty token is accepted. The token is accepted when `strverscmp` does not
+find it newer than 4.9 (`v 4.9`, `v 4.09.0`, `v 4.8.`, `v -1`, `v 4.`).
+A newer token is rejected (`v 4.9.0`, `v 4.9.`, `v 4.10`, `v 5`).
 
 `e COMMAND` runs the command and writes its output before the cycle's
 output. The command continues across a backslash-newline: the backslash is

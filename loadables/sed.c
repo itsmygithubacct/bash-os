@@ -1381,6 +1381,43 @@ bs_cmd_free (bs_cmd *c)
     memset (c, 0, sizeof *c);
 }
 
+/* GNU sed accepts a v token when strverscmp(token, "4.9") is not positive.
+   A local copy keeps the same order on libcs that have no strverscmp. */
+static int
+bs_strverscmp (const char *s1, const char *s2)
+{
+    const unsigned char *p1 = (const unsigned char *) s1;
+    const unsigned char *p2 = (const unsigned char *) s2;
+    static const uint8_t next_state[] = {
+        0x0, 0x3, 0x9, 0x0, 0x3, 0x3, 0x0, 0x6, 0x6, 0x0, 0x6, 0x9
+    };
+    static const int8_t result_type[] = {
+        2, 2, 2, 2, 3, 2, 2, 2, 2,
+        2, -1, -1, 1, 3, 3, 1, 3, 3,
+        2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 1, 1, -1, 2, 2, -1, 2, 2
+    };
+    if (p1 == p2) return 0;
+    unsigned char c1 = *p1++, c2 = *p2++;
+    int state = (c1 == '0') + (isdigit (c1) != 0);
+    int diff;
+    while ((diff = c1 - c2) == 0) {
+        if (c1 == '\0') return diff;
+        state = next_state[state];
+        c1 = *p1++; c2 = *p2++;
+        state += (c1 == '0') + (isdigit (c1) != 0);
+    }
+    state = result_type[state * 3 + ((c2 == '0') + (isdigit (c2) != 0))];
+    switch (state) {
+        case 2: return diff;
+        case 3:
+            while (isdigit (*p1++))
+                if (!isdigit (*p2++)) return 1;
+            return isdigit (*p2) ? -1 : diff;
+        default: return state;
+    }
+}
+
 /* Parse the entire script into a flat command list. Returns malloc'd
    array; *out_n is the count. Returns -1 on parse error. */
 static int
@@ -1618,34 +1655,22 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
             }
             case 'z': c->kind = BS_Z; break;
             case 'v': {
-                /* v [VERSION]: fail unless this sed is at least VERSION. The
-                   GNU sed 4.9 command set is the compatibility target. */
-                static const long have[] = { 4, 9 };
+                /* v [VERSION]: GNU reads one label token and accepts it when
+                   strverscmp(token, "4.9") is not positive. An empty token
+                   (bare v, or v ended by ';' '}' newline or '#') is accepted.
+                   The character that ends the token stays for the next command. */
                 c->kind = BS_LABEL;
                 while (*p == ' ' || *p == '\t') p++;
-                if (!*p || *p == ';' || *p == '\n' || *p == '}') break;
-                /* GNU compares components in order. A request that matches the
-                   known prefix is old enough (v 4.9, v 4.8.99). An extra
-                   component is newer even when it is zero (v 4.9.0), unless an
-                   earlier component already decided the request is older. */
-                int newer = 0, decided = 0, bad = 0;
-                static const int have_n = 2;
-                for (int part = 0; ; part++) {
-                    long want;
-                    if (bs_number (&p, &want) < 0) { bad = 1; break; }
-                    if (!decided) {
-                        if (part >= have_n) { newer = 1; decided = 1; }
-                        else if (want != have[part]) {
-                            newer = want > have[part];
-                            decided = 1;
-                        }
-                    }
-                    if (*p != '.') break;
+                const char *s = p;
+                while (*p && *p != ' ' && *p != '\t' && *p != ';' && *p != '\n'
+                       && *p != '}' && *p != '#')
                     p++;
-                    if (!isdigit ((unsigned char) *p)) { bad = 1; break; }
-                }
-                while (*p == ' ' || *p == '\t') p++;
-                if (bad || newer || (*p && *p != ';' && *p != '\n' && *p != '}')) {
+                if (p == s) break;
+                char *tok = strndup (s, (size_t) (p - s));
+                if (!tok) goto err;
+                int newer = bs_strverscmp (tok, "4.9") > 0;
+                free (tok);
+                if (newer) {
                     builtin_error ("expected newer version of sed"); goto err;
                 }
                 break;

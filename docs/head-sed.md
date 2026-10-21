@@ -66,7 +66,9 @@ The compatibility boundaries are:
   Length-aware GNU regex matching supports embedded NUL subjects: glibc's
   engine, or a private GNU sed 4.9 engine on other libcs. Bracket expressions
   may contain the regex delimiter. `e` commands continue across a
-  backslash-newline. `v 4.9` is accepted and `v 4.9.0` is rejected. In-place
+  backslash-newline. A `v` token is accepted when it is not newer than 4.9,
+  so `v 4.9` and `v 4.09.0` are accepted and `v 4.9.0` and `v 4.10` are
+  rejected. In-place
   replacement is pinned to the parent directory. A repeated group that can
   match empty and contains an anchor is matched directly when it is the whole
   pattern, and refused otherwise, so the search cannot loop. `-z`, `--sandbox`,

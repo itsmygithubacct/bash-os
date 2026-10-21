@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""v compares an extra component even when it is zero.
+"""v accepts a token when strverscmp(token, "4.9") is not positive.
 
-GNU sed 4.9 rejects v 4.9.0. The reviewed sed treated the missing component
-as zero and accepted it. Trailing junk and a shorter older prefix stay put.
+GNU sed 4.9 reads one version token, skipping the same leading blanks, and
+stops at the next blank, semicolon, brace, newline or comment. An empty
+token is accepted. v 4.9.0 and v 4.10 are newer; v 4.09.0 and v 4.8. are not.
 """
 import os
 from pathlib import Path
@@ -39,6 +40,8 @@ for script in (
     'v 4.9.', 'v 4.9x', 'v x', 'v 5', 'v 4.10',
     'v', 'v 4', 'v 4.9', 'v 4.8', 'v 4.8.99', 'v 3.9.0', 'v 4.09', 'v 04.9',
     'v4.2.2', '1{v\n}',
+    'v 4.09.0', 'v -1', 'v +4', 'v 4.', 'v .9', 'v 4..9', 'v .', 'v 4.8.',
+    'v 4.09.', 'v 4.9#c', 'v 4.10#c', 'v 4.9\tp', 'v#c',
 ):
     rc, out, err = run(script)
     grc, gout = gnu(script)
