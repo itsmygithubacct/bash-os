@@ -553,42 +553,62 @@ bidx_be64 (const unsigned char *p)
     return ((uint64_t) bgit_be32 (p, 0) << 32) | bgit_be32 (p, 4);
 }
 
-/* EWAH words are little-bit-order within big-endian 64-bit words. Expand
-   only into the already bounded shared-entry count, checking every run. */
+/* Walk an on-disk EWAH bitmap as Git's ewah_each_bit does. bit_size and
+   the stored RLW index are not consulted: Git ignores both while reading.
+   WHICH is "delete" or "replacement". A set bit at or past COUNT is the
+   fatal Git prints for that bitmap. Returns -2 after printing it, or -1
+   when the declared words do not fit in the extension. A literal count
+   that would read past the declared words stops the walk; those words are
+   not in the mapping Git was given. */
+static int
+bidx_bitmap_fatal (const char *which, size_t pos, size_t count)
+{
+    fprintf (stderr, "fatal: position for %s %d exceeds base index size %d\n",
+             which, (int) pos, (int) count);
+    return -2;
+}
+
 static int
 bidx_bitmap (const unsigned char **cursor, size_t *remaining,
-              unsigned char *bits, size_t count)
+             unsigned char *bits, size_t count, const char *which)
 {
     const unsigned char *p = *cursor;
     if (*remaining < 12) return -1;
-    size_t size = bgit_be32 (p, 0), words = bgit_be32 (p, 4);
-    if (size > count || words > (*remaining - 12) / 8) return -1;
+    size_t words = bgit_be32 (p, 4);
+    if (words > (*remaining - 12) / 8) return -1;
     size_t bytes = 12 + words * 8;
-    if (!words || bgit_be32 (p, 8 + words * 8) >= words) return -1;
-    size_t word = 0, position = 0;
+    size_t word = 0, pos = 0;
     while (word < words) {
-        uint64_t rlw = bidx_be64 (p + 8 + 8 * word++);
-        size_t run = (size_t) ((rlw >> 1) & 0xffffffff);
-        size_t literals = (size_t) (rlw >> 33);
-        size_t max_words = count / 64 + (count % 64 != 0);
-        if (position > max_words || run > max_words - position ||
-            literals > words - word || literals > max_words - position - run)
-            return -1;
-        for (size_t r = 0; r < run; r++, position++)
-            if (rlw & 1)
-                for (size_t bit = 0; bit < 64 && position * 64 + bit < size; bit++)
-                    bits[position * 64 + bit] = 1;
-        for (size_t l = 0; l < literals; l++, position++) {
-            uint64_t value = bidx_be64 (p + 8 + 8 * word++);
-            for (size_t bit = 0; bit < 64; bit++) {
-                size_t index = position * 64 + bit;
-                if ((value >> bit) & 1) {
-                    if (index >= size) return -1;
-                    bits[index] = 1;
-                }
+        uint64_t rlw = bidx_be64 (p + 8 + 8 * word);
+        word++;
+        uint32_t run = (uint32_t) ((rlw >> 1) & 0xffffffffu);
+        uint32_t literals = (uint32_t) (rlw >> 33);
+        uint64_t run_bits = (uint64_t) run * 64;
+        if (rlw & 1) {
+            size_t at = pos >= count ? pos : count;
+            if (pos >= count || run_bits > (uint64_t) (count - pos))
+                return bidx_bitmap_fatal (which, at, count);
+            for (uint64_t b = 0; b < run_bits; b++)
+                bits[pos + (size_t) b] = 1;
+            pos += (size_t) run_bits;
+        } else if (run_bits > SIZE_MAX - pos) {
+            pos = SIZE_MAX;
+        } else {
+            pos += (size_t) run_bits;
+        }
+        for (uint32_t lit = 0; lit < literals; lit++) {
+            if (word >= words) goto consume;
+            uint64_t value = bidx_be64 (p + 8 + 8 * word);
+            word++;
+            for (int bit = 0; bit < 64; bit++) {
+                if (((value >> bit) & 1) && pos >= count)
+                    return bidx_bitmap_fatal (which, pos, count);
+                if ((value >> bit) & 1) bits[pos] = 1;
+                if (pos < SIZE_MAX) pos++;
             }
         }
     }
+consume:
     *cursor += bytes; *remaining -= bytes;
     return 0;
 }
@@ -623,14 +643,16 @@ bidx_split (const char *path, const unsigned char *link, size_t length,
     if (!deleted || !replaced) goto fail;
     const unsigned char *cursor = link + 20;
     size_t remaining = length - 20;
-    if (bidx_bitmap (&cursor, &remaining, deleted, nb) < 0 ||
-        bidx_bitmap (&cursor, &remaining, replaced, nb) < 0 || remaining)
-        goto fail;
+    int br = bidx_bitmap (&cursor, &remaining, deleted, nb, "delete");
+    if (br == 0)
+        br = bidx_bitmap (&cursor, &remaining, replaced, nb, "replacement");
+    if (br == -2) goto fatal;
+    if (br < 0 || remaining) goto fail;
+    /* Replace runs before delete. An entry with both bits is replaced and
+       then dropped; Git lists that result and does not die. */
     size_t replacements = 0;
-    for (size_t i = 0; i < nb; i++) {
-        if (deleted[i] && replaced[i]) goto fail;
+    for (size_t i = 0; i < nb; i++)
         replacements += replaced[i];
-    }
     if (replacements > *n || nb > SIZE_MAX / sizeof *base - *n) goto fail;
     bgit_index_entry *joined = calloc (nb + *n ? nb + *n : 1, sizeof *joined);
     if (!joined) goto fail;
@@ -654,6 +676,10 @@ bidx_split (const char *path, const unsigned char *link, size_t length,
     if (used > 1) qsort (joined, used, sizeof *joined, bgit_index_path_cmp);
     *entries = joined; *n = used;
     return 0;
+fatal:
+    free (deleted); free (replaced);
+    bgit_index_free_entries (base, nb);
+    return -2;
 fail:
     free (deleted); free (replaced);
     bgit_index_free_entries (base, nb);
@@ -681,7 +707,17 @@ bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
             size_t prefix = strlen (entry->path);
             if (!prefix) goto done;
             char id[41]; bgit_sha_to_hex (entry->sha, id);
-            if (bgit_read_tree (&odb, id, &tree, &count) < 0) goto done;
+            if (bgit_read_tree (&odb, id, &tree, &count) < 0) {
+                /* Git prints both lines, drops this directory, and lists
+                   the rest with status 0. The name has no trailing slash. */
+                size_t show = prefix;
+                if (show && entry->path[show - 1] == '/') show--;
+                fprintf (stderr, "error: invalid object %06o %s for '%.*s'\n",
+                         040000u, id, (int) show, entry->path);
+                fprintf (stderr, "error: Could not read %s\n", id);
+                count = 0;
+                tree = NULL;
+            }
             for (size_t j = 0; j < count; j++) {
                 size_t tail = strlen (tree[j].path);
                 if (prefix > SIZE_MAX - tail - 1) { bgit_index_free_entries (tree, count); goto done; }
@@ -746,7 +782,11 @@ bidx_read_format (const char *path, int for_edit, int depth,
         if (size > length - off - 8) break;
         off += 8 + size;
     }
-    if (link && bidx_split (path, link, linklen, &entries, &n, depth) < 0) goto bad;
+    if (link) {
+        int sr = bidx_split (path, link, linklen, &entries, &n, depth);
+        if (sr == -2) goto printed;
+        if (sr < 0) goto bad;
+    }
     if (sparse && bidx_sparse (path, &entries, &n) < 0) goto bad;
     if (for_edit) {
         for (size_t i = 0; i < n; i++) {
@@ -760,6 +800,7 @@ bidx_read_format (const char *path, int for_edit, int depth,
     return 0;
 bad:
     builtin_error ("%s: invalid index or shared/sparse index data", path);
+printed:
     free (raw); bgit_index_free_entries (entries, n);
     return -1;
 }

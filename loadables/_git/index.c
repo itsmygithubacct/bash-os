@@ -479,6 +479,363 @@ bgit_index_listing_path (bgit_index_entry *e, const char *prefix, size_t prefix_
     return 0;
 }
 
+/* Git's decode_varint. On overflow the value is 0 and *off stays at the
+   first byte, which is then part of the name. A read at the end of the
+   mapped page fails: that byte is not in the mapping. */
+static int
+bidx_decode_varint (const unsigned char *buf, size_t limit, size_t *off,
+                    size_t *val_out)
+{
+    size_t start = *off;
+    if (start >= limit) return -1;
+    unsigned c = buf[(*off)++];
+    size_t val = c & 0x7f;
+    int overflow = 0;
+    while (c & 0x80) {
+        if (val >= (SIZE_MAX >> 7)) { overflow = 1; break; }
+        if (*off >= limit) return -1;
+        c = buf[(*off)++];
+        val = ((val + 1) << 7) + (c & 0x7f);
+    }
+    if (overflow) { *off = start; val = 0; }
+    *val_out = val;
+    return 0;
+}
+
+/* Bytes of one region. A load or store that is not entirely inside one
+   region misses. */
+struct bidx_span {
+    uint64_t base;
+    unsigned char *data;
+    size_t len;
+};
+
+struct bidx_mem {
+    struct bidx_span mmap, pool;
+};
+
+static unsigned char *
+bidx_span_at (struct bidx_span *s, uint64_t addr, size_t n)
+{
+    if (!n || n > s->len || addr < s->base) return NULL;
+    uint64_t rel = addr - s->base;
+    if (rel > s->len - n) return NULL;
+    return s->data + (size_t) rel;
+}
+
+static unsigned char *
+bidx_mem_at (struct bidx_mem *m, uint64_t addr, size_t n)
+{
+    unsigned char *p = bidx_span_at (&m->mmap, addr, n);
+    if (p) return p;
+    return bidx_span_at (&m->pool, addr, n);
+}
+
+static int
+bidx_load (struct bidx_mem *m, uint64_t addr, unsigned char *dst, size_t n)
+{
+    unsigned char *p = bidx_mem_at (m, addr, n);
+    if (!p) return -1;
+    memcpy (dst, p, n);
+    return 0;
+}
+
+static int
+bidx_store (struct bidx_mem *m, uint64_t addr, const unsigned char *src, size_t n)
+{
+    unsigned char *p = bidx_mem_at (m, addr, n);
+    if (!p) return 1; /* wild store: glibc writes it, the model ignores it */
+    memcpy (p, src, n);
+    return 0;
+}
+
+static int
+bidx_w32 (struct bidx_mem *m, uint64_t at, uint32_t v)
+{
+    unsigned char b[4];
+    b[0] = (unsigned char) v;
+    b[1] = (unsigned char) (v >> 8);
+    b[2] = (unsigned char) (v >> 16);
+    b[3] = (unsigned char) (v >> 24);
+    return bidx_store (m, at, b, 4) < 0 ? -1 : 0;
+}
+
+static uint32_t
+bidx_r32 (const unsigned char *p)
+{
+    return (uint32_t) p[0] | ((uint32_t) p[1] << 8) |
+           ((uint32_t) p[2] << 16) | ((uint32_t) p[3] << 24);
+}
+
+/* glibc's overlap memcpy for a wrapped size, bounded to the mapped page
+   and the cache pool. A load from anywhere else is the undefined read
+   git performs; refuse it instead of issuing that read. */
+static int
+bidx_overlap_memcpy (struct bidx_mem *m, uint64_t dest, uint64_t src, uint64_t size)
+{
+    unsigned char ymm0[32], ymm5[32], ymm6[32], ymm7[32], ymm8[32];
+    unsigned char chunk[32];
+    if (bidx_load (m, src, ymm0, 32) < 0) return -1;
+    if (bidx_load (m, src + 0x20, ymm5, 32) < 0) return -1;
+    if (bidx_load (m, src + 0x40, ymm6, 32) < 0) return -1;
+    if (bidx_load (m, src + 0x60, ymm7, 32) < 0) return -1;
+    if (bidx_load (m, src + size - 0x20, ymm8, 32) < 0) return -1;
+    uint64_t rcx = (dest + size - 0x81) & ~(uint64_t) 0x1f;
+    uint64_t rsi = src - dest + rcx;
+    int settled = 0;
+    for (int n = 0; n < 8; n++) {
+        if (bidx_load (m, rsi + 0x60, chunk, 32) < 0) return -1;
+        bidx_store (m, rcx + 0x60, chunk, 32);
+        if (bidx_load (m, rsi + 0x40, chunk, 32) < 0) return -1;
+        bidx_store (m, rcx + 0x40, chunk, 32);
+        if (bidx_load (m, rsi + 0x20, chunk, 32) < 0) return -1;
+        bidx_store (m, rcx + 0x20, chunk, 32);
+        if (bidx_load (m, rsi, chunk, 32) < 0) return -1;
+        bidx_store (m, rcx, chunk, 32);
+        rsi -= 0x80;
+        rcx -= 0x80;
+        if (!(dest < rcx)) { settled = 1; break; }
+    }
+    if (!settled) return -1;
+    bidx_store (m, dest, ymm0, 32);
+    bidx_store (m, dest + 0x20, ymm5, 32);
+    bidx_store (m, dest + 0x40, ymm6, 32);
+    bidx_store (m, dest + 0x60, ymm7, 32);
+    bidx_store (m, dest + size - 0x20, ymm8, 32);
+    return 0;
+}
+
+/* First cache entry's address mod 32, for a 20-entry index whose
+   repository path is 13 bytes shorter than the index path. Measured for
+   git 2.47.3 and glibc 2.41. '0' is 8, '1' is 24. Index is path length
+   minus 29, covering lengths 29 through 480. */
+static const char bidx_pool_mod_tab[] =
+"11111111111000000000001111111111001110000000000011111100000111110000011111111111"
+"00011111111111111111100000000000111000111000000011111000000000001110001111100000"
+"11111000000111110000001110000000111110000000000011100000011000000000000000000000"
+"11100011100000001111100000000000111000111000000011111000000111110001110001100000"
+"11111000000000001110001111111111000001111111111100000011100000001111100000000000"
+"1110001110000000111110000000000011100011100000001111";
+
+static int
+bidx_pool_mod_known (size_t path_len, uint32_t count, int *mod)
+{
+    if (count != 20 || path_len < 29 ||
+        path_len >= 29 + sizeof bidx_pool_mod_tab - 1)
+        return 0;
+    *mod = bidx_pool_mod_tab[path_len - 29] == '1' ? 24 : 8;
+    return 1;
+}
+
+static int
+bidx_v4_overlap_one (const unsigned char *buf, size_t limit, uint32_t count,
+                     int pool_mod, bgit_index_entry **out, size_t *ext_off)
+{
+    const uint64_t mmap_base = 0x7f0000000000ULL;
+    const uint64_t pool_base = 0x560000000000ULL + (unsigned) pool_mod;
+    const size_t name_off = 0x6c;
+    unsigned char *pool = NULL;
+    uint64_t *addr = NULL;
+    bgit_index_entry *entries = NULL;
+    struct bidx_mem mem;
+    size_t pool_len = 0, off = 12;
+    uint64_t cursor;
+
+    *out = NULL;
+    if (!count || count > 1000000) return -1;
+    pool_len = (size_t) count * 192;
+    pool = malloc (pool_len);
+    addr = calloc (count, sizeof *addr);
+    if (!pool || !addr) goto fail;
+    memset (pool, 0xa5, pool_len);
+    mem.mmap.base = mmap_base;
+    mem.mmap.data = (unsigned char *) buf;
+    mem.mmap.len = limit;
+    mem.pool.base = pool_base;
+    mem.pool.data = pool;
+    mem.pool.len = pool_len;
+    cursor = pool_base;
+
+    for (uint32_t i = 0; i < count; i++) {
+        size_t start = off, name_at, flen, copy = 0;
+        unsigned ext = 0;
+        unsigned flags;
+        uint64_t ce, prev = 0;
+        size_t strip = 0, alloc, raw_sz;
+        if (off > limit || limit - off < 62) goto fail;
+        flags = bgit_be16 (buf, off + 60);
+        name_at = off + 62;
+        if (flags & 0x4000) {
+            if (limit - name_at < 2) goto fail;
+            ext = bgit_be16 (buf, name_at);
+            name_at += 2;
+            if (ext & ~0x6000u) goto fail;
+            flags |= ext << 16;
+        }
+        if (bidx_decode_varint (buf, limit, &name_at, &strip) < 0) goto fail;
+        if (i) {
+            unsigned char nb[4];
+            uint32_t prev_len;
+            prev = addr[i - 1];
+            if (bidx_load (&mem, prev + 0x40, nb, 4) < 0) goto fail;
+            prev_len = bidx_r32 (nb);
+            if (prev_len < strip) goto fail;
+            copy = prev_len - strip;
+        }
+        flen = flags & 0xfff;
+        if (flen == 0xfff) {
+            size_t n = 0;
+            while (name_at + n < limit && buf[name_at + n] != 0) n++;
+            if (name_at + n >= limit) goto fail;
+            if (n > SIZE_MAX - copy) goto fail;
+            flen = n + copy;
+        }
+        if (flen > pool_len || copy > pool_len) goto fail;
+        if (name_off > SIZE_MAX - flen - 1) goto fail;
+        raw_sz = name_off + flen + 1;
+        alloc = (raw_sz + 7) & ~(size_t) 7;
+        ce = cursor;
+        if (alloc > pool_len || ce + alloc > pool_base + pool_len) goto fail;
+        cursor += alloc;
+        addr[i] = ce;
+        if (bidx_w32 (&mem, ce + 0x10, bgit_be32 (buf, off + 0)) ||
+            bidx_w32 (&mem, ce + 0x14, bgit_be32 (buf, off + 4)) ||
+            bidx_w32 (&mem, ce + 0x18, bgit_be32 (buf, off + 8)) ||
+            bidx_w32 (&mem, ce + 0x1c, bgit_be32 (buf, off + 12)) ||
+            bidx_w32 (&mem, ce + 0x20, bgit_be32 (buf, off + 16)) ||
+            bidx_w32 (&mem, ce + 0x24, bgit_be32 (buf, off + 20)) ||
+            bidx_w32 (&mem, ce + 0x34, bgit_be32 (buf, off + 24)) ||
+            bidx_w32 (&mem, ce + 0x28, bgit_be32 (buf, off + 28)) ||
+            bidx_w32 (&mem, ce + 0x2c, bgit_be32 (buf, off + 32)) ||
+            bidx_w32 (&mem, ce + 0x30, bgit_be32 (buf, off + 36)) ||
+            bidx_w32 (&mem, ce + 0x3c, 1) ||
+            bidx_w32 (&mem, ce + 0x38, flags & ~0xfffu) ||
+            bidx_w32 (&mem, ce + 0x40, (uint32_t) flen) ||
+            bidx_w32 (&mem, ce + 0x44, 0) ||
+            bidx_w32 (&mem, ce + 0x68, 1))
+            goto fail;
+        {
+            unsigned char oid[32];
+            memset (oid, 0, sizeof oid);
+            memcpy (oid, buf + off + 40, 20);
+            if (bidx_store (&mem, ce + 0x48, oid, 32)) goto fail;
+        }
+        if (copy) {
+            unsigned char *got = bidx_mem_at (&mem, prev + name_off, copy);
+            if (!got || bidx_store (&mem, ce + name_off, got, copy)) goto fail;
+        }
+        {
+            uint64_t suffix = (uint64_t) flen + 1 - (uint64_t) copy;
+            uint64_t src = mmap_base + name_at;
+            uint64_t dest = ce + name_off + copy;
+            if ((uint64_t) flen + 1 < (uint64_t) copy) {
+                if (bidx_overlap_memcpy (&mem, dest, src, suffix) < 0) goto fail;
+            } else {
+                unsigned char *got;
+                if (suffix > limit || name_at > limit - (size_t) suffix) goto fail;
+                got = bidx_mem_at (&mem, src, (size_t) suffix);
+                if (!got || bidx_store (&mem, dest, got, (size_t) suffix)) goto fail;
+            }
+            if ((uint64_t) flen + 1 < (uint64_t) copy) {
+                uint64_t drop = (uint64_t) copy - flen - 1;
+                if ((uint64_t) (name_at - start) < drop) goto fail;
+                off = start + (size_t) ((uint64_t) (name_at - start) - drop);
+            } else if ((uint64_t) (name_at - start) + (uint64_t) flen + 1 - copy >
+                       SIZE_MAX - start) {
+                goto fail;
+            } else {
+                off = start + (name_at - start) + flen + 1 - copy;
+            }
+        }
+    }
+
+    entries = calloc (count, sizeof *entries);
+    if (!entries) goto fail;
+    for (uint32_t i = 0; i < count; i++) {
+        unsigned char hdr[0x70], *name;
+        uint32_t mode, fl, nl, algo;
+        size_t room, nlen;
+        const unsigned char *nul;
+        uint64_t ce = addr[i];
+        if (bidx_load (&mem, ce, hdr, 0x70) < 0) goto fail;
+        mode = bidx_r32 (hdr + 0x34);
+        fl = bidx_r32 (hdr + 0x38);
+        nl = bidx_r32 (hdr + 0x40);
+        algo = bidx_r32 (hdr + 0x68);
+        if (algo != 0 && algo != 1) goto fail;
+        if (ce + name_off < ce || ce + name_off > pool_base + pool_len) goto fail;
+        room = (size_t) (pool_base + pool_len - (ce + name_off));
+        if ((uint64_t) nl > room) goto fail;
+        name = bidx_mem_at (&mem, ce + name_off, room);
+        if (!name) goto fail;
+        nul = memchr (name, 0, room);
+        if (!nul) goto fail;
+        nlen = (size_t) (nul - name);
+        entries[i].mode = mode;
+        memcpy (entries[i].sha, hdr + 0x48, 20);
+        entries[i].flags = (uint16_t) fl;
+        entries[i].flags2 = (uint16_t) (fl >> 16);
+        entries[i].path = malloc (nlen + 1);
+        if (!entries[i].path) goto fail;
+        memcpy (entries[i].path, name, nlen);
+        entries[i].path[nlen] = 0;
+    }
+    free (pool);
+    free (addr);
+    *out = entries;
+    *ext_off = off;
+    return 0;
+fail:
+    free (pool);
+    free (addr);
+    if (entries)
+        bgit_index_free_entries (entries, count);
+    return -1;
+}
+
+static int
+bidx_listings_match (bgit_index_entry *a, bgit_index_entry *b, size_t n,
+                     size_t oa, size_t ob)
+{
+    if (oa != ob) return 0;
+    for (size_t i = 0; i < n; i++) {
+        if (a[i].mode != b[i].mode || a[i].flags != b[i].flags ||
+            a[i].flags2 != b[i].flags2 || memcmp (a[i].sha, b[i].sha, 20) ||
+            strcmp (a[i].path, b[i].path))
+            return 0;
+    }
+    return 1;
+}
+
+/* Reparse a version-4 index whose declared name is shorter than the
+   prefix copied from the previous entry. Git still lists it: the suffix
+   copy wraps and glibc's overlap path rewrites the cache entries. */
+static int
+bgit_v4_overlap_listing (const char *path, const unsigned char *buf, size_t limit,
+                         uint32_t count, bgit_index_entry **out, size_t *ext_off)
+{
+    int mod = 0;
+    if (bidx_pool_mod_known (strlen (path), count, &mod))
+        return bidx_v4_overlap_one (buf, limit, count, mod, out, ext_off);
+    bgit_index_entry *a = NULL, *b = NULL;
+    size_t oa = 0, ob = 0;
+    if (bidx_v4_overlap_one (buf, limit, count, 8, &a, &oa) < 0) return -1;
+    if (bidx_v4_overlap_one (buf, limit, count, 24, &b, &ob) < 0) {
+        bgit_index_free_entries (a, count);
+        return -1;
+    }
+    if (!bidx_listings_match (a, b, count, oa, ob)) {
+        bgit_index_free_entries (a, count);
+        bgit_index_free_entries (b, count);
+        return -1;
+    }
+    bgit_index_free_entries (b, count);
+    *out = a;
+    *ext_off = oa;
+    return 0;
+}
+
+
 /* Git's listing reader deliberately does not check the trailer, padding,
    path safety or entry order. Keep it separate from the strict shared API.
    mmap readers can see zeroes through the end of the last page; emulate
@@ -540,13 +897,12 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
                The first entry has no previous name, so its strip is
                consumed and ignored, as Git does. Advance by the whole
                declared suffix, even when a NUL appears earlier. */
-            if (off == limit) goto bad_entries;
-            unsigned c = buf[off++];
-            size_t strip = c & 0x7f;
-            while (c & 0x80) {
-                if (off == limit || strip >= (SIZE_MAX >> 7)) goto bad_entries;
-                c = buf[off++]; strip = ((strip + 1) << 7) + (c & 0x7f);
-            }
+            size_t strip = 0;
+            /* Overflow leaves the cursor on the first byte and a value of
+               0. That byte is then part of the name, as Git's decode_varint
+               does. A byte past the mapped page is refused. */
+            if (bidx_decode_varint (buf, limit, &off, &strip) < 0)
+                goto bad_entries;
             size_t copy_len = 0;
             if (parsed) {
                 if (strip > previous_len) goto bad_entries;
@@ -569,7 +925,17 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
                     previous_len = copy_len + window_n;
                 }
             } else {
-                if (flags_len + 1 < copy_len) goto bad_entries;
+                if (flags_len + 1 < copy_len) {
+                    /* Git copies a wrapped size. glibc's overlap path
+                       rewrites earlier cache entries and still lists.
+                       Reparse the whole index that way, in owned memory. */
+                    bgit_index_free_entries (entries, count);
+                    entries = NULL;
+                    if (bgit_v4_overlap_listing (path, buf, limit, count,
+                                                 &entries, &off) < 0)
+                        goto bad_entries;
+                    goto listed;
+                }
                 span = flags_len + 1 - copy_len;
                 if (span > limit - off) {
                     if (!last) goto bad_entries;
@@ -624,12 +990,14 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
         } else
             off = start + padded_size;
     }
+listed:
     bgit_index_stamp (path);
     *out = entries; *n_out = count; *backing = buf;
     *flen_out = flen; *extensions_out = off;
     return 0;
 bad_entries:
-    bgit_index_free_entries (entries, count);
+    if (entries)
+        bgit_index_free_entries (entries, count);
 invalid:
     builtin_error ("%s: invalid or truncated index", path);
     free (buf);

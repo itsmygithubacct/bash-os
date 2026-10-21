@@ -560,12 +560,22 @@ def mapped_read_is_bounded(raw):
             if flags2 & ~0x6000: return True  # Git refuses before using the name
         if version == 4:
             if off >= limit: return False
+            start = off
             c = padded[off]; off += 1
             strip = c & 0x7f
+            overflow = False
             while c & 0x80:
+                # decode_varint returns 0 without advancing once the value
+                # cannot be represented. The first byte is then name data.
+                if strip >= (1 << 57) - 1:
+                    overflow = True
+                    break
                 if off >= limit: return False
                 c = padded[off]; off += 1
                 strip = ((strip + 1) << 7) + (c & 0x7f)
+            if overflow:
+                off = start
+                strip = 0
             copy_len = 0
             if n:
                 if strip > previous_len: return True
@@ -577,7 +587,9 @@ def mapped_read_is_bounded(raw):
                 previous_len = copy_len + (nul - off)
                 off = nul + 1
             else:
-                if flags_len + 1 < copy_len: return False
+                # A name shorter than the copied prefix stays inside the
+                # page. Git lists it; compare rather than forcing a refusal.
+                if flags_len + 1 < copy_len: return True
                 span = flags_len + 1 - copy_len
                 if span > limit - off: return last
                 off += span

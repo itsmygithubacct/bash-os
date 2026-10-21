@@ -35,16 +35,39 @@ The same refusal applies to any later entry whose header would start at or
 past the page, including a version-4 suffix span of `(flags & 0xfff) + 1`
 minus the prefix taken from the previous name. A last entry is still
 listed from the bytes that fall inside the page. Strict checks still apply
-only to writes. Split and sparse indexes are unchanged. This is a stated
-difference from Git, not an open contract.
+only to writes. This page-overrun refusal is a stated difference from Git,
+not an open contract: repeated `git ls-files --stage` runs do not produce
+one listing or one exit status.
+
+Where Git 2.47.3's listing is deterministic, the reader matches it.
+
+- An EWAH bitmap's `bit_size` and RLW index are ignored. `ewah_each_bit`
+  walks the words from the start and never reads those fields. A set bit
+  at or past the shared index is Git's `fatal: position for delete` or
+  `fatal: position for replacement`, with no listing.
+- An entry marked both deleted and replaced is replaced and then dropped.
+  Git lists that index; it does not die on the pair.
+- A sparse directory whose tree object cannot be read is omitted. The
+  diagnostic is `error: invalid object 040000 <oid> for '<name>'` followed
+  by `error: Could not read <oid>`. The name has no trailing slash. The
+  remaining entries are listed and the status is 0.
+- A version-4 strip varint that overflows is 0 and does not advance, so
+  the name is read from the varint's first byte. That is `decode_varint`.
+- A version-4 name shorter than the prefix copied from the previous entry
+  is the overlap copy Git's allocator performs. The listing matches
+  `git ls-files --stage` for that index path. A copy that would load
+  outside the mapped page or the cache pool, or that would leave an object
+  id algorithm other than SHA-1, is refused with no listing. On the
+  measured indexes of that shape, Git 2.47.3 either crashes with SIGSEGV
+  or exits 128 before printing a listing. Those reads are not performed.
 
 Split indexes resolve `link` against `sharedindex.<hash>` in the repository,
-apply its EWAH deletion/replacement bitmaps, then merge local additions.
-Missing or corrupt shared files fail before output or replacement. Sparse
-indexes expand directory tree IDs through the existing object database,
-including packed objects, and retain skip-worktree on expanded entries.
-Repository-dependent formats use repository discovery or the index's parent
-git directory; no external Git command is invoked.
+apply the replacement bitmap and then the deletion bitmap, and merge local
+additions. Missing or corrupt shared files fail before output or
+replacement. Sparse indexes expand directory tree IDs through the existing
+object database, including packed objects, and retain skip-worktree on
+expanded entries. Repository-dependent formats use repository discovery or
+the index's parent git directory; no external Git command is invoked.
 
 Changing verbs validate the resulting paths, flags and sorted unique stages.
 A change writes an ordinary v2/v3 index containing the expanded entries;
