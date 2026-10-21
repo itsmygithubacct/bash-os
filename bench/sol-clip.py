@@ -16,7 +16,9 @@ The `text` fixture is generated exactly as bench/loadables.py generates its
 catalog `text` fixture (423,000 bytes, 8,062 lines, no final newline); its
 SHA-256 is recorded. `head -n K` from the same shell is the matched reference
 for text output: identical output bytes, but a fork/exec and file read per
-pass. All other workloads are self timings with no external ratio."""
+pass. It is used only where those bytes are identical: a region that ends
+with the fixture's unterminated last line has no matched reference. All
+other workloads are self timings with no external ratio."""
 import argparse
 import hashlib
 import json
@@ -90,8 +92,11 @@ def main():
             tag = f'{name}-{k}'
             load = f'buf new -h B; buf load "$B" {name}\n'
             realize = f'buf insert-line "$B" 0 x; buf delete-line "$B" 0; buf clean "$B"\n'
+            # head -n K is equivalent only when all K lines end in a newline.
+            equivalent = k < len(lines[name]) or fx[name].endswith(b'\n')
             cases.append(dict(
-                name=f'text-{tag}', kind='compared', reference='head',
+                name=f'text-{tag}', kind='compared' if equivalent else 'self',
+                reference='head' if equivalent else None,
                 work=f'{r} x clip text of a {k}-line / {nbytes}-byte entry to a file',
                 setup=load + realize + f'clip new -h C; clip copy-range "$C" "$B" 0 {k}\nexec 3>out\n',
                 loop=f'clip text "$C" -F 3 || exit 7',

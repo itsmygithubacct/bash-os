@@ -391,10 +391,14 @@ clip free "$c"; buf free "$b"''', stderr_has=[b'text: write: No space left on de
                  for _ in range(9000)]
     big_lines[4000] = b'Z' * (1 << 20)          # one 1 MiB line
     big_lines[3999], big_lines[4001] = b'head-of-3999', b'tail-of-4001'
+    big_lines[2047], big_lines[2049] = b'span-start', b'span-end'
     big.write_bytes(b'\n'.join(big_lines))
     out = d / 'out'
     script = load_buf(big) + f'''clip new -h c
 clip copy-range {C} 10 8010; clip text "$c" -F 3 3>{q(out)}
+clip copy-range {C} 1023 3073; clip text "$c" -F 3 3>{q(out)}.ckpt
+clip copy-range {C} 2047 1 2049 2; clip text "$c" -F 3 3>{q(out)}.span
+clip copy-line {C} 8999; clip text "$c" -F 3 3>{q(out)}.last
 clip cut-range {C} 3999 5 4001 7; clip paste {C} 3999 5
 buf text "$b" -F 4 4>{q(out)}.buf
 buf insert-line "$b" 0 0a000a -X; clip cut-line {C} 0; clip text "$c" -F 5 5>{q(out)}.nl
@@ -403,7 +407,12 @@ clip free "$c"; buf free "$b"'''
     if out.exists():
         expect = b''.join(x + b'\n' for x in big_lines[10:8010])
         ok = (out.read_bytes() == expect and (Path(str(out) + '.buf').read_bytes() == b'\n'.join(big_lines))
-              and Path(str(out) + '.nl').read_bytes() == b'\n\x00\n\n')
+              and Path(str(out) + '.nl').read_bytes() == b'\n\x00\n\n'
+              # paged copies that start past a 1,024-line checkpoint
+              and Path(str(out) + '.ckpt').read_bytes() == b''.join(x + b'\n' for x in big_lines[1023:3073])
+              and Path(str(out) + '.span').read_bytes() == b''.join(x + b'\n' for x in
+                  [big_lines[2047][1:], big_lines[2048], big_lines[2049][:2]])
+              and Path(str(out) + '.last').read_bytes() == big_lines[8999] + b'\n')
         if not ok:
             failures.append('large-and-embedded-bytes')
             print('FAIL large-and-embedded-bytes')
