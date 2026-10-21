@@ -103,6 +103,17 @@ check 'nl binary BRE contracts' python3 tests/sol-nl-check.py out/bash
 check 'nl empty backreference branches' python3 tests/review-nl-backrefs.py out/bash
 check 'head options and input ownership' python3 tests/sol-head-options.py out/bash
 check 'head closed output integrity' python3 tests/review-head-descriptors.py out/bash
+check 'sed regex hang' python3 tests/grok-sed-fix-regex-hang.py out/bash
+check 'sed locale direct matches' python3 tests/grok-sed-fix-locale.py out/bash
+check 'sed bracket delimiters' python3 tests/grok-sed-fix-bracket.py out/bash
+check 'sed e continuation' python3 tests/grok-sed-fix-e.py out/bash
+check 'sed version token' python3 tests/grok-sed-fix-version.py out/bash
+check 'sed GNU byte and cycle parity' python3 tests/sol-sed-parity.py out/bash
+check 'sed complete contracts' python3 tests/sol-sed-complete.py out/bash
+check 'sed binary regex' python3 tests/sol-sed-binary-regex.py out/bash
+check 'sed signal responsiveness' python3 tests/sol-sed-signals.py out/bash
+check 'sed follow-up GNU contracts' python3 tests/opus-sed-followup-gnu.py out/bash
+check 'sed in-place directory anchor' python3 tests/grok-sed-fix-inplace.py out/bash
 check 'bc language and declaration scope' python3 tests/opus-bc-language.py out/bash
 check 'fold complete options' python3 tests/sol-fold-check.py out/bash
 check 'fold descriptor ownership' python3 tests/review-fold-descriptors.py out/bash
@@ -194,6 +205,16 @@ check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 for name in head-sed fold expand bc nl pr; do
   check "static $name parity" python3 "tests/$name-parity.py" out/bash-static
 done
+check 'static sed regex hang' python3 tests/grok-sed-fix-regex-hang.py out/bash-static
+check 'static sed locale direct matches' python3 tests/grok-sed-fix-locale.py out/bash-static
+check 'static sed bracket delimiters' python3 tests/grok-sed-fix-bracket.py out/bash-static
+check 'static sed e continuation' python3 tests/grok-sed-fix-e.py out/bash-static
+check 'static sed version token' python3 tests/grok-sed-fix-version.py out/bash-static
+check 'static sed GNU byte and cycle parity' python3 tests/sol-sed-parity.py out/bash-static
+check 'static sed complete contracts' python3 tests/sol-sed-complete.py out/bash-static
+check 'static sed binary regex' python3 tests/sol-sed-binary-regex.py out/bash-static
+check 'static sed signal responsiveness' python3 tests/sol-sed-signals.py out/bash-static
+check 'static sed follow-up GNU contracts' python3 tests/opus-sed-followup-gnu.py out/bash-static
 for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams core-fastpaths coreutils-fastpaths pack-cache index-cache xargs-spawn pager-interrupts install-truncate; do
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
@@ -437,6 +458,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   for name in head-sed fold expand bc nl pr; do
     check "$name under ASan+UBSan" bash "tests/$name-sanitize.sh" out/bash
   done
+  check 'sed under ASan+UBSan' bash tests/sol-sed-sanitize.sh out/bash
   check 'procstat under ASan+UBSan' bash tests/procstat-sanitize.sh out/bash
   check 'helper modules under ASan+UBSan' bash tests/helper-sanitize.sh out/bash
   check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash

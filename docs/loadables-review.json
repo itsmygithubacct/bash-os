@@ -1524,6 +1524,94 @@
       "status": "Contract",
       "evidence": "tests/astra-sudo-list-check.py",
       "scope": "Native list snapshots over a caller-readable private policy. The listing is a projection, not an execution approval. There is no live-authority listing or authentication."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-regex-hang.py",
+      "scope": "Empty-capable anchor repeats that glibc set_regs can loop on. A direct match or a one-register refusal must return. The hang matrix is bash_timeout=0. Refused multi-register shapes are listed in docs/head-sed.md."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-locale.py",
+      "scope": "ASCII direct matches in C, C.UTF-8 and en_US.UTF-8, including a finite address with no registers and a star that does not consume a failed word-end."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-bracket.py",
+      "scope": "Bracket expressions may contain the regex delimiter."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-e.py",
+      "scope": "An e command continues across a backslash-newline. The shell command is printf only."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-version.py",
+      "scope": "A v token uses strverscmp order and leaves the terminator for the next command."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-sed-parity.py",
+      "scope": "GNU byte, cycle, exact-consumption and recovery checks."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-sed-complete.py",
+      "scope": "GNU byte, framing, terminal-consumption and CLI regression checks."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-sed-binary-regex.py",
+      "scope": "Length-aware matches on subjects that contain NUL."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-sed-signals.py",
+      "scope": "Owned sed processes leave a blocking read or branch loop on SIGINT and SIGTERM."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-sed-followup-gnu.py",
+      "scope": "Follow-up GNU sed contracts for delimiters, addresses and framing."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "status": "Contract",
+      "evidence": "tests/grok-sed-fix-inplace.py",
+      "scope": "Dynamic bash only. In-place replacement stays in the opened parent directory. Static bash ignores LD_PRELOAD, so the injection cases are not a static pass. The post-renameat identity window remains."
     }
   ],
   "sanitizer_groups": [
@@ -2125,6 +2213,13 @@
       ],
       "evidence": "tests/sol-sudo-build.py",
       "scope": "Production-source sudo fixture rebuilt with address and undefined sanitizers. This is not an instrumented full Bash executable."
+    },
+    {
+      "names": [
+        "sed"
+      ],
+      "evidence": "tests/sol-sed-sanitize.sh",
+      "scope": "Production sed rebuilt as an instrumented module, system and portable backends, loaded into the dynamic shell. This is not an instrumented full Bash executable."
     }
   ],
   "fuzz": {
@@ -2757,8 +2852,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "sed": {
-      "note": "Repeated stdin and final-newline preservation are fixed. Regex and per-file state differ from GNU; an evaluated dollar address before early pipe quit can consume one lookahead byte.",
-      "evidence": "docs/head-sed.md"
+      "evidence": "docs/head-sed.md",
+      "note": "BRE by default. Linux pipes and FIFOs use tee(2) lookahead and sockets use MSG_PEEK. A canonical terminal EOF followed by queued input stays misclassified. The post-renameat identity window in -i remains. Static LD_PRELOAD injection is not a pass. Non-Linux kernels, --posix and --debug stay outside the subset. Musl was not re-timed. Refused multi-register patterns are listed in docs/head-sed.md. The hang matrix is bash_timeout=0. No new performance result is claimed.",
+      "next": "No new performance result. Terminal EOF, the post-renameat window, non-Linux kernels, --posix, --debug and musl timing remain unqualified."
     },
     "nl": {
       "evidence": "docs/nl.md",
