@@ -480,7 +480,7 @@ done
             for options in [[], ['-b'], ['-s', '\nbeta'], ['-b', '-s', '89'], ['-r', '-s', '[0-9]'],
                             ['-r', '-s', '\n\\(alpha\\|beta\\)'], ['-r', '-s', '^b'],
                             ['-b', '-r', '-s', '\\(9\\)\\1']]:
-                if args.portable and needs_glibc(options[-1]):
+                if args.portable and options and needs_glibc(options[-1]):
                     continue
                 for mode in ['file', 'pipe']:
                     opts = [*options, str(many)] if mode == 'file' else options
