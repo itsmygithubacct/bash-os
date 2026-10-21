@@ -33,7 +33,7 @@ not live host counters or a second invocation's output.
 Coverage includes all sort modes and ties; command-line and fallback command
 names; creation, exit, reuse, empty lists and repopulation; malformed input;
 empty PATH; repeated invocations and FD counts; output failures and recovery;
-private PTY arrows/pages/home/end, space, sort cycling, delay prompts, mutation
+private PTY arrow, Page Up/Down, Home and End keys, space, sort cycling, delay prompts, mutation
 request construction, resize, redraw count, timeout, q/Q/ESC/Ctrl-C, TERM/HUP,
 terminal attributes, cursor and alternate screen restoration, and shell traps.
 The sanitizer build instruments top and the actual shared screen/key helpers.

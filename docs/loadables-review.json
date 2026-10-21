@@ -1563,7 +1563,7 @@
       ],
       "status": "Contract",
       "evidence": "tests/grok-sed-fix-regex-hang.py",
-      "scope": "Empty-capable anchor repeats that glibc set_regs can loop on. A direct match or a one-register refusal must return. The hang matrix is bash_timeout=0. Refused multi-register shapes are listed in docs/head-sed.md."
+      "scope": "Empty-capable anchor repeats that glibc set_regs can loop on. A direct match or a one-register refusal must return. In the hang matrix, no builtin case timed out. Refused multi-register shapes are listed in docs/head-sed.md."
     },
     {
       "names": [
@@ -2896,7 +2896,7 @@
     },
     "sed": {
       "evidence": "docs/head-sed.md",
-      "note": "BRE by default. Linux pipes and FIFOs use tee(2) lookahead and sockets use MSG_PEEK. A canonical terminal EOF followed by queued input stays misclassified. The post-renameat identity window in -i remains. Static LD_PRELOAD injection is not a pass. Non-Linux kernels, --posix and --debug stay outside the subset. Musl was not re-timed. Refused multi-register patterns are listed in docs/head-sed.md. The hang matrix is bash_timeout=0. No new performance result is claimed.",
+      "note": "BRE by default. Linux pipes and FIFOs use tee(2) lookahead and sockets use MSG_PEEK. A canonical terminal EOF followed by queued input stays misclassified. The post-renameat identity window in -i remains. Fault injection through LD_PRELOAD cannot reach the static binary, so the static build has no injected-failure result. Non-Linux kernels, --posix and --debug stay outside the subset. Musl was not re-timed. Refused multi-register patterns are listed in docs/head-sed.md. In the hang matrix, no builtin case timed out. No new performance result is claimed.",
       "next": "No new performance result. Terminal EOF, the post-renameat window, non-Linux kernels, --posix, --debug and musl timing remain unqualified."
     },
     "nl": {
@@ -2969,12 +2969,12 @@
     },
     "crypto": {
       "evidence": "docs/sol-crypto.md",
-      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951.",
+      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d.",
       "next": "Retain independent cryptography oracles and bounded API coverage; no broad cryptographic security or uniform speedup claim."
     },
     "acme": {
       "evidence": "tests/p256-check.py",
-      "note": "P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951."
+      "note": "P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d."
     },
     "rev": {
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
