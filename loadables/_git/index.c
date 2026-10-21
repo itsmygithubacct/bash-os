@@ -25,8 +25,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "_sha1dc_sha1.h"
-
 #include "loadables.h"
 
 #include "index.h"
@@ -128,22 +126,123 @@ bgit_index_free_entries (bgit_index_entry *e, size_t n)
     free (e);
 }
 
-/* Slurp file. Caller frees. */
+/* ---- the trailer checksum ------------------------------------------------
+
+   The last 20 bytes of an index are the SHA-1 of everything before them.
+   That digest guards against a torn or corrupted file; it authenticates
+   nothing, since whoever can write the index can write a matching trailer,
+   and git itself does not verify it on an ordinary read. Collision
+   detection buys nothing here, and SHA1DC with it on is the larger part of
+   reading a big index, so the trailer is computed by plain SHA-1 (FIPS
+   180-4), with the message schedule kept in a rolling 16-word window.
+   Object ids, where collisions do matter, still go through SHA1DC. */
+
+#define BGIT_ROL32(x, n) (((x) << (n)) | ((x) >> (32 - (n))))
+#define BGIT_SHA1_W(t) \
+    (w[(t) & 15] = BGIT_ROL32 (w[((t) + 13) & 15] ^ w[((t) + 8) & 15] ^ \
+                               w[((t) + 2) & 15] ^ w[(t) & 15], 1))
+#define BGIT_SHA1_STEP(a, b, c, d, e, f, k, x) \
+    do { e += BGIT_ROL32 (a, 5) + (f) + (k) + (x); b = BGIT_ROL32 (b, 30); } while (0)
+#define BGIT_SHA1_F1(b, c, d) ((d) ^ ((b) & ((c) ^ (d))))
+#define BGIT_SHA1_F2(b, c, d) ((b) ^ (c) ^ (d))
+#define BGIT_SHA1_F3(b, c, d) (((b) & (c)) | ((d) & ((b) | (c))))
+#define BGIT_SHA1_R0(a, b, c, d, e, t) \
+    BGIT_SHA1_STEP (a, b, c, d, e, BGIT_SHA1_F1 (b, c, d), 0x5A827999u, w[t])
+#define BGIT_SHA1_R1(a, b, c, d, e, t) \
+    BGIT_SHA1_STEP (a, b, c, d, e, BGIT_SHA1_F1 (b, c, d), 0x5A827999u, BGIT_SHA1_W (t))
+#define BGIT_SHA1_R2(a, b, c, d, e, t) \
+    BGIT_SHA1_STEP (a, b, c, d, e, BGIT_SHA1_F2 (b, c, d), 0x6ED9EBA1u, BGIT_SHA1_W (t))
+#define BGIT_SHA1_R3(a, b, c, d, e, t) \
+    BGIT_SHA1_STEP (a, b, c, d, e, BGIT_SHA1_F3 (b, c, d), 0x8F1BBCDCu, BGIT_SHA1_W (t))
+#define BGIT_SHA1_R4(a, b, c, d, e, t) \
+    BGIT_SHA1_STEP (a, b, c, d, e, BGIT_SHA1_F2 (b, c, d), 0xCA62C1D6u, BGIT_SHA1_W (t))
+#define BGIT_SHA1_FIVE(R, t) \
+    R (a, b, c, d, e, (t));     R (e, a, b, c, d, (t) + 1); \
+    R (d, e, a, b, c, (t) + 2); R (c, d, e, a, b, (t) + 3); \
+    R (b, c, d, e, a, (t) + 4)
+
+static void
+bgit_index_sha1_blocks (uint32_t h[5], const unsigned char *p, size_t blocks)
+{
+    while (blocks--) {
+        uint32_t w[16];
+        for (int i = 0; i < 16; i++)
+            w[i] = bgit_be32 (p, (size_t) i * 4);
+        uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+        BGIT_SHA1_FIVE (BGIT_SHA1_R0, 0);  BGIT_SHA1_FIVE (BGIT_SHA1_R0, 5);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R0, 10);
+        BGIT_SHA1_R0 (a, b, c, d, e, 15);  BGIT_SHA1_R1 (e, a, b, c, d, 16);
+        BGIT_SHA1_R1 (d, e, a, b, c, 17);  BGIT_SHA1_R1 (c, d, e, a, b, 18);
+        BGIT_SHA1_R1 (b, c, d, e, a, 19);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R2, 20); BGIT_SHA1_FIVE (BGIT_SHA1_R2, 25);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R2, 30); BGIT_SHA1_FIVE (BGIT_SHA1_R2, 35);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R3, 40); BGIT_SHA1_FIVE (BGIT_SHA1_R3, 45);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R3, 50); BGIT_SHA1_FIVE (BGIT_SHA1_R3, 55);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R4, 60); BGIT_SHA1_FIVE (BGIT_SHA1_R4, 65);
+        BGIT_SHA1_FIVE (BGIT_SHA1_R4, 70); BGIT_SHA1_FIVE (BGIT_SHA1_R4, 75);
+        h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e;
+        p += 64;
+    }
+}
+
+/* The SHA-1 of DATA[0..LEN), into DIGEST. */
+static void
+bgit_index_sha1 (const unsigned char *data, size_t len, unsigned char digest[20])
+{
+    uint32_t h[5] = { 0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u,
+                      0xC3D2E1F0u };
+    size_t whole = len / 64;
+    bgit_index_sha1_blocks (h, data, whole);
+    unsigned char tail[128];
+    size_t rest = len - whole * 64;
+    memcpy (tail, data + whole * 64, rest);
+    tail[rest] = 0x80;
+    size_t tail_len = rest < 56 ? 64 : 128;
+    memset (tail + rest + 1, 0, tail_len - rest - 1);
+    uint64_t bits = (uint64_t) len * 8;
+    for (int i = 0; i < 8; i++)
+        tail[tail_len - 1 - i] = (unsigned char) (bits >> (8 * i));
+    bgit_index_sha1_blocks (h, tail, tail_len / 64);
+    for (int i = 0; i < 5; i++)
+        bgit_put_be32 (digest + i * 4, h[i]);
+}
+
+/* Slurp file. Caller frees. A directory is refused rather than sized by
+   ftell, which reports LONG_MAX for one; anything else is read to its end,
+   so a file that grows or shrinks while it is read is taken as it ends. */
 static unsigned char *
 bgit_index_slurp (const char *path, size_t *out_len)
 {
-    FILE *f = fopen (path, "rb");
-    if (!f) return NULL;
-    if (fseek (f, 0, SEEK_END) != 0) { fclose (f); return NULL; }
-    long sz = ftell (f);
-    if (sz < 0 || fseek (f, 0, SEEK_SET) != 0) { fclose (f); return NULL; }
-    unsigned char *buf = malloc (sz ? (size_t) sz : 1);
-    if (!buf) { fclose (f); return NULL; }
-    if (fread (buf, 1, (size_t) sz, f) != (size_t) sz) {
-        free (buf); fclose (f); return NULL;
+    int fd = open (path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    struct stat st;
+    if (fstat (fd, &st) < 0) { int e = errno; close (fd); errno = e; return NULL; }
+    if (S_ISDIR (st.st_mode)) { close (fd); errno = EISDIR; return NULL; }
+    size_t cap = S_ISREG (st.st_mode) && st.st_size > 0 &&
+                 (uint64_t) st.st_size < SIZE_MAX - 1 ? (size_t) st.st_size + 1 : 65536;
+    size_t len = 0;
+    unsigned char *buf = malloc (cap);
+    if (!buf) { close (fd); errno = ENOMEM; return NULL; }
+    for (;;) {
+        if (len == cap) {
+            if (cap > SIZE_MAX / 2) { free (buf); close (fd); errno = EFBIG; return NULL; }
+            unsigned char *grown = realloc (buf, cap * 2);
+            if (!grown) { free (buf); close (fd); errno = ENOMEM; return NULL; }
+            buf = grown;
+            cap *= 2;
+        }
+        ssize_t got = read (fd, buf + len, cap - len);
+        if (got < 0) {
+            if (errno == EINTR) continue;
+            int e = errno;
+            free (buf); close (fd); errno = e;
+            return NULL;
+        }
+        if (got == 0) break;
+        len += (size_t) got;
     }
-    fclose (f);
-    *out_len = (size_t) sz;
+    close (fd);
+    *out_len = len;
     return buf;
 }
 
@@ -193,6 +292,15 @@ bgit_index_cache_release (void)
 int
 bgit_index_read_views (const char *path, bgit_index_view **out, size_t *n_out,
                        unsigned char **backing)
+{
+    size_t flen;
+    return bgit_index_read_views_len (path, out, n_out, backing, &flen);
+}
+
+int
+bgit_index_read_views_len (const char *path, bgit_index_view **out,
+                           size_t *n_out, unsigned char **backing,
+                           size_t *len_out)
 {
     size_t flen;
     unsigned char *buf = bgit_index_slurp (path, &flen);
@@ -296,27 +404,20 @@ bgit_index_read_views (const char *path, bgit_index_view **out, size_t *n_out,
         return -1;
     }
     if (!bgit_index_checksum_cached (buf, flen)) {
-        unsigned char stored[20];
-        memcpy (stored, buf + flen - 20, 20);
-        SHA1_CTX ctx;
-        SHA1DCInit (&ctx);
-        SHA1DCSetSafeHash (&ctx, 0);
-        SHA1DCUpdate (&ctx, (const char *) buf, flen - 20);
         unsigned char computed[20];
-        int collision = SHA1DCFinal (computed, &ctx);
-        if (memcmp (computed, stored, 20) != 0) {
+        bgit_index_sha1 (buf, flen - 20, computed);
+        if (memcmp (computed, buf + flen - 20, 20) != 0) {
             free (buf); free (entries);
             builtin_error ("index checksum mismatch");
             return -1;
         }
-        /* Retain existing acceptance behavior, but never reuse a result
-           for which SHA1DC reported a collision. */
-        if (!collision) bgit_index_remember_verified (buf, flen);
+        bgit_index_remember_verified (buf, flen);
     }
 
     *backing = buf;
     *out = entries;
     *n_out = n_entries;
+    *len_out = flen;
     return 0;
 }
 
@@ -345,6 +446,13 @@ bgit_index_stamp (const char *path)
     bgit_index_stamped = 1;
 }
 
+void
+bgit_index_unstamp (void)
+{
+    bgit_index_stamp_sec = bgit_index_stamp_nsec = 0;
+    bgit_index_stamped = 0;
+}
+
 int
 bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
 {
@@ -352,6 +460,14 @@ bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
     size_t n;
     unsigned char *backing;
     if (bgit_index_read_views (path, &views, &n, &backing) < 0) return -1;
+    return bgit_index_decode_views (path, views, n, backing, out, n_out);
+}
+
+int
+bgit_index_decode_views (const char *path, bgit_index_view *views, size_t n,
+                         unsigned char *backing, bgit_index_entry **out,
+                         size_t *n_out)
+{
     bgit_index_stamp (path);
     bgit_index_entry *entries = calloc (n ? n : 1, sizeof *entries);
     if (!entries) { free (views); free (backing); return -1; }
@@ -385,6 +501,13 @@ bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
 
 int
 bgit_index_write (const char *path, bgit_index_entry *entries, size_t n)
+{
+    return bgit_index_write_ext (path, entries, n, NULL, 0);
+}
+
+int
+bgit_index_write_ext (const char *path, bgit_index_entry *entries, size_t n,
+                      const unsigned char *ext, size_t ext_len)
 {
     if (n > UINT32_MAX) { builtin_error ("too many index entries"); return -1; }
     /* Build buffer in memory, then mkstemp + rename. */
@@ -448,13 +571,19 @@ bgit_index_write (const char *path, bgit_index_entry *entries, size_t n)
         memset (buf + len, 0, pad);                len += pad;
     }
 
-    /* Trailer: SHA-1 of body via sha1dc. */
-    SHA1_CTX ctx;
-    SHA1DCInit (&ctx);
-    SHA1DCSetSafeHash (&ctx, 0);
-    SHA1DCUpdate (&ctx, (const char *) buf, len);
+    /* Extension records the caller has laid out, then the trailer: the
+       SHA-1 of everything before it. */
+    if (ext_len > SIZE_MAX - len - 20) { free (buf); return -1; }
+    if (len + ext_len + 20 > cap) {
+        cap = len + ext_len + 20;
+        unsigned char *nb = realloc (buf, cap);
+        if (!nb) { free (buf); return -1; }
+        buf = nb;
+    }
+    if (ext_len) memcpy (buf + len, ext, ext_len);
+    len += ext_len;
     unsigned char digest[20];
-    SHA1DCFinal (digest, &ctx);  /* may detect collision; we accept anyway */
+    bgit_index_sha1 (buf, len, digest);
     if (len + 20 > cap) {
         cap = len + 20;
         unsigned char *nb = realloc (buf, cap);
@@ -474,12 +603,21 @@ bgit_index_write (const char *path, bgit_index_entry *entries, size_t n)
     size_t off = 0;
     while (off < len) {
         ssize_t w = write (fd, buf + off, len - off);
-        if (w <= 0) { if (w < 0 && errno == EINTR) continue; close (fd); unlink (tmp); free (buf); return -1; }
+        if (w <= 0) {
+            if (w < 0 && errno == EINTR) continue;
+            builtin_error ("write %s: %s", tmp, w < 0 ? strerror (errno) : "short write");
+            close (fd); unlink (tmp); free (buf); return -1;
+        }
         off += w;
     }
     int sync_rc = fdatasync (fd);
+    int sync_errno = errno;
     int close_rc = close (fd);
-    if (sync_rc < 0 || close_rc < 0) { unlink (tmp); free (buf); return -1; }
+    if (sync_rc < 0 || close_rc < 0) {
+        builtin_error ("%s %s: %s", sync_rc < 0 ? "fdatasync" : "close", tmp,
+                       strerror (sync_rc < 0 ? sync_errno : errno));
+        unlink (tmp); free (buf); return -1;
+    }
     if (rename (tmp, path) < 0) {
         unlink (tmp); free (buf);
         builtin_error ("rename: %s", strerror (errno));

@@ -77,11 +77,33 @@ int bgit_index_racy (const bgit_index_entry *entry);
 int bgit_index_read_views (const char *path, bgit_index_view **out,
                            size_t *n_out, unsigned char **backing);
 
+/* The same, also giving the length of BACKING, the whole file, for a caller
+   that goes on to the extensions between the entries and the trailer. */
+int bgit_index_read_views_len (const char *path, bgit_index_view **out,
+                               size_t *n_out, unsigned char **backing,
+                               size_t *len_out);
+
 /* The same, decoded into entries that own their paths, for editing. */
 int bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out);
 
+/* The second half of bgit_index_read, for a caller that inspects the views
+   first: decode N views read from PATH into entries, record PATH's
+   timestamp for the racy-entry rule, and free VIEWS and BACKING either way. */
+int bgit_index_decode_views (const char *path, bgit_index_view *views,
+                             size_t n, unsigned char *backing,
+                             bgit_index_entry **out, size_t *n_out);
+
+/* Forget the timestamp of the last index read, before writing an index
+   that was not read in this call. */
+void bgit_index_unstamp (void);
+
 /* Write ENTRIES to PATH as index v2, atomically, with the SHA-1 trailer. */
 int bgit_index_write (const char *path, bgit_index_entry *entries, size_t n);
+
+/* The same, with EXT_LEN bytes of complete extension records (signature,
+   size, data) placed between the entries and the trailer. */
+int bgit_index_write_ext (const char *path, bgit_index_entry *entries,
+                          size_t n, const unsigned char *ext, size_t ext_len);
 
 /* qsort comparator: by path, then by stage, the order git writes. */
 int bgit_index_path_cmp (const void *a, const void *b);
