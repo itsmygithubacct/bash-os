@@ -33,6 +33,7 @@ run_group compression-nested "$d/bash-os" -e -o pipefail -c '
 run_group tac-parity python3 tests/tac-parity.py "$d/bash-os"
 run_group input-lifetime python3 tests/input-lifetime.py "$d/bash-os"
 run_group helper-smoke python3 tests/helper-smoke.py "$d/bash-os"
+run_group p256 python3 tests/p256-check.py "$d/bash-os"
 run_group final-smoke python3 tests/final-smoke.py "$d/bash-os"
 run_group gpu-smoke python3 tests/gpu-smoke.py "$d/bash-os"
 # The git builtin on the emulated machine, held against the real git on

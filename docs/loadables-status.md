@@ -499,6 +499,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 <!-- BEGIN NOTES -->
 | Loadable | Scope / limitation |
 | --- | --- |
+| `acme` | P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951. [source](../tests/p256-check.py) |
 | `ar` | Truncated headers, extract write errors and short member bodies are rejected; tests/ar-check.sh matches GNU 2.44 including /dev/full unlink and archive-link identity. |
 | `bashlogger` | Private AF_UNIX sender contract and validated 5000-message API workload measured on 2026-10-19. Timing includes shell loop and Python receiver; no external ratio or host daemon/persistence qualification. [source](../docs/sol-bashlogger.md) |
 | `bashsyslogd` | Owned-daemon software contract and three fixed loopback/queue workloads measured on 2026-10-19. Timestamp/send shims are labeled; intentional UDP overflow and bounded-spool drops are counted. Allocation-failure preservation was corrected after timing. No external performance ratio. [source](../docs/sol-bashsyslogd.md) |
@@ -514,7 +515,7 @@ Source comments alone were not treated as proof of an unimplemented feature.
 | `comm` | Selected-column GNU comparisons and write-failure contracts have a dedicated regression. The historical 2026-09-12 comm case measured 0.50 times the external runtime; current performance needs a new measurement. [source](../tests/comm-check.sh) |
 | `coreutils` | Dispatcher command contracts, exact literal tac separators and nproc environment overrides. The bounded dispatcher surface is distinct from the unfinished standalone general-regex tac task. [source](../docs/sol-coreutils.md) |
 | `cp` | An unreadable source preserves an existing destination. Additional fixtures cover recursive bounds, aliases, metadata and close failures; selected GNU comparisons are mapped in the CSV. [source](../tests/cp-safety.py) |
-| `crypto` | Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. [source](../docs/sol-crypto.md) |
+| `crypto` | Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951. [source](../docs/sol-crypto.md) |
 | `csplit` | Repeated redirected stdin is fixed; tests/csplit-check.sh matches GNU piece files across three redirections. |
 | `diff` | Packed trace and byte-slice storage reduce selected workload costs; identical input has no material speedup. Shell VmHWM excludes GNU child memory. [source](../docs/sol-diff.md) |
 | `dmesg` | The former split-record loss is fixed. Fixture checks cover records crossing read boundaries and an unterminated final record; device fixtures also exercise input bounds. [source](../tests/dmesg-fixture.py) |

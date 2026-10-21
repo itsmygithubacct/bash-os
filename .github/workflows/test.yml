@@ -188,6 +188,11 @@ jobs:
           ./build.sh --profile full --static --deps-prefix out/deps/riscv64-linux-gnu
       - name: Run the RISC-V executable
         run: bash tests/cross-smoke.sh out/riscv64-linux-gnu/bash-static | tee cross.log
+      - name: Check P-256 arithmetic
+        run: |
+          "$CC" -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -static \
+            tests/p256-m-check.c -o out/p256-m-check
+          qemu-riscv64 out/p256-m-check | tee p256-unit.log
       - name: Preserve cross build evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -196,6 +201,7 @@ jobs:
           path: |
             dependencies.log
             cross.log
+            p256-unit.log
             out/riscv64-linux-gnu/*.log
             out/riscv64-linux-gnu/*.manifest.*
             out/deps/riscv64-linux-gnu/bash-os-dependencies.json

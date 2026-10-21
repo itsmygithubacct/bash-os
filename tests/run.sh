@@ -123,6 +123,7 @@ check 'PCRE capture and error contracts' python3 tests/sol-pcre-check.py out/bas
 check 'wc locale and boundary contracts' python3 tests/sol-wc-check.py out/bash
 check 'unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash
 check 'crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash
+check 'P-256 and ACME independent interoperability' python3 tests/p256-check.py out/bash --report out/p256-native.json
 check 'more paging contracts' python3 tests/sol-more-check.py out/bash
 check 'more shared key consumers' python3 tests/sol-more-helper-check.py out/bash
 check 'vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python3 tests/opus-vi-dd.py out/bash
@@ -200,6 +201,7 @@ check 'static PCRE capture and error contracts' python3 tests/sol-pcre-check.py 
 check 'static wc locale and boundary contracts' python3 tests/sol-wc-check.py out/bash-static
 check 'static unexpand tab and stream contracts' python3 tests/sol-unexpand-parity.py out/bash-static
 check 'static crypto independent byte contracts' python3 tests/sol-crypto-check.py out/bash-static
+check 'static P-256 and ACME independent interoperability' python3 tests/p256-check.py out/bash-static --report out/p256-static.json
 check 'static more paging contracts' python3 tests/sol-more-check.py out/bash-static
 check 'static vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python3 tests/opus-vi-dd.py out/bash-static
 for name in cmp-streams cp-safety mv-safety split-safety diff-safety dd-safety; do
@@ -263,6 +265,8 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'build P-256 arithmetic fixture' "$CC" -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 tests/p256-m-check.c -o "$scratch/p256-m-check"
+  check 'P-256 arithmetic and ECDH' "$scratch/p256-m-check"
   check 'nano wait unit generate' python3 tests/astra-nano-wait.py loadables/nano.c "$scratch/nano-wait.c"
   check 'nano wait unit native compile' "$CC" -std=c11 -Wall -Wextra "$scratch/nano-wait.c" -o "$scratch/nano-wait"
   check 'nano wait unit native run' "$scratch/nano-wait"
@@ -431,6 +435,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'wc locale contracts under ASan+UBSan' bash tests/sol-wc-sanitize.sh out/bash
   check 'unexpand under ASan+UBSan' bash tests/sol-unexpand-sanitize.sh out/bash
   check 'crypto independent contracts under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/crypto-contracts" bash tests/sol-crypto-sanitize.sh out/bash
+  check 'P-256 and ACME under ASan+UBSan' bash tests/p256-sanitize.sh out/bash
   check 'more under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/more" bash tests/sol-more-sanitize.sh out/bash
   check 'vi deletion under ASan+UBSan' env OPUS_VI_REQUIRE_NVIM=1 bash tests/opus-vi-sanitize.sh out/bash
   check 'bashlogger fixture build' bash tests/sol-bashlogger-build-fixtures.sh "$scratch/bashlogger"

@@ -2926,8 +2926,12 @@
     },
     "crypto": {
       "evidence": "docs/sol-crypto.md",
-      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction.",
+      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951.",
       "next": "Retain independent cryptography oracles and bounded API coverage; no broad cryptographic security or uniform speedup claim."
+    },
+    "acme": {
+      "evidence": "tests/p256-check.py",
+      "note": "P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 0dbe951."
     },
     "rev": {
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
