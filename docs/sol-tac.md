@@ -38,14 +38,11 @@ the process's previous regex syntax, preserving Bash's own regex operations.
 
 ## Remaining limits
 
-The general regex path maps the complete file and delegates to GNU's regex
-engine. Its address space and working memory are **not bounded independently
-of input size**, and it rejects input above `INT_MAX` bytes instead of
-truncating offsets. General regexes on libcs without the GNU API return an
-explicit unsupported-pattern error; they no longer silently use a different
-POSIX ERE dialect. A portable GNU-compatible matcher with bounded working
-storage remains required for full completion. This work does not claim that
-all regex input sizes, locales or musl expressions are complete.
+The general regex path described here mapped the complete file. The
+[regex follow-up](opus-tac-followup.md) replaces it with a bounded streaming
+matcher and GNU's own read windows. Only back-references, collating and
+equivalence elements and some UTF-8 constructs still use glibc, over GNU's
+window and pending-record buffer.
 
 Multi-byte literal matching can still repeat comparisons for adversarial
 separator prefixes. Concurrently truncated or modified regular files are

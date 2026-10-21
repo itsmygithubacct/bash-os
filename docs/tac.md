@@ -122,5 +122,5 @@ historical run have been replaced in the [bounded-input and GNU regex
 follow-up](sol-tac.md). Literal input and selected regex atoms now use fixed
 backward read buffers; pipes use an owned, immediately unlinked spool. GNU
 regex direction, newline and NUL behavior are implemented and tested. The
-general regex matcher still has input-dependent memory use and requires the
-GNU API, so full bounded-memory and portable-regex completion remains open.
+[regex follow-up](opus-tac-followup.md) bounds general regex memory and
+removes the GNU API requirement except for the constructs it lists.
