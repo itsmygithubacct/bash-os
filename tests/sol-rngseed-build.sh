@@ -3,7 +3,6 @@
 set -euo pipefail
 out=${1:?output directory required}
 mkdir -p "$out"
-./build.sh --include rngseed --name sol-rngseed
 bt=build/bash-5.3
 inc=(-DHAVE_CONFIG_H -I"$bt" -I"$bt/include" -I"$bt/builtins" -I"$bt/examples/loadables")
 wrap=()

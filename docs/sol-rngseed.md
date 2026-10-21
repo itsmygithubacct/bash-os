@@ -57,8 +57,9 @@ harnesses. `tests/sol-rngseed-check.sh` checks the built native shell with empty
 PATH and repeated calls, and invokes load only on a missing file.
 
 Builds and measurements must use the campaign resource gates. Build the focused
-harnesses with `tests/sol-rngseed-build.sh OUTPUT_DIR`; this also ensures the
-targeted native `./build.sh --include rngseed --name sol-rngseed` is current.
+harnesses with `tests/sol-rngseed-build.sh OUTPUT_DIR`. The harnesses compile
+against the configured `build/bash-5.3` tree; registered checks run those
+harnesses, not `out/bash-sol-rngseed`.
 Neither correctness execution nor
 `bench/sol-rngseed.py` compiles anything. rngseed requires no helper or companion
 loadables (the resolver includes its default _jsmn helper) according to `config/helpers.json` and the resolved build selection.

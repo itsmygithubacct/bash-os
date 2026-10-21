@@ -5,7 +5,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${BASHOS_TASK_DIR:?set the artifact directory}"
 . config/versions.sh
-./build.sh --include hwclock --name sol-hwclock
 bt="build/bash-$BASH_SRC_VERSION"
 d="$BASHOS_TASK_DIR/artifacts"
 mkdir -p "$d"
