@@ -10,12 +10,33 @@ The listing reader accepts versions 2, 3 and 4 and follows Git 2.47.3's
 leniency for padding, name-length fields, entry order, duplicate stages,
 paths, ordinary trailers and optional extension sizes. Unknown mandatory
 extensions and unknown extended entry flags fail before output. Bounds
-checks use owned memory; the zero-filled tail of Git's mapped final page
-is represented explicitly, without an out-of-bounds read. Entries reaching
-past that page are refused: Git can read unrelated adjacent mappings there,
-so its output and even its success status are not a deterministic oracle.
-The mutation report lists these cases separately; universal acceptance
-parity is not claimed for them.
+checks use owned memory. Git maps the index in whole pages and treats the
+bytes from the end of the file to the end of that page as zeroes. Those
+bytes are part of the deterministic result, and a listing that uses them
+matches Git's output and exit class. This includes a single entry whose
+declared name reaches the last byte of the page, and a `0xFFF` name with
+no interior NUL when the file itself is an exact page.
+
+A read at or past the end of that page is refused with an error, a nonzero
+status and no listing. Git's behaviour there is not defined: the same
+bytes do not produce one listing or one exit status. The measured shapes,
+with the name field beginning at offset 74, are:
+
+- version 2 or 3, count of at least 2, and a first entry whose 12-bit name
+  length is `page_size - 74`. The next header starts past the page.
+  Repeated `git ls-files --stage` runs print different listings. On a
+  4096-byte page that length is 4022.
+- version 4, count of at least 2, a first entry whose 12-bit name length
+  is 4000, and a single `0x00` strip byte with no suffix. The declared
+  field places the next header past a 4096-byte page. Repeated runs mix a
+  successful listing with status 128 and do not repeat one listing.
+
+The same refusal applies to any later entry whose header would start at or
+past the page, including a version-4 suffix span of `(flags & 0xfff) + 1`
+minus the prefix taken from the previous name. A last entry is still
+listed from the bytes that fall inside the page. Strict checks still apply
+only to writes. Split and sparse indexes are unchanged. This is a stated
+difference from Git, not an open contract.
 
 Split indexes resolve `link` against `sharedindex.<hash>` in the repository,
 apply its EWAH deletion/replacement bitmaps, then merge local additions.
@@ -68,7 +89,7 @@ temporary file.
 
 | test | what it holds the command to |
 | --- | --- |
-| `tests/sol-index-check.py` | 26 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; Git-written split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, requiring agreement in both acceptance directions; accepted output must equal Git; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
+| `tests/sol-index-check.py` | 26 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; Git-written split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, agreeing with Git wherever Git's result is deterministic, and refusing an entry whose next header would start past the mapped page; accepted output must equal Git; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
 | `tests/sol-index-formats.py` | Git-written split, core.splitIndex, cone sparse and v4 indexes through every changing verb; shared-file failures preserve bytes and release locks |
 | `tests/sol-index-faults.c` | LD_PRELOAD shim that fails write, short write, fdatasync, close or rename on the index's temporary file |
 | `tests/sol-index-fuzz.c` | libFuzzer over the production `index.c`: reader → checks → write → reread round trip, `--index-info` application (order and path invariants, REUC round trip) and `write` line parsing |
@@ -167,7 +188,8 @@ replacement. An intermediate null-ID record removed later in the same
 an absent path. Failed final validation preserves the old index and releases
 the command's lock.
 
-The command-specific suite requires listing parity in both directions.
+The command-specific suite requires listing parity in both directions,
+except the mapped-page overruns above, which are expected refusals.
 The 33 structural cases include the 20 former strict-read differences and
 the two formerly unsupported required extensions. Successful imports are
 also read back and compared with Git. The regression suite retains stage,

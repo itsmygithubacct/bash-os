@@ -11,7 +11,8 @@ the index format written here, never from the builtin's own earlier output:
             indexes)
   integrity every truncation and every single-byte change of a small index,
             structural damage under a recomputed trailer, and a seeded
-            mutation run requiring both acceptance directions and exact output
+            mutation run: exact Git output wherever that output is deterministic,
+            and a refusal when the next entry would leave the mapped page
   write     byte-identical files to git's for the same entries, path
             bytes kept exactly, git's mode normalization, refusals
   index-info  scripted and seeded random record streams applied by git and
@@ -532,37 +533,71 @@ def _():
 
 
 def mapped_read_is_bounded(raw):
-    """Independently identify reads that leave Git's mapped final page.
+    """False only when a later entry would be read past the mapped page.
 
-    Such files have no stable oracle: adjacent mappings vary between runs.
-    Do not execute Git on them or compare arbitrary process-memory contents.
+    Git 2.47.3 has no stable listing there, so the suite does not execute
+    it and requires a refusal. A last entry that ends in the zero-filled
+    tail, or on the last byte of an exact page, stays comparable.
     """
     if len(raw) < 32 or raw[:4] != b'DIRC': return True
     version, count = struct.unpack('>II', raw[4:12])
-    if version not in (2, 3): return True
-    limit = (len(raw)+4095)//4096*4096
-    if count > (limit-12)//64: return False
-    padded = raw+b'\0'*(limit-len(raw))
+    if version not in (2, 3, 4): return True
+    page = os.sysconf('SC_PAGE_SIZE')
+    page = page if page and page > 0 else 4096
+    limit = ((len(raw) + page - 1) // page) * page
+    if count > (limit - 12) // 64: return False
+    padded = raw + bytes(limit - len(raw))
     off = 12
-    for _ in range(count):
+    previous_len = 0
+    for n in range(count):
+        last = n + 1 == count
         start = off
-        if off+62 > limit: return False
+        if limit - off < 62: return False
         flags = int.from_bytes(padded[off+60:off+62], 'big'); off += 62
         if flags & 0x4000:
-            if off+2 > limit: return False
+            if limit - off < 2: return False
             flags2 = int.from_bytes(padded[off:off+2], 'big'); off += 2
             if flags2 & ~0x6000: return True  # Git refuses before using the name
-        size = flags & 0xfff
-        if size == 0xfff:
-            end = padded.find(b'\0', off)
-            if end < 0: return False
-            size = end-off
-        if off+size+1 > limit: return False
-        off = start+((off-start+size+8)//8)*8
+        if version == 4:
+            if off >= limit: return False
+            c = padded[off]; off += 1
+            strip = c & 0x7f
+            while c & 0x80:
+                if off >= limit: return False
+                c = padded[off]; off += 1
+                strip = ((strip + 1) << 7) + (c & 0x7f)
+            copy_len = 0
+            if n:
+                if strip > previous_len: return True
+                copy_len = previous_len - strip
+            flags_len = flags & 0xfff
+            if flags_len == 0xfff:
+                nul = padded.find(b'\0', off, limit)
+                if nul < 0: return last
+                previous_len = copy_len + (nul - off)
+                off = nul + 1
+            else:
+                if flags_len + 1 < copy_len: return False
+                span = flags_len + 1 - copy_len
+                if span > limit - off: return last
+                off += span
+                previous_len = flags_len
+        else:
+            namelen = flags & 0xfff
+            if namelen == 0xfff:
+                nul = padded.find(b'\0', off, limit)
+                if nul < 0: return last
+                namelen = nul - off
+            if namelen + 1 > limit - off: return last
+            off += namelen + 1
+            consumed = off - start
+            padded_size = (consumed + 7) & ~7
+            if padded_size > limit - start: return last
+            off = start + padded_size
     return True
 
 
-@case('integrity: seeded mutations with both acceptance directions recorded')
+@case('integrity: seeded mutations match Git or refuse a mapped-page overrun')
 def _():
     rng = random.Random(args.seed)
     base = make_index(root, work/'mut-base.index',
@@ -609,7 +644,9 @@ def _():
     check(not differences, differences[:30])
     return {'mutations': len(paths), 'accepted': accepted,
             'strict_read_differences': differences, 'bounded_parity_complete': not differences,
-            'unsafe_oracle_not_executed': unsafe_oracle, 'universal_parity_claimed': False}
+            'page_overrun_refusals': unsafe_oracle, 'unsafe_oracle_not_executed': unsafe_oracle,
+            'acceptance_contract': 'match deterministic git; refuse mapped-page overrun',
+            'page_overrun_contract_resolved': True, 'universal_parity_claimed': False}
 
 
 # ---- write -------------------------------------------------------------------

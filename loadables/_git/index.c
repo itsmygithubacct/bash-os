@@ -462,10 +462,30 @@ bgit_index_read (const char *path, bgit_index_entry **out, size_t *n_out)
     return bgit_index_decode_views (path, views, n, backing, out, n_out);
 }
 
+/* Printed name: bytes through the first NUL in WINDOW, or all of WINDOW
+   when it has none. Does not read past WINDOW. */
+static int
+bgit_index_listing_path (bgit_index_entry *e, const char *prefix, size_t prefix_n,
+                         const unsigned char *window, size_t window_n)
+{
+    const unsigned char *nul = window_n ? memchr (window, 0, window_n) : NULL;
+    size_t n = nul ? (size_t) (nul - window) : window_n;
+    if (prefix_n > SIZE_MAX - n - 1) return -1;
+    e->path = malloc (prefix_n + n + 1);
+    if (!e->path) return -1;
+    if (prefix_n) memcpy (e->path, prefix, prefix_n);
+    if (n) memcpy (e->path + prefix_n, window, n);
+    e->path[prefix_n + n] = 0;
+    return 0;
+}
+
 /* Git's listing reader deliberately does not check the trailer, padding,
    path safety or entry order. Keep it separate from the strict shared API.
    mmap readers can see zeroes through the end of the last page; emulate
-   those bytes in owned memory, without ever reading beyond an allocation. */
+   those bytes in owned memory, without ever reading beyond an allocation.
+   A last entry may end in that tail. A later entry that would start at or
+   past the page is refused: Git's listing there is not stable, and a
+   partial listing must not be printed. */
 int
 bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out,
                          unsigned char **backing, size_t *flen_out,
@@ -488,7 +508,7 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
     memset (buf + flen, 0, limit - flen);
     bgit_index_entry *entries = calloc (count ? count : 1, sizeof *entries);
     if (!entries) { free (buf); return -1; }
-    size_t off = 12, parsed = 0;
+    size_t off = 12, parsed = 0, previous_len = 0;
     for (; parsed < count; parsed++) {
         size_t start = off;
         if (off > limit || limit - off < 62) goto bad_entries;
@@ -512,10 +532,14 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
             e->flags2 = bgit_be16 (buf, off); off += 2;
             if (e->flags2 & ~0x6000) goto bad_entries;
         }
-        size_t namelen = e->flags & 0xfff, prefix = 0;
+        int last = parsed + 1 == count;
         if (version == 4) {
             /* OFS_DELTA-style integer: bytes already read represent one
-               less than the high part whenever another byte follows. */
+               less than the high part whenever another byte follows.
+               The 12-bit field is the full name length, not the suffix.
+               The first entry has no previous name, so its strip is
+               consumed and ignored, as Git does. Advance by the whole
+               declared suffix, even when a NUL appears earlier. */
             if (off == limit) goto bad_entries;
             unsigned c = buf[off++];
             size_t strip = c & 0x7f;
@@ -523,32 +547,82 @@ bgit_index_read_listing (const char *path, bgit_index_entry **out, size_t *n_out
                 if (off == limit || strip >= (SIZE_MAX >> 7)) goto bad_entries;
                 c = buf[off++]; strip = ((strip + 1) << 7) + (c & 0x7f);
             }
-            size_t previous = parsed ? strlen (entries[parsed - 1].path) : 0;
-            if (strip > previous) goto bad_entries;
-            prefix = previous - strip;
+            size_t copy_len = 0;
+            if (parsed) {
+                if (strip > previous_len) goto bad_entries;
+                copy_len = previous_len - strip;
+            }
+            size_t have = parsed ? strlen (entries[parsed - 1].path) : 0;
+            size_t prefix = copy_len < have ? copy_len : have;
+            size_t flags_len = e->flags & 0xfff;
+            size_t span = 0, window_n = 0;
+            int clip = 0;
+            if (flags_len == 0xfff) {
+                const unsigned char *nul = memchr (buf + off, 0, limit - off);
+                if (!nul) {
+                    if (!last) goto bad_entries;
+                    clip = 1;
+                    window_n = limit - off;
+                } else {
+                    window_n = (size_t) (nul - buf - off);
+                    span = window_n + 1;
+                    previous_len = copy_len + window_n;
+                }
+            } else {
+                if (flags_len + 1 < copy_len) goto bad_entries;
+                span = flags_len + 1 - copy_len;
+                if (span > limit - off) {
+                    if (!last) goto bad_entries;
+                    clip = 1;
+                    window_n = limit - off;
+                } else
+                    window_n = span;
+                previous_len = flags_len;
+            }
+            if (copy_len > have) {
+                e->path = strdup (entries[parsed - 1].path);
+                if (!e->path) goto bad_entries;
+            } else if (bgit_index_listing_path (e, parsed ? entries[parsed - 1].path : NULL,
+                                                prefix, buf + off, window_n) < 0)
+                goto bad_entries;
+            off = clip ? flen : off + span;
+            continue;
+        }
+        size_t namelen = e->flags & 0xfff;
+        if (namelen == 0xfff) {
             const unsigned char *nul = memchr (buf + off, 0, limit - off);
-            if (!nul) goto bad_entries;
-            namelen = (size_t) (nul - buf - off);
-        } else if (namelen == 0xfff) {
-            const unsigned char *nul = memchr (buf + off, 0, limit - off);
-            if (!nul) goto bad_entries;
+            if (!nul) {
+                if (!last) goto bad_entries;
+                if (bgit_index_listing_path (e, NULL, 0, buf + off, limit - off) < 0)
+                    goto bad_entries;
+                off = flen;
+                continue;
+            }
             namelen = (size_t) (nul - buf - off);
         }
-        if (namelen >= limit - off || prefix > SIZE_MAX - namelen - 2)
-            goto bad_entries;
-        e->path = malloc (prefix + namelen + 2);
+        /* Explicit length: Git copies that many bytes plus one and stops
+           the printed name at the first NUL inside them. */
+        if (namelen + 1 > limit - off) {
+            if (!last) goto bad_entries;
+            if (bgit_index_listing_path (e, NULL, 0, buf + off, limit - off) < 0)
+                goto bad_entries;
+            off = flen;
+            continue;
+        }
+        if (namelen > SIZE_MAX - 2) goto bad_entries;
+        e->path = malloc (namelen + 2);
         if (!e->path) goto bad_entries;
-        if (prefix) memcpy (e->path, entries[parsed - 1].path, prefix);
-        memcpy (e->path + prefix, buf + off, namelen + 1);
-        e->path[prefix + namelen + 1] = 0;
+        memcpy (e->path, buf + off, namelen + 1);
+        e->path[namelen + 1] = 0;
         off += namelen + 1;
-        if (version != 4) {
-            size_t consumed = off - start;
-            if (consumed > SIZE_MAX - 7) goto bad_entries;
-            size_t padded_size = (consumed + 7) & ~(size_t) 7;
-            if (padded_size > limit - start) goto bad_entries;
+        size_t consumed = off - start;
+        if (consumed > SIZE_MAX - 7) goto bad_entries;
+        size_t padded_size = (consumed + 7) & ~(size_t) 7;
+        if (padded_size > limit - start) {
+            if (!last) goto bad_entries;
+            off = flen;
+        } else
             off = start + padded_size;
-        }
     }
     bgit_index_stamp (path);
     *out = entries; *n_out = count; *backing = buf;
