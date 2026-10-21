@@ -68,12 +68,15 @@ typedef struct {
   int validate;
   int reset;
   int reset_all;
+  int reset_first;		/* sudo -k with an action: reset, then perform it */
+  int target_set;		/* -u/--user given explicitly */
   const char *target;
   const char *target_group;	/* sudo -g/--group: explicit runas group (name or #gid) */
   char **env_assign;
   int envc;
   char **cmd;
   int cmdc;
+  char self_target[24];		/* sudo -g without -u runs as the caller */
 } bda_opts;
 
 /* Userspace-only constant (not part of the kernel UAPI). All struct,
@@ -583,16 +586,63 @@ bda_group_to_gid (const char *spec, gid_t *out)
 
 /* Resolve the editor to run, AS THE CALLER, on a sudoedit temp copy. Mirrors
  * sudo's SUDO_EDITOR/VISUAL/EDITOR precedence with a conservative /bin/vi
- * fallback. The editor NEVER runs as root: this front-end is already executing
- * as the unprivileged caller on the SUDOEDIT path. */
-static const char *
-bda_sudoedit_editor (void)
+ * fallback. Like sudo, the variable is split into words at blanks without
+ * shell parsing, so SUDO_EDITOR="vi -n" passes an option; a blank variable is
+ * skipped. The editor NEVER runs as root: this front-end is already executing
+ * as the unprivileged caller on the SUDOEDIT path. Returns a malloc'd argv of
+ * the editor words followed by the N temp paths; *wordsp owns the strings. */
+static char **
+bda_sudoedit_editor_argv (char **temps, int n, char **wordsp)
 {
-  const char *e = getenv ("SUDO_EDITOR");
-  if (!e || !*e) e = getenv ("VISUAL");
-  if (!e || !*e) e = getenv ("EDITOR");
-  if (!e || !*e) e = "/bin/vi";
-  return e;
+  static const char *vars[] = { "SUDO_EDITOR", "VISUAL", "EDITOR", NULL };
+  const char *e = NULL;
+  char *words, *p;
+  char **argv;
+  int count = 0, i;
+
+  *wordsp = NULL;
+  for (i = 0; vars[i] && !e; i++)
+    {
+      const char *v = getenv (vars[i]);
+      if (v && v[strspn (v, " \t\n")])
+        e = v;
+    }
+  if (!e)
+    e = "/bin/vi";
+  words = strdup (e);
+  if (!words)
+    return NULL;
+  for (p = words; *p; )
+    {
+      p += strspn (p, " \t\n");
+      if (!*p)
+        break;
+      count++;
+      p += strcspn (p, " \t\n");
+    }
+  /* [word0 .. word{count-1}, temp0 .. temp{n-1}, NULL] */
+  argv = (char **) malloc ((size_t) (count + n + 1) * sizeof (char *));
+  if (!argv)
+    {
+      free (words);
+      return NULL;
+    }
+  count = 0;
+  for (p = words; *p; )
+    {
+      p += strspn (p, " \t\n");
+      if (!*p)
+        break;
+      argv[count++] = p;
+      p += strcspn (p, " \t\n");
+      if (*p)
+        *p++ = '\0';
+    }
+  for (i = 0; i < n; i++)
+    argv[count + i] = temps[i];
+  argv[count + n] = NULL;
+  *wordsp = words;
+  return argv;
 }
 
 /* Fork+exec the editor ONCE on all N temp copies as the caller (no privilege
@@ -603,21 +653,14 @@ bda_sudoedit_editor (void)
 static int
 bda_spawn_editor (char **temps, int n)
 {
-  const char *editor = bda_sudoedit_editor ();
   pid_t pid;
-  int i;
-  char **argv;
+  char **argv, *words;
 
   if (n < 1)
     return -1;
-  /* [editor, temp0 .. temp{n-1}, NULL] */
-  argv = (char **) malloc ((size_t) (n + 2) * sizeof (char *));
+  argv = bda_sudoedit_editor_argv (temps, n, &words);
   if (!argv)
     return -1;
-  argv[0] = (char *) editor;
-  for (i = 0; i < n; i++)
-    argv[i + 1] = temps[i];
-  argv[n + 1] = NULL;
 
   fflush (NULL);
   bos_child_wait waiting;
@@ -625,6 +668,7 @@ bda_spawn_editor (char **temps, int n)
   if (pid < 0)
     {
       free (argv);
+      free (words);
       return -1;
     }
   if (pid == 0)
@@ -632,10 +676,11 @@ bda_spawn_editor (char **temps, int n)
       /* Caller creds are already in effect (non-root SUDOEDIT path). */
       bda_child_reset_signals ();
       bda_child_close_fds ();
-      execvp (editor, argv);
+      execvp (argv[0], argv);
       _exit (127);
     }
   free (argv);			/* child has its own (COW) copy; parent's is done */
+  free (words);
   return bda_wait_owned (pid, &waiting);
 }
 
@@ -873,6 +918,20 @@ cleanup:
 static int
 bda_run_authority (const bda_opts *o)
 {
+  /* sudo -k with an action first discards the cached credential, so the
+     action is authorized afresh. A failed reset performs nothing. */
+  if (o->reset_first)
+    {
+      bda_opts ro = *o;
+      ro.reset_first = 0;
+      ro.reset = 1;
+      ro.validate = ro.edit_mode = ro.shell_mode = ro.login_mode = 0;
+      ro.cmdc = ro.envc = 0;
+      int rrc = bda_run_authority (&ro);
+      if (rrc != EXECUTION_SUCCESS)
+        return rrc;
+    }
+
   int fd = bda_open_authority_if_available ();
   if (fd < 0)
     return BDA_AUTH_UNAVAILABLE;
@@ -1222,7 +1281,7 @@ bda_is_env_assign (const char *s)
     return 0;
   for (const char *p = s + 1; *p; p++)
     {
-      if (*p == '=') return p > s + 1;
+      if (*p == '=') return 1;
       if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
             (*p >= '0' && *p <= '9') || *p == '_'))
         return 0;
@@ -1338,11 +1397,26 @@ bda_build_env (const bc_user_info *u, const bda_opts *o)
       bda_append_envf (&env, &used, &cap, "SUDO_GID", gidbuf) < 0)
     goto fail;
 
+  /* A command-line assignment replaces any entry of the same name, so the
+     child sees one value: the last one given. */
   for (int i = 0; i < o->envc; i++)
     {
-      if (bda_env_name_dangerous (o->env_assign[i]))
+      const char *kv = o->env_assign[i];
+      size_t n = strcspn (kv, "=");
+      size_t k;
+      if (bda_env_name_dangerous (kv))
         continue;
-      if (bda_append_env (&env, &used, &cap, strdup (o->env_assign[i])) < 0)
+      for (k = 0; k < used; k++)
+        if (strncmp (env[k], kv, n) == 0 && env[k][n] == '=')
+          break;
+      if (k < used)
+        {
+          char *entry = strdup (kv);
+          if (!entry) goto fail;
+          free (env[k]);
+          env[k] = entry;
+        }
+      else if (bda_append_env (&env, &used, &cap, strdup (kv)) < 0)
         goto fail;
     }
   return env;
@@ -1350,6 +1424,38 @@ bda_build_env (const bc_user_info *u, const bda_opts *o)
 fail:
   bda_free_env (env);
   return NULL;
+}
+
+/* Append SUDO_COMMAND=PREFIX[ WORD...] to a built environment: the words
+   joined by single spaces, unquoted. As in sudo, a command-line assignment
+   of the same name is applied later and so wins. */
+static int
+bda_env_add_command (char ***envp, const char *prefix, char **words, int n)
+{
+  size_t used = 0, cap, len = strlen (prefix) + 1;
+  char *value, *end;
+  int rc;
+
+  for (char **e = *envp; *e; e++)
+    if (strncmp (*e, "SUDO_COMMAND=", 13) == 0)
+      return 0;
+  for (int i = 0; i < n; i++)
+    len += strlen (words[i]) + 1;
+  value = malloc (len);
+  if (!value)
+    return -1;
+  end = stpcpy (value, prefix);
+  for (int i = 0; i < n; i++)
+    {
+      *end++ = ' ';
+      end = stpcpy (end, words[i]);
+    }
+  while ((*envp)[used])
+    used++;
+  cap = used + 1;
+  rc = bda_append_envf (envp, &used, &cap, "SUDO_COMMAND", value);
+  free (value);
+  return rc;
 }
 
 static int
@@ -1450,18 +1556,85 @@ bda_child_close_fds (void)
     (void) close (fd);
 }
 
-static int
-bda_run_external (const bda_opts *o, char **orig, int origc)
+/* Without the authority, sudo's default delegate is an external doas, which
+   understands only part of sudo's syntax. Translate what doas expresses and
+   refuse the rest, rather than handing doas sudo-only words to misread. */
+static char **
+bda_sudo_doas_argv (const bda_opts *o, const char *path)
 {
-  const char *path = getenv ("BASHDOAS_EXTERNAL");
-  if (!path || !*path) path = getenv ("BASHSUDO_EXTERNAL");
-  if (!path || !*path) path = "doas";
+  const char *why = NULL;
+  if (o->login_mode) why = "-i";
+  else if (o->edit_mode) why = "-e";
+  else if (o->validate) why = "-v";
+  else if (o->target_group) why = "-g";
+  else if (o->reset_first) why = "-k with a command";
+  else if (o->envc) why = "VAR=value";
+  else if (o->shell_mode && o->cmdc) why = "-s with a command";
+  if (why)
+    {
+      builtin_error ("%s requires the bash-os authority; external doas cannot express it", why);
+      return NULL;
+    }
 
+  char **argv = calloc ((size_t) o->cmdc + 8, sizeof *argv);
+  int n = 0;
+  if (!argv)
+    {
+      builtin_error ("out of memory");
+      return NULL;
+    }
+  argv[n++] = (char *) path;
+  if (o->reset)
+    argv[n++] = (char *) "-L";
+  else
+    {
+      if (o->non_interactive) argv[n++] = (char *) "-n";
+      argv[n++] = (char *) "-u";
+      argv[n++] = (char *) o->target;
+      if (o->shell_mode) argv[n++] = (char *) "-s";
+      else
+        {
+          argv[n++] = (char *) "--";
+          for (int i = 0; i < o->cmdc; i++)
+            argv[n++] = o->cmd[i];
+        }
+    }
+  argv[n] = NULL;
+  return argv;
+}
+
+static char **
+bda_verbatim_argv (const char *path, char **orig, int origc)
+{
   char **argv = calloc ((size_t) origc + 2, sizeof *argv);
-  if (!argv) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  if (!argv)
+    {
+      builtin_error ("out of memory");
+      return NULL;
+    }
   argv[0] = (char *) path;
   for (int i = 0; i < origc; i++) argv[i + 1] = orig[i];
   argv[origc + 1] = NULL;
+  return argv;
+}
+
+static int
+bda_run_external (const bda_opts *o, char **orig, int origc)
+{
+  /* An explicitly named delegate receives the original words unchanged. */
+  const char *path = getenv (o->is_sudo ? "BASHSUDO_EXTERNAL" : "BASHDOAS_EXTERNAL");
+  if (!path || !*path) path = getenv (o->is_sudo ? "BASHDOAS_EXTERNAL" : "BASHSUDO_EXTERNAL");
+  char **argv;
+  if (path && *path)
+    argv = bda_verbatim_argv (path, orig, origc);
+  else
+    {
+      path = "doas";
+      argv = o->is_sudo ? bda_sudo_doas_argv (o, path)
+                        : bda_verbatim_argv (path, orig, origc);
+    }
+  if (!argv)
+    return EXECUTION_FAILURE;
 
   bos_child_wait waiting;
   pid_t pid = bda_fork_owned (&waiting);
@@ -1572,6 +1745,11 @@ bda_run_root (const bda_opts *o)
 
       bda_child_reset_signals ();
       bda_child_close_fds ();
+      /* sudo -i starts in the target's home; like sudo, a missing home is
+         reported and the shell starts where it is. */
+      if (o->login_mode && chdir (u.home) < 0)
+        fprintf (stderr, "%s: unable to change directory to %s: %s\n",
+                 o->is_sudo ? "sudo" : "doas", u.home, strerror (errno));
       if (o->shell_mode || o->login_mode || o->cmdc == 0)
         {
           char *cmdstr = o->cmdc ? bda_quote_join_cmd (o->cmd, o->cmdc) : NULL;
@@ -1581,9 +1759,20 @@ bda_run_root (const bda_opts *o)
                        o->is_sudo ? "sudo" : "doas");
               _exit (126);
             }
+          char *shell_words[] = { (char *) "-c", cmdstr };
+          if (o->is_sudo &&
+              bda_env_add_command (&env, u.shell, shell_words, cmdstr ? 2 : 0) < 0)
+            {
+              fprintf (stderr, "sudo: env build: out of memory\n");
+              _exit (126);
+            }
+          /* A login shell is named "-" plus the shell's basename. */
+          char login_name[sizeof u.shell + 1];
+          const char *base = strrchr (u.shell, '/');
+          snprintf (login_name, sizeof login_name, "-%s", base ? base + 1 : u.shell);
           char *argv[5];
           int ai = 0;
-          argv[ai++] = o->login_mode ? "-bash" : u.shell;
+          argv[ai++] = o->login_mode ? login_name : u.shell;
           if (cmdstr)
             {
               if (o->login_mode) argv[ai++] = "-l";
@@ -1611,6 +1800,12 @@ bda_run_root (const bda_opts *o)
           _exit (127);
         }
       exec_cmd[0] = resolved_cmd;
+      if (o->is_sudo &&
+          bda_env_add_command (&env, exec_cmd[0], exec_cmd + 1, o->cmdc - 1) < 0)
+        {
+          fprintf (stderr, "sudo: env build: out of memory\n");
+          _exit (126);
+        }
       execve (exec_cmd[0], exec_cmd, env);
       int exec_errno = errno;
       fprintf (stderr, "%s: exec %s: %s\n",
@@ -1671,72 +1866,152 @@ bda_parse_doas (bda_opts *o, char **argv, int argc)
   return EXECUTION_SUCCESS;
 }
 
+/* Only one of -e, -i, -K, -l, -s and -v may be given; repeating one is fine. */
+static int
+bda_sudo_mode (bda_opts *o, char *excl, char opt)
+{
+  if (*excl && *excl != opt)
+    {
+      builtin_error ("only one of the -e, -i, -K, -l, -s or -v options may be specified");
+      return EX_USAGE;
+    }
+  *excl = opt;
+  switch (opt)
+    {
+    case 'e': o->edit_mode = 1; break;
+    case 'i': o->login_mode = 1; break;
+    case 'K': o->reset = o->reset_all = 1; break;
+    case 'l': o->list_mode = o->list_mode ? 2 : 1; break;
+    case 's': o->shell_mode = 1; break;
+    case 'v': o->validate = 1; break;
+    }
+  return EXECUTION_SUCCESS;
+}
+
+static int
+bda_sudo_flag (bda_opts *o, char *excl, char opt)
+{
+  char flag[3] = { '-', opt, '\0' };
+  switch (opt)
+    {
+    case 'n': o->non_interactive = 1; return EXECUTION_SUCCESS;
+    case 'k': o->reset = 1; return EXECUTION_SUCCESS;
+    case 'H': case 'B': return EXECUTION_SUCCESS;
+    case 'e': case 'i': case 'K': case 'l': case 's': case 'v':
+      return bda_sudo_mode (o, excl, opt);
+    default: return bda_refuse ("sudo", flag);
+    }
+}
+
+static void
+bda_sudo_value (bda_opts *o, char opt, const char *value)
+{
+  if (opt == 'u')
+    {
+      o->target = value[0] == '#' ? value + 1 : value;
+      o->target_set = 1;
+    }
+  else
+    o->target_group = value;
+}
+
+static const struct { const char *name; char opt; int arg; } bda_sudo_long[] = {
+  { "non-interactive", 'n', 0 }, { "shell", 's', 0 }, { "login", 'i', 0 },
+  { "reset-timestamp", 'k', 0 }, { "remove-timestamp", 'K', 0 },
+  { "validate", 'v', 0 }, { "list", 'l', 0 }, { "edit", 'e', 0 },
+  { "set-home", 'H', 0 }, { "bell", 'B', 0 },
+  { "user", 'u', 1 }, { "group", 'g', 1 },
+  { NULL, 0, 0 }
+};
+
+/* sudo(8) parses with getopt_long and a leading '+': short options bundle
+   (-iu bob), an option argument is attached (-ubob) or the next word, parsing
+   stops at the first operand, and VAR=value operands that precede the command
+   become its environment. Unlisted options are refused, never ignored. */
 static int
 bda_parse_sudo (bda_opts *o, char **argv, int argc)
 {
-  int i = 0;
+  char excl = 0;
+  int i = 0, rc;
   for (; i < argc; i++)
     {
       char *a = argv[i];
+      const char *value;
+      char opt;
+      if (a[0] != '-' || a[1] == '\0') break;
       if (strcmp (a, "--") == 0) { i++; break; }
-      if (strcmp (a, "-n") == 0 || strcmp (a, "--non-interactive") == 0)
-        o->non_interactive = 1;
-      else if (strcmp (a, "-s") == 0 || strcmp (a, "--shell") == 0)
-        o->shell_mode = 1;
-      else if (strcmp (a, "-i") == 0 || strcmp (a, "--login") == 0)
-        o->login_mode = 1;
-      else if (strcmp (a, "-k") == 0 ||
-               strcmp (a, "--reset-timestamp") == 0)
-        o->reset = 1;
-      else if (strcmp (a, "-K") == 0 ||
-               strcmp (a, "--remove-timestamp") == 0)
+      if (a[1] == '-')
         {
-          o->reset = 1;
-          o->reset_all = 1;
+          const char *eq = strchr (a + 2, '=');
+          size_t len = eq ? (size_t) (eq - (a + 2)) : strlen (a + 2);
+          int k;
+          for (k = 0; bda_sudo_long[k].name; k++)
+            if (strlen (bda_sudo_long[k].name) == len &&
+                strncmp (a + 2, bda_sudo_long[k].name, len) == 0)
+              break;
+          if (!bda_sudo_long[k].name || (eq && !bda_sudo_long[k].arg))
+            return bda_refuse ("sudo", a);
+          opt = bda_sudo_long[k].opt;
+          if (!bda_sudo_long[k].arg)
+            {
+              if ((rc = bda_sudo_flag (o, &excl, opt)) != EXECUTION_SUCCESS)
+                return rc;
+              continue;
+            }
+          value = eq ? eq + 1 : (i + 1 < argc ? argv[++i] : NULL);
         }
-      else if (strcmp (a, "-v") == 0 || strcmp (a, "--validate") == 0)
-        o->validate = 1;
-      else if (strcmp (a, "-l") == 0 || strcmp (a, "--list") == 0)
-        o->list_mode = o->list_mode ? 2 : 1;
-      else if (strcmp (a, "-ll") == 0)
-        o->list_mode = 2;
-      else if (strcmp (a, "-u") == 0 || strcmp (a, "--user") == 0)
+      else
         {
-          if (++i >= argc) { builtin_error ("%s needs USER", a); return EX_USAGE; }
-          o->target = argv[i][0] == '#' ? argv[i] + 1 : argv[i];
+          char *p = a + 1;
+          for (; *p && *p != 'u' && *p != 'g'; p++)
+            if ((rc = bda_sudo_flag (o, &excl, *p)) != EXECUTION_SUCCESS)
+              return rc;
+          if (!*p)
+            continue;
+          opt = *p;
+          value = p[1] ? p + 1 : (i + 1 < argc ? argv[++i] : NULL);
         }
-      else if (strncmp (a, "--user=", 7) == 0)
-        o->target = a[7] == '#' ? a + 8 : a + 7;
-      else if (strcmp (a, "-g") == 0 || strcmp (a, "--group") == 0)
+      if (!value)
         {
-          if (++i >= argc) { builtin_error ("%s needs GROUP", a); return EX_USAGE; }
-          o->target_group = argv[i];
+          builtin_error ("%s needs %s", a, opt == 'u' ? "USER" : "GROUP");
+          return EX_USAGE;
         }
-      else if (strncmp (a, "--group=", 8) == 0)
-        o->target_group = a + 8;
-      else if (strcmp (a, "-H") == 0 || strcmp (a, "--set-home") == 0 ||
-               strcmp (a, "-B") == 0 || strcmp (a, "--bell") == 0)
-        { }
-      else if (strcmp (a, "-E") == 0 || strncmp (a, "--preserve-env", 14) == 0 ||
-               strcmp (a, "-S") == 0 || strcmp (a, "-A") == 0 ||
-               strcmp (a, "-p") == 0 || strncmp (a, "--prompt", 8) == 0)
-        return bda_refuse ("sudo", a);
-      else if (strcmp (a, "-e") == 0 || strcmp (a, "--edit") == 0)
-        o->edit_mode = 1;
-      else if (a[0] == '-')
-        return bda_refuse ("sudo", a);
-      else if (bda_is_env_assign (a))
-        {
-          o->env_assign = realloc (o->env_assign, (size_t) (o->envc + 1) * sizeof *o->env_assign);
-          if (!o->env_assign) return EXECUTION_FAILURE;
-          o->env_assign[o->envc++] = a;
-        }
-      else break;
+      bda_sudo_value (o, opt, value);
+    }
+  /* sudoedit operands are files, never environment. */
+  for (; !o->edit_mode && i < argc && bda_is_env_assign (argv[i]); i++)
+    {
+      char **nv = realloc (o->env_assign, (size_t) (o->envc + 1) * sizeof *nv);
+      if (!nv) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+      o->env_assign = nv;
+      o->env_assign[o->envc++] = argv[i];
     }
   o->cmd = argv + i;
   o->cmdc = argc - i;
-  if (o->shell_mode && o->login_mode)
-    { builtin_error ("-s and -i are mutually exclusive"); return EX_USAGE; }
+  if ((o->reset_all || o->validate) && (o->cmdc || o->envc))
+    {
+      builtin_error ("%s cannot be used with a command", o->reset_all ? "-K" : "-v");
+      return EX_USAGE;
+    }
+  if (o->envc && !o->cmdc && !o->shell_mode && !o->login_mode)
+    {
+      builtin_error ("environment assignments require a command");
+      return EX_USAGE;
+    }
+  /* -k with something to do resets the cached credential and then does it. */
+  if (o->reset && !o->reset_all &&
+      (o->cmdc || o->shell_mode || o->login_mode || o->edit_mode || o->validate))
+    {
+      o->reset = 0;
+      o->reset_first = 1;
+    }
+  /* -g without -u runs the command as the invoking user. */
+  if (o->target_group && !o->target_set)
+    {
+      snprintf (o->self_target, sizeof o->self_target, "%lu",
+                (unsigned long) getuid ());
+      o->target = o->self_target;
+    }
   return EXECUTION_SUCCESS;
 }
 
