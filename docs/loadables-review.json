@@ -1411,6 +1411,14 @@
       "status": "Contract",
       "evidence": "tests/sol-poweroff-check.py",
       "scope": "The assigned scope is met for the intercepted software contract. RB_POWER_OFF dispatch, flags, parsing, help, privilege failure and errno propagation, output failures, zero boundary calls on invalid, help and dry-run paths, repeated mixed calls and halt/reboot regressions all pass natively and under ASan/UBSan on the merged snapshot. There is no live shutdown, kernel capability or platform qualification; these are qualification limits, not unresolved requirements."
+    },
+    {
+      "names": [
+        "screen"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-screen-streams.py",
+      "scope": "{\"decision\": \"accepted\", \"scope\": \"Local Linux screen live-pane PTY relay/backpressure using private PTYs, owned children and the ptybroker companion\", \"prerequisites\": [\"Linux /proc\", \"private PTYs\", \"Unix SOCK_SEQPACKET\", \"PR_SET_CHILD_SUBREAPER\", \"pidfds\", \"cc with ASan/UBSan for sanitizer checks\"], \"not_qualified\": [\"physical terminal/display\", \"GPU/Kitty/Sixel frontend\", \"SSH/network transport\", \"other users or hosts\"]}"
     }
   ],
   "sanitizer_groups": [
@@ -2589,9 +2597,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "screen": {
-      "note": "Private broker fixtures cover attachment, relay and lifecycle. Sustained live PTY traffic still needs a defined workload and timing.",
-      "evidence": "tests/screen-broker.py",
-      "next": "Measure sustained live PTY relay and backpressure on the target workload."
+      "evidence": "docs/sol-screen.md",
+      "note": "{\"decision\": \"accepted\", \"scope\": \"Local Linux screen live-pane PTY relay/backpressure using private PTYs, owned children and the ptybroker companion\", \"prerequisites\": [\"Linux /proc\", \"private PTYs\", \"Unix SOCK_SEQPACKET\", \"PR_SET_CHILD_SUBREAPER\", \"pidfds\", \"cc with ASan/UBSan for sanitizer checks\"], \"not_qualified\": [\"physical terminal/display\", \"GPU/Kitty/Sixel frontend\", \"SSH/network transport\", \"other users or hosts\"]}",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "ssh": {
       "note": "Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements."
@@ -3027,7 +3035,8 @@
     "ts",
     "hl",
     "killall",
-    "killall5"
+    "killall5",
+    "screen"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

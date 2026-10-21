@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'screen live relay streams' env TMPDIR=/tmp python3 tests/sol-screen-streams.py --bash out/bash --output "$scratch/screen-streams.json"
 check 'vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash
 check 'bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash
 check 'pr sol-pr-cli contracts' python3 tests/sol-pr-cli.py out/bash
@@ -219,6 +220,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'screen sanitized relay build' bash tests/sol-screen-build-checks.sh "$scratch/screen-checks"
+  check 'screen broker native sanitizer' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 "$scratch/screen-checks/native-sanitize"
+  check 'screen broker sanitized relay' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 python3 tests/screen-broker.py --bash out/bash --load-dir "$scratch/screen-checks" --report "$scratch/screen-sanitize.json"
+  check 'screen sanitized live streams' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 python3 tests/sol-screen-streams.py --bash out/bash --load-dir "$scratch/screen-checks" --output "$scratch/screen-streams-sanitize.json"
   check 'ss fixtures build' bash tests/sol-ss-build-fixtures.sh "$scratch/ss-contracts"
   check 'ss numeric snapshots and unaligned netlink remainder' python3 tests/sol-ss-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-native.json"
   check 'ss snapshots under ASan+UBSan' env BASH_ENV="$scratch/ss-contracts/ss-sanitize-env.sh" LD_PRELOAD="$(cat "$scratch/ss-contracts/ss-asan-path")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ss-behavior.py --binary out/bash --shim "$scratch/ss-contracts/ss-shim.so" --output "$scratch/ss-sanitize.json"
