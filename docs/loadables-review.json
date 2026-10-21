@@ -2882,9 +2882,9 @@
       "note": "Repeated redirected stdin is fixed; tests/hexdump-check.sh matches GNU on three fresh redirections."
     },
     "tac": {
-      "note": "Descriptor input and buffered literal-separator processing are validated. Whole-file memory use and the POSIX ERE regex subset remain limits; dedicated size and separator measurements are separate.",
+      "note": "GNU 8192-byte read windows replace whole-file mmap, and pipes use an owned spool. On glibc, constructs the bounded matcher declines use re_search. A nullable plus that mixes a hang anchor (backtick, caret, \\< or \\>) with \\', \\b or \\B is refused with \"cannot be matched safely\", even where GNU tac finishes. A pattern with a back-reference is searched unchanged. Glibc-only constructs are refused on a portable musl build. The glibc fallback rejects a subject longer than INT_MAX, as GNU does. No new performance result is claimed.",
       "evidence": "docs/tac.md",
-      "next": "Decide bounded-memory input and GNU regex scope; see the tac follow-up."
+      "next": "Bounded-memory input and GNU regex scope are settled. No new performance result. Mixed hang-anchor refusals, unchanged back-references, portable glibc-only refusals, and INT_MAX subjects remain unqualified."
     },
     "fold": {
       "evidence": "docs/fold.md",

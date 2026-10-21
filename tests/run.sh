@@ -133,6 +133,9 @@ check 'copy/move finalization failures' python3 tests/copy-move-errors.py out/ba
 check 'Debian command parity' python3 tests/debian-parity.py out/bash
 check 'paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash
 check 'tac parity' python3 tests/tac-parity.py out/bash
+check 'tac anchor-plus parity' python3 tests/grok-tac-c1-parity.py out/bash --timeout 5
+check 'tac regex hang' python3 tests/grok-tac-fix-hang.py out/bash --timeout 5
+check 'tac follow-up regex' python3 tests/opus-tac-followup-regex.py out/bash --cases 4000
 for name in head-sed fold expand bc nl pr; do
   check "$name parity" python3 "tests/$name-parity.py" out/bash
 done
@@ -202,6 +205,9 @@ for name in cmp-streams cp-safety mv-safety split-safety diff-safety dd-safety; 
 done
 check 'static Debian command parity' python3 tests/debian-parity.py out/bash-static
 check 'static tac parity' python3 tests/tac-parity.py out/bash-static
+check 'static tac anchor-plus parity' python3 tests/grok-tac-c1-parity.py out/bash-static --timeout 5
+check 'static tac regex hang' python3 tests/grok-tac-fix-hang.py out/bash-static --timeout 5
+check 'static tac follow-up regex' python3 tests/opus-tac-followup-regex.py out/bash-static --cases 4000
 for name in head-sed fold expand bc nl pr; do
   check "static $name parity" python3 "tests/$name-parity.py" out/bash-static
 done
