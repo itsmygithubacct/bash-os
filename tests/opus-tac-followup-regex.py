@@ -172,11 +172,9 @@ def anchor_plus_needs_gnu(text):
                ('\\`', "\\'", '\\<', '\\>', '\\b', '\\B', '^', '$'))
 
 
-def needs_glibc(text):
-    """Collating or equivalence elements, "---" in a bracket, a
-    back-reference, or an anchor-plus the bounded matcher declines."""
-    if anchor_plus_needs_gnu(text):
-        return True
+def needs_glibc_strict(text):
+    """Collating or equivalence elements, "---" in a bracket, or a
+    back-reference: constructs the bounded matcher never implements."""
     i = 0
     while i < len(text):
         if text[i] == '\\':
@@ -197,6 +195,12 @@ def needs_glibc(text):
             i = j
         i += 1
     return False
+
+
+def needs_glibc(text):
+    """Strict glibc-only constructs, or an anchor-plus the bounded
+    matcher may decline. The anchor-plus test is a superset."""
+    return anchor_plus_needs_gnu(text) or needs_glibc_strict(text)
 
 
 def data(rng):
@@ -257,11 +261,17 @@ def main():
             stdin = payload if mode == 'pipe' else None
             got = run('tac', opts, stdin, environment=environment)
             if args.portable and glibc:
-                assert got.returncode == 1 and not got.stdout and UNSUPPORTED in got.stderr, (
+                # A strict glibc-only construct must refuse. An anchor-plus
+                # superset match may refuse or succeed; a success still has
+                # to equal GNU below.
+                refused = (got.returncode == 1 and not got.stdout
+                           and UNSUPPORTED in got.stderr)
+                if refused:
+                    unsupported += 1
+                    checks += 1
+                    return
+                assert not needs_glibc_strict(options[-1]), (
                     label, options, got.returncode, got.stderr)
-                unsupported += 1
-                checks += 1
-                return
             ref = run(REFERENCE, opts, stdin, environment=environment)
             assert (got.returncode, got.stdout) == (ref.returncode, ref.stdout), (
                 label, options, mode, len(payload), payload[:60], got.returncode,
