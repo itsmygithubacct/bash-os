@@ -455,7 +455,8 @@ def parsing(d):
 def terminal(d):
     for suffix in ['', '-piecetable', '-keybindings', '-saveprompt', '-replace', '-search',
                    '-resize', '-statusbar', '-yank-ring', '-atomic-save', '-undo-redo',
-                   '-justify', '-spell', '-complete', '-selection', '-linecache']:
+                   '-justify', '-spell', '-complete', '-selection', '-linecache',
+                   '-input', '-display', '-highlight']:
         output = run('nano','selftest'+suffix)
         assert b'not ok ' not in output
     # Screen sessions run on ptybroker, which must become a child subreaper.

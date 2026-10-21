@@ -80,6 +80,8 @@ check 'process matcher version output recovery' python3 tests/review-pgrep-outpu
 check 'ts resolved highlight and nano statusbar' env TS_REQUIRE_NANO_STATUSBAR=1 python3 tests/opus-ts-highlight.py out/bash
 check 'required nano oracle and termios tools' python3 -c 'import shutil; assert all(shutil.which(n,path="/usr/bin:/bin") for n in ("nano","stty")), "Required GNU nano or stty missing"'
 check 'nano private PTY and resolved highlight integration' env NANO_REQUIRE_RESOLVED_TS=1 python3 tests/opus-nano-pty.py out/bash
+check 'nano session PTY contracts' env NANO_REQUIRE_RESOLVED_TS=1 python3 tests/sol-nano-pty.py out/bash
+check 'nano rescue filename diagnostic' python3 tests/astra-nano-rescue.py out/bash
 check 'coreutils dispatcher contracts' python3 tests/sol-coreutils-check.py out/bash
 check 'grep PCRE2 and persistent state' python3 tests/sol-grep-check.py out/bash
 check 'ptybroker bounded streams and ownership' env TMPDIR=/tmp python3 tests/sol-ptybroker-streams.py --bash out/bash --output "$scratch/ptybroker-streams.json"
@@ -231,6 +233,16 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'nano wait unit generate' python3 tests/astra-nano-wait.py loadables/nano.c "$scratch/nano-wait.c"
+  check 'nano wait unit native compile' "$CC" -std=c11 -Wall -Wextra "$scratch/nano-wait.c" -o "$scratch/nano-wait"
+  check 'nano wait unit native run' "$scratch/nano-wait"
+  check 'nano wait unit sanitizer compile' "$CC" -std=c11 -g -fno-omit-frame-pointer -fsanitize=address,undefined "$scratch/nano-wait.c" -o "$scratch/nano-wait-asan"
+  check 'nano wait unit sanitizer run' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/nano-wait-asan"
+  check 'ts diff bounds unit generate' python3 tests/astra-ts-diff-bounds.py loadables/ts.c "$scratch/ts-bounds.c"
+  check 'ts diff bounds unit native compile' "$CC" -std=c11 -Wall -Wextra "$scratch/ts-bounds.c" -o "$scratch/ts-bounds"
+  check 'ts diff bounds unit native run' "$scratch/ts-bounds"
+  check 'ts diff bounds unit sanitizer compile' "$CC" -std=c11 -g -fno-omit-frame-pointer -fsanitize=address,undefined "$scratch/ts-bounds.c" -o "$scratch/ts-bounds-asan"
+  check 'ts diff bounds unit sanitizer run' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ts-bounds-asan"
 check 'clip probe build' bash tests/sol-clip-build-probe.sh "$scratch/clip-probe"
 check 'clip rollback contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/probe.sh" python3 tests/sol-clip-faults.py out/bash
 check 'clip sanitizer contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/plain.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-check.py out/bash
@@ -281,7 +293,6 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'killall sanitizer module build' env BASHOS_TASK_DIR="$scratch/killall-contracts" bash tests/sol-killall-sanitize-build.sh
   check 'killall guarded sanitizer contracts' env SOL_KILLALL_ASAN="$(cat "$scratch/killall-contracts/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --module "$scratch/killall-contracts/sol-killall-sanitize.so" --report "$scratch/killall-sanitize.json"
   check 'ts combined highlight under ASan+UBSan+LSan' env TS_REQUIRE_NANO_STATUSBAR=1 bash tests/opus-ts-sanitize.sh out/bash
-  check 'nano combined selftests and PTYs under ASan+UBSan' env NANO_REQUIRE_RESOLVED_TS=1 bash tests/opus-nano-sanitize.sh out/bash
   check 'coreutils dispatcher under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/coreutils-contracts" bash tests/sol-coreutils-sanitize.sh out/bash
   check 'grep sanitizer harness build' bash tests/sol-grep-build-harness.sh "$scratch/grep-contracts"
   check 'grep PCRE2 sanitizer contracts' python3 tests/sol-grep-check.py out/bash --impl "$scratch/grep-contracts"
@@ -425,6 +436,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'final modules under ASan+UBSan' bash tests/final-sanitize.sh out/bash
   check 'large modules under ASan+UBSan' bash tests/large-sanitize.sh out/bash
   check 'terminal modules under ASan+UBSan' bash tests/terminal-sanitize.sh out/bash
+  check 'nano combined selftests and PTYs under ASan+UBSan' env NANO_REQUIRE_RESOLVED_TS=1 bash tests/opus-nano-sanitize.sh out/bash
   check 'terminal and buffer edges under ASan+UBSan' bash tests/vt-buf-sanitize.sh out/bash
   check 'graphics under ASan+UBSan' bash tests/gpu-sanitize.sh out/bash
   check 'git under ASan+UBSan' bash tests/git-sanitize.sh out/bash

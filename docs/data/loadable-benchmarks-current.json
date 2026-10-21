@@ -8224,7 +8224,7 @@
       "mode": "inprocess",
       "reset": null,
       "env": {},
-      "work": "17 engine assertions on 16-, 24-, 200- and 8-byte buffers: UTF-8 grapheme cluster walks with the per-line cluster cache, screen-column arithmetic, cluster insert and backspace, forward and backward search with wraparound, hscroll and soft-wrap viewport math, then one bn_render after bn_detect_language('cache-test.sh'), which reaches bashts_compute_sgr_map and recompiles the tree-sitter bash highlight query with ts_query_new on every call",
+      "work": "17 engine assertions on 16-, 24-, 200- and 8-byte buffers: UTF-8 grapheme cluster walks with the per-line cluster cache, screen-column arithmetic, cluster insert and backspace, forward and backward search with wraparound, hscroll and soft-wrap viewport math, then one bn_render after bn_detect_language('cache-test.sh'), which reaches bashts_compute_sgr_map. The tree-sitter query is cached; this call does not rebuild it with ts_query_new. Later editor timings are a different workload and are not a speedup against this selftest.",
       "passes": 12,
       "validation_passes": 12,
       "date": "2026-09-12T12:26:46Z",
