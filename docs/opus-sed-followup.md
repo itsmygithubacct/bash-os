@@ -133,6 +133,12 @@ on `ab` is run by the engine and prints `[]a[b]`. `s/(|\Bb)+/[&]/g` on
 `.b` prints `[].[b]`. `\>` followed by a literal uses the span glibc
 returns on subjects where that search finishes (`s/(|\>b)+/[&]/g` on `ab`
 prints `[]a[b]`) and still does not call `re_search` where it does not.
+A star does not take that consume: `\>` between two word characters is
+false, so the group matches empty. `s/(|\>b)*/[&]/g` on `ab` prints
+`[]a[]b[]` and `s/(|\>b)*/x/g` on ` abc` prints `x xaxbxcx`. The consume
+applies when the repeat is not an unlimited empty match, so `+` and
+`{0,2}` stay as they are. `\<` under `*` and the engine's `\b` and `\B`
+under `*` already match GNU sed.
 `\'` is not one of those anchors, so `s/(|\'b)+/[&]/g` is run by the regex
 engine and prints `[].[b]`. A repeated group glibc can finish, such as
 `s/([a]|^)+/X/g` or `s/b(|^)+/X/g`, is also run by the engine. Any other

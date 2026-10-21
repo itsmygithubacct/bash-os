@@ -80,7 +80,17 @@ The compatibility boundaries are:
   filling the other registers may not return. An address passes no
   registers and runs. A finite repeat that hits a blocked consumer fails
   only a substitution: `/(|^b){1,3}/p` on `bb` prints the line twice.
+  A star does not consume a failed `\>` between word characters, so
+  `s/(|\>b)*/[&]/g` on `ab` prints `[]a[]b[]` and `s/(|\>b)*/x/g` on
+  ` abc` prints `x xaxbxcx`. `+` and a finite bound still use that span.
   A repeated group the engine can finish is left to the engine.
+  Substitutions the direct matcher does not cover stay refused when one
+  register matches, because filling the other registers may not return
+  and that span is not GNU sed's text. The refused shapes are a prefix
+  before the group (`a(|^b)+` and `.(|^b)+`), a nested group
+  (`((|^b))+`), and a consumer after the group (`(|^b)+b`), including
+  the same shapes with `` \` ``, `\<` and `\>`. Addresses of those
+  shapes pass no registers and run.
   `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported; `--posix` and
   `--debug` are rejected. See [the focused completion notes](sol-sed.md) and

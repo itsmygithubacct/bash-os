@@ -126,6 +126,22 @@ cases = [
     (['-E', r'/(|\>b){1,3}/p'], b'bb\n', b'bb\nbb\n'),
     (['-E', r'/(|\>b){2}/p'], b'bb\n', b'bb\nbb\n'),
     (['-E', r'/(|\>b){0,2}/p'], b'bb\n', b'bb\nbb\n'),
+    # A star does not consume a failed \> between word characters. The group
+    # matches empty there. + and {0,2} still consume. \<, \b and \B under *
+    # already match GNU sed.
+    (['-E', r's/(|\>b)*/[&]/g'], b'ab\n', b'[]a[]b[]\n'),
+    (['-E', r's/(|\>b)*/[&]/g'], b'bb\n', b'[]b[]b[]\n'),
+    (['-E', r's/(|\>b)*/[&]/g'], b'xb\n', b'[]x[]b[]\n'),
+    (['-E', r's/(|\>b)*/[&]/g'], b' abc\n', b'[] []a[]b[]c[]\n'),
+    (['-E', r's/(|\>b)*/x/g'], b'ab\n', b'xaxbx\n'),
+    (['-E', r's/(|\>b)*/x/g'], b'bb\n', b'xbxbx\n'),
+    (['-E', r's/(|\>b)*/x/g'], b'xb\n', b'xxxbx\n'),
+    (['-E', r's/(|\>b)*/x/g'], b' abc\n', b'x xaxbxcx\n'),
+    (['-E', r's/(|\>b){0,2}/[&]/g'], b'ab\n', None),
+    (['-E', r's/(|\>b){0,2}/x/g'], b'ab\n', None),
+    (['-E', r's/(|\<b)*/[&]/g'], b'ab\n', None),
+    (['-E', r's/(|\bb)*/[&]/g'], b'ab\n', None),
+    (['-E', r's/(|\Bb)*/[&]/g'], b'.b\n', None),
     (['-E', r'/(|^b)+/s//x/g'], b'.b\n', b'x.xbx\n'),
     # \' is an end anchor the engine can finish. It must not be a literal.
     (['-E', r"s/(|\'b)+/[&]/g"], b'.b\n', None),

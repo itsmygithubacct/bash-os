@@ -651,7 +651,7 @@ bs_anchor_ok (const bs_prog *prog, int kind, const char *str,
 
 static int
 bs_alt_len (const bs_prog *prog, int alt, int from, const char *str, size_t beg, size_t end,
-            size_t pos, size_t *out)
+            size_t pos, size_t *out, int wend_consume)
 {
     size_t cur = pos;
     int n = prog->natoms[alt];
@@ -674,14 +674,16 @@ bs_alt_len (const bs_prog *prog, int alt, int from, const char *str, size_t beg,
                    : kind == BS_ATOM_WORD ? bs_isword (got) : !bs_isword (got);
             if (!ok) return -1;
             cur++;
-        } else if (kind == BS_ATOM_WEND && i + 1 < n
+        } else if (wend_consume && kind == BS_ATOM_WEND && i + 1 < n
                    && (prog->atoms[alt][i + 1].kind == BS_ATOM_LIT
                        || prog->atoms[alt][i + 1].kind >= BS_ATOM_SPACE)
                    && cur > beg && bs_isword ((unsigned char) str[cur - 1])
                    && !bs_anchor_ok (prog, kind, str, beg, end, cur)) {
-            /* glibc still consumes the next atom when \> fails between two
-               word characters. A final \> stays zero-width, so (|\>)+ does
-               not take this path. \< and ^ keep the strict test. */
+            /* glibc consumes the next atom when \> fails between two word
+               characters, except for an unlimited empty repeat (* and {0,}).
+               There \> is false, so the group matches empty and the byte
+               stays outside the match. A final \> stays zero-width. \< and
+               ^ keep the strict test. */
             continue;
         } else if (!bs_anchor_ok (prog, kind, str, beg, end, cur)) return -1;
     }
@@ -708,8 +710,8 @@ bs_consumer_blocked (const bs_prog *prog, const char *str, size_t beg, size_t en
         }
         if (i == 0 || i >= n) continue;
         size_t full = 0, tail = 0;
-        if (bs_alt_len (prog, a, 0, str, beg, end, pos, &full) == 0) continue;
-        if (bs_alt_len (prog, a, i, str, beg, end, pos, &tail) == 0 && tail > 0)
+        if (bs_alt_len (prog, a, 0, str, beg, end, pos, &full, 1) == 0) continue;
+        if (bs_alt_len (prog, a, i, str, beg, end, pos, &tail, 1) == 0 && tail > 0)
             return 1;
     }
     return 0;
@@ -735,7 +737,9 @@ bs_prog_at (const bs_prog *prog, const char *str, size_t beg, size_t end, size_t
         int best = -1;
         for (int a = 0; a < prog->nalts; a++) {
             size_t len = 0;
-            if (bs_alt_len (prog, a, 0, str, beg, end, cur, &len) == 0 && (int) len > best)
+            if (bs_alt_len (prog, a, 0, str, beg, end, cur, &len,
+                            prog->qmin > 0 || prog->qmax >= 0) == 0
+                && (int) len > best)
                 best = (int) len;
         }
         if (best < 0) break;
