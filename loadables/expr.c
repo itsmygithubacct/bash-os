@@ -141,6 +141,24 @@ enum {
     EL_NWB     /* \B */
 };
 
+/* POSIX classes inside a bracket. A wide character is classified with
+   isw*, not with the byte set: [[:alpha:]] matches U+00E9 even though
+   neither UTF-8 byte is an alphabetic byte. */
+enum {
+    EL_WC_ALNUM = 1 << 0,
+    EL_WC_ALPHA = 1 << 1,
+    EL_WC_DIGIT = 1 << 2,
+    EL_WC_SPACE = 1 << 3,
+    EL_WC_LOWER = 1 << 4,
+    EL_WC_UPPER = 1 << 5,
+    EL_WC_XDIGIT = 1 << 6,
+    EL_WC_BLANK = 1 << 7,
+    EL_WC_PUNCT = 1 << 8,
+    EL_WC_CNTRL = 1 << 9,
+    EL_WC_GRAPH = 1 << 10,
+    EL_WC_PRINT = 1 << 11
+};
+
 typedef struct {
     int kind;
     int anch;
@@ -148,6 +166,7 @@ typedef struct {
     int min, max; /* max < 0 means unbounded */
     int a, b;
     int neg;
+    unsigned wclass;
     unsigned char bits[32];
     int nullable;
     int can_consume;
@@ -285,6 +304,24 @@ el_next_word (el_mx *m, int pos)
     if (r == (size_t) -1 || r == (size_t) -2 || r == 0)
         return el_word_byte (m->s[pos]);
     return (iswalnum (wc) || wc == L'_') ? 1 : 0;
+}
+
+static int
+el_wclass_on (unsigned mask, wchar_t wc)
+{
+    if ((mask & EL_WC_ALNUM) && iswalnum (wc)) return 1;
+    if ((mask & EL_WC_ALPHA) && iswalpha (wc)) return 1;
+    if ((mask & EL_WC_DIGIT) && iswdigit (wc)) return 1;
+    if ((mask & EL_WC_SPACE) && iswspace (wc)) return 1;
+    if ((mask & EL_WC_LOWER) && iswlower (wc)) return 1;
+    if ((mask & EL_WC_UPPER) && iswupper (wc)) return 1;
+    if ((mask & EL_WC_XDIGIT) && iswxdigit (wc)) return 1;
+    if ((mask & EL_WC_BLANK) && iswblank (wc)) return 1;
+    if ((mask & EL_WC_PUNCT) && iswpunct (wc)) return 1;
+    if ((mask & EL_WC_CNTRL) && iswcntrl (wc)) return 1;
+    if ((mask & EL_WC_GRAPH) && iswgraph (wc)) return 1;
+    if ((mask & EL_WC_PRINT) && iswprint (wc)) return 1;
+    return 0;
 }
 
 static int
@@ -456,12 +493,36 @@ el_match (el_mx *m, int id, int pos, el_ends *out)
         break;
     case EL_CLASS:
         if (pos < m->n) {
-            unsigned char c = m->s[pos];
-            int on = (nd->bits[c >> 3] >> (c & 7)) & 1;
-            if (nd->neg)
-                on = !on;
-            if (on)
-                el_ends_add (out, pos + 1, 0);
+            int end = el_char_end (m, pos);
+            int on;
+            if (end <= pos)
+                break;
+            if (m->mb && end > pos + 1) {
+                /* Classify the whole character. The byte set does not
+                   contain U+00E9 for [[:alpha:]], so a one-byte step
+                   never sees the consuming path and then asks glibc
+                   for two registers. */
+                wchar_t wc;
+                mbstate_t st;
+                size_t r;
+                memset (&st, 0, sizeof st);
+                r = mbrtowc (&wc, (const char *) m->s + pos,
+                             (size_t) (m->n - pos), &st);
+                on = 0;
+                if (r != (size_t) -1 && r != (size_t) -2 && r > 1)
+                    on = el_wclass_on (nd->wclass, wc);
+                if (nd->neg)
+                    on = !on;
+                if (on)
+                    el_ends_add (out, end, 0);
+            } else {
+                unsigned char c = m->s[pos];
+                on = (nd->bits[c >> 3] >> (c & 7)) & 1;
+                if (nd->neg)
+                    on = !on;
+                if (on)
+                    el_ends_add (out, pos + 1, 0);
+            }
         }
         break;
     case EL_WORD:
@@ -725,6 +786,7 @@ el_parse_class (el_ps *ps)
                 ps->err = 1;
                 return -1;
             }
+            nd->wclass |= 1u << ni;
             for (k = 0; k < 256; k++) {
                 int on = 0;
                 if (!strcmp (names[ni], "alnum")) on = isalnum (k);
@@ -1563,7 +1625,8 @@ char *expr_doc[] = {
     "On glibc, a pattern that would make regexec loop is an error (exit 2).",
     "That is a + or {n,} (n at least 1) on a group that can match empty,",
     "when the group contains ^, \\`, \\< or \\> followed by a consuming atom",
-    "and this subject would take that path. A subject on which glibc finishes",
+    "(a POSIX class consumes a whole multibyte character) and this subject",
+    "would take that path. A subject on which glibc finishes",
     "is unchanged, as is any pattern with a back-reference. bash [[ =~ ]] uses",
     "the same matcher and can still hang; this command does not change it.",
     "",

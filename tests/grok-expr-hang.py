@@ -82,6 +82,15 @@ CASES = [
     (b"ab", br"a\(\|^b\)\+"),
     (b".x", br".\(x\|^b\)\+"),
     (b".b", br".\(b\|^\)\+"),
+    # Latin-1 bytes are decoded and then passed in the locale encoding.
+    # 0xE9 is U+00E9 (UTF-8 c3 a9). [[:alpha:]] matches that character and
+    # the byte set does not, so the unfixed guard calls regexec with two
+    # registers and loops. The last pattern also has a safe consumer, so
+    # a finished glibc match must be kept.
+    (b".\xe9", br".\(\|^[[:alpha:]]\)\+"),
+    (b"a\xe9", br".\(\|^[[:alpha:]]\)\+"),
+    (b"a\xe9", br"a\(\|^[[:alpha:]]\)\+"),
+    (b".\xe9", br".\(\|[[:alpha:]]\|^b\)\+"),
     # Wide characters. Word class differs between C and C.UTF-8.
     (b"\xc3\xa9 b", br".\(\|\< \)\+"),
     (b"a\xc3\xa9b", br".\(\|\<.\)\+"),
