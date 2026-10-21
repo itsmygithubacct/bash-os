@@ -611,6 +611,41 @@ bs_scan_regex_delim (const char **pp, char delim, const char **start)
 }
 
 static int
+bs_text_push (char **buf, size_t *len, size_t *cap, char ch)
+{
+    if (*len + 1 >= *cap) {
+        size_t nc = *cap ? *cap * 2 : 64;
+        if (nc < *cap) return -1;
+        char *nb = realloc (*buf, nc);
+        if (!nb) return -1;
+        *buf = nb;
+        *cap = nc;
+    }
+    (*buf)[(*len)++] = ch;
+    return 0;
+}
+
+/* After a command, GNU sed allows only a comment, ';', newline, '}' or the
+   end of the script. '}' stays so the next iteration can parse it. '{' is
+   the exception: the following command needs no separator. */
+static int
+bs_finish_cmd (const char **pp)
+{
+    const char *p = *pp;
+    for (;;) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p != '#') break;
+        while (*p && *p != '\n') p++;
+    }
+    if (*p && *p != '\n' && *p != ';' && *p != '}') {
+        builtin_error ("extra characters after command");
+        return -1;
+    }
+    *pp = p;
+    return 0;
+}
+
+static int
 bs_parse_addr (const char **psp, bs_addr *a, int extended)
 {
     const char *p = *psp;
@@ -1031,14 +1066,61 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
             case '=': c->kind = BS_EQ; break;
             case 'F': c->kind = BS_F; break;   /* print current input filename */
             case 'e': {
-                /* e: execute the pattern space; e COMMAND: run COMMAND (the
-                   rest of the line) and output its result before the cycle
-                   ends. Whitespace alone selects the pattern-space form. */
+                /* e: execute the pattern space; e COMMAND runs COMMAND.
+                   Whitespace and then end-of-script or a newline selects the
+                   pattern-space form and does not consume that newline.
+                   Otherwise the command reads through an unescaped newline.
+                   Escapes match GNU text ('\n' '\\' '\xHH' '\cX', and a
+                   backslash-newline continuation). An escaped backslash does
+                   not continue the line. A trailing backslash is dropped.
+                   ';' and '}' are command text, not sed syntax. */
                 c->kind = BS_E;
                 while (*p == ' ' || *p == '\t') p++;
-                const char *s = p;
-                while (*p && *p != '\n') p++;
-                if (p > s && !(c->text = strndup (s, (size_t) (p - s)))) goto err;
+                if (!*p || *p == '\n') break;
+                char *buf = NULL;
+                size_t len = 0, cap = 0;
+                int oom = 0;
+                while (*p && *p != '\n') {
+                    if (*p == '\\' && p[1] == '\n') {
+                        if (bs_text_push (&buf, &len, &cap, '\n') < 0) { oom = 1; break; }
+                        p += 2;
+                        while (*p == ' ' || *p == '\t') p++;
+                        continue;
+                    }
+                    if (*p == '\\' && p[1]) {
+                        const char *end = p + 1;
+                        unsigned char value;
+                        if (bs_numeric_escape (&end, &value)) {
+                            if (bs_text_push (&buf, &len, &cap, (char) value) < 0) { oom = 1; break; }
+                            p = end;
+                            continue;
+                        }
+                        char e = p[1];
+                        char decoded = e;
+                        int known = 1;
+                        switch (e) {
+                            case 'a': decoded = '\a'; break;
+                            case 'f': decoded = '\f'; break;
+                            case 'n': decoded = '\n'; break;
+                            case 'r': decoded = '\r'; break;
+                            case 't': decoded = '\t'; break;
+                            case 'v': decoded = '\v'; break;
+                            case '\\': decoded = '\\'; break;
+                            default: known = 0; break;
+                        }
+                        if (bs_text_push (&buf, &len, &cap, known ? decoded : e) < 0) {
+                            oom = 1; break;
+                        }
+                        p += 2;
+                        continue;
+                    }
+                    if (*p == '\\') { p++; break; }   /* a trailing backslash is dropped */
+                    if (bs_text_push (&buf, &len, &cap, *p++) < 0) { oom = 1; break; }
+                }
+                if (oom || (len && bs_text_push (&buf, &len, &cap, '\0') < 0)) {
+                    free (buf); goto err;
+                }
+                c->text = buf;
                 break;
             }
             case 'z': c->kind = BS_Z; break;
@@ -1215,6 +1297,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     builtin_error ("unknown command: 0x%02x", (unsigned) op);
                 goto err;
         }
+        if (op != '{' && bs_finish_cmd (&p) < 0) goto err;
         n++;
     }
 
