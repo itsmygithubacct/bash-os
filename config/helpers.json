@@ -200,7 +200,10 @@
     },
     "index": {
       "helpers": [
-        "_git"
+        "_git", "_monocypher"
+      ],
+      "libs": [
+        "-lz"
       ]
     },
     "git": {
