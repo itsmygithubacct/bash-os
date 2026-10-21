@@ -370,15 +370,16 @@ with tempfile.TemporaryDirectory() as tmp:
     (d / 'r1.keys').write_bytes(b'Gdd:w' + CR + b'3d')
     (d / 'r2.keys').write_bytes(b'jux:w' + CR + b':q' + CR)
     p = shell('''
-fds() { local n=0 f; for f in /proc/$$/fd/*; do n=$((n+1)); done; echo $n; }
-before=$(fds)
+# Count this shell directly: command substitution races the parent pipe cleanup.
+fds() { local f; fd_count=0; for f in /proc/$BASHPID/fd/*; do fd_count=$((fd_count+1)); done; }
+fds; before=$fd_count
 for i in 1 2 3; do
   printf 'a\\nb\\nc\\nd\\n' > "$2"; printf 'a\\nb\\nc\\nd\\n' > "$4"
   vi --keys "$1" "$2"; vi --keys "$3" "$4"
 done
 vi -c '$d' -c "w $5" -c 'q!' "$4"
 vi -c 'd 0' "$4" 2>/dev/null && exit 9
-after=$(fds)
+fds; after=$fd_count
 [[ $before == "$after" ]] || { echo "fd leak $before $after"; exit 8; }
 type -t vi
 ''', d / 'r1.keys', d / 'r1.txt', d / 'r2.keys', d / 'r2.txt', d / 'r3.out')
