@@ -71,6 +71,11 @@ typedef struct {
   int spawn_argc;
   char spawn_argv[24][256];
   int spawn_open_fds;
+  /* SUDO_COMMAND can be 4096 argument bytes plus a short prefix. */
+  char sudo_command[8192];
+  int sudo_command_len;
+  int argv_words_ok;
+  int argv1_len;
 } shared_t;
 static shared_t *S;
 
@@ -83,6 +88,10 @@ static int open_mode, copyback_drift, exec_real, capture_exit;
 static char scratch[PATH_MAX], passwd_path[PATH_MAX], group_path[PATH_MAX];
 static char last_error[1024];
 static int quiet;
+static int io_read_fail, io_write_fail, io_read_eintr, io_write_eintr;
+static int big_expect_on, big_expect_argc;
+static const char *big_expect_word;
+static const char *caller_shell = "/bin/sh";
 
 /* Account rows are real private files parsed by the production readers. */
 static FILE *
@@ -176,16 +185,98 @@ capture_strings (char dst[][256], int max, int *countp, char *const *src)
   *countp = n;
 }
 
+static ssize_t
+fixture_status_read (int fd, void *buf, size_t n)
+{
+  if (io_read_eintr > 0)
+    {
+      io_read_eintr--;
+      errno = EINTR;
+      return -1;
+    }
+  if (io_read_fail > 0)
+    {
+      char sink;
+      io_read_fail--;
+      /* Let the child deliver its byte before the failure is reported, so
+         closing the pipe afterwards cannot SIGPIPE the writer. */
+      for (;;)
+        {
+          ssize_t nread = read (fd, &sink, 1);
+          if (nread < 0 && errno == EINTR)
+            continue;
+          break;
+        }
+      errno = EIO;
+      return -1;
+    }
+  return read (fd, buf, n);
+}
+static ssize_t
+fixture_status_write (int fd, const void *buf, size_t n)
+{
+  if (io_write_eintr > 0)
+    {
+      io_write_eintr--;
+      errno = EINTR;
+      return -1;
+    }
+  if (io_write_fail > 0)
+    {
+      io_write_fail--;
+      errno = EIO;
+      return -1;
+    }
+  return write (fd, buf, n);
+}
+
 static int
 fixture_execve (const char *p, char *const *a, char *const *e)
 {
   sigset_t mask;
   struct sigaction sa;
+  int stored = 0;
   S->execs++;
   CHECK (strlen (p) < sizeof S->path);
   strcpy (S->path, p);
-  capture_strings (S->argv, 16, &S->argc, a);
-  capture_strings (S->env, 48, &S->envc, e);
+  /* Keep every short slot the older assertions read, and also record a long
+     argv and SUDO_COMMAND without aborting. */
+  S->argc = 0;
+  S->argv1_len = 0;
+  S->argv_words_ok = 1;
+  S->sudo_command_len = -1;
+  for (int n = 0; a && a[n]; n++)
+    {
+      size_t L = strlen (a[n]);
+      if (n == 1)
+        S->argv1_len = (int) L;
+      if (big_expect_on)
+        {
+          const char *want = n == 0 ? "/bin/true" : big_expect_word;
+          if (!want || strcmp (a[n], want) != 0)
+            S->argv_words_ok = 0;
+        }
+      if (n < 16 && L < 256)
+        memcpy (S->argv[n], a[n], L + 1);
+      S->argc++;
+    }
+  if (big_expect_on && S->argc != big_expect_argc)
+    S->argv_words_ok = 0;
+  for (int n = 0; e && e[n]; n++)
+    {
+      size_t L = strlen (e[n]);
+      if (L >= 13 && strncmp (e[n], "SUDO_COMMAND=", 13) == 0)
+        {
+          size_t vl = L - 13;
+          size_t copy = vl < sizeof S->sudo_command - 1 ? vl : sizeof S->sudo_command - 1;
+          S->sudo_command_len = (int) vl;
+          memcpy (S->sudo_command, e[n] + 13, copy);
+          S->sudo_command[copy] = 0;
+        }
+      if (stored < 48 && L < 256)
+        memcpy (S->env[stored++], e[n], L + 1);
+    }
+  S->envc = stored;
   if (!getcwd (S->cwd, sizeof S->cwd)) S->cwd[0] = 0;
   S->open_fds = count_open_fds ();
   S->sigusr1_blocked = sigprocmask (SIG_SETMASK, NULL, &mask) == 0 && sigismember (&mask, SIGUSR1);
@@ -368,6 +459,8 @@ fixture_ioctl (int fd, unsigned long op, ...)
 #define isatty fixture_isatty
 #define execve fixture_execve
 #define execvp fixture_execvp
+#define read fixture_status_read
+#define write fixture_status_write
 static int fixture_nnp (char *err, size_t len)
 {
   if (cred_fail == 5) { snprintf (err, len, "injected"); errno = EPERM; return -1; }
@@ -380,6 +473,8 @@ static int fixture_nnp (char *err, size_t len)
 #undef isatty
 #undef execve
 #undef execvp
+#undef read
+#undef write
 #undef fopen
 #undef geteuid
 #undef bc_no_new_privs
@@ -436,6 +531,9 @@ reset_state (void)
   handoff_exit = 37;
   capture_exit = 41;
   open_n = 0;
+  io_read_fail = io_write_fail = io_read_eintr = io_write_eintr = 0;
+  big_expect_on = big_expect_argc = 0;
+  big_expect_word = NULL;
 }
 static void
 script (int n, ...)
@@ -547,8 +645,8 @@ accounts (void)
             "short:x:5000:5000:Short:/tmp\n"
             "fixture:x:4242:4343:Fixture:%s:/bin/sh\n"
             "relshell:x:4300:4300:Rel:/tmp:sh\n"
-            "caller:x:%u:%u:Caller:%s:/bin/sh\n",
-            home_dir, (unsigned) getuid (), (unsigned) getgid (), scratch);
+            "caller:x:%u:%u:Caller:%s:%s\n",
+            home_dir, (unsigned) getuid (), (unsigned) getgid (), scratch, caller_shell);
   write_file (passwd_path, rows);
   write_file (group_path,
               "cho:x:1:\n"
@@ -1436,6 +1534,145 @@ work (const char *phase, int n)
   printf ("validated %s %d\n", phase, n);
 }
 
+/* sudo(8) keeps the command prefix, one separating space, and at most 4096
+   bytes of the joined arguments. The cut may land inside a word. */
+static void
+reference_sudo_command (const char *prefix, char **words, int nwords,
+                        char *out, size_t cap, int *lenp)
+{
+  size_t plen = strlen (prefix);
+  size_t n = plen;
+  CHECK (plen + 2 < cap);
+  memcpy (out, prefix, plen);
+  if (nwords > 0)
+    {
+      out[n++] = ' ';
+      for (int i = 0; i < nwords; i++)
+        {
+          size_t wlen = strlen (words[i]);
+          if (i)
+            {
+              CHECK (n + 1 < cap);
+              out[n++] = ' ';
+            }
+          CHECK (n + wlen < cap);
+          memcpy (out + n, words[i], wlen);
+          n += wlen;
+        }
+      if (n - plen - 1 > 4096)
+        n = plen + 1 + 4096;
+    }
+  out[n] = 0;
+  *lenp = (int) n;
+}
+
+static void
+fill_words (char *storage, size_t stride, int n, int wlen, char ch,
+            char **args, int at)
+{
+  for (int i = 0; i < n; i++)
+    {
+      char *w = storage + (size_t) i * stride;
+      memset (w, ch, (size_t) wlen);
+      w[wlen] = 0;
+      args[at + i] = w;
+    }
+  args[at + n] = NULL;
+}
+
+static void
+command_tests (void)
+{
+  enum { MANY = 300, WORD = 16, ONES = 2049, HUGE = 5000 };
+  char *storage = malloc ((size_t) MANY * (WORD + 1) + (size_t) ONES * 2 + HUGE + 1);
+  char **args = calloc ((size_t) ONES + 8, sizeof *args);
+  char expect[8192];
+  int expect_len = 0;
+  CHECK (storage && args);
+  unsetenv ("SHELL");
+
+  /* More than 4096 bytes of joined arguments. The argv stays intact. */
+  args[0] = "-u";
+  args[1] = "fixture";
+  args[2] = "/bin/true";
+  fill_words (storage, WORD + 1, MANY, WORD, 'a', args, 3);
+  reference_sudo_command ("/bin/true", args + 3, MANY, expect, sizeof expect, &expect_len);
+  CHECK (expect_len == 4106 && expect[4105] == 'a');
+  reset_state ();
+  root_route = 1;
+  big_expect_on = 1;
+  big_expect_word = args[3];
+  big_expect_argc = MANY + 1;
+  CHECK (dispatchv (1, args) == 41);
+  if (S->sudo_command_len != expect_len || !S->argv_words_ok || S->argc != MANY + 1)
+    fprintf (stderr, "long SUDO_COMMAND len %d want %d argc %d words_ok %d\n",
+             S->sudo_command_len, expect_len, S->argc, S->argv_words_ok);
+  CHECK (S->sudo_command_len == expect_len && S->argv_words_ok && S->argc == MANY + 1);
+  CHECK (!memcmp (S->sudo_command, expect, (size_t) expect_len));
+
+  /* A single argument longer than 4096 is cut mid-word. */
+  args[3] = storage;
+  memset (storage, 'b', HUGE);
+  storage[HUGE] = 0;
+  args[4] = NULL;
+  reference_sudo_command ("/bin/true", args + 3, 1, expect, sizeof expect, &expect_len);
+  CHECK (expect_len == 4106 && expect[4105] == 'b');
+  reset_state ();
+  root_route = 1;
+  big_expect_on = 1;
+  big_expect_word = args[3];
+  big_expect_argc = 2;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->sudo_command_len == expect_len && S->argc == 2 && S->argv1_len == HUGE);
+  CHECK (!memcmp (S->sudo_command, expect, (size_t) expect_len));
+
+  /* The 4096th argument byte may be the space before the next word. */
+  fill_words (storage, 2, ONES, 1, 'a', args, 3);
+  reference_sudo_command ("/bin/true", args + 3, ONES, expect, sizeof expect, &expect_len);
+  CHECK (expect_len == 4106 && expect[4105] == ' ');
+  reset_state ();
+  root_route = 1;
+  big_expect_on = 1;
+  big_expect_word = args[3];
+  big_expect_argc = ONES + 1;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->sudo_command_len == expect_len && S->argv_words_ok && S->argc == ONES + 1);
+  CHECK (!memcmp (S->sudo_command, expect, (size_t) expect_len));
+
+  /* Exactly 4096 argument bytes are kept whole (241 words of 16 plus spaces). */
+  fill_words (storage, WORD + 1, 241, WORD, 'a', args, 3);
+  reference_sudo_command ("/bin/true", args + 3, 241, expect, sizeof expect, &expect_len);
+  CHECK (expect_len == 4106);
+  reset_state ();
+  root_route = 1;
+  big_expect_on = 1;
+  big_expect_word = args[3];
+  big_expect_argc = 242;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->sudo_command_len == expect_len && S->argv_words_ok);
+  CHECK (!memcmp (S->sudo_command, expect, (size_t) expect_len));
+
+  /* An explicit assignment wins and is not truncated to fit the diagnostic. */
+  args[0] = "-u";
+  args[1] = "fixture";
+  args[2] = "SUDO_COMMAND=preserved-literal";
+  args[3] = "/bin/true";
+  fill_words (storage, WORD + 1, MANY, WORD, 'c', args, 4);
+  reset_state ();
+  root_route = 1;
+  big_expect_on = 1;
+  big_expect_word = args[4];
+  big_expect_argc = MANY + 1;
+  CHECK (dispatchv (1, args) == 41);
+  CHECK (S->argv_words_ok && S->argc == MANY + 1);
+  CHECK (S->sudo_command_len == (int) strlen ("preserved-literal"));
+  CHECK (!strcmp (S->sudo_command, "preserved-literal"));
+  CHECK (!strcmp (env_of ("SUDO_COMMAND"), "preserved-literal"));
+
+  free (storage);
+  free (args);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1469,6 +1706,7 @@ main (int argc, char **argv)
   write_file (editor, text);
   CHECK (chmod (editor, 0700) == 0);
   setenv ("PATH", "", 1);
+  unsetenv ("SHELL");
   char *exports[] = { "SAFE=caller", "LD_PRELOAD=caller", "BASH_ENV=caller", NULL };
   export_env = exports;
 
@@ -1479,7 +1717,8 @@ main (int argc, char **argv)
     work (argv[1], atoi (argv[2]));
   else
     {
-      const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper", NULL };
+      const char *groups[] = { "options", "lookup", "authority", "translation", "root", "edit", "helper",
+                               "command", NULL };
       for (int g = 0; groups[g]; g++)
         {
           if (argc == 2 && strcmp (argv[1], groups[g])) continue;
@@ -1491,6 +1730,7 @@ main (int argc, char **argv)
           if (!strcmp (groups[g], "root")) root_tests ();
           if (!strcmp (groups[g], "edit")) edit_tests ();
           if (!strcmp (groups[g], "helper")) helper_tests ();
+          if (!strcmp (groups[g], "command")) command_tests ();
           printf ("group %s: %d assertions passed\n", groups[g], checks - start);
           rc = 1;
         }

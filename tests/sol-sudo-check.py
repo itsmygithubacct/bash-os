@@ -12,7 +12,8 @@ import struct
 import subprocess
 import tempfile
 
-GROUPS = ['options', 'lookup', 'authority', 'translation', 'root', 'edit', 'helper']
+GROUPS = ['options', 'lookup', 'authority', 'translation', 'root', 'edit', 'helper',
+          'command']
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--fixture', type=Path)

@@ -42,7 +42,10 @@ On the root route:
   group was dropped.
 - `SUDO_USER` names the invoking account from the account database, not the
   caller's `$USER`.
-- `SUDO_COMMAND` is exported for sudo (not for doas).
+- `SUDO_COMMAND` is exported for sudo (not for doas). Its argument text is
+  truncated at 4096 bytes, as in sudo(8), so the diagnostic value cannot by
+  itself make `execve` fail with `E2BIG`. The argv passed to `execve` is not
+  truncated. An explicit `SUDO_COMMAND=` assignment is kept as given.
 - A command-line assignment replaces an earlier value of the same name, so the
   child never sees duplicates. As in sudo, assignments are applied after
   sudo's own variables. Dangerous names are still removed.

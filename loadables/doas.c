@@ -91,6 +91,9 @@ typedef struct {
 #define BDA_ENV_CALLER_PREFIX "BASHOS_CALLER_"
 #define BDA_ENV_INLINE_PREFIX "BASHOS_INLINE_"
 #define BDA_SECURE_PATH "/bin:/bash-os:/usr/bin"
+/* sudo(8) truncates the argument text of SUDO_COMMAND at 4096 bytes so the
+   diagnostic value cannot by itself make execve fail with E2BIG. */
+#define BDA_SUDO_COMMAND_ARGS_MAX 4096
 
 static int bda_wait_status (pid_t pid);
 static void bda_child_reset_signals (void);
@@ -1436,30 +1439,58 @@ fail:
   return NULL;
 }
 
-/* Append SUDO_COMMAND=PREFIX[ WORD...] to a built environment: the words
-   joined by single spaces, unquoted. As in sudo, a command-line assignment
-   of the same name is applied later and so wins. */
+/* Append SUDO_COMMAND=PREFIX[ WORD...] to a built environment. The words are
+   joined by single spaces, unquoted, and the argument text is truncated at
+   4096 bytes (sudo(8)) so a long argv cannot make this one string exceed the
+   kernel's exec limit. The argv passed to execve is unchanged. A command-line
+   assignment of the same name is already present and wins. */
 static int
 bda_env_add_command (char ***envp, const char *prefix, char **words, int n)
 {
-  size_t used = 0, cap, len = strlen (prefix) + 1;
-  char *value, *end;
-  int rc;
+  size_t used = 0, cap, prefix_len, args_used = 0, value_len;
+  char *value;
+  int rc, any = 0;
 
+  if (!prefix)
+    return -1;
   for (char **e = *envp; *e; e++)
     if (strncmp (*e, "SUDO_COMMAND=", 13) == 0)
       return 0;
-  for (int i = 0; i < n; i++)
-    len += strlen (words[i]) + 1;
-  value = malloc (len);
+  prefix_len = strlen (prefix);
+  if (prefix_len > SIZE_MAX - (BDA_SUDO_COMMAND_ARGS_MAX + 2))
+    return -1;
+  value = malloc (prefix_len + BDA_SUDO_COMMAND_ARGS_MAX + 2);
   if (!value)
     return -1;
-  end = stpcpy (value, prefix);
-  for (int i = 0; i < n; i++)
+  memcpy (value, prefix, prefix_len);
+  value_len = prefix_len;
+  for (int i = 0; i < n && args_used < BDA_SUDO_COMMAND_ARGS_MAX; i++)
     {
-      *end++ = ' ';
-      end = stpcpy (end, words[i]);
+      const char *word = words[i] ? words[i] : "";
+      size_t wlen = strlen (word);
+      size_t room, copy;
+
+      if (!any)
+        {
+          value[value_len++] = ' ';
+          any = 1;
+        }
+      else
+        {
+          value[value_len++] = ' ';
+          args_used++;
+          if (args_used >= BDA_SUDO_COMMAND_ARGS_MAX)
+            break;
+        }
+      room = BDA_SUDO_COMMAND_ARGS_MAX - args_used;
+      copy = wlen < room ? wlen : room;
+      memcpy (value + value_len, word, copy);
+      value_len += copy;
+      args_used += copy;
+      if (copy < wlen)
+        break;
     }
+  value[value_len] = '\0';
   while ((*envp)[used])
     used++;
   cap = used + 1;
