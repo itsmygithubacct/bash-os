@@ -141,8 +141,10 @@ def build_cases():
 def portable_unsupported(case, utf8):
     if case['backref'] or case['glibc_only']:
         return True
+    # '.' is the byte scanner in the C locale. Only a UTF-8 locale
+    # declines it.
     if case['name'] == 'utf8-dot':
-        return True
+        return utf8
     if utf8 and (case['nullable'] or case['word']):
         return True
     # Declined in every locale, including C: the matcher will not invent
