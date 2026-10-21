@@ -58,8 +58,14 @@ command, or `-L` for `-k`/`-K`. Requests doas cannot express (`-i`, `-e`,
 `-v`, `-g`, `VAR=value`, `-k COMMAND`, `-s COMMAND`) are refused with status 1
 instead of being handed to doas to misread.
 
+Bash refreshes the C `environ` only when it next runs an external command.
+The external delegate and the sudoedit editor were started with a raw
+`execvp`, so right after `export PATH=...` they were looked up on the old
+`PATH` and given the old environment. The child now refreshes the exported
+environment first, as `ns` does.
+
 The changes that also affect doas (interactive fail-closed, `SUDO_USER`, group
-vector) are a separate commit. `tests/sol-doas-fixture.c` changed one expected
+vector, current exports) are separate commits. `tests/sol-doas-fixture.c` changed one expected
 value, the group vector, to match.
 
 ## Tests
@@ -134,7 +140,14 @@ host changes.
 
 A historical-source fixture built from the starting `doas.c` fails six of the
 seven groups at the behaviors changed here. `helper` passes because it tests
-the unchanged shared library.
+the unchanged shared library. A native shell built before the export fix
+fails exactly the six native cases and one namespace case that depend on it.
+
+The final run passed 2537 fixture assertions in seven groups (also under
+ASan/UBSan with leak detection), the digest oracle, 30 native cases, and 25
+namespace cases. The namespace cases include `final-smoke.py accounts` (29
+checks) with root transitions required. Its `su` transition still reports
+SKIP because it needs the kernel token authority.
 
 ## Build and run
 
@@ -172,6 +185,25 @@ These are syscall-shim timings of production code. No live policy, timestamp,
 verifier or password hashing is involved, and there is no external sudo
 ratio. Only `verify` and `edit` also validate on the historical source, so
 only they have a paired baseline.
+
+The 2026-10-20 run on CPU 11 used 16 units per sample (load average 8–18 on a
+shared host). Median sample time divided by 16:
+
+| Unit | Current | Historical source |
+|---|---:|---:|
+| Policy request and handoff | 0.518 ms | does not validate |
+| `-k` then a command | 0.549 ms | does not validate |
+| Interactive verify route | 1.318 ms | 1.342 ms |
+| Two-file sudoedit cycle | 4.658 ms | 4.910 ms |
+| Root-route child and exec | 2.115 ms | does not validate |
+
+The paired differences lie inside overlapping sample ranges, so no speed
+change is claimed. `perf` is unavailable to unprivileged users on this host.
+An `strace -c` profile of 16 units per phase shows that the production code
+makes one `clone`, one `close_range`, one `execve` and one `wait4` per child.
+The policy routes make no forks. The remaining calls, including about a
+thousand failed `fcntl` per child, are the fixture's own descriptor census.
+`wait4` time is the child running. No production bottleneck remained to fix.
 
 ## Limits
 
