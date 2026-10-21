@@ -16,11 +16,11 @@
  * Literal and regex separators follow GNU tac's read windows. Regexes use a
  * bounded streaming matcher; on glibc, constructs it cannot match exactly
  * use re_search over GNU's window-plus-pending-record buffer. A nullable
- * '+' whose anchors are \` ^ \< \> is spelled XX* before that call, because
- * glibc does not return on the original. A '+' that contains \' \b or \B
- * stays as written: GNU finishes it, and the spelled span can differ. A
- * nullable '+' that contains both is refused. A back-reference keeps the
- * original pattern.
+ * '+' of \` ^ \< \> beside an empty alternative is spelled XX* before that
+ * call, because glibc does not return on the original. Other anchor pluses
+ * stay as written: GNU finishes them, and the spelled span can differ. A
+ * nullable '+' that mixes a hang anchor with \' \b or \B is refused. A
+ * back-reference keeps the original pattern.
  * Output is batched without changing Bash's stdio state.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
@@ -291,9 +291,10 @@ tac_regex_atom (tac_input *in, const tac_atom *atom, int before, bl_output *out)
    It only accepts what it can match exactly. Back-references, collating and
    equivalence elements, non-C collation ranges and the remaining multibyte
    constructs are reported as unsupported; on glibc those use re_search.
-   A nullable '+' whose anchors are \` ^ \< or \> is spelled XX* first:
-   the original does not return. \' \b and \B stay on the original, which
-   GNU finishes. A nullable '+' that mixes both is refused. */
+   A nullable '+' of \` ^ \< or \> beside an empty alternative is spelled
+   XX* first: the original does not return. Other anchor pluses stay on
+   the original, which GNU finishes. A nullable '+' that mixes a hang
+   anchor with \' \b or \B is refused. */
 
 #define TAC_RE_TREE_MAX 4096
 #define TAC_RE_NEST_MAX 200
@@ -310,12 +311,30 @@ enum {
    TM_DIFF: GNU finishes the original and XX* can disagree (\' \b \B).
    TM_HANG: a nullable '+' does not return (\` ^ \< \>). '$' is neither. */
 enum { TM_DIFF = 1, TM_HANG = 2 };
+
+static unsigned
+tac_anchor_class (unsigned short anchor)
+{
+    if (anchor == TC_NEXT_ENDBUF || anchor == TC_WORD_DELIM
+        || anchor == TC_NOT_WORD_DELIM)
+        return TM_DIFF;
+    if (anchor == TC_PREV_BEGBUF || anchor == TC_PREV_NEWLINE
+        || anchor == (TC_PREV_NOTWORD | TC_NEXT_WORD)
+        || anchor == (TC_PREV_WORD | TC_NEXT_NOTWORD))
+        return TM_HANG;
+    return 0;
+}
 enum { TX_WORD = 1, TX_NEWLINE = 2, TX_BEGBUF = 4, TX_ENDBUF = 8 };
 /* Byte classes; TB_BUF stands for the start or end of the search buffer. */
 enum { TB_OTHER, TB_WORD, TB_NEWLINE, TB_BUF };
 
 enum { TT_SET, TT_ASSERT, TT_CAT, TT_ALT, TT_STAR, TT_PLUS, TT_OPT };
-typedef struct { unsigned char type; unsigned short constraint; int a, b; } tac_tree;
+typedef struct {
+    unsigned char type;
+    unsigned short constraint;
+    int a, b;
+    unsigned char mark;         /* TM_DIFF / TM_HANG, else zero. */
+} tac_tree;
 
 enum {
     TE_OK, TE_BADPAT, TE_EESCAPE, TE_ESUBREG, TE_EBRACK, TE_EPAREN,
@@ -378,7 +397,7 @@ tac_tree_new (tac_parser *ps, int type, int a, int b)
         ps->cap = cap;
     }
     int n = ps->ntree++;
-    ps->tree[n] = (tac_tree) { (unsigned char) type, 0, a, b };
+    ps->tree[n] = (tac_tree) { (unsigned char) type, 0, a, b, 0 };
     memset (ps->set[n], 0, sizeof ps->set[n]);
     return n;
 }
@@ -612,9 +631,15 @@ tac_parse_expression (tac_parser *ps, tac_token *t, int nest)
             ps->tree[y].constraint = delim ? TC_PREV_WORD | TC_NEXT_NOTWORD
                                            : TC_PREV_NOTWORD | TC_NEXT_NOTWORD;
             tree = tac_tree_new (ps, TT_ALT, x, y);
+            /* Mark the alternation, not the expanded asserts: those
+               constraints are the same bits as \< and \>. */
+            if (tree >= 0) ps->tree[tree].mark = TM_DIFF;
         } else {
             tree = tac_tree_new (ps, TT_ASSERT, -1, -1);
-            if (tree >= 0) ps->tree[tree].constraint = t->anchor;
+            if (tree >= 0) {
+                ps->tree[tree].constraint = t->anchor;
+                ps->tree[tree].mark = (unsigned char) tac_anchor_class (t->anchor);
+            }
         }
         /* An anchor is never repeated: a following '*' is literal. */
         tac_fetch (ps, t, 0);
@@ -690,6 +715,96 @@ tac_tree_nullable (const tac_parser *ps, int n)
     case TT_ALT: return tac_tree_nullable (ps, t->a) || tac_tree_nullable (ps, t->b);
     case TT_PLUS: return tac_tree_nullable (ps, t->a);
     default: return 1;
+    }
+}
+
+static unsigned
+tac_tree_marks (const tac_parser *ps, int n)
+{
+    if (n < 0) return 0;
+    const tac_tree *t = &ps->tree[n];
+    unsigned marks = t->mark;
+    switch (t->type) {
+    case TT_CAT: case TT_ALT:
+        return marks | tac_tree_marks (ps, t->a) | tac_tree_marks (ps, t->b);
+    case TT_STAR: case TT_PLUS: case TT_OPT:
+        return marks | tac_tree_marks (ps, t->a);
+    default:
+        return marks;
+    }
+}
+
+/* True when the subexpression matches no bytes. A '*' of a byte is not
+   one of these: it can also consume, and GNU finishes that plus. */
+static int
+tac_cannot_consume (const tac_parser *ps, int n)
+{
+    if (n < 0) return 1;
+    const tac_tree *t = &ps->tree[n];
+    switch (t->type) {
+    case TT_SET: return 0;
+    case TT_CAT: case TT_ALT:
+        return tac_cannot_consume (ps, t->a) && tac_cannot_consume (ps, t->b);
+    case TT_STAR: case TT_PLUS: case TT_OPT:
+        return tac_cannot_consume (ps, t->a);
+    default:
+        return 1;
+    }
+}
+
+/* An alternative that matches empty, contains no anchor, and matches no
+   bytes. \(\|\`b\)+ has one. \(\`\|a*\)+ does not: a* can consume. */
+static int
+tac_is_bare (const tac_parser *ps, int n)
+{
+    if (n < 0) return 1;
+    /* '$' consumes nothing and carries no hang/diff mark. It is still an
+       anchor, not the empty alternative beside \` ^ \< \>. */
+    if (ps->tree[n].type == TT_ASSERT) return 0;
+    return tac_tree_nullable (ps, n) && tac_tree_marks (ps, n) == 0
+        && tac_cannot_consume (ps, n);
+}
+
+static int
+tac_has_bare_alt (const tac_parser *ps, int n)
+{
+    if (n < 0) return 1;
+    const tac_tree *t = &ps->tree[n];
+    switch (t->type) {
+    case TT_ALT:
+        return tac_is_bare (ps, t->a) || tac_is_bare (ps, t->b)
+            || tac_has_bare_alt (ps, t->a) || tac_has_bare_alt (ps, t->b);
+    case TT_CAT: case TT_STAR: case TT_PLUS: case TT_OPT:
+        return tac_has_bare_alt (ps, t->a)
+            || ((t->type == TT_CAT) && tac_has_bare_alt (ps, t->b));
+    default:
+        return 0;
+    }
+}
+
+/* The Thompson plus is the XX* span. That span is the one that returns for
+   a nullable '+' of \` ^ \< \> beside an anchor-free empty alternative.
+   It disagrees with GNU for \' \b \B, for a non-nullable hang-anchor '+',
+   and for a nullable hang-anchor '+' that has no such alternative
+   (GNU finishes \(\`+?\|\s\)+ and returns the input unchanged). */
+static int
+tac_tree_bad_plus (const tac_parser *ps, int n)
+{
+    if (n < 0) return 0;
+    const tac_tree *t = &ps->tree[n];
+    if (t->type == TT_PLUS) {
+        unsigned marks = tac_tree_marks (ps, t->a);
+        int loop = tac_tree_nullable (ps, t->a) && (marks & TM_HANG)
+            && !(marks & TM_DIFF) && tac_has_bare_alt (ps, t->a);
+        if ((marks & (TM_DIFF | TM_HANG)) && !loop) return 1;
+    }
+    switch (t->type) {
+    case TT_CAT: case TT_ALT:
+        return tac_tree_bad_plus (ps, t->a) || tac_tree_bad_plus (ps, t->b);
+    case TT_STAR: case TT_PLUS: case TT_OPT:
+        return tac_tree_bad_plus (ps, t->a);
+    default:
+        return 0;
     }
 }
 
@@ -978,6 +1093,7 @@ tac_engine_compile (tac_engine *e, const char *pattern)
     /* Matches must start on character boundaries in a UTF-8 locale; an
        empty match need not, so nullable patterns stay with glibc there. */
     if (!ps.err && ps.utf8 && tac_tree_nullable (&ps, root)) ps.err = TE_UNSUPPORTED;
+    if (!ps.err && tac_tree_bad_plus (&ps, root)) ps.err = TE_UNSUPPORTED;
     if (ps.err) { free (ps.tree); free (ps.set); return ps.err; }
 
     int max = 2 * ps.ntree + 2;
@@ -1350,8 +1466,9 @@ static const struct { const char *name; int arg, id; } tac_longopts[] = {
    \' \b and \B finish on the original pattern, and XX* can disagree, so
    they are not rewritten. A nullable '+' that contains both is refused:
    the original may not return, and the spelling can disagree when it does.
-   A non-nullable '+' of \` ^ \< \> is also left as written; GNU finishes
-   it and can disagree with XX*. Duplicating a group renumbers captures,
+   A '+' of \` ^ \< \> is left as written unless it is nullable and one
+   alternative is empty: GNU finishes the other shapes and can disagree
+   with XX*. Duplicating a group renumbers captures,
    so a back-reference keeps the original pattern. Returns 1 and a malloc'd
    pattern, 0 to keep the original, or -1 when a rewrite cannot be finished. */
 #define TAC_SPELL_MAX (1 << 20)
@@ -1363,20 +1480,11 @@ typedef struct {
     int changed, backref, failed, depth;
 } tac_spell;
 
-typedef struct { int nullable, anchor, atom; unsigned marks; } tac_spell_piece;
-
-static unsigned
-tac_anchor_class (unsigned short anchor)
-{
-    if (anchor == TC_NEXT_ENDBUF || anchor == TC_WORD_DELIM
-        || anchor == TC_NOT_WORD_DELIM)
-        return TM_DIFF;
-    if (anchor == TC_PREV_BEGBUF || anchor == TC_PREV_NEWLINE
-        || anchor == (TC_PREV_NOTWORD | TC_NEXT_WORD)
-        || anchor == (TC_PREV_WORD | TC_NEXT_NOTWORD))
-        return TM_HANG;
-    return 0;
-}
+typedef struct {
+    int nullable, anchor, atom;
+    unsigned marks;
+    int pure, has_pure;         /* pure: empty, no anchor, no bytes. */
+} tac_spell_piece;
 
 static int spell_expr (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
 static int spell_branch (tac_spell *, tac_parser *, tac_token *, int, tac_spell_piece *);
@@ -1494,9 +1602,12 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     if (++sp->depth > TAC_SPELL_DEPTH) { sp->failed = 1; return -1; }
     size_t start = sp->len;
     int nullable = 0, anchor = 0, atom = 1, early = 0;
+    int pure = 0, has_pure = 0;
     unsigned marks = 0;
     if (t->type == TK_ALT || t->type == TK_END) {
         nullable = 1;
+        pure = 1;
+        has_pure = 1;
         early = 1;
     } else if (t->type == TK_CLOSE || t->type == TK_BACKSLASH) {
         sp->failed = 1;
@@ -1512,7 +1623,7 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     } else if (t->type == TK_OPEN) {
         if (!spell_emit_token (sp, ps, t)) {
             spell_fetch (ps, t, 1);
-            tac_spell_piece inner = { 1, 0, 1, 0 };
+            tac_spell_piece inner = { 1, 0, 1, 0, 1, 1 };
             if (t->type != TK_CLOSE && spell_alts (sp, ps, t, nest + 1, &inner))
                 sp->failed = 1;
             else if (t->type != TK_CLOSE)
@@ -1522,6 +1633,8 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
             nullable = inner.nullable;
             anchor = inner.anchor;
             marks = inner.marks;
+            pure = inner.pure;
+            has_pure = inner.has_pure;
         }
     } else {
         if (t->type == TK_BACKREF) sp->backref = 1;
@@ -1542,17 +1655,17 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
                     sp->failed = 1;
                     break;
                 }
-                if (diff || (hang && !nullable)) {
+                if ((nullable && hang && !diff && has_pure) || (!diff && !hang)) {
+                    /* A nullable \` ^ \< \> beside a pure empty alternative,
+                       or a '$' plus: XX* is what returns. Nullable iff X is. */
+                    if (spell_dup (sp, start) || spell_put (sp, "*", 1)) break;
+                    sp->changed = 1;
+                    atom = 0;
+                } else {
                     /* GNU finishes this '+'. Keep it so the search sees it. */
                     char ch = '+';
                     if (spell_put (sp, &ch, 1)) break;
                     atom = 1;
-                } else {
-                    /* Nullable \` ^ \< \> or a '$' plus: XX* is what returns.
-                       Nullable iff X is: the first copy must match. */
-                    if (spell_dup (sp, start) || spell_put (sp, "*", 1)) break;
-                    sp->changed = 1;
-                    atom = 0;
                 }
             } else {
                 char ch = op == TK_STAR ? '*' : op == TK_PLUS ? '+' : '?';
@@ -1568,6 +1681,8 @@ spell_expr (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     out->anchor = anchor;
     out->atom = atom;
     out->marks = marks;
+    out->pure = pure;
+    out->has_pure = has_pure;
     return sp->failed ? -1 : 0;
 }
 
@@ -1577,12 +1692,15 @@ spell_branch (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_p
     tac_spell_piece part;
     if (spell_expr (sp, ps, t, nest, &part)) return -1;
     int nullable = part.nullable, anchor = part.anchor, count = 1;
+    int pure = part.pure, has_pure = part.has_pure;
     unsigned marks = part.marks;
     while (!sp->failed && t->type != TK_ALT && t->type != TK_END
            && !(nest && t->type == TK_CLOSE)) {
         if (spell_expr (sp, ps, t, nest, &part)) return -1;
         nullable = nullable && part.nullable;
         anchor = anchor || part.anchor;
+        pure = pure && part.pure;
+        has_pure = has_pure || part.has_pure;
         marks |= part.marks;
         count++;
     }
@@ -1590,6 +1708,8 @@ spell_branch (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_p
     out->anchor = anchor;
     out->atom = count == 1;
     out->marks = marks;
+    out->pure = pure;
+    out->has_pure = has_pure;
     return sp->failed ? -1 : 0;
 }
 
@@ -1600,14 +1720,21 @@ spell_alts (tac_spell *sp, tac_parser *ps, tac_token *t, int nest, tac_spell_pie
     while (!sp->failed && t->type == TK_ALT) {
         if (spell_emit_token (sp, ps, t)) return -1;
         spell_fetch (ps, t, 1);
-        tac_spell_piece right = { 1, 0, 1, 0 };
+        tac_spell_piece right = { 1, 0, 1, 0, 1, 1 };
         if (t->type != TK_ALT && t->type != TK_END && !(nest && t->type == TK_CLOSE)) {
             if (spell_branch (sp, ps, t, nest, &right)) return -1;
         }
-        out->nullable = out->nullable || right.nullable;
-        out->anchor = out->anchor || right.anchor;
-        out->marks |= right.marks;
-        out->atom = 0;
+        {
+            int left_pure = out->pure, right_pure = right.pure;
+            out->nullable = out->nullable || right.nullable;
+            out->anchor = out->anchor || right.anchor;
+            out->marks |= right.marks;
+            /* Pure only when neither side can match a byte. has_pure when
+               either side is the empty alternative, or contains one. */
+            out->pure = left_pure && right_pure;
+            out->has_pure = out->has_pure || right.has_pure || left_pure || right_pure;
+            out->atom = 0;
+        }
     }
     return sp->failed ? -1 : 0;
 }

@@ -3,9 +3,11 @@
 """Completing-anchor '+' separators match GNU tac on the original pattern.
 
 A nullable group containing \\' \\b or \\B is not the XX* spelling: GNU
-finishes the original and the spans differ. A nullable '+' that also
-contains \\` ^ \\< or \\> is refused. A nullable hang-anchor '+' still has
-to finish as the XX* spelling, because GNU does not return on that one.
+finishes the original and the spans differ, in the C locale and in UTF-8.
+A non-nullable '+' whose operand contains \\` can finish too, and XX* can
+disagree (\\(\\`+?\\|\\s\\)+ returns the input unchanged). A nullable '+'
+that also contains a hang anchor is refused. A nullable hang-anchor '+'
+still has to finish as the XX* spelling, because GNU does not return.
 """
 import argparse
 import os
@@ -15,9 +17,7 @@ import tempfile
 
 REFERENCE = '/usr/bin/tac'
 REFUSE = b'cannot be matched safely'
-# The C locale is added with the engine decline. These two already reach
-# the speller for a nullable pattern.
-LOCALES = ('C.UTF-8', 'en_US.UTF-8')
+LOCALES = ('C', 'C.UTF-8', 'en_US.UTF-8')
 
 
 def main():
@@ -57,6 +57,8 @@ tac "${args[@]}"
         ('nonword-nested', '\\(\\(\\|\\Bb\\)+\\)', b'b.b.b', False, False, 'gnu'),
         ('mixed', '\\(\\|\\`\\|\\\'b\\)+', b'.b', False, False, 'refuse'),
         ('mixed', '\\(\\|\\`\\|\\\'b\\)+', b'.b', True, False, 'refuse'),
+        ('beg-literal', '\\(\\`+?\\|\\s\\)+', b'\n\n:', False, False, 'gnu'),
+        ('beg-literal', '\\(\\`+?\\|\\s\\)+', b'\n\n:', True, False, 'gnu'),
         ('hang-beg', '\\(\\|\\`b\\)+', b'.b\nab\n', False, False, 'spell'),
     ]
     spelled = {
