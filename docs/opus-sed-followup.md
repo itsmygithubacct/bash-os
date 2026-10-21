@@ -119,8 +119,11 @@ consumer. The global substitution retry is that call, including when an
 empty `s//` reuses an address regex. If the whole pattern is one capturing
 group of anchors, literals and the GNU classes `\s` `\S` `\w` `\W`, sed
 matches it directly and never calls `re_search`. `s/(|^b)+/x/g` on `.b`
-therefore prints `x.xbx`. The same shape with `` \` ``, `$`, `\<` or `\b`
-is handled the same way. `\>` followed by a literal uses the span glibc
+therefore prints `x.xbx`. The same shape with `` \` ``, `$` or `\<` is
+handled the same way. `\b` and `\B` are not: `re_search` returns for them,
+and the direct matcher does not reproduce its spans, so `s/(|\bb)+/[&]/g`
+on `ab` is run by the engine and prints `[]a[b]`. `s/(|\Bb)+/[&]/g` on
+`.b` prints `[].[b]`. `\>` followed by a literal uses the span glibc
 returns on subjects where that search finishes (`s/(|\>b)+/[&]/g` on `ab`
 prints `[]a[b]`) and still does not call `re_search` where it does not.
 `\'` is not one of those anchors, so `s/(|\'b)+/[&]/g` is run by the regex

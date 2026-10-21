@@ -7,7 +7,9 @@ compared with it. A whole-pattern group of anchors, literals and GNU
 classes is matched directly when an anchor is followed by a consumer,
 including on subjects where GNU sed times out. \' is left to the engine.
 A repeated anchor with no consumer in that alternative is left to the
-engine too. Every other pattern of the hanging shape is refused.
+engine too. \\b and \\B are left to the engine: re_search returns, and the
+direct matcher does not reproduce its spans. Every other pattern of the
+hanging shape is refused.
 """
 import os
 from pathlib import Path
@@ -68,6 +70,16 @@ cases = [
     (['-E', r's/(|\<b)+/X/g'], b'ab\n', b'XaXbX\n'),
     (['-E', r's/(|\<b)+/X/g'], b'b\n', None),
     (['-E', r's/(|\b)+/X/g'], b'ab\n', None),
+    # \b and \B return from re_search. The direct matcher does not.
+    (['-E', r's/(|\bb)+/[&]/g'], b'ab\n', b'[]a[b]\n'),
+    (['-E', r's/(|\bb)+/[&]/g'], b'abc\n', b'[]a[b]c[]\n'),
+    (['-E', r's/(|\bb)+/X/g'], b'ab\n', b'XaX\n'),
+    ([r's/\(\|\bb\)\+/[&]/g'], b'ab\n', b'[]a[b]\n'),
+    (['-E', r's/(|\Bb)+/[&]/g'], b'.b\n', b'[].[b]\n'),
+    (['-E', r's/(|\Bb)+/[&]/g'], b'a.b\n', b'[]a[].[b]\n'),
+    (['-E', r's/(|\Bb)+/[&]/g'], b'a b\n', b'[]a[] [b]\n'),
+    (['-E', r's/(|\Bb)+/X/g'], b'.b\n', b'X.X\n'),
+    ([r's/\(\|\Bb\)\+/[&]/g'], b'.b\n', b'[].[b]\n'),
     (['-E', r's/($)+/X/g'], b'ab\n', None),
     (['-E', r's/(|$)+/X/g'], b'ab\n', None),
     (['-E', r's/(^)+/X/g'], b'ab\n', None),

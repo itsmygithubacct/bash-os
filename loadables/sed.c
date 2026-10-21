@@ -211,9 +211,11 @@ bs_interrupted (void)
    re_search is called with registers (nmatch > 1) and one alternative is an
    anchor (^, \`, \<, \>) followed by a consumer. The global-substitute retry
    is that call. A single capturing group of anchors, literals and the GNU
-   classes \s \S \w \W is matched here, so that call is never made. The same
-   shape with a consumer this matcher cannot reproduce, and every nested or
-   prefixed form of it, is refused. \' is not one of those anchors. One table,
+   classes \s \S \w \W is matched here, so that call is never made. \b and \B
+   are not anchors for this test: re_search returns, and this matcher does
+   not reproduce its spans. The same shape with a consumer this matcher
+   cannot reproduce, and every nested or prefixed form of it, is refused.
+   \' is not one of those anchors. One table,
    filled after the command array stops moving, lets an empty s// reuse the
    program stored for the last regex. */
 #define BS_ATOM_LIT    0
@@ -458,7 +460,10 @@ bs_re_atom (bs_re_scan *sc, int alt, int first)
         } else if (e == '`' || e == '<' || e == '>' || e == 'b' || e == 'B') {
             int kind = e == '`' ? BS_ATOM_BOS : e == '<' ? BS_ATOM_WSTART
                      : e == '>' ? BS_ATOM_WEND : e == 'b' ? BS_ATOM_WB : BS_ATOM_WNB;
-            sc->i += 2; info.nullable = 1; info.anchor = 1;
+            sc->i += 2; info.nullable = 1;
+            /* \b and \B return from re_search. Marking them as anchors would
+               direct-match the group, and that span is not glibc's. */
+            if (kind != BS_ATOM_WB && kind != BS_ATOM_WNB) info.anchor = 1;
             if (kind == BS_ATOM_BOS || kind == BS_ATOM_WSTART || kind == BS_ATOM_WEND)
                 info.hang_anchor = 1;
             if (kind >= BS_ATOM_WSTART) sc->word = 1;
