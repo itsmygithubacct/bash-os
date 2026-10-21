@@ -1167,7 +1167,9 @@ bs_text_push (char **buf, size_t *len, size_t *cap, char ch)
 
 /* After a command, GNU sed allows only a comment, ';', newline, '}' or the
    end of the script. '}' stays so the next iteration can parse it. '{' is
-   the exception: the following command needs no separator. */
+   the exception: the following command needs no separator. 'v' is the other
+   exception: its token already stopped on a blank, and that blank is the
+   separator before the next command. */
 static int
 bs_finish_cmd (const char **pp)
 {
@@ -1879,7 +1881,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     builtin_error ("unknown command: 0x%02x", (unsigned) op);
                 goto err;
         }
-        if (op != '{' && bs_finish_cmd (&p) < 0) goto err;
+        if (op != '{' && op != 'v' && bs_finish_cmd (&p) < 0) goto err;
         n++;
     }
 

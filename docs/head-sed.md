@@ -68,7 +68,8 @@ The compatibility boundaries are:
   may contain the regex delimiter. `e` commands continue across a
   backslash-newline. A `v` token is accepted when it is not newer than 4.9,
   so `v 4.9` and `v 4.09.0` are accepted and `v 4.9.0` and `v 4.10` are
-  rejected. In-place replacement is pinned to the parent directory. A
+  rejected. A blank after the token separates the next command. In-place
+  replacement is pinned to the parent directory. A
   repeated group that can match empty and contains an anchor followed by a
   consumer is matched directly when it is one capturing group of anchors,
   literals and GNU classes, and refused otherwise, so the search cannot

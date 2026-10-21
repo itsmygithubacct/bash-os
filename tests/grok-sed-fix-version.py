@@ -42,6 +42,7 @@ for script in (
     'v4.2.2', '1{v\n}',
     'v 4.09.0', 'v -1', 'v +4', 'v 4.', 'v .9', 'v 4..9', 'v .', 'v 4.8.',
     'v 4.09.', 'v 4.9#c', 'v 4.10#c', 'v 4.9\tp', 'v#c',
+    'v 4.9 p', 'v 4.9p', 'v 4.9 pq', 'v 4.9\tq',
 ):
     rc, out, err = run(script)
     grc, gout = gnu(script)

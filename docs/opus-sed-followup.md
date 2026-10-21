@@ -35,7 +35,9 @@ scan is used for the regex half of `s///`. The replacement half and `y`
 still end at the first unescaped delimiter. `z` empties the pattern space.
 `v [VERSION]` reads one version token the way GNU sed reads a label.
 Leading blanks are skipped. The token ends at the next blank, semicolon,
-`}`, newline or `#`, and that character stays for the next command. An
+`}`, newline or `#`, and that character stays for the next command. A
+blank that ends the token separates the next command (`v 4.9 p` runs `p`).
+A letter does not (`v 4.9p` is the token `4.9p`). An
 empty token is accepted. The token is accepted when `strverscmp` does not
 find it newer than 4.9 (`v 4.9`, `v 4.09.0`, `v 4.8.`, `v -1`, `v 4.`).
 A newer token is rejected (`v 4.9.0`, `v 4.9.`, `v 4.10`, `v 5`).
