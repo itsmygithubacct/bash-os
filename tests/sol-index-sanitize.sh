@@ -55,7 +55,10 @@ fi
 [[ -x $asan_bash ]] || { echo "sol-index-sanitize: indexcheck binary missing"; exit 1; }
 echo "asan-binary $asan_bash"
 readelf -d "$asan_bash" | grep NEEDED
-nm -D "$asan_bash" | grep -m1 '__asan_' || { echo 'sol-index-sanitize: indexcheck binary is not linked with ASan'; exit 1; }
+# An imported __asan_ symbol is the dynamic link. Do not pipe nm into
+# grep -m1: that closes the pipe early, and pipefail then looks like a miss.
+nm -D "$asan_bash" > "$d/nm-dynamic.txt"
+grep -m1 '__asan_' "$d/nm-dynamic.txt" || { echo 'sol-index-sanitize: indexcheck binary is not linked with ASan'; exit 1; }
 echo "asan-options detect_leaks=0"
 
 export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1
