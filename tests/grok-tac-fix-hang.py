@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""tac -r must finish anchor-plus separators and match the XX* spelling.
+"""tac -r must finish anchor-plus separators and match GNU tac.
 
-glibc's copy of X+ does not return for an empty alternative plus an anchor,
-and it can return a different span for the same shape with other anchors.
-The oracle is GNU tac on the spelled-out XX* form, which is the result the
-bounded matcher already returns in the C locale. Each probe is under
-timeout and, except under ASan, an address-space limit.
+Where GNU tac finishes the original pattern, that result is the oracle.
+The XX* spelling is the oracle only when GNU does not return: a nullable
+'+' of \\` ^ \\< or \\> beside an empty alternative. \\' \\b and \\B finish,
+and the spelled span can differ, so a suite that only checks XX* stays
+green while those results are wrong. Each probe is under timeout and,
+except under ASan, an address-space limit.
 """
 import argparse
 import os
@@ -30,7 +31,11 @@ LOCALES = ('C', 'C.UTF-8', 'en_US.UTF-8')
 
 
 def forms(anchor):
-    """(name, pattern, oracle, nullable, backref). Oracle is the XX* spelling."""
+    """(name, pattern, spelled, nullable, backref).
+
+    SPELLED is the XX* form. It is the oracle only when GNU times out on
+    PATTERN. Where GNU finishes, the oracle is PATTERN itself.
+    """
     empty = '\\(\\|' + anchor + 'b\\)'
     nested = '\\(' + empty + '+\\)'
     tail = '\\(' + anchor + 'b\\|\\)'
@@ -44,6 +49,22 @@ def forms(anchor):
     )
 
 
+def needs_original_search(anchor_name, kind, nullable):
+    """Patterns the bounded matcher declines in every locale.
+
+    A '+' of \\' \\b \\B, and a non-nullable '+' of \\` ^ \\< \\>, are
+    GNU's result on the original pattern. Stars and a nullable hang-anchor
+    '+' beside an empty alternative stay in the matcher.
+    """
+    if kind == 'empty-or-anch-lit-star':
+        return False
+    if anchor_name in ('endbuf', 'word', 'nonword'):
+        return True
+    if anchor_name in ('begbuf', 'caret', 'bow', 'eow') and not nullable:
+        return True
+    return False
+
+
 def build_cases():
     cases = []
     for name, anchor, word in ANCHORS:
@@ -51,7 +72,8 @@ def build_cases():
             cases.append(dict(name=f'{name}-{kind}', pattern=pattern, oracle=oracle,
                               nullable=nullable, word=word, backref=backref,
                               glibc_only=False, payload=b'.b\nab\n', before=False,
-                              pipe=False))
+                              pipe=False,
+                              needs_gnu=needs_original_search(name, kind, nullable)))
     # The three reported probes, with the separator attached before the record.
     reported = (('begbuf', '\\`', False), ('caret', '^', False), ('bow', '\\<', True))
     for name, anchor, word in reported:
@@ -59,7 +81,7 @@ def build_cases():
         cases.append(dict(name=f'{name}-empty-or-before', pattern=empty + '+',
                           oracle=empty + empty + '*', nullable=True, word=word,
                           backref=False, glibc_only=False, payload=b'.b\nab\n',
-                          before=True, pipe=False))
+                          before=True, pipe=False, needs_gnu=False))
     # Stacked quantifiers. The outer operator binds to the whole XX* piece.
     inner = '\\(\\|\\`b\\)'
     once = inner + inner + '*'
@@ -67,11 +89,11 @@ def build_cases():
     cases.append(dict(name='begbuf-stacked-plus', pattern=inner + '++',
                       oracle=wrapped + wrapped + '*', nullable=True, word=False,
                       backref=False, glibc_only=False, payload=b'.b\nab\n',
-                      before=False, pipe=False))
+                      before=False, pipe=False, needs_gnu=False))
     cases.append(dict(name='begbuf-plus-star', pattern=inner + '+*',
                       oracle=wrapped + '*', nullable=True, word=False,
                       backref=False, glibc_only=False, payload=b'.b\nab\n',
-                      before=False, pipe=False))
+                      before=False, pipe=False, needs_gnu=False))
     # Back-references stay on the original pattern: duplicating groups would
     # renumber captures. The oracle is GNU on that same pattern.
     for name, pattern, payload in (
@@ -80,24 +102,25 @@ def build_cases():
             ('backref-nested-anchor', '\\(\\(b\\)\\|\\`\\)+\\1', b'.b\nab\n')):
         cases.append(dict(name=name, pattern=pattern, oracle=pattern, nullable=True,
                           word=False, backref=True, glibc_only=False, payload=payload,
-                          before=False, pipe=False))
+                          before=False, pipe=False, needs_gnu=False))
     # Nullable, no anchor: glibc's own '+' is the oracle. Rewriting it is not
     # required, and refusing it would drop a result GNU returns.
     cases.append(dict(name='nullable-no-anchor', pattern='\\(a\\|\\)+',
                       oracle='\\(a\\|\\)+', nullable=True, word=False, backref=False,
-                      glibc_only=False, payload=b'ab\nba\n', before=False, pipe=False))
+                      glibc_only=False, payload=b'ab\nba\n', before=False, pipe=False,
+                      needs_gnu=False))
     cases.append(dict(name='utf8-dot', pattern='.', oracle='.', nullable=False,
                       word=False, backref=False, glibc_only=False, payload=b'ab\ncd\n',
-                      before=False, pipe=False))
+                      before=False, pipe=False, needs_gnu=False))
     # A collating element keeps the pattern on glibc even in the C locale,
     # so the anchor-plus beside it used to loop there too.
     cases.append(dict(name='collating-anchor-plus',
                       pattern='[[.a.]]\\(\\|\\`b\\)+',
                       oracle='[[.a.]]\\(\\|\\`b\\)\\(\\|\\`b\\)*',
                       nullable=True, word=False, backref=False, glibc_only=True,
-                      payload=b'.b\nab\n', before=False, pipe=False))
+                      payload=b'.b\nab\n', before=False, pipe=False, needs_gnu=False))
     # Same three shapes on a multibyte character, so a word anchor has to
-    # keep glibc's wide class. The oracle is still GNU's XX* spelling.
+    # keep glibc's wide class. The oracle is GNU on the original pattern.
     wide = 'é.b\nab\n'.encode()
     for name, anchor, word in ANCHORS:
         if not word:
@@ -105,23 +128,26 @@ def build_cases():
         for kind, pattern, oracle, nullable, backref in forms(anchor)[:3]:
             cases.append(dict(name=f'wide-{name}-{kind}', pattern=pattern, oracle=oracle,
                               nullable=nullable, word=word, backref=backref,
-                              glibc_only=False, payload=wide, before=False, pipe=False))
+                              glibc_only=False, payload=wide, before=False, pipe=False,
+                              needs_gnu=needs_original_search(name, kind, nullable)))
     # One pipe, so the spool path uses the same compiled pattern.
     empty = '\\(\\|\\`b\\)'
     cases.append(dict(name='begbuf-pipe', pattern=empty + '+', oracle=empty + empty + '*',
                       nullable=True, word=False, backref=False, glibc_only=False,
-                      payload=b'.b\nab\n', before=False, pipe=True))
+                      payload=b'.b\nab\n', before=False, pipe=True, needs_gnu=False))
     return cases
 
 
 def portable_unsupported(case, utf8):
     if case['backref'] or case['glibc_only']:
         return True
-    if not utf8:
-        return False
     if case['name'] == 'utf8-dot':
         return True
-    return case['nullable'] or case['word']
+    if utf8 and (case['nullable'] or case['word']):
+        return True
+    # Declined in every locale, including C: the matcher will not invent
+    # the XX* span, and this build has no GNU regex search.
+    return bool(case['needs_gnu'])
 
 
 def run_shell(binary, script, environment, stdin, timeout):
@@ -190,35 +216,45 @@ tac "${args[@]}"
                         print(f'MISMATCH {label} portable rc={got.returncode} '
                               f'out={got.stdout[:80]!r} err={got.stderr[:160]!r}')
                     continue
-                key = (locale, case['oracle'], case['before'], case['pipe'], case['payload'])
-                if key not in oracle:
-                    gargs = ['-r', '-s', case['oracle']]
-                    if case['before']:
-                        gargs = ['-b', *gargs]
-                    genv = dict(base, LC_ALL=locale)
-                    if case['pipe']:
-                        cmd = ['/usr/bin/timeout', '-k', '1', str(args.timeout),
-                               REFERENCE, *gargs]
-                        gstdin = case['payload']
-                    else:
-                        cmd = ['/usr/bin/timeout', '-k', '1', str(args.timeout),
-                               REFERENCE, *gargs, env['FILE']]
-                        gstdin = None
-                    ref = subprocess.run(cmd, input=gstdin, env=genv, capture_output=True,
-                                         timeout=args.timeout + 5)
-                    oracle[key] = ref
-                ref = oracle[key]
+                def gnu(pattern):
+                    key = (locale, pattern, case['before'], case['pipe'], case['payload'])
+                    if key not in oracle:
+                        gargs = ['-r', '-s', pattern]
+                        if case['before']:
+                            gargs = ['-b', *gargs]
+                        genv = dict(base, LC_ALL=locale)
+                        if case['pipe']:
+                            cmd = ['/usr/bin/timeout', '-k', '1', str(args.timeout),
+                                   REFERENCE, *gargs]
+                            gstdin = case['payload']
+                        else:
+                            cmd = ['/usr/bin/timeout', '-k', '1', str(args.timeout),
+                                   REFERENCE, *gargs, env['FILE']]
+                            gstdin = None
+                        oracle[key] = subprocess.run(
+                            cmd, input=gstdin, env=genv, capture_output=True,
+                            timeout=args.timeout + 5)
+                    return oracle[key]
+
+                original = gnu(case['pattern'])
                 checks += 1
+                hung = original.returncode in (124, 137)
+                if hung and case['oracle'] != case['pattern']:
+                    ref = gnu(case['oracle'])
+                    how = 'hang-guard'
+                else:
+                    ref = original
+                    how = 'original'
                 if got.returncode in (124, 137) or ref.returncode in (124, 137):
                     timeouts += 1
                     print(f'TIMEOUT {label} builtin={got.returncode} gnu={ref.returncode}')
                 elif (got.returncode, got.stdout) != (ref.returncode, ref.stdout):
                     mismatches += 1
-                    print(f'MISMATCH {label} builtin={got.returncode} gnu={ref.returncode} '
-                          f'out={got.stdout[:80]!r} gnu_out={ref.stdout[:80]!r} '
-                          f'err={got.stderr[:120]!r}')
+                    print(f'MISMATCH {label} {how} builtin={got.returncode} '
+                          f'gnu={ref.returncode} out={got.stdout[:80]!r} '
+                          f'gnu_out={ref.stdout[:80]!r} err={got.stderr[:120]!r}')
                 else:
-                    print(f'OK {label}')
+                    print(f'OK {label} {how}')
     print(f'grok-tac-fix-hang: {checks} checks, {timeouts} timeouts, {mismatches} mismatches')
     if timeouts or mismatches:
         raise SystemExit(1)
