@@ -90,7 +90,7 @@ jobs:
 
   native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -100,10 +100,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl bison python3-cryptography \
             libpcre2-dev zlib1g-dev liblzma-dev libzstd-dev libbz2-dev \
-            busybox bsdextrautils bc ed sharutils zstd openssh-client bubblewrap
+            busybox bsdextrautils bc ed sharutils zstd openssh-client bubblewrap \
+            neovim python3-argon2 util-linux-extra uidmap
           if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
+          sudo locale-gen en_US.UTF-8
+          grep -q "^$(id -un):" /etc/subuid || sudo usermod --add-subuids 200000-265535 --add-subgids 200000-265535 "$(id -un)"
+          sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+      - name: Record the runner toolchain
+        run: |
+          locale -a
+          id
+          grep "^$(id -un):" /etc/subuid
+          grep "^$(id -un):" /etc/subgid
+          command -v newuidmap hwclock nvim
+          sysctl net.ipv4.ping_group_range kernel.yama.ptrace_scope
+          gcc -dM -E -O2 - </dev/null | grep FORTIFY
+          git --version
+          python3 --version
       - name: Build and check full, pure, static and runtime modules
         run: |
           python3 bench/catalog.py --check
