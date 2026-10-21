@@ -157,6 +157,7 @@ def gnu_literal(files, sep, before, stale=True):
 
 
 UNSUPPORTED = b'requires the GNU regex API'
+SAFE = b'cannot be matched safely'
 
 
 def anchor_plus_needs_gnu(text):
@@ -253,13 +254,17 @@ def main():
 
         unsupported = 0
 
-        def compare(options, payload, mode='file', environment=None, label='', glibc=False):
+        def compare(options, payload, mode='file', environment=None, label='', glibc=False,
+                    allow_safe=False):
             nonlocal checks, unsupported
             source = root / 'input'
             source.write_bytes(payload)
             opts = [*options, str(source)] if mode == 'file' else list(options)
             stdin = payload if mode == 'pipe' else None
             got = run('tac', opts, stdin, environment=environment)
+            if allow_safe and got.returncode == 1 and not got.stdout and SAFE in got.stderr:
+                checks += 1
+                return
             if args.portable and glibc:
                 # A strict glibc-only construct must refuse. An anchor-plus
                 # superset match may refuse or succeed; a success still has
@@ -312,7 +317,7 @@ done
         for tag in ['got', 'ref', 'xref']:
             p = run(tag, [str(work), str(len(cases))], script=loop, timeout=None)
             assert p.returncode == 0, p.stderr
-        accepted = timeouts = defects = 0
+        accepted = timeouts = defects = safe = 0
         valid = []
         for i, (options, xoptions, flagged, payload) in enumerate(cases):
             def result(tag):
@@ -335,6 +340,15 @@ done
                 timeouts += 1
                 print('NO ORACLE (GNU timed out):', options, len(payload))
                 continue
+            err = (work / f'{i}.got.err').read_bytes()
+            # A nullable plus that mixes a hang anchor with \' \b or \B is
+            # refused: the original may not return. GNU still finishes some
+            # of those inputs. Empty output and the safe-regex error are
+            # the accepted result. A different stdout is not.
+            if got[1].strip() == '1' and not got[0] and SAFE in err:
+                safe += 1
+                checks += 1
+                continue
             assert got == oracle, ('random', i, options, xoptions, payload[:80], got[1],
                                    oracle[1], got[0][:120], oracle[0][:120])
             if ref[1].strip() != '137' and xref[1].strip() != '137' and ref != xref:
@@ -345,8 +359,10 @@ done
             checks += 1
         assert accepted > len(cases) * 3 // 4 and timeouts * 100 < len(cases), (accepted, timeouts)
         print(f'opus-tac-followup: {defects} random cases where GNU contradicts its XX* spelling')
+        print(f'opus-tac-followup: {safe} random cases refused with the safe-regex error')
         for options, payload in valid[:400]:
-            compare(options, payload, 'pipe', label='random-pipe', glibc=needs_glibc(options[-1]))
+            compare(options, payload, 'pipe', label='random-pipe',
+                    glibc=needs_glibc(options[-1]), allow_safe=True)
 
         # Minimized anchor-plus cases. Where GNU finishes the original
         # pattern, the builtin must match that result. The spelled form is
