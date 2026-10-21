@@ -676,9 +676,19 @@ bb_pub_get_lines (int slot, size_t start, size_t count,
     bb_buf *b = bb_handles[slot];
     if (start > b->n_lines || count > b->n_lines - start) return -1;
     if (!count) return 0;
-    bb_iter it;
-    bb_iter_init (&it, b, start);
-    for (size_t i = 0; i < count; i++) {
+    bb_iter it = { b, 0, start };
+    size_t i = 0;
+    if (b->paged) {
+        /* bb_iter_init would scan the first line to find its end, and the
+           first bb_iter_next would scan it again; resolve it once. */
+        size_t off;
+        bb_span (b, start, &off, &out_lens[0]);
+        out_bytes[0] = (const unsigned char *) b->map_base + off;
+        it.pos = off + out_lens[0] < b->map_size ? off + out_lens[0] + 1 : b->map_size;
+        it.idx = start + 1;
+        i = 1;
+    }
+    for (; i < count; i++) {
         const char *ptr;
         bb_iter_next (&it, &ptr, &out_lens[i]);
         out_bytes[i] = (const unsigned char *) ptr;
