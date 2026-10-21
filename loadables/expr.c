@@ -209,6 +209,10 @@ static void
 el_ends_add (el_ends *e, int pos, int bad)
 {
     int i;
+    /* A failed realloc stores n == -1 and leaves p unchanged. The next
+       call must not write p[-1]. Callers treat n < 0 as uncertain. */
+    if (e->n < 0)
+        return;
     for (i = 0; i < e->n; i++) {
         if (e->p[i].pos == pos) {
             if (!bad)
