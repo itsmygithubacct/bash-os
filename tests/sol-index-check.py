@@ -303,9 +303,19 @@ def _():
     r = bash('index read .git/index', repo)
     check(r.returncode == 0 and r.stdout == expected, (r.stdout, r.stderr))
     before = raw
+    stamp = (repo/'.git'/'index').stat().st_mtime_ns
+    r = bash('index --index-info .git/index', repo, data=b'')
+    check(r.returncode == 0, r.stderr)
+    check((repo/'.git'/'index').read_bytes() == before and
+          (repo/'.git'/'index').stat().st_mtime_ns == stamp, 'v3 no-op untouched')
     r = bash('index add .git/index ' + SHA[0].decode() + ' f0', repo)
-    check(r.returncode == 1 and b'intent-to-add' in r.stderr, r.stderr)
-    check((repo/'.git'/'index').read_bytes() == before and not leftovers(repo/'.git'), 'v3 untouched')
+    check(r.returncode == 0, r.stderr)
+    _, after_entries, _ = parse_index((repo/'.git'/'index').read_bytes())
+    check([(e['path'], e['flags2']) for e in after_entries if e['flags2']] ==
+          [(e['path'], e['flags2']) for e in entries if e['flags2']], 'v3 flags preserved')
+    check(not leftovers(repo/'.git'), 'v3 lock released')
+    # Restore this unrelated-edit fixture before the extension/merge fixture.
+    (repo/'.git'/'index').write_bytes(before)
     # TREE, REUC, UNTR, EOIE, IEOT
     git(repo, 'rm', '-q', '--cached', 'new')
     git(repo, 'write-tree')

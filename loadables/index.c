@@ -485,13 +485,13 @@ bidx_entries_end (const bgit_index_view *views, size_t n, const unsigned char *b
 }
 
 /* What bgit_index_read_views leaves to its callers. VIEWS, N, BACKING and
-   FLEN are as it returned them. FOR_EDIT also refuses what a rewrite would
-   lose, since this command writes version 2 and keeps no extensions.
+   FLEN are as it returned them. Extended entry flags survive rewrites.
    Returns 0, or -1 with a message. */
 static int
 bidx_check (const char *path, const bgit_index_view *views, size_t n,
             const unsigned char *backing, size_t flen, int for_edit)
 {
+    (void) for_edit;
     uint32_t version = bgit_be32 (backing, 4);
     for (size_t i = 0; i < n; i++) {
         uint16_t flags = bgit_be16 (views[i].disk, 60);
@@ -500,12 +500,6 @@ bidx_check (const char *path, const bgit_index_view *views, size_t n,
             if (version < 3 || (flags2 & ~BIDX_FLAGS2_KNOWN)) {
                 builtin_error ("%s: unknown index entry format 0x%08x", path,
                                ((unsigned) flags << 16) | flags2);
-                return -1;
-            }
-            if (for_edit && flags2) {
-                builtin_error ("%s: '%s' is marked skip-worktree or intent-to-add, "
-                               "which a version 2 rewrite would lose", path,
-                               views[i].path);
                 return -1;
             }
         }

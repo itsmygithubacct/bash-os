@@ -46,11 +46,12 @@ temporary file.
   rules (bad paths are ignored with a message). It also handles D/F
   replacement and lets a stage-0 entry displace the path's conflict stages.
   An index nothing changed is left untouched.
-- A rewrite is version 2. It keeps the old index's resolve-undo (REUC)
+- A rewrite uses version 3 when extended entry flags are present, otherwise
+  version 2. It keeps the old index's resolve-undo (REUC)
   records and adds a record for each conflict stage it removes, as git
   does. TREE, UNTR, FSMN and EOIE/IEOT are caches git rebuilds and are
-  dropped. A version 3 entry marked skip-worktree or intent-to-add is
-  refused for editing rather than silently losing the bit.
+  dropped. Skip-worktree and intent-to-add flags survive unrelated edits;
+  an empty input leaves even an extended-flags index byte-for-byte untouched.
 - Racy entries, whose mtime is not before the old index's, are settled as
   git settles them. The file is compared by content, and the entry gets
   size 0 only if the content differs from its id.

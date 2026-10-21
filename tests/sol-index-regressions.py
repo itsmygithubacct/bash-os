@@ -8,7 +8,7 @@ import tempfile
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--binary', required=True)
-p.add_argument('--case', choices=['stages', 'null-id'], required=True)
+p.add_argument('--case', choices=['stages', 'null-id', 'v3'], required=True)
 a = p.parse_args()
 binary = str(Path(a.binary).resolve())
 env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null')
@@ -62,4 +62,22 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
             assert (root/'ours').read_bytes() == (root/'oracle').read_bytes()
         assert index('write ours', b'100644 '+b'0'*40+b' 0 f\n').returncode != 0
         assert (root/'ours').read_bytes() == before
+    if a.case == 'v3':
+        (root/'intent').write_text('intent\n')
+        assert git('add', '--intent-to-add', 'intent', index='base').returncode == 0
+        assert git('update-index', '--skip-worktree', 'f', index='base').returncode == 0
+        for name in ['ours', 'oracle']: (root/name).write_bytes((root/'base').read_bytes())
+        before = (root/'ours').read_bytes(), (root/'ours').stat().st_mtime_ns
+        assert git('update-index', '--index-info', data=b'', index='oracle').returncode == 0
+        assert index('--index-info ours', b'').returncode == 0, 'valid v3 no-op must succeed'
+        assert ((root/'ours').read_bytes(), (root/'ours').stat().st_mtime_ns) == before
+        for stream in [b'100644 '+oid+b'\tother\n', b'0 '+b'0'*40+b'\tother\n']:
+            assert git('update-index', '--index-info', data=stream, index='oracle').returncode == 0
+            assert index('--index-info ours', stream).returncode == 0
+            assert index('read ours').returncode == 0
+            # Git's debug listing exposes both intent-to-add and skip-worktree.
+            expected = git('ls-files', '--stage', '--debug', index='oracle')
+            actual = git('ls-files', '--stage', '--debug', index='ours')
+            assert actual.returncode == 0 and actual.stdout == expected.stdout, (actual.stdout, expected.stdout)
+        assert int.from_bytes((root/'ours').read_bytes()[4:8], 'big') == 3
     print('PASS', a.case)

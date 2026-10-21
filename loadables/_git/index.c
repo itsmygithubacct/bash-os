@@ -345,9 +345,8 @@ bgit_index_read_views_len (const char *path, bgit_index_view **out,
 
         /* v3+ CE_EXTENDED (0x4000) entries carry a second 16-bit flags
            field (flags2) before the path — git's create_from_disk reads it
-           via get_be16(flagsp + sizeof(uint16_t)). We don't model the
-           extended-flag semantics (skip-worktree / intent-to-add), but we
-           MUST consume the 2 bytes or every following entry misaligns.
+           via get_be16(flagsp + sizeof(uint16_t)). Decoding preserves
+           skip-worktree and intent-to-add for subsequent writes.
            extended_len feeds the 8-byte padding so the on-disk size matches
            git's ondisk_data_size(). */
         size_t extended_len = 0;
@@ -486,6 +485,8 @@ bgit_index_decode_views (const char *path, bgit_index_view *views, size_t n,
         e->size       = bgit_be32 (disk, 36);
         memcpy (e->sha, disk + 40, 20);
         e->flags = bgit_be16 (disk, 60);
+        if (bgit_be32 (backing, 4) >= 3 && (e->flags & 0x4000))
+            e->flags2 = bgit_be16 (disk, 62);
         e->path = strdup (views[i].path);
         if (!e->path) {
             bgit_index_free_entries (entries, i);
@@ -515,9 +516,18 @@ bgit_index_write_ext (const char *path, bgit_index_entry *entries, size_t n,
     unsigned char *buf = malloc (cap);
     if (!buf) return -1;
 
+    uint32_t version = 2;
+    for (size_t i = 0; i < n; i++) {
+        if (entries[i].flags2 & ~0x6000) {
+            builtin_error ("unknown extended index flags");
+            free (buf);
+            return -1;
+        }
+        if (entries[i].flags2) version = 3;
+    }
     /* Header */
     memcpy (buf + len, "DIRC", 4); len += 4;
-    bgit_put_be32 (buf + len, 2); len += 4;
+    bgit_put_be32 (buf + len, version); len += 4;
     bgit_put_be32 (buf + len, (uint32_t) n); len += 4;
 
     for (size_t i = 0; i < n; i++) {
@@ -528,8 +538,8 @@ bgit_index_write_ext (const char *path, bgit_index_entry *entries, size_t n,
             return -1;
         }
         size_t path_len = strlen (e->path);
-        if (path_len > SIZE_MAX - 70) { free (buf); return -1; }
-        size_t entry_len = 62 + path_len;
+        if (path_len > SIZE_MAX - 72) { free (buf); return -1; }
+        size_t entry_len = 62 + (e->flags2 ? 2 : 0) + path_len;
         size_t pad = (8 - (entry_len % 8));
         if (pad == 0) pad = 8;
         size_t need = entry_len + pad;
@@ -558,15 +568,14 @@ bgit_index_write_ext (const char *path, bgit_index_entry *entries, size_t n,
         bgit_put_be32 (buf + len, bgit_index_racy (e) ? 0 : e->size);
         len += 4;
         memcpy (buf + len, e->sha, 20);            len += 20;
-        /* We always emit version 2, which has no flags2 field, so
-           CE_EXTENDED (0x4000) must be cleared — keep only assume-valid
-           (0x8000) and the 2-bit stage (0x3000). This mirrors git's
-           do_write_index, which strips CE_EXTENDED when writing v2;
-           leaving it set would make git try to read a flags2 that isn't
-           there. */
+        /* Emit CE_EXTENDED only when its following flags word is present. */
         uint16_t flags = (uint16_t) ((e->flags & 0xB000)
             | (path_len > 0xFFF ? 0xFFF : path_len));
+        if (e->flags2) flags |= 0x4000;
         bgit_put_be16 (buf + len, flags);          len += 2;
+        if (e->flags2) {
+            bgit_put_be16 (buf + len, e->flags2); len += 2;
+        }
         memcpy (buf + len, e->path, path_len);     len += path_len;
         memset (buf + len, 0, pad);                len += pad;
     }

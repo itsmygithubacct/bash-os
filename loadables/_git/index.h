@@ -13,7 +13,7 @@
  *   Trailer: 20-byte SHA-1 of all preceding bytes
  *
  * v3 adds a second flags field on entries marked CE_EXTENDED. Reads accept
- * v2 and v3; writes always produce v2.
+ * v2 and v3; writes use v3 when extended flags need preserving.
  *
  * These functions report their own failures with builtin_error, so a caller
  * only has to choose an exit status.
@@ -36,6 +36,7 @@ typedef struct {
     uint32_t dev, ino, mode, uid, gid, size;
     unsigned char sha[20];
     uint16_t flags;     /* low 12 bits: path length (capped 0xFFF); high 4: stage etc. */
+    uint16_t flags2;    /* v3: skip-worktree (0x4000), intent-to-add (0x2000) */
     char *path;
 } bgit_index_entry;
 
