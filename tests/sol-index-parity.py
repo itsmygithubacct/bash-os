@@ -16,7 +16,7 @@ from pathlib import Path
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--binary', required=True)
-p.add_argument('--case', choices=['v1-over-refusal'], required=True)
+p.add_argument('--case', choices=['v1-over-refusal', 'v2-mismatch'], required=True)
 a = p.parse_args()
 binary = str(Path(a.binary).resolve())
 FIX = Path(__file__).resolve().parent / 'fixtures' / 'sol-index-parity'
@@ -95,48 +95,95 @@ def make_work():
     return work
 
 
+def run_index(repo, index_path, env):
+    script = 'PATH=; index read ' + shlex.quote(str(index_path))
+    return subprocess.run(
+        [binary, '--noprofile', '--norc', '-c', script],
+        cwd=repo, env=env, capture_output=True)
+
+
+def git_ls(repo, index_path, env):
+    git_env = dict(env)
+    git_env['GIT_INDEX_FILE'] = str(index_path)
+    return subprocess.run(
+        ['/usr/bin/git', '-C', str(repo), 'ls-files', '--stage', '-z'],
+        env=git_env, capture_output=True)
+
+
+def check_v1(work, env, failures):
+    mutants = work / 'mutants'
+    mutants.mkdir()
+    for name, repo_name, sparse_err in V1:
+        src = FIX / 'indexes' / name
+        dst = mutants / name
+        dst.write_bytes(src.read_bytes())
+        if name == 'm00895.index':
+            assert len(str(dst)) == INDEX_LEN, len(str(dst))
+        repo = work / repo_name
+        git = git_ls(repo, dst, env)
+        assert git.returncode == 0, (name, git.returncode, git.stderr)
+        expected = listing_of(git.stdout)
+        got = run_index(repo, dst, env)
+        ok = got.returncode == 0 and got.stdout == expected
+        if sparse_err:
+            ok = ok and b'error: invalid object 040000 ' in got.stderr
+            ok = ok and b'error: Could not read ' in got.stderr
+        if not ok:
+            failures.append((name, got.returncode, len(got.stdout), len(expected)))
+            print('FAIL', name, 'builtin', got.returncode, 'out', len(got.stdout), 'git', len(expected))
+        else:
+            print('match', name, len(got.stdout))
+
+
+def check_v2(work, env, failures):
+    mutants = work / 'mutants'
+    mutants.mkdir(exist_ok=True)
+    groups = [
+        ('v2-expand', 'r-sparse', 'list'),
+        ('v2-link-zero', 'r-split', 'fatal'),
+        ('v2-link-nonzero', 'r-split', 'fatal'),
+        ('v2-empty-subtree', 'r-sparse', 'fatal'),
+        ('v2-untr-page', 'r-work', 'crash'),
+    ]
+    for folder, repo_name, kind in groups:
+        repo = work / repo_name
+        for src in sorted((FIX / 'indexes' / folder).glob('*.index')):
+            dst = mutants / src.name
+            dst.write_bytes(src.read_bytes())
+            git = git_ls(repo, dst, env)
+            got = run_index(repo, dst, env)
+            if kind == 'list':
+                expected = listing_of(git.stdout)
+                ok = git.returncode == 0 and got.returncode == 0 and got.stdout == expected
+            elif kind == 'fatal':
+                fatal = b'\n'.join(line for line in git.stderr.splitlines() if line.startswith(b'fatal: '))
+                ok = (git.returncode == 128 and git.stdout == b'' and
+                      got.returncode == 1 and got.stdout == b'' and
+                      fatal and fatal in got.stderr.splitlines())
+            else:
+                ok = (git.returncode != 0 and git.stdout == b'' and
+                      got.returncode == 1 and got.stdout == b'' and
+                      got.returncode < 128)
+            if not ok:
+                failures.append((src.name, kind, got.returncode, git.returncode,
+                                 len(got.stdout), got.stderr.decode('latin1')[:180],
+                                 git.stderr.decode('latin1')[:180]))
+                print('FAIL', src.name, kind, 'builtin', got.returncode, 'git', git.returncode)
+            else:
+                print('match', src.name, kind, got.returncode)
+
+
 def main():
-    assert a.case == 'v1-over-refusal'
     work = make_work()
     try:
         unpack(FIX / 'probe-repos.tar.zst', work)
         unpack(FIX / 'crafted-repo.tar.zst', work)
-        mutants = work / 'mutants'
-        mutants.mkdir()
         env = base_env(work)
         failures = []
-        for name, repo_name, sparse_err in V1:
-            src = FIX / 'indexes' / name
-            dst = mutants / name
-            dst.write_bytes(src.read_bytes())
-            if name == 'm00895.index':
-                assert len(str(dst)) == INDEX_LEN, len(str(dst))
-            repo = work / repo_name
-            git_env = dict(env)
-            git_env['GIT_INDEX_FILE'] = str(dst)
-            git = subprocess.run(
-                ['/usr/bin/git', '-C', str(repo), 'ls-files', '--stage', '-z'],
-                env=git_env, capture_output=True)
-            assert git.returncode == 0, (name, git.returncode, git.stderr)
-            expected = listing_of(git.stdout)
-            script = 'PATH=; index read ' + shlex.quote(str(dst))
-            got = subprocess.run(
-                [binary, '--noprofile', '--norc', '-c', script],
-                cwd=repo, env=env, capture_output=True)
-            ok = got.returncode == 0 and got.stdout == expected
-            if sparse_err:
-                ok = ok and b'error: invalid object 040000 ' in got.stderr
-                ok = ok and b'error: Could not read ' in got.stderr
-            if not ok:
-                failures.append((
-                    name, got.returncode, len(got.stdout), len(expected),
-                    hashlib.sha256(got.stdout).hexdigest(),
-                    hashlib.sha256(expected).hexdigest(),
-                    got.stderr.decode('latin1')[:400]))
-                print('FAIL', name, 'builtin', got.returncode,
-                      'out', len(got.stdout), 'git', len(expected))
-            else:
-                print('match', name, len(got.stdout))
+        if a.case == 'v1-over-refusal':
+            check_v1(work, env, failures)
+        else:
+            check_v2(work, env, failures)
         assert not failures, failures
         print('PASS', a.case)
     finally:

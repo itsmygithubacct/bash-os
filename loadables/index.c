@@ -616,6 +616,17 @@ consume:
 static int bidx_read_format (const char *, int, int, const unsigned char *,
                              bgit_index_entry **, size_t *, bidx_undo *);
 
+/* The 12-bit field is the stored name length. 0xfff means the length is
+   the C string. A name whose first byte is NUL can still have length 1. */
+static size_t
+bidx_ce_namelen (const bgit_index_entry *e)
+{
+    size_t n = e->flags & 0xfff;
+    if (n == 0xfff)
+        return e->path ? strlen (e->path) : 0;
+    return n;
+}
+
 static int
 bidx_split (const char *path, const unsigned char *link, size_t length,
              bgit_index_entry **entries, size_t *n, int depth)
@@ -654,6 +665,27 @@ bidx_split (const char *path, const unsigned char *link, size_t length,
     for (size_t i = 0; i < nb; i++)
         replacements += replaced[i];
     if (replacements > *n || nb > SIZE_MAX / sizeof *base - *n) goto fail;
+    /* Git rejects these before it lists. The entry number is the base
+       position for a replacement and the split-index position for an
+       addition. Status stays 1; the fatal line is already printed. */
+    size_t named = 0;
+    for (size_t i = 0; i < nb; i++) {
+        if (!replaced[i]) continue;
+        if (named >= *n) break;
+        if (bidx_ce_namelen (&(*entries)[named]) != 0) {
+            fprintf (stderr, "fatal: corrupt link extension, entry %d should have "
+                     "zero length name\n", (int) i);
+            goto fatal;
+        }
+        named++;
+    }
+    for (; named < *n; named++) {
+        if (bidx_ce_namelen (&(*entries)[named]) == 0) {
+            fprintf (stderr, "fatal: corrupt link extension, entry %d should have "
+                     "non-zero length name\n", (int) named);
+            goto fatal;
+        }
+    }
     bgit_index_entry *joined = calloc (nb + *n ? nb + *n : 1, sizeof *joined);
     if (!joined) goto fail;
     size_t used = 0, source = 0;
@@ -686,16 +718,75 @@ fail:
     return -1;
 }
 
+/* Git's cache_tree_update dies when a subtree consumes no entries.
+   A directory of mode 040000 whose stored length matches the base does
+   not: that child returns 1. verify_cache failures skip the die and
+   expansion still runs. */
+static int
+bidx_update_one (bgit_index_entry *e, size_t n, size_t i,
+                 const char *base, size_t baselen, int *die)
+{
+    if (*die) return -1;
+    if (i < n && e[i].path) {
+        size_t nl = bidx_ce_namelen (&e[i]);
+        if (e[i].mode == 040000 && nl == baselen &&
+            strncmp (e[i].path, base, baselen) == 0)
+            return 1;
+    }
+    size_t start = i;
+    while (i < n) {
+        if (!e[i].path) break;
+        size_t nl = bidx_ce_namelen (&e[i]);
+        size_t plen = strlen (e[i].path);
+        if (nl <= baselen || plen < baselen ||
+            memcmp (base, e[i].path, baselen))
+            break;
+        const char *slash = strchr (e[i].path + baselen, '/');
+        if (!slash) { i++; continue; }
+        size_t sublen = (size_t) (slash - (e[i].path + baselen));
+        int sub = bidx_update_one (e, n, i, e[i].path, baselen + sublen + 1, die);
+        if (*die || sub < 0) return -1;
+        if (sub == 0) { *die = 1; return -1; }
+        i += (size_t) sub;
+    }
+    if (i < start || i - start > (size_t) 0x7fffffff) return -1;
+    return (int) (i - start);
+}
+
+static int
+bidx_empty_subtree (bgit_index_entry *e, size_t n)
+{
+    if (n > 0x7fffffff) return 0;
+    for (size_t i = 0; i < n; i++)
+        if (BIDX_STAGE (e[i].flags))
+            return 0;
+    for (size_t i = 0; i + 1 < n; i++) {
+        if (!e[i].path || !e[i + 1].path) continue;
+        size_t this_len = bidx_ce_namelen (&e[i]);
+        size_t next_len = bidx_ce_namelen (&e[i + 1]);
+        size_t next_strlen = strlen (e[i + 1].path);
+        if (this_len < next_len && this_len <= next_strlen &&
+            e[i + 1].path[this_len] == '/' &&
+            strncmp (e[i].path, e[i + 1].path, this_len) == 0)
+            return 0;
+    }
+    int die = 0;
+    bidx_update_one (e, n, 0, "", 0, &die);
+    return die;
+}
+
 static int
 bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
 {
     size_t dirs = 0;
-    for (size_t i = 0; i < *n; i++) dirs += S_ISDIR ((*entries)[i].mode);
+    for (size_t i = 0; i < *n; i++) dirs += (*entries)[i].mode == 040000;
     if (!dirs) return 0;
     bgit_repo repo;
     if (bidx_repo_for_index (path, &repo) < 0) return -1;
     bgit_odb odb;
     if (bgit_odb_open (&repo, &odb) < 0) { bgit_repo_release (&repo); return -1; }
+    /* The missing-tree diagnostic is printed by the caller, in Git's words. */
+    odb.quiet = 1;
     bgit_repo_release (&repo);
     bgit_index_entry *expanded = NULL;
     size_t used = 0;
@@ -703,7 +794,12 @@ bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
     for (size_t i = 0; i < *n; i++) {
         bgit_index_entry *entry = &(*entries)[i], *tree = NULL;
         size_t count = 1;
-        if (S_ISDIR (entry->mode)) {
+        if (entry->mode == 040000) {
+            uint32_t ce_flags = ((uint32_t) entry->flags2 << 16) |
+                                (entry->flags & ~0x0fffu);
+            if (!(entry->flags2 & 0x4000))
+                fprintf (stderr, "warning: index entry is a directory, but not sparse (%08x)\n",
+                         ce_flags);
             size_t prefix = strlen (entry->path);
             if (!prefix) goto done;
             char id[41]; bgit_sha_to_hex (entry->sha, id);
@@ -726,6 +822,11 @@ bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
                 memcpy (name, entry->path, prefix);
                 memcpy (name + prefix, tree[j].path, tail + 1);
                 free (tree[j].path); tree[j].path = name;
+                /* The stored length is the full path, not the tree-relative
+                   suffix. cache_tree_update compares that length. */
+                size_t full = prefix + tail;
+                tree[j].flags = (tree[j].flags & (uint16_t) ~0x0fffu) |
+                                (uint16_t) (full >= 0xfff ? 0xfff : full);
                 tree[j].flags2 = 0x4000;
             }
         }
@@ -743,7 +844,7 @@ bidx_sparse (const char *path, bgit_index_entry **entries, size_t *n)
     }
     bgit_index_free_entries (*entries, *n);
     *entries = expanded; *n = used; expanded = NULL; used = 0;
-    if (*n > 1) qsort (*entries, *n, sizeof **entries, bgit_index_path_cmp);
+    /* Git inserts expanded entries in place and does not re-sort. */
     rc = 0;
 done:
     bgit_odb_release (&odb);
@@ -766,9 +867,23 @@ bidx_read_format (const char *path, int for_edit, int depth,
     const unsigned char *link = NULL;
     size_t linklen = 0;
     int sparse = 0;
+    long pagesize = sysconf (_SC_PAGESIZE);
+    size_t page = pagesize > 0 ? (size_t) pagesize : 4096;
+    size_t map_end = length > SIZE_MAX - page ? length
+                     : ((length + page - 1) / page) * page;
     while (off <= length - 20 && length - 20 - off >= 8) {
         const unsigned char *sig = raw + off;
         size_t size = bgit_be32 (sig, 4), available = length - off - 8;
+        /* read_untracked_extension sets end = data + sz and loads end[-1]
+           whenever sz > 1. A size past the mapped page is a SIGSEGV.
+           TREE, REUC, link and FSMN stop on their own remaining-size
+           checks, and a sparse listing frees TREE before it is reused, so
+           a large declared size there is not by itself a refusal. A size
+           that ends in the zero-filled tail stays. */
+        if (!memcmp (sig, "UNTR", 4) && size > 1 &&
+            (size > SIZE_MAX - 8 || off > SIZE_MAX - 8 - size ||
+             off + 8 + size > map_end))
+            goto bad;
         if (!memcmp (sig, "link", 4)) {
             if (link || size > available) goto bad;
             link = sig + 8; linklen = size;
@@ -787,7 +902,21 @@ bidx_read_format (const char *path, int for_edit, int depth,
         if (sr == -2) goto printed;
         if (sr < 0) goto bad;
     }
-    if (sparse && bidx_sparse (path, &entries, &n) < 0) goto bad;
+    int collapsed = sparse;
+    for (size_t i = 0; !collapsed && i < n; i++)
+        if (entries[i].mode == 040000)
+            collapsed = 1;
+    /* ensure_full_index runs cache_tree_update before expansion, and
+       again after. A die there prints nothing else and lists nothing. */
+    if (collapsed && bidx_empty_subtree (entries, n)) {
+        fprintf (stderr, "fatal: index cache-tree records empty sub-tree\n");
+        goto printed;
+    }
+    if (collapsed && bidx_sparse (path, &entries, &n) < 0) goto bad;
+    if (collapsed && bidx_empty_subtree (entries, n)) {
+        fprintf (stderr, "fatal: index cache-tree records empty sub-tree\n");
+        goto printed;
+    }
     if (for_edit) {
         for (size_t i = 0; i < n; i++) {
             if (!bidx_path_ok (entries[i].path, entries[i].mode) || S_ISDIR (entries[i].mode) ||

@@ -61,6 +61,35 @@ Where Git 2.47.3's listing is deterministic, the reader matches it.
   measured indexes of that shape, Git 2.47.3 either crashes with SIGSEGV
   or exits 128 before printing a listing. Those reads are not performed.
 
+A mode `040000` directory entry is expanded in place even when the `sdir`
+extension is absent, truncated, renamed or shifted. Expanded entries keep
+index order. A directory that is not skip-worktree produces Git's
+`warning: index entry is a directory, but not sparse (<flags>)`. A
+directory whose tree cannot be read is still omitted, as above.
+
+A replacement whose stored name length is not zero, or an addition whose
+stored name length is zero, is Git's
+`fatal: corrupt link extension, entry N should have zero length name` or
+`should have non-zero length name`. The length is the 12-bit field, or the
+C-string length when that field is `0xfff`. It is not the position of the
+first NUL. `fatal: index cache-tree records empty sub-tree` is the same
+die as `cache_tree_update` when a subtree consumes no entries. A mode
+`040000` directory whose stored length equals that base does not die.
+These fatals print the `fatal:` line and no listing. The status is 1, the
+status this command uses for a reported error.
+
+An `UNTR` extension whose declared body is longer than one byte and whose
+declared end is past the mapped page is refused with no listing.
+`read_untracked_extension` sets `end` to the declared size and loads
+`end[-1]`. The measured case is an `UNTR` size of 1795293976 in a
+1984-byte index: `git ls-files --stage` dies with SIGSEGV on every run,
+with empty output. A declared size that ends inside the zero-filled page
+tail is not refused. `TREE`, `REUC`, `link` and `FSMN` stop on a remaining
+size, and a sparse listing discards `TREE` before reuse, so a large
+declared size on those extensions is not a refusal by itself. `sdir`,
+`EOIE`, `IEOT` and unknown `A`–`Z` extensions are not read past their
+header.
+
 Split indexes resolve `link` against `sharedindex.<hash>` in the repository,
 apply the replacement bitmap and then the deletion bitmap, and merge local
 additions. Missing or corrupt shared files fail before output or
