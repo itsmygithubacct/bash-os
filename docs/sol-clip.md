@@ -29,6 +29,9 @@ keeps, what changed to get there, and how it was checked and measured.
   Pasting one empty piece at a column changes nothing. Pasting it as lines
   inserts one empty line. Neither a zero-length cut nor an empty paste marks the
   buffer dirty. `END` beyond the line count is clipped; `START` must name a line.
+  `copy-line` and `cut-line` compare `INDEX` with the line count before forming
+  the exclusive endpoint `INDEX + 1`, so an index of `LONG_MAX` is out of range
+  and the addition does not overflow.
 - **Bytes.** Columns are byte offsets, as in `buf`. A range may split a UTF-8
   sequence, a combining sequence or a ZWJ cluster; the bytes still move exactly,
   so pasting a cut back at the same place restores the original. NUL, CR,
@@ -80,6 +83,10 @@ independent Python model of the buffer and the ring supplies the expected bytes.
 - Stale clip and buf handles: freed, malformed, out of range and reused. An
   entry survives `buf free` and `buf load` of its source.
 - Invalid input for every verb, with no change to buffer or ring.
+  `copy-line` and `cut-line` of `LONG_MAX` are out of range on a populated
+  buffer and on an empty one, and an in-range index, including the last line,
+  still copies and cuts. The same case is run under ASan/UBSan, where the
+  reviewed source overflowed `INDEX + 1`.
 - Output failures to `/dev/full` and a closed FD, a failed binding and
   handle-table exhaustion. An empty name, `bad-name`, a leading digit, an
   array subscript and a name containing a space are rejected before

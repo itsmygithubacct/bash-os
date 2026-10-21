@@ -372,6 +372,32 @@ reject 1 clip text "$c" -N 1; reject 1 buf dirty "$b"
 clip free "$c"; buf free "$b"''', stderr_has=[b"invalid integer ''", b'unknown verb: bogus',
                                              b'invalid range', b'range column out of bounds'])
 
+    # INDEX is compared with the line count before copy-line/cut-line form
+    # the exclusive endpoint. LONG_MAX must be out of range, leave the buffer
+    # and the ring unchanged, and must not overflow signed start + 1. An
+    # in-range index, including the last line, still copies and cuts.
+    run('longmax-line-index', r'''
+buf new -h b
+buf insert-line "$b" 0 alpha
+buf insert-line "$b" 1 beta
+clip new -h c
+reject 1 clip copy-line "$c" "$b" 9223372036854775807
+reject 1 clip cut-line "$c" "$b" 9223372036854775807
+[[ $(buf text "$b") == $'alpha\nbeta' ]]
+[[ $(buf lines "$b") == 2 ]]
+clip copy-line "$c" "$b" 1
+[[ $(clip text "$c") == beta ]]
+[[ $(buf lines "$b") == 2 ]]
+clip cut-line "$c" "$b" 0
+[[ $(buf text "$b") == beta ]]
+[[ $(clip text "$c") == alpha ]]
+buf new -h e
+reject 1 clip copy-line "$c" "$e" 9223372036854775807
+reject 1 clip cut-line "$c" "$e" 9223372036854775807
+[[ $(buf lines "$e") == 0 ]]
+clip free "$c"; buf free "$b"; buf free "$e"
+''', stderr_has=[b'line 9223372036854775807 out of range'])
+
     # ---- output and binding failures -------------------------------------
     run('output-failures', load_buf(src) + f'''clip new -h c; clip copy-range {C} 0 5
 reject 1 clip text "$c" >/dev/full; reject 1 clip text "$c" -X >/dev/full

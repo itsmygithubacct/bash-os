@@ -60,7 +60,8 @@
  * a freed buf or clip handle is rejected until the slot is reallocated.
  * `new -h` publishes only to a legal shell identifier. An empty name, a
  * hyphenated name, a leading digit or an array subscript is rejected before
- * a handle is allocated.
+ * a handle is allocated. copy-line and cut-line compare INDEX with the line
+ * count before forming the exclusive endpoint, so LONG_MAX does not overflow.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -464,12 +465,10 @@ bc_cut_or_copy (const char *verb, WORD_LIST *args, int do_delete, int range_mode
     if (range_mode) {
         if (bc_parse_long_arg (args->next->next->next->word->word, "END", 0, LONG_MAX, &end) < 0)
             return EX_USAGE;
-    } else {
-        end = start + 1;
-    }
-    if (end < start) {
-        builtin_error ("%s: invalid index range %ld..%ld", verb, start, end);
-        return EX_USAGE;
+        if (end < start) {
+            builtin_error ("%s: invalid index range %ld..%ld", verb, start, end);
+            return EX_USAGE;
+        }
     }
     int n = bc_buf_lines (verb, buf_slot);
     if (n < 0) return EX_USAGE;
@@ -477,7 +476,13 @@ bc_cut_or_copy (const char *verb, WORD_LIST *args, int do_delete, int range_mode
         builtin_error ("%s: line %ld out of range (%d lines)", verb, start, n);
         return EXECUTION_FAILURE;
     }
-    if (end > n) end = n;
+    /* One line. start is already below the line count, and that count fits
+       in int, so start + 1 cannot overflow. Forming the endpoint earlier
+       overflowed when INDEX was LONG_MAX. */
+    if (!range_mode)
+        end = start + 1;
+    else if (end > n)
+        end = n;
 
     bc_build B;
     if (bc_build_init (&B, (size_t) (end - start)) < 0) {
