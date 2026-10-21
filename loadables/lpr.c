@@ -662,8 +662,10 @@ done:
 
 /* List entries currently in the spool dir, one per line. A missing dir
  * is a silent empty list (rc 0). A symlink or a directory other people
- * can write is refused, same as submit. With -l, each job's state is
- * probed through its control FIFO without writing to it. */
+ * can write is refused, same as submit. A readdir error is not the end
+ * of the directory: the directory is closed and the command fails, so a
+ * read error cannot hide the jobs that were not visited. With -l, each
+ * job's state is probed through its control FIFO without writing to it. */
 static int
 blpr_cmd_list (WORD_LIST *args)
 {
@@ -696,7 +698,19 @@ blpr_cmd_list (WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
     struct dirent *de;
-    while ((de = readdir (d)) != NULL) {
+    for (;;) {
+        errno = 0;
+        de = readdir (d);
+        if (!de) {
+            if (errno != 0) {
+                int saved = errno;
+                builtin_error ("cannot read spool %s: %s", spool_root,
+                               strerror (saved));
+                closedir (d);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        }
         size_t nl = strlen (de->d_name);
         if (nl < 4 || strcmp (de->d_name + nl - 4, ".lpr") != 0) continue;
         if (!longfmt) {
