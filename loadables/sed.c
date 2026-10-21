@@ -1131,17 +1131,28 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->kind = BS_LABEL;
                 while (*p == ' ' || *p == '\t') p++;
                 if (!*p || *p == ';' || *p == '\n' || *p == '}') break;
-                int newer = 0, decided = 0;
-                for (size_t part = 0; ; part++) {
+                /* GNU compares components in order. A request that matches the
+                   known prefix is old enough (v 4.9, v 4.8.99). An extra
+                   component is newer even when it is zero (v 4.9.0), unless an
+                   earlier component already decided the request is older. */
+                int newer = 0, decided = 0, bad = 0;
+                static const int have_n = 2;
+                for (int part = 0; ; part++) {
                     long want;
-                    if (bs_number (&p, &want) < 0) { newer = 1; break; }
-                    long cur = part < 2 ? have[part] : 0;
-                    if (!decided && want != cur) { newer = want > cur; decided = 1; }
+                    if (bs_number (&p, &want) < 0) { bad = 1; break; }
+                    if (!decided) {
+                        if (part >= have_n) { newer = 1; decided = 1; }
+                        else if (want != have[part]) {
+                            newer = want > have[part];
+                            decided = 1;
+                        }
+                    }
                     if (*p != '.') break;
                     p++;
+                    if (!isdigit ((unsigned char) *p)) { bad = 1; break; }
                 }
                 while (*p == ' ' || *p == '\t') p++;
-                if (newer || (*p && *p != ';' && *p != '\n' && *p != '}')) {
+                if (bad || newer || (*p && *p != ';' && *p != '\n' && *p != '}')) {
                     builtin_error ("expected newer version of sed"); goto err;
                 }
                 break;
