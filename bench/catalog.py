@@ -442,7 +442,7 @@ def generate():
         assert result['tty_bytes_min'] <= result['tty_bytes'] <= result['tty_bytes_max']
         assert result['bytes_per_update'] == result['tty_bytes']/gpu['updates']
         assert 0 < result['min_seconds'] <= result['median_seconds'] <= result['max_seconds']
-    graphics = f"Historical graphics measurement source: `{gpu['source_commit']}`; binary SHA-256 `{gpu['binary_sha256']}`. These transport timings were not rerun with the current command measurements.\n\n"
+    graphics = f"Historical graphics measurement source: `{gpu['source_commit']}`; binary SHA-256 `{gpu['binary_sha256']}`. These transport timings were not rerun with the current command measurements. Their harness is bench/gpu.py at af3c8c488d6b (30 updates), not the current independently validated 16-update frame harness; do not combine the two datasets.\n\n"
     graphics += table(['Transport / change','Median TTY bytes / 30 updates','Median TTY bytes / update','Median seconds','Min–max seconds'],
                      [[r['transport']+' / '+r['mode'],f"{r['tty_bytes']:,}",f"{r['bytes_per_update']:,.0f}",
                        f"{r['median_seconds']:.3f}",f"{r['min_seconds']:.3f}–{r['max_seconds']:.3f}"] for r in gpu['cases']])

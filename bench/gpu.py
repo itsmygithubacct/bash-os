@@ -15,6 +15,9 @@ import subprocess
 import time
 import traceback
 
+if not __debug__:
+    raise SystemExit("GPU validation requires Python without -O or PYTHONOPTIMIZE")
+
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('gpu_frames', ROOT/'tests/sol-gpu-frames.py')
 frames = importlib.util.module_from_spec(spec)

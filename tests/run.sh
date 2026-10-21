@@ -4,6 +4,7 @@
 # Separate resource gates may run BASHOS_TEST_PHASE=build and then =bench.
 # Both phases are required for a complete run; the default runs everything.
 set -euo pipefail
+unset PYTHONOPTIMIZE  # Keep independent Python validation assertions enabled.
 HERE=$(cd "$(dirname "$0")/.." && pwd); cd "$HERE"
 CC=${CC:-cc}
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
@@ -58,6 +59,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'gpu independent oracle controls' python3 tests/sol-gpu-oracle-check.py
+check 'gpu CPU frame contracts (native device separate)' python3 tests/sol-gpu-frames.py out/bash
 check 'buf transactional contracts' python3 tests/sol-buf-check.py out/bash
 check 'screen live relay streams' env TMPDIR=/tmp python3 tests/sol-screen-streams.py --bash out/bash --output "$scratch/screen-streams.json"
 check 'vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash
@@ -221,6 +224,15 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  mkdir -p "$scratch/gpu-frames"
+  touch "$scratch/gpu-frames/render.fixture"
+  check 'gpu ABI fixture build' bash tests/sol-gpu-build-fixture.sh "$scratch/gpu-frames/driver.so"
+  check 'gpu sanitized ABI fixture build' bash tests/sol-gpu-build-fixture.sh "$scratch/gpu-frames/driver-asan.so" --sanitize
+  check 'gpu sanitized frame module build' bash tests/gpu-module.sh "$scratch/gpu-frames/gpu-asan.so" --sanitize
+  check 'gpu ABI fixture error contracts' python3 tests/sol-gpu-errors.py out/bash "$scratch/gpu-frames/driver.so"
+  check 'gpu ABI fixture frame contracts' python3 tests/sol-gpu-frames.py out/bash --device "$scratch/gpu-frames/render.fixture" --driver-fixture "$scratch/gpu-frames/driver.so"
+  check 'gpu sanitizer ABI error contracts' env GPU_MODULE="$scratch/gpu-frames/gpu-asan.so" GPU_ASAN_LIB="$("$CC" -print-file-name=libasan.so)" python3 tests/sol-gpu-errors.py out/bash "$scratch/gpu-frames/driver-asan.so"
+  check 'gpu sanitizer ABI frame contracts' env GPU_MODULE="$scratch/gpu-frames/gpu-asan.so" GPU_ASAN_LIB="$("$CC" -print-file-name=libasan.so)" python3 tests/sol-gpu-frames.py out/bash --device "$scratch/gpu-frames/render.fixture" --driver-fixture "$scratch/gpu-frames/driver-asan.so"
   mkdir -p "$scratch/pkill-contracts"
   check 'pkill interceptor build' "$CC" -std=gnu11 -Wall -Wextra -Werror -O2 -fPIC -shared tests/sol-pkill-intercept.c -ldl -o "$scratch/pkill-contracts/pkill-intercept.so"
   check 'pkill sanitizer build' "$CC" -std=gnu11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -I tests/sol-pgrep-stubs tests/sol-pkill-harness.c -o "$scratch/pkill-contracts/pkill-sanitize"

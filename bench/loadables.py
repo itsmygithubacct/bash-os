@@ -791,9 +791,9 @@ def cases():
               '&& gpu text 16 16 ffffff BASHOS 3 '
               '&& gpu line 0 479 639 0 ffffff 2',
         work='a 640x480 headless canvas rasterized in the per-pass reset (clear, '
-             'filled circle r=200, stroked rect, scaled 3x5 text, 2px diagonal '
+             'filled circle r=200, filled rect, scaled 3x5 text, 2px diagonal '
              'line over 307,200 pixels), then those 307,200 pixels packed and '
-             'written as a 921,615-byte binary PPM by the measured command')
+             'written as a 921,615-byte binary PPM; the timed batch includes reset, rasterization and save')
     # --- git-object ---
     add('obj', ['hash', '--stdin'], fixture='blob', host='git', host_args=['hash-object', '--stdin'], label='obj-hash', work="1048576 bytes (1 MiB blob fixture) hashed with sha1dc over the 'blob <len>NUL' header; 41 bytes out")
     # obj.c's getline loops did not clearerr(stdin), so a second in-process

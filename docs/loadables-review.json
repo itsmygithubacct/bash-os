@@ -1443,6 +1443,14 @@
       "status": "Contract",
       "evidence": "tests/sol-pkill-check.py",
       "scope": "The brief's acceptance criteria are met for the documented software-path scope: owned children receive named/numeric signals with nonmatches verified alive, default TERM verified by wait status, injected EPERM/ESRCH/EINVAL statuses and diagnostics, invalid regex/args/user return 2 with zero intercepted delivery, grouped options and -n/-o delivery, and a fixed-work syscall-shim benchmark with delivered counts. Real signals are confined to owned children restricted by -P getpid(). Option coverage is a bounded procps subset with exclusions documented (F2 notes omissions in that list). The -c count divergence (F1) is pre-existing and documented, not a regression."
+    },
+    {
+      "names": [
+        "gpu"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-gpu-frames.py",
+      "scope": "Original sol-gpu scope (application-frame workloads with independent pixel/protocol/counter oracles; injectable GBM/EGL/GLES fixture executing production native paths; validated seven-sample measurements labelled as host/ABI-fixture timings) is met by bc9324bd+e5355563, supported by prior native i915 and measurement evidence and independently re-verified here on the 60c8210 snapshot with fixture-only and ASan/UBSan runs. Qualification limits (not unresolved requirements): DMA-BUF timing is peer-bound; no external ratio; fixture is not a GLSL/DRM implementation; different-device portability unqualified. This reviewer did not touch live render nodes or terminals; native hardware and live Kilix evidence are the prior reviewer/root records."
     }
   ],
   "sanitizer_groups": [
@@ -2638,8 +2646,9 @@
       "note": "Companion frontend to sftp; local-copy and failure fixtures do not establish full remote scp compatibility."
     },
     "gpu": {
-      "note": "CPU/protocol, native driver and isolated Kilix checks exist. Static builds support CPU presentation; native shaders require dynamic linking.",
-      "next": "Measure application frame latency and driver behavior on the intended device."
+      "evidence": "docs/sol-gpu.md",
+      "note": "Original sol-gpu scope (application-frame workloads with independent pixel/protocol/counter oracles; injectable GBM/EGL/GLES fixture executing production native paths; validated seven-sample measurements labelled as host/ABI-fixture timings) is met by bc9324bd+e5355563, supported by prior native i915 and measurement evidence and independently re-verified here on the 60c8210 snapshot with fixture-only and ASan/UBSan runs. Qualification limits (not unresolved requirements): DMA-BUF timing is peer-bound; no external ratio; fixture is not a GLSL/DRM implementation; different-device portability unqualified. This reviewer did not touch live render nodes or terminals; native hardware and live Kilix evidence are the prior reviewer/root records.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "ldap": {
       "note": "BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured."
@@ -3068,7 +3077,8 @@
     "killall5",
     "screen",
     "top",
-    "buf"
+    "buf",
+    "gpu"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

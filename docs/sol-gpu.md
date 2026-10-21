@@ -151,3 +151,5 @@ The legacy headless GPU case also passed seven 30-iteration batches: median
 102.194 ms per batch. That work includes session reset, raster drawing and PPM
 saving. Its rectangle is filled, despite the older shared catalog description
 calling it stroked. No external comparator or speedup is claimed.
+
+Integration note: the catalog retains the historical 30-update graphics table separately from this 16-update frame harness. Current CPU and ABI-fixture checks do not imply native-device coverage. Timed headless batches include reset, rasterization, and save; DMA-BUF frame timings remain peer-bound.
