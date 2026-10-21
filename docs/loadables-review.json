@@ -2845,8 +2845,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "git": {
-      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility.",
-      "evidence": "tests/git-integrity.py"
+      "evidence": "tests/git-integrity.py",
+      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility. Non-POSIX wait runs a queued SIGCHLD trap after waitchld returns and before the next wait. POSIX wait still returns 128+SIGCHLD.",
+      "next": "No new seven-sample timing claim. Full Git lifecycle was not rerun under ASan."
     },
     "pkg": {
       "note": "Index verification uses the same byte buffer that is published. Separate trust and package-publication fixtures cover signature lookup, trust-file failures and install rollback, including sanitizer checks.",

@@ -59,6 +59,8 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'git lifecycle wait and repository state' python3 tests/sol-git-lifecycle.py out/bash
+check 'git workload oracle corruption controls' python3 tests/sol-git-oracles.py
 check 'gpu independent oracle controls' python3 tests/sol-gpu-oracle-check.py
 check 'gpu CPU frame contracts (native device separate)' python3 tests/sol-gpu-frames.py out/bash
 check 'buf transactional contracts' python3 tests/sol-buf-check.py out/bash
