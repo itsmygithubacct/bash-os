@@ -1427,6 +1427,14 @@
       "status": "Contract",
       "evidence": "tests/sol-top-check.py",
       "scope": "The original brief's bounded software-path contract is met. It covers deterministic injected-proc batch snapshots and private-PTY fixtures for CPU deltas, memory, sorts and ties, PID churn and reuse, resize, keys and prompts, exit and termios/trap restoration, strict numeric parsing, and fixed-count benchmarks with terminal bytes. It does not claim procps parity."
+    },
+    {
+      "names": [
+        "buf"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-buf-check.py",
+      "scope": "The assigned scope is met: transactional reload and save rollback, retained or aliased filenames, failed-publication cleanup, stale/empty handle and number validation, line/byte boundaries, repeated load/save, output-failure propagation, and save batching backed by profiling, with exact-output timed evidence at 423000 B, 4 MiB and 32 MiB including peak RSS. The historical buf-text 3.13x slowdown does not reproduce (bashos 3.25 ms vs cat 18-19 ms, both before and after). Qualification limits (not unresolved requirements): no power-loss or durability qualification, no concurrent external truncation of mmap sources, LeakSanitizer disabled, stale slot integers are recycled by design, and a mutate journal-write failure still applies the edit."
     }
   ],
   "sanitizer_groups": [
@@ -2832,8 +2840,9 @@
       "evidence": "tests/vt-buf-edges.py"
     },
     "buf": {
-      "note": "Dedicated edge fixtures cover reload cleanup and saving through an aliased retained filename.",
-      "evidence": "tests/vt-buf-edges.py"
+      "evidence": "docs/sol-buf.md",
+      "note": "The assigned scope is met: transactional reload and save rollback, retained or aliased filenames, failed-publication cleanup, stale/empty handle and number validation, line/byte boundaries, repeated load/save, output-failure propagation, and save batching backed by profiling, with exact-output timed evidence at 423000 B, 4 MiB and 32 MiB including peak RSS. The historical buf-text 3.13x slowdown does not reproduce (bashos 3.25 ms vs cat 18-19 ms, both before and after). Qualification limits (not unresolved requirements): no power-loss or durability qualification, no concurrent external truncation of mmap sources, LeakSanitizer disabled, stale slot integers are recycled by design, and a mutate journal-write failure still applies the edit.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "expect": {
       "note": "A continuous-output child cannot extend the whole-wait deadline; the regression uses a private PTY.",
@@ -3050,7 +3059,8 @@
     "killall",
     "killall5",
     "screen",
-    "top"
+    "top",
+    "buf"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",

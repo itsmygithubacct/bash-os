@@ -58,6 +58,7 @@ else
 fi
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'buf transactional contracts' python3 tests/sol-buf-check.py out/bash
 check 'screen live relay streams' env TMPDIR=/tmp python3 tests/sol-screen-streams.py --bash out/bash --output "$scratch/screen-streams.json"
 check 'vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash
 check 'bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash
@@ -220,6 +221,10 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'buf probe build' bash tests/sol-buf-build-probe.sh "$scratch/buf-probe"
+  check 'buf rollback contracts' env BUF_LOAD_ENV="$scratch/buf-probe/probe.sh" python3 tests/sol-buf-faults.py out/bash
+  check 'buf sanitizer contracts' env BUF_LOAD_ENV="$scratch/buf-probe/sanitize.sh" BUF_ASAN_LIB="$(cat "$scratch/buf-probe/asan-runtime.txt")" python3 tests/sol-buf-check.py out/bash
+  check 'buf sanitizer rollback contracts' env BUF_LOAD_ENV="$scratch/buf-probe/sanitize.sh" BUF_ASAN_LIB="$(cat "$scratch/buf-probe/asan-runtime.txt")" python3 tests/sol-buf-faults.py out/bash
   check 'top fixture build' env TOP_SKIP_SHELL_BUILD=1 BASHOS_TASK_DIR="$scratch/top-contracts" bash tests/sol-top-build-fixtures.sh
   check 'top private proc and PTY contracts' python3 tests/sol-top-check.py out/bash "$scratch/top-contracts/proc-shim.so"
   check 'top private proc and PTY sanitizer contracts' python3 tests/sol-top-check.py out/bash "$scratch/top-contracts/proc-shim.so" --loader "$scratch/top-contracts/sanitize/load.sh" --asan "$(cat "$scratch/top-contracts/sanitize/asan-path")"
