@@ -543,6 +543,8 @@ def spell(d):
     st = s.finish()
     hpid = int(pidfile.read_text())
     alive = Path(f"/proc/{hpid}").exists()
+    if alive:                           # never leave a spinning helper behind
+        os.kill(hpid, signal.SIGKILL)
     check(st == 0 and elapsed < 3 and not alive and b"GOT-TERM" in s.out,
           f"SIGTERM during a hung helper stops it within {elapsed:.2f}s and kills only that helper")
 
@@ -611,15 +613,27 @@ def highlight(d):
     s = ours_session(d, "nano big.sh")
     s.keys(b"\x1f", *[bytes([c]) for c in b"12000"], ENTER)
     s.wait_for(b"L 12000/")
+    # The first parse runs in frame-budget slices while input is idle;
+    # wait for the coloured window around line 12000.
+    s.wait_for(b'\x1b[36mecho\x1b[0m \x1b[32m"item 0011999"', timeout=60, start=s.out.find(b"L 12000/"))
     mark = len(s.out)
     s.keys(b"#")
+    first = s.out[mark:]
+    # The keystroke's frame may come from the edited old tree; the settled
+    # frame that follows must colour the line as a comment.
+    s.wait_for(b'\x1b[90m#echo "item 0011999"', timeout=60, start=mark)
     frame = s.out[mark:]
+    settled_line = b'\x1b[90m#echo "item 0011999"'
+    # From the edited old tree: the typed "#" uncoloured, the command still coloured.
+    stale_line = b'\x1b[K#\x1b[36mecho\x1b[0m \x1b[32m"item 0011999"'
+    stale = stale_line in first
+    print(f"# keystroke frame {'drawn from the edited old tree' if stale else 'already settled'}")
     s.keys(SAVE)
     s.key(EXIT, frame=False)
     got = (d / "big.sh").read_bytes().split(b"\n")
-    check(s.finish() == 0 and b'\x1b[90m#echo "item 0011999"' in frame
+    check(s.finish() == 0 and (stale or settled_line in first)
           and b'\x1b[36mecho\x1b[0m' in frame and got[11999].startswith(b"#echo"),
-          "in a 1 MiB script the edited line 12000 is recoloured and its neighbours keep theirs")
+          "in a 1 MiB script the edited line 12000 is recoloured once its reparse settles; neighbours keep theirs")
 
 
 # ---- terminal restoration on normal exit ----------------------------------

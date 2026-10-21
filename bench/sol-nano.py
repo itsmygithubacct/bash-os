@@ -21,6 +21,18 @@ Workloads (fixture of W bytes):
   paced-sh    the same, shorter (12 typed, 4 Backspace, 2 Enter+x), on a .sh
               fixture, so every frame after an edit is syntax-coloured by the
               ts companion
+  settle-sh   the .sh fixture, ^_ to the middle line, type "#" (the line becomes
+              a comment), ^S, quit; settle_ms is the time from writing "#" until
+              the terminal shows that line in the comment colour, which is
+              later than the keystroke's frame when the reparse outruns
+              nano's frame budget
+
+On .sh workloads no key is sent until the screen shows syntax colour
+(ready_ms, from spawn): a reparse that outruns the frame budget finishes
+while input is idle, and typing into a buffer that has never been parsed
+would measure only the uncoloured path.  Before each paced key, output
+already waiting is read, so a late settled frame is not taken for the
+next key's frame.
 
 Fixtures: .txt lines "NNNNNNN lorem ipsum ...", .sh lines of a small shell
 pipeline; sizes default to 16 KiB, 1 MiB and 8 MiB.
@@ -54,6 +66,7 @@ from pathlib import Path
 FRAME = b"\x1b[?25h"
 TXT_LINE = "{:07d} lorem ipsum dolor sit amet consectetur adipiscing elit\n"
 SH_LINE = 'echo "item {:07d}" | grep -q item && n=$((n + {}))  # count\n'
+SH_READY = b"\x1b[36mecho"          # a coloured command word on screen
 
 
 def fixture(kind, size):
@@ -103,10 +116,26 @@ def workload(name, data):
         return keys, True, data[:off] + ins + data[off:], \
             (f"goto line {mid}; {n_typed} typed, {n_bs} Backspace, {n_nl} Enter+x "
              f"({n_typed + n_bs + 2 * n_nl} edit keys), one frame per key; save")
+    if name == "settle-sh":
+        keys = goto + [b"#", b"\x13", b"\x18"]
+        return keys, True, data[:off] + b"#" + data[off:], \
+            f"goto line {mid}; 1 typed (comments the line out), one frame per key; settled colour; save"
     raise ValueError(name)
 
 
-def session(argv, cwd, chunks, paced, cpu, timeout=900):
+def settle_needle(name, data):
+    if name != "settle-sh":
+        return None
+    mid, off = middle(data)
+    return len(middle_goto(data)), b"\x1b[90m#" + data[off:data.index(b"\n", off)][:20]
+
+
+def middle_goto(data):
+    mid, _ = middle(data)
+    return [b"\x1f"] + [bytes([c]) for c in str(mid).encode()] + [b"\r"]
+
+
+def session(argv, cwd, chunks, paced, cpu, timeout=900, ready=None, settle=None):
     env = {"TERM": "xterm", "LANG": "C.UTF-8", "HOME": str(cwd), "PATH": ""}
     t0 = time.perf_counter()
     pid, fd = pty.fork()
@@ -146,16 +175,34 @@ def session(argv, cwd, chunks, paced, cpu, timeout=900):
                 raise RuntimeError("session ended early")
 
     alive = True
+    extra = {}
     if paced:
         wait_frames(1)
+        if ready:
+            while ready not in out:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("timed out waiting for syntax colour")
+                if not pump(0.05):
+                    raise RuntimeError("session ended early")
+            extra["ready_ms"] = (time.perf_counter() - t0) * 1000
         for i, chunk in enumerate(chunks):
+            while pump(0) and select.select([fd], [], [], 0)[0]:
+                pass
             frames_at = out.count(FRAME)
+            mark = len(out)
             t = time.perf_counter()
             os.write(fd, chunk)
             if i == len(chunks) - 1:
                 break
             wait_frames(frames_at + 1)
             latencies.append((time.perf_counter() - t) * 1000)
+            if settle and i == settle[0]:
+                while settle[1] not in out[mark:]:
+                    if time.monotonic() > deadline:
+                        raise RuntimeError("timed out waiting for the settled colour")
+                    if not pump(0.05):
+                        raise RuntimeError("session ended early")
+                extra["settle_ms"] = (time.perf_counter() - t) * 1000
     else:
         # Wait for something on screen (GNU nano has no frame marker), then
         # write everything as fast as the PTY takes it.
@@ -184,7 +231,7 @@ def session(argv, cwd, chunks, paced, cpu, timeout=900):
         _, st = os.waitpid(pid, 0)
     elapsed = (time.perf_counter() - t0) * 1000
     os.close(fd)
-    return os.waitstatus_to_exitcode(st), elapsed, len(out), out.count(FRAME), latencies
+    return os.waitstatus_to_exitcode(st), elapsed, len(out), out.count(FRAME), latencies, extra
 
 
 def sha(data):
@@ -197,7 +244,7 @@ def main():
     ap.add_argument("--label", action="append")
     ap.add_argument("--gnu")
     ap.add_argument("--sizes", default="16384,1048576,8388608")
-    ap.add_argument("--workloads", default="open-exit,save,burst-edit,paced-edit,paced-sh")
+    ap.add_argument("--workloads", default="open-exit,save,burst-edit,paced-edit,paced-sh,settle-sh")
     ap.add_argument("--runs", type=int, default=7)
     ap.add_argument("--warmup", type=int, default=1)
     ap.add_argument("--cpu", type=int)
@@ -226,7 +273,7 @@ def main():
         root = Path(tmp)
         for size in [int(x) for x in a.sizes.split(",")]:
             for wl in a.workloads.split(","):
-                kind = "sh" if wl == "paced-sh" else "txt"
+                kind = "sh" if wl.endswith("-sh") else "txt"
                 data = fixture(kind, size)
                 chunks, paced, want, desc = workload(wl, data)
                 name = f"f.{kind}"
@@ -242,13 +289,17 @@ def main():
                             "fixture_sha256": sha(data), "expected_sha256": sha(want),
                             "work": desc, "keys": len(chunks) if paced else len(chunks[0]),
                             "samples_ms": [], "warmup_ms": [], "terminal_bytes": [], "frames": [],
-                            "key_latency_ms": [], "status": "ok", "errors": []}
+                            "key_latency_ms": [], "ready_ms": [], "settle_ms": [],
+                            "status": "ok", "errors": []}
+                    ready = SH_READY if kind == "sh" and paced else None
+                    settle = settle_needle(wl, data)
                     for i in range(a.warmup + a.runs):
                         work = root / f"{lab}-{wl}-{size}"
                         work.mkdir(exist_ok=True)
                         (work / name).write_bytes(data)
                         try:
-                            rc, ms, nbytes, frames, lat = session(argv, work, chunks, paced, a.cpu)
+                            rc, ms, nbytes, frames, lat, extra = session(argv, work, chunks, paced, a.cpu,
+                                                                         ready=ready, settle=settle)
                         except RuntimeError as e:
                             case["status"] = "failed"
                             case["errors"].append(f"pass {i}: {e}")
@@ -266,6 +317,9 @@ def main():
                         case["frames"].append(frames)
                         if lat:
                             case["key_latency_ms"].append([round(x, 3) for x in lat])
+                        for k in ("ready_ms", "settle_ms"):
+                            if k in extra:
+                                case[k].append(round(extra[k], 3))
                     s = case["samples_ms"]
                     if s and case["status"] == "ok":
                         case["median_ms"] = round(statistics.median(s), 3)
@@ -275,9 +329,13 @@ def main():
                             q = statistics.quantiles(flat, n=20)
                             case["key_latency_median_ms"] = round(statistics.median(flat), 3)
                             case["key_latency_p95_ms"] = round(q[18], 3)
+                        for k in ("ready_ms", "settle_ms"):
+                            if case[k]:
+                                case[k + "_median"] = round(statistics.median(case[k]), 3)
                     report["cases"].append(case)
                     print(json.dumps({k: case.get(k) for k in ("workload", "size", "impl", "status",
-                                     "median_ms", "key_latency_median_ms", "errors")}), flush=True)
+                                     "median_ms", "key_latency_median_ms", "ready_ms_median",
+                                     "settle_ms_median", "errors")}), flush=True)
     report["host"]["loadavg_end"] = os.getloadavg()
     Path(a.output).write_text(json.dumps(report, indent=1))
     bad = [c for c in report["cases"] if c["status"] != "ok"]

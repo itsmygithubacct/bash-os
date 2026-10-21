@@ -187,9 +187,18 @@ static long bn_mark_cy = 0, bn_mark_cx = 0;
    edits (bashts_sgr_range), and colours are resolved only for the lines
    on screen plus a screen above and below.  The window is cached by
    bn_text_rev, so cursor-only repaints reuse it, as GNU nano does
-   colour work only when text changes. */
+   colour work only when text changes.  A reparse gets bn_hl_budget_us
+   per frame: tree-sitter-bash cannot reuse the statements after an
+   edit, so in a large script it costs the rest of the file.  A frame
+   that runs out is drawn from the edited old tree (bn_hl_pending), and
+   the main loop finishes the parse in slices while no key is waiting,
+   then redraws with the settled colours. */
 static const char *bn_lang = NULL;
 static unsigned long bn_text_rev = 1;
+#define BN_HL_BUDGET_US 25000L
+#define BN_HL_SLICE_US  10000L
+static long bn_hl_budget_us = BN_HL_BUDGET_US;  /* < 0: parse to the end */
+static int bn_hl_pending = 0;
 
 typedef struct {
     const char *lang;
@@ -209,6 +218,11 @@ extern int bashts_compute_sgr_map (const char *lang, const char *src,
 extern int bashts_sgr_range (void **state, const char *lang, const char *src,
                              size_t srclen, size_t lo, size_t hi,
                              const char **sgr_at);
+extern int bashts_sgr_range_budget (void **state, const char *lang,
+                                    const char *src, size_t srclen,
+                                    size_t lo, size_t hi, const char **sgr_at,
+                                    long budget_us, int *pending);
+extern int bashts_sgr_continue (void **state, long budget_us);
 extern void bashts_sgr_state_free (void **state);
 
 static void
@@ -243,6 +257,20 @@ bn_highlight_release (void)
 {
     bn_highlight_cache_clear ();
     bashts_sgr_state_free (&bn_hl_cache.ts_state);
+    bn_hl_pending = 0;
+}
+
+/* Spend up to SLICE_US on a reparse left pending by a frame.  Returns 1
+   when it settled (or failed) and the screen should be redrawn. */
+static int
+bn_highlight_idle (long slice_us)
+{
+    if (!bn_hl_pending) return 0;
+    int r = bn_hl_cache.ts_state ? bashts_sgr_continue (&bn_hl_cache.ts_state, slice_us) : -1;
+    if (r == 0) return 0;
+    bn_hl_pending = 0;
+    bn_highlight_cache_clear ();
+    return 1;
 }
 
 /* Make sgr_at cover the buffer bytes [LO, HI).  Returns 0 when colours
@@ -266,9 +294,11 @@ bn_highlight_cache_ensure (size_t lo, size_t hi)
     if (!src) return -1;
     if (hi > len) hi = len;
     const char **map = hi > lo ? calloc (hi - lo, sizeof *map) : NULL;
-    int rc = map ? bashts_sgr_range (&bn_hl_cache.ts_state, bn_lang, src, len,
-                                     lo, hi, map) : -1;
+    int pending = 0;
+    int rc = map ? bashts_sgr_range_budget (&bn_hl_cache.ts_state, bn_lang, src, len,
+                                            lo, hi, map, bn_hl_budget_us, &pending) : -1;
     free (src);
+    bn_hl_pending = rc == 0 && pending;
     if (rc < 0) { free (map); return -1; }
     bn_hl_cache.sgr_at = map;
     bn_hl_cache.lang = bn_lang;
@@ -6192,6 +6222,7 @@ bn_selftest_highlight (void)
         "[", "]", ",", ": ", "*", "`", "```\n", "# ", "- ", "\\", "x", "  ",
     };
     unsigned long seed = 20261020;
+    bn_hl_budget_us = -1;               /* every frame settles: exact oracle */
 #define BN_RAND() (seed = seed * 6364136223846793005UL + 1442695040888963407UL, (size_t) (seed >> 33))
     int saved = dup (STDOUT_FILENO);
     for (size_t f = 0; f < sizeof fx / sizeof fx[0]; f++) {
@@ -6278,7 +6309,9 @@ bn_selftest_highlight (void)
     close (saved);
 #undef BN_RAND
 
-    /* A 2 MiB buffer is coloured only around the screen. */
+    /* A 2 MiB buffer is coloured only around the screen.  With a frame
+       budget too small for its parse, frames are drawn at once from the
+       edited old tree and idle slices settle them to the full parse. */
     {
         size_t big = 2u << 20, used = 0;
         char *text = malloc (big + 64);
@@ -6291,24 +6324,100 @@ bn_selftest_highlight (void)
             free (text);
             bn_detect_language ("big.sh");
             bn_cy = (long) bn_b.n_lines / 2;
-            fflush (stdout);
-            int so = dup (STDOUT_FILENO), dn = open ("/dev/null", O_WRONLY);
-            if (dn >= 0) { dup2 (dn, STDOUT_FILENO); close (dn); }
-            bn_render ();
-            bn_insert_bytes ("x", 1);
-            bn_render ();
-            fflush (stdout);
-            if (so >= 0) { dup2 (so, STDOUT_FILENO); close (so); }
+            bn_cx = 0;
+            int so = dup (STDOUT_FILENO);
+#define BN_ST_QUIET_RENDER() do { \
+                fflush (stdout); \
+                int dn_ = open ("/dev/null", O_WRONLY); \
+                if (dn_ >= 0) { dup2 (dn_, STDOUT_FILENO); close (dn_); } \
+                bn_render (); \
+                fflush (stdout); \
+                if (so >= 0) dup2 (so, STDOUT_FILENO); \
+            } while (0)
+            /* Compare the window with a full parse of the current text;
+               returns 1 when equal, with the number of coloured bytes. */
+            size_t coloured = 0;
+#define BN_ST_WINDOW_EQUALS_FULL(out_eq) do { \
+                size_t fl_ = 0; \
+                char *fs_ = bn_pt_flatten (&bn_b.pt, &fl_); \
+                const char **fm_ = fs_ ? calloc (fl_ + 1, sizeof *fm_) : NULL; \
+                (out_eq) = fm_ && bn_hl_cache.sgr_at \
+                           && bashts_compute_sgr_map (bn_lang, fs_, fl_, fm_) == 0; \
+                coloured = 0; \
+                for (size_t b_ = bn_hl_cache.lo; (out_eq) && b_ < bn_hl_cache.hi; b_++) { \
+                    if (bn_hl_cache.sgr_at[b_ - bn_hl_cache.lo] != fm_[b_]) (out_eq) = 0; \
+                    if (fm_[b_]) coloured++; \
+                } \
+                free (fs_); free (fm_); \
+            } while (0)
+
+            bn_hl_budget_us = 0;
+            BN_ST_QUIET_RENDER ();
+            int none = bn_hl_cache.sgr_at != NULL;
+            for (size_t b = bn_hl_cache.lo; none && b < bn_hl_cache.hi; b++)
+                if (bn_hl_cache.sgr_at[b - bn_hl_cache.lo]) none = 0;
+            BN_ST_ASSERT ("an unparsed 2 MiB script's first frame is drawn uncoloured, its parse pending",
+                          bn_hl_pending && none);
+            int slices = 0;
+            while (!bn_highlight_idle (1000) && slices < 100000) slices++;
+            BN_ST_QUIET_RENDER ();
+            int eq = 0;
+            BN_ST_WINDOW_EQUALS_FULL (eq);
+            char desc[200];
+            snprintf (desc, sizeof desc, "idle 1 ms slices (%d) finish that parse; the window then equals a "
+                      "full parse (%zu coloured bytes)", slices + 1, coloured);
+            BN_ST_ASSERT (desc, slices >= 2 && !bn_hl_pending && eq && coloured >= 1000);
             BN_ST_ASSERT ("a 2 MiB buffer is coloured in a window of a few screens, not whole",
                           bn_hl_cache.sgr_at && bn_hl_cache.hi - bn_hl_cache.lo < 8192
                           && bn_hl_cache.lo <= bn_labs ((size_t) bn_cy)
                           && bn_labs ((size_t) bn_cy) < bn_hl_cache.hi);
+
+            /* Comment out the cursor line: the stale frame keeps the old
+               colours, the settled one shows the comment. */
+            size_t line = bn_labs ((size_t) bn_cy), above = bn_labs ((size_t) bn_cy - 1);
+            const char *cmd_sgr = bn_hl_cache.sgr_at[line - bn_hl_cache.lo];
+            const char *above_sgr = bn_hl_cache.sgr_at[above - bn_hl_cache.lo];
+            /* The line ends "# c\n": its last visible byte is comment. */
+            const char *cmt_sgr = bn_hl_cache.sgr_at[bn_labs ((size_t) bn_cy + 1) - 2 - bn_hl_cache.lo];
+            void *kept = bn_hl_cache.ts_state;
+            bn_insert_bytes ("#", 1);
+            BN_ST_QUIET_RENDER ();
+            int stale = bn_hl_pending && bn_hl_cache.sgr_at
+                        && bn_hl_cache.sgr_at[above - bn_hl_cache.lo] == above_sgr
+                        && bn_hl_cache.sgr_at[line + 1 - bn_hl_cache.lo] == cmd_sgr
+                        && cmd_sgr != cmt_sgr && cmt_sgr != NULL;
+            BN_ST_ASSERT ("after an edit the frame comes from the edited old tree: the line above and the "
+                          "shifted command keep their colours while the reparse is pending", stale);
+            /* A second edit while that parse is halted abandons it. */
+            bn_insert_bytes (" ", 1);
+            BN_ST_QUIET_RENDER ();
+            int restarted = bn_hl_pending;
+            slices = 0;
+            while (!bn_highlight_idle (1000) && slices < 100000) slices++;
+            BN_ST_QUIET_RENDER ();
+            BN_ST_WINDOW_EQUALS_FULL (eq);
+            BN_ST_ASSERT ("an edit during a halted reparse restarts it; settled, the commented line is "
+                          "coloured as the full parse colours it",
+                          restarted && eq && !bn_hl_pending && bn_hl_cache.ts_state == kept
+                          && bn_hl_cache.sgr_at[line - bn_hl_cache.lo] == cmt_sgr
+                          && bn_hl_cache.sgr_at[line + 2 - bn_hl_cache.lo] == cmt_sgr);
+            /* A new window over a settled tree is a query, not a parse. */
+            bn_hl_budget_us = 0;
+            bn_cy = 0;
+            BN_ST_QUIET_RENDER ();
+            BN_ST_WINDOW_EQUALS_FULL (eq);
+            BN_ST_ASSERT ("jumping to the top of a settled tree colours the new window at once, nothing pending",
+                          !bn_hl_pending && eq && bn_hl_cache.lo == 0);
+#undef BN_ST_QUIET_RENDER
+#undef BN_ST_WINDOW_EQUALS_FULL
+            if (so >= 0) close (so);
             bn_highlight_release ();
             bn_lang = NULL;
         } else {
             BN_ST_ASSERT ("2 MiB fixture allocation", 0);
         }
     }
+    bn_hl_budget_us = BN_HL_BUDGET_US;
     bn_st_reset ();
     printf ("1..%d\n", bn_st_asserts);
     return bn_st_fails ? 1 : 0;
@@ -6447,6 +6556,13 @@ nano_builtin (WORD_LIST *list)
         struct pollfd pending = { STDIN_FILENO, POLLIN, 0 };
         if (poll (&pending, 1, 0) <= 0 || !(pending.revents & POLLIN))
             bn_render ();
+        /* A reparse that outran the frame budget continues while no key
+           is waiting; the settled colours are then drawn. */
+        while (bn_hl_pending && !bn_term_signal && bn_unread < 0) {
+            struct pollfd idle = { STDIN_FILENO, POLLIN, 0 };
+            if (poll (&idle, 1, 0) != 0) break;
+            if (bn_highlight_idle (BN_HL_SLICE_US)) bn_render ();
+        }
         if (bn_term_signal) break;
         int k = bn_read_key (keybuf, sizeof keybuf);
         if (bn_term_signal || k < 0) break;
