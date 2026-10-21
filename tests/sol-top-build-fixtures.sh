@@ -3,7 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 evidence=${BASHOS_TASK_DIR:?set evidence directory}
-./build.sh --include top --name sol-top
+if [[ ${TOP_SKIP_SHELL_BUILD:-0} != 1 ]]; then
+  ./build.sh --include top --name sol-top
+fi
 BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 mkdir -p "$evidence/sanitize/builtins" "$evidence/sanitize/examples/loadables"
 cc -O2 -Wall -Wextra -fPIC -shared tests/sol-top-proc-shim.c -ldl -o "$evidence/proc-shim.so"

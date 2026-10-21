@@ -220,6 +220,9 @@ else
 fi
 INC=(-DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables")
 if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
+  check 'top fixture build' env TOP_SKIP_SHELL_BUILD=1 BASHOS_TASK_DIR="$scratch/top-contracts" bash tests/sol-top-build-fixtures.sh
+  check 'top private proc and PTY contracts' python3 tests/sol-top-check.py out/bash "$scratch/top-contracts/proc-shim.so"
+  check 'top private proc and PTY sanitizer contracts' python3 tests/sol-top-check.py out/bash "$scratch/top-contracts/proc-shim.so" --loader "$scratch/top-contracts/sanitize/load.sh" --asan "$(cat "$scratch/top-contracts/sanitize/asan-path")"
   check 'screen sanitized relay build' bash tests/sol-screen-build-checks.sh "$scratch/screen-checks"
   check 'screen broker native sanitizer' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 "$scratch/screen-checks/native-sanitize"
   check 'screen broker sanitized relay' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 python3 tests/screen-broker.py --bash out/bash --load-dir "$scratch/screen-checks" --report "$scratch/screen-sanitize.json"

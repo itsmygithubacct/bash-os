@@ -1419,6 +1419,14 @@
       "status": "Contract",
       "evidence": "tests/sol-screen-streams.py",
       "scope": "{\"decision\": \"accepted\", \"scope\": \"Local Linux screen live-pane PTY relay/backpressure using private PTYs, owned children and the ptybroker companion\", \"prerequisites\": [\"Linux /proc\", \"private PTYs\", \"Unix SOCK_SEQPACKET\", \"PR_SET_CHILD_SUBREAPER\", \"pidfds\", \"cc with ASan/UBSan for sanitizer checks\"], \"not_qualified\": [\"physical terminal/display\", \"GPU/Kitty/Sixel frontend\", \"SSH/network transport\", \"other users or hosts\"]}"
+    },
+    {
+      "names": [
+        "top"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-top-check.py",
+      "scope": "The original brief's bounded software-path contract is met. It covers deterministic injected-proc batch snapshots and private-PTY fixtures for CPU deltas, memory, sorts and ties, PID churn and reuse, resize, keys and prompts, exit and termios/trap restoration, strict numeric parsing, and fixed-count benchmarks with terminal bytes. It does not claim procps parity."
     }
   ],
   "sanitizer_groups": [
@@ -2974,6 +2982,11 @@
       "evidence": "docs/sol-pgrep.md",
       "note": "Regex and selector behavior with complete command lines and checked version output. The shared backend retains killall complete comm checks, canonical bounded PIDs and case-insensitive signal prefixes; only pkill accepts signal zero. Both focused native and sanitizer suites cover the integrated backend.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+    },
+    "top": {
+      "evidence": "docs/sol-top.md",
+      "note": "The original brief's bounded software-path contract is met. It covers deterministic injected-proc batch snapshots and private-PTY fixtures for CPU deltas, memory, sorts and ties, PID churn and reuse, resize, keys and prompts, exit and termios/trap restoration, strict numeric parsing, and fixed-count benchmarks with terminal bytes. It does not claim procps parity.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     }
   },
   "repeat_input_findings": [],
@@ -3036,7 +3049,8 @@
     "hl",
     "killall",
     "killall5",
-    "screen"
+    "screen",
+    "top"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
