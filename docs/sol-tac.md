@@ -1,12 +1,15 @@
 # tac bounded-input and GNU regex follow-up
 
-Literal separators now use backward `pread` blocks. The scanner allocates
-64 KiB plus the separator length and retains record offsets, including for a
-record much larger than the block. Output copies each record forward through
-a separate fixed buffer; a growing record never forces input-buffer growth.
-Read windows overlap by the separator length minus one, preserving matches
-split across a read edge and GNU's rightmost, non-overlapping literal matches.
-The existing 64 KiB output helper is unchanged.
+Literal separators follow GNU tac 9.7's read windows. The size starts at
+8192 bytes and grows when the separator itself, or the still-unprinted
+record, is at least half the window. The first read is the file's tail, so
+the rest of the file is a multiple of that size. The same size persists
+across files in one invocation. Within a window the scanner keeps GNU's
+rightmost non-overlapping matches. A match that begins on the window base
+stays in front of the next read, so a self-overlapping separator one byte
+to its left is emitted as well. The search buffer remains 64 KiB plus the
+separator length; a long record does not grow that allocation. Output still
+copies each record forward through the separate 64 KiB buffer.
 
 Pipes use a private `mkstemp` file in exported `TMPDIR` (default `/tmp`). The
 pathname is immediately unlinked and the descriptor closed on success and

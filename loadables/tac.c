@@ -83,43 +83,121 @@ tac_output_range (tac_input *in, off_t start, off_t end, bl_output *out)
     return out->error ? -1 : 0;
 }
 
+/* Rightmost separator start in [lo, hi) whose body lies in [lo, past).
+   A body may extend past hi by slen-1 bytes; those bytes are still file
+   bytes GNU kept from the previous window. Returns 1 and stores the
+   offset, 0 if none, or -1 on a read error. */
 static int
-tac_literal (tac_input *in, const char *sep, int before, bl_output *out)
+tac_find_literal (tac_input *in, const char *needle, size_t slen,
+                  off_t lo, off_t hi, off_t past, off_t *found)
+{
+    if (hi > past) hi = past;
+    while (hi > lo) {
+        off_t span = hi - lo;
+        off_t chunk = span > TAC_BLOCK ? (off_t) TAC_BLOCK : span;
+        off_t start = hi - chunk;
+        off_t read_end = hi - 1 + (off_t) slen;
+        if (read_end > past) read_end = past;
+        if (read_end <= start) { hi = start; continue; }
+        size_t n = (size_t) (read_end - start);
+        if (tac_read_at (in->fd, in->data, n, start) < 0) return -1;
+        in->base = start;
+        in->used = n;
+        size_t limit = (size_t) (hi - start);
+        if (limit > n) limit = n;
+        while (limit) {
+            char *match = memrchr (in->data, (unsigned char) needle[0], limit);
+            if (!match) break;
+            size_t pos = (size_t) (match - in->data);
+            if (slen <= n && pos <= n - slen
+                && (slen == 1 || !memcmp (match, needle, slen))) {
+                *found = start + (off_t) pos;
+                return 1;
+            }
+            limit = pos;
+        }
+        hi = start;
+    }
+    return 0;
+}
+
+/* GNU tac 9.7 aligns an 8192-byte window on the file (larger when the
+   separator or the pending record requires it). Within a window the
+   rightmost matches do not overlap. A match that begins on the window
+   base is kept across the next read, so a self-overlapping separator
+   one byte to its left is emitted too. *read_size survives across files
+   in one invocation, as GNU's does. The search buffer stays one block
+   plus the separator; record bytes are reread when printed. */
+static int
+tac_literal (tac_input *in, const char *sep, int before, size_t *read_size,
+             bl_output *out)
 {
     size_t slen = strlen (sep);
     if (!slen) slen = 1;       /* An empty argument selects NUL. */
-    if (slen > SIZE_MAX - TAC_BLOCK) { errno = EOVERFLOW; return -1; }
+    if (!*read_size || slen > SIZE_MAX - TAC_BLOCK) { errno = EOVERFLOW; return -1; }
+    while (slen >= *read_size / 2) {
+        if (*read_size > SIZE_MAX / 2) { errno = EOVERFLOW; return -1; }
+        *read_size *= 2;
+    }
     in->capacity = TAC_BLOCK + slen;
     in->data = malloc (in->capacity);
     if (!in->data) return -1;
-    off_t search_end = in->end, record_end = in->end;
-    while (search_end >= 0 && (uintmax_t) search_end >= slen && !out->error) {
-        off_t last = search_end - slen;
-        in->base = last >= TAC_BLOCK ? last - TAC_BLOCK + 1 : 0;
-        in->used = (size_t) (search_end - in->base);
-        if (tac_read_at (in->fd, in->data, in->used, in->base) < 0) return -1;
-        size_t limit = (size_t) (last - in->base) + 1;
-        while (limit && !out->error) {
-            char *match = memrchr (in->data, (unsigned char) sep[0], limit);
-            if (!match) break;
-            size_t pos = (size_t) (match - in->data);
-            if (slen > 1 && memcmp (match, sep, slen)) { limit = pos; continue; }
-            off_t start = in->base + pos;
-            off_t boundary = before ? start : start + slen;
-            if (tac_output_range (in, boundary, record_end, out) < 0) return -1;
-            record_end = boundary;
-            search_end = start;
-            /* Exclude the complete match, including overlapping candidates. */
-            if (pos < slen) { limit = 0; break; }
-            limit = pos - slen + 1;
+    if (!in->end) return 0;
+
+    size_t rs = *read_size;
+    uintmax_t rem = (uintmax_t) in->end % rs;
+    off_t win_base = rem ? in->end - (off_t) rem : in->end - (off_t) rs;
+    off_t win_len = in->end - win_base;
+    off_t past = in->end;
+    off_t match_cursor = (slen - 1 > (size_t) in->end)
+        ? (off_t) -1 : in->end - (off_t) (slen - 1);
+    int first = 1;
+
+    while (!out->error) {
+        off_t found = 0;
+        int got = 0;
+        if (match_cursor > win_base) {
+            off_t hi = match_cursor;
+            off_t win_end = win_base + win_len;
+            if (hi > win_end) hi = win_end;
+            got = tac_find_literal (in, sep, slen, win_base, hi, past, &found);
+            if (got < 0) return -1;
         }
-        if (limit == 0 && search_end < in->base + (off_t) slen) continue;
-        /* No candidate remains in this block; retain separator overlap in
-           the next read. No unbounded partial record is carried along. */
-        search_end = in->base + slen - 1;
-        if (!in->base) break;
+        if (!got) {
+            if (win_base == 0)
+                return tac_output_range (in, 0, past, out);
+            if ((uintmax_t) (past - win_base) > *read_size) {
+                if (*read_size > SIZE_MAX / 2) { errno = EOVERFLOW; return -1; }
+                *read_size *= 2;
+            }
+            off_t old_base = win_base;
+            if ((uintmax_t) win_base >= *read_size) {
+                win_base -= (off_t) *read_size;
+                win_len = (off_t) *read_size;
+            } else {
+                *read_size = (size_t) win_base;
+                win_len = win_base;
+                win_base = 0;
+            }
+            match_cursor = old_base;
+            continue;
+        }
+        if (!before) {
+            off_t match_end = found + (off_t) slen;
+            if (!(first && match_end == past)
+                && tac_output_range (in, match_end, past, out) < 0)
+                return -1;
+            past = match_end;
+            first = 0;
+        } else if (tac_output_range (in, found, past, out) < 0) {
+            return -1;
+        } else {
+            past = found;
+        }
+        match_cursor = (slen > (size_t) found + 1)
+            ? (off_t) -1 : found - (off_t) (slen - 1);
     }
-    return tac_output_range (in, 0, record_end, out);
+    return out->error ? -1 : 0;
 }
 
 /* A single byte atom, optionally repeated, can always match at the rightmost
@@ -305,7 +383,7 @@ tac_file (int fd, const char *sep, int before, int regex, regex_t *re, size_t *r
     else if (regex && strpbrk (sep, ".[*+?^$\\"))
         rc = tac_regex (&in, re, read_size, before, out);
 #endif
-    else rc = tac_literal (&in, sep, before, out);
+    else rc = tac_literal (&in, sep, before, read_size, out);
     int error = errno;
     free (in.data);
     if (spool >= 0 && close (spool) < 0 && !rc) return -1;

@@ -55,6 +55,29 @@ def main():
                     for mode in ['file', 'pipe']:
                         compare([*before, '-s', sep], data, mode)
 
+        # GNU's 8192-byte windows rediscover a self-overlapping separator that
+        # begins on a window base. 20000 c's, "aaa" at 8191..8193, tac -s aa.
+        bug = bytearray(b'c' * 20000)
+        bug[8191:8194] = b'aaa'
+        for before in [[], ['-b']]:
+            for mode in ['file', 'pipe']:
+                compare([*before, '-s', 'aa'], bytes(bug), mode)
+        for sample in (b'xxaaayy', b'xxaaaayy', b'xxaaaaayy',
+                       b'c' * 10 + b'aaa' + b'c' * 10,
+                       b'c' * 8191 + b'aaa' + b'c' * 10):
+            compare(['-s', 'aa'], sample, 'file')
+        # A file with no separator grows the shared window before the next file.
+        grown = root / 'grown'
+        follow = root / 'follow'
+        grown.write_bytes(b'c' * 50000)
+        follow.write_bytes(bytes(bug))
+        got = run('tac', ['-s', 'aa', grown, follow])
+        ref = run('/usr/bin/tac', ['-s', 'aa', grown, follow])
+        assert (got.returncode, got.stdout) == (ref.returncode, ref.stdout), (
+            got.returncode, ref.returncode, got.stdout[:80], ref.stdout[:80])
+        assert not list(Path(env['TMPDIR']).iterdir())
+        checks += 1
+
         # Put the separator across the exact left edge of the first search
         # window: base = input_size - separator_size - block_size + 1.
         # No other separator can cause a cache refill before this split.
