@@ -135,8 +135,8 @@ static int fixture_execve(const char *p,char *const *a,char *const *e) {
     return execve(p,a,e);
   }
   CHECK(transition_step==3); CHECK(fake_uid==target_uid && fake_gid==(gid_t)expected_group);
-  CHECK(seen_ngroups==(expected_group==4545?2:3) && seen_groups[0]==4444 && seen_groups[1]==4545);
-  if (seen_ngroups==3) CHECK(seen_groups[2]==(gid_t)expected_group);
+  /* The passwd primary group stays supplementary when -g picks another. */
+  CHECK(seen_ngroups==3 && seen_groups[0]==4444 && seen_groups[1]==4545 && seen_groups[2]==4343);
   CHECK(!strcmp(p,"/usr/bin/printf")); CHECK(!strcmp(a[1],"literal ' ; $(no)\n")); CHECK(!strcmp(a[2],"")); CHECK(!a[3]);
   CHECK(!strcmp(find_env((char **)e,"USER"),"fixture"));
   CHECK(!strcmp(find_env((char **)e,"HOME"),"/tmp"));

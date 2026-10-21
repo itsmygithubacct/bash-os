@@ -1110,6 +1110,13 @@ bda_run_authority (const bda_opts *o)
               verified_once = 1;
               continue;
             }
+          /* A child that only verified never ran the command: success of a
+             second verification is not authorization. */
+          if (marker == 'V' && rc == 0)
+            {
+              builtin_error ("v2 authority still requires authentication after verification");
+              rc = EXECUTION_FAILURE;
+            }
           break;
         }
       goto out;
@@ -1315,7 +1322,12 @@ bda_build_env (const bc_user_info *u, const bda_opts *o)
         goto fail;
     }
 
-  const char *su = getenv ("USER");
+  /* SUDO_USER names the invoking account, not a caller-set $USER. */
+  bc_user_info caller;
+  const char *su = NULL;
+  if (bc_lookup_user_by_uid (getuid (), &caller) == 0)
+    su = caller.name;
+  if (!su || !*su) su = getenv ("USER");
   if (!su || !*su) su = getenv ("LOGNAME");
   if (!su || !*su) su = "root";
   char uidbuf[32], gidbuf[32];
@@ -1485,6 +1497,9 @@ bda_run_root (const bda_opts *o)
       return EXECUTION_FAILURE;
     }
 
+  /* The target keeps its account's primary group as a supplementary group
+     when -g selects another primary group, as sudo's runas group vector does. */
+  gid_t passwd_gid = u.gid;
   if (o->target_group && bda_group_to_gid (o->target_group, &u.gid) != 0)
     {
       builtin_error ("unknown group: %s", o->target_group);
@@ -1525,11 +1540,15 @@ bda_run_root (const bda_opts *o)
       gid_t groups[BC_PD_GROUPS_MAX];
       int ngroups = 0;
       (void) bc_load_supplementary_groups (u.name, groups, &ngroups, BC_PD_GROUPS_MAX);
-      int have_primary = 0;
-      for (int i = 0; i < ngroups; i++)
-        if (groups[i] == u.gid) have_primary = 1;
-      if (!have_primary && ngroups < BC_PD_GROUPS_MAX)
-        groups[ngroups++] = u.gid;
+      gid_t required[2] = { passwd_gid, u.gid };
+      for (int r = 0; r < 2; r++)
+        {
+          int have = 0;
+          for (int i = 0; i < ngroups; i++)
+            if (groups[i] == required[r]) have = 1;
+          if (!have && ngroups < BC_PD_GROUPS_MAX)
+            groups[ngroups++] = required[r];
+        }
       /* Capture caller IDs in SUDO_UID/GID before changing credentials. */
       char **env = bda_build_env (&u, o);
       if (!env)
