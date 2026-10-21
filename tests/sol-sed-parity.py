@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-') as directory:
                's/.*$/[&]/', 's/a*/X/g', 's/b*/X/g', 's/a/X/2g', r's|a\|b|X|g', r's+a\+b+X+g']
     for script in scripts:
         for opts in ([], ['-E']):
-            parity([*opts, '-n', '-e', script], data)
+            parity([*opts, '-e', script], data)
     # Empty regex is resolved at execution time, even when a later command
     # appears first lexically, or when the regex came from a previous file.
     for script in ('b later;s//X/;:later;/a/p', '1b end;s//X/;:end;/a/p'):

@@ -267,7 +267,8 @@ bs_numeric_escape (const char **pp, unsigned char *value)
 }
 
 /* Script text cannot contain NUL. Decode common sed regex escapes without
-   changing BRE/ERE operators; delimiters are literal inside the regex. */
+   changing BRE/ERE operators. An escaped delimiter is stripped, so that
+   character keeps its regex meaning, matching GNU sed. */
 static char *
 bs_regex_text (const char *pat, char delim, int extended, size_t *len)
 {
@@ -290,7 +291,7 @@ bs_regex_text (const char *pat, char delim, int extended, size_t *len)
                 case 'f': out[j++] = '\f'; continue;
                 case 'v': out[j++] = '\v'; continue;
             }
-            if (ch != delim || strchr (extended ? ".^$*+?[](){}|\\" : ".^$*[]\\", ch)) out[j++] = '\\';
+            if (ch != delim) out[j++] = '\\';
             out[j++] = ch;
         } else out[j++] = pat[i];
     }
