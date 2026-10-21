@@ -319,6 +319,8 @@ if [[ -f "$BT/config.h" ]] && command -v "$CC" >/dev/null; then
   check 'shutdown intercepted sanitizer contracts' python3 tests/sol-halt-check.py --binary out/bash --shim "$scratch/halt-contracts/artifacts/boundary.so" --sanitize-dir "$scratch/halt-contracts/artifacts"
   check 'poweroff intercepted native contracts' python3 tests/sol-poweroff-check.py --binary out/bash --shim "$scratch/halt-contracts/artifacts/boundary.so"
   check 'poweroff intercepted sanitizer contracts' python3 tests/sol-poweroff-check.py --binary out/bash --shim "$scratch/halt-contracts/artifacts/boundary.so" --sanitize-dir "$scratch/halt-contracts/artifacts"
+  check 'reboot intercepted native contracts' python3 tests/sol-reboot-check.py --binary out/bash --shim "$scratch/halt-contracts/artifacts/boundary.so"
+  check 'reboot intercepted sanitizer contracts' python3 tests/sol-reboot-check.py --binary out/bash --shim "$scratch/halt-contracts/artifacts/boundary.so" --sanitize-dir "$scratch/halt-contracts/artifacts"
   check 'rngseed intercepted boundaries build' bash tests/sol-rngseed-build.sh "$scratch/rngseed-contracts"
   check 'rngseed intercepted native faults' env PATH= "$scratch/rngseed-contracts/rngseed-host"
   check 'rngseed intercepted ASan+UBSan faults' env PATH= ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/rngseed-contracts/rngseed-host-sanitize"

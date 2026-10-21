@@ -1451,6 +1451,14 @@
       "status": "Contract",
       "evidence": "tests/sol-gpu-frames.py",
       "scope": "Original sol-gpu scope (application-frame workloads with independent pixel/protocol/counter oracles; injectable GBM/EGL/GLES fixture executing production native paths; validated seven-sample measurements labelled as host/ABI-fixture timings) is met by bc9324bd+e5355563, supported by prior native i915 and measurement evidence and independently re-verified here on the 60c8210 snapshot with fixture-only and ASan/UBSan runs. Qualification limits (not unresolved requirements): DMA-BUF timing is peer-bound; no external ratio; fixture is not a GLSL/DRM implementation; different-device portability unqualified. This reviewer did not touch live render nodes or terminals; native hardware and live Kilix evidence are the prior reviewer/root records."
+    },
+    {
+      "names": [
+        "reboot"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-reboot-check.py",
+      "scope": "Original scope met: fixture-backed RB_AUTOBOOT/option/errno/privilege/repeat-state validation via the genuine builtin behind the closed boundary, halt/poweroff regression reruns, seven-sample validated parser+shim timings, hardware latency explicitly unmeasured. Production sources (loadables/reboot.c, common/reboot-impl.h) unchanged from base and from integration d77e24a. Ready with the correction commits applied."
     }
   ],
   "sanitizer_groups": [
@@ -2941,9 +2949,9 @@
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "reboot": {
-      "evidence": "docs/sol-halt.md",
-      "note": "Parsing and shutdown syscall sequence checked only through a fail-closed boundary interceptor. No live reboot, shutdown, sync or scheduler mutation occurs; actual platform shutdown requires a disposable VM.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-reboot.md",
+      "note": "Original scope met: fixture-backed RB_AUTOBOOT/option/errno/privilege/repeat-state validation via the genuine builtin behind the closed boundary, halt/poweroff regression reruns, seven-sample validated parser+shim timings, hardware latency explicitly unmeasured. Production sources (loadables/reboot.c, common/reboot-impl.h) unchanged from base and from integration d77e24a. Ready with the correction commits applied.",
+      "next": "Retain documented software-path limits and preserve historical measurement provenance."
     },
     "poweroff": {
       "evidence": "docs/sol-poweroff.md",

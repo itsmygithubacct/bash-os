@@ -25,8 +25,24 @@ def environment(shim, asan=None):
     return env
 
 
+def preload_guard(*libraries):
+    """Shell prefix that exits 93 before enable or any builtin runs unless the
+    dynamic loader mapped every library at startup. ld.so ignores an object it
+    cannot preload and continues, and enable -f would still load the fixture
+    privately, leaving reboot/sync bound to libc; this guard fails closed."""
+    code = "read -r -d '' maps < /proc/$$/maps\n"
+    for library in map(str, libraries):
+        if not library.startswith('/') or any(c in library for c in ': \t\n'):
+            raise ValueError(f'LD_PRELOAD cannot carry this path verbatim: {library!r}')
+        mapped = os.path.realpath(library)  # /proc maps names the resolved file
+        code += f"[[ $maps$'\\n' == *' '{shlex.quote(mapped)}$'\\n'* ]] || exit 93\n"
+    return code
+
+
 def setup(shim, modules=None):
-    code = f'enable -f {shlex.quote(str(shim))} halt_fixture || exit 90\n'
+    asan = Path((modules / 'asan-path.txt').read_text().strip()) if modules else None
+    code = preload_guard(*([asan] if asan else []), shim)
+    code += f'enable -f {shlex.quote(str(shim))} halt_fixture || exit 90\n'
     if modules:
         for name in ('halt', 'reboot', 'poweroff'):
             code += f'enable -f {shlex.quote(str(modules / (name + "-sanitize.so")))} {name} || exit 91\n'
