@@ -60,7 +60,7 @@ temporary file.
 
 | test | what it holds the command to |
 | --- | --- |
-| `tests/sol-index-check.py` | 25 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; refusal of split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, each of which must be refused or read as git reads it; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
+| `tests/sol-index-check.py` | 26 cases against host git 2.47.3 on private repositories: `ls-files --stage -z` output for small, 20000- and 110000-entry indexes, cold and warm; long paths (0xFFF boundary, 8 KiB, 70000 bytes past the 64 KiB buffer); stage order; v3 and every optional extension; refusal of split/sparse/v4; every truncation and single-byte change of a small index; 33 crafted structural cases under a valid trailer; 500 seeded mutations, with both acceptance directions recorded; accepted output must equal Git; `write` byte-identical to git; `--index-info` byte-identical to git on scripted, seeded-random and 20000-record streams, with the same exit class; `add`/`remove`/`update-stat` field-for-field against `update-index --add/--force-remove/--refresh`; lock honoured by every verb; unwritable directory; injected failures; repeated calls in one shell with a constant descriptor count; empty PATH throughout |
 | `tests/sol-index-faults.c` | LD_PRELOAD shim that fails write, short write, fdatasync, close or rename on the index's temporary file |
 | `tests/sol-index-fuzz.c` | libFuzzer over the production `index.c`: reader → checks → write → reread round trip, `--index-info` application (order and path invariants, REUC round trip) and `write` line parsing |
 | `tests/sol-index-sha1.c` | the trailer SHA-1 against the FIPS 180-2 vectors and against SHA1DC at every length 0–4100 and over 1 MiB at each alignment 0–7, under ASan/UBSan |
@@ -162,3 +162,12 @@ replacement. An intermediate null-ID record removed later in the same
 `--index-info` stream is allowed; mode-0 removal remains a valid no-op for
 an absent path. Failed final validation preserves the old index and releases
 the command's lock.
+
+The command-specific suite distinguishes strict integrity validation from
+Git listing compatibility. Structural and mutation reports include both
+exit statuses and `parity_complete`; strict-read differences and unsupported
+required extensions are visible differences, not parity passes. Successful
+imports are also read back by the builtin and compared with Git. The
+`sol-index-regressions.py` cases cover sequential stage edits, atomic null-ID
+refusal, and preservation of both v3 flags. Output failures use the injected
+write interface on an owned regular file.

@@ -12,8 +12,8 @@ the index format written here, never from the builtin's own earlier output:
             version 4)
   integrity every truncation and every single-byte change of a small index,
             structural damage under a recomputed trailer, and a seeded
-            mutation run whose accepted results git must also accept with
-            the same entries
+            mutation run comparing both acceptance directions. Strict
+            validation differences are reported, not counted as Git parity
   write     byte-identical files to git's for the same entries, path
             bytes kept exactly, git's mode normalization, refusals
   index-info  scripted and seeded random record streams applied by git and
@@ -383,8 +383,8 @@ def _():
 @case('read: output failures leave the shell stdout usable; usage and variable errors')
 def _():
     idx, big = work/'small.index', work/'big20000.index'
-    script = f'index read {q(idx)} > /dev/full; echo "small=$?"\n'
-    script += f'index read {q(big)} > /dev/full; echo "big=$?"\n'
+    script = f'index read {q(idx)} > {q(work/"output-failure")}; echo "small=$?"\n'
+    script += f'index read {q(big)} > {q(work/"output-failure")}; echo "big=$?"\n'
     script += f'index read {q(idx)} >&-; echo "closed=$?"\n'
     script += f'index read {q(idx)} > /dev/null; echo "after=$?"\n'
     script += 'index; echo "none=$?"\nindex read; echo "nopath=$?"\n'
@@ -394,7 +394,7 @@ def _():
     script += f'index read {q(idx)} -Q; echo "flag=$?"\nindex read {q(work)}; echo "dir=$?"\n'
     script += f'index read {q(work/"missing")}; echo "missing=$?"\n'
     script += 'v=(old); index read ' + q(work/'missing') + ' -V v; echo "kept=${v[0]}"\n'
-    r = bash(script, work)
+    r = bash(script, work, fault=('write:output-failure', work/'output-failure.log'))
     got = dict(line.split('=', 1) for line in r.stdout.decode().split())
     check(got == {'small': '1', 'big': '1', 'closed': '1', 'after': '0', 'none': '2',
                   'nopath': '2', 'extra': '2', 'verb': '2', 'noname': '2', 'badname': '2',
@@ -515,10 +515,27 @@ def _():
         rc, out = got[paths[n]]
         check(rc == 0, n)
         check(out == listing(ls_files(root, paths[n])), n)
-    return {'refused': len(variants), 'accepted': len(accepted)}
+    comparisons = []
+    for name, path in paths.items():
+        oracle = git(root, 'ls-files', '--stage', '-z', index=path, check_rc=False)
+        builtin_rc, out = got[path]
+        if builtin_rc == 0:
+            check(oracle.returncode == 0, (name, oracle.stderr))
+            classification = 'accepted_by_both'
+        elif oracle.returncode != 0:
+            classification = 'rejected_by_both'
+        elif name in ('ext-link', 'ext-sdir'):
+            classification = 'unsupported_required_extension'
+        else:
+            classification = 'strict_integrity_difference'
+        comparisons.append(dict(case=name, builtin_exit=builtin_rc,
+                                git_exit=oracle.returncode, classification=classification))
+    return {'refused': len(variants), 'accepted': len(accepted),
+            'acceptance_comparisons': comparisons,
+            'parity_complete': all(c['classification'].endswith('_by_both') for c in comparisons)}
 
 
-@case('integrity: seeded mutations; anything accepted git reads to the same entries')
+@case('integrity: seeded mutations with both acceptance directions recorded')
 def _():
     rng = random.Random(args.seed)
     base = make_index(root, work/'mut-base.index',
@@ -544,17 +561,21 @@ def _():
         paths.append(p)
     got = run_reads(paths, work)
     accepted = 0
+    differences = []
     for p in paths:
         rc, out = got[p]
         check(rc in (0, 1), (p, rc))
+        r = git(root, 'ls-files', '--stage', '-z', index=p, check_rc=False)
         if rc == 0:
             accepted += 1
-            r = git(root, 'ls-files', '--stage', '-z', index=p, check_rc=False)
             check(r.returncode == 0, (p, r.stderr))
             check(out == listing(ls_files(root, p)), p)
         else:
             check(out == b'', p)
-    return {'mutations': len(paths), 'accepted': accepted}
+            if r.returncode == 0:
+                differences.append(dict(case=p.name, builtin_exit=rc, git_exit=0))
+    return {'mutations': len(paths), 'accepted': accepted,
+            'strict_read_differences': differences, 'parity_complete': not differences}
 
 
 # ---- write -------------------------------------------------------------------
@@ -647,7 +668,7 @@ def apply_both(start, stream, z=False, name='ii'):
     return gr, br, g, b
 
 
-def same_outcome(start, stream, z=False, label=''):
+def same_outcome(start, stream, z=False, label='', final_write_error=False):
     gr, br, g, b = apply_both(start, stream, z)
     if gr.returncode == 0:
         check(br.returncode == 0, (label, stream, br.stderr))
@@ -655,11 +676,26 @@ def same_outcome(start, stream, z=False, label=''):
         got = b.read_bytes() if b.exists() else None
         want = g.read_bytes() if g.exists() else None
         check(got == want, (label, stream, want and ls_files(root, g), got and ls_files(root, b)))
+        if b.exists():
+            rr = bash(f'index read {q(b)}', work)
+            check(rr.returncode == 0 and rr.stdout == listing(ls_files(root, g)),
+                  (label, 'builtin must read its own successful write', rr.stderr))
     else:
-        check(gr.returncode == 128 and br.returncode == 2, (label, stream, gr.returncode, br.returncode, br.stderr))
+        check(gr.returncode == 128 and br.returncode == (1 if final_write_error else 2),
+              (label, stream, gr.returncode, br.returncode, br.stderr))
         check((b.read_bytes() if b.exists() else None) == (start if start is not None else None), (label, 'changed'))
     check(not leftovers(work), leftovers(work))
     return gr.returncode == 0
+
+
+@case('index-info: final null IDs fail atomically; removed intermediate IDs succeed')
+def _():
+    start = make_index(root, work/'null-start.index', [rec(100644, SHA[0], b'p')])
+    null = rec(100644, ZERO, b'null') + b'\n'
+    remove = rec(0, ZERO, b'null') + b'\n'
+    same_outcome(start, null, label='invalid final null ID', final_write_error=True)
+    same_outcome(start, null + remove, label='intermediate null ID removed')
+    same_outcome(start, remove, label='mode zero null ID removal')
 
 
 @case('index-info: scripted records give git\'s exact index and exit class')
