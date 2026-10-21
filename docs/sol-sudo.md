@@ -50,8 +50,20 @@ On the root route:
 - `sudo -s` uses `$SHELL` when it is absolute, otherwise the invoking
   account's shell, otherwise the target shell. `sudo -i` keeps the target
   login shell. With a command, sudo on both the root route and the authority
-  runs `shell [-l] -c` with the words quoted. doas does not wrap an explicit
-  command on the authority route and still uses the target shell.
+  route runs `shell [-l] -c` with one string. Every byte except ASCII
+  letters, digits, `_`, `-` and `$` is backslash-escaped, and the words are
+  joined with spaces, as in sudo 1.9.16p2. `$` reaches the target shell, so
+  `$HOME` expands and `$(id)` does not run, because the parentheses are
+  escaped. An empty argument is written `''`. A raw empty field between
+  spaces is not a word, so the plain escape class would drop it. An
+  argument that contains a newline is single-quoted, and an embedded `'`
+  is closed and reopened. A backslash before a raw newline is a shell line
+  continuation and would delete the newline; that encoding is not used.
+  A `$` in a newline word is inside those quotes, so that word is not
+  expanded. `$''` is not used, because the target shell may be a POSIX
+  `sh` that does not support it. doas does not wrap an explicit command on
+  the authority route. doas root `-s` still single-quotes every word and
+  still uses the target shell.
 - `SUDO_USER` names the invoking account from the account database, not the
   caller's `$USER`.
 - `SUDO_COMMAND` is exported for sudo (not for doas). Its argument text is

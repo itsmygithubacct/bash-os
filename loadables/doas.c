@@ -99,6 +99,7 @@ static int bda_wait_status (pid_t pid);
 static void bda_child_reset_signals (void);
 static void bda_child_close_fds (void);
 static char *bda_quote_join_cmd (char **cmd, int cmdc);
+static char *bda_sudo_shell_join (char **cmd, int cmdc);
 
 /* Bash refreshes the C environ (its export_env) only when it next runs an
    external command, so after `export PATH=...` a raw execvp would search the
@@ -1135,10 +1136,11 @@ bda_run_authority (const bda_opts *o)
 
   /* SHELL (-s) / LOGIN (-i). The kernel executes argv[0], so the front-end
      supplies the absolute shell. With no command, argv is that shell, and -i
-     appends "-l". sudo with a command runs `shell [-l] -c <quoted words>`
-     rather than handing the kernel an unresolved command path. doas keeps an
-     explicit command unwrapped. sudo -s uses $SHELL or the invoking account's
-     shell; -i and doas use the target account's shell. */
+     appends "-l". sudo with a command runs `shell [-l] -c` on one string:
+     each byte except ASCII alphanumerics, '_', '-' and '$' is backslash-escaped
+     and the words are joined with spaces. doas keeps an explicit command
+     unwrapped. sudo -s uses $SHELL or the invoking account's shell; -i and
+     doas use the target account's shell. */
   char *synth_cmd[5];
   char invoke_shell[PATH_MAX];
   char **eff_cmd = o->cmd;
@@ -1170,7 +1172,7 @@ bda_run_authority (const bda_opts *o)
       else if (o->is_sudo)
         {
           int ai = 0;
-          shell_quote = bda_quote_join_cmd (o->cmd, o->cmdc);
+          shell_quote = bda_sudo_shell_join (o->cmd, o->cmdc);
           if (!shell_quote)
             {
               close (fd);
@@ -1718,6 +1720,83 @@ bda_quote_join_cmd (char **cmd, int cmdc)
   return out;
 }
 
+/* sudo 1.9.16p2 -i/-s: escape every byte except ASCII letters, digits,
+   underscore, hyphen and dollar, then join the words with single spaces.
+   Dollar is left for the target shell. Two cases that rule cannot express
+   stay words. An empty argument is two single quotes, because a raw empty
+   field disappears between spaces. An argument that contains a newline is
+   single-quoted, with an embedded quote closed and reopened, because a
+   backslash before a raw newline is a shell line continuation and deletes
+   the newline. A dollar in a newline word is therefore literal. doas does
+   not use this function. */
+static int
+bda_sudo_escape_append (char *out, size_t cap, size_t *pos, const char *s)
+{
+  for (const unsigned char *p = (const unsigned char *) s; *p; p++)
+    {
+      int plain = (*p >= '0' && *p <= '9')
+        || (*p >= 'A' && *p <= 'Z')
+        || (*p >= 'a' && *p <= 'z')
+        || *p == '_' || *p == '-' || *p == '$';
+      if (!plain)
+        {
+          if (*pos + 1 >= cap)
+            return -1;
+          out[(*pos)++] = '\\';
+        }
+      if (*pos + 1 >= cap)
+        return -1;
+      out[(*pos)++] = (char) *p;
+    }
+  out[*pos] = '\0';
+  return 0;
+}
+
+static char *
+bda_sudo_shell_join (char **cmd, int cmdc)
+{
+  size_t n = 1;
+
+  for (int i = 0; i < cmdc; i++)
+    {
+      const char *s = cmd[i] ? cmd[i] : "";
+      size_t len = strlen (s);
+      if (i)
+        n += 1;
+      if (!*s || strchr (s, '\n'))
+        n += len * 4 + 2;
+      else
+        n += len * 2;
+    }
+  char *out = malloc (n);
+  if (!out)
+    return NULL;
+  out[0] = '\0';
+  size_t pos = 0;
+  for (int i = 0; i < cmdc; i++)
+    {
+      const char *s = cmd[i] ? cmd[i] : "";
+      if (i)
+        {
+          if (pos + 1 >= n)
+            {
+              free (out);
+              return NULL;
+            }
+          out[pos++] = ' ';
+          out[pos] = '\0';
+        }
+      int quoted = !*s || strchr (s, '\n');
+      if ((quoted ? bda_quote_append (out, n, &pos, s)
+                  : bda_sudo_escape_append (out, n, &pos, s)) < 0)
+        {
+          free (out);
+          return NULL;
+        }
+    }
+  return out;
+}
+
 static int
 bda_wait_status (pid_t pid)
 {
@@ -1969,7 +2048,12 @@ bda_run_root (const bda_opts *o)
         {
           /* sudo -s runs the invoking shell. -i and doas keep the target shell. */
           const char *shell_path = sudo_s_shell ? sudo_s_shell : u.shell;
-          char *cmdstr = o->cmdc ? bda_quote_join_cmd (o->cmd, o->cmdc) : NULL;
+          /* doas keeps the single-quoted command string. sudo uses the
+             sudo(8) -i/-s escape class. */
+          char *cmdstr = NULL;
+          if (o->cmdc)
+            cmdstr = o->is_sudo ? bda_sudo_shell_join (o->cmd, o->cmdc)
+                                : bda_quote_join_cmd (o->cmd, o->cmdc);
           if (o->cmdc && !cmdstr)
             {
               fprintf (stderr, "%s: shell command build: out of memory\n",

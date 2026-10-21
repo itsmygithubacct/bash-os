@@ -1123,8 +1123,8 @@ root_tests (void)
   reset_state ();
   root_route = 1;
   CHECK (SUDO ("-i", "-u", "fixture", "echo", "it's") == 41);
-  CHECK (S->argc == 4 && !strcmp (S->argv[0], "-sh") && !strcmp (S->argv[2], "-c") && !strcmp (S->argv[3], "'echo' 'it'\\''s'"));
-  CHECK (!strcmp (env_of ("SUDO_COMMAND"), "/bin/sh -c 'echo' 'it'\\''s'"));
+  CHECK (S->argc == 4 && !strcmp (S->argv[0], "-sh") && !strcmp (S->argv[2], "-c") && !strcmp (S->argv[3], "echo it\\'s"));
+  CHECK (!strcmp (env_of ("SUDO_COMMAND"), "/bin/sh -c echo it\\'s"));
   reset_state ();
   root_route = 1;
   CHECK (SUDO ("-s", "-u", "fixture") == 41 && S->argc == 1 && !strcmp (S->argv[0], "/bin/sh") && !strcmp (S->cwd, cwd));
@@ -1836,6 +1836,15 @@ status_tests (void)
   CHECK (sigprocmask (SIG_UNBLOCK, &block, NULL) == 0);
 }
 
+static int
+has_backslash_newline (const char *s)
+{
+  for (; s[0]; s++)
+    if (s[0] == '\\' && s[1] == '\n')
+      return 1;
+  return 0;
+}
+
 static void
 shell_tests (void)
 {
@@ -1853,27 +1862,71 @@ shell_tests (void)
   root_route = 1;
   CHECK (SUDO ("-s", "-u", "fixture", "echo", "it's") == 41);
   CHECK (!strcmp (S->path, "/usr/bin/env") && S->argc == 3 && !strcmp (S->argv[0], "/usr/bin/env"));
-  CHECK (!strcmp (S->argv[1], "-c") && !strcmp (S->argv[2], "'echo' 'it'\\''s'"));
-  /* doas keeps the target shell. */
+  CHECK (!strcmp (S->argv[1], "-c") && !strcmp (S->argv[2], "echo it\\'s"));
+  /* sudo(8) escape class. Empty is '' and a newline stays inside quotes.
+     The string is one shell command: $HOME expands, $(id) does not run. */
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture", "printf", "a b", "it's", "$HOME", "a\\b", "x;y", "", "a\nb") == 41);
+  CHECK (S->argc == 3 && !strcmp (S->argv[1], "-c"));
+  CHECK (!strcmp (S->argv[2], "printf a\\ b it\\'s $HOME a\\\\b x\\;y '' 'a\nb'"));
+  CHECK (!has_backslash_newline (S->argv[2]));
+  reset_state ();
+  root_route = 1;
+  CHECK (SUDO ("-s", "-u", "fixture", "printf", "$(id)") == 41);
+  CHECK (!strcmp (S->argv[2], "printf $\\(id\\)"));
+  /* doas keeps the target shell and the single-quoted command string. */
   reset_state ();
   root_route = 1;
   CHECK (DOAS ("-s", "-u", "fixture") == 41);
   CHECK (!strcmp (S->argv[0], "/bin/sh") && !strcmp (S->path, "/bin/sh"));
+  reset_state ();
+  root_route = 1;
+  CHECK (DOAS ("-s", "-u", "fixture", "echo", "it's") == 41);
+  CHECK (!strcmp (S->path, "/bin/sh") && S->argc == 3 && !strcmp (S->argv[1], "-c"));
+  CHECK (!strcmp (S->argv[2], "'echo' 'it'\\''s'"));
 
   unsetenv ("SHELL");
   reset_state ();
   CHECK (SUDO ("-n", "-i", "-u", "fixture", "echo", "it's") == 37);
   CHECK (AUTHZ (0)->p.mode == BASHOS_AUTH_PRIVCMD_MODE_LOGIN);
-  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-l", "-c", "'echo' 'it'\\''s'", NULL));
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-l", "-c", "echo it\\'s", NULL));
   setenv ("SHELL", "/bin/sh", 1);
   reset_state ();
   CHECK (SUDO ("-n", "-s", "-u", "fixture", "not-a-path", "x y") == 37);
   CHECK (AUTHZ (0)->p.mode == BASHOS_AUTH_PRIVCMD_MODE_SHELL);
-  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-c", "'not-a-path' 'x y'", NULL));
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-c", "not-a-path x\\ y", NULL));
+  reset_state ();
+  CHECK (SUDO ("-n", "-s", "-u", "fixture", "printf", "a b", "it's", "$HOME", "a\\b", "x;y", "", "a\nb") == 37);
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-c",
+                  "printf a\\ b it\\'s $HOME a\\\\b x\\;y '' 'a\nb'", NULL));
+  reset_state ();
+  CHECK (SUDO ("-n", "-s", "-u", "fixture", "printf", "$(id)") == 37);
+  CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/sh", "-c", "printf $\\(id\\)", NULL));
   unsetenv ("SHELL");
   reset_state ();
   CHECK (DOAS ("-n", "-u", "fixture", "-s", "/bin/true") == 37);
   CHECK (blob_is (AUTHZ (0)->argv, AUTHZ (0)->argv_bytes, "/bin/true", NULL));
+
+  /* The target shell is /bin/sh. $HOME expands. An empty word and a
+     newline survive. A naive backslash would drop both. */
+  setenv ("SHELL", "/bin/sh", 1);
+  reset_state ();
+  root_route = 1;
+  exec_real = 1;
+  CHECK (SUDO ("-s", "-u", "fixture", "test", "$HOME", "=", home_dir) == 0);
+  reset_state ();
+  root_route = 1;
+  exec_real = 1;
+  CHECK (SUDO ("-s", "-u", "fixture", "test", "-z", "", "-a", "-z", "") == 0);
+  {
+    const char *nl_script = "nl='\n'\ntest \"$1\" = \"a${nl}b\"\n";
+    reset_state ();
+    root_route = 1;
+    exec_real = 1;
+    CHECK (SUDO ("-s", "-u", "fixture", "sh", "-c", (char *) nl_script, "_", "a\nb") == 0);
+  }
+  unsetenv ("SHELL");
 
   /* With $SHELL unset, sudo -s uses the invoking account's shell. */
   caller_shell = "/bin/bash";
