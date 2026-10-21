@@ -28,8 +28,11 @@ both writing a new index each pass; the two files must be byte-identical.
 Each case first runs a validation batch whose every pass is checked
 against the git oracle (output bytes, or the written index) and exit
 status, then a discarded warm-up batch, then RUNS timed batches of PASSES
-invocations in one bash-os shell pinned to one CPU, each batch failing if
-any pass exits non-zero. Times are batch wall times from $EPOCHREALTIME.
+invocations in one bash-os shell pinned to one CPU. Every warm-up and timed
+pass retains its output or index for exact oracle validation; any bad status
+or output invalidates the report. Times include capture to owned regular
+files and are batch wall times from $EPOCHREALTIME. Validation is outside
+the timed interval. Cold alternation continues across batch boundaries.
 
 usage: bench/sol-index.py --binary out/bash --output report.json
        [--cpu N] [--runs 7] [--passes 5]
@@ -129,11 +132,11 @@ def run_shell(script, cwd):
 
 def batch_script(body, passes, runs, setup=''):
     """Warm-up batch, then RUNS timed batches of PASSES; prints ms per batch."""
-    return (f'{setup}\nPATH=\nfail=0\n'
-            f'for ((w=0; w<{passes}; w++)); do {body} || fail=1; done\n'
+    return (f'{setup}\nPATH=\nfail=0\ni=0\n'
+            f'for ((w=0; w<{passes}; w++, i++)); do {body} || fail=1; done\n'
             f'for ((r=0; r<{runs}; r++)); do\n'
             f'  t0=$EPOCHREALTIME\n'
-            f'  for ((i=0; i<{passes}; i++)); do {body} || fail=1; done\n'
+            f'  for ((j=0; j<{passes}; j++, i++)); do {body} || fail=1; done\n'
             f'  t1=$EPOCHREALTIME\n'
             f'  echo "ms $(( (${{t1/./}} - ${{t0/./}}) ))"\n'
             f'done\n'
@@ -215,20 +218,34 @@ for name, fx in fixtures.items():
         if wanted and cid not in wanted:
             continue
         validated = validate_read(fx, variant == 'cold')
-        if variant == 'warm':
-            body = f'index read {a} >/dev/null'
-        else:
-            body = f'{{ if ((i % 2)); then index read {b}; else index read {a}; fi; }} >/dev/null'
-        builtin = samples(run_shell(batch_script(body, args.passes, args.runs, 'i=0'), work))
+        alternate = variant == 'cold'
+        select = f'if ((i % 2)); then src={b}; else src={a}; fi;' if alternate else f'src={a};'
+        body = select + ' index read "$src" > capture-builtin-$i'
+        builtin = samples(run_shell(batch_script(body, args.passes, args.runs), work))
+        total = (args.runs + 1) * args.passes
+        for i in range(total):
+            output = work/f'capture-builtin-{i}'
+            expected = fx['listing_b'] if alternate and i % 2 else fx['listing']
+            assert output.read_bytes() == expected, f'{cid} builtin pass {i} differs from git'
+            output.unlink()
         validated_git = validate_git(fx)
-        external = samples(run_shell(batch_script(
-            f'{q(GIT)} -C {q(str(repo))} ls-files --stage >/dev/null', args.passes, args.runs,
-            f'export GIT_INDEX_FILE={a}'), work))
+        body = select + f' GIT_INDEX_FILE="$src" {q(GIT)} -C {q(str(repo))} ls-files --stage > capture-git-$i'
+        external = samples(run_shell(batch_script(body, args.passes, args.runs), work))
+        expected_a = git(repo, 'ls-files', '--stage', index=fx['a'])
+        expected_b = git(repo, 'ls-files', '--stage', index=fx['b'])
+        for i in range(total):
+            output = work/f'capture-git-{i}'
+            assert output.read_bytes() == (expected_b if alternate and i % 2 else expected_a), f'{cid} git pass {i}'
+            output.unlink()
         cases.append(dict(id=cid, fixture=name, kind='compared', passes=args.passes, runs=args.runs,
                           builtin_command=(f'index read {name}-a.index' if variant == 'warm'
                                            else f'index read {name}-a.index / {name}-b.index alternately'),
-                          external_command=f'GIT_INDEX_FILE={name}-a.index git ls-files --stage',
+                          external_command=f'GIT_INDEX_FILE={name}-a/b.index git ls-files --stage' if alternate else f'GIT_INDEX_FILE={name}-a.index git ls-files --stage',
                           work_unit=work_unit, validation_passes=validated, external_validation_passes=validated_git,
+                          captured_passes_per_implementation=total,
+                          checksum_misses=(total if alternate or fx['bytes'] > 8*1024*1024 else 1),
+                          validation='exact output and zero status on every warm-up and timed pass',
+                          cold_sequence=('A/B continuously, including warm-up' if alternate else None),
                           bashos=stats(builtin), external=stats(external),
                           bashos_over_external=round(statistics.median(builtin)/statistics.median(external), 4),
                           equivalence=('same entries and fields; git does not verify the trailer, the builtin '
@@ -261,6 +278,12 @@ if not wanted or cid in wanted:
     external = samples(run_shell(batch_script(
         f'{{ ((++n)); GIT_INDEX_FILE={q(str(work))}/x$n.index {q(GIT)} -C {q(str(repo))} -c index.version=2 '
         f'update-index --index-info < {q(str(feed))}; }}', args.passes, args.runs, 'n=0'), work))
+    total = (args.runs + 1) * args.passes
+    for prefix in ('o', 'x'):
+        for i in range(1, total + 1):
+            output = work/f'{prefix}{i}.index'
+            assert output.read_bytes() == expected, f'import {prefix} pass {i} differs from git'
+            output.unlink()
     cases.append(dict(id=cid, fixture='large', kind='compared', passes=args.passes, runs=args.runs,
                       builtin_command='index --index-info new.index < 20000 records',
                       external_command='GIT_INDEX_FILE=new.index git update-index --index-info < 20000 records',
@@ -268,9 +291,10 @@ if not wanted or cid in wanted:
                                 f"an absent index; {len(expected)}-byte index written and renamed into place",
                       reset='every pass, of both, writes a new index at a path not used before',
                       validation_passes=args.passes, external_validation_passes=args.passes,
+                      captured_passes_per_implementation=total,
                       bashos=stats(builtin), external=stats(external),
                       bashos_over_external=round(statistics.median(builtin)/statistics.median(external), 4),
-                      equivalence='byte-identical index files from both on every validation pass'))
+                      equivalence='byte-identical index files and zero status from both on every warm-up, timed and validation pass'))
     print(f'{cid}: bashos {cases[-1]["bashos"]["median_ms"]} ms, git {cases[-1]["external"]["median_ms"]} ms '
           f'({cases[-1]["bashos_over_external"]}x) per {args.passes} passes', flush=True)
 
@@ -285,7 +309,7 @@ report = {
     'cpu_affinity': args.cpu if TASKSET else None,
     'cpu_model': next((l.split(':', 1)[1].strip() for l in open('/proc/cpuinfo') if l.startswith('model name')), ''),
     'load_average_start': load_start, 'method': ('batch wall time from $EPOCHREALTIME in one bash-os shell; '
-                                           'stdout /dev/null; warm page cache; warm-up batch discarded'),
+                                           'stdout captured to owned regular files and every pass checked; warm page cache; warm-up times discarded'),
     'large_fixture_matches_bench_loadables_sorted': large_matches_historical,
     'bench_loadables_unsorted_fixture': historical_unsorted,
     'fixtures': {n: {k: fx[k] for k in ('entries', 'bytes', 'sha256_a', 'sha256_b', 'output_bytes')}

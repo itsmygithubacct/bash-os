@@ -171,3 +171,18 @@ imports are also read back by the builtin and compared with Git. The
 `sol-index-regressions.py` cases cover sequential stage edits, atomic null-ID
 refusal, and preservation of both v3 flags. Output failures use the injected
 write interface on an owned regular file.
+
+### Correction to the historical cold measurements
+
+The original five-pass cold schedule restarted at A for each batch, so the
+20000-entry case contained one checksum-cache hit and four misses per batch.
+Those preserved reports measure mixed-cache batches, not five cold reads.
+The corrected schedule carries its A/B position through warm-up and every
+batch. Its work-count regression checks 40 successive invocations. Each
+warm-up and timed pass now captures output to an owned regular file and is
+checked against the corresponding Git oracle; import files are also checked
+for every pass. Timings include output-file writes; validation happens after
+timing, so these new measurements must not be compared directly with old
+`/dev/null` timings as a code speedup. The 110000-entry index exceeds the
+checksum snapshot limit and computes its checksum on every pass in either
+schedule.
