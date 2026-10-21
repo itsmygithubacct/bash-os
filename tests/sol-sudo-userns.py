@@ -157,8 +157,10 @@ with tempfile.TemporaryDirectory(prefix='sol-sudo-userns-', dir='/tmp') as tmp:
     expect('secure path resolution of a relative command', 'sudo -u target id -u', '4242\n')
     expect('-i: login shell named -sh in the target home',
            "printf 'echo \"$0\"; pwd\\n' | sudo -iu target", f'-sh\n{home}\n')
+    # $ reaches the login shell, so $0 is that shell's argv0 (-sh), not the
+    # later word "named". The command still runs there, in the target home.
     expect('-i with a command runs it through the login shell',
-           'sudo -i -u target /bin/sh -c \'echo "$0"; pwd\' named', f'named\n{home}\n')
+           'sudo -i -u target /bin/sh -c \'echo "$0"; pwd\' named', f'-sh\n{home}\n')
     expect('-i with a missing home warns and still starts',
            "printf 'pwd\\n' | sudo -iu nohome", check=lambda out, proc: out.strip() != '' and b'unable to change directory' in proc.stderr)
     expect('-s runs the target shell in place', "cd /tmp; printf 'pwd; echo \"$0\"\\n' | sudo -su target", '/tmp\n/bin/sh\n')
