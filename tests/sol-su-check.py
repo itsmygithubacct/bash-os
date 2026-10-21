@@ -10,6 +10,7 @@ import resource
 import select
 import signal
 import subprocess
+import sys
 import tempfile
 import termios
 import fcntl
@@ -60,6 +61,9 @@ if a.fixture:
     assert proc.returncode == 0, proc.returncode
     phc = subprocess.check_output([str(fixture), '--phc'], text=True).strip()
     if a.oracle:
+        oracle_path = os.environ.get('SOL_SU_ORACLE_PATH')
+        if oracle_path:
+            sys.path.insert(0, oracle_path)
         from argon2.low_level import hash_secret_raw, Type
         from importlib.metadata import version
         expected = hash_secret_raw(b'fixture-password', b'fixture-salt', 1, 1024, 1, 32, Type.ID).hex()

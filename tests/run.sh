@@ -305,9 +305,9 @@ check 'clip sanitizer contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/plain.sh
 check 'clip sanitizer rollback contracts' env CLIP_LOAD_ENV="$scratch/clip-probe/sanitize.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-faults.py out/bash
 check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/clip-probe/sanitize.sh" CLIP_ASAN_LIB="$(cat "$scratch/clip-probe/asan-runtime.txt")" python3 tests/sol-clip-check.py out/bash
   check 'su injected fixture build' python3 tests/sol-su-build.py "$scratch/su-native"
-  check 'su authentication boundaries' env PYTHONPATH=/home/pleb/research/bash-os/loadable-completion-20261019/tasks/sol-su/oracle python3 tests/sol-su-check.py --fixture "$scratch/su-native/fixture" --shell out/bash --oracle
+  check 'su authentication boundaries' python3 tests/sol-su-check.py --fixture "$scratch/su-native/fixture" --shell out/bash --oracle
   check 'su sanitized fixture build' python3 tests/sol-su-build.py "$scratch/su-sanitize" --sanitize
-  check 'su boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 PYTHONPATH=/home/pleb/research/bash-os/loadable-completion-20261019/tasks/sol-su/oracle python3 tests/sol-su-check.py --fixture "$scratch/su-sanitize/fixture" --oracle
+  check 'su boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 python3 tests/sol-su-check.py --fixture "$scratch/su-sanitize/fixture" --oracle
   check 'tui and shared helpers sanitizer contracts' env BASHOS_TASK_DIR="$scratch/tui-contracts" bash tests/sol-tui-sanitize.sh out/bash
   check 'lpr delivery and cancel SIGPIPE under ASan+UBSan' bash tests/opus-lpr-sanitize.sh out/bash
   mkdir -p "$scratch/gpu-frames"
