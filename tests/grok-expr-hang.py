@@ -91,6 +91,13 @@ CASES = [
     (b"a\xe9", br".\(\|^[[:alpha:]]\)\+"),
     (b"a\xe9", br"a\(\|^[[:alpha:]]\)\+"),
     (b".\xe9", br".\(\|[[:alpha:]]\|^b\)\+"),
+    # GNU expr decides the match at offset 0. A later hit is a non-match
+    # and must not be searched with two registers. The class form hangs
+    # in the unfixed builtin and finishes in GNU expr.
+    (b" abc", br"a\(\|^b\)\+"),
+    (b" abc", br"a\(\|\`b\)\+"),
+    (b" abc", br"a\(\|\<b\)\+"),
+    (b" a\xe9", br"a\(\|^[[:alpha:]]\)\+"),
     # Wide characters. Word class differs between C and C.UTF-8.
     (b"\xc3\xa9 b", br".\(\|\< \)\+"),
     (b"a\xc3\xa9b", br".\(\|\<.\)\+"),

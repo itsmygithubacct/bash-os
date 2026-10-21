@@ -1287,7 +1287,15 @@ bex_regex_result (regex_t *r, const char *s, const char *pat, int *err)
     int rc;
 #if defined (__GLIBC__)
     if (r->re_nsub > 0) {
+        regmatch_t one;
+        int rc1;
         struct el_pred pred;
+        /* GNU expr matches at offset 0 only. nmatch <= 1 does not enter
+           set_regs, so a hit that starts later is a non-match and must
+           not be searched again with two registers. */
+        rc1 = regexec (r, s ? s : "", 1, &one, 0);
+        if (rc1 != 0 || one.rm_so != 0)
+            return bex_make ("");
         el_predict (pat, s ? s : "", &pred);
         if (pred.refuse) {
             builtin_error ("regex does not finish: repeated group with an anchor");
@@ -1626,9 +1634,10 @@ char *expr_doc[] = {
     "That is a + or {n,} (n at least 1) on a group that can match empty,",
     "when the group contains ^, \\`, \\< or \\> followed by a consuming atom",
     "(a POSIX class consumes a whole multibyte character) and this subject",
-    "would take that path. A subject on which glibc finishes",
-    "is unchanged, as is any pattern with a back-reference. bash [[ =~ ]] uses",
-    "the same matcher and can still hang; this command does not change it.",
+    "would take that path. A match that does not begin at the first byte is",
+    "a non-match, the same as GNU expr. A back-reference is unchanged.",
+    "bash [[ =~ ]] uses the same matcher and can still hang; this command",
+    "does not change it.",
     "",
     "Exit: 0 if result is non-zero/non-empty, 1 if zero/empty,",
     "      2 on syntax error.",
