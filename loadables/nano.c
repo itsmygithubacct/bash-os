@@ -1493,6 +1493,29 @@ bn_install_term (void)
     }
 }
 
+/* Block termination around the flag check, then atomically restore the
+   caller's mask while waiting. A signal received before the wait cannot
+   be lost, including during prompt rendering or spell-helper setup. */
+static int
+bn_poll (struct pollfd *fds, nfds_t n, int timeout_ms)
+{
+    sigset_t term, old;
+    sigemptyset (&term);
+    sigaddset (&term, SIGHUP);
+    sigaddset (&term, SIGTERM);
+    if (sigprocmask (SIG_BLOCK, &term, &old) < 0) return -1;
+    struct timespec timeout = { timeout_ms / 1000,
+                                (timeout_ms % 1000) * 1000000L };
+    int r;
+    if (bn_term_signal) { errno = EINTR; r = -1; }
+    else r = ppoll (fds, n, timeout_ms < 0 ? NULL : &timeout, &old);
+    int saved_errno = errno;
+    sigprocmask (SIG_SETMASK, &old, NULL);
+    if (bn_term_signal) { errno = EINTR; return -1; }
+    errno = saved_errno;
+    return r;
+}
+
 static void
 bn_restore_term (void)
 {
@@ -2403,27 +2426,27 @@ static int bn_unread = -1;
 static int
 bn_next_byte (int timeout_ms)
 {
+    if (bn_term_signal) return BN_BYTE_INTR;
     if (bn_unread >= 0) {
         int c = bn_unread;
         bn_unread = -1;
         return c;
     }
-    if (timeout_ms >= 0) {
-        struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
-        int r;
-        while ((r = poll (&p, 1, timeout_ms)) < 0 && errno == EINTR) {
-            if (bn_term_signal) return BN_BYTE_INTR;
-        }
-        if (r == 0) return BN_BYTE_TIMEOUT;
-        if (r < 0) return BN_BYTE_EOF;
-    }
-    unsigned char b;
     for (;;) {
+        struct pollfd p = { STDIN_FILENO, POLLIN, 0 };
+        int r = bn_poll (&p, 1, timeout_ms);
+        if (r == 0) return BN_BYTE_TIMEOUT;
+        if (r < 0) {
+            if (errno != EINTR) return BN_BYTE_EOF;
+            if (timeout_ms < 0 || bn_term_signal) return BN_BYTE_INTR;
+            continue;
+        }
+        /* Read only after readiness, never an unchecked blocking read.
+           The editor is the sole reader of its terminal input. */
+        unsigned char b;
         ssize_t n = read (STDIN_FILENO, &b, 1);
         if (n == 1) return b;
         if (n < 0 && errno == EINTR) {
-            /* The first byte of a key reports the interruption so the
-               caller can redraw or stop; inside a key, keep reading. */
             if (timeout_ms < 0 || bn_term_signal) return BN_BYTE_INTR;
             continue;
         }
@@ -2432,7 +2455,7 @@ bn_next_byte (int timeout_ms)
 }
 
 static int
-bn_read_key (char *buf, size_t bufsz)
+bn_frame_key (char *buf, size_t bufsz)
 {
     if (bn_keyq) {
         if (bn_keyq_pos >= bn_keyq_n) return -1;
@@ -2489,6 +2512,15 @@ bn_read_key (char *buf, size_t bufsz)
         }
     }
     return (int) total;
+}
+
+/* Cancellation also takes precedence over queued keys and partial frames. */
+static int
+bn_read_key (char *buf, size_t bufsz)
+{
+    if (bn_term_signal) return 0;
+    int n = bn_frame_key (buf, bufsz);
+    return bn_term_signal ? 0 : n;
 }
 
 /* ---- justify (^J, M-J) ----
@@ -2866,6 +2898,10 @@ static int
 bn_spell_run_helper (const char *cmd, const char *text, size_t len,
                      bn_wordlist *words, char *err, size_t errsz)
 {
+    if (bn_term_signal) {
+        snprintf (err, errsz, "Spell helper interrupted");
+        return -1;
+    }
     char *copy = strdup (cmd);
     char *argv[32];
     int argc = 0;
@@ -2965,7 +3001,7 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
         int np = 0;
         pfd[np].fd = rfd; pfd[np].events = POLLIN; pfd[np].revents = 0; np++;
         if (wfd >= 0) { pfd[np].fd = wfd; pfd[np].events = POLLOUT; pfd[np].revents = 0; np++; }
-        int pr = poll (pfd, (nfds_t) np, (int) (bn_spell_timeout_ms - elapsed));
+        int pr = bn_poll (pfd, (nfds_t) np, (int) (bn_spell_timeout_ms - elapsed));
         if (bn_term_signal) { problem = "interrupted"; break; }
         if (pr < 0) {
             if (errno == EINTR) continue;
