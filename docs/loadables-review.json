@@ -1387,6 +1387,14 @@
       "status": "Contract",
       "evidence": "tests/opus-dmsetup-ioctl.py",
       "scope": "Brief scope met for the software/ioctl path. All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing, against an injected fixture whose reply sizes now match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. Coverage includes the explicit root+opt-in mutation policy, aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. Measurements are labeled syscall-shim. Actual-device qualification is a documented qualification limit, not an unresolved requirement of this brief. The catalog must say fixture-verified, not hardware-qualified."
+    },
+    {
+      "names": [
+        "payload"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-payload-installer.py",
+      "scope": "The original brief's software scope (installer argv boundary with a private INDEX/root and a recording fake helper, docs on the helper contract and trust model, controlled measurements) is met. The real image bl-pkg.sh, real archives and image installation are qualification limits, not unresolved requirements of this brief."
     }
   ],
   "sanitizer_groups": [
@@ -2525,9 +2533,9 @@
       "next": "Decide whether real print delivery belongs in this loadable."
     },
     "payload": {
-      "evidence": "docs/opus-payload.md",
-      "note": "Trusted local repository parsing and builtin-to-installer protocol with an isolated recording installer. Embedded NUL/control records fail without truncation; actual bashy.box installation remains unqualified.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "evidence": "docs/sol-payload.md",
+      "note": "The original brief's software scope (installer argv boundary with a private INDEX/root and a recording fake helper, docs on the helper contract and trust model, controlled measurements) is met. The real image bl-pkg.sh, real archives and image installation are qualification limits, not unresolved requirements of this brief.",
+      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "nano": {
       "evidence": "docs/opus-nano.md",
