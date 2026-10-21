@@ -88,8 +88,10 @@ fds = []
 for fd in range(3, 1024):
     try: os.fstat(fd); fds.append(fd)
     except OSError: pass
+row = {'name': os.path.basename(sys.argv[0]), 'argv': sys.argv[1:], 'fds': fds}
+if 'FRESH' in os.environ: row['fresh'] = os.environ['FRESH']
 with open(os.environ['DELEGATE_LOG'], 'a') as f:
-    f.write(json.dumps({'name': os.path.basename(sys.argv[0]), 'argv': sys.argv[1:], 'fds': fds}) + '\\n')
+    f.write(json.dumps(row) + '\\n')
 sys.exit(int(os.environ.get('DELEGATE_EXIT', '0')))
 '''
             bindir = tmp / 'bin'
@@ -101,7 +103,9 @@ sys.exit(int(os.environ.get('DELEGATE_EXIT', '0')))
             def run(script, rc=0, extra=None, path=''):
                 log.write_text('')
                 env = {'HOME': str(tmp), 'LC_ALL': 'C', 'DELEGATE_LOG': str(log), **(extra or {})}
-                proc = subprocess.run([str(shell), '--noprofile', '--norc', '-c', f'PATH={path}; ' + script],
+                # Exported: execvp resolves through bash's getenv, which sees
+                # only exported variables.
+                proc = subprocess.run([str(shell), '--noprofile', '--norc', '-c', f'export PATH={path}; ' + script],
                                       env=env, capture_output=True, timeout=120)
                 rows = [json.loads(line) for line in log.read_text().splitlines()]
                 return proc.returncode == rc, proc, rows
@@ -121,6 +125,11 @@ sys.exit(int(os.environ.get('DELEGATE_EXIT', '0')))
             case('native:explicit-delegate-verbatim',
                  ok and rows == [dict(name='explicit', argv=['-nu', 'root', '--', '/bin/echo', 'literal ; no', ''], fds=[]),
                                  dict(name='explicit', argv=['-nk', 'A=1', '/bin/echo', 'again'], fds=[])],
+                 f'rc={proc.returncode} rows={rows} err={proc.stderr!r}')
+            # A variable exported just before the call reaches the delegate.
+            ok, proc, rows = run('export FRESH=now; sudo -n /bin/true; FRESH=later; sudo -n /bin/true; '
+                                 'FRESH=temp sudo -n /bin/true', 0, {'BASHSUDO_EXTERNAL': str(tmp / 'explicit')})
+            case('native:delegate-sees-current-exports', ok and [r.get('fresh') for r in rows] == ['now', 'later', 'temp'],
                  f'rc={proc.returncode} rows={rows} err={proc.stderr!r}')
             ok, proc, rows = run('sudo -n /bin/true', 1, {'BASHDOAS_EXTERNAL': str(tmp / 'explicit'), 'DELEGATE_EXIT': '1'})
             case('native:delegate-denial-status', ok and len(rows) == 1, f'rc={proc.returncode} rows={rows}')
@@ -163,7 +172,7 @@ done'''
             quick.mkdir()
             (quick / 'doas').write_text('#!/bin/sh\nexit 37\n')
             (quick / 'doas').chmod(0o700)
-            proc = subprocess.run([str(shell), '--noprofile', '--norc', '-c', f'PATH={quick}\n' + script],
+            proc = subprocess.run([str(shell), '--noprofile', '--norc', '-c', f'export PATH={quick}\n' + script],
                                   env={'LC_ALL': 'C'}, capture_output=True, timeout=300,
                                   preexec_fn=lambda: os.sched_setaffinity(0, {cpu}))
             case('native:300-pinned-translated-rounds', proc.returncode == 0 and not proc.stdout and not proc.stderr,

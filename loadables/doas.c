@@ -96,6 +96,15 @@ static int bda_wait_status (pid_t pid);
 static void bda_child_reset_signals (void);
 static void bda_child_close_fds (void);
 
+/* Bash refreshes the C environ (its export_env) only when it next runs an
+   external command, so after `export PATH=...` a raw execvp would search the
+   old PATH and pass the old environment. Refresh it in the child first. */
+static void
+bda_sync_environ (void)
+{
+  maybe_make_export_env ();
+}
+
 /* Bash must not reap a raw child before this command collects its status.
    Keep unrelated SIGCHLD notifications pending until our wait is complete. */
 static pid_t
@@ -676,6 +685,7 @@ bda_spawn_editor (char **temps, int n)
       /* Caller creds are already in effect (non-root SUDOEDIT path). */
       bda_child_reset_signals ();
       bda_child_close_fds ();
+      bda_sync_environ ();
       execvp (argv[0], argv);
       _exit (127);
     }
@@ -1648,6 +1658,7 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
     {
       bda_child_reset_signals ();
       bda_child_close_fds ();
+      bda_sync_environ ();
       execvp (path, argv);
       int exec_errno = errno;
       fprintf (stderr, "%s: external doas: %s: %s\n",

@@ -68,7 +68,8 @@ def case(name, ok, detail=''):
     print(('PASS ' if ok else 'FAIL ') + name + ('' if ok else ': ' + detail), flush=True)
 
 
-with tempfile.TemporaryDirectory(prefix='sol-sudo-userns-') as tmp:
+# Under /tmp so the mapped target ids can traverse to their home.
+with tempfile.TemporaryDirectory(prefix='sol-sudo-userns-', dir='/tmp') as tmp:
     tmp = Path(tmp)
     os.chmod(tmp, 0o755)
     home = tmp / 'home'
@@ -173,6 +174,12 @@ with tempfile.TemporaryDirectory(prefix='sol-sudo-userns-') as tmp:
            'doas -u target /usr/bin/id -u; doas -u target /usr/bin/env', check=lambda out, _: out.startswith('4242\n') and 'SUDO_COMMAND=' not in out and 'USER=target' in out)
     expect('root sudoedit runs the split editor on the file',
            f'sudo -e {edited}; echo $?; /bin/cat {edited}', '0\nold+edited', extra={'SUDO_EDITOR': f'{editor} --flag'})
+    (tmp / 'sol-sudo-editor').write_text('#!/bin/sh\n[ "$1" = --flag ] || exit 7\nshift\n'
+                                         'for f; do printf "+$EDIT_MARK" >> "$f"; done\n')
+    (tmp / 'sol-sudo-editor').chmod(0o755)
+    expect('root sudoedit finds the editor on a freshly exported PATH and passes fresh exports',
+           f'export PATH={tmp} SUDO_EDITOR="sol-sudo-editor --flag" EDIT_MARK=fresh; sudo -e {edited}; echo $?; /bin/cat {edited}',
+           '0\nold+edited+fresh')
     expect('repeated calls keep background statuses and the CHLD trap',
            '''trap ':' CHLD; saved=$(trap -p CHLD)
 for ((i=0;i<200;i++)); do
