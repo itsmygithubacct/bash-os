@@ -999,7 +999,7 @@ bashts_sgr_range_budget (void **state, const char *lang, const char *src,
                          const char **sgr_at, long budget_us, int *pending)
 {
     if (pending) *pending = 0;
-    if (!state || !lang || !src || !sgr_at || srclen > UINT32_MAX || lo > hi || hi > srclen)
+    if (!state || !lang || !src || !sgr_at || srclen > UINT32_MAX || srclen == SIZE_MAX || lo > hi || hi > srclen)
         return -1;
     const struct bashts_lang *l = bashts_find_lang_entry (lang);
     if (!l || !l->highlight_scm) { bashts_sgr_state_free (state); return -1; }
@@ -1021,11 +1021,11 @@ bashts_sgr_range_budget (void **state, const char *lang, const char *src,
         if (st->parser) ts_parser_reset (st->parser);
         if (st->tree) {
             uint32_t pre = 0, max = st->srclen < n ? st->srclen : n;
-            while (pre + 4096 <= max && memcmp (st->src + pre, src + pre, 4096) == 0)
+            while (max - pre >= 4096 && memcmp (st->src + pre, src + pre, 4096) == 0)
                 pre += 4096;
             while (pre < max && st->src[pre] == src[pre]) pre++;
             uint32_t suf = 0;
-            while (suf + 4096 <= max - pre
+            while (max - pre - suf >= 4096
                    && memcmp (st->src + st->srclen - suf - 4096, src + n - suf - 4096, 4096) == 0)
                 suf += 4096;
             while (suf < max - pre
