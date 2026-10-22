@@ -246,14 +246,215 @@ bp_read_all_fd (int fd, bp_buf *out)
     return n < 0 ? -1 : 0;
 }
 
+#ifndef AT_SYMLINK_NOFOLLOW
+#  define AT_SYMLINK_NOFOLLOW 0x100
+#endif
+
+/* --root for the builtin now running. NULL for pack and the delta verbs,
+   which only touch paths the user named. pkg_builtin saves and restores
+   this around dispatch. */
+static const char *bp_contain_root;
+
+/* REL receives the path strictly below ROOT. The root string itself is
+   not below it: open() follows links in the path the user gave for --root.
+   A lexical ".." is still below the string, and the walk rejects it. */
 static int
-bp_read_file (const char *path, bp_buf *out)
+bp_below_root (const char *root, const char *path, const char **rel)
+{
+    if (!root || !*root || !path || !*path)
+        return 0;
+    if (strcmp (root, "/") == 0) {
+        if (path[1] == '\0')
+            return 0;
+        *rel = path + 1;
+        return 1;
+    }
+    size_t n = strlen (root);
+    while (n > 1 && root[n - 1] == '/')
+        n--;
+    if (strncmp (path, root, n) != 0 || path[n] != '/')
+        return 0;
+    const char *r = path + n + 1;
+    while (*r == '/')
+        r++;
+    if (!*r)
+        return 0;
+    *rel = r;
+    return 1;
+}
+
+/* Open ROOT following every symlink in that path, then walk REL without
+   following. ".." is refused so a files/ member cannot step back out.
+   CREATE makes missing directories. When STOP_BEFORE_FINAL is set, *LEAF
+   receives the last component and the returned fd is its parent. */
+static int
+bp_open_below (const char *root, const char *rel, int create,
+               int stop_before_final, char *leaf, size_t leaf_sz)
+{
+    if (!root || !*root) {
+        errno = EINVAL;
+        return -1;
+    }
+    int dfd = open (root, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dfd < 0)
+        return -1;
+    if (!rel || !*rel) {
+        if (stop_before_final) {
+            close (dfd);
+            errno = EINVAL;
+            return -1;
+        }
+        return dfd;
+    }
+    char buf[BPKG_PATH_MAX];
+    size_t n = strlen (rel);
+    if (n >= sizeof buf) {
+        close (dfd);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy (buf, rel, n + 1);
+    while (n > 0 && buf[n - 1] == '/')
+        buf[--n] = 0;
+    char *p = buf;
+    while (*p) {
+        while (*p == '/')
+            p++;
+        if (!*p)
+            break;
+        char *slash = strchr (p, '/');
+        if (slash)
+            *slash = 0;
+        int last = slash == NULL;
+        if (stop_before_final && last) {
+            if (strlen (p) >= leaf_sz) {
+                close (dfd);
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+            memcpy (leaf, p, strlen (p) + 1);
+            return dfd;
+        }
+        if (!strcmp (p, "..")) {
+            close (dfd);
+            errno = ELOOP;
+            return -1;
+        }
+        if (!strcmp (p, ".")) {
+            if (!slash)
+                break;
+            p = slash + 1;
+            continue;
+        }
+        struct stat st;
+        if (fstatat (dfd, p, &st, AT_SYMLINK_NOFOLLOW) < 0) {
+            if (errno != ENOENT || !create) {
+                int saved = errno;
+                close (dfd);
+                errno = saved;
+                return -1;
+            }
+            if (mkdirat (dfd, p, 0755) < 0 && errno != EEXIST) {
+                int saved = errno;
+                close (dfd);
+                errno = saved;
+                return -1;
+            }
+            if (fstatat (dfd, p, &st, AT_SYMLINK_NOFOLLOW) < 0) {
+                int saved = errno;
+                close (dfd);
+                errno = saved;
+                return -1;
+            }
+        }
+        if (S_ISLNK (st.st_mode)) {
+            close (dfd);
+            errno = ELOOP;
+            return -1;
+        }
+        if (!S_ISDIR (st.st_mode)) {
+            close (dfd);
+            errno = ENOTDIR;
+            return -1;
+        }
+        int nfd = openat (dfd, p,
+                          O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        int saved = errno;
+        close (dfd);
+        if (nfd < 0) {
+            errno = saved;
+            return -1;
+        }
+        dfd = nfd;
+        if (!slash)
+            break;
+        p = slash + 1;
+    }
+    if (stop_before_final) {
+        close (dfd);
+        errno = EINVAL;
+        return -1;
+    }
+    return dfd;
+}
+
+static int
+bp_read_user_file (const char *path, bp_buf *out)
 {
     int fd = open (path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return -1;
+    if (fd < 0)
+        return -1;
     int rc = bp_read_all_fd (fd, out);
     close (fd);
     return rc;
+}
+
+static int
+bp_read_below (const char *root, const char *rel, bp_buf *out)
+{
+    char leaf[256];
+    int dfd = bp_open_below (root, rel, 0, 1, leaf, sizeof leaf);
+    if (dfd < 0)
+        return -1;
+    if (!strcmp (leaf, "..") || !strcmp (leaf, ".")) {
+        close (dfd);
+        errno = ELOOP;
+        return -1;
+    }
+    int fd = openat (dfd, leaf, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    int saved = errno;
+    close (dfd);
+    if (fd < 0) {
+        errno = saved;
+        return -1;
+    }
+    int rc = bp_read_all_fd (fd, out);
+    close (fd);
+    return rc;
+}
+
+/* State, installed files, and package-derived paths below --root are not
+   followed. Anything else, including a package file or a local source the
+   user named, is an ordinary open. */
+static int
+bp_read_file (const char *path, bp_buf *out)
+{
+    const char *rel = NULL;
+    if (bp_contain_root && bp_below_root (bp_contain_root, path, &rel))
+        return bp_read_below (bp_contain_root, rel, out);
+    return bp_read_user_file (path, out);
+}
+
+/* A .pkg the user named, even when that path is lexically below --root
+   (the default root is "/"). A copy under the cache is state. */
+static int
+bp_read_archive (const char *path, bp_buf *out)
+{
+    const char *rel = NULL;
+    if (bp_contain_root && bp_below_root (bp_contain_root, path, &rel) &&
+        strncmp (rel, "var/lib/pkg/", 12) == 0)
+        return bp_read_below (bp_contain_root, rel, out);
+    return bp_read_user_file (path, out);
 }
 
 /* Used when a root has no sources.list: the signed package releases of
@@ -269,14 +470,18 @@ static int
 bp_read_sources (const char *root, const char *sources, int default_ok,
                  char *path, size_t pathsz, bp_buf *body)
 {
-    if (sources)
+    if (sources) {
+        /* --sources is a path the user named. Follow it. */
         snprintf (path, pathsz, "%s", sources);
-    else
+        if (bp_read_user_file (path, body) == 0)
+            return 0;
+    } else {
         snprintf (path, pathsz, "%s%s",
                   root[0] && strcmp (root, "/") ? root : "",
                   BPKG_SOURCES_LIST);
-    if (bp_read_file (path, body) == 0)
-        return 0;
+        if (bp_read_file (path, body) == 0)
+            return 0;
+    }
     if (sources || errno != ENOENT || !default_ok)
         return -1;
     bp_buf_free (body);
@@ -284,9 +489,12 @@ bp_read_sources (const char *root, const char *sources, int default_ok,
                           sizeof BPKG_DEFAULT_SOURCE - 1);
 }
 
+static unsigned bp_tmp_seq;
+
+/* Paths outside --root, including the hook script under /tmp. */
 static int
-bp_write_file_atomic (const char *path, const void *data, size_t n,
-                      mode_t mode)
+bp_write_file_user (const char *path, const void *data, size_t n,
+                    mode_t mode)
 {
     char tmp[BPKG_PATH_MAX];
     if (snprintf (tmp, sizeof tmp, "%s.tmp.XXXXXX", path) >=
@@ -327,24 +535,159 @@ fail:
     }
 }
 
-/* mkdir -p — accept an absolute or relative path, create every leading
- * directory with mode 0755. EEXIST treated as success. Trailing slash
- * tolerated. */
+/* Write PATH, which is ROOT plus REL, by renaming inside the parent
+   directory. A symlink leaf is replaced, not followed. */
+static int
+bp_write_below (const char *root, const char *rel, const void *data,
+                size_t n, mode_t mode)
+{
+    char leaf[256];
+    int dfd = bp_open_below (root, rel, 0, 1, leaf, sizeof leaf);
+    if (dfd < 0)
+        return -1;
+    if (!strcmp (leaf, "..") || !strcmp (leaf, ".")) {
+        close (dfd);
+        errno = ELOOP;
+        return -1;
+    }
+    char tmp[64];
+    int fd = -1;
+    for (unsigned k = 0; k < 128 && fd < 0; k++) {
+        if (snprintf (tmp, sizeof tmp, ".pkg.%ld.%u", (long) getpid (),
+                      bp_tmp_seq + k) >= (int) sizeof tmp) {
+            close (dfd);
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        fd = openat (dfd, tmp,
+                     O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+        if (fd < 0 && errno != EEXIST) {
+            int saved = errno;
+            close (dfd);
+            errno = saved;
+            return -1;
+        }
+    }
+    bp_tmp_seq += 128;
+    if (fd < 0) {
+        close (dfd);
+        errno = EEXIST;
+        return -1;
+    }
+    mode_t mask = umask (0);
+    umask (mask);
+    const unsigned char *p = data;
+    size_t left = n;
+    while (left > 0) {
+        ssize_t w = write (fd, p, left);
+        if (w <= 0) {
+            if (w < 0 && errno == EINTR) continue;
+            if (w == 0) errno = EIO;
+            goto fail;
+        }
+        p += w; left -= (size_t) w;
+    }
+    if (fchmod (fd, mode & ~mask) < 0)
+        goto fail;
+    if (close (fd) < 0) { fd = -1; goto fail; }
+    fd = -1;
+    if (renameat (dfd, tmp, dfd, leaf) < 0)
+        goto fail;
+    close (dfd);
+    return 0;
+fail:
+    {
+        int saved = errno;
+        if (fd >= 0) close (fd);
+        unlinkat (dfd, tmp, 0);
+        close (dfd);
+        errno = saved;
+        return -1;
+    }
+}
+
+static int
+bp_write_file_atomic (const char *path, const void *data, size_t n,
+                      mode_t mode)
+{
+    const char *rel = NULL;
+    if (bp_contain_root && bp_below_root (bp_contain_root, path, &rel))
+        return bp_write_below (bp_contain_root, rel, data, n, mode);
+    return bp_write_file_user (path, data, n, mode);
+}
+
+/* chmod of a leaf below --root. openat(O_NOFOLLOW) plus fchmod does not
+   need the fchmodat2 syscall or a mounted /proc. */
+static int
+bp_chmod_nofollow (const char *path, mode_t mode)
+{
+    const char *rel = NULL;
+    if (!(bp_contain_root && bp_below_root (bp_contain_root, path, &rel)))
+        return chmod (path, mode);
+    char leaf[256];
+    int dfd = bp_open_below (bp_contain_root, rel, 0, 1, leaf, sizeof leaf);
+    if (dfd < 0)
+        return -1;
+    if (!strcmp (leaf, "..") || !strcmp (leaf, ".")) {
+        close (dfd);
+        errno = ELOOP;
+        return -1;
+    }
+    int fd = openat (dfd, leaf, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    int saved = errno;
+    close (dfd);
+    if (fd < 0) {
+        errno = saved;
+        return -1;
+    }
+    int rc = fchmod (fd, mode);
+    saved = errno;
+    close (fd);
+    if (rc < 0)
+        errno = saved;
+    return rc;
+}
+
+/* mkdir -p. Below --root a symlink component is ELOOP. Elsewhere this is
+   the ordinary walk, so a prefix the user named may itself be a link. */
 static int
 bp_mkdir_p (const char *path)
 {
-    if (!path || !*path) return -1;
+    if (!path || !*path) {
+        errno = EINVAL;
+        return -1;
+    }
+    const char *rel = NULL;
+    if (bp_contain_root && bp_below_root (bp_contain_root, path, &rel)) {
+        /* Create the root the user named, following links in that prefix,
+           then refuse a symlink only in the components under it. */
+        const char *root = bp_contain_root;
+        bp_contain_root = NULL;
+        int made = bp_mkdir_p (root);
+        bp_contain_root = root;
+        if (made < 0)
+            return -1;
+        int dfd = bp_open_below (root, rel, 1, 0, NULL, 0);
+        if (dfd < 0)
+            return -1;
+        close (dfd);
+        return 0;
+    }
     char buf[BPKG_PATH_MAX];
     size_t n = strlen (path);
-    if (n >= sizeof buf) return -1;
+    if (n >= sizeof buf) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
     memcpy (buf, path, n + 1);
-    /* Trim trailing slashes (but keep leading "/"). */
-    while (n > 1 && buf[n - 1] == '/') buf[--n] = 0;
+    while (n > 1 && buf[n - 1] == '/')
+        buf[--n] = 0;
     for (size_t i = 1; i <= n; i++) {
         if (buf[i] == '/' || buf[i] == 0) {
             int saved = buf[i];
             buf[i] = 0;
-            if (mkdir (buf, 0755) < 0 && errno != EEXIST) return -1;
+            if (mkdir (buf, 0755) < 0 && errno != EEXIST)
+                return -1;
             buf[i] = saved;
         }
     }
@@ -2437,7 +2780,7 @@ bp_install_staged_loadable (bp_install_ctx *ctx, const char *root)
         return -1;
     }
     ctx->loadable_dest_active = 1;
-    if (chmod (dest, mode) < 0) {
+    if (bp_chmod_nofollow (dest, mode) < 0) {
         builtin_error ("chmod %s: %s", dest, strerror (errno));
         return -1;
     }
@@ -2488,7 +2831,7 @@ bp_data_write_cb (const bp_tar_hdr *h, const char *path,
         }
     }
     if (bp_write_file_atomic (dest, body, body_len, e->mode) < 0 ||
-        chmod (dest, e->mode) < 0) {
+        bp_chmod_nofollow (dest, e->mode) < 0) {
         builtin_error ("write %s: %s", dest, strerror (errno));
         return -1;
     }
@@ -2549,7 +2892,7 @@ bp_install_staged_data (bp_install_ctx *ctx, const char *root,
         if (has[k]) {
             mode_t mask = umask (0);
             umask (mask);
-            if (chmod (ctx->data_stage[k], 0755 & ~mask) < 0) {
+            if (bp_chmod_nofollow (ctx->data_stage[k], 0755 & ~mask) < 0) {
                 builtin_error ("chmod %s: %s", ctx->data_stage[k], strerror (errno));
                 goto fail;
             }
@@ -3010,7 +3353,7 @@ bp_extract_cb (const bp_tar_hdr *h, const char *path,
      * the full 12-bit mode onto the on-disk inode so the Stage A.9
      * mode-bit verifier can catch a tampered header that lifts
      * 0755 → 04755 (the regression 630-pkg-mode-bits.sh pins). */
-    if (chmod (dest, mode) < 0) {
+    if (bp_chmod_nofollow (dest, mode) < 0) {
         builtin_error ("chmod %s: %s", dest, strerror (errno));
         return -1;
     }
@@ -3165,7 +3508,7 @@ bp_validate_loadable_archive (const char *pkgfile, const char *expected_name,
                               bp_manifest *out_manifest)
 {
     bp_buf raw = {0};
-    if (bp_read_file (pkgfile, &raw) < 0) {
+    if (bp_read_archive (pkgfile, &raw) < 0) {
         builtin_error ("read %s: %s", pkgfile, strerror (errno));
         bp_buf_free (&raw);
         return -1;
@@ -3195,7 +3538,7 @@ bp_run_hook_buf (bp_buf *hook, const char *pkgname, const char *version,
     char tmp[BPKG_PATH_MAX];
     if (snprintf (tmp, sizeof tmp, "/tmp/pkg.%d.%s.sh",
                   (int) getpid (), tag) >= (int) sizeof tmp) return -1;
-    if (bp_write_file_atomic (tmp, hook->data, hook->len, 0700) < 0) {
+    if (bp_write_file_user (tmp, hook->data, hook->len, 0700) < 0) {
         builtin_error ("write hook %s: %s", tmp, strerror (errno));
         return -1;
     }
@@ -3223,7 +3566,7 @@ bp_install_pkgfile (const char *pkgfile, const char *root,
 
     /* Read archive. */
     bp_buf raw = {0};
-    if (bp_read_file (pkgfile, &raw) < 0) {
+    if (bp_read_archive (pkgfile, &raw) < 0) {
         builtin_error ("read %s: %s", pkgfile, strerror (errno));
         bp_buf_free (&raw);
         return EXECUTION_FAILURE;
@@ -3666,7 +4009,7 @@ static int
 bp_manifest_from_pkgfile (const char *pkgfile, bp_manifest *m)
 {
     bp_buf raw = {0};
-    if (bp_read_file (pkgfile, &raw) < 0) {
+    if (bp_read_archive (pkgfile, &raw) < 0) {
         bp_buf_free (&raw);
         return -1;
     }
@@ -4109,7 +4452,7 @@ bp_update_copy_index (const char *src_idx, const char *src_pkgdir,
     if (bp_mkdir_p (dest_dir) < 0)
         return -1;
     bp_buf idx_body = {0};
-    if (bp_read_file (src_idx, &idx_body) < 0) {
+    if (bp_read_user_file (src_idx, &idx_body) < 0) {
         builtin_warning ("source %s: %s", src_idx, strerror (errno));
         bp_buf_free (&idx_body);
         return -1;
@@ -6009,7 +6352,7 @@ bp_copy_package_to_cache (const char *root, const char *pkgpath,
     }
     bp_manifest_free (&mf);
     bp_buf body = {0};
-    if (bp_read_file (pkgpath, &body) < 0) {
+    if (bp_read_archive (pkgpath, &body) < 0) {
         bp_buf_free (&body);
         return -1;
     }
@@ -6031,7 +6374,7 @@ bp_copy_signature_to_cache (const char *sigpath, const char *cached_pkg)
         (int) sizeof dest)
         return -1;
     bp_buf body = {0};
-    if (bp_read_file (sigpath, &body) < 0) {
+    if (bp_read_archive (sigpath, &body) < 0) {
         bp_buf_free (&body);
         return -1;
     }
@@ -8594,24 +8937,46 @@ pkg_builtin (WORD_LIST *list)
     if (!list) { builtin_usage (); return EX_USAGE; }
     const char *cmd = list->word->word;
     WORD_LIST *args = list->next;
-    if (!strcmp (cmd, "pack"))    return verb_pack (args);
-    if (!strcmp (cmd, "install")) return verb_install (args);
-    if (!strcmp (cmd, "rollback")) return verb_rollback (args);
-    if (!strcmp (cmd, "remove"))  return verb_remove (args);
-    if (!strcmp (cmd, "list"))    return verb_list (args);
-    if (!strcmp (cmd, "info"))    return verb_info (args);
-    if (!strcmp (cmd, "search"))  return verb_search (args);
-    if (!strcmp (cmd, "update"))  return verb_update (args);
-    if (!strcmp (cmd, "fetch"))   return verb_fetch (args);
-    if (!strcmp (cmd, "download")) return verb_download (args);
-    if (!strcmp (cmd, "upgrade")) return verb_upgrade (args);
-    if (!strcmp (cmd, "verify"))  return verb_verify (args);
-    if (!strcmp (cmd, "load"))    return verb_load (args);
-    if (!strcmp (cmd, "unload"))  return verb_unload (args);
-    if (!strcmp (cmd, "delta-make")) return verb_delta_make (args);
-    if (!strcmp (cmd, "delta-apply")) return verb_delta_apply (args);
-    builtin_error ("unknown verb: %s", cmd);
-    return EX_USAGE;
+    /* Pack and the delta verbs only touch paths the caller named.
+       Every other verb publishes or reads state under --root. */
+    const char *contain = NULL;
+    if (strcmp (cmd, "pack") != 0 && strcmp (cmd, "delta-make") != 0 &&
+        strcmp (cmd, "delta-apply") != 0) {
+        contain = BPKG_INSTALL_ROOT;
+        for (WORD_LIST *scan = args; scan; scan = scan->next) {
+            if (!scan->word || strcmp (scan->word->word, "--root") != 0)
+                continue;
+            if (!scan->next || !scan->next->word)
+                break;
+            contain = scan->next->word->word;
+            scan = scan->next;
+        }
+    }
+    const char *saved_root = bp_contain_root;
+    bp_contain_root = contain;
+    int rc;
+    if (!strcmp (cmd, "pack"))         rc = verb_pack (args);
+    else if (!strcmp (cmd, "install")) rc = verb_install (args);
+    else if (!strcmp (cmd, "rollback")) rc = verb_rollback (args);
+    else if (!strcmp (cmd, "remove"))  rc = verb_remove (args);
+    else if (!strcmp (cmd, "list"))    rc = verb_list (args);
+    else if (!strcmp (cmd, "info"))    rc = verb_info (args);
+    else if (!strcmp (cmd, "search"))  rc = verb_search (args);
+    else if (!strcmp (cmd, "update"))  rc = verb_update (args);
+    else if (!strcmp (cmd, "fetch"))   rc = verb_fetch (args);
+    else if (!strcmp (cmd, "download")) rc = verb_download (args);
+    else if (!strcmp (cmd, "upgrade")) rc = verb_upgrade (args);
+    else if (!strcmp (cmd, "verify"))  rc = verb_verify (args);
+    else if (!strcmp (cmd, "load"))    rc = verb_load (args);
+    else if (!strcmp (cmd, "unload"))  rc = verb_unload (args);
+    else if (!strcmp (cmd, "delta-make")) rc = verb_delta_make (args);
+    else if (!strcmp (cmd, "delta-apply")) rc = verb_delta_apply (args);
+    else {
+        builtin_error ("unknown verb: %s", cmd);
+        rc = EX_USAGE;
+    }
+    bp_contain_root = saved_root;
+    return rc;
 }
 
 char *pkg_doc[] = {
