@@ -8951,6 +8951,10 @@ pkg_builtin (WORD_LIST *list)
             contain = scan->next->word->word;
             scan = scan->next;
         }
+        /* Nothing resolves outside "/", and a package cannot create a
+           link, so every link there is the administrator's: follow it. */
+        if (contain && *contain && !contain[strspn (contain, "/")])
+            contain = NULL;
     }
     const char *saved_root = bp_contain_root;
     bp_contain_root = contain;
