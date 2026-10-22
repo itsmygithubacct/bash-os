@@ -16,12 +16,15 @@ bytes are part of the deterministic result, and a listing that uses them
 matches Git's output and exit class. This includes a single entry whose
 declared name reaches the last byte of the page.
 
-A `0xFFF` name with no NUL in a file that is exactly one page is listed up
-to the end of the file. Git measures that name with `strlen`, which runs
-past the mapped page into whatever memory follows, so its listing there is
-not defined. Git 2.47.3 and 2.55.0 on one host stopped at the page end; the
-Ubuntu 24.04 CI runner's git 2.55.0 printed five more bytes. This is a
-stated difference from Git.
+In a file that is exactly one page there is no zero fill. A name with no
+NUL that runs to the end of such a file is listed up to the end of the
+file. Git reads past the mapped page into whatever memory follows, so its
+listing there is not defined: it measures a `0xFFF` name with `strlen`,
+and for a declared length it copies one more byte, the NUL it expects
+after the name. Git 2.47.3 and 2.55.0 on one host stopped at the page end.
+The Ubuntu 24.04 CI runner's git 2.55.0 printed five more bytes for the
+`0xFFF` name and one more for the declared length. This is a stated
+difference from Git.
 
 A read at or past the end of that page is refused with an error, a nonzero
 status and no listing. Git's behaviour there is not defined: the same
