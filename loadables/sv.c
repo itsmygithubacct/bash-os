@@ -1014,6 +1014,19 @@ bsv_resolve_user (const char *name, uid_t *uid, gid_t *gid,
 
 extern char **environ;
 
+/* The supervisor ignores SIGHUP. A service, finish script, or readiness
+   command is given the disposition from before that ignore. Exec turns a
+   caught handler into the default and keeps an ignore. */
+static struct sigaction bsv_caller_hup;
+static int bsv_caller_hup_saved;
+
+static void
+bsv_restore_caller_hup (void)
+{
+  if (bsv_caller_hup_saved)
+    sigaction (SIGHUP, &bsv_caller_hup, NULL);
+}
+
 /* execve the run script with an explicitly assembled envp: bash's exported
    environment minus any stale SV_NAME/NOTIFY_SOCKET, plus the supervisor's
    per-service values.  setenv() in a forked loadable child does NOT survive
@@ -1055,6 +1068,7 @@ bsv_execve_service (const char *run_script, const char *name,
   argv[0] = (char *) run_script;
   argv[1] = (char *) arg;
   argv[2] = NULL;
+  bsv_restore_caller_hup ();
   execve (run_script, argv, envp);
   fprintf (stderr, "sv: exec %s: %s\n", run_script, strerror (errno));
   _exit (127);
@@ -1126,11 +1140,14 @@ bsv_exec_service (const char *name, const char *run_script, const char *ns,
           _exit (1);
         }
       if (ns && *ns)
-        execl ("/bin/bash", "bash", "-c",
-               "export SV_NAME=\"$1\"; "
-               "[ -n \"$3\" ] && export NOTIFY_SOCKET=\"$3\"; exec \"$2\"",
-               "sv-service", name, run_script,
-               notify_socket ? notify_socket : "", (char *) NULL);
+        {
+          bsv_restore_caller_hup ();
+          execl ("/bin/bash", "bash", "-c",
+                 "export SV_NAME=\"$1\"; "
+                 "[ -n \"$3\" ] && export NOTIFY_SOCKET=\"$3\"; exec \"$2\"",
+                 "sv-service", name, run_script,
+                 notify_socket ? notify_socket : "", (char *) NULL);
+        }
       else
         bsv_execve_service (run_script, name, notify_socket, NULL);
       fprintf (stderr, "sv: exec %s: %s\n", run_script, strerror (errno));
@@ -1147,13 +1164,16 @@ bsv_exec_service (const char *name, const char *run_script, const char *ns,
     }
 
   if (ns && *ns)
-    execl ("/bin/bash", "bash", "-c",
-           "export SV_NAME=\"$3\"; "
-           "[ -n \"$4\" ] && export NOTIFY_SOCKET=\"$4\"; "
-           "if [[ $(type -t ns 2>/dev/null) == builtin ]]; then "
-           "ns spawn --no-new-privs \"$1\" \"$2\"; exit $?; fi; exec \"$2\"",
-           "sv-service", ns, run_script, name,
-           notify_socket ? notify_socket : "", (char *) NULL);
+    {
+      bsv_restore_caller_hup ();
+      execl ("/bin/bash", "bash", "-c",
+             "export SV_NAME=\"$3\"; "
+             "[ -n \"$4\" ] && export NOTIFY_SOCKET=\"$4\"; "
+             "if [[ $(type -t ns 2>/dev/null) == builtin ]]; then "
+             "ns spawn --no-new-privs \"$1\" \"$2\"; exit $?; fi; exec \"$2\"",
+             "sv-service", ns, run_script, name,
+             notify_socket ? notify_socket : "", (char *) NULL);
+    }
   else
     bsv_execve_service (run_script, name, notify_socket, NULL);
   _exit (127);
@@ -1534,6 +1554,7 @@ bsv_fork_readiness_logged (const char *name,
           dup2 (*log_fd, STDERR_FILENO);
           if (*log_fd > STDERR_FILENO) close (*log_fd);
         }
+      bsv_restore_caller_hup ();
       if (ready->use_shell)
         execl ("/bin/bash", "bash", "-c", ready->command, (char *) NULL);
       else
@@ -2129,7 +2150,14 @@ bsv_supervise (const char *name)
 
   signal (SIGTERM, bsv_on_term);
   signal (SIGINT, bsv_on_term);
-  signal (SIGHUP, SIG_IGN);
+  {
+    struct sigaction ignore;
+    memset (&ignore, 0, sizeof ignore);
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset (&ignore.sa_mask);
+    if (sigaction (SIGHUP, &ignore, &bsv_caller_hup) == 0)
+      bsv_caller_hup_saved = 1;
+  }
   /* The supervisor was forked from bash, which installs a SIGCHLD
      handler that opportunistically reaps children for job control.
      Inheriting that handler here breaks our waitpid(WNOHANG) loop:
