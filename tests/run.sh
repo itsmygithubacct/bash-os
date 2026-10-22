@@ -63,6 +63,7 @@ check 'clip contract' python3 tests/sol-clip-check.py out/bash
 check 'lpr list readdir error' python3 tests/sol-lpr-list-readdir.py out/bash
 check 'tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash
 check 'lpr private spool and configured backend' python3 tests/opus-lpr-delivery.py out/bash
+check 'lpr cancel does not signal a sidecar pid' python3 tests/secreview-lpr-cancel-identity.py out/bash
 check 'git lifecycle wait and repository state' python3 tests/sol-git-lifecycle.py out/bash
 check 'git workload oracle corruption controls' python3 tests/sol-git-oracles.py
 check 'gpu independent oracle controls' python3 tests/sol-gpu-oracle-check.py
@@ -192,6 +193,8 @@ check 'expect whole-wait timeouts' python3 tests/expect-timeout.py out/bash
 check gpu-smoke python3 tests/gpu-smoke.py out/bash
 check ptybroker python3 tests/ptybroker.py --bash out/bash
 check ptybroker-io python3 tests/ptybroker-io.py --bash out/bash
+check 'shell SIGPIPE dispositions' python3 tests/secreview-shell-sigpipe.py out/bash
+check 'shell descriptor cycles' python3 tests/secreview-shell-fds.py out/bash
 check screen-broker python3 tests/screen-broker.py --bash out/bash
 check pty-primitives python3 tests/pty-primitives.py out/bash
 check large-smoke python3 tests/large-smoke.py out/bash
@@ -355,6 +358,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'ptybroker sanitizer boundaries build' bash tests/sol-ptybroker-build-checks.sh "$scratch/ptybroker-contracts"
   check 'ptybroker native boundaries under ASan+UBSan' env ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$scratch/ptybroker-contracts/native-sanitize"
   check 'ptybroker bounded streams under UBSan' env TMPDIR=/tmp UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-ptybroker-streams.py --bash out/bash --loadable "$scratch/ptybroker-contracts/ptybroker-ubsan.so" --output "$scratch/ptybroker-ubsan.json"
+  check 'ptybroker create under ASan+UBSan' bash tests/secreview-ptybroker-sanitize.sh out/bash
   check 'rsync sanitizer module' bash tests/opus-rsync-so.sh "$scratch/rsync-contracts.so" asan
   check 'rsync push under ASan+UBSan' python3 tests/opus-rsync-check.py out/bash --load "$scratch/rsync-contracts.so" --preload "$($CC -print-file-name=libasan.so)"
   check 'sv fault and sanitizer modules' bash tests/sol-sv-build-fixtures.sh "$scratch/sv-contracts"
@@ -510,6 +514,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   for name in nc http userdb spool crypto-state; do
     check "$name under ASan+UBSan" bash "tests/$name-sanitize.sh" out/bash
   done
+  check 'nc SIGPIPE under ASan+UBSan' bash tests/secreview-nc-sanitize.sh out/bash
   if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then
     check 'account parser contract' "$scratch/privdrop"
   else
