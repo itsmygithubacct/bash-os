@@ -8,11 +8,13 @@ BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 for name in coreutils tac; do
   fixture=()
+  fortify=()
   if [[ $name == coreutils ]]; then
     fixture=(tests/sol-coreutils-random.c -Wl,--wrap=fopen)
+    fortify=(-U_FORTIFY_SOURCE)
   fi
   "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
-    -DHAVE_CONFIG_H -Iloadables/common -I"$BT" -I"$BT/include" \
+    -DHAVE_CONFIG_H "${fortify[@]}" -Iloadables/common -I"$BT" -I"$BT/include" \
     -I"$BT/builtins" -I"$BT/examples/loadables" "loadables/$name.c" "${fixture[@]}" -lm -o "$d/$name.so"
   printf 'enable -f %q %q\n' "$d/$name.so" "$name" >> "$d/load.sh"
 done

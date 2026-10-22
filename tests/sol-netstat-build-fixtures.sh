@@ -5,11 +5,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 dest=${1:?artifact directory required}
 mkdir -p "$dest"
-cc -O2 -Wall -Wextra -Werror -fPIC -shared tests/sol-netstat-shim.c -ldl -o "$dest/shim.so"
+cc -O2 -Wall -Wextra -Werror -fPIC -shared -U_FORTIFY_SOURCE tests/sol-netstat-shim.c -ldl -o "$dest/shim.so"
 . config/versions.sh
 bt="build/bash-$BASH_SRC_VERSION"
 flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -DHAVE_CONFIG_H
-  -I"$bt" -I"$bt/include" -I"$bt/builtins" -I"$bt/examples/loadables")
+  -I"$bt" -I"$bt/include" -I"$bt/builtins" -I"$bt/examples/loadables"
+  -U_FORTIFY_SOURCE)
 # Loading this pair into the same Bash executes the actual source with
 # ASan/UBSan, including static transport and proc parsing helpers.
 cc "${flags[@]}" -fsanitize=address,undefined loadables/ss.c loadables/netstat.c -o "$dest/sanitize.so"

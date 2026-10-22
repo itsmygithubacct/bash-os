@@ -344,7 +344,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'pgrep sanitizer harness build' sh tests/sol-pgrep-tools-build.sh "$scratch/pgrep-contracts"
   check 'pgrep regex and selectors under ASan+UBSan' python3 tests/sol-pgrep-sanitize.py "$scratch/pgrep-contracts/pgrep-sanitize"
   mkdir -p "$scratch/killall-contracts"
-  check 'killall guarded signal fixture build' "$CC" -O2 -g -fPIC -shared tests/sol-killall-shim.c -ldl -o "$scratch/killall-contracts/shim.so"
+  check 'killall guarded signal fixture build' "$CC" -O2 -g -fPIC -shared -U_FORTIFY_SOURCE tests/sol-killall-shim.c -ldl -o "$scratch/killall-contracts/shim.so"
   check 'killall exact selection and owned signals' python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --report "$scratch/killall-native.json"
   check 'killall sanitizer module build' env BASHOS_TASK_DIR="$scratch/killall-contracts" bash tests/sol-killall-sanitize-build.sh
   check 'killall guarded sanitizer contracts' env SOL_KILLALL_ASAN="$(cat "$scratch/killall-contracts/asan-runtime.txt")" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 tests/sol-killall-check.py --binary out/bash --shim "$scratch/killall-contracts/shim.so" --module "$scratch/killall-contracts/sol-killall-sanitize.so" --report "$scratch/killall-sanitize.json"

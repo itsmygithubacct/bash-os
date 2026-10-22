@@ -86,7 +86,7 @@ class Uclampset(unittest.TestCase):
         cls.addClassCleanup(tmp.cleanup)
         cls.shim = str(Path(tmp.name) / "uclamp-shim.so")
         subprocess.run(shlex.split(os.environ.get("CC", "cc")) + [
-            "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
+            "-O2", "-U_FORTIFY_SOURCE", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
             str(ROOT / "tests/opus-uclampset-shim.c"), "-o", cls.shim, "-ldl"],
             check=True, capture_output=True, timeout=60)
 

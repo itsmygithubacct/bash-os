@@ -10,7 +10,7 @@ BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT; [[ -n ${UCLAMP_SANITIZE_DEBUG:-} ]] && trap - EXIT && echo "$d"
 "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -Wall -Wextra \
   -fsanitize=address,undefined,float-cast-overflow -fno-sanitize-recover=undefined \
-  -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" \
+  -DHAVE_CONFIG_H -U_FORTIFY_SOURCE -I"$BT" -I"$BT/include" -I"$BT/builtins" -I"$BT/examples/loadables" \
   -Iloadables/common loadables/uclampset.c -o "$d/uclampset.so"
 printf 'enable -f %q uclampset || exit\n' "$d/uclampset.so" > "$d/load.sh"
 printf '#!/bin/bash\nexport LD_PRELOAD=%q${LD_PRELOAD:+:$LD_PRELOAD}\nexport BASH_ENV=%q\nexec %q "$@"\n' \
