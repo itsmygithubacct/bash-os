@@ -14,8 +14,14 @@ checks use owned memory. Git maps the index in whole pages and treats the
 bytes from the end of the file to the end of that page as zeroes. Those
 bytes are part of the deterministic result, and a listing that uses them
 matches Git's output and exit class. This includes a single entry whose
-declared name reaches the last byte of the page, and a `0xFFF` name with
-no interior NUL when the file itself is an exact page.
+declared name reaches the last byte of the page.
+
+A `0xFFF` name with no NUL in a file that is exactly one page is listed up
+to the end of the file. Git measures that name with `strlen`, which runs
+past the mapped page into whatever memory follows, so its listing there is
+not defined. Git 2.47.3 and 2.55.0 on one host stopped at the page end; the
+Ubuntu 24.04 CI runner's git 2.55.0 printed five more bytes. This is a
+stated difference from Git.
 
 A read at or past the end of that page is refused with an error, a nonzero
 status and no listing. Git's behaviour there is not defined: the same

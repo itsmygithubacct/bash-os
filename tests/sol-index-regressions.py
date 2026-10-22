@@ -142,7 +142,19 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
         filled = wrap(2, 1, head(0xfff))
         filled += bytes([0x61]) * (page - len(filled))
         assert len(filled) == page and b'\0' not in filled[74:]
-        expect_match('v2-exact-page-fff', filled)
+        # Git measures this name with strlen, which runs past the mapped page
+        # into whatever memory follows, so its listing is not defined here.
+        # The builtin lists the name to the end of the file. Live git is
+        # printed for the record only.
+        expected = b'100644 ' + (b'11' * 20) + b' 0 ' + filled[74:] + b'\n'
+        oracle = git_ls(filled, 1)[0]
+        live = listing_of(oracle.stdout) if oracle.returncode == 0 else b''
+        print('git v2-exact-page-fff exit', oracle.returncode, 'len', len(live),
+              'same' if live == expected else 'differs')
+        got = bash_read()
+        assert got.returncode == 0 and got.stdout == expected, (
+            'v2-exact-page-fff', got.returncode, len(got.stdout), len(expected), got.stderr)
+        print('match v2-exact-page-fff', len(got.stdout))
         explicit = wrap(2, 1, head(page - 74))
         explicit += bytes([0x62]) * (page - len(explicit))
         expect_match('v2-exact-page-explicit', explicit)
