@@ -3,7 +3,9 @@
 """A symlink below --root must not be read or written through.
 
 The package file, a local source, and the --root prefix itself may be
-reached through a symlink. Those installs succeed.
+reached through a symlink. Those installs succeed. When the root is /,
+every link is the administrator's and is followed; that case runs in a
+private user and mount namespace when one is available.
 """
 import hashlib
 import io
@@ -11,6 +13,7 @@ import os
 from pathlib import Path
 import platform
 import shlex
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -20,7 +23,7 @@ import tempfile
 BINARY = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
 
 
-def shell(root, script, *args):
+def shell(root, script, *args, prefix=()):
     env = {**os.environ, 'LC_ALL': 'C', 'HOME': str(root)}
     env.pop('BASH_ENV', None)
     env.pop('ENV', None)
@@ -31,7 +34,7 @@ def shell(root, script, *args):
                    ASAN_OPTIONS='detect_leaks=0:abort_on_error=1',
                    UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')
     result = subprocess.run(
-        [BINARY, '--noprofile', '--norc', '-c', 'PATH=; ' + script,
+        [*prefix, BINARY, '--noprofile', '--norc', '-c', 'PATH=; ' + script,
          'pkg-symlink', *map(str, args)],
         env=env, capture_output=True, text=True, timeout=30)
     if 'AddressSanitizer' in result.stderr or 'runtime error:' in result.stderr:
@@ -163,6 +166,27 @@ def main():
                 raise SystemExit(f'{name} did not install package data')
             if (rootpath / 'usr').is_symlink():
                 raise SystemExit(f'{name} left a symlink inside --root')
+
+        varlib = root / 'varlib'
+        state = varlib / 'pkg-moved/installed/probe'
+        state.mkdir(parents=True)
+        (state / 'MANIFEST').write_text(
+            'type: loadable\nname: probe\nversion: 1\nbuiltin: probe\n'
+            f'abi: bash-5.3\narch: {platform.machine()}\nsha256: {"0" * 64}\n')
+        (varlib / 'pkg').symlink_to('pkg-moved')
+        namespace = ('unshare', '-rm', 'sh', '-c',
+                     'mount --bind "$0" /var/lib && exec "$@"', str(varlib))
+        if shutil.which('unshare') and subprocess.run(
+                [*namespace, 'true'], capture_output=True, timeout=30).returncode == 0:
+            for script in ('pkg list', 'pkg list --root /'):
+                result = shell(root, script, prefix=namespace)
+                if result.returncode != 0 or 'probe' not in result.stdout:
+                    raise SystemExit(
+                        f'{script} did not follow /var/lib/pkg -> pkg-moved\n'
+                        f'rc={result.returncode}\n'
+                        f'stderr={result.stderr}\nstdout={result.stdout}')
+        else:
+            print('pkg: no user namespace; root / link case skipped')
     print('pkg: symlink components under --root are not read or written')
 
 
