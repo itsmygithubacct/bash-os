@@ -61,9 +61,9 @@ class SolUclampset(u.Uclampset):
         self.write_sysctl(100, 200)
         for fault, rc in (("eintr", 0), ("close", 1)):
             with self.subTest(fault=fault):
-                r = self.run_sh('fds() { local a=(/proc/$$/fd/*); echo ${#a[@]}; }; '
-                                'before=$(fds); uclampset -m 50 -M 150 -s; echo "rc=$?"; '
-                                'echo "fds=$before:$(fds)"', shim="real", env={
+                r = self.run_sh('fds() { local a=(/proc/$$/fd/*); nfd=${#a[@]}; }; '
+                                'fds; before=$nfd; uclampset -m 50 -M 150 -s; echo "rc=$?"; '
+                                'fds; echo "fds=$before:$nfd"', shim="real", env={
                                     "UCLAMP_SHIM_IO_FILE": "sched_util_clamp_max",
                                     "UCLAMP_SHIM_IO_FAULT": fault})
                 self.assertIn(f"rc={rc}\n".encode(), r.stdout)
@@ -105,7 +105,7 @@ sys.exit(os.waitstatus_to_exitcode(status))
     def test_repeated_setters_and_command_leave_parent_jobs_and_traps_intact(self):
         pid = self.child()
         self.write_sysctl(0, 1024)
-        r = self.run_sh('fds() { local a=(/proc/$$/fd/*); echo ${#a[@]}; }; before=$(fds); '
+        r = self.run_sh('fds() { local a=(/proc/$$/fd/*); nfd=${#a[@]}; }; fds; before=$nfd; '
                         'trap "seen=yes" CHLD; /bin/sleep .02 & bg=$!; '
                         'for ((i=0;i<50;i++)); do '
                         'uclampset -m 0 -M 512 -p "$1" || exit 8; '
@@ -113,7 +113,7 @@ sys.exit(os.waitstatus_to_exitcode(status))
                         'uclampset -m "$((i%2 ? 100 : 200))" -s || exit 9; '
                         'done; for i in {1..5}; do uclampset -m 1 exit 7; [[ $? == 7 ]] || exit 10; done; '
                         'wait "$bg"; echo "job=$? seen=$seen"; '
-                        'echo "fds=$before:$(fds)"; uclampset -p $$', pid, shim="emulate")
+                        'fds; echo "fds=$before:$nfd"; uclampset -p $$', pid, shim="emulate")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(b"job=0 seen=yes\n", r.stdout)
         a, b = r.stdout.split(b"fds=")[1].splitlines()[0].split(b":")

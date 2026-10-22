@@ -132,15 +132,15 @@ with tempfile.TemporaryDirectory(prefix="sol-vi-test-") as tmp:
     # Repeated failures, empty-PATH native dispatch, descriptor stability,
     # and a successful invocation after failure in the same shell.
     p = shell(r'''
-fds() { local n=0 f; for f in /proc/$$/fd/*; do n=$((n+1)); done; echo "$n"; }
-before=$(fds)
+fds() { local f; nfd=0; for f in /proc/$$/fd/*; do nfd=$((nfd+1)); done; }
+fds; before=$nfd
 for ((i=0;i<20;i++)); do
     vi --keys "$1" "$2" && exit 9
     vi -c '$d' -c "w $3" -c 'q!' "$2" 2>/dev/null && exit 10
 done
 vi -c '$d' -c "w $4" -c 'q!' "$2" || exit 11
-after=$(fds)
-[[ $before == "$after" ]] || exit 12
+fds
+[[ $before == "$nfd" ]] || exit 12
 type -t vi
 ''', k, src, dest, d / "recovered")
     assert p.stdout == b"builtin\n", p.stdout

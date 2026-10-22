@@ -185,11 +185,11 @@ class Uclampset(unittest.TestCase):
 
     def test_repeated_queries_keep_descriptors_and_output_stable(self):
         pid = self.child()
-        r = self.run_sh('fds() { local f=(/proc/$$/fd/*); echo ${#f[@]}; }; before=$(fds); '
+        r = self.run_sh('fds() { local f=(/proc/$$/fd/*); nfd=${#f[@]}; }; fds; before=$nfd; '
                         'first=$(uclampset -p "$1"); for i in {1..200}; do '
                         '[[ $(uclampset -p "$1") == "$first" ]] || { echo drift; exit 1; }; done; '
                         'uclampset -s >/dev/null 2>&1; uclampset -m 1 -p 2147483647 2>/dev/null; '
-                        'echo "$before $(fds)"', pid)
+                        'fds; echo "$before $nfd"', pid)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         before, after = r.stdout.split()
         self.assertEqual(before, after)
@@ -556,9 +556,9 @@ assert ctypes.get_errno() == errno.EINVAL
             self.assertFalse((self.root / "marker").exists())
 
     def test_repeated_commands_do_not_leak_descriptors(self):
-        r = self.run_sh('fds() { local f=(/proc/$$/fd/*); echo ${#f[@]}; }; before=$(fds); '
+        r = self.run_sh('fds() { local f=(/proc/$$/fd/*); nfd=${#f[@]}; }; fds; before=$nfd; '
                         'for i in {1..30}; do uclampset -m 1 true || exit 9; done; '
-                        'echo "$before $(fds)"', shim="emulate")
+                        'fds; echo "$before $nfd"', shim="emulate")
         self.assertEqual(r.returncode, 0, r.stderr)
         before, after = r.stdout.split()
         self.assertEqual(before, after)
