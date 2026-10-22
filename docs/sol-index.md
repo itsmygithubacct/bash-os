@@ -26,6 +26,16 @@ The Ubuntu 24.04 CI runner's git 2.55.0 printed five more bytes for the
 `0xFFF` name and one more for the declared length. This is a stated
 difference from Git.
 
+Git copies a declared name and the byte after it, the NUL it expects
+there, into a cache entry taken from a memory pool it does not clear. When
+that byte is not NUL, the copied name has no terminator, and Git's listing
+runs on into whatever the pool holds, so it is not defined. The builtin
+ends such a name after the copied bytes: a version-2 name of declared
+length 1 followed by `aX` lists `aX`, and a version-4 name of declared
+length 0 lists the one byte after it. Git 2.47.3 on one host printed the
+same. The CI runner's git 2.55.0 printed 32 more bytes for the `aX` name.
+This is a stated difference from Git.
+
 A read at or past the end of that page is refused with an error, a nonzero
 status and no listing. Git's behaviour there is not defined: the same
 bytes do not produce one listing or one exit status. The measured shapes,

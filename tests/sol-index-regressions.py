@@ -118,12 +118,9 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
                 label, got.returncode, len(got.stdout), len(expected),
                 hashlib.sha256(got.stdout).hexdigest(), hashlib.sha256(expected).hexdigest(), got.stderr)
             print('match', label, len(got.stdout))
-        def expect_exact_page(label, raw):
-            # The file is exactly one page and the name ends at its last byte.
-            # Git reads past the mapped page here (see each case), so its
-            # listing is not defined. The builtin lists the name from the
-            # file's own bytes; live git is printed for the record only.
-            expected = b'100644 ' + (b'11' * 20) + b' 0 ' + raw[74:] + b'\n'
+        def expect_listing(label, raw, expected):
+            # Git's listing of RAW is not defined (see each caller), so the
+            # builtin must print EXPECTED; live git is printed for the record.
             oracle = git_ls(raw, 1)[0]
             live = listing_of(oracle.stdout) if oracle.returncode == 0 else b''
             print('git', label, 'exit', oracle.returncode, 'len', len(live),
@@ -132,6 +129,20 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
             assert got.returncode == 0 and got.stdout == expected, (
                 label, got.returncode, len(got.stdout), len(expected), got.stderr)
             print('match', label, len(got.stdout))
+        def expect_exact_page(label, raw):
+            # The file is exactly one page and the name ends at its last byte.
+            # Git reads past the mapped page here (see each case). The builtin
+            # lists the name from the file's own bytes.
+            expect_listing(label, raw, b'100644 ' + (b'11' * 20) + b' 0 ' + raw[74:] + b'\n')
+        def expect_unterminated(label, raw, *rows):
+            # Git copies a declared name and the byte after it, the NUL it
+            # expects there, into pool memory it does not clear
+            # (mem_pool__ce_alloc in read-cache.c). When that byte is not NUL
+            # the copied name has no terminator, and git's listing runs on into
+            # whatever the pool holds. The builtin ends the name after the
+            # copied bytes.
+            expect_listing(label, raw, b''.join(
+                b'100644 ' + sha + b' 0 ' + name + b'\n' for sha, name in rows))
         def expect_refuse(label, raw):
             outs = git_ls(raw, 8)
             classes = {0 if o.returncode == 0 else 1 for o in outs}
@@ -164,13 +175,16 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
         # Git copies the declared length plus one byte, the NUL it expects
         # after the name, and that byte is past the mapped page.
         expect_exact_page('v2-exact-page-explicit', explicit)
-        expect_match('v4-trailer-byte', wrap(4, 1, head(0) + b'\x00' + b'\x10' + b'\x22'*19))
+        # Declared length 0: git copies the 0x10 after it as the name.
+        expect_unterminated('v4-trailer-byte', wrap(4, 1, head(0) + b'\x00' + b'\x10' + b'\x22'*19),
+                            (b'11' * 20, b'\x10'))
         expect_match('v4-ordinary', wrap(4, 1, head(1) + b'\x00' + b'a\0' + b'\x33'*20))
         expect_match('v4-early-nul', wrap(4, 1, head(5) + b'\x00' + b'ab\0cdef' + b'\x33'*10))
         expect_match('v4-ignore-first-strip', wrap(4, 1, head(2) + bytes([5]) + b'ab\0' + b'\x33'*20))
         expect_match('v4-prefix', wrap(4, 2, head(5) + b'\x00' + b'hello\0' + head(6, b'\x44'*20) + b'\x00' + b'X\0' + b'\x55'*20))
-        expect_match('v4-previous-length', wrap(4, 2, head(1) + b'\x00' + b'ab' + head(1, b'\x44'*20) + bytes([1]) + b'Z\0' + b'\x55'*20))
-        expect_match('v2-window', wrap(2, 1, head(1) + b'aX\0' + b'\x33'*20))
+        expect_unterminated('v4-previous-length', wrap(4, 2, head(1) + b'\x00' + b'ab' + head(1, b'\x44'*20) + bytes([1]) + b'Z\0' + b'\x55'*20),
+                            (b'11' * 20, b'ab'), (b'44' * 20, b'Z'))
+        expect_unterminated('v2-window', wrap(2, 1, head(1) + b'aX\0' + b'\x33'*20), (b'11' * 20, b'aX'))
         expect_match('v2-embedded-nul', wrap(2, 1, head(4) + b'ab\0c\0' + b'\x33'*20))
         (root/'f').write_bytes(b'fixture\n')
         assert git('add', 'f').returncode == 0
