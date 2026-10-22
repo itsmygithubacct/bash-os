@@ -6,6 +6,9 @@ trap 'printf unexpected-PIPE' PIPE, and trap '' PIPE). The shell must
 keep running, trap -p PIPE and the SigIgn/SigCgt masks must match the
 values from before the call, and the trap text must not appear. PATH is
 empty inside the shell. Nothing here contacts an external network.
+
+The target cases also read the started program's own masks. Default and
+a caught signal must not ignore the signal. trap '' must ignore it.
 """
 import os
 import select
@@ -22,13 +25,23 @@ from pathlib import Path
 BINARY = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None
 ONLY = sys.argv[2] if len(sys.argv) > 2 else ""
 if BINARY is None or not BINARY.is_file():
-    sys.exit("usage: secreview-shell-sigpipe.py BASH [git|nc|mail|ssh|pty]")
+    sys.exit(
+        "usage: secreview-shell-sigpipe.py BASH "
+        "[git|nc|mail|ssh|pty|pty-target|sv-target|git-target|targets]"
+    )
 
 CASES = (
     ("default", ""),
     ("trapped", "trap 'printf unexpected-PIPE' PIPE; "),
     ("ignored", "trap '' PIPE; "),
 )
+HUP_CASES = (
+    ("default", ""),
+    ("trapped", "trap 'printf unexpected-HUP' HUP; "),
+    ("ignored", "trap '' HUP; "),
+)
+PIPE_BIT = 1 << 12
+HUP_BIT = 1 << 0
 
 MASK = r"""
 sigmask() {
@@ -302,6 +315,163 @@ def test_pty():
         finish(f"pty {disposition}", proc, out, err, b"survived status=0")
 
 
+def mask_value(text, key):
+    for line in text.splitlines():
+        if line.startswith(key + ":"):
+            return int(line.split(":", 1)[1].strip(), 16)
+    sys.exit(f"missing {key} in {text!r}")
+
+
+def require_target(name, path, bit, want_ignored, out, err):
+    if not path.is_file() or path.stat().st_size == 0:
+        sys.exit(f"FAIL {name}: target wrote no status\nout={out!r}\nerr={err!r}")
+    text = path.read_text()
+    ign = mask_value(text, "SigIgn")
+    cgt = mask_value(text, "SigCgt")
+    ignored = bool(ign & bit)
+    caught = bool(cgt & bit)
+    if want_ignored:
+        ok = ignored and not caught
+        expected = "ignored"
+    else:
+        ok = not ignored and not caught
+        expected = "default"
+    if not ok:
+        sys.exit(
+            f"FAIL {name}: expected {expected}\n{text}\nout={out!r}\nerr={err!r}"
+        )
+    return text
+
+
+def write_reader(path, output):
+    path.write_text(
+        "#!/bin/bash\n"
+        "while IFS= read -r line; do\n"
+        "  case $line in\n"
+        "    SigIgn:*|SigCgt:*) printf '%s\\n' \"$line\" ;;\n"
+        "  esac\n"
+        "done < /proc/self/status > "
+        + shlex.quote(str(output))
+        + "\n"
+    )
+    path.chmod(0o755)
+
+
+def test_pty_target():
+    for disposition, setup in CASES:
+        with tempfile.TemporaryDirectory(prefix="sr-pty-target-") as temporary:
+            root = Path(temporary)
+            output = root / "status"
+            reader = root / "reader"
+            write_reader(reader, output)
+            body = (
+                f"pty spawn SRFD SRPID /bin/bash {shlex.quote(str(reader))}\n"
+                f"for _ in {{1..50}}; do [[ -s {shlex.quote(str(output))} ]] && break; "
+                "/bin/sleep 0.05; done\n"
+                f"[[ -s {shlex.quote(str(output))} ]]\n"
+            )
+            proc, out, err = run_bash(wrapper(setup, body), bash_env(), 8)
+            require_target(
+                f"pty target {disposition}",
+                output,
+                PIPE_BIT,
+                disposition == "ignored",
+                out,
+                err,
+            )
+            finish(f"pty target {disposition}", proc, out, err, b"survived status=0")
+
+
+def test_sv_target():
+    for disposition, setup in HUP_CASES:
+        with tempfile.TemporaryDirectory(prefix="sr-sv-target-") as temporary:
+            root = Path(temporary)
+            output = root / "status"
+            services = root / "services" / "probe"
+            services.mkdir(parents=True)
+            run = services / "run"
+            run.write_text(
+                "#!/bin/bash\n"
+                "# type: oneshot\n"
+                "while IFS= read -r line; do\n"
+                "  case $line in\n"
+                "    SigIgn:*|SigCgt:*) printf '%s\\n' \"$line\" ;;\n"
+                "  esac\n"
+                "done < /proc/self/status > "
+                + shlex.quote(str(output))
+                + "\n"
+            )
+            run.chmod(0o755)
+            (root / "run").mkdir()
+            (root / "logs").mkdir()
+            body = (
+                "sv up probe\n"
+                f"for _ in {{1..50}}; do [[ -s {shlex.quote(str(output))} ]] && break; "
+                "/bin/sleep 0.05; done\n"
+                "sv down probe >/dev/null 2>&1 || true\n"
+                f"[[ -s {shlex.quote(str(output))} ]]\n"
+            )
+            env = bash_env({
+                "BASHSV_DIR": str(services.parent),
+                "BASHSV_RUNDIR": str(root / "run"),
+                "BASHSV_LOGDIR": str(root / "logs"),
+            })
+            proc, out, err = run_bash(wrapper(setup, body), env, 12)
+            text = out + b"\n" + err
+            if b"unexpected-HUP" in text:
+                sys.exit(f"FAIL sv target {disposition}: unexpected-HUP\n{text!r}")
+            require_target(
+                f"sv target {disposition}",
+                output,
+                HUP_BIT,
+                disposition == "ignored",
+                out,
+                err,
+            )
+            finish(f"sv target {disposition}", proc, out, err, b"survived status=0")
+
+
+def test_git_target():
+    for disposition, setup in CASES:
+        with tempfile.TemporaryDirectory(prefix="sr-git-target-") as temporary:
+            root = Path(temporary)
+            output = root / "status"
+            dump = root / "dump"
+            dump.write_text(
+                "while IFS= read -r line; do\n"
+                "  case $line in\n"
+                "    SigIgn:*|SigCgt:*) printf '%s\\n' \"$line\" ;;\n"
+                "  esac\n"
+                "done < /proc/self/status > "
+                + shlex.quote(str(output))
+                + "\n"
+            )
+            command = f". {dump}"
+            body = (
+                f"GIT_SSH_COMMAND={shlex.quote(command)} "
+                "git ls-remote ssh://127.0.0.1/fixture-repo\n"
+                f"[[ -s {shlex.quote(str(output))} ]]\n"
+            )
+            env = bash_env()
+            env["HOME"] = str(root)
+            proc, out, err = run_bash(wrapper(setup, body), env, 8)
+            require_target(
+                f"git target {disposition}",
+                output,
+                PIPE_BIT,
+                disposition == "ignored",
+                out,
+                err,
+            )
+            finish(
+                f"git target {disposition}",
+                proc,
+                out,
+                err,
+                b"survived status=0",
+            )
+
+
 def main():
     selected = {
         "git": test_git,
@@ -309,13 +479,21 @@ def main():
         "mail": test_mail,
         "ssh": test_ssh,
         "pty": test_pty,
+        "pty-target": test_pty_target,
+        "sv-target": test_sv_target,
+        "git-target": test_git_target,
     }
+    if ONLY == "targets":
+        test_pty_target()
+        test_sv_target()
+        test_git_target()
+        return
     if ONLY:
         if ONLY not in selected:
             sys.exit(f"unknown builtin {ONLY}")
         selected[ONLY]()
         return
-    for name in ("git", "nc", "mail", "ssh", "pty"):
+    for name in ("git", "nc", "mail", "ssh", "pty", "pty-target", "sv-target", "git-target"):
         selected[name]()
 
 
