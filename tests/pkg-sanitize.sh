@@ -17,7 +17,7 @@ HB="$scratch/helpers/builtins"
   -I"$BT/examples/loadables" -Iloadables/common \
   loadables/pkg.c "$HB"/_mbedtls_sha256.c \
   "$HB"/_monocypher_monocypher-ed25519.c -llzma -o "$scratch/pkg.so"
-for suite in pkg-safety pkg-trust; do
+for suite in pkg-safety pkg-trust pkg-symlink-root; do
   PKG_TEST_LOADABLE="$scratch/pkg.so" PKG_TEST_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \
     python3 "tests/$suite.py" "${1:-out/bash}"
 done

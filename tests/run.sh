@@ -274,12 +274,17 @@ check runtime-loadables bash tests/runtime-loadables.sh out/bash
 check 'pkg signatures and remote install' python3 tests/pkg-signify.py out/bash
 check 'package publication and rollback safety' python3 tests/pkg-safety.py out/bash
 check 'package trust files' python3 tests/pkg-trust.py out/bash
+check 'package symlink root' python3 tests/pkg-symlink-root.py out/bash
 for name in process-wrapper-state process-numeric device-fixtures signal-lookup sysctl-readonly nc-stream http-framing userdb-records cron-spool crypto-state; do
   check "$name" python3 "tests/$name.py" out/bash
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
+check 'cron spool containment' python3 tests/cron-containment.py out/bash
+check 'static cron spool containment' python3 tests/cron-containment.py out/bash-static
+check 'watch -x argv' python3 tests/watch-exec.py out/bash
 check 'static package publication and rollback safety' python3 tests/pkg-safety.py out/bash-static
 check 'static package trust files' python3 tests/pkg-trust.py out/bash-static
+check 'static package symlink root' python3 tests/pkg-symlink-root.py out/bash-static
 check tutorial bash tests/tutorial.sh
 if [[ $phase == build ]]; then
   echo 'DEFER userland benchmark to required BASHOS_TEST_PHASE=bench run'
