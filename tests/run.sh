@@ -521,6 +521,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
     check "$name under ASan+UBSan" bash "tests/$name-sanitize.sh" out/bash
   done
   check 'nc SIGPIPE under ASan+UBSan' bash tests/secreview-nc-sanitize.sh out/bash
+  check 'pty, sv and git target dispositions under ASan+UBSan' bash tests/secreview-target-disposition-sanitize.sh out/bash
   if "$CC" -O1 -g -fsanitize=address,undefined tests/privdrop-host.c -o "$scratch/privdrop"; then
     check 'account parser contract' "$scratch/privdrop"
   else

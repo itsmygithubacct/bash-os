@@ -3202,7 +3202,7 @@
     },
     "git": {
       "evidence": "tests/git-integrity.py",
-      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility. Apply rejects a patch whose work-tree path does not fit in 4096 bytes, for additions, deletions and both rename sides, with no partial write. With -pN on a path that has fewer leading directories than N, apply strips what it can and writes the last component; git 2.47.3 rejects that header and writes nothing. No registered test covers that difference. Each git command runs in a forked child, so the transport's signal(SIGPIPE, SIG_IGN) does not reach the caller; tests/secreview-shell-sigpipe.py runs ls-remote against a far end that exits at once and gets status 128 with the caller's PIPE trap and ignored and caught signal sets unchanged. Non-POSIX wait runs a queued SIGCHLD trap after waitchld returns and before the next wait. POSIX wait still returns 128+SIGCHLD.",
+      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility. Apply rejects a patch whose work-tree path does not fit in 4096 bytes, for additions, deletions and both rename sides, with no partial write. With -pN on a path that has fewer leading directories than N, apply strips what it can and writes the last component; git 2.47.3 rejects that header and writes nothing. No registered test covers that difference. Each git command runs in a forked child, so the transport's signal(SIGPIPE, SIG_IGN) does not reach the caller; tests/secreview-shell-sigpipe.py runs ls-remote against a far end that exits at once and gets status 128 with the caller's PIPE trap and ignored and caught signal sets unchanged. A program the git child execs, such as an editor, a bisect run script or an ssh transport, gets the caller's SIGPIPE disposition back, not the transport's ignore; the git-target case checks the transport program's own bit. Non-POSIX wait runs a queued SIGCHLD trap after waitchld returns and before the next wait. POSIX wait still returns 128+SIGCHLD.",
       "next": "No new seven-sample timing claim. Full Git lifecycle was not rerun under ASan."
     },
     "pkg": {
@@ -3348,7 +3348,7 @@
     },
     "sv": {
       "evidence": "docs/sol-sv.md",
-      "note": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. Live service configuration, privilege transitions and durability are unqualified.",
+      "note": "Private owned-service lifecycle, readiness, backpressure and log framing. Service output drains while readiness probes run. The supervisor ignores SIGHUP and saves the caller's action; the run script, finish script and readiness command get it back before exec, so a default or trapped SIGHUP is the default in the service and an ignored one stays ignored. tests/secreview-shell-sigpipe.py sv-target reads the service's own SIGHUP bit under default, trapped and ignored SIGHUP. Live service configuration, privilege transitions and durability are unqualified.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "hl": {
@@ -3396,7 +3396,7 @@
     },
     "pty": {
       "evidence": "tests/secreview-shell-sigpipe.py",
-      "note": "SIGPIPE is set to SIG_IGN, without saving the old action, only in the intermediate reaper child. The parent's gate byte is sent with MSG_NOSIGNAL. tests/secreview-shell-sigpipe.py runs pty spawn under default, trapped and ignored SIGPIPE and finds the caller's PIPE trap and ignored and caught signal sets unchanged. It does not check the target's SIGPIPE disposition. The suite uses a private PTY, not a physical terminal."
+      "note": "The intermediate reaper child ignores SIGPIPE and saves the caller's action. The target gets that action back before exec, so a default or trapped SIGPIPE is the default in the started program and an ignored one stays ignored. The parent's gate byte is sent with MSG_NOSIGNAL. tests/secreview-shell-sigpipe.py runs pty spawn under default, trapped and ignored SIGPIPE and finds the caller's PIPE trap and ignored and caught signal sets unchanged. Its pty-target case reads the started program's own SIGPIPE bit under the same three setups, and tests/secreview-target-disposition-sanitize.sh repeats it on ASan and UBSan modules. The suite uses a private PTY, not a physical terminal."
     },
     "cron": {
       "evidence": "tests/cron-containment.py",
