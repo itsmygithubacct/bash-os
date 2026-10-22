@@ -254,6 +254,7 @@ static int call(void) {
 static int fd_count(void) { DIR *d=opendir("/proc/self/fd");CHECK(d);int n=0;while(readdir(d))n++;closedir(d);return n; }
 static void reset(void) { memset(events,0,EVENT_COUNT*sizeof *events);stage=0;password_pos=0;fail=0;root_route=0;owned=0;real_exec=0;login_expected=0;keep_expected=0;shadow_phc=phc;password="fixture-password";command="exit 37";shell="/bin/sh"; }
 static void run_checks(void) {
+  uid_t caller_uid=getuid();
   int before=fd_count();
   int fd=open("/dev/null",O_RDONLY);CHECK(fd>=3);CHECK(dup2(fd,511)==511);
   signal(SIGPIPE,SIG_IGN);sigset_t blocked,old;sigemptyset(&blocked);sigaddset(&blocked,SIGUSR1);CHECK(!sigprocmask(SIG_BLOCK,&blocked,&old));
@@ -261,7 +262,7 @@ static void run_checks(void) {
     if(i>=4)command=NULL;
     CHECK(call()==37);CHECK(events[MINT]==1 && events[CONSUME]==1 && events[EXEC]==1);CHECK(events[WIPE]==!root_route);
     CHECK(events[TOKEN_WIPE]==2 && events[PHC_WIPE]==!root_route);
-    CHECK(fcntl(511,F_GETFD)>=0);CHECK(getuid()==1000 || getuid()==0);
+    CHECK(fcntl(511,F_GETFD)>=0);CHECK(getuid()==caller_uid);
   }
   range_fallback=0;CHECK(!sigprocmask(SIG_SETMASK,&old,NULL));signal(SIGPIPE,SIG_DFL);close(511);close(fd);
   reset();fail=14;range_fallback=1;
