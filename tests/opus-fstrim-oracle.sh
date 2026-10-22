@@ -31,7 +31,7 @@ ver=$("$ul" -V 2>&1 || true)
 if [[ $ver =~ fstrim\ from\ util-linux\ ([0-9]+)\.([0-9]+) ]]; then
   if (( BASH_REMATCH[1] < 2 || (BASH_REMATCH[1] == 2 && BASH_REMATCH[2] < 41) )); then
     normalize_old=1
-    echo "NOTE: util-linux ${BASH_REMATCH[1]}.${BASH_REMATCH[2]} predates 2.41; normalising the usage line and the fuse.portal dry-run row"
+    echo "NOTE: util-linux ${BASH_REMATCH[1]}.${BASH_REMATCH[2]} predates 2.41; skipping the dry -h comparison and deleting the fuse.portal dry-run row"
   fi
 else
   echo 'NOTE: fstrim version line not recognised; comparing the transcript unchanged'
@@ -120,6 +120,15 @@ run -o 1M -l 2G -m 64k -v -I $L/live
 EOF
 
 status=0
+strip_dry_h() {
+  # dry -h is recorded as "== -n -h" through the next invocation header.
+  awk '
+    $0 == "== -n -h" { skip = 1; next }
+    skip && /^== / { skip = 0 }
+    !skip { print }
+  ' "$1" > "$1.nohelp"
+  mv "$1.nohelp" "$1"
+}
 compare() {
   local name=$1 script=$2 uenv=$3
   local u="$T/$name.util-linux" o="$T/$name.bash-os" o2="$T/$name.bash-os-repeat"
@@ -135,12 +144,15 @@ compare() {
     [[ ${#before[@]} == "${#after[@]}" ]] || echo "FD-LEAK ${#before[@]} -> ${#after[@]}"' _ "$script" > "$o" 2>&1
   sed -i "s#^stderr: $ul: #stderr: fstrim: #" "$u"
   if [[ $normalize_old == 1 ]]; then
-    # Before 2.41 the usage names only a mount point, and the pseudo-fs list
-    # omits fuse.portal, so a dry run prints one extra trimmed row.
-    sed -i \
-      -e 's/ fstrim \[options\] <mount point>/ fstrim [options] <-A|-a|mount point>/' \
-      -e '\#/t7: 0 B (dry run) trimmed on /dev/fz7#d' \
-      "$u"
+    # Before 2.41 the pseudo-fs list omits fuse.portal, so a dry run prints
+    # one extra trimmed row. The help text also differs, and that whole
+    # comparison is omitted rather than rewritten line by line.
+    sed -i -e '\#/t7: 0 B (dry run) trimmed on /dev/fz7#d' "$u"
+    if [[ $name == dry ]]; then
+      echo "NOTE: skipping dry -h; a reference older than 2.41 is not compared on help text"
+      strip_dry_h "$u"
+      strip_dry_h "$o"
+    fi
   fi
   local cases; cases=$(grep -c '^== ' "$u")
   if diff -u "$u" "$o" > "$T/$name.diff"; then
