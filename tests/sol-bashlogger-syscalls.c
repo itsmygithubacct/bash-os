@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,16 +72,23 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags,
   if (descriptor_flags < 0 || !(descriptor_flags & FD_CLOEXEC)) { errno = EPERM; return -1; }
   char command[128];
   snprintf(command, sizeof(command), "test ! -e /proc/self/fd/%d", fd);
+  /* Hold SIGCHLD so bash's handler cannot reap the probe before waitpid. */
+  sigset_t chld, old;
+  sigemptyset(&chld);
+  sigaddset(&chld, SIGCHLD);
+  sigprocmask(SIG_BLOCK, &chld, &old);
   pid_t pid = fork();
-  if (pid < 0) return -1;
+  if (pid < 0) { int e = errno; sigprocmask(SIG_SETMASK, &old, NULL); errno = e; return -1; }
   if (pid == 0) {
+    sigprocmask(SIG_SETMASK, &old, NULL);
     execl("/bin/sh", "sh", "-c", command, (char *)NULL);
     _exit(99);
   }
   int status;
   while (waitpid(pid, &status, 0) < 0) {
-    if (errno != EINTR) return -1;
+    if (errno != EINTR) { int e = errno; sigprocmask(SIG_SETMASK, &old, NULL); errno = e; return -1; }
   }
+  sigprocmask(SIG_SETMASK, &old, NULL);
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) { errno = EPERM; return -1; }
   int audit = open(getenv("BLOG_TEST_AUDIT"), O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC, 0600);
   if (audit < 0) return -1;
