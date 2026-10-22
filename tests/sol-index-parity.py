@@ -5,6 +5,10 @@ Normal runs compare the builtin with expected-git-2.47.3.json. SOL_INDEX_GIT
 selects the live oracle and defaults to git on PATH. When that oracle reports
 exactly "git version 2.47.3", the run also checks the oracle against the
 record. Any other version skips that cross-check and still checks the builtin.
+A kind overrun live difference is printed and does not fail the run: git's
+result for that shape depends on allocator memory and the index path length.
+The builtin check against the record stays strict. Every other kind still
+fails when live git 2.47.3 drifts.
 --record rewrites the record and refuses any other version.
 
 The index path length is pinned: one version-4 fixture's listing depends on it.
@@ -300,7 +304,12 @@ def check_case(binary, case, oracle, live, work, env, entries):
         if live:
             proc = run_git(oracle, repo, dst, env, kind == 'hang')
             obs = observe(proc)
-            if not live_ok(kind, proc, obs, entry):
+            if kind == 'overrun':
+                if not live_ok(kind, proc, obs, entry):
+                    print('NOTE', key, 'overrun live git differs from the record;',
+                          'the builtin check stays strict',
+                          'exit', obs['exit'], 'out', len(proc.stdout))
+            elif not live_ok(kind, proc, obs, entry):
                 reasons.append('drift')
         got = run_index(binary, repo, dst, env)
         if not builtin_ok(kind, entry, got, sparse_err):
