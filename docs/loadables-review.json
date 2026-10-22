@@ -1418,7 +1418,7 @@
       ],
       "status": "Contract",
       "evidence": "tests/opus-dmsetup-ioctl.py",
-      "scope": "Brief scope met for the software/ioctl path. All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing, against an injected fixture whose reply sizes now match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. Coverage includes the explicit root+opt-in mutation policy, aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. Measurements are labeled syscall-shim. Actual-device qualification is a documented qualification limit, not an unresolved requirement of this brief. The catalog must say fixture-verified, not hardware-qualified."
+      "scope": "All 11 mutation verbs and the query verbs through production DM ioctl construction and parsing against an injected fixture. A mutating verb opens no control node unless euid is 0 and BASHOS_DMSETUP_ALLOW_MUTATE is exactly 1. Fixture-verified, not hardware-qualified."
     },
     {
       "names": [
@@ -1644,6 +1644,117 @@
       "status": "Contract",
       "evidence": "tests/grok-sed-fix-inplace.py",
       "scope": "Dynamic bash only. In-place replacement stays in the opened parent directory. Static bash ignores LD_PRELOAD, so the injection cases are not a static pass. The post-renameat identity window remains."
+    },
+    {
+      "names": [
+        "lpr"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-lpr-delivery.py",
+      "scope": "Private spool, absolute backend with a literal argv, partial consumption, missing or invalid backend, and shared or symlinked spool refusal."
+    },
+    {
+      "names": [
+        "lpr"
+      ],
+      "status": "Contract",
+      "evidence": "tests/secreview-lpr-cancel-identity.py",
+      "scope": "Cancel writes one byte to the live job's control FIFO and leaves a pid named in a sidecar file running; a stale job signals nothing."
+    },
+    {
+      "names": [
+        "git",
+        "nc",
+        "mail",
+        "ssh",
+        "pty"
+      ],
+      "status": "Contract",
+      "evidence": "tests/secreview-shell-sigpipe.py",
+      "scope": "Default, trapped and ignored SIGPIPE: the shell survives the builtin, and trap -p PIPE and the ignored and caught signal sets match their values before the call."
+    },
+    {
+      "names": [
+        "lpr",
+        "pkg",
+        "ptybroker",
+        "ssh"
+      ],
+      "status": "Contract",
+      "evidence": "tests/secreview-shell-fds.py",
+      "scope": "Forty open/close cycles leave /proc/$$/fd unchanged; ptybroker create also receives SIGCHLD during startup."
+    },
+    {
+      "names": [
+        "pkg"
+      ],
+      "status": "Contract",
+      "evidence": "tests/pkg-symlink-root.py",
+      "scope": "A symlink component below --root is refused for install, legacy extract and verify; a symlinked package directory or root prefix is accepted; under / a moved package-state link is followed in a private namespace when one can be made."
+    },
+    {
+      "names": [
+        "cron"
+      ],
+      "status": "Contract",
+      "evidence": "tests/cron-containment.py",
+      "scope": "Refusal of a symlinked spool, a 0777 spool and an atjobs symlink, and a symlinked state file left in place, on private directories."
+    },
+    {
+      "names": [
+        "watch"
+      ],
+      "status": "Contract",
+      "evidence": "tests/watch-exec.py",
+      "scope": "watch -x passes its words as argv without shell evaluation; -e stops when the command fails."
+    },
+    {
+      "names": [
+        "doas"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-doas-check.py",
+      "scope": "Injected authority AUTHZ answers, an independent request-digest oracle and 1000 owned-child rounds; no live /dev/bashos-auth."
+    },
+    {
+      "names": [
+        "su"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-su-check.py",
+      "scope": "Injected credential check, private passwd and shadow files and an owned PTY; a missing /dev/bashos-auth is a denial."
+    },
+    {
+      "names": [
+        "fstrim"
+      ],
+      "status": "Contract",
+      "evidence": "tests/opus-fstrim-check.py",
+      "scope": "Native boundary contracts through the FITRIM shim, including -I on files and unmounted directories."
+    },
+    {
+      "names": [
+        "fsfreeze"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-fsfreeze-check.py",
+      "scope": "FIFREEZE and FITHAW answered by a fixture that opens only /dev/null."
+    },
+    {
+      "names": [
+        "hwclock"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-hwclock-check.py",
+      "scope": "RTC ioctls, clock_gettime and clock_settime replaced by tests/sol-hwclock-shim.c."
+    },
+    {
+      "names": [
+        "losetup"
+      ],
+      "status": "Contract",
+      "evidence": "tests/sol-losetup-fixtures.py",
+      "scope": "Loop-control and loop ioctls answered by tests/sol-losetup-shim.c."
     }
   ],
   "sanitizer_groups": [
@@ -2258,6 +2369,20 @@
       ],
       "evidence": "tests/sol-sed-sanitize.sh",
       "scope": "Production sed rebuilt as an instrumented module, system and portable backends, loaded into the dynamic shell. This is not an instrumented full Bash executable."
+    },
+    {
+      "names": [
+        "nc"
+      ],
+      "evidence": "tests/secreview-nc-sanitize.sh",
+      "scope": "The closed-stdout SIGPIPE case on an ASan and UBSan nc module."
+    },
+    {
+      "names": [
+        "ptybroker"
+      ],
+      "evidence": "tests/secreview-ptybroker-sanitize.sh",
+      "scope": "The create/terminate descriptor cycle on an ASan and UBSan ptybroker module."
     }
   ],
   "fuzz": {
@@ -2511,7 +2636,7 @@
     "lpr": {
       "program": "lpr",
       "applet": "lpr",
-      "scope": "Current submit operation simulates printing; no comparable real print throughput."
+      "scope": "Submit hands the job to the configured BASHLPR_BACKEND; no comparable real print throughput."
     },
     "mail": {
       "program": "sendmail / mailq",
@@ -2801,8 +2926,8 @@
     },
     "dmsetup": {
       "evidence": "docs/sol-dmsetup.md",
-      "note": "Brief scope met for the software/ioctl path. All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing, against an injected fixture whose reply sizes now match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. Coverage includes the explicit root+opt-in mutation policy, aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. Measurements are labeled syscall-shim. Actual-device qualification is a documented qualification limit, not an unresolved requirement of this brief. The catalog must say fixture-verified, not hardware-qualified.",
-      "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
+      "note": "All 11 mutation verbs and the query verbs run through production DM ioctl construction and parsing against an injected fixture whose reply sizes match kernel ctl_ioctl/list_devices/retrieve_status/remove_all. The mutating verbs create, load, reload, remove, remove_all, suspend, resume, rename, message, clear and wipe_table refuse before the control node is opened unless euid is 0 and BASHOS_DMSETUP_ALLOW_MUTATE is exactly 1. tests/opus-dmsetup-ioctl.py (631 checks) asserts no control-node open for a non-root caller, for root without the flag and for the value yes, and runs the queries unprivileged. Coverage also includes aligned tables, flags, growth with cap, multi-device errors, malformed tables/records, permissions, rollback, empty PATH, output failures and FD cleanup. The fixture simulates root and answers /dev/mapper/control; the suite issues no ioctl on a host device-mapper node. Measurements are labeled syscall-shim. This is fixture-verified, not hardware-qualified.",
+      "next": "The suite issues no ioctl on a host device-mapper node; actual-device qualification remains. Historical measurements keep their original source provenance."
     },
     "uclampset": {
       "evidence": "docs/sol-uclampset.md",
@@ -2811,7 +2936,7 @@
     },
     "lpr": {
       "evidence": "tests/sol-lpr-list-readdir.py",
-      "note": "Submit copies a job into an owner-only spool opened with O_NOFOLLOW and runs BASHLPR_BACKEND as an absolute path with a literal argv. The job counts only when the backend exits 0 and stdin reached the job size. A missing or relative backend fails before spooling. Cancel writes one byte to the control FIFO and does not signal a pid from a sidecar file. Listing refuses a symlink or a group or other writable directory. A readdir error closes the directory and fails the list, so unread jobs are not reported as an empty spool. SIGPIPE is ignored only around the cancel write and the caller disposition is restored.",
+      "note": "Submit copies a job into a spool opened with O_NOFOLLOW that must be owned by the caller and not writable by group or other (a new spool is created 0700), and runs BASHLPR_BACKEND as an absolute path with a literal argv. The job counts only when the backend exits 0 and stdin reached the job size. A missing or relative backend fails before spooling. Cancel writes one byte to the control FIFO and does not signal a pid from a sidecar file; tests/secreview-lpr-cancel-identity.py checks that such a pid stays live. Listing refuses a symlink, a directory owned by another user, or a group or other writable directory. A readdir error closes the directory and fails the list, so unread jobs are not reported as an empty spool. tests/secreview-shell-fds.py runs 40 list cycles with /proc/$$/fd unchanged. SIGPIPE is ignored only around the cancel write and the caller disposition is restored.",
       "next": "No real printer delivery and no new timing claim. The injected directory-read failure was not repeated under ASan."
     },
     "payload": {
@@ -2837,22 +2962,22 @@
     "su": {
       "evidence": "tests/sol-su-check.py",
       "note": "Production su is exercised through an injected credential check, private passwd and shadow files, and an owned PTY. A readdir error during descriptor cleanup fails the command instead of continuing with unread descriptors open. A missing kernel auth device is a denial. No host account, shadow, or PAM change is made. Live kernel authority and privileged UID and GID transition remain unqualified.",
-      "next": "Do not report an authentication result that did not run. No new timing claim."
+      "next": "Do not report an authentication result that did not run. Live /dev/bashos-auth mint/consume and the privileged target transition were not performed. No new timing claim."
     },
     "sudo": {
       "evidence": "docs/sol-sudo.md",
-      "note": "Sudo list mode is implemented. The policy must be readable by the caller. There is no live-authority listing or authentication. The listing is a projection, not an execution approval. Native, fixture, and sanitizer evidence cover the software path. No new performance result is claimed.",
+      "note": "Sudo list mode is implemented. The policy must be readable by the caller. With the authority present, -l, -ll and --list read only the policy path the authority advertises; the injected fixture records two POLICY_INFO calls and no authorization request, exec or spawn. The bytes read are checked against the authority's digest before output, and a changed digest prints nothing. An injected open failure, a symlinked policy, a mode 0666 policy and an empty or non-matching policy all fail. Without the authority, list runs only an explicitly set BASHSUDO_EXTERNAL delegate. The listing is a projection, not an execution approval. tests/sol-sudo-userns.py drops from namespace root over private account files; that is not an authentication result. The suite does not authenticate against a live /dev/bashos-auth or read a host policy. No new performance result is claimed.",
       "next": "No new performance result. Live authority, kernel authentication, and host policy remain unqualified."
     },
     "doas": {
       "evidence": "docs/sol-doas.md",
-      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "Owned-child wait status and private external-delegate behavior, plus synthetic authentication boundary fixtures. tests/sol-doas-check.py runs doas against an injected authority that answers the AUTHZ request, checks the request digest against an independent SHA-256 oracle and runs 1000 owned-child rounds. tests/sol-sudo-userns.py drops from namespace root over private account files with no /dev/bashos-auth, including the doas root route; that is not an authentication result. No successful authentication against a live /dev/bashos-auth is on record. Real authentication, policy enforcement, account changes and privilege transitions remain unqualified.",
+      "next": "Do not report an authentication result that did not run. Live /dev/bashos-auth authentication was not performed."
     },
     "mail": {
       "evidence": "docs/sol-mail.md",
-      "note": "Private queue and local SMTP fixtures qualify response classes, same-shell recovery and SIGPIPE-safe socket writes. No live delivery, credential or TLS-deployment qualification.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "Private queue and local SMTP fixtures qualify response classes, same-shell recovery and SIGPIPE-safe socket writes. tests/sol-mail-check.py covers aliases, submission, delivery, framing and lifecycle against a private queue and a loopback SMTP listener the test binds. serve and smtpd save SIGINT, SIGTERM and SIGPIPE around the accept loop and restore them; tests/secreview-shell-sigpipe.py ends each with SIGTERM under default, trapped and ignored SIGPIPE and finds status 0 and the caller's PIPE trap and ignored and caught signal sets unchanged. No host spool, sendmail or external SMTP server is contacted. No live delivery, credential or TLS-deployment qualification.",
+      "next": "No message reaches a live mail service. Historical measurements retain their original source provenance; corrected-code timing is not claimed."
     },
     "screen": {
       "evidence": "docs/sol-screen.md",
@@ -2860,7 +2985,7 @@
       "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "ssh": {
-      "note": "Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements."
+      "note": "Host-key fixtures and loopback SSH interoperability pass; no transfer throughput measurements. signal(SIGPIPE, SIG_IGN) runs only in the double-forked master daemon. tests/secreview-shell-sigpipe.py checks that a refused loopback connect returns ssh's error with the caller's PIPE trap and ignored and caught signal sets unchanged, and tests/secreview-shell-fds.py that 40 refused connects leave /proc/$$/fd unchanged. Session output is written with a plain write(); a closed stdout during a session was not tested. No external host is contacted."
     },
     "sshd": {
       "note": "Loopback interoperability and malformed setup cases pass; no concurrent-session measurements."
@@ -2877,7 +3002,7 @@
       "next": "Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance."
     },
     "ldap": {
-      "note": "BER/filter fixtures and bounded fuzzing pass; live server/authentication throughput is unmeasured."
+      "note": "BER/filter fixtures and bounded fuzzing pass. The BER reader rejects an indefinite length, a long form with no length bytes or more than four, a long form with a leading zero byte, and a length past the data or the 256 KiB cap; tests/final-smoke.py asserts only the indefinite-length case. A long form that would fit in the short form is accepted when its first length byte is non-zero, and its length is still bounds-checked. Live server/authentication throughput is unmeasured."
     },
     "cluster": {
       "evidence": "docs/sol-cluster.md",
@@ -2969,12 +3094,12 @@
     },
     "crypto": {
       "evidence": "docs/sol-crypto.md",
-      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d.",
+      "note": "Nonce and AAD rejection tests preserve the key. Worker timings are wrapper/workload-specific, with unchanged production source after the test correction. P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d. Whether a public key or signature from an affected aarch64 build reveals its private key is not settled; treat keys from an affected build as exposed.",
       "next": "Retain independent cryptography oracles and bounded API coverage; no broad cryptographic security or uniform speedup claim."
     },
     "acme": {
       "evidence": "tests/p256-check.py",
-      "note": "P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d."
+      "note": "P-256 known answers are tests/p256-check.py and tests/p256-m-check.c, sanitized by tests/p256-sanitize.sh. GCC 14.2 aarch64 at -O2 miscompiled the portable multiply before 5b6468d. Whether a public key or signature from an affected aarch64 build reveals its private key is not settled; treat keys from an affected build as exposed."
     },
     "rev": {
       "note": "Write-failure stop and GNU comparison are covered by tests/rev-check.sh."
@@ -3015,7 +3140,7 @@
     },
     "zstd": {
       "evidence": "docs/sol-zstd.md",
-      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
+      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. The decoder window is capped at 128 MiB; tests/sol-zstd-check.py feeds a valid frame that advertises a 256 MiB window and requires the builtin to fail. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "hostid": {
@@ -3036,7 +3161,7 @@
       "evidence": "tests/mktemp-u-check.sh"
     },
     "passwd": {
-      "note": "Empty passwd fields retain their column positions in list and lookup paths; dedicated fixtures cover empty and malformed records. The historical timing fixture remains unchanged.",
+      "note": "Empty passwd fields retain their column positions in list output and lookups; dedicated fixtures cover empty and malformed records. Lookup skips a record whose uid or gid is empty or non-numeric, so passwd info reports no entry instead of reading the field as 0; a literal 0 still reads as root. tests/passwd-fields.py asserts the empty uid, empty gid, non-numeric uid and literal 0 cases. The historical timing fixture remains unchanged.",
       "evidence": "tests/passwd-fields.py"
     },
     "vi": {
@@ -3050,8 +3175,8 @@
     },
     "fstrim": {
       "evidence": "docs/opus-fstrim.md",
-      "note": "FITRIM range semantics and util-linux comparisons in a private namespace with intercepted ioctls. Actual discard support and latency remain hardware prerequisites.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "FITRIM range semantics and util-linux comparisons run in a private namespace with intercepted ioctls. With -I, a listed entry is trimmed only when its source starts with '/', the target is a directory whose st_dev differs from its parent's, and the source reports discard; pseudo, network, swap, read-only and X-fstrim.notrim entries are skipped. -I does not read the mount table, so a listed directory on its own device counts as a mountpoint. tests/opus-fstrim-check.py (27 checks) asserts that a file or an unmounted directory that only stat()s gets no FITRIM, in the dry run and the real run. The shim answers FITRIM; the suite issues no discard on a host device. Actual discard support and latency remain hardware prerequisites.",
+      "next": "The suite issues no FITRIM on a host device. Historical measurements retain their original source provenance; corrected-code timing and hardware qualification are not claimed."
     },
     "rsync": {
       "evidence": "docs/opus-rsync.md",
@@ -3077,12 +3202,12 @@
     },
     "git": {
       "evidence": "tests/git-integrity.py",
-      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility. Non-POSIX wait runs a queued SIGCHLD trap after waitchld returns and before the next wait. POSIX wait still returns 128+SIGCHLD.",
+      "note": "The recorded parity run covers 69 scenarios and 414 comparisons. Dedicated integrity and apply-path regressions cover malformed storage, preflight failures, complete long patch lines and nested rename strip levels; this is not full Git compatibility. Apply rejects a patch whose work-tree path does not fit in 4096 bytes, for additions, deletions and both rename sides, with no partial write. With -pN on a path that has fewer leading directories than N, apply strips what it can and writes the last component; git 2.47.3 rejects that header and writes nothing. No registered test covers that difference. Each git command runs in a forked child, so the transport's signal(SIGPIPE, SIG_IGN) does not reach the caller; tests/secreview-shell-sigpipe.py runs ls-remote against a far end that exits at once and gets status 128 with the caller's PIPE trap and ignored and caught signal sets unchanged. Non-POSIX wait runs a queued SIGCHLD trap after waitchld returns and before the next wait. POSIX wait still returns 128+SIGCHLD.",
       "next": "No new seven-sample timing claim. Full Git lifecycle was not rerun under ASan."
     },
     "pkg": {
-      "note": "Index verification uses the same byte buffer that is published. Separate trust and package-publication fixtures cover signature lookup, trust-file failures and install rollback, including sanitizer checks.",
-      "evidence": "loadables/pkg.c"
+      "note": "Index verification uses the same byte buffer that is published. Every verb except pack, delta-make and delta-apply runs contained when --root names a directory other than /: each path component below the root is opened with O_NOFOLLOW, so a symlink there is neither read nor written through. The --root prefix itself, the package file and a local source may be reached through a symlink. When the root is / (the default, or any all-slash spelling) pkg does not contain, and every link there is the administrator's and is followed. Legacy extract skips links in the package. tests/pkg-symlink-root.py refuses install, legacy extract and verify through a symlinked component, accepts a symlinked package directory and root prefix, and follows a moved package-state link under / inside a private user and mount namespace, skipping that case where none can be made; tests/pkg-sanitize.sh runs it under ASan and UBSan. When the curl builtin is not enabled, fetch falls back to an execvp PATH search for curl; no absolute downloader is configured. The server, desktop and full profiles include the curl builtin. With an empty PATH that search tries the current directory, as bash's own command lookup does. tests/secreview-shell-fds.py runs 40 pkg list --root cycles with /proc/$$/fd unchanged. Separate trust and package-publication fixtures cover signature lookup, trust-file failures and install rollback, including sanitizer checks. The pkg tests install from local files and fetch nothing from a network.",
+      "evidence": "tests/pkg-symlink-root.py"
     },
     "vt": {
       "note": "Dedicated edge fixtures cover drained response cloning, complete combining sequences in diff/scrollback output and bounded CSI numeric parsing.",
@@ -3099,7 +3224,7 @@
     },
     "ptybroker": {
       "evidence": "docs/sol-ptybroker.md",
-      "note": "Private Linux PTY metadata, bounded active-reader delivery, exact queue boundaries, history and owned-session cleanup. Nonreaders may be evicted; injected UID checks do not qualify real cross-account enforcement.",
+      "note": "Private Linux PTY metadata, bounded active-reader delivery, exact queue boundaries, history and owned-session cleanup. Nonreaders may be evicted; injected UID checks do not qualify real cross-account enforcement. Session startup (pb_start) retries EINTR until its deadline; pb_wait is unchanged, so a caller trap still interrupts ptybroker receive (tests/ptybroker.py traps_interrupt_receive). tests/secreview-shell-fds.py runs 40 create/terminate cycles with SIGCHLD sent during create and finds /proc/$$/fd unchanged; tests/secreview-ptybroker-sanitize.sh repeats it on an ASan and UBSan module. The broker service process ignores SIGHUP and SIGPIPE without saving them; it is not the caller shell. Client pipe writes block SIGPIPE and restore the mask. The suite does not attach a physical terminal.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "bashlogger": {
@@ -3108,7 +3233,7 @@
       "next": "Qualify additional logger CLI or daemon integration behavior when required; current API measurement is separate from the historical catalog timings."
     },
     "blockdev": {
-      "note": "All advertised software ioctl paths have closed fixtures and fixed query/request batch measurements on 2026-10-19. Shim time includes shell/module/fixture overhead; no hardware latency or external speedup claim.",
+      "note": "All advertised software ioctl paths have closed fixtures and fixed query/request batch measurements on 2026-10-19. Shim time includes shell/module/fixture overhead; no hardware latency or external speedup claim. tests/sol-blockdev-check.py (66 checks) loads tests/sol-blockdev-shim.c, which answers BLKGETSIZE64, BLKGETSIZE, BLKSSZGET, BLKBSZGET, BLKROGET, BLKROSET, BLKFLSBUF and BLKRRPART. The native builtin runs only --getss against a private regular file, which fails each time. No ioctl, flush or partition reread reaches a host block device.",
       "evidence": "docs/sol-blockdev.md",
       "next": "Actual device geometry, privileges, driver errors, flush and partition reread effects still need device qualification."
     },
@@ -3133,7 +3258,7 @@
     },
     "zstdcat": {
       "evidence": "docs/sol-zstd.md",
-      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
+      "note": "Fixed-buffer compression/decompression, bounded decoder windows and atomic named output publication. zstdcat calls the same decoder, whose window is capped at 128 MiB, through bashos_zstd_run; the 256 MiB window fixture runs zstd, not zstdcat. Native stream and fault oracles plus isolated static-root execution qualify software paths; no durability or concurrent hostile-path guarantee.",
       "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "renice": {
@@ -3183,13 +3308,13 @@
     },
     "fsfreeze": {
       "evidence": "docs/sol-fsfreeze.md",
-      "note": "Parser, directory-open and freeze/thaw syscall boundary with closed fixtures. Actual freezable filesystem behavior and latency require a disposable capable VM.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "Parser, directory-open and freeze/thaw syscall boundary with closed fixtures. tests/sol-fsfreeze-check.py (57 checks) loads tests/sol-fsfreeze-fixture.c, which opens only /dev/null and answers FIFREEZE and FITHAW. No host filesystem is frozen or thawed. Actual freezable filesystem behavior and latency require a disposable capable VM.",
+      "next": "The suite freezes no host filesystem. Corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "losetup": {
       "evidence": "docs/sol-losetup.md",
-      "note": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. Actual kernel loop behavior requires a disposable loop-capable VM.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "Loop parser, attach rollback, read-only propagation and complete backing-path association through closed ioctl fixtures. tests/sol-losetup-fixtures.py (15 tests) loads tests/sol-losetup-shim.c, which answers LOOP_CTL_GET_FREE, LOOP_SET_FD, LOOP_SET_STATUS64 and LOOP_CLR_FD so no loop ioctl reaches the kernel. No host loop device is attached. Actual kernel loop behavior requires a disposable loop-capable VM.",
+      "next": "The suite attaches no host loop device. Corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "mkfs": {
       "evidence": "docs/sol-mkfs.md",
@@ -3203,8 +3328,8 @@
     },
     "hwclock": {
       "evidence": "docs/sol-hwclock.md",
-      "note": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM.",
-      "next": "Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed."
+      "note": "RTC conversion, adjustment files and syscall sequencing exercised with fully intercepted setters and private state. tests/sol-hwclock-check.py (172 checks) loads tests/sol-hwclock-shim.c, which replaces the RTC_RD_TIME and RTC_SET_TIME ioctls, clock_gettime and clock_settime. No host RTC or system clock is changed. Standalone sanitizers qualify software only; actual RTC/system-clock effects require an isolated VM.",
+      "next": "The suite sets no host RTC or system clock. Corrected-code timing and broader platform or hardware qualification are not claimed."
     },
     "ping": {
       "evidence": "docs/sol-ping.md",
@@ -3255,6 +3380,35 @@
       "evidence": "tests/sol-clip-check.py",
       "note": "Cut, copy, and paste are all-or-nothing. Each ring entry is one block. A full ring replaces the oldest entry. New handles reject an empty name and any destination that is not an identifier, before allocation. Readonly and nameref-to-readonly destinations fail and release the slot. Copy and cut compare a line index with the line count before adding one, so a LONG_MAX index does not overflow. Empty regions are defined. bb_pub_dirty, bb_pub_get_lines, bb_pub_insert_lines, and bb_pub_delete_lines stay exported, and the first paged line is resolved once.",
       "next": "Do not record 0.062x as an equivalent-work speedup or a paired before/after gain. Timed catalog passes discard stdout. Byte-checked timed text output is the adapter in bench/sol-clip.py. Full terminal-smoke and terminal-sanitize stay coordinator-owned. Clip fault coverage does not qualify nano."
+    },
+    "bashclock": {
+      "evidence": "loadables/bashclock.c",
+      "note": "bashclock now, mono, boot, since and sleep call only clock_gettime and clock_nanosleep; the source has no clock setter. The only check is the bashclock-sleep benchmark case. The suite does not set the host clock."
+    },
+    "ntp": {
+      "evidence": "loadables/ntp.c",
+      "note": "tests/final-smoke.py checks only a loopback ntp query that reports stratum 2. In the source, sync -n prints applied=no and does not apply the offset, and run --dry-run-discipline prints live_clock_settime=no and live_ntp_adjtime=no and returns before any adjtime, clock_settime or adjtimex call. No registered test runs sync -n or the dry-run discipline. The suite does not step, slew or discipline the host clock.",
+      "next": "No registered test runs ntp sync -n or run --dry-run-discipline. The suite does not change the host clock."
+    },
+    "nc": {
+      "evidence": "tests/secreview-shell-sigpipe.py",
+      "note": "TCP socket writes use MSG_NOSIGNAL. A write to stdout or another non-socket ignores SIGPIPE for that write only and restores the caller's disposition, so a closed reader returns EPIPE. tests/secreview-shell-sigpipe.py closes stdout under default, trapped and ignored SIGPIPE and gets the write stdout error, status 1 and the caller's PIPE trap and ignored and caught signal sets unchanged; tests/secreview-nc-sanitize.sh repeats it on an ASan and UBSan module. The peer is a loopback listener owned by the test, not an external network."
+    },
+    "pty": {
+      "evidence": "tests/secreview-shell-sigpipe.py",
+      "note": "SIGPIPE is set to SIG_IGN, without saving the old action, only in the intermediate reaper child. The parent's gate byte is sent with MSG_NOSIGNAL. tests/secreview-shell-sigpipe.py runs pty spawn under default, trapped and ignored SIGPIPE and finds the caller's PIPE trap and ignored and caught signal sets unchanged. It does not check the target's SIGPIPE disposition. The suite uses a private PTY, not a physical terminal."
+    },
+    "cron": {
+      "evidence": "tests/cron-containment.py",
+      "note": "cron run opens the spool with O_NOFOLLOW and requires it to be owned by the caller and not writable by group or other (a missing spool is created 0700); the atjobs and tabs subdirectories get the same check. The state file is read with O_NOFOLLOW and a symlinked state file is not replaced. The configured cron.d directory and the output directory are followed, so root-maintained links are honoured; each cron.d file must still have a valid name and be a regular, owner-readable file with no execute bits that is not writable by group or other. A job.* file is removed only when it is a regular file. tests/cron-containment.py checks a symlinked spool, a 0777 spool, an atjobs symlink and a symlinked state file on the dynamic and static shells; it does not test the followed directories. The suite runs cron run --once against private directories and does not start crond or change the host crontab."
+    },
+    "watch": {
+      "evidence": "tests/watch-exec.py",
+      "note": "watch -x passes the given words to the command as its argv, running an enabled builtin of that name or else execvp, so a shell metacharacter in an argument is not evaluated. Without -x the words are joined and evaluated by the shell. tests/watch-exec.py checks the -x argv, including an argument that contains ';', and that -e stops when the command fails; it does not test the path without -x."
+    },
+    "integrity": {
+      "evidence": "loadables/integrity.c",
+      "note": "integrity opens --root as named, without O_NOFOLLOW, and opens every component below it with O_NOFOLLOW. A symlink is recorded through readlinkat and not followed, so a link that points outside the root is not read. The builtin opens nothing for writing. No registered test plants a symlink; tests/final-smoke.py records one regular file."
     }
   },
   "repeat_input_findings": [],
