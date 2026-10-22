@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Fail the Nth realloc of 128 bytes.
  *
  * el_end is an int plus a flag, 8 bytes with the ABI padding this tree

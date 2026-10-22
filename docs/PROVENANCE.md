@@ -68,7 +68,8 @@ configuration. See [Perl inside Bash](perl.md).
 
 | Files | Licence |
 |---|---|
-| command sources and `loadables/common/` | MIT (`LICENSE`) |
+| command sources and `loadables/common/` except `sed-regex.h` | MIT (`LICENSE`) |
+| `loadables/common/sed-regex.h` | LGPL-2.1-or-later, GNU sed 4.9 gnulib regex; notice `docs/sol-sed-regex-LGPL-2.1.txt`; registered in `config/vendored-files.json` |
 | `_ptybroker` native client and service | MIT, original project code |
 | `_perl` embedding and environment helpers | MIT, original project code |
 | `_git` object, index and pack library | MIT, original project code; git's formats implemented from their published descriptions, with no code from git |
@@ -86,7 +87,8 @@ configuration. See [Perl inside Bash](perl.md).
 | `patches/head-stdin.patch` (adaptation of Bash's stock head) | GPL-3.0-or-later |
 
 The project sources carry an MIT marker. Vendored helpers retain their original
-notices and are registered in `config/helpers.json`; `tests/licence-check.sh`
+notices and are registered in `config/helpers.json`. Other vendored files are
+registered in `config/vendored-files.json`. `tests/licence-check.sh`
 checks all C/header/data files and rejects unregistered helper trees. The
 combined executable remains governed by Bash's GPL-3.0-or-later licence.
 

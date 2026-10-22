@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Injected directory identity for sed -i.
    BS_INPLACE_PARENT is the absolute directory, BS_INPLACE_FILE its final
    component, and BS_INPLACE_MODE is rename-parent or swap-entry.

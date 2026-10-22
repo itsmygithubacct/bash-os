@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Exercise the actual private arithmetic helpers, including their inlined use.
  * Build: cc -O2 tests/p256-m-check.c -o p256-m-check
  * Test-only reference multiplies may use widening instructions. */

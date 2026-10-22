@@ -209,9 +209,10 @@ Names in a list that have no `loadables/NAME.c` here are bash's own
 ## Licence
 
 The project sources are MIT (`LICENSE`). Vendored helpers retain their own
-licences, including MIT, ISC, BSD, Apache-2.0, LGPL-2.1, Unicode terms,
-and public-domain dedications. The inventory in
-`config/helpers.json` names each helper’s licence and notice file; see
+licences, including MIT, ISC, BSD, Apache-2.0, LGPL-2.1, LGPL-2.1-or-later,
+Unicode terms, and public-domain dedications. The inventory in
+`config/helpers.json` names each helper’s licence and notice file, and
+`config/vendored-files.json` names each other vendored file the same way; see
 [provenance](docs/PROVENANCE.md) for versions and adaptations.
 `tests/licence-check.sh` holds the tree to that.
 
