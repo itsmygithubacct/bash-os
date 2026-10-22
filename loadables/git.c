@@ -4229,6 +4229,35 @@ git_commit_signed (const char *body, size_t len, const char *armour,
 }
 
 
+/* The transport ignores SIGPIPE so a closed far end is EPIPE here.
+   A program this process execs gets the disposition from before that
+   ignore. Save it once: a later open must not record the ignore as
+   the caller's action. */
+static struct sigaction git_pipe_saved;
+static int git_pipe_saved_valid;
+
+static void
+git_ignore_pipe (void)
+{
+    struct sigaction ignore, previous;
+    memset (&ignore, 0, sizeof ignore);
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset (&ignore.sa_mask);
+    if (sigaction (SIGPIPE, &ignore, &previous) < 0)
+        return;
+    if (!git_pipe_saved_valid) {
+        git_pipe_saved = previous;
+        git_pipe_saved_valid = 1;
+    }
+}
+
+static void
+git_restore_caller_pipe (void)
+{
+    if (git_pipe_saved_valid)
+        sigaction (SIGPIPE, &git_pipe_saved, NULL);
+}
+
 /* Run an editor over PATH, the way git runs one: GIT_EDITOR, then
    core.editor, then VISUAL, then EDITOR, and vi when nothing names one.
    What is named is a command line the shell reads, with the file added at
@@ -4257,6 +4286,7 @@ git_edit_file (git_context *ctx, const char *path, int sequence)
     pid_t child = fork ();
     if (child < 0) return -1;
     if (!child) {
+        git_restore_caller_pipe ();
         char script[4096];
         snprintf (script, sizeof script, "%s \"$@\"", editor);
         /* The shell keeps its own table of variables and only builds the
@@ -12645,6 +12675,7 @@ git_bisect_run_words (WORD_LIST *words)
     pid_t child = fork ();
     if (child < 0) return -1;
     if (!child) {
+        git_restore_caller_pipe ();
         array_needs_making = 1;
         maybe_make_export_env ();
         const char *argv[6];
@@ -18524,6 +18555,7 @@ git_http_ask (git_conn *conn, const char *method, const char *url,
         return -1;
     }
     if (!child) {
+        git_restore_caller_pipe ();
         close (into[1]);
         close (back[0]);
         if (dup2 (into[0], 0) < 0 || dup2 (back[1], 1) < 0) _exit (127);
@@ -18740,6 +18772,7 @@ git_start_argv (const char *script, const char *const *args, int n_args,
         return -1;
     }
     if (!child) {
+        git_restore_caller_pipe ();
         close (down[1]);
         close (up[0]);
         if (dup2 (down[0], 0) < 0 || dup2 (up[1], 1) < 0) _exit (127);
@@ -18903,8 +18936,9 @@ git_conn_open (git_conn *conn, git_context *ctx, const char *url,
     conn->service = service;
     conn->ctx = ctx;
     /* A far end that stops leaves a pipe with no reader; the write that
-       finds out must not take the shell's child with it. */
-    signal (SIGPIPE, SIG_IGN);
+       finds out must not take the shell's child with it. The programs
+       this process execs restore the disposition from before this ignore. */
+    git_ignore_pipe ();
 
     if (git_url_is_http (url)) {
         conn->over_http = 1;
@@ -22094,6 +22128,7 @@ git_run_shell (const char *command)
     pid_t child = fork ();
     if (child < 0) return -1;
     if (!child) {
+        git_restore_caller_pipe ();
         array_needs_making = 1;
         maybe_make_export_env ();
         const char *argv[6];
@@ -24804,6 +24839,7 @@ git_run_in (const char *directory, const char *const *args, int n_args)
     pid_t child = fork ();
     if (child < 0) return -1;
     if (!child) {
+        git_restore_caller_pipe ();
         char **env = git_far_environ ();
         const char *argv[24];
         int at = 0;
