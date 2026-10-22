@@ -514,6 +514,25 @@ bpw_shadow_phc (const char *user, char *out, size_t outsz)
   return rc;
 }
 
+/* Decimal id, same acceptance as login lookup: empty and non-numeric
+   fields are rejected rather than becoming uid 0 or gid 0. */
+static int
+bpw_parse_id (const char *s, unsigned int *out)
+{
+  unsigned long v = 0;
+  if (!s || !*s || !out) return -1;
+  for (const char *p = s; *p; p++)
+    {
+      if (*p < '0' || *p > '9') return -1;
+      unsigned digit = (unsigned) (*p - '0');
+      if (v > (4294967295UL - digit) / 10) return -1;
+      v = v * 10 + digit;
+    }
+  if (v >= 4294967295UL) return -1;
+  *out = (unsigned int) v;
+  return 0;
+}
+
 static int
 bpw_lookup_user (const char *user, bpw_user *out)
 {
@@ -529,10 +548,13 @@ bpw_lookup_user (const char *user, bpw_user *out)
       char *fields[7];
       if (bpw_passwd_fields (line, fields) < 0 ||
           strcmp (fields[0], user) != 0) continue;
+      unsigned int uid, gid;
+      if (bpw_parse_id (fields[2], &uid) < 0 || bpw_parse_id (fields[3], &gid) < 0)
+        continue;
       memset (out, 0, sizeof *out);
       snprintf (out->name, sizeof out->name, "%s", fields[0]);
-      out->uid = (unsigned int) strtoul (fields[2], NULL, 10);
-      out->gid = (unsigned int) strtoul (fields[3], NULL, 10);
+      out->uid = uid;
+      out->gid = gid;
       snprintf (out->gecos, sizeof out->gecos, "%s", fields[4]);
       snprintf (out->home, sizeof out->home, "%s", *fields[5] ? fields[5] : "/");
       snprintf (out->shell, sizeof out->shell, "%s", *fields[6] ? fields[6] : "/bin/bash");
