@@ -124,16 +124,16 @@ with tempfile.TemporaryDirectory(prefix='index-regression-') as d:
             hashes = {hashlib.sha256(o.stdout).hexdigest() for o in outs}
             print('unstable', label, 'exit_class', sorted(classes), 'hashes', len(hashes),
                   'lens', sorted({len(o.stdout) for o in outs}))
-            assert len(classes) > 1 or len(hashes) > 1, (label, 'git listing was deterministic')
             got = bash_read()
             assert got.returncode != 0 and got.stdout == b'', (label, got.returncode, got.stdout[:40], got.stderr)
         # Name starts at offset 74. A 12-bit length of page-74 makes the next
-        # header start past the mapped page. Repeated git listings differ.
+        # header start past the mapped page. Git's listing there is undefined
+        # and may stay the same; the print records this host, and the builtin
+        # must still refuse.
         expect_refuse('v2-next-past-page', wrap(2, 2, head(page - 74) + b'\x10' + b'\x22'*19))
         # Version 4, count 2, 12-bit length 4000, one 0x00 strip byte and no
-        # suffix. Measured where the page is 4096 bytes: git mixes success
-        # with a fatal status and does not repeat one listing. A larger page
-        # uses a length that still places the next header past the page.
+        # suffix. docs/sol-index.md records the git 2.47.3 evidence. A larger
+        # page uses a length that still places the next header past the page.
         v4_flags = 4000 if page == 4096 else min(0xffe, page - 96)
         expect_refuse('v4-next-past-page', wrap(4, 2, head(v4_flags) + b'\x00'))
         expect_match('v2-fff-tail', wrap(2, 1, head(0xfff) + b'\x10' + b'\x22'*19))
