@@ -117,7 +117,12 @@ vec free "$v"; vec free "$w"; vec free "$n"
             for schedule, epoch in [('@hourly',3600),('@daily',86400),('*/15 * * * *',900),
                                     ('0 0 2 JAN *',86400)]:
                 assert run(name,'next','--from','1',*schedule.split()) == f'{epoch}\n'.encode()
-            for directory in ['spool/atjobs','spool/tabs','etc','cron.d','out','mail']:
+            # cron refuses a spool that group or other can write, so the
+            # spool is private whatever the caller's umask.
+            for directory in ['spool','spool/atjobs','spool/tabs']:
+                (d/directory).mkdir(mode=0o700)
+                (d/directory).chmod(0o700)
+            for directory in ['etc','cron.d','out','mail']:
                 (d/directory).mkdir(parents=True)
             run(name,'run','--once',env={'BASHCRON_SPOOL_DIR':str(d/'spool'),
                 'BASHCRON_ETC_DIR':str(d/'etc'),'BASHCRON_CROND_DIR':str(d/'cron.d'),
