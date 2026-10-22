@@ -148,11 +148,28 @@ bnc_set_nonblock (int fd, int on)
 }
 
 /* Write a buffer to fd until done or a fatal error. Loops over EINTR
- * and short writes. Returns 0 on success, -1 on error (errno set). */
+ * and short writes. Returns 0 on success, -1 on error (errno set).
+ * A socket uses MSG_NOSIGNAL. A pipe or other non-socket is written
+ * with SIGPIPE ignored for this call only, then the caller's disposition
+ * is restored, so a closed reader returns EPIPE instead of killing the
+ * shell or running its PIPE trap. */
 static int
 bnc_write_all (int fd, const void *buf, size_t n, int socket_output)
 {
   const unsigned char *p = buf;
+  struct sigaction ignore, saved;
+  int restore = 0;
+
+  if (!socket_output)
+    {
+      memset (&ignore, 0, sizeof ignore);
+      ignore.sa_handler = SIG_IGN;
+      sigemptyset (&ignore.sa_mask);
+      if (sigaction (SIGPIPE, &ignore, &saved) == 0)
+        restore = 1;
+    }
+
+  int rc = 0;
   while (n > 0)
     {
       ssize_t w = socket_output ? send (fd, p, n, MSG_NOSIGNAL) : write (fd, p, n);
@@ -160,12 +177,19 @@ bnc_write_all (int fd, const void *buf, size_t n, int socket_output)
         {
           if (w < 0 && errno == EINTR) continue;
           if (w == 0) errno = EIO;
-          return -1;
+          rc = -1;
+          break;
         }
       p += (size_t) w;
       n -= (size_t) w;
     }
-  return 0;
+  if (restore)
+    {
+      int saved_errno = errno;
+      sigaction (SIGPIPE, &saved, NULL);
+      errno = saved_errno;
+    }
+  return rc;
 }
 
 /* TCP multiplex loop. Both halves are streamed bidirectionally:
