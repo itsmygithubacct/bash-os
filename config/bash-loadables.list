@@ -213,19 +213,19 @@ batch|batch
 crontab|crontab
 payload|payload
 fsck|fsck
-mkfs|mkfs
+mkfs|mkfs IMAGE [-L LABEL] [-b BLOCKSIZE] [-m PCT] [-F] [-n]
 lpr|lpr {submit FILE|- | list [-l] | cancel ID}
 opt|opt
 cal|cal
 man|man
 apropos|apropos
-whatis|whatis
+whatis|whatis NAME [NAME ...]
 file|file [-bE] [--help|--version] FILE [FILE...]
 
 # Additional upstream loadables
 pty|pty
 expect|expect spawn|expect|expect-alt|send|sendline|send-secret|eof|close|log|log_user|interact ...
-termpixel|termpixel
+termpixel|termpixel selftest|probe|render-demo|demo|key-read [options]
 termpixel_pong|termpixel_pong
 escdelay|escdelay
 fifo|fifo
@@ -238,21 +238,21 @@ buf|buf
 undo|undo
 clip|clip
 nano2|nano2
-watch|watch
+watch|watch [-n SEC] [-x] [-b] [-e] [-g] [-d] [-t|--no-title] [-p|--precise] [-C FILE] CMD [ARGS...]
 wall|wall
 write|write
 
 # Additional upstream loadables
 awk|awk
-jq|jq
+jq|jq [-r] [-e] [-c] [-n] [-s|--stream] [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]
 bc|bc
 vec|vec
 sv|sv
-cron|cron
+cron|cron run [--once] [--interval SEC] | cron next [--from EPOCH] {MIN HOUR DOM MONTH DOW|@daily}
 curl|curl
 fw|fw
 dhcpd|dhcpd
-fdisk|fdisk
+fdisk|fdisk DEV (interactive; or -i DEV) | [--no-act] -l DEV ... | --create-mbr DEV SPEC ... | --create-mbr-extended DEV EXT_SPEC LOGICAL_SPEC ... | --create-gpt DEV SPEC ... | --apply DEV {mbr|gpt} SPEC ... | --delete DEV N | --delete-compact DEV N | --insert-logical DEV START,SIZE[,TYPE[,BOOT]] | --reorder DEV | --set-attrs DEV N ATTRS | --activate DEV N {on|off} | --part-type DEV N TYPE | --set-part DEV N START,SIZE[,TYPE[,BOOT|NAME]] | --part-label DEV N NAME | --part-uuid DEV N UUID | --repair DEV | --verify DEV | --list-free DEV | --list-types | --disk-id DEV [STR]
 strace|strace
 coreutils|coreutils
 bsdgames|bsdgames
@@ -262,13 +262,13 @@ pcre|pcre
 zlib|zlib
 zcat|zcat
 netids|netids
-more|more
+more|more [-d] [-n LINES] [FILE...]
 less|less
 top|top
 slabtop|slabtop
-ncdu|ncdu
+ncdu|ncdu [-axpt] [PATH]
 tui|tui
-vmstat|vmstat
+vmstat|vmstat [-afstnw] [-S UNIT] [-d|-D|-p DEV|-m] [DELAY [COUNT]]
 toml|toml
 sqlite|sqlite
 vi|vi

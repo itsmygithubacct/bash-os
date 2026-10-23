@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "loadable": "fdisk",
+  "reference": "Runnable contract expectations use documented Bash builtin metadata behavior (type -t, command -v, and help -s) and the fdisk builtin synopsis/documentation registered in the pinned /source/loadables/fdisk.c. The expected synopsis and help markers are taken from that source contract, not from candidate output. No operation parity is claimed. A future image qualification should compare against version-pinned util-linux fdisk/sfdisk and independent MBR, GPT/CRC32, and EBR parsers/encoders.",
+  "coverage": [
+    "Bash builtin registration and command lookup with the candidate PATH set to an empty directory.",
+    "The documented short help synopsis and selected full-help claims for MBR, GPT, mutation, and interactive scope.",
+    "Deferred: read-only table inspection, MBR creation/mutation, GPT creation/mutation, EBR-chain mutation, dry-run/error boundaries, kernel BLKPG operations, and the interactive editor."
+  ],
+  "exclusions": [
+    "No fdisk operation mode is invoked, including read-only and --no-act modes, under the explicit safety restriction.",
+    "No raw or block device, host path, mounted filesystem, or real kernel partition-table update is used.",
+    "There are no runnable parity cases because system Bash does not provide this loadable and invoking the candidate fdisk operation is prohibited; deferred operation results are not passes."
+  ],
+  "cases": [
+    {
+      "id": "type-discovery",
+      "kind": "contract",
+      "purpose": "Bash type -t reports the registered fdisk loadable as a builtin; this checks availability metadata without entering fdisk.",
+      "script": "type -t fdisk",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command-resolution",
+      "kind": "contract",
+      "purpose": "Bash command -v resolves a builtin by its name even with the candidate executable search path pointing at an empty directory.",
+      "script": "command -v fdisk",
+      "expected_status": 0,
+      "stdout": "fdisk\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s exposes the synopsis registered for fdisk; the expected line is the independent short_doc string in fdisk_struct.",
+      "script": "help -s fdisk",
+      "expected_status": 0,
+      "stdout": "fdisk: fdisk DEV (interactive; or -i DEV) | [--no-act] -l DEV ... | --create-mbr DEV SPEC ... | --create-mbr-extended DEV EXT_SPEC LOGICAL_SPEC ... | --create-gpt DEV SPEC ... | --apply DEV {mbr|gpt} SPEC ... | --delete DEV N | --delete-compact DEV N | --insert-logical DEV START,SIZE[,TYPE[,BOOT]] | --reorder DEV | --set-attrs DEV N ATTRS | --activate DEV N {on|off} | --part-type DEV N TYPE | --set-part DEV N START,SIZE[,TYPE[,BOOT|NAME]] | --part-label DEV N NAME | --part-uuid DEV N UUID | --repair DEV | --verify DEV | --list-free DEV | --list-types | --disk-id DEV [STR]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "full-help-scope",
+      "kind": "contract",
+      "purpose": "The full Bash help text contains documented MBR, GPT, partition mutation, and interactive-scope statements from fdisk_doc.",
+      "script": "doc=$(help fdisk)\n[[ $doc == *\"fdisk --create-mbr DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --create-gpt DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --delete-compact DEV N\"* ]]\n[[ $doc == *\"fdisk --part-uuid DEV N UUID\"* ]]\n[[ $doc == *\"Differences from util-linux fdisk: no interactive prompt UI\"* ]]\nprintf 'help documents MBR, GPT, mutation, and interactive scope\\n'\n",
+      "expected_status": 0,
+      "stdout": "help documents MBR, GPT, mutation, and interactive scope\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer-read-only-inspection",
+      "kind": "deferred",
+      "purpose": "Cover -l/--list, --verify, --list-free, --list-types, and read-only --disk-id output on deterministic MBR and GPT images.",
+      "reason": "Requires a future disposable VM or reviewed private-image mock, deterministic partition-table fixtures, and pinned util-linux fdisk/sfdisk plus an independent parser for semantic comparisons. This suite does not invoke any fdisk operation, even read-only modes, under the explicit safety rule."
+    },
+    {
+      "id": "defer-mbr-write-mutations",
+      "kind": "deferred",
+      "purpose": "Cover fresh MBR creation, --apply/--append, primary slot deletion, activation, type changes, disk-id writes, and set-part updates.",
+      "reason": "Requires a disposable VM or reviewed write-fault mock with a throwaway regular-file image and an independent MBR encoder/parser to verify exact 16-byte partition entries, boot flags, signatures, error statuses, and unchanged payload bytes. The candidate fdisk writer is not invoked here."
+    },
+    {
+      "id": "defer-gpt-write-mutations",
+      "kind": "deferred",
+      "purpose": "Cover GPT creation, append/update/delete, partition attributes, labels, UUIDs, and backup-based repair.",
+      "reason": "Requires a disposable VM or reviewed write-fault mock with small throwaway images, pinned util-linux sfdisk/fdisk, and an independent GPT encoder/parser that checks primary and backup headers, arrays, GUID byte order, names, and CRC32. The candidate fdisk writer is not invoked here."
+    },
+    {
+      "id": "defer-ebr-chain-mutations",
+      "kind": "deferred",
+      "purpose": "Cover extended/logical table creation, logical insertion, reordering, ordinary logical deletion, and compact deletion/relinking.",
+      "reason": "Requires a disposable VM or reviewed image mock, seeded EBR-chain fixtures, and an independent EBR parser/reference to check link offsets, numbering, empty slots, and payload preservation. These mutating fdisk modes are not run by this suite."
+    },
+    {
+      "id": "defer-no-act-and-validation",
+      "kind": "deferred",
+      "purpose": "Cover --no-act behavior and invalid, overlapping, out-of-range, malformed, or boundary partition specifications without masking candidate differences.",
+      "reason": "Requires a future disposable VM or reviewed write-observation mock with copied MBR/GPT images, independent sfdisk/util-linux expectations, and before/after byte snapshots proving dry runs leave all bytes unchanged. No candidate fdisk invocation is allowed in this suite."
+    },
+    {
+      "id": "defer-kernel-partx",
+      "kind": "deferred",
+      "purpose": "Cover --partx-kernel BLKPG add/delete/update and post-write partition reread behavior.",
+      "reason": "Requires a disposable Linux VM with an isolated throwaway block device or a reviewed ioctl mock that records BLKPG and BLKRRPART requests; the current environment must not issue kernel partition-table ioctls."
+    },
+    {
+      "id": "defer-interactive-editor",
+      "kind": "deferred",
+      "purpose": "Cover bounded interactive menu input, create/delete/verify flows, and write-versus-quit behavior.",
+      "reason": "Requires a PTY driver connected only to a disposable VM scratch image, with byte snapshots confirming q leaves data unchanged and w writes only the intended table. This suite does not enter the fdisk interactive editor."
+    }
+  ]
+}

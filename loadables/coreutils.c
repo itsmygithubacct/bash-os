@@ -1848,7 +1848,8 @@ cleanup:
 static int
 bcu_mknod_cmd (WORD_LIST *list)
 {
-  mode_t mode = 0644;
+  mode_t mode = 0666;
+  int explicit_mode = 0;
   WORD_LIST *pos __attribute__((cleanup(bcu_free_nodes))) = NULL;
   WORD_LIST *pos_tail = NULL;
   for (WORD_LIST *w = list; w; w = w->next)
@@ -1861,6 +1862,7 @@ bcu_mknod_cmd (WORD_LIST *list)
           unsigned long m = strtoul (w->word->word, &end, 8);
           if (end == w->word->word || *end != '\0' || m > 07777) { builtin_error ("mknod: bad -m"); bcu_usage ("mknod"); return EX_USAGE; }
           mode = (mode_t) m;
+          explicit_mode = 1;
           continue;
         }
       if (a[0] == '-' && a[1] != '\0') { builtin_error ("mknod: unknown flag: %s", a); bcu_usage ("mknod"); return EX_USAGE; }
@@ -1880,7 +1882,14 @@ bcu_mknod_cmd (WORD_LIST *list)
 
   if (strcmp (type, "p") == 0)
     {
-      if (mkfifo (path, mode) < 0)
+      /* An explicit FIFO mode is independent of the caller's umask. Apply
+         it at creation, without chmod on a pathname that may already exist. */
+      mode_t saved_mask = explicit_mode ? umask (0) : 0;
+      int result = mkfifo (path, mode);
+      int saved_errno = errno;
+      if (explicit_mode) umask (saved_mask);
+      errno = saved_errno;
+      if (result < 0)
         { builtin_error ("mknod: %s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; }
     }
   else if (strcmp (type, "b") == 0 || strcmp (type, "c") == 0)

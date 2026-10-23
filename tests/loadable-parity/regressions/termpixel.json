@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "loadable": "termpixel",
+  "reference": "No matching GNU or POSIX termpixel command exists. Cases use Bash's documented type/help metadata behavior and the documented termpixel CLI contract. The 2x2 render expectation is an independent hand-rasterization of frame 0 followed by a separate ANSI encoder using the documented RGB upper-half-block format; it was not sampled from bash-os. Bash loadable usage errors use EX_USAGE, which appears as shell status 2.",
+  "coverage": [
+    "Bash loadable type and help synopsis metadata",
+    "Version and selftest contract",
+    "Headless terminal probe results",
+    "Exact small-frame ANSI output and one bounded demo frame",
+    "Zero-frame demo and stdin EOF key-read behavior",
+    "Invalid canvas dimensions and unknown option errors"
+  ],
+  "exclusions": [
+    "Raw terminal mode, cursor hiding/restoration, key decoding, escape timing and interactive animation need a private PTY driver, which the fixture runner does not provide; see deferred case termpixel-pty-input.",
+    "No GNU/POSIX implementation of termpixel exists, so operation cases are contract checks rather than GNU parity comparisons."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type -t should identify the registered loadable as a builtin.",
+      "script": "type -t termpixel",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s should expose the builtin synopsis declared in the public loadable metadata.",
+      "script": "help -s termpixel",
+      "expected_status": 0,
+      "stdout": "termpixel: termpixel selftest|probe|render-demo|demo|key-read [options]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version",
+      "kind": "contract",
+      "purpose": "The documented --version option prints the fixed termpixel version.",
+      "script": "termpixel --version",
+      "expected_status": 0,
+      "stdout": "termpixel 1.0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "selftest",
+      "kind": "contract",
+      "purpose": "The documented selftest subcommand succeeds and prints its completion line.",
+      "script": "termpixel selftest",
+      "expected_status": 0,
+      "stdout": "termpixel selftest OK\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "probe-headless",
+      "kind": "contract",
+      "purpose": "With redirected stdout, /dev/null stdin, and no COLORTERM, probe reports no terminal dimensions, no tty input, and unknown truecolor support.",
+      "script": "termpixel probe",
+      "expected_status": 0,
+      "stdout": "cols=-1 rows=-1 truecolor=maybe tty=no\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "render-demo-2x2",
+      "kind": "contract",
+      "purpose": "A tiny frame checks the truecolor upper-half-block renderer, equal-color spaces, row reset, clipping, and ANSI color changes against an independently calculated byte stream.",
+      "script": "termpixel render-demo -w 2 -H 2",
+      "expected_status": 0,
+      "stdout": "\u001b[38;2;60;60;90m\u001b[48;2;80;200;120m\u2580\u001b[38;2;80;200;120m\u001b[48;2;240;200;40m\u2580\u001b[0m\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "demo-one-frame",
+      "kind": "contract",
+      "purpose": "One explicitly bounded animation frame should add the documented home-position sequence and render the same frame-0 pixels as render-demo.",
+      "script": "termpixel demo --width 2 --height 2 --frames 1",
+      "expected_status": 0,
+      "stdout": "\u001b[H\u001b[38;2;60;60;90m\u001b[48;2;80;200;120m\u2580\u001b[38;2;80;200;120m\u001b[48;2;240;200;40m\u2580\u001b[0m\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "demo-zero-frames",
+      "kind": "contract",
+      "purpose": "A zero-frame demo is a bounded no-op: it accepts valid dimensions, emits no terminal bytes, and exits successfully.",
+      "script": "termpixel demo --width 2 --height 2 --frames 0",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "key-read-eof",
+      "kind": "contract",
+      "purpose": "With no controlling terminal and runner-provided /dev/null stdin, a zero-timeout key read reports EOF as documented.",
+      "script": "termpixel key-read --timeout 0",
+      "expected_status": 0,
+      "stdout": "EOF\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reject-odd-height",
+      "kind": "contract",
+      "purpose": "The canvas contract requires even pixel height; an odd height is rejected as a usage error.",
+      "script": "termpixel render-demo -w 2 -H 3",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "reject-unknown-option",
+      "kind": "contract",
+      "purpose": "An unrecognized render option is rejected as a usage error rather than producing a frame.",
+      "script": "termpixel render-demo --bogus",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "termpixel-pty-input",
+      "kind": "deferred",
+      "purpose": "Exercise raw-mode setup/restoration, cursor hygiene, and ASCII/CSI arrow decoding using an isolated pseudo-terminal.",
+      "reason": "The available runner supplies stdin/stdout as non-PTY streams and has no PTY attachment or terminal-driver fixture. A future disposable PTY harness is required to send bounded key sequences and independently inspect termios state and emitted cursor controls."
+    }
+  ]
+}

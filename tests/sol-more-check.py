@@ -22,6 +22,10 @@ PROMPT = b'--More--'
 ERASE = b'\r' + b' ' * 50 + b'\r'
 
 
+def file_header(path):
+    return b'::::::::::::::\n' + os.fsencode(path) + b'\n::::::::::::::\n'
+
+
 class Terminal:
     def __init__(self, binary, rows=8):
         self.master, self.slave = pty.openpty()
@@ -115,7 +119,7 @@ def main():
         for index, data in enumerate(payloads):
             (root/'a').write_bytes(data)
             check(f'bytes regular/stdin/pipe {index}', lambda data=data: (
-                require(run('more -n 100 a').stdout == data),
+                require(run('more -n 100 a').stdout == file_header('a') + data),
                 require(run('more < a').stdout == data),
                 require(run('more', data=data).stdout == data)))
         (root/'a').write_bytes(b'AAAA\x00first\n')
@@ -129,13 +133,22 @@ def main():
             require(subprocess.run(['/usr/bin/more', 'a', 'b'], cwd=root,
                                    capture_output=True, check=True).stdout == headers)))
         for args in ('-n', '-n bad', '-n -1', '-n 99999999999999999999999', '-n2147483648', '-z'):
-            check('invalid '+args, lambda args=args: run('more '+args, rc=2))
-        check('missing input', lambda: run('more absent', rc=1))
-        check('read failure', lambda: run('more .', rc=1))
+            check('invalid '+args, lambda args=args: require(
+                run('more '+args, rc=1).stderr))
+        def missing_input():
+            p = run('more absent')
+            require(p.stdout == b'' and p.stderr)
+        check('missing input is diagnosed and skipped', missing_input)
+
+        def directory_notice():
+            p = run('more .')
+            require(p.stdout == b'\n*** .: directory ***\n\n' and not p.stderr)
+        check('directory notice', directory_notice)
         check('closed stdin', lambda: run('more <&-', rc=1))
         for command in ('more a', 'more a b', 'more < a'):
             check('write failure and recovery '+command, lambda command=command: require(
-                run(f'{command} > /dev/full; rc=$?; more b; exit "$rc"', rc=1).stdout == b'BBBB\x00second'))
+                run(f'{command} > /dev/full; rc=$?; more b; exit "$rc"', rc=1).stdout ==
+                file_header('b') + b'BBBB\x00second'))
 
         def broken_output():
             read_fd, write_fd = os.pipe()
@@ -261,7 +274,7 @@ def main():
         def redirected(t):
             t.start('more '+source+' > '+shlex.quote(str(root/'redirected')))
             require(PROMPT not in t.done())
-            require((root/'redirected').read_bytes() == b''.join(lines))
+            require((root/'redirected').read_bytes() == file_header(root/'pages') + b''.join(lines))
         check('PTY redirected stdout drains without key input', lambda: terminal_test(redirected))
 
         def repeated(t):
@@ -298,9 +311,10 @@ def main():
                 if borrowed:
                     os.write(producer, b'stream-line\n')
                     if redirected:
+                        expected = (b'' if borrowed is True else file_header(fifo)) + b'stream-line\n'
                         deadline = time.monotonic()+5
                         while (not (root/'raw-copy').exists() or
-                               (root/'raw-copy').read_bytes() != b'stream-line\n'):
+                               (root/'raw-copy').read_bytes() != expected):
                             require(time.monotonic() < deadline)
                             time.sleep(.01)
                     else:

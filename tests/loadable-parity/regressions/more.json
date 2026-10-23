@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "loadable": "more",
+  "reference": "The independently installed system `more` command (required as `more` in parity cases), exercising the POSIX stream and operand contract. The loadable documentation also specifies byte-exact nonterminal copying and named-file headers; nonterminal headers are independently checked against the installed util-linux reference. Bash type/help builtins provide the metadata contracts; they do not invoke the loadable.",
+  "coverage": [
+    "Nonterminal stdin and regular-file copying with NUL bytes, CRLF, and unterminated final records",
+    "Multiple operand headers and a filename beginning with a dash",
+    "Repeated redirected stdin calls and stdout ordering",
+    "Accepted -d/-n options on nonterminal output",
+    "Missing-file and invalid-option status/error behavior",
+    "Bash builtin type/help synopsis metadata",
+    "Unavailable operands continue without fabricated headers; directory notices retain later file output.",
+    "Invalid page-size options fail with status 1 and do not poison a later invocation.",
+    "The documented dash-stdin extension has an independent byte-copy contract."
+  ],
+  "exclusions": [
+    "Interactive page keys, search, resizing, and terminal restoration need a controlling PTY; one focused case is deferred for a future disposable VM runner.",
+    "Backward navigation and rendered wrapped-row accounting are outside the documented loadable scope."
+  ],
+  "cases": [
+    {
+      "id": "stdin_binary_stream",
+      "kind": "parity",
+      "purpose": "Compare nonterminal pipe copying byte-for-byte, including an embedded NUL, CRLF, and an unterminated final record.",
+      "script": "printf 'alpha\\n\\000middle\\r\\nunterminated' | more",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "regular_file_bytes",
+      "kind": "parity",
+      "purpose": "Check a named regular-file operand preserves NUL data and the exact unterminated tail on nonterminal output.",
+      "script": "printf 'head\\nwith\\000nul\\nlast' > data; more data",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple_file_headers",
+      "kind": "parity",
+      "purpose": "Check the system more reference's multiple-operand header ordering around distinct binary and unterminated file contents.",
+      "script": "printf 'A\\000one\\n' > first; printf 'B\\r\\ntwo' > second; more first second",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated_redirected_stdin",
+      "kind": "parity",
+      "purpose": "Check repeated calls with separately redirected stdin retain stream ownership and preserve surrounding stdout order.",
+      "script": "printf 'left\\000' > left; printf 'right\\nend' > right; printf 'pre:'; more < left; printf '|'; more < right; printf '|'; more < left; printf ':post\\n'",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dash_named_file",
+      "kind": "parity",
+      "purpose": "Check the conventional -- separator allows a relative input filename beginning with a dash.",
+      "script": "printf 'dash-file\\n' > -dash; more -- -dash",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nonterminal_page_options",
+      "kind": "parity",
+      "purpose": "Check valid -d and -n options do not truncate a complete nonterminal stream when no page prompts can be used.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour' > rows; more -d -n 2 rows",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_operand",
+      "kind": "parity",
+      "purpose": "Record the system reference's status and diagnostic for a missing named input, while ensuring no stdout is fabricated.",
+      "script": "more missing",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown_option",
+      "kind": "parity",
+      "purpose": "Check rejection of an unsupported long option, including the reference exit status and presence of a diagnostic.",
+      "script": "more --definitely-invalid",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash_type_metadata",
+      "kind": "contract",
+      "purpose": "Use Bash's type builtin to assert that more is registered as a builtin without invoking it.",
+      "script": "type -t more",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "bash_help_synopsis",
+      "kind": "contract",
+      "purpose": "Use Bash's help builtin to verify the documented purpose and synopsis without invoking the more operation.",
+      "script": "doc=$(help more); [[ $doc == *'Page through input (POSIX more).'* ]] && [[ $doc == *'more [-d] [-n LINES] [FILE...]'* ]] && printf 'help contract ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help contract ok\n"
+    },
+    {
+      "id": "interactive_pty_navigation",
+      "kind": "deferred",
+      "purpose": "Exercise interactive page boundaries, Enter/space navigation, -d prompt text, forward search, quit across operands, and terminal-state restoration.",
+      "reason": "The harness runs scripts without a controlling PTY. A future disposable VM runner must attach a private PTY with controlled row counts and key input, then verify visible bytes, prompt transitions, EOF behavior, and termios restoration. No host terminal should be used."
+    },
+    {
+      "id": "missing-valid-continuation",
+      "kind": "parity",
+      "purpose": "Establish independent installed-reference status, streams and continuation for ordinary private input.",
+      "script": "printf 'first\\n' > first; printf 'last\\n' > last; more missing first absent last",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "more"
+      ]
+    },
+    {
+      "id": "directory-continuation",
+      "kind": "parity",
+      "purpose": "Establish independent installed-reference status, streams and continuation for ordinary private input.",
+      "script": "mkdir folder; printf 'last\\n' > last; more folder last",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "more"
+      ]
+    },
+    {
+      "id": "invalid-page-options-recover",
+      "kind": "parity",
+      "purpose": "Invalid and overflowing page sizes and a missing -n value each return 1; a subsequent valid attached page-size invocation emits the complete named file.",
+      "requires": [
+        "more"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "printf 'complete\\n' > rows\nfor arg in invalid 2147483648; do\n rc=0; more -n \"$arg\" || rc=$?\n printf 'rows=%s status=%s\\n' \"$arg\" \"$rc\"\ndone\nrc=0; more -n || rc=$?\nprintf 'missing-value=%s\\n' \"$rc\"\nmore -n2 rows"
+    },
+    {
+      "id": "independent-dash-stdin-extension",
+      "kind": "contract",
+      "purpose": "The documented custom dash-stdin operand retains byte-exact nonterminal copying without a named-file header across repeated calls.",
+      "script": "printf 'first\\n' | more -\nprintf 'tail' | more -",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "first\ntail"
+    }
+  ]
+}

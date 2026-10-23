@@ -116,6 +116,35 @@ info` rejects truncated packet data. Invalid-argument statuses are also aligned
 for `apropos`, `crontab`, `split`, `unexpand`, `strings`, `taskset`, `renice` and
 `lsof`; scheduler, priority and live process operations remain unqualified.
 
+`asort` returns failure for rejected operands while continuing to sort later
+valid arrays. A readonly-array diagnostic can be caught without exiting the
+shell. `coreutils mknod ... p` uses the normal FIFO default of `0666` filtered
+by umask; an explicit `-m` mode overrides umask without changing an existing
+entry. Device-node creation remains unqualified.
+
+`zcat` rejects empty input, preserves decoded bytes before checksum/length
+errors, and decodes concatenated gzip members with bounded buffers. It follows
+the reference's distinction between recoverable named-input errors and errors
+that stop later operands. Trailing non-member data and the wider gzip option
+interface remain outside its parity claim.
+
+The `jq` subset accepts ordinary JSON text streams and filter files, handles
+typed addition and optional type errors, and preserves successful outputs before
+later evaluation errors. Independent comparisons cover Cartesian output order,
+empty and multivalue conditions, and `-e` statuses. Input and output are buffered;
+only one input file is supported. Full jq syntax, Unicode/NUL semantics and
+general numeric precision remain unqualified. Compilation errors retain status
+2, and `--stream` retains its leaf-only custom contract.
+
+`more` matches util-linux's named-file headers on nonterminal output, directory
+notices, skipped missing operands and option-error statuses. `ncdu` diagnoses
+missing operands and incomplete scans instead of reporting a successful zero
+total. Interactive terminal behavior is separate from these file comparisons.
+`whatis` uses man-db's no-result status 16 and usage-error status 1. It retains
+exact-name lookup: the observed man-db legacy text backend also matches name
+prefixes, so that difference is documented as a custom contract. Help text and
+implementation version banners are not compared with another project's bytes.
+
 `strptime` retains the platform C-library interface. Selected complete calendar
 dates are checked against Python; ISO week reconstruction, named timezone
 interpretation and non-C locales are outside that comparison. `realpath -q`
@@ -170,3 +199,10 @@ extends this to 1,313 passing checks across 107 suites in each canonical build,
 with 147 deferred cases. It also records 270 sanitizer checks, 26 package
 loading gates and the maintained clear suite. The disposable Docker comparison
 passed all 131 cases. No new command timings are recorded.
+
+The [third validation checkpoint](data/loadable-parity-validation-3.json)
+records 1,506 passing checks across 123 suites in each canonical build,
+with 173 deferred cases. It includes 154 sanitizer checks, 16 package loading
+gates, and 40 maintained `more` checks plus its focused smoke assertion.
+The updated Docker image passed all 131 comparisons against the unchanged
+namespace-isolated GNU reference. These runs add no performance measurements.

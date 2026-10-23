@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "loadable": "mouse",
+  "reference": "Contract tests, not GNU parity. Independent source: XTerm Control Sequences, Mouse Tracking, Normal tracking mode, Button-event tracking, SGR (1006), and URXVT (1015), locally installed at /usr/share/doc/xterm/ctlseqs.txt.gz (canonical https://invisible-island.net/xterm/ctlseqs/ctlseqs.html). Normal/X10 encoding adds 32 to the button and each coordinate byte. 1015 prints the same offset button as a decimal integer but prints 1-based coordinates directly. SGR omits the button offset and uses m for release. Modifier bits are 4/8/16, motion 32, vertical wheel 64/65. Stable record spelling and wheel button aliases are the local API contract; expected records are hand-derived and fixed before candidate execution.",
+  "coverage": [
+    "SGR press, drag, vertical wheel, modifiers and explicit release",
+    "1015 offset normalization for all three ordinary buttons, modifiers, motion, vertical wheel and release",
+    "SGR/1015/X10 equivalent event records",
+    "1015 direct decimal coordinates beyond X10 limits and X10 unsigned byte coordinates",
+    "Valid hex word splitting and prefixes",
+    "Ordinary malformed input rejection"
+  ],
+  "exclusions": [
+    "No external GNU mouse CLI exists; no GNU parity claimed.",
+    "Only decode mode executes; no enable/disable, tty, mouse device or terminal query.",
+    "Metadata and version banners are not operation coverage or GNU byte-equality tests.",
+    "Extended buttons, any-event hover semantics, UTF-8 1005, pixel 1016, streams and terminal lifecycle are outside these fixtures."
+  ],
+  "cases": [
+    {
+      "id": "sgr-events",
+      "kind": "contract",
+      "purpose": "Hand-decoded SGR vectors cover combined modifiers, motion, both wheel directions, a button press, and the lowercase-m release form.",
+      "script": "mouse decode 1b5b3c32383b373b31324d\nmouse decode 1b5b3c33323b31303b344d\nmouse decode 1b5b3c36343b333b354d\nmouse decode 1b5b3c36353b343b354d\nmouse decode 1b5b3c323b383b394d\nmouse decode 1b5b3c323b383b396d",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1006 kind=press button=button1 x=7 y=12 mods=shiftaltctrl code=28\nmouse protocol=1006 kind=drag button=button1 x=10 y=4 mods= code=32\nmouse protocol=1006 kind=wheel_up button=button1 x=3 y=5 mods= code=64\nmouse protocol=1006 kind=wheel_down button=button2 x=4 y=5 mods= code=65\nmouse protocol=1006 kind=press button=button3 x=8 y=9 mods= code=2\nmouse protocol=1006 kind=release button=release x=8 y=9 mods= code=2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sgr-invalid-input",
+      "kind": "contract",
+      "purpose": "Malformed terminators, decimal fields beyond the decoder's supported range, and odd-length hex are rejected with usage status instead of being emitted as events.",
+      "script": "rc=0\nmouse decode 1b5b3c303b313b315a || rc=$?\n[[ $rc == 2 ]] || exit 20\nrc=0\nmouse decode 1b5b3c303b313030303030313b314d || rc=$?\n[[ $rc == 2 ]] || exit 21\nrc=0\nmouse decode 1b5b3c0 || rc=$?\n[[ $rc == 2 ]] || exit 22\nprintf 'invalid records rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid records rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "urxvt-1015-offset",
+      "kind": "contract",
+      "purpose": "In urxvt 1015, wire Cb=32 represents normalized button code 0 (button-1 press); the 32 protocol offset must not be mistaken for the SGR motion bit.",
+      "script": "mouse decode 1b5b33323b343b364d",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=press button=button1 x=4 y=6 mods= code=0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "x10-offsets",
+      "kind": "contract",
+      "purpose": "X10 encodes button and coordinates with a +32 offset; these vectors check the inverse transform plus shift and release interpretation.",
+      "script": "mouse decode 1b5b4d202123\nmouse decode 1b5b4d242832\nmouse decode 1b5b4d232121",
+      "expected_status": 0,
+      "stdout": "mouse protocol=x10 kind=press button=button1 x=1 y=3 mods= code=0\nmouse protocol=x10 kind=press button=button1 x=8 y=18 mods=shift code=4\nmouse protocol=x10 kind=release button=release x=1 y=1 mods= code=3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "1015-buttons",
+      "kind": "contract",
+      "purpose": "Wire 32/33/34 normalize to button codes 0/1/2; coordinates remain 1-based decimal values.",
+      "script": "mouse decode 1b5b33323b313b314d\nmouse decode 1b5b33333b343b364d\nmouse decode 1b5b33343b343b364d",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=press button=button1 x=1 y=1 mods= code=0\nmouse protocol=1015 kind=press button=button2 x=4 y=6 mods= code=1\nmouse protocol=1015 kind=press button=button3 x=4 y=6 mods= code=2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "modifier-motion-equivalence",
+      "kind": "contract",
+      "purpose": "The same modified button-3 drag uses code 62 in SGR, decimal 94 in 1015, and byte 0x5e in X10; the transport offset is removed exactly once.",
+      "script": "mouse decode 1b5b39343b373b31324d\nmouse decode 1b5b3c36323b373b31324d\nmouse decode 1b5b4d5e272c\nmouse decode 1b5b36303b373b31324d\nmouse decode 1b5b36343b373b31324d",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=drag button=button3 x=7 y=12 mods=shiftaltctrl code=62\nmouse protocol=1006 kind=drag button=button3 x=7 y=12 mods=shiftaltctrl code=62\nmouse protocol=x10 kind=drag button=button3 x=7 y=12 mods=shiftaltctrl code=62\nmouse protocol=1015 kind=press button=button1 x=7 y=12 mods=shiftaltctrl code=28\nmouse protocol=1015 kind=drag button=button1 x=7 y=12 mods= code=32\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wheel-equivalence",
+      "kind": "contract",
+      "purpose": "1015 wheel wire codes 96/97 and modified 100 normalize to 64/65/68, matching SGR and legacy bytes. Button names retain the existing output contract.",
+      "script": "mouse decode 1b5b39363b333b354d\nmouse decode 1b5b39373b343b354d\nmouse decode 1b5b3130303b333b354d\nmouse decode 1b5b3c36383b333b354d\nmouse decode 1b5b4d642325",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=wheel_up button=button1 x=3 y=5 mods= code=64\nmouse protocol=1015 kind=wheel_down button=button2 x=4 y=5 mods= code=65\nmouse protocol=1015 kind=wheel_up button=button1 x=3 y=5 mods=shift code=68\nmouse protocol=1006 kind=wheel_up button=button1 x=3 y=5 mods=shift code=68\nmouse protocol=x10 kind=wheel_up button=button1 x=3 y=5 mods=shift code=68\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "release-equivalence",
+      "kind": "contract",
+      "purpose": "1015 and legacy release use normalized low bits 3 (wire 35/63); SGR identifies the released button with a lowercase-m terminator instead.",
+      "script": "mouse decode 1b5b33353b383b394d\nmouse decode 1b5b36333b383b394d\nmouse decode 1b5b4d3f2829\nmouse decode 1b5b3c33303b383b396d",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=release button=release x=8 y=9 mods= code=3\nmouse protocol=1015 kind=release button=release x=8 y=9 mods=shiftaltctrl code=31\nmouse protocol=x10 kind=release button=release x=8 y=9 mods=shiftaltctrl code=31\nmouse protocol=1006 kind=release button=release x=8 y=9 mods=shiftaltctrl code=30\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decimal-coordinate-boundaries",
+      "kind": "contract",
+      "purpose": "1015 offsets only the button field; decimal coordinates at 32 and beyond the legacy 223 limit stay unchanged. X10 high-byte ordinates remain unsigned.",
+      "script": "mouse decode 1b5b33323b33323b33334d\nmouse decode 1b5b33323b3232343b3330304d\nmouse decode 1b5b3c303b3232343b3330304d\nmouse decode 1b5b4d20fffe",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=press button=button1 x=32 y=33 mods= code=0\nmouse protocol=1015 kind=press button=button1 x=224 y=300 mods= code=0\nmouse protocol=1006 kind=press button=button1 x=224 y=300 mods= code=0\nmouse protocol=x10 kind=press button=button1 x=223 y=222 mods= code=0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hex-word-forms",
+      "kind": "contract",
+      "purpose": "Valid pure-byte records can be split across hex words with optional 0x/0X prefixes and mixed-case digits.",
+      "script": "mouse decode 0X1B5b 0x3332 3B34 3b36 4d\nmouse decode 1B 5B 4D 20 24 26",
+      "expected_status": 0,
+      "stdout": "mouse protocol=1015 kind=press button=button1 x=4 y=6 mods= code=0\nmouse protocol=x10 kind=press button=button1 x=4 y=6 mods= code=0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "1015-invalid-framing",
+      "kind": "contract",
+      "purpose": "Ordinary invalid records reject button fields below the wire offset, lowercase-m releases (SGR only), missing separators, and trailing bytes; emit no event.",
+      "script": "for record in 1b5b303b313b314d 1b5b33313b313b314d 1b5b33353b313b316d 1b5b33323b31314d 1b5b33323b313b314d00; do\n  rc=0\n  mouse decode \"$record\" || rc=$?\n  [[ $rc == 2 ]] || exit 20\ndone\nprintf 'invalid 1015 records rejected\\n' ",
+      "expected_status": 0,
+      "stdout": "invalid 1015 records rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "terminal-device-integration",
+      "kind": "deferred",
+      "purpose": "End-to-end terminal reporting and mode negotiation remain outside pure-byte decoding.",
+      "reason": "Actual tty/mouse access, mode enable/disable, terminal queries and PTY lifecycle tests are excluded by this task. Requires separately authorized isolated terminal emulation; no device was opened or queried."
+    }
+  ]
+}

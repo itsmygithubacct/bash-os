@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "loadable": "jq",
+  "reference": "Parity cases use the installed jq CLI under system Bash in the mandatory submit-helper namespace. Status, stdout bytes, stderr policy and private fixture trees are compared. Custom subset cases use independent literal expectations and are not jq parity. The jq project CLI is not a GNU utility; the draft GNU-jq label has been corrected.",
+  "coverage": [
+    "Ordinary JSON text streams (including empty input and mixed root types), file/stdin and relative filter files with comments; compact and raw output.",
+    "Paths, arrays, object iteration, collection, select, comparisons, arithmetic, null defaults, conditionals, sorting, strings, slurp and null input.",
+    "Optional field/index/iteration type errors versus missing/null values, mixed addition failures, compatible scalar/container addition and add folds.",
+    "Exit-status semantics, malformed ordinary JSON, missing and invalid filter files; private fixture output files are compared.",
+    "Custom variable input/output binding, leaf-only --stream tuples and explicit unsupported-language/path diagnostics.",
+    "Distinct Cartesian order, empty and multivalue condition streams, earlier values before nested runtime errors, and output-error recovery with closed stdout."
+  ],
+  "exclusions": [
+    "This establishes selected bounded subset behavior only, not the full jq language or incremental streaming memory usage. Input nesting is limited to 256 containers; no stress or crash inputs are used.",
+    "Object construction, variables/functions in filters, assignments, modules, regex functionality and most jq builtins remain outside the language subset. Explicit rejection is tested for representative extension requests.",
+    "--stream is a documented custom leaf-tuple interface without jq container-end events; it is checked as a contract, not full jq stream parity.",
+    "Only one optional data FILE is supported; multiple data filenames, combined short flags, all jq CLI switches, full Unicode escape/NUL string semantics, arbitrary numeric precision and byte-identical diagnostics are not claimed.",
+    "No system/hardware operations are required. Metadata is not counted as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "paths_and_stream",
+      "kind": "parity",
+      "purpose": "Check nested field/index access and comma-separated output values against jq.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '.person.scores[1], .person.name' <<'JSON'\n{\n  \"person\": { \"name\": \"Mina\", \"scores\": [4, 9] }\n}\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "select_collect_arithmetic",
+      "kind": "parity",
+      "purpose": "Check array iteration, boolean comparison in select, and collection of the resulting arithmetic stream.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '[.[] | select(. >= 5 and . < 10) | . * 2]' <<'JSON'\n[2, 5, 8, 11]\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "keys_sort_unique_length",
+      "kind": "parity",
+      "purpose": "Check sorted object keys, numeric sorting and deduplication, and array length over deterministic input.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c 'keys' <<'JSON'\n{\"z\": 1, \"a\": 2, \"items\": [3, 1, 3, 2]}\nJSON\njq -c '.items | sort | unique' <<'JSON'\n{\"z\": 1, \"a\": 2, \"items\": [3, 1, 3, 2]}\nJSON\njq -c '.items | length' <<'JSON'\n{\"z\": 1, \"a\": 2, \"items\": [3, 1, 3, 2]}\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default_if_arithmetic",
+      "kind": "parity",
+      "purpose": "Check jq's null default operator, a conditional, unary negation, and multiplication over values in one JSON array.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '[.[] | (. // 10) | if . < 0 then -. else . * 2 end]' <<'JSON'\n[-3, 4, null]\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple_json_inputs",
+      "kind": "parity",
+      "purpose": "Check jq's normal JSON text stream behavior: each valid top-level JSON value is processed independently.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '. + 1' <<'JSON'\n1\n2\nJSON\njq -c 'type' <<'JSON'\n\"one\"\ntrue\nnull\n[2]\n{\"a\":3}\nJSON\njq -c '.' <<'JSON'\n\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "string_split_join_raw",
+      "kind": "parity",
+      "purpose": "Check string splitting and joining, with raw output removing the JSON string quotes.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -r 'split(\":\") | join(\"|\")' <<'JSON'\n\"red:green:blue\"\nJSON",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "slurp_add",
+      "kind": "parity",
+      "purpose": "Check slurping multiple JSON texts into one array and reducing that array with add.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -s -c 'add' <<'JSON'\n1\n2\n3\nJSON\njq -s -r 'add' <<'JSON'\n\"a\"\n\"b\"\nJSON\njq -s -c '.' <<'JSON'\n\nJSON\njq -n -s -c '.' ",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "null_input_range",
+      "kind": "parity",
+      "purpose": "Check null-input mode, three-argument range, and array collection of the generated stream.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -n -c '[range(2; 8; 2)]'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "filter_and_input_files",
+      "kind": "parity",
+      "purpose": "Check relative filter-file and JSON input-file handling, including raw strings emitted from an iterated array. Check explicit stdin input as an ordinary boundary.",
+      "requires": [
+        "jq"
+      ],
+      "script": "printf '%s\\n' '# choose record IDs' '.records[].id # raw IDs' > pick.jq\nprintf '%s\\n' '{\"records\":[{\"id\":\"A-1\"},{\"id\":\"B-2\"}]}' > data.json\njq -r -f pick.jq data.json > result.txt\njq -r --from-file pick.jq data.json\njq -r -f pick.jq - < data.json",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "optional_type_error_divergence",
+      "kind": "parity",
+      "purpose": "Optional field access suppresses type errors on scalars/arrays, but emits null for a missing object field or null input; optional index and iteration distinguish the same cases. Optional arithmetic/length errors must also have empty stderr, and an optional pipeline retains values emitted before a type error.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '.missing?' <<'JSON'\n3\ntrue\n\"text\"\n[]\n{}\nnull\nJSON\njq -c '[.[] | .[0]?]' <<'JSON'\n[{},3,null,[],[7]]\nJSON\njq -c '[.[] | .[]?]' <<'JSON'\n[3,null,{\"x\":8},[9]]\nJSON\njq -c '[.[] | .a?.b]' <<'JSON'\n[3,{\"a\":{}},{\"a\":{\"b\":4}}]\nJSON\njq -n -c '(1+\"x\")?, (true | length)?, 8'\njq -c '(.[] | .a)?' <<<'[{\"a\":1},2,{\"a\":3}]'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mismatched_addition_divergence",
+      "kind": "parity",
+      "purpose": "Adding a number and string must report a runtime error (status 5), with no coerced numeric output.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -c '1 + \"x\"' <<'JSON'\nnull\nJSON",
+      "expected_status": 5,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "compatible_addition",
+      "purpose": "Check numeric/string/array/object addition, null identity, right-side shallow object replacement, add folds and Cartesian addition streams. Object values come from input; construction syntax stays outside the subset. Include ordinary exact fractions and a small exponent to check numeric formatting without precision/stress boundary claims.",
+      "kind": "parity",
+      "script": "jq -c '.a + .b, ([.a,.b] | add)' <<'JSON'\n{\"a\":{\"k\":1,\"nested\":{\"x\":1}},\"b\":{\"k\":2,\"z\":3,\"nested\":{\"y\":2}}}\nJSON\njq -n -c '2+3, 0.25+0.5, 1e-10+1e-10, -2+0.5, \"a\"+\"b\", [1]+[2], null+true, false+null, (1,2)+(3,4)'\njq -c 'add' <<'JSON'\n[null,2,3]\n[\"a\",\"b\"]\n[[1],[2]]\n[]\nJSON",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "jq"
+      ]
+    },
+    {
+      "id": "runtime_errors_and_optional",
+      "purpose": "Runtime errors propagate through map, select, default, booleans and conditionals. Optional evaluation suppresses runtime diagnostics and errors, preserving earlier stream values.",
+      "kind": "parity",
+      "script": "for f in '.a' '.[0]' '.[]' 'map(.a)' 'select(.a)' '.a // 9' 'if .a then 1 else 2 end' '.a and true' '.a or false'; do\n  if jq -c \"$f\" <<<'3'; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 5\ndone\nfor pair in '[1,\"x\"]' '[true,false]' '[[1],2]' '[{},3]'; do\n  if jq -c '.[0]+.[1]' <<<\"$pair\"; then exit 92; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 5\ndone\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "jq"
+      ]
+    },
+    {
+      "id": "exit_status_streams",
+      "purpose": "Check -e using the last output, no-output status 4, false/null status 1 and preservation of runtime error status 5.",
+      "kind": "parity",
+      "script": "jq -e -c '.' <<'JSON'\nfalse\ntrue\nJSON\nfor text in false null; do\n  if jq -e -c '.' <<<\"$text\"; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 1\ndone\nif jq -e -c '.' <<<''; then exit 92; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 4\nif jq -e -c '.a?' <<<'3'; then exit 93; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 4\nif jq -e -c '.a' <<<'3'; then exit 94; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 5",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "jq"
+      ]
+    },
+    {
+      "id": "invalid_json_and_file_errors",
+      "purpose": "Check explicit rejection of small malformed JSON, prior ordinary stream output, invalid slurp data and missing relative files. Each observed failure status is printed and compared to the independent jq oracle.",
+      "kind": "parity",
+      "script": "for text in '[1 2]' '{\"a\" 1}' '[1,]' '{\"a\":}' 'not-json'; do\n  if jq -c '.' <<<\"$text\"; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\ndone\nif jq -c '.' <<<'1 [2,]'; then exit 92; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\nif jq -s -c '.' <<<'1 [2,]'; then exit 93; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\nif jq -f missing.jq <<<'null'; then exit 94; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 2\nif jq '.' missing.json; then exit 95; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 2",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "jq"
+      ]
+    },
+    {
+      "id": "variable_binding_contract",
+      "purpose": "Preserve custom -i/-V binding: collect all text outputs with newline separators, bind empty success to empty, and preserve the previous output variable on failure.",
+      "kind": "contract",
+      "script": "input='1 2'\noutput=old\njq -c '.+1' -i input -V output\nprintf '%s\\n' \"$output\"\ninput=''\njq '.' -i input -V output\nprintf '<%s>\\n' \"$output\"\ninput='3'\noutput=keep\nif jq '.a' -i input -V output; then exit 91; else rc=$?; fi\ntest \"$rc\" -eq 5\nprintf '%s\\n' \"$output\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "2\n3\n<>\nkeep\n"
+    },
+    {
+      "id": "leaf_stream_contract",
+      "purpose": "The source-documented --stream contract emits leaf tuples in source order, including empty containers and scalar roots, for every text. It omits jq container-end events.",
+      "kind": "contract",
+      "script": "jq --stream -c '.' <<'JSON'\n{\"a\":[1,{}],\"b\":[]}\n\"x\"\nnull\nJSON\njq --stream -s -c '.' <<'JSON'\n1\n2\nJSON",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "[[\"a\",0],1]\n[[\"a\",1],{}]\n[[\"b\"],[]]\n[[],\"x\"]\n[[],null]\n[[0],1]\n[[1],2]\n"
+    },
+    {
+      "id": "unsupported_extensions",
+      "purpose": "Unsupported language forms are explicit subset errors with status 2 and diagnostics, including filter files. This is a custom subset limit, since full jq accepts these forms. Invalid numeric and string literals must also fail compilation.",
+      "kind": "contract",
+      "script": "for f in '{a:1}' '. as $x | $x' 'def f: .; f' 'match(\"x\")' '(unknown_filter)?' '1e' '\"unterminated'; do\n  if jq -n \"$f\"; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 2\ndone\nprintf '%s\\n' '{a:1}' > unsupported.jq\nif jq -n -f unsupported.jq; then exit 92; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 2",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "2\n2\n2\n2\n2\n2\n2\n2\n"
+    },
+    {
+      "id": "unsupported_exact_paths",
+      "purpose": "Preserve the documented exact path(F) subset and fail explicitly for iterator paths. Postfix ?, default, select and map must not mask the unsupported request.",
+      "kind": "contract",
+      "script": "jq -n -c 'path(.a[0]), path(.a | .b)'\nfor f in 'path(.[])' '(path(.[])?) // 9' 'select(path(.[])?)' 'map(path(.[])?)'; do\n  if jq -c \"$f\" <<<'[null]'; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 5\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "[\"a\",0]\n[\"a\",\"b\"]\n5\n5\n5\n5\n"
+    },
+    {
+      "id": "empty_filter_file_contract",
+      "kind": "contract",
+      "purpose": "A comment-only filter file is an invalid subset program and returns the documented EX_USAGE status 2. The independent jq oracle also rejects it, using compile-error status 3; this status difference is an explicit custom limit.",
+      "script": "printf '%s\\n' '# comment only' > empty.jq\njq -c -f empty.jq <<<'null'",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "cartesian_order",
+      "kind": "parity",
+      "purpose": "Use distinguishable outputs to independently verify the order of Cartesian addition streams.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -n -c '(1,2)+(10,20)'\njq -n -c '(\"a\",\"b\")+(\"x\",\"y\")'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty_condition_streams",
+      "kind": "parity",
+      "purpose": "A successful empty condition produces no branch/boolean result; it is not a runtime error. Check ordinary and -e status.",
+      "requires": [
+        "jq"
+      ],
+      "script": "for f in 'if .[]? then 1 else 2 end' '(.[]?) and true' 'true and (.[]?)' '(.[]?) or false' 'false or (.[]?)'; do\n jq -n -c \"$f\"\n if jq -n -e -c \"$f\"; then exit 91; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n test \"$rc\" -eq 4\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "partial_outputs_before_errors",
+      "kind": "parity",
+      "purpose": "Earlier values must survive a later runtime error in an operand or a pipeline source; optional evaluation retains these values while suppressing diagnostics.",
+      "requires": [
+        "jq"
+      ],
+      "script": "for f in '(.a, .b.a) | .' '(.a, .b.a) + 1' '1 + (.a, .b.a)' 'select((true, .b.a))'; do\n if jq -c \"$f\" <<<'{\"a\":1,\"b\":2}'; then exit 91; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n test \"$rc\" -eq 5\n jq -c \"($f)?\" <<<'{\"a\":1,\"b\":2}'\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "condition_value_streams",
+      "kind": "parity",
+      "purpose": "Conditional and boolean nodes consume every condition value in order, with ordinary short circuiting.",
+      "requires": [
+        "jq"
+      ],
+      "script": "jq -n -c 'if (true,false,null,1) then 10 else 20 end'\njq -n -c '(false,true) and (true,false)'\njq -n -c '(false,true) or (true,false)'\njq -n -c 'false and (1+\"x\"), true or (1+\"x\")'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "closed_stdout_recovery",
+      "kind": "parity",
+      "purpose": "Closing stdout for one small invocation must report the write failure; shell redirection restoration permits a later invocation to print normally. No terminal or device path is accessed.",
+      "requires": [
+        "jq"
+      ],
+      "script": "if jq -n -c '1' >&-; then exit 91; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\njq -n -c '2'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "nested_partial_outputs",
+      "kind": "parity",
+      "purpose": "Path bases, iteration, defaults and condition streams retain earlier values before a later ordinary type error, including optional wrappers.",
+      "requires": [
+        "jq"
+      ],
+      "script": "for f in '(.a,.b.x).x' '(.xs,.b.x)[]' '(.n,.b.x)//9' 'if (true,.b.x) then 1 else 2 end' '(true,.b.x) and true' '(false,.b.x) or true'; do\n if jq -c \"$f\" <<<'{\"a\":{\"x\":1},\"b\":2,\"xs\":[1],\"n\":1}'; then exit 91; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n test \"$rc\" -eq 5\n jq -c \"($f)?\" <<<'{\"a\":{\"x\":1},\"b\":2,\"xs\":[1],\"n\":1}'\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

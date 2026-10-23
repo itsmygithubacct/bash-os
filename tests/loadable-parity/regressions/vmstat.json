@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "vmstat",
+  "reference": "Synthetic process-file cases use independently calculated literal records for the documented procps-style fields and units. Version identity and Bash metadata are custom contracts, not equality with a procps-ng release banner.",
+  "coverage": [
+    "Documented Bash-os version identity",
+    "Bash builtin availability and short help metadata",
+    "Fork count and summary field ordering, memory-unit conversion, CPU and VM counters",
+    "Wide active/inactive snapshot layout, since-boot averages, and zero-delay delta sample",
+    "Per-device and aggregate diskstats output plus partition filtering",
+    "Slabinfo table parsing and formatting"
+  ],
+  "exclusions": [
+    "Live host procfs is never read; operation contracts use only relative synthetic files via BASHOS_PROC_ROOT.",
+    "Nonzero-delay sampling against changing procfs, timestamp behavior, long-count header cadence, and live kernel counters are deferred to a disposable VM or controlled procfs/clock mock."
+  ],
+  "cases": [
+    {
+      "id": "version-identity",
+      "kind": "contract",
+      "purpose": "Check the documented implementation identity without impersonating an external procps-ng release.",
+      "script": "vmstat -V",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "vmstat 2.0 (bash-loadable, procps-shape)\n"
+    },
+    {
+      "id": "builtin_type",
+      "kind": "contract",
+      "purpose": "Verify Bash exposes vmstat as a loadable builtin without invoking a system-information operation.",
+      "script": "type -t vmstat",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_metadata",
+      "kind": "contract",
+      "purpose": "Check the short usage string against the vmstat builtin's documented Bash help metadata.",
+      "script": "help -s vmstat",
+      "expected_status": 0,
+      "stdout": "vmstat: vmstat [-afstnw] [-S UNIT] [-d|-D|-p DEV|-m] [DELAY [COUNT]]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fork_count_fixture",
+      "kind": "contract",
+      "purpose": "Read the forks counter from a private synthetic proc/stat file and verify procps-style numeric formatting.",
+      "script": "printf '%s\\n' 'cpu 100 20 30 400 5 6 7 8 9 10' 'intr 1234 5 6' 'ctxt 2345' 'btime 1111111111' 'processes 321' 'procs_running 2' 'procs_blocked 1' > stat\nBASHOS_PROC_ROOT=. vmstat -f",
+      "expected_status": 0,
+      "stdout": "          321 forks\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "summary_kilobytes_fixture",
+      "kind": "contract",
+      "purpose": "Verify the documented -s labels, ordering, raw event counters, and decimal-kilobyte conversion from deterministic proc files.",
+      "script": "printf '%s\\n' 'cpu 100 20 30 400 5 6 7 8 9 10' 'intr 1234 5 6' 'ctxt 2345' 'btime 1111111111' 'processes 321' 'procs_running 2' 'procs_blocked 1' > stat\nprintf '%s\\n' 'pgpgin 600' 'pgpgout 700' 'pswpin 12' 'pswpout 13' > vmstat\nprintf '%s\\n' 'MemTotal: 2048 kB' 'MemFree: 512 kB' 'Buffers: 128 kB' 'Cached: 256 kB' 'Active: 768 kB' 'Inactive: 384 kB' 'SwapTotal: 1024 kB' 'SwapFree: 768 kB' > meminfo\nBASHOS_PROC_ROOT=. vmstat -s -S k",
+      "expected_status": 0,
+      "stdout": "         2097 k total memory\n         1572 k used memory\n          786 k active memory\n          393 k inactive memory\n          524 k free memory\n          131 k buffer memory\n          262 k swap cache\n         1048 k total swap\n          262 k used swap\n          786 k free swap\n           91 non-nice user cpu ticks\n           10 nice user cpu ticks\n           30 system cpu ticks\n          400 idle cpu ticks\n            5 IO-wait cpu ticks\n            6 IRQ cpu ticks\n            7 softirq cpu ticks\n            8 stolen cpu ticks\n            9 non-nice guest cpu ticks\n           10 nice guest cpu ticks\n          600 K paged in\n          700 K paged out\n           12 pages swapped in\n           13 pages swapped out\n         1234 interrupts\n         2345 CPU context switches\n   1111111111 boot time\n          321 forks\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wide_active_two_samples",
+      "kind": "contract",
+      "purpose": "Exercise wide columns, -a memory labels, decimal-kilobyte scaling, since-boot CPU percentages/rates, and a second zero-delay sample with counter deltas.",
+      "script": "printf '%s\\n' 'cpu 100 20 30 400 5 6 7 8 9 10' 'intr 1234 5 6' 'ctxt 2345' 'btime 1111111111' 'processes 321' 'procs_running 2' 'procs_blocked 1' > stat\nprintf '%s\\n' 'pgpgin 600' 'pgpgout 700' 'pswpin 12' 'pswpout 13' > vmstat\nprintf '%s\\n' 'MemTotal: 2048 kB' 'MemFree: 512 kB' 'Buffers: 128 kB' 'Cached: 256 kB' 'Active: 768 kB' 'Inactive: 384 kB' 'SwapTotal: 1024 kB' 'SwapFree: 768 kB' > meminfo\nprintf '%s\\n' '10.50 0.00' > uptime\nBASHOS_PROC_ROOT=. vmstat -a -w -S k 0 2",
+      "expected_status": 0,
+      "stdout": "--procs-- -----------------------memory---------------------- ---swap-- -----io---- -system-- ----------cpu----------\n   r    b         swpd         free        inact       active   si   so    bi    bo   in   cs  us  sy  id  wa  st  gu\n   2    1          262          524          393          786    1    1    60    70  123  234  20   7  67   1   1   3\n   2    1          262          524          393          786    0    0     0     0    0    0   0   0   0   0   0   0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "disk_table_fixture",
+      "kind": "contract",
+      "purpose": "Check per-device diskstats headers, field selection, integer units, row ordering, and skipping of a malformed record.",
+      "script": "printf '%s\\n' '8 0 sda 10 2 300 40 5 1 600 70 3 8000 9000' 'malformed record' '8 1 sda1 5 1 100 20 4 1 400 50 2 6000 7000' > diskstats\nBASHOS_PROC_ROOT=. vmstat -d",
+      "expected_status": 0,
+      "stdout": "disk- ------------reads------------ ------------writes----------- -----IO------\ndisk          total merged sectors      ms  total merged sectors      ms    cur    sec\nsda              10      2     300      40      5      1     600      70      3      8\nsda1              5      1     100      20      4      1     400      50      2      6\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "disk_summary_fixture",
+      "kind": "contract",
+      "purpose": "Verify aggregate disk counts and sums are independently calculable from two deterministic diskstats rows.",
+      "script": "printf '%s\\n' '8 0 sda 10 2 300 40 5 1 600 70 3 8000 9000' '8 1 sda1 5 1 100 20 4 1 400 50 2 6000 7000' > diskstats\nBASHOS_PROC_ROOT=. vmstat -D",
+      "expected_status": 0,
+      "stdout": "            2 disks\n           15 total reads\n            3 merged reads\n          400 read sectors\n           60 milliseconds reading\n            9 total writes\n            2 merged writes\n         1000 written sectors\n          120 milliseconds writing\n        14000 milliseconds doing I/O\n        16000 weighted milliseconds doing I/O\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "partition_filter_fixture",
+      "kind": "contract",
+      "purpose": "Verify -p selects exactly the named diskstats entry while retaining the documented table format.",
+      "script": "printf '%s\\n' '8 0 sda 10 2 300 40 5 1 600 70 3 8000 9000' '8 1 sda1 5 1 100 20 4 1 400 50 2 6000 7000' > diskstats\nBASHOS_PROC_ROOT=. vmstat -p sda1",
+      "expected_status": 0,
+      "stdout": "disk- ------------reads------------ ------------writes----------- -----IO------\ndisk          total merged sectors      ms  total merged sectors      ms    cur    sec\nsda1              5      1     100      20      4      1     400      50      2      6\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "slab_table_fixture",
+      "kind": "contract",
+      "purpose": "Check slabinfo header skipping, row parsing, and fixed-width columns using one private synthetic cache record.",
+      "script": "printf '%s\\n' 'slabinfo - version: 2.1' '# name <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab>' 'cache_fixture 5 10 64 64 1 : tunables 0 0 0 : slabdata 1 1 0' > slabinfo\nBASHOS_PROC_ROOT=. vmstat -m",
+      "expected_status": 0,
+      "stdout": "Cache                                     Num        Total     Size     Objs    Pages\ncache_fixture                               5           10       64       64        1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "live_timed_sampling_deferred",
+      "kind": "deferred",
+      "purpose": "Exercise nonzero-delay sampling against changing kernel counters and verify delay-based rates in an actual disposable system fixture.",
+      "reason": "Requires a disposable Linux VM or a controlled procfs plus clock/sleep mock that can advance /proc/stat and /proc/vmstat between samples. The live host procfs and timing state are out of scope here; no operation was run or counted as passing."
+    }
+  ]
+}

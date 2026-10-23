@@ -24,5 +24,6 @@
   "fltexpr": "fltexpr-gnu.patch",
   "tty": "tty-gnu.patch",
   "unlink": "unlink-gnu.patch",
-  "strptime": "strptime-gnu.patch"
+  "strptime": "strptime-gnu.patch",
+  "asort": "asort-status.patch"
 }

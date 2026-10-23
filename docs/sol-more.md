@@ -1,9 +1,15 @@
 # more: paging, stream ownership, and buffering
 
-`more` keeps nonterminal output byte-exact, including NULs, long records,
-unterminated final records, and multiple-file headers. Each call owns its input
-stream, including a duplicate of redirected stdin. Quitting with unread input
-therefore cannot leave buffered bytes for the next redirected invocation.
+`more` copies payload bytes exactly, including NULs, long records, and
+unterminated final records. Nonterminal output prefixes named-file content
+with `::::::::::::::\nFILE\n::::::::::::::\n`, including a single
+operand. Stdin copying, with no operand or the documented `-` extension, has
+no single-file header. Terminal output keeps headers for multiple operands.
+Unavailable named files are diagnosed and skipped with success status;
+directories produce a stdout notice, and invalid options return status 1.
+Each call owns its input stream, including a duplicate of redirected stdin.
+Quitting with unread input therefore cannot leave buffered bytes for the next
+redirected invocation.
 
 Nonterminal copying uses bounded 64 KiB reads and private output buffering.
 Each successful read is flushed immediately, so pipes remain responsive while
@@ -28,8 +34,9 @@ NUL; `q` stops the entire operand list. Numeric page sizes reject overflow.
 ## Validation
 
 `tests/sol-more-check.py BINARY` exercises exact bytes for files, redirected
-stdin and pipes; distinguishable repeated inputs; stdout ordering; invalid
-arguments; input/output errors and recovery; and private controlling PTYs.
+stdin and pipes; named-file headers; distinguishable repeated inputs; stdout
+ordering; invalid arguments; missing-file diagnostics and directory notices;
+input/output errors and recovery; and private controlling PTYs.
 Terminal cases cover paging, Enter/j/Down, PgDn/f, ignored backward keys, ESC
 pushback, help, search/backspace, resize at a prompt and during blocked input,
 EOF, repeated quit, SIGINT during key/search/FIFO reads, descriptor cleanup,
@@ -37,6 +44,13 @@ terminal restoration, and restoration of the shell's WINCH trap.
 The interrupt fixture waits for an actual shell prompt before sending another
 command. A separate full-pipe check requires SIGINT to return without a reader
 draining the output.
+
+After the named-file header and error-status compatibility refresh, all 40
+maintained native checks passed in disposable PID/network/user namespaces,
+including the private PTY and full-pipe cases. The extracted `more` assertion
+from `tests/helper-smoke.py` also passed; unrelated smoke operations were not
+run. The candidate hash stayed unchanged. The sanitizer counts and timing
+figures recorded below belong to the original campaign and were not rerun.
 
 `tests/sol-more-helper-check.py BINARY` revalidates `top` batch/interactive mode
 and `tui` CSI/Enter/pushback behavior through the original shared decoder API.
@@ -64,7 +78,8 @@ with complete output/status validation on every warmup and timed sample:
   846,070 bytes per invocation, including headers.
 * Large copy: a 32 MiB binary fixture on redirected stdin and through a pipe,
   three invocations per sample for each input type. Both implementations use
-  stdin; this avoids util-linux's extra single-binary-operand header.
+  stdin; this keeps the workload at payload-only copying instead of named-file
+  headers.
 * Interactive paging: three invocations per sample, each 3,107 lines / 52,819
   input bytes, 31 prompts, 31 space keys, and final EOF on a private PTY. Every
   page is checked against independently generated line and prompt bytes.
@@ -117,9 +132,9 @@ The unchanged historical `/dev/null` driver recorded 3.304 ms versus
 repeated batch, rather than capturing every timed pass. The table above and
 task adapter supply the stricter per-sample byte/event evidence.
 
-Final correctness: 40 native cases and the same 40 under ASan/UBSan passed,
-including blocked output. The final fixture finds nine failures in the
-starting build. Existing pager write-error and interrupt regressions, plus the
+Recorded original correctness: 40 native cases and the same 40 under
+ASan/UBSan passed, including blocked output. The original final fixture found
+nine failures in the starting build. Existing pager write-error and interrupt regressions, plus the
 `top`/`tui` shared-decoder checks, also passed. Intermediate failed builds and
 tests are retained with the raw evidence; no failures were skipped or marked
 as expected passes.

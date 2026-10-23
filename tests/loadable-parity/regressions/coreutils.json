@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "loadable": "coreutils",
+  "reference": "Installed GNU coreutils command-line tools selected by each parity case, executed by the harness reference Bash. Seeded shuffle is only compared on a zero-count/single-item boundary because this loadable documents a different random-source algorithm from GNU.",
+  "coverage": [
+    "Bash type/help metadata contract for the dispatcher",
+    "tac with overlapping literal and NUL separators over private binary fixtures",
+    "factor multiple operands; fmt paragraph wrapping; tsort on a uniquely ordered chain",
+    "nproc OpenMP cap and ignore option with fixed environment values",
+    "numfmt IEC conversion in both directions",
+    "shuf zero-count and singleton range boundaries",
+    "install content, exact modes, and parent directory creation in the private tree",
+    "mknod FIFO creation and shred zero-fill/unlink on private relative files",
+    "Private FIFO default/explicit modes across umasks, existing-entry preservation, and restored masks after errors."
+  ],
+  "exclusions": [
+    "Shuf permutation distribution and seeded output are not GNU byte-parity claims because the documented implementation uses a different random-source algorithm.",
+    "Character and block device creation is deferred because the harness removes capabilities and has no device-node mock; physical shred erasure is not established by regular-file fixtures.",
+    "The suite does not exercise yes's unbounded output, groups, or every unsupported GNU option."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Bash metadata must identify coreutils as a builtin and resolve its attached help text without invoking a dispatcher verb.",
+      "script": "[[ $(type -t coreutils) == builtin ]] || exit 1; help coreutils >/dev/null; printf 'metadata ok\\n'",
+      "expected_status": 0,
+      "stdout": "metadata ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "tac-binary-separators",
+      "kind": "parity",
+      "purpose": "Reverse records using an overlapping multi-byte literal separator and the documented empty-separator NUL mode, preserving binary bytes and unterminated tails.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'A::B:::tail' > overlap; printf 'left\\000middle\\000last' > nul-records; cu tac --separator='::' overlap; cu tac -s '' nul-records",
+      "requires": [
+        "tac"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "factor-multiple-operands",
+      "kind": "parity",
+      "purpose": "Check exact GNU factor formatting across unity, composites and a prime, then verify the malformed-operand error after successful operands.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; cu factor 1 84 360 99991; cu factor not-a-number",
+      "requires": [
+        "factor"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "fmt-paragraph-width",
+      "kind": "parity",
+      "purpose": "Check word wrapping at a narrow explicit width and preservation of a paragraph boundary.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'alpha beta gamma\\n\\nzulu\\n' | cu fmt -w 5",
+      "requires": [
+        "fmt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tsort-unique-chain",
+      "kind": "parity",
+      "purpose": "Check topological ordering where the input graph has one required order, avoiding unspecified tie ordering.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'a b\\nb c\\nc d\\n' | cu tsort",
+      "requires": [
+        "tsort"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nproc-openmp-ignore",
+      "kind": "parity",
+      "purpose": "With fixed OpenMP environment values, verify GNU's thread-limit cap and ignore subtraction without depending on host CPU count.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; export OMP_NUM_THREADS=5 OMP_THREAD_LIMIT=2; cu nproc --ignore=1",
+      "requires": [
+        "nproc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numfmt-iec-roundtrip",
+      "kind": "parity",
+      "purpose": "Compare IEC human-readable output and IEC suffix parsing over exact integral values.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf '1024\\n1536\\n' | cu numfmt --to=iec; printf '1K\\n1.5K\\n' | cu numfmt --from=iec",
+      "requires": [
+        "numfmt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "shuf-boundaries",
+      "kind": "parity",
+      "purpose": "Check GNU-compatible zero-output count and singleton integer range boundaries; this deliberately does not assert a random permutation.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'seeddata' > seed; cu shuf --random-source=seed -n 0 -i 1-10; cu shuf --random-source=seed -n 1 -i 7-7",
+      "requires": [
+        "shuf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-copy-and-parents",
+      "kind": "parity",
+      "purpose": "Verify regular-file replacement copies binary content with an exact requested mode, -D creates relative parent directories, and -d creates a directory with an exact mode.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'blob\\000tail\\n' > source; printf 'old contents\\n' > installed; cu install -m 0640 source installed; cu install -D -m 0751 source nested/deep/copied; cu install -d -m 0700 local/state",
+      "requires": [
+        "install"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mknod-private-fifo",
+      "kind": "parity",
+      "purpose": "Create a FIFO under a relative private path with an explicit mode and compare its type and exact mode with GNU mknod.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; cu mknod -m 0620 pipe p",
+      "requires": [
+        "mknod"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "shred-private-zero-unlink",
+      "kind": "parity",
+      "purpose": "Exercise the explicit zero-fill pass and unlink behavior only on a small generated private fixture; the tree comparison verifies removal.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf 'fixture secret\\000bytes\\n' > private-file; cu shred -n 0 -z -u private-file",
+      "requires": [
+        "shred"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mknod-device-nodes-deferred",
+      "kind": "deferred",
+      "purpose": "Cover the loadable's character and block device-node operations when a safe privileged fixture becomes available.",
+      "reason": "Character/block node creation needs a disposable VM or a reviewed mknod syscall mock with synthetic major/minor numbers. A future case should verify node type, mode, device numbers, existing-path behavior, and the expected permission-denied path. The current capability-free fixture covers FIFO creation only."
+    },
+    {
+      "id": "fifo-modes-and-umask",
+      "kind": "parity",
+      "purpose": "Private FIFO defaults respect umask; explicit modes override it, and later file creation proves the caller mask was restored. No device nodes are created.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; for mask in 000 022 077; do\n (umask \"$mask\"; cu mknod \"pipe-$mask\" p; cu mknod -m 0620 \"explicit-$mask\" p; : > \"after-$mask\")\ndone",
+      "requires": [
+        "mknod"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fifo-errors-preserve-entry-and-umask",
+      "kind": "parity",
+      "purpose": "Existing and missing-parent FIFO failures preserve the existing node mode and restore umask before subsequent private file creation.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; umask 077\nbefore=$(umask)\ncu mknod -m 0640 existing p\nrc=0; cu mknod -m 0666 existing p || rc=$?\n[[ $rc == 1 ]]\nrc=0; cu mknod -m 0666 absent/pipe p || rc=$?\n[[ $rc == 1 && $(umask) == \"$before\" ]]\n: > after\nprintf \"preserved\\n\"",
+      "requires": [
+        "mknod"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

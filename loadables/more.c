@@ -39,6 +39,7 @@
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 #include "unwind_prot.h"
@@ -457,11 +458,11 @@ more_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-d")) { hint = 1; list = list->next; continue; }
         if (!strcmp (w, "-n")) {
-            if (!list->next) { builtin_error ("-n needs LINES"); return EX_USAGE; }
+            if (!list->next) { builtin_error ("-n needs LINES"); return EXECUTION_FAILURE; }
             list = list->next;
             if (!bm_parse_rows (list->word->word, &rows)) {
                 builtin_error ("-n: invalid number: %s", list->word->word);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -469,7 +470,7 @@ more_builtin (WORD_LIST *list)
         if (!strncmp (w, "-n", 2) && w[2]) {
             if (!bm_parse_rows (w + 2, &rows)) {
                 builtin_error ("-n: invalid number: %s", w + 2);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -480,7 +481,7 @@ more_builtin (WORD_LIST *list)
         }
         builtin_error ("unknown flag: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     if (!list) {
@@ -496,13 +497,23 @@ more_builtin (WORD_LIST *list)
     int n_files = 0;
     for (WORD_LIST *p = list; p; p = p->next) n_files++;
     for (WORD_LIST *p = list; p; p = p->next) {
-        if (n_files > 1) printf ("::::::::::::::\n%s\n::::::::::::::\n", p->word->word);
         FILE *f = bm_open_input (p->word->word);
         if (!f) {
             builtin_error ("%s: %s", p->word->word, strerror (errno));
-            rc = EXECUTION_FAILURE;
+            /* util-linux more reports unavailable named inputs but keeps
+               processing the operand list with success status. */
             continue;
         }
+        struct stat st;
+        if (fstat (fileno (f), &st) == 0 && S_ISDIR (st.st_mode)) {
+            printf ("\n*** %s: directory ***\n\n", p->word->word);
+            fclose (f);
+            continue;
+        }
+        /* Nonterminal output labels every named file, including a single
+           operand. The documented '-' extension continues to read stdin. */
+        if (n_files > 1 || (!isatty (STDOUT_FILENO) && strcmp (p->word->word, "-")))
+            printf ("::::::::::::::\n%s\n::::::::::::::\n", p->word->word);
         int result = bm_page_input (f, rows, hint);
         if (result != EXECUTION_SUCCESS && result != BM_QUIT)
             rc = EXECUTION_FAILURE;
@@ -524,9 +535,11 @@ char *more_doc[] = {
     "    -h/--help  show this help",
     "    -V/--version show version",
     "",
-    "Reads stdin when no FILE given (or `-` in the list). Multi-file",
-    "mode prints `::::::::::::::\\nFILE\\n::::::::::::::` headers per",
-    "file. Pause keys (read from /dev/tty):",
+    "Reads stdin when no FILE given (or `-` in the list). Named files",
+    "receive `::::::::::::::\\nFILE\\n::::::::::::::` headers on nonterminal",
+    "output; terminal mode shows headers for multiple operands.",
+    "Unavailable named inputs are diagnosed and skipped with success status.",
+    "Pause keys (read from /dev/tty):",
     "    space / f       next page",
     "    enter / j       next line",
     "    /PATTERN        search forward",

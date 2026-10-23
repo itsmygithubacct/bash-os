@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "loadable": "ncdu",
+  "reference": "GNU coreutils du is the independent accounting and listing oracle. In each parity script the harness reference shell (PATH=/usr/bin:/bin) runs du; the candidate shell (PATH=/empty) runs the ncdu builtin. GNU du's --block-size=1 produces byte values and postorder directory rows. For ncdu total mode, the reference captures successful du -s output and uses Bash read to retain only the byte count because ncdu -t intentionally prints no path. Contract cases check Bash builtin metadata and the documented ncdu version string.",
+  "coverage": [
+    "Non-tty default behavior and explicit print mode, including postorder recursive directory listings and the default current-directory operand.",
+    "Apparent-size totals and allocated-block listings in one-byte units, including empty directories.",
+    "GNU-compatible one-time accounting for hard links and non-dereferencing of directory symlinks.",
+    "Single-file operands, spaces, a leading-dash path after --, and missing-path error behavior.",
+    "Bash type/help metadata and the documented version contract.",
+    "Missing intermediate paths and total-mode errors emit no synthetic totals; subsequent calls reset status and output mode."
+  ],
+  "exclusions": [
+    "Interactive browser navigation, sorting, and screen refresh need a controlled PTY/key driver; this runner provides no terminal fixture.",
+    "The -x cross-filesystem boundary needs a private second filesystem or a reviewed stat mock; neither is available in these fixtures.",
+    "Multiple operand behavior, permission-denied directories, allocation failures, and very large trees are outside this bounded suite."
+  ],
+  "cases": [
+    {
+      "id": "apparent-default-cwd-listing",
+      "kind": "parity",
+      "purpose": "Checks the non-tty fallback without an explicit path, recursive postorder rows, nested and empty directories, and apparent byte totals against GNU du.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p sub/deep empty\nprintf 'alpha\\n' > sub/deep/a\nprintf 'space path\\n' > 'name with spaces'\nif [[ $PATH == /empty ]]; then\n  ncdu --apparent-size\nelse\n  du --apparent-size --block-size=1 .\nfi"
+    },
+    {
+      "id": "apparent-total-only",
+      "kind": "parity",
+      "purpose": "Checks the combined short options and that total mode returns only the whole-tree apparent byte count, including nested files and empty directories.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/one/empty tree/two\nprintf 'hello\\n' > tree/one/item\nprintf 'xy' > tree/two/item\nif [[ $PATH == /empty ]]; then\n  ncdu -at tree\nelse\n  du_output=$(du -s --apparent-size --block-size=1 tree)\n  read -r bytes _ <<< \"$du_output\"\n  printf '%s\\n' \"$bytes\"\nfi"
+    },
+    {
+      "id": "allocated-directory-listing",
+      "kind": "parity",
+      "purpose": "Checks disk usage based on allocated blocks, including directory blocks and an empty directory, against GNU du with one-byte output units.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/empty tree/sub\nprintf 'tiny\\n' > tree/tiny\nprintf '%80s\\n' data > tree/sub/padded\nif [[ $PATH == /empty ]]; then\n  ncdu --print tree\nelse\n  du --block-size=1 tree\nfi"
+    },
+    {
+      "id": "hardlink-total-once",
+      "kind": "parity",
+      "purpose": "Checks that two names for one inode contribute once to the apparent total, matching GNU du's default hard-link accounting.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/a tree/b\nprintf 'one inode\\n' > tree/a/data\nln tree/a/data tree/b/alias\nif [[ $PATH == /empty ]]; then\n  ncdu -at tree\nelse\n  du_output=$(du -s --apparent-size --block-size=1 tree)\n  read -r bytes _ <<< \"$du_output\"\n  printf '%s\\n' \"$bytes\"\nfi"
+    },
+    {
+      "id": "directory-symlink-not-followed",
+      "kind": "parity",
+      "purpose": "Checks that a symlink to a directory is counted as a link and not recursively traversed a second time, matching GNU du's default non-dereferencing behavior.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/actual/sub\nprintf 'data' > tree/actual/sub/file\nln -s actual tree/shortcut\nif [[ $PATH == /empty ]]; then\n  ncdu -at tree\nelse\n  du_output=$(du -s --apparent-size --block-size=1 tree)\n  read -r bytes _ <<< \"$du_output\"\n  printf '%s\\n' \"$bytes\"\nfi"
+    },
+    {
+      "id": "leading-dash-file-operand",
+      "kind": "parity",
+      "purpose": "Checks a regular-file operand containing spaces and beginning with a dash, with -- ending option parsing on both sides.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'five\\n' > '-odd name'\nif [[ $PATH == /empty ]]; then\n  ncdu --apparent-size --print -- '-odd name'\nelse\n  du --apparent-size --block-size=1 -- '-odd name'\nfi"
+    },
+    {
+      "id": "missing-path-error",
+      "kind": "parity",
+      "purpose": "Checks GNU du's nonzero status and diagnostic for a missing operand against ncdu's batch error behavior.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "if [[ $PATH == /empty ]]; then\n  ncdu --apparent-size --print missing\nelse\n  du --apparent-size --block-size=1 missing\nfi"
+    },
+    {
+      "id": "bash-type-help-metadata",
+      "kind": "contract",
+      "purpose": "Checks Bash's documented type and short-help metadata for the ncdu builtin without starting the scanner.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nncdu: ncdu [-axpt] [PATH]\n",
+      "script": "type -t ncdu\nhelp -s ncdu"
+    },
+    {
+      "id": "documented-version",
+      "kind": "contract",
+      "purpose": "Checks the version string declared by the ncdu builtin's documented --version contract.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ncdu 1.0 (bash-loadable, ncurses-free)\n",
+      "script": "ncdu --version"
+    },
+    {
+      "id": "interactive-browser-pty",
+      "kind": "deferred",
+      "purpose": "Exercise keyboard navigation, sorting, descent/ascent, and screen restoration in the interactive browser.",
+      "reason": "Requires an isolated PTY driver with fixed terminal dimensions and a bounded key stream. The supplied runner starts fixtures with stdin disconnected and has no PTY fixture; run only in a future disposable VM or an independently reviewed PTY mock."
+    },
+    {
+      "id": "one-filesystem-boundary",
+      "kind": "deferred",
+      "purpose": "Verify that -x stops recursion when a nested directory is on a different device.",
+      "reason": "A meaningful fixture needs two distinct st_dev values. Creating that boundary requires a private mount or a reviewed stat mock, neither of which the runner provides; defer to a future disposable VM with a dedicated fixture filesystem."
+    },
+    {
+      "id": "missing-not-directory",
+      "kind": "parity",
+      "purpose": "An ordinary regular-file intermediate component fails with status 1 and no usage row, matching GNU du.",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "printf 'parent' > parent\nif [[ $PATH == /empty ]]; then\n ncdu -ap parent/child\nelse\n du --apparent-size --block-size=1 parent/child\nfi"
+    },
+    {
+      "id": "independent-error-recovery",
+      "kind": "contract",
+      "purpose": "Missing paths in total and listing mode produce no invented row or total, return 1, and leave later same-shell invocations with independent status and output mode.",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "total-error=1\n5\nlisting-error=1\n5\tpresent\n",
+      "script": "printf 'hello' > present\nrc=0; ncdu -at missing || rc=$?\n[[ $rc == 1 ]]\nprintf 'total-error=%s\\n' \"$rc\"\nncdu -at present\nprintf 'parent' > parent\nrc=0; ncdu -ap parent/child || rc=$?\n[[ $rc == 1 ]]\nprintf 'listing-error=%s\\n' \"$rc\"\nncdu -ap present"
+    }
+  ]
+}

@@ -96,7 +96,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert any(e.get('alert',{}).get('signature_id')==1001 for e in events),events
     content=b'one\ntwo\nthree\n'
     (d/'text').write_bytes(content)
-    for name in ['more','less']: assert run(name,d/'text',data=b'')==content
+    assert run('more',d/'text',data=b'') == (
+        b'::::::::::::::\n' + os.fsencode(d/'text') + b'\n::::::::::::::\n' + content)
+    assert run('less',d/'text',data=b'')==content
     assert b'PID' in run('top','--once','-r','3')
     (d/'proc').mkdir()
     (d/'proc/slabinfo').write_text('slabinfo - version: 2.1\n# name <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nfixture 10 20 64 64 1 : tunables 0 0 0 : slabdata 1 1 0\n')
