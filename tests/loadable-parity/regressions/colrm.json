@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "loadable": "colrm",
+  "reference": "The isolated reference PATH's independent util-linux colrm command (required by name as colrm), invoked by system Bash on the same deterministic stdin. colrm is not a GNU coreutils program; this suite names the util-linux implementation explicitly. The two metadata contracts are based on Bash's builtin type/help interface and the documented colrm registration.",
+  "coverage": [
+    "No-operand passthrough and preservation of blank lines and a final unterminated line.",
+    "Inclusive 1-based start/end deletion, including blank and shorter-than-range lines.",
+    "Open-ended deletion from START and preservation of input without a trailing newline.",
+    "Reference tab-stop expansion and UTF-8 character columns under C.UTF-8, including partial tab and wide-glyph removal.",
+    "Repeated fresh stdin redirections in one Bash process, a known loadable stream-state regression area.",
+    "Zero and reversed-range operands, including utility-specific status, stderr, and output behavior.",
+    "Bash builtin type and short help metadata contracts.",
+    "Nonempty zero and reversed endpoints, tab boundary overlap, backspace movement, double-cell and combining characters, and the custom identity banner."
+  ],
+  "exclusions": [
+    "No deferred cases: colrm only filters bounded stdin and has no privileged, hardware, network, terminal, or host-system operation to isolate separately.",
+    "Other locales and stateful encodings, arbitrary invalid multibyte input, unbounded streams, injected I/O failures, and external help/version presentation are outside coverage."
+  ],
+  "cases": [
+    {
+      "id": "no_operands_passthrough",
+      "kind": "parity",
+      "purpose": "Check no-operand behavior and byte-preserving passthrough for ordinary, blank, and final unterminated input lines.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'alpha\\n\\nunterminated' | colrm",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "inclusive_range_short_lines",
+      "kind": "parity",
+      "purpose": "Check inclusive removal of columns 2 through 4 on long lines, while blank and shorter lines remain intact.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'abcdef\\nxy\\n1234567\\n\\n' | colrm 2 4",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "open_ended_and_unterminated",
+      "kind": "parity",
+      "purpose": "Check that a single START removes through end of line and that an input line without a final newline stays unterminated.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'abcde\\nq\\n01234' | colrm 3",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tab_expands_to_stops",
+      "kind": "parity",
+      "purpose": "Compare TAB handling after a byte and at line start; the reference expands tabs to tab stops before applying display-column deletion.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'A\\tBC\\n\\tlead\\n' | colrm 2 2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "high_bit_bytes",
+      "kind": "parity",
+      "purpose": "A UTF-8 character occupies one display column, so removing column two must remove X without splitting the encoding.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf '\\303\\251X\\n' | LC_ALL=C.UTF-8 colrm 2 2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated_stdin_redirections",
+      "kind": "parity",
+      "purpose": "Run three fresh redirected stdin invocations in one Bash process to catch stale EOF or read-ahead state across builtin calls.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'alpha\\nbeta\\n' > input.txt; colrm 4 < input.txt; colrm 4 < input.txt; colrm 4 < input.txt",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero_start_reference_accepts",
+      "kind": "parity",
+      "purpose": "Compare zero-start handling, including the reference utility's exit status and diagnostic policy.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "colrm 0",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reversed_range_reference_accepts",
+      "kind": "parity",
+      "purpose": "Compare reversed-range handling, including the reference utility's exit status and diagnostic policy.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "colrm 4 2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin_type_contract",
+      "kind": "contract",
+      "purpose": "Confirm through Bash's type metadata that colrm is installed as a builtin, even with candidate PATH empty.",
+      "script": "type -t colrm",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin_help_description_contract",
+      "kind": "contract",
+      "purpose": "Bash help describes the display columns counted by the corrected documented operation; metadata only.",
+      "script": "help -d colrm",
+      "expected_status": 0,
+      "stdout": "colrm - Remove display columns from each stdin line (util-linux colrm).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-and-reversed-nonempty",
+      "kind": "parity",
+      "purpose": "Determine zero endpoints and reversed ranges on actual input, capturing errors explicitly.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'abcdef\\n\\tXY\\nlast' > input\nfor args in '0' '0 2' '2 0' '0 0' '4 2'; do\n read -r -a range <<< \"$args\"\n rc=0\n colrm \"${range[@]}\" < input || rc=$?\n printf 'status=%s\\n' \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tab-boundaries-backspace",
+      "kind": "parity",
+      "purpose": "Tab deletion crossing either boundary, backspace column movement, and no-operand tab handling.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'A\\tBC\\n1234567\\tZ\\nA\\bBC\\n' > input\ncolrm 3 5 < input\ncolrm 8 9 < input\ncolrm < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "wide-combining-characters",
+      "kind": "parity",
+      "purpose": "Count double-cell and zero-cell characters in a UTF-8 locale, retaining exact output bytes.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'A\\347\\225\\214BC\\ne\\314\\201XY\\n' > input\nLC_ALL=C.UTF-8 colrm 2 2 < input\nLC_ALL=C.UTF-8 colrm 3 3 < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "implementation-version-contract",
+      "kind": "contract",
+      "purpose": "Keep the existing bash-loadable identity banner as a custom contract, separate from external version output.",
+      "script": "colrm --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "colrm 1.0 (bash-loadable)\n"
+    },
+    {
+      "id": "range-at-line-and-stream-end",
+      "kind": "parity",
+      "purpose": "Check whether partial-cell or reversed-range padding is emitted at newline and at EOF, including tabs and wide characters.",
+      "requires": [
+        "colrm"
+      ],
+      "script": "printf 'abcd\\n' | colrm 4 2\nprintf '<1>\\n'\nprintf abcd | colrm 4 2\nprintf '<2>\\n'\nprintf 'A\\t' | colrm 3 5\nprintf '<3>\\n'\nprintf 'A\\t\\n' | colrm 3 5\nprintf '<4>\\n'\nprintf '\\347\\225\\214' | LC_ALL=C.UTF-8 colrm 1 1\nprintf '<5>\\n'\nprintf '\\347\\225\\214\\n' | LC_ALL=C.UTF-8 colrm 1 1\nprintf '<6>\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

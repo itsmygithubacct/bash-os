@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "loadable": "ar",
+  "reference": "GNU binutils ar from the runner's read-only /usr tree, compared against the candidate with the same deterministic private fixture script. Bash type/help checks use the builtin metadata contract. Non-parity archive contracts assert the documented 8-byte magic, 60-byte fixed-width header, deterministic metadata and retained member bytes independently of GNU output.",
+  "coverage": [
+    "Bash builtin registration and documented help metadata",
+    "Deterministic archive creation, member listing, and archive bytes",
+    "GNU behavior for a requested symbol index with no ELF symbols",
+    "Quick append including duplicate member names",
+    "GNU replace behavior for retaining non-replaced members",
+    "GNU long-name table creation, listing, and selected extraction",
+    "Selected and full extraction, including odd/even member bodies",
+    "Valid empty archive and missing archive errors",
+    "Independent archive format and retained metadata contract",
+    "First-match replacement of duplicate basenames",
+    "Ordinary -U index refresh without symbols",
+    "Non-deterministic -U source metadata using ordinary fixed timestamps and mode",
+    "Independent existing local archive symlink and hardlink contract",
+    "Independent short spaced-name retention and replacement contracts",
+    "Independent overlong imported-name refusal without archive changes"
+  ],
+  "exclusions": [
+    "Only small valid local archives are executed; the original truncated archive case remains preserved in /drafts and /work/drafts but is not rerun.",
+    "Full ELF/linker compatibility, thin/BSD archives, positioning/update modifiers, devices, hostile paths and privileged operations are outside this repair.",
+    "Actual ownership changes and exhaustive metadata combinations are excluded; -U writes use naturally identical runner ownership and ordinary fixed touch/chmod fixtures."
+  ],
+  "cases": [
+    {
+      "id": "type_builtin",
+      "kind": "contract",
+      "purpose": "The ar command is registered as a Bash builtin and remains available with the candidate's empty PATH.",
+      "script": "type -t ar",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_metadata",
+      "kind": "contract",
+      "purpose": "Bash help exposes the documented operation synopsis and deterministic-write description for ar.",
+      "script": "doc=$(help ar)\n[[ $doc == *\"Create, list, or extract simple ar archives.\"* ]]\n[[ $doc == *\"Writes are deterministic\"* ]]\n[[ $doc == *\"ar [-D|-U] -t|-x|-r|-q|-s|s ARCHIVE [FILE...]\"* ]]\nprintf 'help metadata present\\n'",
+      "expected_status": 0,
+      "stdout": "help metadata present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "create_list_deterministic",
+      "kind": "parity",
+      "purpose": "Create a deterministic archive from two small files without requesting a symbol index, list its members in order, and compare archive bytes and fixture modes with GNU ar.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'alpha payload\\n' > alpha.txt\nprintf 'beta data\\n' > beta.dat\nar rc library.a alpha.txt beta.dat\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty_symbol_index",
+      "kind": "parity",
+      "purpose": "Request a symbol index for a text-only archive; compare the serialized archive, which must contain no empty symbol-table record.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'plain data\\n' > payload.txt\nar rcs library.a payload.txt\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quick_append_duplicates",
+      "kind": "parity",
+      "purpose": "GNU ar q appends rather than replacing a same-named member; compare duplicate listing order and resulting archive bytes.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'first version\\n' > item.txt\nar qc library.a item.txt\nprintf 'second version\\n' > item.txt\nar q library.a item.txt\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace_retains_other_members",
+      "kind": "parity",
+      "purpose": "Replace a matching member, retain unrelated members in order, and append new members; compare listing and archive bytes with GNU ar.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'old first\\n' > first.txt\nprintf 'keep this member\\n' > keep.txt\nar rc library.a first.txt keep.txt\nprintf 'new first\\n' > first.txt\nprintf 'new member\\n' > added.txt\nar r library.a first.txt added.txt\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long_name_create_extract",
+      "kind": "parity",
+      "purpose": "Create an archive with a basename longer than the 15-byte ar header field, list it, then extract just that member over a changed source file. Compare the GNU long-name table, archive bytes, and restored content.",
+      "requires": [
+        "ar"
+      ],
+      "script": "member=this_is_a_long_member_name.txt\nprintf 'archived long-name data\\n' > \"$member\"\nar rc library.a \"$member\"\nprintf 'changed local data\\n' > \"$member\"\nar x library.a \"$member\"\nIFS= read -r restored < \"$member\"\nprintf '%s\\n' \"$restored\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "selected_extract",
+      "kind": "parity",
+      "purpose": "Extract one requested member over an existing file, and verify that the unselected member is left untouched.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'archive-one\\n' > one.txt\nprintf 'archive-two\\n' > two.txt\nar rc library.a one.txt two.txt\nprintf 'local-one\\n' > one.txt\nprintf 'local-two\\n' > two.txt\nar x library.a one.txt\nIFS= read -r one < one.txt\nIFS= read -r two < two.txt\nprintf '%s|%s\\n' \"$one\" \"$two\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extract_odd_even_members",
+      "kind": "parity",
+      "purpose": "Extract all members whose bodies have odd and even lengths, checking ar record padding and exact extracted bytes against GNU ar.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'abc' > odd.bin\nprintf 'wxyz' > even.bin\nar rc library.a odd.bin even.bin\nprintf 'xxx' > odd.bin\nprintf 'yyyy' > even.bin\nar x library.a\nread -r -N 3 odd < odd.bin\nread -r -N 4 even < even.bin\nprintf 'odd=%s even=%s\\n' \"$odd\" \"$even\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_archive",
+      "kind": "parity",
+      "purpose": "The installed reference ar t returns status 9 for a missing relative archive; no fixture file is created.",
+      "requires": [
+        "ar"
+      ],
+      "script": "ar t missing.a",
+      "expected_status": 9,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "valid_empty_archive",
+      "kind": "parity",
+      "purpose": "List and index a valid archive with no members; indexing must leave it empty.",
+      "script": "printf '!<arch>\\n' > empty.a\nar t empty.a\nar s empty.a\nar t empty.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty_index_refresh",
+      "kind": "parity",
+      "purpose": "Refreshing an index repeatedly for ordinary data emits no artificial member.",
+      "script": "printf 'payload\\n' > plain\nar rc library.a plain\nar s library.a\nar s library.a\nar t library.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace_long_members",
+      "kind": "parity",
+      "purpose": "Retain an unrelated long name and replace another long name while appending a new member; compare the rebuilt GNU name table and extracted contents.",
+      "script": "printf 'old\\n' > replace_long_member.txt\nprintf 'keep\\n' > retained_long_member.txt\nar rc library.a replace_long_member.txt retained_long_member.txt\nprintf 'new\\n' > replace_long_member.txt\nprintf 'added\\n' > add.txt\nar rcs library.a replace_long_member.txt add.txt\nar t library.a\nar x library.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace_no_match",
+      "kind": "parity",
+      "purpose": "Replacing a new basename retains all existing members and appends it.",
+      "script": "printf 'one\\n' > one\nprintf 'two\\n' > two\nar rc library.a one\nar r library.a two\nar t library.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace_missing_input",
+      "kind": "parity",
+      "purpose": "An unavailable replacement input fails without destroying the original valid archive.",
+      "script": "printf 'keep\\n' > one\nar rc library.a one\nstatus=0\nar r library.a missing || status=$?\nprintf 'status=%d\\n' \"$status\"\nar t library.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_extract",
+      "kind": "parity",
+      "purpose": "Extracting from a missing relative archive reports the installed reference status.",
+      "script": "ar x missing.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 9,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_index",
+      "kind": "parity",
+      "purpose": "Indexing a missing relative archive reports the installed reference status.",
+      "script": "ar s missing.a",
+      "requires": [
+        "ar"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "independent_archive_format",
+      "kind": "contract",
+      "purpose": "Independently check fixed-width ar serialization, unchanged uid/gid/mtime/mode for an untouched member, and normalized new metadata using a valid hand-serialized local archive. This is a documented format contract, not GNU byte parity.",
+      "script": "printf '!<arch>\\n' > library.a\nprintf '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' keep/ 946684800 12 34 751 4 >> library.a\nprintf 'old\\n' >> library.a\nprintf 'new\\n' > fresh\nar r library.a fresh\nexec 3< library.a\ncheck_bytes() {\n    local got\n    IFS= read -r -N \"${#1}\" got <&3\n    [[ $got == \"$1\" ]]\n}\ncheck_bytes $'!<arch>\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' keep/ 946684800 12 34 751 4\ncheck_bytes \"$header\"\ncheck_bytes $'old\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' fresh/ 0 0 0 644 4\ncheck_bytes \"$header\"\ncheck_bytes $'new\\n'\nif IFS= read -r -N 1 extra <&3; then exit 1; fi\nexec 3<&-\nprintf 'fixed archive layout and retained metadata verified\\n' ",
+      "expected_status": 0,
+      "stdout": "fixed archive layout and retained metadata verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "replace_duplicate_basename",
+      "kind": "parity",
+      "purpose": "Replacement changes the first matching duplicate while retaining later duplicate contents and all other members.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'first\\n' > item\nprintf 'keep\\n' > other\nar qc library.a item other\nprintf 'second\\n' > item\nar q library.a item\nprintf 'third\\n' > item\nar r library.a item\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "index_u_without_symbols",
+      "kind": "parity",
+      "purpose": "Ordinary -U index refresh of an archive containing data and no symbols does not insert a fake member or change existing metadata.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf '!<arch>\\n' > library.a\nprintf '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' keep/ 946684800 12 34 751 4 >> library.a\nprintf 'old\\n' >> library.a\nar -U s library.a\nar t library.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "controlled_metadata_u",
+      "kind": "parity",
+      "purpose": "Seed ordinary private source timestamps and mode with touch/chmod, then compare -U archive metadata and payload bytes. No account change or privileged environment is needed. Cover both replacement and quick-append writers.",
+      "requires": [
+        "ar",
+        "touch",
+        "chmod"
+      ],
+      "script": "printf 'fixed metadata\\n' > item\ntouch -t 200001010000.00 item\nchmod 751 item\nar -U rc library.a item\nar t library.a\nar -U qc appended.a item\nar t appended.a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_intermediate",
+      "kind": "parity",
+      "purpose": "A non-directory intermediate component is an ordinary missing archive path; verify its status against the installed reference.",
+      "requires": [
+        "ar"
+      ],
+      "script": "printf 'ordinary file\\n' > parent\nar t parent/missing.a",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "independent_private_link_contract",
+      "kind": "contract",
+      "purpose": "Preserve existing local archive link behavior: replacement follows a private symlink and keeps hard links to the same archive inode. Assert the original repository contract independently.",
+      "script": "printf 'old\\n' > item\nar rc real.a item\nln real.a hard.a\nln -s real.a sym.a\nprintf 'new\\n' > item\nar r sym.a item\n[[ -L sym.a && real.a -ef hard.a ]]\nprintf 'local\\n' > item\nar x hard.a\nIFS= read -r value < item\n[[ $value == new ]]\nprintf 'local archive links preserved\\n'",
+      "expected_status": 0,
+      "stdout": "local archive links preserved\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "independent_spaced_name_retained",
+      "kind": "contract",
+      "purpose": "Append an unrelated member to a small hand-serialized archive and independently verify that a short spaced name, metadata and body remain exact under the existing slash-terminated encoding convention.",
+      "script": "printf '!<arch>\\n' > library.a\nprintf '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' 'two words/' 946684800 12 34 751 4 >> library.a\nprintf 'old\\n' >> library.a\nprintf 'new\\n' > fresh\nar r library.a fresh\nexec 3< library.a\ncheck_bytes() {\n    local got\n    IFS= read -r -N \"${#1}\" got <&3\n    [[ $got == \"$1\" ]]\n}\ncheck_bytes $'!<arch>\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' 'two words/' 946684800 12 34 751 4\ncheck_bytes \"$header\"\ncheck_bytes $'old\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' fresh/ 0 0 0 644 4\ncheck_bytes \"$header\"\ncheck_bytes $'new\\n'\nif IFS= read -r -N 1 extra <&3; then exit 1; fi\nexec 3<&-\nprintf 'short spaced name retained exactly\\n'\n",
+      "expected_status": 0,
+      "stdout": "short spaced name retained exactly\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "independent_spaced_name_replaced",
+      "kind": "contract",
+      "purpose": "Replace a short spaced basename in a small hand-serialized archive; independently assert replacement in place, deterministic new metadata, retained following member and exact EOF so an extra appended duplicate cannot pass.",
+      "script": "printf '!<arch>\\n' > library.a\nprintf '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' 'two words/' 946684800 12 34 751 4 >> library.a\nprintf 'old\\n' >> library.a\nprintf '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' keep/ 946684800 12 34 751 4 >> library.a\nprintf 'stay' >> library.a\nprintf 'new\\n' > 'two words'\nar r library.a 'two words'\nexec 3< library.a\ncheck_bytes() {\n    local got\n    IFS= read -r -N \"${#1}\" got <&3\n    [[ $got == \"$1\" ]]\n}\ncheck_bytes $'!<arch>\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' 'two words/' 0 0 0 644 4\ncheck_bytes \"$header\"\ncheck_bytes $'new\\n'\nprintf -v header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' keep/ 946684800 12 34 751 4\ncheck_bytes \"$header\"\ncheck_bytes stay\nif IFS= read -r -N 1 extra <&3; then exit 1; fi\nexec 3<&-\nprintf 'short spaced name replaced exactly once\\n'\n",
+      "expected_status": 0,
+      "stdout": "short spaced name replaced exactly once\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "independent_overlong_name_refused",
+      "kind": "contract",
+      "purpose": "A benign valid GNU name-table entry with a 256-byte imported name exceeds the builtin's name buffer. Replacing an unrelated file must fail before writing and leave every original archive byte unchanged.",
+      "script": "printf -v long_name '%0256d' 0\nlong_name=${long_name//0/n}\nprintf -v table '%s/\\n' \"$long_name\"\nprintf -v table_header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' // '' '' '' '' \"${#table}\"\nprintf -v member_header '%-16s%-12s%-6s%-6s%-8s%-10s`\\n' /0 946684800 12 34 751 4\noriginal=$'!<arch>\\n'\"$table_header$table$member_header\"$'old\\n'\nprintf '%s' \"$original\" > library.a\nprintf 'new\\n' > fresh\nstatus=0\nar r library.a fresh || status=$?\n[[ $status -eq 1 ]]\nexec 3< library.a\nIFS= read -r -N \"${#original}\" actual <&3\n[[ $actual == \"$original\" ]]\nif IFS= read -r -N 1 extra <&3; then exit 1; fi\nexec 3<&-\nprintf 'overlong imported name refused without changes\\n'\n",
+      "expected_status": 0,
+      "stdout": "overlong imported name refused without changes\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

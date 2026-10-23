@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "loadable": "bashclear",
+  "reference": "Independent system ncurses clear for parity; bashclear uses a builtin-presence adapter to select its alias. Escape bytes are captured by the harness, never sent to a terminal. Help and version identities are bash-os contracts.",
+  "coverage": [
+    "xterm visible-screen and scrollback output, including -x preservation",
+    "screen and linux terminal capability output",
+    "-T terminal override and combined short-option parsing",
+    "unsupported and unset TERM errors",
+    "invalid-option and operand usage statuses compared with ncurses clear",
+    "Bash builtin registration, help synopsis, and version aliases",
+    "Missing -T argument status",
+    "All 22 documented terminal capabilities, ignored private sidecars, shell-local TERM override and dumb status"
+  ],
+  "exclusions": [
+    "Private PTY attachment and before/after terminal-attribute checks are deferred; the provided runner captures stdout through a pipe.",
+    "Custom terminfo databases, serial-line padding, and terminal emulators beyond the listed fixture types are outside this suite."
+  ],
+  "cases": [
+    {
+      "id": "xterm-screen-and-scrollback",
+      "kind": "parity",
+      "purpose": "Check the common xterm clear sequence, including scrollback clearing, with bytes captured away from a real terminal.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -T xterm",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "xterm-keep-scrollback",
+      "kind": "parity",
+      "purpose": "Check that -x preserves scrollback while still clearing the visible screen.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -x -T xterm",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "screen-terminal-sequence",
+      "kind": "parity",
+      "purpose": "Check the screen terminal's visible-screen sequence, which differs from xterm's erase-display sequence.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -T screen",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "linux-combined-options",
+      "kind": "parity",
+      "purpose": "Check linux terminal output and clustered -xTTERM parsing while keeping scrollback.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -xTlinux",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unsupported-terminal",
+      "kind": "parity",
+      "purpose": "Check that an unsupported terminal name fails without emitting terminal control bytes.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -T bashclear-no-such-term",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unset-term",
+      "kind": "parity",
+      "purpose": "Check the missing-TERM error path and verify that it emits no terminal bytes.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\nunset TERM\ninvoke_clear",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Verify ncurses status 1 for invalid options, capturing all output.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -z",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "operand-status",
+      "kind": "parity",
+      "purpose": "Verify ncurses status 1 for unexpected operands, capturing all output.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear unexpected-operand",
+      "requires": [
+        "clear"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-terminal-argument",
+      "kind": "parity",
+      "purpose": "Verify ncurses status 1 for a missing -T argument.",
+      "script": "invoke_clear() {\n  if [[ $(builtin type -t bashclear 2>help-capture.txt) == builtin ]]; then\n    bashclear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\ninvoke_clear -T",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "clear"
+      ]
+    },
+    {
+      "id": "bash-type-metadata",
+      "kind": "contract",
+      "purpose": "Registration and documented synopsis; metadata does not count as operation coverage.",
+      "script": "builtin type -t bashclear\ndoc=$(help bashclear) || exit 90\ncase \"$doc\" in\n  *\"bashclear [-x] [-T TERM] | -V | --version | --help\"*) printf 'help-synopsis-ok\\n' ;;\n  *) exit 91 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-synopsis-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version-and-help-options",
+      "kind": "contract",
+      "purpose": "Check both version aliases against the documented bash-os version banner and ensure --help succeeds without producing terminal control output.",
+      "script": "bashclear --help >help-capture.txt\nbashclear -V\nbashclear --version",
+      "expected_status": 0,
+      "stdout": "bashclear 0.1.1 (bash-os; built-in terminal table)\nbashclear 0.1.1 (bash-os; built-in terminal table)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "capabilities-and-sidecars",
+      "kind": "contract",
+      "purpose": "Exercise all 22 documented fixed-table names with/without -x while private tput/terminfo sidecars and unrelated shell dimensions are set; all escape bytes are captured. Include silent dumb failure and shell-local TERM override.",
+      "script": "mkdir sidecars\nprintf 'clear=OVERRIDE\\n' > sidecars/xterm\nexport BASHTPUT_TERMINFO_DIR=sidecars TERMINFO=sidecars TERMINFO_DIRS=sidecars TERMCAP=OVERRIDE LINES=1 COLUMNS=1\nTERM=unsupported; export -n TERM\nbashclear -T xterm\nbashclear -x -T xterm\nbashclear -T xterm-256color\nbashclear -x -T xterm-256color\nbashclear -T alacritty\nbashclear -x -T alacritty\nbashclear -T foot\nbashclear -x -T foot\nbashclear -T foot-direct\nbashclear -x -T foot-direct\nbashclear -T xterm-color\nbashclear -x -T xterm-color\nbashclear -T xterm-kitty\nbashclear -x -T xterm-kitty\nbashclear -T screen.xterm-256color\nbashclear -x -T screen.xterm-256color\nbashclear -T rxvt\nbashclear -x -T rxvt\nbashclear -T rxvt-unicode\nbashclear -x -T rxvt-unicode\nbashclear -T rxvt-unicode-256color\nbashclear -x -T rxvt-unicode-256color\nbashclear -T st\nbashclear -x -T st\nbashclear -T st-256color\nbashclear -x -T st-256color\nbashclear -T screen\nbashclear -x -T screen\nbashclear -T screen-256color\nbashclear -x -T screen-256color\nbashclear -T vt100\nbashclear -x -T vt100\nbashclear -T vt102\nbashclear -x -T vt102\nbashclear -T vt220\nbashclear -x -T vt220\nbashclear -T ansi\nbashclear -x -T ansi\nbashclear -T tmux\nbashclear -x -T tmux\nbashclear -T tmux-256color\nbashclear -x -T tmux-256color\nbashclear -T linux\nbashclear -x -T linux\nrc=0; bashclear -T dumb || rc=$?\n[[ $rc == 1 && $TERM == unsupported ]] || exit 90\n",
+      "stdout": "\u001b[H\u001b[2J\u001b[3J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[3J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[3J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[3J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[3J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[2J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[3J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[3J\u001b[H\u001b[J\u001b[H\u001b[J\u001b[3J\u001b[H\u001b[J",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-terminal-attributes",
+      "kind": "deferred",
+      "purpose": "Verify output to an attached terminal leaves terminal modes and attributes unchanged while producing the selected clear sequence.",
+      "reason": "The provided fixture runner always captures stdout through a file and has no PTY attachment or termios observation fields. A future isolated PTY fixture should capture bashclear and ncurses clear output, snapshot the PTY attributes before and after each invocation, and compare the captured bytes without connecting to a host terminal."
+    }
+  ]
+}

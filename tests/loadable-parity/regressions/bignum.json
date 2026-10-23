@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "loadable": "bignum",
+  "reference": "No single GNU CLI implements this Bash loadable's subcommands. The metadata contract cases use Bash type/help builtins and the embedded documented builtin synopsis. Deferred arithmetic vectors are intended for comparison against independent Python 3 integers and pow(base, exp, mod), with division semantics taken from the builtin help contract. Existing project smoke coverage likewise uses Python integer arithmetic, not output copied from bignum.",
+  "coverage": [
+    "Bash recognizes bignum as a builtin.",
+    "Bash help exposes the documented bignum synopsis.",
+    "Deferred: signed arbitrary-precision decimal addition, subtraction and multiplication, including carry, borrow and zero normalization.",
+    "Deferred: quotient and remainder signs, truncation toward zero and exact division.",
+    "Deferred: hexadecimal input/output, case normalization and leading-zero handling.",
+    "Deferred: modular remainder and modular exponentiation, including zero exponent and invalid modulus/exponent cases.",
+    "Deferred: signed comparison output/status and bit lengths at zero and limb boundaries.",
+    "Deferred: left/right shifts, including negative operands and counts crossing a 32-bit limb.",
+    "Deferred: invalid numbers, missing/extra arguments, zero divisors and invalid shift counts."
+  ],
+  "exclusions": [
+    "Arithmetic subcommands are not executed in this validation run under the task's explicit safety instruction; each operation group is DEFERRED for a future disposable VM.",
+    "There is no exact matching GNU command-line implementation for this Bash builtin. No GNU parity result is claimed.",
+    "The source refers to /docs/bash/bignum.txt, but that companion document is absent from the pinned source tree."
+  ],
+  "cases": [
+    {
+      "id": "metadata-builtin-type",
+      "purpose": "Check through Bash's type builtin that bignum is registered as a shell builtin.",
+      "kind": "contract",
+      "script": "type -t bignum",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-synopsis",
+      "purpose": "Check help availability and that its synopsis contains the documented command and complete subcommand set; print a stable marker after the assertions.",
+      "kind": "contract",
+      "script": "help_text=$(help -s bignum); case $help_text in *'bignum add|sub|mul|divmod|mod|modexp|cmp|bits|shl|shr [-x] ARGS...'*) printf 'documented synopsis available\n' ;; *) exit 1 ;; esac",
+      "expected_status": 0,
+      "stdout": "documented synopsis available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decimal-signed-arithmetic",
+      "purpose": "Qualify signed decimal addition, subtraction and multiplication across the signed 64-bit boundary, including carry, borrow and canonical zero.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Compare against Python 3 int: add 999999999999999999 + 1 = 1000000000000000000; sub -17 - 24 = -41; mul -123456789 * 987654321 = -121932631112635269; add -0 + 0 = 0. Check decimal output has no redundant leading zeroes."
+    },
+    {
+      "id": "divmod-signed-contract",
+      "purpose": "Qualify documented truncation-toward-zero division and the rule that the remainder keeps the dividend's sign.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Use independent integer arithmetic: -100 / 9 -> quotient -11, remainder -1; 100 / -9 -> -11, 1; -100 / -9 -> 11, -1; -99 / 9 -> -11, 0. Verify divmod prints quotient then remainder, one decimal integer per line."
+    },
+    {
+      "id": "hexadecimal-io",
+      "purpose": "Qualify hexadecimal parsing and canonical lowercase hexadecimal output with optional prefixes and values spanning multiple nibbles.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Independently decode inputs as base 16 and encode expected magnitudes in lowercase without a 0x prefix: bignum add -x 0Xff 1 -> 100; bignum mul -x -0x10 0a -> -a0; zero -> 0. Include leading-zero input to verify canonical output."
+    },
+    {
+      "id": "modular-arithmetic",
+      "purpose": "Qualify signed remainder and modular exponentiation against an independent arbitrary-precision oracle, including boundary behavior.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Compare mod with the documented dividend-sign remainder rule and modexp with Python 3 pow(base, exponent, modulus): mod -100 9 -> -1; modexp 1234 567 891 -> pow(1234, 567, 891); modexp 4 0 7 -> 1; modexp 4 0 1 -> 0. Also check zero modulus and negative exponent fail with nonzero status and nonempty diagnostics."
+    },
+    {
+      "id": "comparison-and-bits",
+      "purpose": "Qualify cmp's three-way result and branch status, plus bit length at zero, sign, and a 32-bit limb boundary.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Check cmp -4 0 prints -1 and exits 1; cmp 17 17 prints 0 and exits 0; cmp 0 -1 prints 1 and exits 2. Check bits 0 -> 0, bits -1024 -> 11, bits 4294967296 -> 33, using independently computed integer bit_length (zero special-cased to 0)."
+    },
+    {
+      "id": "left-and-right-shifts",
+      "purpose": "Qualify shifts across a 32-bit limb boundary, truncation of right shifts, and sign preservation for negative inputs.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Compare with independent integer operations: shl 3 33 -> 25769803776; shr 9 2 -> 2; shr -9 1 -> -4; shl 0 32 -> 0. Include zero-count and a count larger than the operand bit length."
+    },
+    {
+      "id": "argument-and-domain-errors",
+      "purpose": "Qualify error status and diagnostics for malformed numbers, arity errors, zero divisors and unsupported shift/modexp inputs.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the candidate loadable enabled. Check malformed decimal input, missing/extra operands, divmod by zero, modexp with a negative exponent, and a negative/nondecimal shift count. Assert the documented nonzero status class for each and require a diagnostic; retain exact observed statuses separately if GNU/candidate validation is later added."
+    }
+  ]
+}

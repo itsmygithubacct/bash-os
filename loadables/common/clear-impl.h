@@ -71,13 +71,13 @@ bashclear_run (WORD_LIST *list)
           return sh_chkwrite (EXECUTION_SUCCESS);
         default:
           builtin_usage ();
-          return EX_USAGE;
+          return EXECUTION_FAILURE;
         }
     }
   if (loptend)
     {
       builtin_usage ();
-      return EX_USAGE;
+      return EXECUTION_FAILURE;
     }
 
   if (!term)
@@ -120,7 +120,7 @@ bashclear_run (WORD_LIST *list)
     "tmux, tmux-256color and linux. Other names clear only the visible screen.", \
     "", \
     "Exit status: 0 on success; 1 for output errors, unset/unsupported TERM", \
-    "or dumb (no output); 2 for invalid options or operands.", \
+    "or dumb (no output), and invalid options or operands.", \
     "clear and bashclear implement the same command and work independently.", \
     (char *)NULL \
   }; \

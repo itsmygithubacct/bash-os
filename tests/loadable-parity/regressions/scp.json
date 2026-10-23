@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "loadable": "scp",
+  "reference": "Independent system OpenSSH scp performs only relative local fixture copies; contract cases describe the deliberately bounded local subset.",
+  "coverage": [
+    "Local contents, overwrite/truncation, empty source, destination directory, umask/modes",
+    "Same-file path, hardlink and symlink preservation",
+    "Local colon/dash paths, missing paths, nonrecursive directories, usage statuses"
+  ],
+  "exclusions": [
+    "Exactly one local regular-file source and destination; local -r/-p and multiple sources are unsupported.",
+    "Remote transport, protocol, option grammar and authentication remain deferred.",
+    "No remote peer, network operation, nonregular device or host path is used."
+  ],
+  "cases": [
+    {
+      "id": "local-copy",
+      "kind": "parity",
+      "purpose": "Copy a small regular file whose name contains spaces.",
+      "script": "printf 'scp fixture bytes\\n' > 'source file'\nscp 'source file' 'destination file'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "overwrite-and-empty",
+      "kind": "parity",
+      "purpose": "Overwrite a longer existing destination, then copy an empty file. Follow source/destination file symlinks without replacing the links.",
+      "script": "printf 'long destination\\n' > dst\nprintf 'x' > src\nscp src dst\n: > empty\nscp empty empty-copy\nln -s src source-link\nscp source-link link-copy\nln -s dst dest-link\nscp src dest-link",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "directory-and-modes",
+      "kind": "parity",
+      "purpose": "Copy into a directory and retain source executable bits subject to umask; an existing destination keeps its mode.",
+      "script": "mkdir target\nprintf 'payload\\n' > src\nchmod 751 src\nscp src target\nprintf 'old\\n' > dst\nchmod 600 dst\nscp src dst",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "same-file",
+      "kind": "parity",
+      "purpose": "A same-path copy must fail without truncating its source.",
+      "script": "printf 'keep these bytes\\n' > src\nscp src src",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "same-inode-links",
+      "kind": "parity",
+      "purpose": "Hardlink and symlink aliases must both fail without truncation. Capture each expected failure before checking the effects. Include the same source selected through a destination directory.",
+      "script": "printf 'keep linked bytes\\n' > src\nln src hard\nln -s src symbolic\na=0; scp src hard || a=$?\n[[ $a == 1 ]] || exit 90\nb=0; scp src symbolic || b=$?\n[[ $b == 1 && $(<src) == 'keep linked bytes' ]] || exit 91\nrc=0; scp src . || rc=$?\n[[ $rc == 1 && $(<src) == 'keep linked bytes' ]] || exit 92\nprintf 'same inode preserved\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "local-colon-and-dash",
+      "kind": "parity",
+      "purpose": "Explicit ./ and -- keep colon and leading-dash fixture names local.",
+      "script": "printf 'local bytes\\n' > ./a:b\nscp ./a:b ./c:d\nprintf 'dash bytes\\n' > ./-src\nscp -- -src -dst",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "missing-source",
+      "kind": "parity",
+      "purpose": "A missing source returns 1 and leaves an existing destination intact.",
+      "script": "printf 'preserve\\n' > dst\nscp missing dst",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "missing-destination-parent",
+      "kind": "parity",
+      "purpose": "An unavailable destination directory returns 1 and leaves the source intact.",
+      "script": "printf 'payload\\n' > src\nscp src missing/dst",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "directory-source",
+      "kind": "parity",
+      "purpose": "Nonrecursive directory copy fails without producing a destination.",
+      "script": "mkdir src\nscp src dst",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "usage-errors",
+      "kind": "parity",
+      "purpose": "Missing operands, unknown options, and a missing port argument all return 1 before file operations.",
+      "script": "for scenario in none unknown port; do\n  rc=0\n  case $scenario in\n    none) scp || rc=$? ;;\n    unknown) scp --bash-os-no-such-option || rc=$? ;;\n    port) scp -P || rc=$? ;;\n  esac\n  [[ $rc == 1 ]] || exit 90\ndone\nprintf 'usage statuses 1\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "scp"
+      ]
+    },
+    {
+      "id": "bounded-local-mode",
+      "kind": "contract",
+      "purpose": "Local recursion and transport/preservation options are explicitly outside the bounded regular-file contract.",
+      "script": "printf 'payload\\n' > src\nfor flag in -r '-p 22' '-P 22'; do\n  rc=0; scp $flag src dst || rc=$?\n  [[ $rc == 1 && ! -e dst ]] || exit 90\ndone\nprintf 'bounded local mode\\n'",
+      "stdout": "bounded local mode\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "remote-protocols",
+      "kind": "deferred",
+      "purpose": "Remote upload, download, recursive and remote-to-remote behavior.",
+      "reason": "Requires a reviewed protocol mock or disposable endpoint. No remote command, peer, credential, helper transport or network operation executes in this suite. Existing remote option semantics remain private and are not claimed as OpenSSH parity."
+    }
+  ]
+}

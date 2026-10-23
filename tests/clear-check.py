@@ -133,7 +133,7 @@ class ClearChecks(unittest.TestCase):
                          ['--unknown'], ['-x', 'operand']):
                 with self.subTest(name=name, options=opts):
                     p = self.run_builtin(name, opts)
-                    self.assertEqual((p.returncode, p.stdout), (2, b''))
+                    self.assertEqual((p.returncode, p.stdout), (1, b''))
                     self.assertTrue(p.stderr)
                     host = self.run_host('xterm', opts)
                     self.assertEqual((host.returncode, host.stdout), (1, b''))

@@ -291,7 +291,7 @@ int
 taskset_builtin (WORD_LIST *list)
 {
   if (!list)
-    { bts_help (); return EX_USAGE; }
+    { bts_help (); return EXECUTION_FAILURE; }
 
   const char *w = list->word->word;
   if (strcmp (w, "--help") == 0 || strcmp (w, "-h") == 0)
@@ -305,7 +305,7 @@ taskset_builtin (WORD_LIST *list)
       cpu_list = 1;
       list = list->next;
       if (!list)
-        { builtin_error ("missing argument after %s", w); return EX_USAGE; }
+        { builtin_error ("missing argument after %s", w); return EXECUTION_FAILURE; }
       w = list->word->word;
     }
   else if (strncmp (w, "--cpu-list=", 11) == 0)
@@ -313,7 +313,7 @@ taskset_builtin (WORD_LIST *list)
       cpu_list = 1;
       w += 11;
       if (!*w)
-        { builtin_error ("--cpu-list needs LIST"); return EX_USAGE; }
+        { builtin_error ("--cpu-list needs LIST"); return EXECUTION_FAILURE; }
     }
   else if (strncmp (w, "-c", 2) == 0 && w[2])
     {
@@ -326,13 +326,13 @@ taskset_builtin (WORD_LIST *list)
       int argc = 0;
       for (WORD_LIST *p = list->next; p; p = p->next) argc++;
       if (argc != 1 && argc != 2)
-        { builtin_error ("usage: taskset -p [MASK] PID"); return EX_USAGE; }
+        { builtin_error ("usage: taskset -p [MASK] PID"); return EXECUTION_FAILURE; }
 
       pid_t pid;
       const char *pid_s = argc == 1 ? list->next->word->word
                                     : list->next->next->word->word;
       if (bts_parse_pid (pid_s, &pid) < 0)
-        { builtin_error ("invalid pid: %s", pid_s); return EX_USAGE; }
+        { builtin_error ("invalid pid: %s", pid_s); return EXECUTION_FAILURE; }
 
       cpu_set_t oldset;
       if (bts_get_affinity (pid, &oldset) != EXECUTION_SUCCESS)
@@ -353,7 +353,7 @@ taskset_builtin (WORD_LIST *list)
         {
           cpu_set_t newset;
           if ((cpu_list ? bts_parse_cpu_list : bts_parse_mask) (list->next->word->word, &newset) < 0)
-            { builtin_error ("invalid %s: %s", cpu_list ? "cpu list" : "mask", list->next->word->word); return EX_USAGE; }
+            { builtin_error ("invalid %s: %s", cpu_list ? "cpu list" : "mask", list->next->word->word); return EXECUTION_FAILURE; }
           if (bts_set_affinity (pid, &newset) != EXECUTION_SUCCESS)
             return EXECUTION_FAILURE;
           char newbuf[CPU_SETSIZE * 6 + 2];
@@ -372,11 +372,11 @@ taskset_builtin (WORD_LIST *list)
     }
 
   if (!list->next)
-    { builtin_error ("missing command for mask %s", w); return EX_USAGE; }
+    { builtin_error ("missing command for mask %s", w); return EXECUTION_FAILURE; }
 
   cpu_set_t set;
   if ((cpu_list ? bts_parse_cpu_list : bts_parse_mask) (w, &set) < 0)
-    { builtin_error ("invalid %s: %s", cpu_list ? "cpu list" : "mask", w); return EX_USAGE; }
+    { builtin_error ("invalid %s: %s", cpu_list ? "cpu list" : "mask", w); return EXECUTION_FAILURE; }
   return bts_run_command (&set, list->next);
 }
 

@@ -26,7 +26,7 @@ check status 0 B utmp dump "$d/empty-utmp"
 check status 0 B utmp boot "$d/wtmp"
 check test -s "$d/wtmp"
 check status 0 B uptime -p
-check status 0 B w -h
+check status 0 B w --help
 check status 0 B lsof -p $$
 check status 0 B mlock check
 check status 0 B caps probe

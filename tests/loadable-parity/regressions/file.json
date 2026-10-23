@@ -1,0 +1,259 @@
+{
+  "version": 1,
+  "loadable": "file",
+  "reference": "Installed file(1) from the isolated reference PATH, compared byte-for-byte with the candidate; deterministic signatures are written by Bash printf. The metadata contract checks Bash type/help builtins against the loadable's documented short description. Custom classifier descriptions and implementation identity are independent contracts, not libmagic parity.",
+  "coverage": [
+    "Bash builtin registration and help metadata",
+    "Empty, ASCII text, and opaque-data fallback classes",
+    "JSON heuristic classification",
+    "PEM and PGP armor signatures",
+    "DOS/MBR signature at byte offset 510",
+    "stdin classification, brief output, path labels, --, and directories",
+    "Missing-path status and diagnostic stream behavior",
+    "Independent concise classifier format contract",
+    "Explicit -E, brief combinations, continuation, no-operand usage and ordinary ENOTDIR errors"
+  ],
+  "exclusions": [
+    "The classifier's full curated signature catalog is not exhaustively enumerated; the suite samples broad fallback, document, and binary paths.",
+    "No fixture uses a host path, real device, network, credentials, or privileged operation; no operation case needs deferral.",
+    "The installed reference rejects --error; only -E is supported as the filesystem error option. Full libmagic and detailed ELF output remain outside the custom classifier contract."
+  ],
+  "cases": [
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check through Bash builtins that file is registered as a builtin and that help exposes its documented short description.",
+      "script": "type -t file\nh=$(help -d file)\ncase $h in *\"Identify file types via magic-byte signatures.\"*) printf 'help-ok\\n' ;; *) exit 1 ;; esac",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fallback-classes",
+      "kind": "parity",
+      "purpose": "Compare brief classification of empty, ordinary ASCII, and short opaque-byte files, covering the basic fallback categories.",
+      "script": ": > empty\nprintf 'plain words\\n' > text\nprintf '\\001\\002\\003' > opaque\nfile -b empty text opaque",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "json-heuristic",
+      "kind": "parity",
+      "purpose": "Check object and array JSON-looking prefixes after optional leading whitespace.",
+      "script": "printf '{\"key\":1}\\n' > object\nprintf '  [1,2]\\n' > array\nfile -b object array",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "armor-signatures",
+      "kind": "parity",
+      "purpose": "Compare stable PEM certificate, certificate-request, and PGP message armor labels using public marker lines.",
+      "script": "printf '%s\\n' '-----BEGIN CERTIFICATE-----' > cert\nprintf '%s\\n' '-----BEGIN CERTIFICATE REQUEST-----' > request-marker\nprintf '%s\\n' '-----BEGIN PGP MESSAGE-----' > pgp-marker\nfile -b cert request-marker pgp-marker",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mbr-offset",
+      "kind": "parity",
+      "purpose": "Check recognition of the conventional 0x55aa DOS/MBR signature at byte offsets 510-511 in a 512-byte relative fixture.",
+      "script": "printf '\\0%.0s' {1..510} > mbr\nprintf '\\125\\252' >> mbr\nfile -b mbr",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-brief",
+      "kind": "parity",
+      "purpose": "Check that a single stdin operand reads the stream and that brief mode suppresses the input label.",
+      "script": "printf 'stdin text\\n' | file -b -",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "labels-and-directory",
+      "kind": "parity",
+      "purpose": "Check aligned labels for a spaced path, option-looking path after --, empty file and directory.",
+      "script": "printf 'sample\\n' > 'two words'\nprintf 'dash name\\n' > ./-leading\n: > empty\nmkdir folder\nfile -- 'two words' ./-leading empty folder",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-path-diagnostic",
+      "kind": "parity",
+      "purpose": "Continue after a missing operand with a stdout diagnostic and success status by default.",
+      "script": "printf 'present\\n' > present\nfile missing present",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-only",
+      "kind": "parity",
+      "purpose": "A missing operand uses the reference default diagnostic and success status.",
+      "script": "file missing",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-brief",
+      "kind": "parity",
+      "purpose": "Brief output suppresses labels for both missing and readable operands.",
+      "script": "printf 'present\\n' > longer\nfile -b missing longer",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-error-option",
+      "kind": "parity",
+      "purpose": "The explicit -E error option reports an error status for a missing operand.",
+      "script": "file -E missing",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-error-mixed",
+      "kind": "parity",
+      "purpose": "With -E, inspect continuation and diagnostic streams when a missing operand precedes a valid operand.",
+      "script": "printf 'present\\n' > present\nfile -E missing present",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-label-width",
+      "kind": "parity",
+      "purpose": "Alignment uses the literal stdin operand length even though its displayed label is /dev/stdin.",
+      "script": "printf 'text\\n' > a\nprintf 'stdin text\\n' | file a -",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "label-width-reset",
+      "kind": "parity",
+      "purpose": "Label width is recalculated on every builtin invocation.",
+      "script": ": > longest_name\n: > a\nfile a longest_name\nfile a",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-intermediate",
+      "kind": "parity",
+      "purpose": "A missing intermediate path component follows the same default policy.",
+      "script": "file absent/child",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "independent_description_contract",
+      "kind": "contract",
+      "purpose": "The documented small classifier keeps its concise shebang, HTML and Netpbm descriptions for ordinary valid files. These intentional descriptions are not full libmagic output.",
+      "script": "printf '#!/bin/sh\\nprintf hello\\n' > sample.sh\nprintf '<!doctype html><html><body>hello</body></html>\\n' > page.html\nprintf 'P2\\n1 1\\n255\\n0\\n' > image.pgm\nfile -b sample.sh page.html image.pgm",
+      "expected_status": 0,
+      "stdout": "POSIX shell script\nHTML document\nNetpbm image data\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "custom_version_identity",
+      "kind": "contract",
+      "purpose": "Preserve the existing implementation identity banner as a custom metadata contract; do not compare it to the reference version banner or count it as operation coverage.",
+      "script": "file --version\nfile -v",
+      "expected_status": 0,
+      "stdout": "file 1.0 (bash-loadable)\nfile 1.0 (bash-loadable)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-error-brief",
+      "kind": "parity",
+      "purpose": "Long brief mode combines with -E without restoring a path label; processing continues after the missing input.",
+      "requires": [
+        "file"
+      ],
+      "script": "printf 'present\\n' > very_long_present\nfile --brief -E missing very_long_present",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-error-bundle",
+      "kind": "parity",
+      "purpose": "The explicitly supported -bE short-option bundle gives the same missing-input status and brief diagnostic as separate options.",
+      "requires": [
+        "file"
+      ],
+      "script": "file -bE missing",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-operands",
+      "kind": "parity",
+      "purpose": "An invocation without operands returns the installed reference usage status and a diagnostic.",
+      "requires": [
+        "file"
+      ],
+      "script": "file",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-not-directory",
+      "kind": "parity",
+      "purpose": "Ordinary ENOTDIR operands follow the same default stdout diagnostic and success status as absent paths.",
+      "requires": [
+        "file"
+      ],
+      "script": "printf 'ordinary file\\n' > parent\nfile parent/child",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unsupported-error-long",
+      "kind": "parity",
+      "purpose": "The installed file reference has no --error alias for -E; reject it with usage status and a diagnostic.",
+      "script": "file --error missing",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

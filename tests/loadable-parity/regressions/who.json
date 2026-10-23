@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "loadable": "who",
+  "reference": "Runnable cases compare the builtin with the system GNU coreutils who on the same deterministic, private Linux utmp files. The Bash printf fixture encoder writes the Linux glibc 384-byte utmp record layout (fixed fields, record types and a UTC timestamp) independently of the candidate output. The metadata case uses Bash type/help builtins and a literal expected result. Additional fixtures encode little-endian integers and fixed-width fields directly from the Linux glibc 384-byte utmp ABI, with no candidate struct serialization or live records.",
+  "coverage": [
+    "Builtin registration and availability of Bash help metadata.",
+    "Empty explicit utmp input, headers, ordinary rows, and -u formatting.",
+    "GNU who quick-count output with multiple user rows, a non-user row, and a partial trailing record.",
+    "Record type selection with -b, -d, -r, -a and composed -bd.",
+    "The -- end-of-options marker for a relative dash-leading fixture path.",
+    "Missing-file status and diagnostic presence.",
+    "Additional GNU field boundaries, selection combinations, aliases, and private input errors."
+  ],
+  "exclusions": [
+    "Reading the live default /var/run/utmp database is deferred because representative live sessions require a disposable VM or injected fixture path.",
+    "No records are created, changed, or deleted in an account database.",
+    "Real terminal idle time, terminal permissions, and positive -m matches remain deferred; only unknown/nonmatching terminal states are qualified.",
+    "GNU two-word default-database invocation and optional DNS lookup features are outside the private-file scope."
+  ],
+  "cases": [
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves who as a builtin and exposes its help metadata without reading a utmp file.",
+      "script": "[[ $(type -t who) == builtin ]]\nhelp_text=$(help who)\n[[ -n $help_text ]]\nprintf 'who builtin help available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "who builtin help available\n"
+    },
+    {
+      "id": "empty_utmp",
+      "kind": "parity",
+      "purpose": "An explicitly named empty utmp file has no login records and produces no output.",
+      "requires": [
+        "who"
+      ],
+      "script": ": > empty.utmp\nwho empty.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "header_columns",
+      "kind": "parity",
+      "purpose": "Print headings alongside one valid USER_PROCESS record using -H.",
+      "requires": [
+        "who"
+      ],
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty1 node-a > users.utmp\nwho -H users.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quick_count_and_partial_tail",
+      "kind": "parity",
+      "purpose": "Count two user records in -q mode, ignore a BOOT_TIME record under the default filter, and ignore a truncated trailing record.",
+      "requires": [
+        "who"
+      ],
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty1 node-a > logins.utmp\nrecord 2 '' 'system boot' '' >> logins.utmp\nrecord 7 bob pts/2 node-b >> logins.utmp\nprintf '\\007\\000\\000' >> logins.utmp\nwho -q logins.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default_and_user_format",
+      "kind": "parity",
+      "purpose": "Compare normal row formatting and -u output for a fixed UTC login timestamp, user, line, host, and pid.",
+      "requires": [
+        "who"
+      ],
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty1 remote.example > one.utmp\nwho one.utmp\nwho -u one.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "record_type_filters",
+      "kind": "parity",
+      "purpose": "Exercise -b, -d, -r, composed -bd, and -a against one fixture containing BOOT_TIME, DEAD_PROCESS, RUN_LVL, INIT_PROCESS, LOGIN_PROCESS, and USER_PROCESS records.",
+      "requires": [
+        "who"
+      ],
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty1 node-a > types.utmp\nrecord 2 '' 'system boot' '' >> types.utmp\nrecord 8 charlie tty3 '' >> types.utmp\nrecord 1 runlevel 'run-level 5' '' >> types.utmp\nrecord 6 login tty4 '' >> types.utmp\nrecord 5 init tty5 '' >> types.utmp\nwho -b types.utmp\nwho -d types.utmp\nwho -r types.utmp\nwho -bd types.utmp\nwho -a types.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dash_leading_file",
+      "kind": "parity",
+      "purpose": "Use -- to read a relative utmp filename that begins with a dash in quick-count mode.",
+      "requires": [
+        "who"
+      ],
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty1 node-a > -logins.utmp\nwho -q -- -logins.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_file",
+      "kind": "parity",
+      "purpose": "GNU who treats a missing relative utmp path as an empty database; compare its success status and empty output with the candidate.",
+      "requires": [
+        "who"
+      ],
+      "script": "who missing.utmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "selection-and-headers",
+      "kind": "parity",
+      "purpose": "Compare explicit selection, short mode, message status, and each associated header on private records.",
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 alice tty-private host-a xy > types.utmp\nrecord 2 '' ignored '' >> types.utmp\nrecord 1 '' ignored '' '' 13109 >> types.utmp\nrecord 5 init init-private '' in >> types.utmp\nrecord 6 login login-private '' lg >> types.utmp\nrecord 8 dead dead-private '' dd 2345 9 17 >> types.utmp\nrecord 3 '' old-private '' >> types.utmp\nrecord 4 '' new-private '' >> types.utmp\nfor flags in -H -uH -aH -dH -rH -bH -lH -pH -tH -TH -sH -bu -ub -au -as -sa -q -aq -qH; do\n printf 'flags=%s\\n' \"$flags\"\n who \"$flags\" types.utmp\ndone",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-options",
+      "kind": "parity",
+      "purpose": "Exercise documented selection aliases using an explicit private input.",
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 bob tty-private '' ab > one.utmp\nfor flags in --users --short --count --heading --all --boot --dead --login --process --runlevel --time --mesg --message --writable; do\n printf 'flags=%s\\n' \"$flags\"; who \"$flags\" one.utmp\ndone",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "field-boundaries",
+      "kind": "parity",
+      "purpose": "Compare empty-user selection, full-width fields, special exits, and host annotation without live terminal or account fixtures.",
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\nrecord 7 '' tty-private host > fields.utmp\nrecord 7 abcdefghijklmnopqrstuvwxyzABCDEF terminal-name-that-is-long host.example:7 abcd >> fields.utmp\nrecord 7 bob tty-private '' >> fields.utmp\nrecord 8 dead tty-private '' z 1234 3 4 >> fields.utmp\nwho fields.utmp\nwho -u fields.utmp\nwho -d fields.utmp\nwho -q fields.utmp",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unreadable-input-kind",
+      "kind": "parity",
+      "purpose": "Compare read failure behavior on a private directory, without any system path.",
+      "script": "mkdir fixture-dir\nwho fixture-dir",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "Reject an unsupported flag before opening any database.",
+      "script": "if who --not-a-who-option private.utmp; then exit 41; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "partial-only",
+      "kind": "parity",
+      "purpose": "Ignore an incomplete private record in normal and quick-count modes.",
+      "script": "printf '\\007\\000\\000' > partial.utmp\nwho partial.utmp\nwho -q partial.utmp",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "selection-priority",
+      "kind": "parity",
+      "purpose": "Compare quiet selection priority, short format, empty inputs with headings, and invalid short option status; all input paths are private.",
+      "script": "zpad() { local n=$1 i; for ((i=0;i<n;i++)); do printf '\\000'; done; }\nle() { local v=$1 n=$2 i b; for ((i=0;i<n;i++)); do printf -v b '\\\\%03o' \"$(( (v >> (8*i)) & 255 ))\"; printf '%b' \"$b\"; done; }\nfield() { printf '%s' \"$1\"; zpad \"$(( $2 - ${#1} ))\"; }\nrecord() {\n le \"$1\" 2; zpad 2; le \"${6:-1234}\" 4\n field \"$3\" 32; field \"${5:-}\" 4; field \"$2\" 32; field \"$4\" 256\n le \"${7:-0}\" 2; le \"${8:-0}\" 2; zpad 4\n le 946684800 4; zpad 40\n}\n: > empty.utmp\nwho -H absent.utmp\nwho -q absent.utmp\nwho -H empty.utmp\nrecord 7 alice tty-private host > one.utmp\nrecord 2 '' ignore '' >> one.utmp\nfor flags in -us -su -bq -qb -bs -sbu -m; do\n printf 'flags=%s\\n' \"$flags\"; who \"$flags\" one.utmp\ndone\nif who -Z one.utmp; then exit 41; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"",
+      "requires": [
+        "who"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "live_default_utmp",
+      "kind": "deferred",
+      "purpose": "Compare discovery and reporting of live login records through the default /var/run/utmp path.",
+      "reason": "Requires a future disposable VM with a synthetic /var/run/utmp image or a safely injected utmp path and GNU who reading the same controlled sessions. The isolated runner intentionally does not expose the host login database."
+    },
+    {
+      "id": "identity",
+      "kind": "contract",
+      "purpose": "Preserve the custom implementation identity independently of GNU version banners.",
+      "script": "who --version",
+      "stdout": "who 1.0 (bash-loadable)\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal-state",
+      "kind": "deferred",
+      "purpose": "Qualify actual idle durations, writable-terminal signs, and positive current-terminal matching.",
+      "reason": "Requires reviewed stat/clock/ttyname mocks or a disposable PTY setup with private synthetic session records. Current fixtures exercise unknown-terminal markers and the no-matching-terminal case only; no live terminal or session database is inspected."
+    }
+  ]
+}

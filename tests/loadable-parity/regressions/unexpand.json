@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "loadable": "unexpand",
+  "reference": "GNU Coreutils unexpand(1), invoked by the harness with system Bash and GNU tools. This is an independent CLI oracle for byte output and status; the documented POSIX leading-blank behavior and Coreutils tab-stop options define the exercised semantics.",
+  "coverage": [
+    "Default conversion of leading blanks from standard input",
+    "-a conversion and --first-only precedence in either option order",
+    "Regular-file input with explicit, repeating, /N, +N, and repeated tab lists",
+    "C-locale byte handling for tabs, backspaces, CR, VT, FF, NUL, and a high byte",
+    "Continuous columns and pending blanks across empty files, unterminated files, and stdin operands",
+    "A leading-dash relative filename after --",
+    "Failure for a missing operand while continuing to process a later readable file",
+    "Invalid tab width status and diagnostic presence"
+  ],
+  "exclusions": [
+    "Bash help wording and builtin availability are checked as a contract rather than compared with GNU output.",
+    "Write-error recovery after a partial output write is deferred because safely inducing EIO requires a reviewed writer/syscall mock; no absolute device path is used.",
+    "Non-C locales, help/version wording, and implementation-specific diagnostic text are outside byte parity assertions."
+  ],
+  "cases": [
+    {
+      "id": "leading-default-stdin",
+      "kind": "parity",
+      "purpose": "Check GNU/POSIX default behavior on stdin: convert only an initial blank run on each line and preserve internal blank runs.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '        alpha   beta\\n  next\\tvalue\\nx        tail\\n' | unexpand",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "all-and-first-only-precedence",
+      "kind": "parity",
+      "purpose": "Check that -a converts internal runs and --first-only overrides it regardless of option order.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '1234567  X        Y\\n        Z\\n' | unexpand -a\nprintf '1234567  X        Y\\n        Z\\n' | unexpand -a --first-only\nprintf '1234567  X        Y\\n        Z\\n' | unexpand --first-only -a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tab-stop-forms-file-input",
+      "kind": "parity",
+      "purpose": "Compare explicit stops, a single repeating width, /N origin-aligned extension, +N extension from the last explicit stop, and repeated -t accumulation on one relative file.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '   A    B     C        D\\n0123456789  123456789012345\\n' > tabs.dat\nunexpand -t 4 tabs.dat\nunexpand -t '3,7,12' tabs.dat\nunexpand -t '3,7,/8' tabs.dat\nunexpand -t '3,7,+8' tabs.dat\nunexpand -t '3,7' -t '12,+8' tabs.dat",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "control-and-binary-bytes",
+      "kind": "parity",
+      "purpose": "Check byte-oriented all-blank conversion around backspace, CR, VT, FF, NUL, and byte 0xff under the documented C-locale scope.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '1234567  X  \\tY\\nA\\b       Z\\nx\\r       v\\v       w\\f       q\\n\\000       \\377  end\\n' | unexpand -a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "continuous-operands-and-stdin",
+      "kind": "parity",
+      "purpose": "Check that columns and pending blanks continue across unterminated and empty relative files and across a '-' stdin operand.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '  ' > prefix.dat\n: > empty.dat\nprintf '      X\\n' > suffix.dat\nunexpand prefix.dat empty.dat suffix.dat\nprintf '  ' | unexpand prefix.dat - empty.dat suffix.dat",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dash-leading-file-after-end-options",
+      "kind": "parity",
+      "purpose": "Check that -- permits a relative operand whose filename begins with a dash.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '        from dash file\\n' > -input\nunexpand -- -input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-continues",
+      "kind": "parity",
+      "purpose": "Check nonzero status and a diagnostic for a missing relative operand while still emitting the later readable file's converted contents.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "printf '        usable\\n' > present.dat\nif unexpand absent.dat present.dat; then status=0; else status=$?; fi\nexit \"$status\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-tab-size-status",
+      "kind": "parity",
+      "purpose": "Keep GNU's invalid-tab-size status assertion. The builtin documentation records its usage status as 2 while GNU returns 1, so a confirmed difference must remain visible as a candidate failure.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "if unexpand -t 0; then status=0; else status=$?; fi\nexit \"$status\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-type-and-help-contract",
+      "kind": "contract",
+      "purpose": "Check the documented Bash integration metadata: unexpand is a builtin and its help entry is available. This is not GNU operation parity.",
+      "script": "[[ $(type -t unexpand) == builtin ]]\nhelp unexpand >/dev/null\nprintf 'builtin\\nhelp available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "partial-write-error-injection",
+      "kind": "deferred",
+      "purpose": "Exercise the documented output-write failure and early-stop behavior.",
+      "reason": "Requires a reviewed writer/syscall mock in a future disposable VM or isolated mock harness that injects EIO after a bounded partial stdout write. The common /dev/full technique requires an absolute device path and is outside this relative-fixture suite. The future case should assert nonzero status, a write diagnostic, and that a later operand is not opened after the output failure."
+    }
+  ]
+}

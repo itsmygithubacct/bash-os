@@ -63,8 +63,7 @@ in their clear and scrollback capabilities.
 | Status | Meaning |
 | --- | --- |
 | 0 | Bytes written successfully, or help/version printed |
-| 1 | Output error, unset/empty/unsupported terminal type, or `dumb` |
-| 2 | Invalid options or operands (ncurses clear normally uses 1) |
+| 1 | Output error, unset/empty/unsupported terminal type, `dumb`, or invalid options/operands |
 
 Diagnostics use Bash's builtin format. `-V`/`--version` identifies bashclear,
 not the host ncurses version. Bash's output helper flushes and checks writes;

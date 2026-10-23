@@ -115,9 +115,10 @@ the host's util-linux and by `gcc -fanalyzer`:
   leaking the stream on that path.
 
 Known differences from util-linux, left as they are (these are subsets, not
-reimplementations): `lsattr` shows fewer attribute flags, `fincore` and
-`prlimit` lay their columns out differently, and `ipcctl` refuses removals by
-default policy. `tests/util-linux-smoke.sh` covers what can be exercised
+reimplementations): `prlimit` lays its columns out differently, and `ipcctl` refuses removals by
+default policy. Focused parity checks now cover the `lsattr` flag layout and
+`fincore` headings, byte/human units and alignment on small private files;
+other options and larger `fincore` tables remain unqualified. `tests/util-linux-smoke.sh` covers what can be exercised
 without privilege or destroying anything, and compares `ionice`, `taskset` and
 `chrt` against the host's tools.
 

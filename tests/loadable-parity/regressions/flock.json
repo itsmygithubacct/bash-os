@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "loadable": "flock",
+  "reference": "Runnable expectations are Bash builtin metadata and the pinned flock loadable's documented interface in /source/loadables/flock.c (flock_doc, flock_struct.short_doc, and its --version string); no expectation was copied from candidate output. Operation semantics for deferred cases are referenced to GNU util-linux flock(1) and Linux flock(2), but those cases are intentionally not executed under the explicit safety instruction.",
+  "coverage": [
+    "Bash reports flock as a builtin with type -t.",
+    "Bash help contains the documented FD and file command forms and principal options.",
+    "Bash short help exposes the registered synopsis.",
+    "The loadable's documented version metadata is stable."
+  ],
+  "exclusions": [
+    "No lock, unlock, wait, contention, or child-command operation is executed; these remain DEFERRED as explicitly required.",
+    "No host paths, external lock peers, real network targets, privileged resources, or stress timing are used.",
+    "Operation comparisons require a future disposable Linux VM with GNU util-linux flock and synchronized private fixture processes."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "purpose": "Verify Bash registers flock as a builtin using the Bash type -t contract.",
+      "kind": "contract",
+      "script": "type -t flock",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_documented_interface",
+      "purpose": "Check the full Bash help text against the pinned documented forms, option spellings, and conflict behavior without invoking a lock operation.",
+      "kind": "contract",
+      "script": "h=$(help flock) || exit 1\n[[ $h == *\"Manage advisory file locks via flock(2).\"* ]] || exit 1\n[[ $h == *\"flock [-sxun] [-w SECONDS] FD\"* ]] || exit 1\n[[ $h == *\"flock [-sxun] [-w SECONDS] FILE command [args...]\"* ]] || exit 1\n[[ $h == *'flock [-sxun] [-w SECONDS] FILE -c \"shell command\"'* ]] || exit 1\n[[ $h == *\"--shared\"* && $h == *\"--exclusive\"* && $h == *\"--unlock\"* ]] || exit 1\n[[ $h == *\"--nonblock\"* && $h == *\"--wait\"* && $h == *\"--conflict-exit-code\"* ]] || exit 1\n[[ $h == *\"--close\"* && $h == *\"--no-fork\"* && $h == *\"--command\"* ]] || exit 1\nprintf 'documented-help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "documented-help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_short_synopsis",
+      "purpose": "Check Bash help -s output against the synopsis registered in flock_struct.short_doc and Bash help builtin formatting.",
+      "kind": "contract",
+      "script": "help -s flock",
+      "expected_status": 0,
+      "stdout": "flock: flock [-sxun] [-w SECONDS] [-E N] FD | FILE [command [args] | -c CMD]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version_metadata",
+      "purpose": "Check the loadable's documented version response; --version exits before opening an operand or acquiring a lock.",
+      "kind": "contract",
+      "script": "flock --version",
+      "expected_status": 0,
+      "stdout": "flock 1.0 (bash-loadable, util-linux compatible subset)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fd_lock_lifetime",
+      "purpose": "Future comparison of FD form default exclusive locking, caller-shell lock lifetime, and explicit unlock on one open file description.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM with a private relative lock file, GNU util-linux flock(1) as the independent oracle, and two synchronized child processes. Verify that a lock taken on an FD remains held after the builtin returns, that a competing nonblocking attempt fails while held, and that explicit unlock releases it. Use bounded synchronization and never a host lock path."
+    },
+    {
+      "id": "lock_mode_contention",
+      "purpose": "Future comparison of shared/shared compatibility, exclusive conflicts, nonblocking failure status, and the configured conflict exit code.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM, GNU util-linux flock(1), and independently synchronized processes using only a relative fixture file. Exercise shared locks, then exclusive contention with -n and -E; compare statuses and child markers. All waits must be bounded, and the fixture must be private to the VM."
+    },
+    {
+      "id": "timed_wait_behavior",
+      "purpose": "Future comparison of -w timeout failure and successful acquisition after a competing process releases the lock.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1), a private fixture file, and a synchronized holder process. Check both a held-past-deadline timeout and release-before-deadline acquisition with a small fractional timeout and generous bounded scheduling margins; do not use unbounded waits or stress timing."
+    },
+    {
+      "id": "file_form_command_status",
+      "purpose": "Future comparison of file-form lock-file creation, argv and -c command execution, child status propagation, and lock release after the command exits.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1), /bin/sh, and a temporary relative fixture directory. Compare stdout, exit status, lock-file contents/mode, command argument handling, and whether a second process can acquire after the child exits. Keep all command side effects inside that private directory."
+    },
+    {
+      "id": "close_and_no_fork",
+      "purpose": "Future comparison of -o descriptor closure before child execution and -F no-fork exec/status behavior, including the incompatible -Fo combination.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM, GNU util-linux flock(1), private fixture files, and bounded child commands that inspect only their own inherited descriptors and write only relative markers. Compare descriptor visibility, exec failure statuses, parent-shell survival where applicable, and lock release. No process-wide signals or host process inspection are needed."
+    },
+    {
+      "id": "argument_and_open_errors",
+      "purpose": "Future comparison of invalid FD, malformed timeout/conflict-exit values, missing operands, and file-open error behavior without unintended lock side effects.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1) and a private relative fixture directory so parser and open-error cases can be compared for status, diagnostics, and whether a target file was created. Use only deliberately missing relative names and invalid numeric arguments; do not reference host paths."
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "loadable": "renice",
+  "reference": "The system util-linux renice(1) CLI, invoked by the same fixture under system Bash. Runnable parity inputs are missing or malformed and must be rejected before setpriority; reference status and output are collected independently. Metadata expectations come from Bash type/help behavior and the documented renice_doc contract in /source/loadables/renice.c and /source/docs/sol-renice.md. No candidate output is used to construct an expectation.",
+  "coverage": [
+    "Bash reports renice as a builtin and exposes its documented short help description.",
+    "GNU CLI parity for missing operands, malformed priority, malformed PID, and unresolved username; these inputs are rejected before any priority mutation.",
+    "Deferred owned-child checks for absolute priority semantics, selector and username resolution, priority boundaries and kernel errors, and continuation after per-target failures."
+  ],
+  "exclusions": [
+    "No valid target is passed to renice in a runnable case, and no priority-changing operation is executed.",
+    "Process, process-group, and all-user mutations; target-zero semantics; kernel clamping and permission behavior; and syscall continuation require a disposable child or independently reviewed setpriority/passwd mock and are recorded as deferred."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "kind": "contract",
+      "purpose": "Confirm Bash exposes the selected loadable as a builtin, using the type builtin without invoking renice.",
+      "script": "type -t renice",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented_help_summary",
+      "kind": "contract",
+      "purpose": "Check the short help summary against the first documented renice_doc line; help is metadata and does not change process state.",
+      "script": "help -d renice",
+      "expected_status": 0,
+      "stdout": "renice - Set absolute niceness of running processes.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_operands",
+      "kind": "parity",
+      "purpose": "Compare the CLI's missing-operand rejection. No priority or target is supplied, so no target can be changed.",
+      "requires": [
+        "renice"
+      ],
+      "script": "renice",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "malformed_priority",
+      "kind": "parity",
+      "purpose": "Verify a non-decimal priority is rejected before the numeric target is considered; GNU renice is the independent status/output oracle.",
+      "requires": [
+        "renice"
+      ],
+      "script": "renice not-a-priority -p 2147483647",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "malformed_pid",
+      "kind": "parity",
+      "purpose": "Compare rejection of a nonnumeric PID. The operand cannot name a process, so this exercises validation without a setpriority target.",
+      "requires": [
+        "renice"
+      ],
+      "script": "renice 19 -p not-a-pid",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown_username",
+      "kind": "parity",
+      "purpose": "Compare rejection of a username absent from the fixture's isolated passwd database; lookup failure occurs before any all-user operation.",
+      "requires": [
+        "renice"
+      ],
+      "script": "renice 19 -u renice-fixture-no-such-user",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "owned_pid_absolute_priority",
+      "kind": "deferred",
+      "purpose": "Check -n as an absolute priority, including POSIXLY_CORRECT behavior, on a short-lived owned child; independently query the child's final priority and confirm the shell parent is unchanged.",
+      "reason": "Requires a future disposable VM with an owned child and independent getpriority verification. Run the same operation through GNU util-linux renice and the candidate, with POSIXLY_CORRECT=1, and never target the invoking shell or an unrelated PID."
+    },
+    {
+      "id": "selector_and_user_resolution_mock",
+      "kind": "deferred",
+      "purpose": "Verify -p, -g, and -u selection, selector transitions, selectors before the priority, numeric and named users, and zero-ID interpretation.",
+      "reason": "Requires an independently reviewed setpriority interception plus deterministic passwd lookup fixture. Record each (which, id, priority) request and prove the mock never forwards calls to the kernel; all-user selection must remain mock-only."
+    },
+    {
+      "id": "priority_boundaries_and_permission",
+      "kind": "deferred",
+      "purpose": "Check signed-int boundary parsing, Linux upper-priority clamping, and denial of negative priority without changing the parent.",
+      "reason": "Requires a future disposable VM with one owned child, RLIMIT_NICE=0, no effective CAP_SYS_NICE, and independent getpriority checks before and after each call. The child must be the only target and must exit during fixture cleanup."
+    },
+    {
+      "id": "target_failure_continuation",
+      "kind": "deferred",
+      "purpose": "Verify that invalid targets and injected ESRCH/EPERM failures set a failing status while later targets are still attempted, and that usage errors make no calls.",
+      "reason": "Requires a reviewed setpriority mock that returns deterministic per-target errors and records all requests without forwarding them. Compare request order, final status, and silent-success output against GNU renice; do not use real process targets."
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "loadable": "crontab",
+  "reference": "The parity case uses the system POSIX-style crontab(1) CLI only for an invalid-option invocation; it does not supply an operand or request a spool operation. Its status and lack of fixture-tree changes are the independent CLI oracle. The system CLI has no documented way to use this loadable's relative BASHCRON_SPOOL_DIR, so private spool install/list/remove cases are documented-contract checks with literal fixture bytes, not claimed GNU parity. Bash type/help expectations come from the Bash builtin metadata contract and the help text documented by this loadable.",
+  "coverage": [
+    "Bash builtin availability and documented help text",
+    "Byte-preserving install/list round trip in a private relative spool",
+    "Empty crontab install and list boundary",
+    "Missing input and missing table errors with no published table",
+    "Unknown-option rejection while preserving an installed table",
+    "Removal of an installed table",
+    "System crontab invalid-option status and filesystem side effects"
+  ],
+  "exclusions": [
+    "The scheduler daemon and job execution are outside crontab operation coverage.",
+    "Successful -e editing is deferred because a controlled editor executable is not available under the candidate's empty PATH.",
+    "System-managed spool configuration and cron.allow/cron.deny policy are not exercised."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "purpose": "Use Bash type -t to verify crontab is registered as a loadable builtin.",
+      "kind": "contract",
+      "script": "type -t crontab",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-docs",
+      "purpose": "Check that Bash help exposes the documented description and FILE form.",
+      "kind": "contract",
+      "script": "help crontab > help.txt\nexec 3< help.txt\nIFS= read -r first_line <&3\nIFS= read -r description <&3\nIFS= read -r blank_line <&3\nIFS= read -r file_form <&3\nexec 3<&-\n[[ $description == '    Install, list, edit, or remove a user crontab.' && $file_form == '        crontab FILE' ]] || exit 21\nprintf 'help-docs-ok\\n'",
+      "expected_status": 0,
+      "stdout": "help-docs-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "install-list-roundtrip",
+      "purpose": "Install a small valid table in a private relative spool and verify listing preserves comments, spaces, line order, and final newline byte-for-byte.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\nprintf '%s\\n' '# Private crontab' '15 2 * * 1 echo hello world' '0 0 1 * * echo done' > input.tab\ncrontab input.tab\n[[ -f spool/tabs/fixture ]] || exit 31\ncrontab -l",
+      "expected_status": 0,
+      "stdout": "# Private crontab\n15 2 * * 1 echo hello world\n0 0 1 * * echo done\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-table-roundtrip",
+      "purpose": "Verify an empty source can be installed as an existing zero-byte table and listed successfully with no output.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\n: > empty.tab\ncrontab empty.tab\n[[ -f spool/tabs/fixture && ! -s spool/tabs/fixture ]] || exit 41\ncrontab -l",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-source-rejected",
+      "purpose": "A nonexistent relative input must fail and must not publish a table in the private spool.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\nif crontab absent.tab; then exit 51; fi\n[[ ! -e spool/tabs/fixture ]] || exit 52\nprintf 'missing-source-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "missing-source-rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-table-list",
+      "purpose": "Listing with no installed table must report failure, emit no table bytes, and leave the shell able to verify the error.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\nif crontab -l > list.out; then exit 61; else result=$?; fi\n[[ $result -ne 0 && ! -s list.out ]] || exit 62\nprintf 'missing-table-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "missing-table-rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option-preserves-table",
+      "purpose": "Reject an unsupported option without changing the installed table; the following list must still match the original literal bytes.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\nprintf '%s\\n' '0 12 * * * echo keep' > input.tab\ncrontab input.tab\nif crontab -Z; then exit 71; fi\ncrontab -l",
+      "expected_status": 0,
+      "stdout": "0 12 * * * echo keep\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "remove-installed-table",
+      "purpose": "Remove an installed private table and verify its spool entry is absent afterward.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\nprintf '%s\\n' '0 12 * * * echo remove' > input.tab\ncrontab input.tab\ncrontab -r\n[[ ! -e spool/tabs/fixture ]] || exit 81\nprintf 'removed\\n'",
+      "expected_status": 0,
+      "stdout": "removed\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option-parity",
+      "purpose": "Compare system crontab(1) and the loadable on an invalid option that requires no table operand; also detect fixture-tree changes made before rejecting it.",
+      "kind": "parity",
+      "requires": [
+        "crontab"
+      ],
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture\ncrontab -Z",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "edit-with-controlled-editor",
+      "purpose": "Cover successful and failed -e editor integration, including publication and cleanup, once a private editor executable can be supplied.",
+      "kind": "deferred",
+      "reason": "Requires a disposable environment with a controlled editor executable in the candidate's PATH, plus a private BASHCRON_SPOOL_DIR; the provided runner intentionally sets candidate PATH to /empty and has no editor fixture mechanism. Future fixture should verify editor success, nonzero exit, replacement of the edit file, and resulting table contents without starting a scheduler."
+    },
+    {
+      "id": "help-does-not-create-spool",
+      "kind": "contract",
+      "purpose": "Help succeeds without creating a spool or installing a table.",
+      "script": "export BASHCRON_SPOOL_DIR=spool USER=fixture; crontab --help >/dev/null; [[ ! -e spool ]] || exit 1; printf \"help only\\n\"",
+      "expected_status": 0,
+      "stdout": "help only\n",
+      "stderr": "empty"
+    }
+  ]
+}

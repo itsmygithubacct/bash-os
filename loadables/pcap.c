@@ -301,7 +301,7 @@ bpc_info_file (const char *path)
     printf ("linktype: %u (%s)\n", (unsigned) linktype,
             bpc_linktype_name (linktype));
 
-    /* Walk records to count them; skip-by-incl_len is cheap. */
+    /* Consume each payload so an EOF inside it cannot look like a clean end. */
     size_t records = 0;
     size_t total_bytes = 0;
     while (1) {
@@ -321,17 +321,22 @@ bpc_info_file (const char *path)
                  | ((incl & 0x00ff0000u) >>  8)
                  | ((incl & 0xff000000u) >> 24);
         }
-        if (incl > snaplen + 64) {
+        if ((uint64_t) incl > (uint64_t) snaplen + 64) {
             builtin_error ("info: %s: record %zu len=%u exceeds snaplen+64",
                            path, records, (unsigned) incl);
             close (fd);
             return EXECUTION_FAILURE;
         }
-        if (incl > 0 && lseek (fd, (off_t) incl, SEEK_CUR) == (off_t) -1) {
-            builtin_error ("info: %s: seek past record %zu: %s",
-                           path, records, strerror (errno));
-            close (fd);
-            return EXECUTION_FAILURE;
+        unsigned char discard[4096];
+        uint32_t remaining = incl;
+        while (remaining) {
+            size_t chunk = remaining < sizeof discard ? remaining : sizeof discard;
+            if (bpc_read_all (fd, discard, chunk) < 0) {
+                builtin_error ("info: %s: truncated payload in record %zu", path, records);
+                close (fd);
+                return EXECUTION_FAILURE;
+            }
+            remaining -= (uint32_t) chunk;
         }
         records++;
         total_bytes += incl;

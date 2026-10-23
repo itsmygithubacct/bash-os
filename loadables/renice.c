@@ -63,14 +63,14 @@ renice_builtin (WORD_LIST *list)
     if (list && !strcmp (list->word->word, "-n")) list = list->next;
     if (!list) {
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
-    if (brenice_priority (list->word->word, &prio) < 0) return EX_USAGE;
+    if (brenice_priority (list->word->word, &prio) < 0) return EXECUTION_FAILURE;
     list = list->next;
     for (WORD_LIST *p = list; p; p = p->next) {
         if (!strcmp (p->word->word, "-n")) {
             builtin_error ("-n must precede the priority");
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
     }
 
@@ -125,7 +125,7 @@ renice_builtin (WORD_LIST *list)
 
     if (target_count == 0) {
         builtin_error ("usage: renice [-n] PRIORITY [-g|-p|-u] ID...");
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     return rc;
 }

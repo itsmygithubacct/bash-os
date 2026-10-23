@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "loadable": "lsof",
+  "reference": "GNU lsof is used only for a safe missing-option-argument exit-status comparison. Help and version cases assert documented Bash builtin contracts; live /proc queries are deferred.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "--help usage and --version/-v aliases",
+    "missing -p and -u arguments and rejection of a nonnumeric operand",
+    "GNU lsof comparison of missing -p argument status",
+    "deferred controlled PID, user-filter, and process-table queries"
+  ],
+  "exclusions": [
+    "No lsof case enumerates or reads /proc during validation.",
+    "PID descriptor listing, user filtering, and whole-table enumeration require a disposable VM or an independently reviewed procfs mock with controlled processes."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Check that Bash reports lsof as a builtin and that help exposes the documented description and synopsis.",
+      "script": "kind=$(type -t lsof)\n[[ $kind == builtin ]]\nhelp lsof >metadata.help\nhave_description=0\nhave_synopsis=0\nwhile IFS= read -r line; do\n  case $line in\n    *'List open file descriptors via /proc/PID/fd.'*) have_description=1 ;;\n    *'lsof [-p PID]... [-u USER] [PID...]'*) have_synopsis=1 ;;\n  esac\ndone <metadata.help\n[[ $have_description == 1 && $have_synopsis == 1 ]]\nprintf 'builtin-metadata-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin-metadata-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-option",
+      "kind": "contract",
+      "purpose": "Check that --help succeeds and emits nonempty usage text naming lsof. The documented flag promises usage information; Bash controls the short usage wording.",
+      "script": "rc=0\nlsof --help >help.out 2>help.err || rc=$?\n[[ $rc == 0 ]]\nfound=0\nfor file in help.out help.err; do\n  while IFS= read -r line; do\n    case $line in *lsof*) found=1 ;; esac\n  done <\"$file\"\ndone\n[[ $found == 1 ]]\nprintf 'help-usage-ok\\n'",
+      "expected_status": 0,
+      "stdout": "help-usage-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version-aliases",
+      "kind": "contract",
+      "purpose": "Check that --version and -v both produce the same nonempty lsof version banner without consulting the host lsof utility.",
+      "script": "long_version=$(lsof --version)\nshort_version=$(lsof -v)\n[[ -n $long_version && $long_version == \"$short_version\" && $long_version == lsof\\ * ]]\nprintf 'version-aliases-ok\\n'",
+      "expected_status": 0,
+      "stdout": "version-aliases-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-pid-gnu-status",
+      "kind": "parity",
+      "purpose": "Compare only the process status for GNU and builtin lsof when -p has no argument; diagnostics are captured because wording differs. Parsing fails before any process query.",
+      "requires": [
+        "lsof"
+      ],
+      "script": "rc=0\ndiagnostic=$(lsof -p 2>&1) || rc=$?\nprintf 'exit-status=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-pid-contract",
+      "kind": "contract",
+      "purpose": "Check the documented EX_USAGE status and diagnostic when -p lacks its required PID, without opening /proc. Argument errors now return GNU-compatible status 1.",
+      "script": "rc=0\nlsof -p >parse.out 2>parse.err || rc=$?\n[[ $rc == 1 ]]\nfound=0\nwhile IFS= read -r line; do\n  case $line in *'-p needs PID'*) found=1 ;; esac\ndone <parse.err\n[[ $found == 1 ]]\nprintf 'missing-pid-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "missing-pid-rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-user-contract",
+      "kind": "contract",
+      "purpose": "Check the documented EX_USAGE status and diagnostic when -u lacks its required user argument, without opening /proc. Argument errors now return GNU-compatible status 1.",
+      "script": "rc=0\nlsof -u >parse.out 2>parse.err || rc=$?\n[[ $rc == 1 ]]\nfound=0\nwhile IFS= read -r line; do\n  case $line in *'-u needs USER'*) found=1 ;; esac\ndone <parse.err\n[[ $found == 1 ]]\nprintf 'missing-user-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "missing-user-rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nonnumeric-operand-contract",
+      "kind": "contract",
+      "purpose": "Check that a nonnumeric bare operand is rejected with EX_USAGE before lsof reaches its process-table query path. Argument errors now return GNU-compatible status 1.",
+      "script": "rc=0\nlsof fixture-name >parse.out 2>parse.err || rc=$?\n[[ $rc == 1 ]]\nfound=0\nwhile IFS= read -r line; do\n  case $line in *'unknown arg: fixture-name'*) found=1 ;; esac\ndone <parse.err\n[[ $found == 1 ]]\nprintf 'nonnumeric-operand-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "nonnumeric-operand-rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-pid-descriptors",
+      "kind": "deferred",
+      "purpose": "Qualify -p listing of known open descriptor types and paths against GNU lsof.",
+      "reason": "Requires a disposable Linux VM with isolated /proc and a controlled child holding known regular-file, directory, FIFO, and socket descriptors. Compare its -p rows and FD/TYPE/PATH fields against GNU lsof for that same child; this fixture runner is not used to inspect its process table."
+    },
+    {
+      "id": "deferred-user-filter",
+      "kind": "deferred",
+      "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
+      "reason": "Requires a disposable Linux VM or reviewed procfs mock with controlled passwd mappings and processes under at least two UIDs. Use GNU lsof as the reference and verify that only matching owners appear; no installed host accounts or credentials are used."
+    },
+    {
+      "id": "deferred-process-scan",
+      "kind": "deferred",
+      "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
+      "reason": "Requires a disposable Linux VM with an isolated, bounded PID namespace and only controlled processes, or a reviewed procfs mock. Compare no-argument and filtered output with GNU lsof there; the current fixture runner must not walk /proc."
+    }
+  ]
+}

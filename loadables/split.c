@@ -139,12 +139,12 @@ split_builtin (WORD_LIST *list)
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "-l") || !strncmp (w, "-l", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-l needs N"); builtin_usage (); return EX_USAGE; }
+            if (!v) { builtin_error ("-l needs N"); builtin_usage (); return EXECUTION_FAILURE; }
             long long value = bs_parsenumber (v, 0);
             if (value <= 0 || value > LONG_MAX) {
                 builtin_error ("-l: invalid line count: %s", v);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             line_chunk = (long) value;
             byte_chunk = 0;
@@ -153,28 +153,28 @@ split_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "-b") || !strncmp (w, "-b", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-b needs SIZE"); builtin_usage (); return EX_USAGE; }
+            if (!v) { builtin_error ("-b needs SIZE"); builtin_usage (); return EXECUTION_FAILURE; }
             byte_chunk = bs_parsenumber (v, 1);
-            if (byte_chunk <= 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EX_USAGE; }
+            if (byte_chunk <= 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
             list = list->next;
             continue;
         }
         if (!strcmp (w, "-a") || !strncmp (w, "-a", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-a needs SUFLEN"); builtin_usage (); return EX_USAGE; }
+            if (!v) { builtin_error ("-a needs SUFLEN"); builtin_usage (); return EXECUTION_FAILURE; }
             long long value = bs_parsenumber (v, 0);
-            if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EX_USAGE; }
+            if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EXECUTION_FAILURE; }
             suflen = (int) value;
             list = list->next;
             continue;
         }
         builtin_error ("unknown flag: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     if (list) { input = list->word->word; list = list->next; }
     if (list) { prefix = list->word->word; list = list->next; }
-    if (list) { builtin_error ("split: extra argument: %s", list->word->word); builtin_usage (); return EX_USAGE; }
+    if (list) { builtin_error ("split: extra argument: %s", list->word->word); builtin_usage (); return EXECUTION_FAILURE; }
 
     int from_stdin = !input || !strcmp (input, "-");
     FILE *fin = from_stdin ? bs_open_stdin () : fopen (input, "r");

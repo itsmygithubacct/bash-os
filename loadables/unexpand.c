@@ -440,12 +440,12 @@ unexpand_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("%s needs TABLIST", w);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             if (bu_parse_tablist (list->word->word, &o) < 0) {
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             /* POSIX: -t implies -a. */
             o.all = 1;
@@ -455,7 +455,7 @@ unexpand_builtin (WORD_LIST *list)
         if (!strncmp (w, "--tabs=", 7)) {
             if (bu_parse_tablist (w + 7, &o) < 0) {
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             o.all = 1;
             list = list->next;
@@ -472,7 +472,7 @@ unexpand_builtin (WORD_LIST *list)
                     unsigned int digit = *arg++ - '0';
                     if (legacy_size > (INT_MAX - digit) / 10) {
                         builtin_error ("tab size too large");
-                        return EX_USAGE;
+                        return EXECUTION_FAILURE;
                     }
                     legacy_size = legacy_size * 10 + digit;
                     legacy_seen = 1;
@@ -482,7 +482,7 @@ unexpand_builtin (WORD_LIST *list)
                     if (legacy_seen) {
                         char number[32];
                         snprintf (number, sizeof number, "%u", legacy_size);
-                        if (bu_parse_tablist (number, &o) < 0) return EX_USAGE;
+                        if (bu_parse_tablist (number, &o) < 0) return EXECUTION_FAILURE;
                         legacy_size = 0;
                         legacy_seen = 0;
                     }
@@ -492,25 +492,25 @@ unexpand_builtin (WORD_LIST *list)
                 if (*arg == 't') {
                     arg++;
                     if (!*arg && list->next) { list = list->next; arg = list->word->word; }
-                    else if (!*arg) { builtin_error ("-t needs TABLIST"); return EX_USAGE; }
+                    else if (!*arg) { builtin_error ("-t needs TABLIST"); return EXECUTION_FAILURE; }
                     o.all = 1;
-                    if (bu_parse_tablist (arg, &o) < 0) return EX_USAGE;
+                    if (bu_parse_tablist (arg, &o) < 0) return EXECUTION_FAILURE;
                     break;
                 }
                 builtin_error ("unknown flag: -%c", *arg);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
         }
         builtin_error ("unknown flag: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     if (legacy_seen) {
         char number[32];
         snprintf (number, sizeof number, "%u", legacy_size);
-        if (bu_parse_tablist (number, &o) < 0) return EX_USAGE;
+        if (bu_parse_tablist (number, &o) < 0) return EXECUTION_FAILURE;
     }
     if (!o.n_stops) {
         o.every = o.extend_size ? o.extend_size : o.increment_size ? o.increment_size : 8;

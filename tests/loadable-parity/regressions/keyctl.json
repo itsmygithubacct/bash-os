@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "loadable": "keyctl",
+  "reference": "Runnable expectations use Bash's documented builtin type/help behavior and the loadable's documented help contract. Keyring operation expectations are anchored to the documented Linux keyctl/add_key syscall ABI and the software contract in sol-keyctl.md; no operation result is inferred from candidate output.",
+  "coverage": [
+    "Bash recognizes keyctl as a builtin with PATH empty.",
+    "Bash help exposes the documented keyctl synopsis and descriptions.",
+    "Deferred: owned anonymous and named session keyring creation.",
+    "Deferred: binary payload add, search, print, and update identity.",
+    "Deferred: revoke, clear, and key lifecycle error behavior.",
+    "Deferred: alias parsing, signed 32-bit serials, and argument boundaries.",
+    "Deferred: kernel denial, missing-key, input, and output failure behavior."
+  ],
+  "exclusions": [
+    "No keyring syscall was invoked. Session, add, search, print, revoke, and clear cases require a future disposable VM with an owned child keyring or a reviewed closed syscall mock.",
+    "No keyutils command-line parity is claimed; actual keyring behavior is not established by Bash metadata cases.",
+    "No host keyring, credentials, devices, or system state are used."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type-empty-path",
+      "purpose": "Check the documented Bash type -t result for an available builtin while external command lookup is disabled.",
+      "kind": "contract",
+      "script": "PATH=\ntype -t keyctl",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-help-text",
+      "purpose": "Verify the registered synopsis and documented body; Bash may indent static builtin help differently from dynamically loaded help.",
+      "kind": "contract",
+      "script": "doc=$(help keyctl) || exit 1; [[ $doc == *\"keyctl {session|add|search|print|revoke|clear} ...\"* && $doc == *\"Small Linux keyring syscall wrapper.\"* && $doc == *\"Verbs: session, add, search, print, revoke, clear.\"* && $doc == *\"add reads at most 1048575 payload bytes; key types may impose smaller limits.\"* && $doc == *\"Names/descriptions: at most 4095 bytes. Serials: signed 32-bit decimal.\"* ]] || exit 1; printf \"documented keyctl metadata\\n\"",
+      "expected_status": 0,
+      "stdout": "documented keyctl metadata\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "session-keyring-ownership",
+      "purpose": "Deferred operation check for anonymous and named session creation, including serial output and ensuring all later operations are confined to the newly owned ring.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM child or closed syscall mock. In the future fixture, join an anonymous ring first, stop without mutation if the join fails, verify a positive serial, then separately verify a named session; never clear or otherwise mutate an inherited ring."
+    },
+    {
+      "id": "binary-add-search-print-update",
+      "purpose": "Deferred operation check for byte-exact payload handling, lookup, printing without an added newline, and same-description update identity.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with a child-owned keyring or a closed syscall mock that faithfully models add_key and KEYCTL_SEARCH/READ. Use a small deterministic payload containing NUL and non-ASCII bytes; assert exact printed bytes and that updating the same type/description preserves the serial while replacing the payload."
+    },
+    {
+      "id": "revoke-and-clear-lifecycle",
+      "purpose": "Deferred operation check for revocation, link clearing, and repeated clear behavior on only keys created by the fixture.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM child or closed syscall mock with an explicitly owned session ring. Add and revoke only a fixture-created key, check the documented revoked-key failure, clear the owned ring, check that search no longer finds the link, and verify a second clear is handled according to the contract."
+    },
+    {
+      "id": "aliases-and-serial-abi",
+      "purpose": "Deferred operation check for recognized keyring aliases and signed 32-bit decimal key serial parsing.",
+      "kind": "deferred",
+      "reason": "Requires a closed syscall mock so parsed ring values can be inspected without touching real keyrings. Verify @s, @t, @p, @u, @us, and @g mappings and signed ABI endpoints, plus rejection of empty, malformed, whitespace, plus-prefixed, and out-of-range operands."
+    },
+    {
+      "id": "argument-and-size-boundaries",
+      "purpose": "Deferred operation check for verb arity, type/description limits, and bounded stdin payload handling.",
+      "kind": "deferred",
+      "reason": "Requires a closed syscall mock and private relative fixture files. Check usage status for extra/missing operands, documented type/name limits and leading-dot rules, and the 1048575-byte add payload limit; ensure invalid input is rejected before a syscall is recorded."
+    },
+    {
+      "id": "syscall-and-io-failures",
+      "purpose": "Deferred operation check for keyring syscall errors and stdin/stdout failures without affecting external keyring state.",
+      "kind": "deferred",
+      "reason": "Requires a closed syscall mock that can return ENOKEY, EKEYREVOKED, EACCES, EPERM, and ENOSYS, plus private fixture streams for read/write errors. Verify status and diagnostics for missing/revoked keys and failures, and verify failed output does not poison a later invocation."
+    }
+  ]
+}

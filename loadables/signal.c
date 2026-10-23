@@ -35,7 +35,11 @@ typedef struct { const char *name; int num; } sig_entry;
 static const sig_entry bs_table[] = {
     BS (HUP),  BS (INT),  BS (QUIT), BS (ILL),  BS (TRAP), BS (ABRT),
     BS (BUS),  BS (FPE),  BS (KILL), BS (USR1), BS (SEGV), BS (USR2),
-    BS (PIPE), BS (ALRM), BS (TERM), BS (CHLD), BS (CONT), BS (STOP),
+    BS (PIPE), BS (ALRM), BS (TERM),
+#ifdef SIGSTKFLT
+    BS (STKFLT),
+#endif
+    BS (CHLD), BS (CONT), BS (STOP),
     BS (TSTP), BS (TTIN), BS (TTOU), BS (URG),  BS (XCPU), BS (XFSZ),
     BS (VTALRM), BS (PROF), BS (WINCH),
 #ifdef SIGIO
@@ -73,6 +77,15 @@ bs_lookup_name (const char *raw)
     up[n] = '\0';
     for (size_t i = 0; i < BS_NTAB; i++)
         if (!strcmp (bs_table[i].name, up)) return bs_table[i].num;
+#ifdef SIGIOT
+    if (!strcmp (up, "IOT")) return SIGIOT;
+#endif
+#ifdef SIGPOLL
+    if (!strcmp (up, "POLL")) return SIGPOLL;
+#endif
+#ifdef SIGCLD
+    if (!strcmp (up, "CLD")) return SIGCLD;
+#endif
     /* RT signal range: SIGRTMIN..SIGRTMAX */
     int from_min = !strncmp (up, "RTMIN", 5);
     if (from_min || !strncmp (up, "RTMAX", 5)) {
@@ -100,7 +113,10 @@ bs_lookup_num (int n)
         int off = n - SIGRTMIN;
         if (off == 0) return "RTMIN";
         if (n == SIGRTMAX) return "RTMAX";
-        snprintf (buf, sizeof buf, "RTMIN+%d", off);
+        if (off > (SIGRTMAX - SIGRTMIN) / 2)
+            snprintf (buf, sizeof buf, "RTMAX-%d", SIGRTMAX - n);
+        else
+            snprintf (buf, sizeof buf, "RTMIN+%d", off);
         return buf;
     }
     return NULL;

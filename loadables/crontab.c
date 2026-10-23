@@ -300,13 +300,9 @@ crontab_builtin (WORD_LIST *list)
 {
     char path[PATH_MAX];
     const char *user = bct_user ();
-    if (bct_user_path (path, sizeof path) < 0) {
-        builtin_error ("invalid crontab path");
-        return EXECUTION_FAILURE;
-    }
     if (!list) {
         builtin_error ("usage: crontab FILE | -l | -e | -r");
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     const char *arg = list->word->word;
     if (!strcmp (arg, "--help") || !strcmp (arg, "-h")) {
@@ -314,14 +310,22 @@ crontab_builtin (WORD_LIST *list)
         char *const *dp;
         for (dp = crontab_doc; *dp; dp++)
             puts (*dp);
-        return EX_USAGE;
+        return EXECUTION_SUCCESS;
     }
     if (list->next) {
         builtin_error ("unexpected extra argument");
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
+    }
+    if (arg[0] == '-' && strcmp (arg, "-l") && strcmp (arg, "-r") && strcmp (arg, "-e")) {
+        builtin_error ("unknown option: %s", arg);
+        return EXECUTION_FAILURE;
     }
     if (!bct_user_allowed (user)) {
         builtin_error ("user %s is not allowed to use crontab", user);
+        return EXECUTION_FAILURE;
+    }
+    if (bct_user_path (path, sizeof path) < 0) {
+        builtin_error ("invalid crontab path");
         return EXECUTION_FAILURE;
     }
     if (!strcmp (arg, "-l"))
@@ -335,10 +339,6 @@ crontab_builtin (WORD_LIST *list)
     }
     if (!strcmp (arg, "-e"))
         return bct_edit (path);
-    if (arg[0] == '-') {
-        builtin_error ("unknown option: %s", arg);
-        return EX_USAGE;
-    }
     return bct_copy_file (arg, path);
 }
 

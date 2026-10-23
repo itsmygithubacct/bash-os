@@ -117,26 +117,26 @@ zstd|zstd [-1..-19] [-d] [-c] [-f] [-k|--rm] [-o OUT] [FILE...]
 zstdcat|zstdcat [FILE...]
 
 # util-linux family (imported 2026-09-06 from the upstream collection)
-flock|Manage advisory file locks via flock(2)
+flock|flock [-sxun] [-w SECONDS] [-E N] FD | FILE [command [args] | -c CMD]
 setsid|Run a program in a new session
 ionice|Get or set the I/O scheduling class and priority of a process
 blockdev|Call block-device ioctls from the command line
 ipcmk|Create System V IPC resources
 ipcctl|Run gated System V IPC control operations
-chattr|Change file attributes on a Linux filesystem
+chattr|chattr [-R] [+-=]MODE file...
 lsattr|List file attributes on a Linux filesystem
 mkswap|Set up a Linux swap area
 swapon|Enable a swap area, or list the active ones
-swapoff|Disable a swap area
+swapoff|swapoff [-a] [device...]
 wipefs|wipefs [-a] [-n] device...
-fincore|Count pages of a file resident in core (the page cache)
+fincore|fincore [-b|--bytes] [-n|--noheadings] FILE...
 fsfreeze|Suspend or resume access to a filesystem
 losetup|Set up and control loop devices
 dmsetup|Low-level device-mapper control
 getfacl|Display POSIX.1e file access control lists
 setfacl|Set POSIX.1e file access control lists
 fstrim|Discard unused blocks on a mounted filesystem
-prlimit|prlimit(8) subset over prlimit(2)
+prlimit|prlimit --pid PID [-r RES [SOFT[:HARD]]] | --nofile=LIMIT COMMAND
 hwclock|hwclock(8) subset over /dev/rtc0
 renice|Change the niceness of running processes (POSIX renice)
 taskset|Run or query commands with a CPU affinity mask
@@ -146,29 +146,29 @@ uclampset|Show and change task or system utilization clamps
 # text and formatting tools (imported 2026-09-06 from the upstream collection)
 expand|Convert tabs to spaces (POSIX expand)
 unexpand|Convert spaces to tabs (POSIX unexpand)
-split|Split a file into pieces (POSIX split)
+split|split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]
 csplit|Context-split a file (POSIX csplit)
 join|Relational join on two sorted files (POSIX join)
 pr|Format text for printing (POSIX pr)
 tac|Concatenate and print files in reverse (last record first)
-column|Aligned-column formatter (util-linux column subset)
+column|column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR]] [FILE...]
 col|Filter CTL-H overstrike sequences (util-linux col)
-colrm|Remove byte-columns from each stdin line (util-linux colrm)
+colrm|colrm [START [END]]
 expr|Evaluate POSIX expr(1) expressions
 hexdump|Byte-oriented hex dump (hexdump-compatible, focused on -C canonical)
 bashclear|bashclear [-x] [-T TERM] | -V | --version | --help
 clear|clear [-x] [-T TERM] | -V | --version | --help
-tput|Query a curated terminfo-compatible ANSI capability table
+tput|tput [-T TERM] CAP [ARGS...] | tput query CAP [-T TERM] [-V VAR] [ARGS...] | tput cap-list [-T TERM] [-V VAR] | tput entry-list | tput info [-T TERM]
 tinfo|Read compiled terminfo entries
 strings|Print printable character sequences from files or stdin
 ed|ed [-s] [FILE]
-ar|Create, list, or extract simple ar archives. Writes are deterministic
+ar|ar [-D|-U] -t|-x|-r|-q|-s|s ARCHIVE [FILE...]
 uuencode|uuencode [-m] [FILE] NAME
 uudecode|Decode traditional uuencode and base64-uuencode streams
 
 # Process and system tools
-who|who
-w|w
+who|who [-abdHlmpqrstTu] [--help|--version] [FILE]
+w|w [-h|-H|--no-header] [--file FILE] [USER]
 uptime|uptime
 lsof|lsof
 timeout|timeout
@@ -180,7 +180,7 @@ genl|genl
 mlock|mlock
 utmp|utmp
 userdb|userdb
-keyctl|keyctl
+keyctl|keyctl {session|add|search|print|revoke|clear} ...
 caps|caps
 cred|cred
 ns|ns
@@ -194,7 +194,7 @@ pcap|pcap
 dhcp6|dhcp6
 dhcpd6|dhcpd6
 sftp|sftp
-scp|scp
+scp|scp [--] SRC DST | scp [-r] [-P PORT] [-i KEY] [-l USER] [--openssh] SRC DST
 audit|audit
 fail2ban|fail2ban
 
@@ -202,7 +202,7 @@ fail2ban|fail2ban
 asort|asort
 totp|totp
 scrub|scrub
-bignum|bignum
+bignum|bignum add|sub|mul|divmod|mod|modexp|cmp|bits|shl|shr [-x] ARGS...
 tz|tz
 locale|locale
 scm|scm
@@ -214,17 +214,17 @@ crontab|crontab
 payload|payload
 fsck|fsck
 mkfs|mkfs
-lpr|lpr
+lpr|lpr {submit FILE|- | list [-l] | cancel ID}
 opt|opt
 cal|cal
 man|man
 apropos|apropos
 whatis|whatis
-file|file
+file|file [-bE] [--help|--version] FILE [FILE...]
 
 # Additional upstream loadables
 pty|pty
-expect|expect
+expect|expect spawn|expect|expect-alt|send|sendline|send-secret|eof|close|log|log_user|interact ...
 termpixel|termpixel
 termpixel_pong|termpixel_pong
 escdelay|escdelay

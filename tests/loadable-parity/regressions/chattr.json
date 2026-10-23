@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "chattr",
+  "reference": "Runnable expectations use the documented Bash builtin metadata contract and the text in /source/loadables/chattr.c. Actual operation parity is deferred; the independent future CLI oracle is GNU e2fsprogs chattr on a disposable filesystem that supports FS_IOC_GETFLAGS and FS_IOC_SETFLAGS, with lsattr used to verify resulting flag state.",
+  "coverage": [
+    "Bash reports chattr as a builtin even with the candidate executable PATH empty.",
+    "Bash help synopsis matches the builtin registration contract.",
+    "The loadable --help output matches its documented option and flag summary.",
+    "Deferred: add, remove and exact-set behavior across multiple files, including repeat/no-op operations.",
+    "Deferred: recursive flag changes on a nested relative-path fixture tree.",
+    "Deferred: immutable/append capability boundaries, unsupported-filesystem errors, missing paths and symlink handling."
+  ],
+  "exclusions": [
+    "No chattr attribute operation was executed: the requested suite must not run this loadable's filesystem-mutating operations. The harness's isolated fixture filesystem is not a declared ext-family filesystem and does not provide a controlled CAP_LINUX_IMMUTABLE test boundary.",
+    "No operation result is claimed as passed. The four DEFERRED cases require a future disposable ext4 VM or a reviewed closed ioctl mock and GNU e2fsprogs reference."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Check Bash type metadata identifies chattr as a builtin; this is a shell registration contract, not GNU command parity.",
+      "script": "type -t chattr",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-synopsis",
+      "kind": "contract",
+      "purpose": "Check the Bash help synopsis registered for this builtin against the documented chattr invocation form.",
+      "script": "help -s chattr",
+      "expected_status": 0,
+      "stdout": "chattr: chattr [-R] [+-=]MODE file...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-help-text",
+      "kind": "contract",
+      "purpose": "Check the harmless --help path reproduces the loadable's published option and supported-flag documentation without issuing filesystem ioctls.",
+      "script": "chattr --help",
+      "expected_status": 0,
+      "stdout": "Change file attributes on a Linux filesystem.\n\n    chattr [-R] [+-=]MODE file...\n\n    +flags  add attributes      -flags  remove attributes\n    =flags  set exactly         -R      recurse into directories\n\nFlags: a append, i immutable, A no-atime, d no-dump, s secure-delete,\n       u undeletable, S sync, D dirsync, c compress, j data-journal,\n       t no-tail, T top-of-dir, e extents, C no-COW.\ni and a require CAP_LINUX_IMMUTABLE; some filesystems support no flags.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "flag-set-algebra",
+      "kind": "deferred",
+      "purpose": "Compare +, - and = behavior on two ordinary fixture files, verify add/remove composition and idempotent repeat operations, and read back the resulting flags.",
+      "reason": "Requires a disposable ext4 VM or equivalent fixture filesystem supporting FS_IOC_GETFLAGS/FS_IOC_SETFLAGS and GNU e2fsprogs chattr/lsattr as the independent oracle. The current task explicitly restricts execution to metadata/help contracts for this loadable; no filesystem flag mutation was run."
+    },
+    {
+      "id": "recursive-tree",
+      "kind": "deferred",
+      "purpose": "Compare -R across a small relative-path directory tree, checking that the directory and nested regular files receive the requested change and that non-recursive behavior remains distinguishable.",
+      "reason": "Requires a disposable ext4 VM or equivalent supported filesystem plus GNU e2fsprogs chattr/lsattr to compare each fixture entry. Recursive chattr operation execution is explicitly out of scope for this constrained run."
+    },
+    {
+      "id": "capability-flags",
+      "kind": "deferred",
+      "purpose": "Exercise +i/-i and +a/-a with and without CAP_LINUX_IMMUTABLE, including cleanup of set flags, and compare GNU status, diagnostics and resulting state.",
+      "reason": "Requires a disposable VM with a supported filesystem and controlled capability transitions so immutable/append state can be safely set and cleared. The isolated runner does not declare that filesystem/capability fixture, and these mutating operations were not run."
+    },
+    {
+      "id": "operation-errors-and-links",
+      "kind": "deferred",
+      "purpose": "Compare missing operands/paths, mixed valid and invalid path lists, unsupported ioctl behavior, and symlink target handling while retaining independent GNU exit-status and diagnostic evidence.",
+      "reason": "A future disposable VM or reviewed closed ioctl mock is needed to control supported versus unsupported filesystem responses and safely assert partial effects and symlink behavior against GNU e2fsprogs. No chattr operation was executed in this suite."
+    }
+  ]
+}

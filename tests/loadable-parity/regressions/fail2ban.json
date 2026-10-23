@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "loadable": "fail2ban",
+  "reference": "No GNU fail2ban-client oracle is available, and the loadables review describes this builtin as a subset rather than a direct CLI drop-in. Contract expectations are independently written from the builtin's documented help/interface contract: Bash type/help metadata, accepted and rejected verbs, the documented IP/jail token rules, and format-status output ordering and missing-database behavior. Expected output bytes are specified here before candidate execution; none were copied from candidate output.",
+  "coverage": [
+    "Bash type/help metadata identifies the builtin and advertises its documented subcommands and read-only control-plane scope.",
+    "parse-command accepts the four documented verbs and gives usage status for known unsupported and unknown verbs.",
+    "Token validation covers accepted IPv4/IPv6/jail forms, the documented permissive IPv4 digit-width edge, and invalid-token status contracts.",
+    "format-status checks sorted unique jail names, file-order IPs including duplicates, malformed-row skipping, and a missing database."
+  ],
+  "exclusions": [
+    "No direct GNU fail2ban-client parity case: the pinned loadable review says this is a subset, and no matching client oracle is available.",
+    "No daemon, control socket, firewall, network, or live ban/unban/reload operation is run. Those integration behaviors are deferred for a disposable VM with private mocks."
+  ],
+  "cases": [
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash builtin metadata and that help exposes the advertised subcommands and read-only control-plane contract.",
+      "script": "[[ $(type -t fail2ban) == builtin ]]\ndoc=$(help fail2ban)\n[[ $doc == *'fail2ban selftest'* ]]\n[[ $doc == *'parse-command VERB [ARG...]'* ]]\n[[ $doc == *'format-status DB [JAIL]'* ]]\n[[ $doc == *'never mutates the db.'* ]]\nprintf 'metadata contract ok\\n'",
+      "expected_status": 0,
+      "stdout": "metadata contract ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-accepted-verbs",
+      "kind": "contract",
+      "purpose": "Every verb in the documented accepted subset must parse and echo as one line.",
+      "script": "for verb in status banip unbanip reload; do\n  [[ $(fail2ban parse-command \"$verb\") == \"$verb\" ]]\ndone\nprintf 'accepted: status banip unbanip reload\\n'",
+      "expected_status": 0,
+      "stdout": "accepted: status banip unbanip reload\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-rejected-verbs",
+      "kind": "contract",
+      "purpose": "Known out-of-subset verbs and an unknown verb must each return the documented usage status and emit a diagnostic.",
+      "script": "for verb in set get bogus; do\n  if fail2ban parse-command \"$verb\"; then\n    exit 20\n  else\n    rc=$?\n  fi\n  [[ $rc -eq 2 ]]\ndone\nprintf 'rejected with usage status\\n'",
+      "expected_status": 0,
+      "stdout": "rejected with usage status\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "valid-token-forms",
+      "kind": "contract",
+      "purpose": "Accept the documented IPv4 and IPv6 patterns, including a three-digit IPv4 group, and jail names of allowed characters up to the 64-character limit.",
+      "script": "fail2ban validate-ip 1.2.3.4\nfail2ban validate-ip 12.34.56.789\nfail2ban validate-ip fe80::1\nfail2ban validate-ip 2001:db8::dead:beef\nfail2ban validate-jail sshd\nfail2ban validate-jail nginx-http-auth\nlong_jail=$(printf '%064d' 0)\n[[ ${#long_jail} -eq 64 ]]\nfail2ban validate-jail \"$long_jail\"\nprintf 'valid tokens accepted\\n'",
+      "expected_status": 0,
+      "stdout": "valid tokens accepted\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-ip-status",
+      "kind": "contract",
+      "purpose": "Validator predicates return 1 for false, as in the existing network-smoke regression; status 2 denotes invalid invocation or parse-command tokens.",
+      "script": "fail2ban validate-ip 1.2.3",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-jail-status",
+      "kind": "contract",
+      "purpose": "Validator predicates return 1 for false, as in the existing network-smoke regression; status 2 denotes invalid invocation or parse-command tokens.",
+      "script": "fail2ban validate-jail bad/jail",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "format-all-jails",
+      "kind": "contract",
+      "purpose": "Format a private database with duplicate jails and malformed/empty fields; jail names must be sorted and unique.",
+      "script": "printf '%s\\t%s\\t%s\\n' '2001:db8::1' sshd 1 > ban.db\nprintf '%s\\t%s\\t%s\\n' '198.51.100.4' nginx 2 >> ban.db\nprintf '%s\\t%s\\t%s\\n' '192.0.2.2' sshd 3 >> ban.db\nprintf '%s\\t%s\\t%s\\n' '203.0.113.9' nginx 4 >> ban.db\nprintf '%s\\n' malformed >> ban.db\nprintf '%s\\t%s\\t%s\\n' '' sshd 5 >> ban.db\nprintf '%s\\t%s\\t%s\\n' '192.0.2.99' '' 6 >> ban.db\nfail2ban format-status ban.db",
+      "expected_status": 0,
+      "stdout": "Status\n|- Number of jails:\t2\n`- Jail list:\tnginx sshd\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "format-jail-file-order",
+      "kind": "contract",
+      "purpose": "Filter one jail while retaining database order and duplicate IP entries in the documented status block.",
+      "script": "printf '%s\\t%s\\t%s\\n' '203.0.113.8' sshd 1 > ban.db\nprintf '%s\\t%s\\t%s\\n' '198.51.100.1' nginx 2 >> ban.db\nprintf '%s\\t%s\\t%s\\n' '203.0.113.8' sshd 3 >> ban.db\nprintf '%s\\t%s\\t%s\\n' '2001:db8::2' sshd 4 >> ban.db\nprintf '%s\\n' malformed >> ban.db\nfail2ban format-status ban.db sshd",
+      "expected_status": 0,
+      "stdout": "Status for the jail: sshd\n|- Currently banned:\t3\n`- Banned IP list:\t203.0.113.8 203.0.113.8 2001:db8::2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "format-missing-database",
+      "kind": "contract",
+      "purpose": "A missing ban database is documented as an empty database and should format as zero jails.",
+      "script": "fail2ban format-status absent.db",
+      "expected_status": 0,
+      "stdout": "Status\n|- Number of jails:\t0\n`- Jail list:\t\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer-ban-state-and-firewall",
+      "kind": "deferred",
+      "purpose": "Exercise actual banip/unbanip policy changes and backend effects through the integration layer.",
+      "reason": "Requires a future disposable VM containing the fail2ban-client wrapper, an isolated temporary ban database, and an injectable fake firewall actor. Verify ban/unban state transitions and that calls are confined to the mock; this loadable only parses the verbs and owns no firewall or database mutation path."
+    },
+    {
+      "id": "defer-daemon-reload-control",
+      "kind": "deferred",
+      "purpose": "Exercise reload and daemon-backed status behavior across the client control interface.",
+      "reason": "Requires a future disposable VM with a disposable fail2ban-compatible daemon and private Unix control socket, plus a mocked firewall backend. The loadable does not open a daemon socket or implement daemon reload/status operations, so metadata and parser checks cannot establish this integration behavior."
+    },
+    {
+      "id": "validator-missing-operand",
+      "kind": "contract",
+      "purpose": "Wrong validator arity remains usage status 2, distinct from a false predicate.",
+      "script": "fail2ban validate-ip",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    }
+  ]
+}

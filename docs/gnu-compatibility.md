@@ -71,6 +71,51 @@ operations and enabled rendering of unobserved flag bits remain unqualified.
 `zstdcat` now follows the zstd alias's forced pass-through and default-stdin
 behavior within the [supported decoder subset](zstd.md).
 
+`column` preserves ragged-row padding and accepts zero output width. `colrm`
+counts display columns, including tabs, backspaces and wide characters;
+`col` decodes multibyte text before filtering C1 controls. `hexdump` emits no
+offset for empty input or a zero byte count. These comparisons use util-linux.
+`tput -T TERM` supports the seven curated terminal profiles, including common
+boolean queries and profile-specific strings. It retains its custom text
+sidecar format; arbitrary compiled terminfo databases remain unsupported.
+
+`who` has focused GNU comparisons for record selection, headers, timestamps,
+fixed-width strings and missing inputs using synthetic utmp files. `fincore`
+matches util-linux headings, alignment and byte/human units on small private
+files. Its tests check residency bounds and unit conversion without assuming
+the page cache has the same state in separate invocations.
+
+`w -h` suppresses headers; use `w --help` for help. A positional operand selects
+a user. The former positional file interface is now explicit:
+`w --file FILE [USER]`. Private fixtures also set `BASHW_PROC_DIR` and
+`BASHW_DEV_DIR` to their process and terminal roots. Live accounting and the
+procps uptime header remain outside the qualified subset. Historical benchmark
+records retain their original invocation and timings; the current benchmark
+driver uses the explicit file interface.
+
+`scp [--] SRC DST` copies one local regular file, follows file symlinks, accepts
+a destination directory, and rejects same-file copies before truncation.
+New files use source permissions filtered by umask; existing files keep their
+permissions. Local recursion and permission/time preservation are unsupported.
+The remote interface retains its private transport options: `-l USER` and
+`-p PORT` are not OpenSSH bandwidth and preservation options. Remote transport
+has no parity claim from these local-file tests.
+
+`ar -r` retains unrelated members and their metadata when replacing or adding
+files; missing replacement inputs leave the archive intact. Empty symbol
+indexes are omitted. Automatic populated-index maintenance, thin/BSD archives
+and atomic recovery from a mid-write failure remain unqualified. `file`
+aligns labels across operands and reports filesystem errors on stdout with
+success by default; `-E` makes those errors fail. Its curated magic table is
+not a complete libmagic database.
+
+Repeated `ed` substitutions now use the correct match offsets and preserve
+beginning-of-line anchors. `signal` handles Linux standard aliases and upper
+realtime names without delivering signals in its lookup tests. Offline `pcap
+info` rejects truncated packet data. Invalid-argument statuses are also aligned
+for `apropos`, `crontab`, `split`, `unexpand`, `strings`, `taskset`, `renice` and
+`lsof`; scheduler, priority and live process operations remain unqualified.
+
 `strptime` retains the platform C-library interface. Selected complete calendar
 dates are checked against Python; ISO week reconstruction, named timezone
 interpretation and non-C locales are outside that comparison. `realpath -q`
@@ -119,3 +164,9 @@ builds: 797 parity checks and 163 custom-interface contracts, with 74 deferred.
 The visible shell suite also passed all 131 comparisons. The record includes
 binary and fixture hashes, selected sanitizer checks, package loading gates,
 and the limits of this coverage; it adds no performance measurements.
+
+The [second validation checkpoint](data/loadable-parity-validation-2.json)
+extends this to 1,313 passing checks across 107 suites in each canonical build,
+with 147 deferred cases. It also records 270 sanitizer checks, 26 package
+loading gates and the maintained clear suite. The disposable Docker comparison
+passed all 131 cases. No new command timings are recorded.

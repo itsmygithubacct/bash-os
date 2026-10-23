@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "loadable": "strings",
+  "reference": "GNU binutils strings invoked by plain system Bash, with LC_ALL=C and TZ=UTC from the harness. The fixtures use -a so both sides scan the complete private input bytes; outputs are compared byte for byte.",
+  "coverage": [
+    "default four-byte printable ASCII runs, TAB, NUL, DEL, and high-bit byte boundaries",
+    "minimum-length boundaries through -n, --bytes=, and the historical -LEN spelling",
+    "file-name prefixes and hexadecimal, decimal, and octal offsets on multiple files",
+    "default whitespace handling versus -w inclusion of ASCII whitespace",
+    "fresh redirected stdin state across repeated calls in one shell",
+    "missing-file and invalid-radix status and diagnostic presence",
+    "Bash type and help metadata registration"
+  ],
+  "exclusions": [
+    "No deferred operation cases apply: strings only scans caller-supplied bytes in private fixture files or stdin, and the matching GNU CLI is available to the harness.",
+    "The suite does not claim full GNU strings option compatibility; it covers the forms listed above and ordinary file/stdin behavior."
+  ],
+  "cases": [
+    {
+      "id": "default-byte-runs",
+      "kind": "parity",
+      "purpose": "Check the default four-byte minimum and byte-run boundaries around NUL, DEL, and a high-bit byte, including TAB as a graphic byte.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'one\\000four\\ttab\\nthree\\177four\\200five\\000' > mixed.bin\nstrings -a mixed.bin"
+    },
+    {
+      "id": "minimum-length-spellings",
+      "kind": "parity",
+      "purpose": "Exercise inclusive minimum-length boundaries and the -n LEN, --bytes=LEN, and -LEN spellings against the same deterministic byte stream.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf '\\000a\\000ab\\000abc\\000abcd\\000' > lengths.bin\nstrings -a -n 2 lengths.bin\nstrings --all --bytes=4 lengths.bin\nstrings -3 lengths.bin"
+    },
+    {
+      "id": "names-and-radix-offsets",
+      "kind": "parity",
+      "purpose": "Check per-file names and byte offsets for multiple operands, then compare decimal and octal offset forms on a single file.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf '\\000A\\000BC\\000last\\000' > first.bin\nprintf 'z\\000qrs\\000' > second.bin\nstrings -a -n 1 -f -t x first.bin second.bin\nstrings -a -n1 --radix=d first.bin\nstrings -a -n1 -o first.bin"
+    },
+    {
+      "id": "include-whitespace",
+      "kind": "parity",
+      "purpose": "Verify that default scanning keeps TAB but breaks at newline and other whitespace, while -w includes the whole whitespace run.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'A\\tB\\nC\\rD\\vE\\fF\\000Z' > whitespace.bin\nstrings -a -n 1 whitespace.bin\nstrings -a -w whitespace.bin"
+    },
+    {
+      "id": "repeated-redirected-stdin",
+      "kind": "parity",
+      "purpose": "Ensure each invocation reads a fresh redirected stdin stream even when the builtin is called repeatedly in the same shell.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'alpha\\000beta\\tgamma\\000' > input.bin\nstrings -a < input.bin\nstrings -a < input.bin\nstrings -a < input.bin"
+    },
+    {
+      "id": "missing-file-diagnostic",
+      "kind": "parity",
+      "purpose": "Check GNU's failure status and diagnostic bytes for a missing relative input file, with empty stdout. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "strings -a absent.bin"
+    },
+    {
+      "id": "invalid-radix-diagnostic",
+      "kind": "parity",
+      "purpose": "Check GNU's invalid-radix usage status and diagnostic bytes, retaining candidate status and message incompatibilities as failures. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "requires": [
+        "strings"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "strings -t q"
+    },
+    {
+      "id": "builtin-type-and-help",
+      "kind": "contract",
+      "purpose": "Check Bash metadata only: type -t identifies strings as a builtin and the Bash help entry is registered. This is not operation coverage.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n",
+      "script": "help strings >/dev/null\ntype -t strings"
+    }
+  ]
+}

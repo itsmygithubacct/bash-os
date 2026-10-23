@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "loadable": "pr",
+  "reference": "GNU coreutils pr, invoked by the harness with C locale, UTC, and the same fixture script; Bash type/help builtins provide the independent metadata contract.",
+  "coverage": [
+    "single-column byte preservation and unterminated final records",
+    "balanced and across-column layouts with line numbering and control bytes",
+    "merged named files with a custom separator",
+    "form-feed page boundaries and selected pages",
+    "single-column width truncation and indentation",
+    "double spacing and header formatting with a fixed date format",
+    "invalid column geometry status and exact diagnostic parity",
+    "Bash builtin/help metadata contract"
+  ],
+  "exclusions": [
+    "PTY streaming and early page flushing require a bounded private PTY driver; see the deferred case.",
+    "Unique long-option abbreviations and GNU translated diagnostics beyond the exercised error are outside this suite's scope.",
+    "This suite does not reproduce the repository's extensive form-feed, buffer-boundary, repeated-invocation, or sanitizer matrices."
+  ],
+  "cases": [
+    {
+      "id": "single_column_final_record",
+      "kind": "parity",
+      "purpose": "Compare terse single-column output for ordinary and empty records, including a final record without a newline.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'alpha\\n\\nomega' | pr -t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "balanced_numbered_columns",
+      "kind": "parity",
+      "purpose": "Compare top-to-bottom balanced three-column layout and two-digit line numbers with a custom separator.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'north\\nsouth\\neast\\nwest\\ncenter\\n' | pr -t -3 -n:2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "across_columns_control_bytes",
+      "kind": "parity",
+      "purpose": "Compare left-to-right columns while records contain TAB, NUL, CR, and backspace bytes, plus numbering and a multi-byte separator.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'a\\tb\\000c\\nx\\ry\\bz\\n' | pr -t -a -3 -n:2 -S' | '",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "merge_named_files",
+      "kind": "parity",
+      "purpose": "Compare parallel merge of two relative fixture files with unequal lengths, a final unterminated record, numbering, and a custom separator.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'red\\nblue\\n' > left; printf '1\\n2\\n3' > right; pr -t -m -n:2 -s' | ' left right",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "formfeed_selected_page",
+      "kind": "parity",
+      "purpose": "Compare GNU page selection after an input form-feed boundary using terse output and an explicit page length.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'A\\nB\\n\\f\\nC\\nD\\nE\\nF\\n' | pr -t -l12 +2:2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "single_column_width_indent",
+      "kind": "parity",
+      "purpose": "Compare GNU page-width truncation in a single column while applying a left indent.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf '0123456789\\nshort\\n' | pr -t -W6 -o2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "double_space_records",
+      "kind": "parity",
+      "purpose": "Compare terse double-spacing over a blank record and a final unterminated record.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'first\\n\\nlast' | pr -t -d",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fixed_format_header",
+      "kind": "parity",
+      "purpose": "Compare a headed file page with a literal date format and short deterministic page length, avoiding wall-clock-dependent output.",
+      "requires": [
+        "pr"
+      ],
+      "script": "printf 'alpha\\nbeta\\n' > report; pr -D FIXED -h SAMPLE -l12 report",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_column_count",
+      "kind": "parity",
+      "purpose": "Compare GNU's failure status and exact diagnostic for zero columns; preserve a real stderr incompatibility as a failing assertion. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "requires": [
+        "pr"
+      ],
+      "script": "pr --columns=0",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash_builtin_help_contract",
+      "kind": "contract",
+      "purpose": "Check Bash's documented loadable contract: pr is reported as a builtin and its help entry is available.",
+      "script": "[[ $(type -t pr) == builtin ]] || exit 1; help pr >/dev/null; printf 'builtin and help available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin and help available\n"
+    },
+    {
+      "id": "live_terminal_page_delivery",
+      "kind": "deferred",
+      "purpose": "Verify complete page/row delivery while input remains open on an attached terminal.",
+      "reason": "The harness supplies closed stdin fixtures and no PTY driver. A future bounded private-PTY fixture should keep stdin open, feed enough records for a full page or across-column row, and compare candidate delivery timing and bytes with GNU pr without using a host terminal."
+    }
+  ]
+}

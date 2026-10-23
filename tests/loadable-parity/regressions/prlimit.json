@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "loadable": "prlimit",
+  "reference": "The runnable contract expectations use Bash's documented type -t and help builtins plus the declared prlimit synopsis and help text in the pinned loadable contract. GNU util-linux prlimit and Linux RLIMIT/prlimit semantics are the intended independent oracle for deferred operation coverage; no operation oracle was invoked here.",
+  "coverage": [
+    "Bash identifies prlimit as a builtin with type -t.",
+    "Bash detailed help exposes the documented query, set, range, output-format, and command-mode synopsis.",
+    "Bash brief help exposes the documented command summary.",
+    "Deferred: resource queries and text/raw/JSON formatting.",
+    "Deferred: limit parsing, set behavior, and validation in a disposable target.",
+    "Deferred: selected-PID behavior and permission/missing-target errors.",
+    "Deferred: child command inheritance, exit propagation, and exec failure behavior."
+  ],
+  "exclusions": [
+    "No prlimit operation was executed: query, set, selected-PID, or command mode.",
+    "No GNU util-linux operation comparison was run; operation cases remain deferred under the task's safety instruction.",
+    "The suite does not test effects on the host shell or any host process."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "purpose": "Confirm through Bash metadata that the candidate registers prlimit as a builtin.",
+      "kind": "contract",
+      "script": "kind=$(type -t prlimit)\n[[ $kind == builtin ]] || exit 1\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documented-forms",
+      "purpose": "Check Bash help against the declared documented query, command, range, and output forms without invoking prlimit itself.",
+      "kind": "contract",
+      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: default text lines, --raw tab-delimited lines, or --json objects.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
+      "expected_status": 0,
+      "stdout": "pid query/set, command mode, ranges, and output formats documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-brief-summary",
+      "purpose": "Bash help -s publishes the registered invocation synopsis, including PID selection and command mode; help -d is the description.",
+      "kind": "contract",
+      "script": "summary=$(help -s prlimit)\n[[ $summary == *'--pid PID'* ]] || exit 1\n[[ $summary == *'--nofile=LIMIT COMMAND'* ]] || exit 1\nprintf '%s\\n' 'brief command summary documented'",
+      "expected_status": 0,
+      "stdout": "brief command summary documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-output-formats",
+      "purpose": "Cover current-process and selected-PID reads, including default text, raw columns, JSON, resource selection, and unlimited-value rendering.",
+      "kind": "deferred",
+      "reason": "The task explicitly excludes prlimit operations from execution. A future fixture needs a disposable Linux VM or controlled syscall mock with a worker initialized to fixed RLIMIT values; compare the builtin's selected-resource, all-resource, raw, and JSON output to GNU util-linux prlimit or an independent encoder, including unlimited values."
+    },
+    {
+      "id": "limit-set-and-validation",
+      "purpose": "Cover numeric and unlimited limits, SOFT:HARD and partial-range forms, soft-greater-than-hard rejection, invalid values, and preservation of unspecified sides.",
+      "kind": "deferred",
+      "reason": "The task explicitly excludes limit-setting operations. A future fixture needs a disposable process whose limits can be initialized, changed, read back, and discarded, or a controlled prlimit64 syscall mock. It must verify only that expendable target's limits change and that malformed or invalid requests do not alter them."
+    },
+    {
+      "id": "pid-target-and-errors",
+      "purpose": "Cover explicit --pid selection, invalid and nonexistent PIDs, and permission errors without touching unrelated processes.",
+      "kind": "deferred",
+      "reason": "Meaningful cross-PID checks require controlled process identities and target lifetimes. A future fixture needs same-UID and restricted disposable workers in a private PID namespace or a syscall mock, so GNU util-linux and the builtin see stable targets and EPERM/ESRCH cases without referencing host PIDs."
+    },
+    {
+      "id": "command-mode-child",
+      "purpose": "Cover command-mode limit inheritance, parent-state preservation, child exit/signal propagation, and exec failure status.",
+      "kind": "deferred",
+      "reason": "Command mode forks, changes a child's resource limit, and execs a command. A future fixture needs a disposable VM or controlled syscall/process mock plus a private reporting helper to verify inherited limits, parent preservation, and status mapping without involving host commands or processes."
+    }
+  ]
+}

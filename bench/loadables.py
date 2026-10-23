@@ -313,7 +313,7 @@ def cases():
              'inodes per group, inode size, group-count consistency and '
              'errors-behaviour, variant classification, one 47-byte line')
     # --- process-query ---
-    # The /proc and utmp readers. BASHOS_PROC_ROOT, BASHW_DEV_DIR and
+    # The /proc and utmp readers. BASHOS_PROC_ROOT, BASHW_PROC_DIR, BASHW_DEV_DIR and
     # BASHDMESG_DEV_KMSG_FILE point the walk at a fixed fixture instead of the
     # live kernel, which is what turns a moving counter into a fixed workload.
     # Where no external program can be aimed at the same fixture, the case is
@@ -336,8 +336,8 @@ def cases():
     add('vmstat', ['-d'], fixture='empty', label='vmstat-diskstats',
         reference='self', env={'BASHOS_PROC_ROOT': 'procfix'}, maximum=200,
         work='21,056 bytes of diskstats parsed: 256 device lines of 17 fields; 2 header lines plus 256 rows / 22,439 bytes emitted')
-    add('w', ['utmpfix'], fixture='empty', label='w-utmpfixture', reference='self',
-        env={'BASHW_DEV_DIR': 'tree'}, maximum=80,
+    add('w', ['--file', 'utmpfix'], fixture='empty', label='w-utmpfixture', reference='self',
+        env={'BASHW_PROC_DIR': 'procfix', 'BASHW_DEV_DIR': 'tree'}, maximum=80,
         work='1,572,864 bytes of utmp read as 4096 384-byte records; 3584 USER_PROCESS rows formatted in 8 columns / 3585 lines, 211,524 bytes emitted')
     add('who', ['-q', 'utmpfix'], fixture='empty', label='who-quick', maximum=80,
         work='1,572,864 bytes of utmp read as 4096 384-byte records, filtered to 3584 USER_PROCESS entries; 3584 names plus the "# users=" tally / 32,269 bytes emitted')

@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "loadable": "hexdump",
+  "reference": "Independent host hexdump CLI (the util-linux hexdump implementation, which is the counterpart documented by /source/loadables/hexdump.c). This is not GNU coreutils; results are byte comparisons against that external implementation. Bash type/help behavior is checked separately against the documented loadable metadata contract.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "Canonical output for control, printable, high-bit, and short-row bytes",
+    "Default little-endian word output and an odd trailing byte",
+    "Hexadecimal skip and octal byte-limit arguments",
+    "Zero-byte limit and final offset",
+    "Skip and limit across concatenated input files",
+    "Custom one-byte format units",
+    "Repeated redirected stdin in one persistent shell",
+    "Duplicate-row folding and -v output",
+    "Unknown-option error status and diagnostic presence",
+    "Zero counts across default, shortcut, custom and skip modes; empty inputs; missing arguments; invalid counts; repeated dash operands."
+  ],
+  "exclusions": [
+    "No real device, host path, network input, or unbounded stream is opened.",
+    "The custom-format tests cover documented common format units, not the full util-linux color/file format language.",
+    "Device-backed input remains deferred pending a disposable VM or reviewed bounded mock."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata reports the registered loadable as a builtin, and help resolves its documented builtin entry.",
+      "script": "PATH=\n[[ $(type -t hexdump) == builtin ]]\nhelp_text=$(help hexdump)\n[[ $help_text == *hexdump* ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "canonical-binary-short-row",
+      "kind": "parity",
+      "purpose": "Canonical mode formats control bytes, printable ASCII, DEL, high-bit bytes, and a final row shorter than 16 bytes.",
+      "script": "printf '\\000\\001\\011\\012\\015\\037 !\"0Az~\\177\\200\\3770123456789ab' > bytes.bin\nhexdump -C bytes.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "default-odd-tail",
+      "kind": "parity",
+      "purpose": "The no-option default renders little-endian 16-bit words and a one-byte final word, then reports the final offset.",
+      "script": "printf 'abcdefghijklmnopZ' > odd.bin\nhexdump odd.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "hex-skip-octal-limit",
+      "kind": "parity",
+      "purpose": "-s accepts a hexadecimal offset and -n accepts an octal byte limit; output offsets retain the skipped-byte position.",
+      "script": "printf '0123456789abcdefghijklmnop' > range.bin\nhexdump -C -s 0x3 -n 010 range.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "zero-limit",
+      "kind": "parity",
+      "purpose": "Checks the reference behavior for a zero-byte canonical limit, including whether a final-offset line is emitted when no bytes are consumed.",
+      "script": "printf 'nonempty input' > input.bin\nhexdump -C -n 0 input.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "multi-file-logical-range",
+      "kind": "parity",
+      "purpose": "Skip and limit apply to a small concatenated logical input spanning two relative fixture files.",
+      "script": "printf 'abc' > left.bin\nprintf 'DEFGHI' > right.bin\nhexdump -C -s 2 -n 5 left.bin right.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "custom-byte-format",
+      "kind": "parity",
+      "purpose": "A documented one-byte custom format prints each byte as two lowercase hexadecimal digits, including NUL and high-bit values.",
+      "script": "printf '\\000\\001Az\\177\\377' > format.bin\nhexdump -e '1/1 \"%02x\\n\"' format.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "repeated-stdin-redirections",
+      "kind": "parity",
+      "purpose": "Three fresh stdin redirections in the same Bash process each produce a complete canonical dump.",
+      "script": "printf 'alpha\\nbeta\\000Z' > stdin.bin\nhexdump -C < stdin.bin\nhexdump -C < stdin.bin\nhexdump -C < stdin.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "duplicate-row-folding",
+      "kind": "parity",
+      "purpose": "Identical full rows fold to an asterisk in normal mode, while -v prints every duplicate row; a short final row follows both runs.",
+      "script": "printf 'abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopQ' > repeated.bin\nhexdump -C repeated.bin\nhexdump -C -v repeated.bin",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "An unsupported option is rejected with the reference command's status and a diagnostic rather than producing a dump.",
+      "script": "rc=0\nhexdump --no-such-hexdump-option || rc=$?\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "hexdump"
+      ]
+    },
+    {
+      "id": "device-input-boundary",
+      "kind": "deferred",
+      "purpose": "Exercise bounded reads and errors when the input is a device-backed special file.",
+      "reason": "No real or host device may be opened in this suite. Future coverage requires a disposable VM with a purpose-built harmless device or a reviewed syscall mock that supplies a bounded deterministic byte stream and failure mode; record expected bytes and status independently, and do not use raw disks or host device paths."
+    },
+    {
+      "id": "zero-count-formats",
+      "kind": "parity",
+      "purpose": "Zero count in default, shortcut, custom, and skip-plus-canonical formats.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "printf 'abc' > input\nhexdump -n 0 input\nhexdump -x -n 0 input\nhexdump -e '1/1 \"%02x\\n\"' -n 0 input\nhexdump -C -s 2 -n 0 input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option-arguments",
+      "kind": "parity",
+      "purpose": "Missing required option arguments and invalid count values retain reference failure status.",
+      "requires": [
+        "hexdump"
+      ],
+      "script": "for opt in -n -s -e; do\n rc=0\n hexdump \"$opt\" || rc=$?\n printf 'status=%s\\n' \"$rc\"\ndone\nfor arg in bad -1 ''; do\n rc=0\n hexdump -n \"$arg\" || rc=$?\n printf 'status=%s\\n' \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "repeated-dash-stream-contract",
+      "kind": "contract",
+      "purpose": "Repeated dash operands share stdin once per invocation; each fresh redirection reads the complete stream. Expected bytes follow the documented logical-stream extension.",
+      "script": "printf 'A' > input\nhexdump -C - - < input\nhexdump -C - - < input",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "00000000  41                                                |A|\n00000001\n00000000  41                                                |A|\n00000001\n"
+    },
+    {
+      "id": "empty-and-skipped-input",
+      "kind": "parity",
+      "purpose": "Compare empty input and an offset reaching EOF against independent hexdump in default, canonical, and shortcut modes.",
+      "script": ": > empty\nprintf 'abc' > input\nhexdump empty\nhexdump -C empty\nhexdump -x empty\nhexdump -C -s 3 input",
+      "requires": [
+        "hexdump"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}
