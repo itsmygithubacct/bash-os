@@ -1,7 +1,7 @@
 # bash-os
 
 GNU bash, plus a curated set of **loadables compiled in as static builtins** —
-so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 272 more are builtins,
+so `ls`, `grep`, `sed`, `ps`, `httpd`, `pax`, `flock`, `expr` and 274 more are builtins,
 reached with an empty `PATH`, no busybox and no coreutils. One binary is the
 shell and the userland.
 
@@ -83,6 +83,16 @@ The [head/sed](docs/head-sed.md), [fold](docs/fold.md),
 [pr](docs/pr.md) and [tac](docs/tac.md) reports describe the corrected behavior,
 measured workloads and remaining option limits.
 
+`clear` (also named `bashclear`) clears the terminal from `core` upward,
+including static builds without terminfo files. Use `clear -x` to preserve
+scrollback or `clear -T xterm` to override `TERM`.
+`base64`, `sha256sum`, `gzip`, and `tar` are also builtins from `core` upward.
+The GNU interfaces and supported options are documented in
+[GNU command compatibility](docs/gnu-compatibility.md).
+
+[Clearing the terminal](docs/clear.md) lists supported types, options and
+the compatibility limits of the built-in table.
+
 `gpu`, included in `desktop` and `full`, adds a persistent pixel canvas, terminal
 input, image export and optional GLES2 shader rendering. Run
 `out/bash-desktop examples/gpu-dashboard.sh` for a live system graph, or
@@ -95,6 +105,40 @@ loads GBM/EGL/GLES libraries on demand.
 attach/detach. `screen` uses it for live panes, targeted input and resizing.
 [Persistent local PTYs](docs/ptybroker.md) documents the commands and their
 raw-history contract. Both commands are included in `desktop` and `full`.
+
+## Docker
+
+Build a minimal local image from the static binary:
+
+```sh
+./build.sh --static
+docker build -t bash-os:local .
+./scripts/bash-os-docker
+```
+
+The image starts from `scratch` and contains bash-os, `/bin/bash` and `/bin/sh`
+symlinks, basic directories, and root account records. Its commands are the
+builtins compiled into your binary. There is no additional distribution userland,
+CA certificate bundle, or timezone database.
+
+The launcher mounts the current directory read/write at `/work`, starts there,
+and uses your numeric user and group IDs so new files keep your ownership.
+It sets `HOME=/tmp`, allocates a terminal when run interactively, and removes
+the container on exit. Changes under `/work` persist on the host; other changes
+are discarded. Named user lookups require account records for your numeric ID.
+
+```sh
+./scripts/bash-os-docker -c 'type ls; ls; printf "a\nb\n" | grep b'
+printf 'printf "hello from bash-os\\n"\n' | ./scripts/bash-os-docker
+mkdir -p ~/scripts
+install -m 755 scripts/bash-os-docker ~/scripts/bash-os-docker
+# From any directory:
+~/scripts/bash-os-docker
+```
+
+Arguments go directly to bash-os; use `-c 'commands'` to run a command.
+Set `BASH_OS_IMAGE` to use another local image tag. The launcher requires an
+existing image and a local Docker daemon that can access the current directory.
 
 ## How much it saves
 
@@ -139,12 +183,14 @@ config/
   loadables.sh                  shell interface to the parser
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
-  bash-loadables.list           the full set (NAME|short-doc per line), 280 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 286 entries
   bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
 tests/
   run.sh                        full, pure, static, runtime and sanitizer checks
+  bash-gnu-parity.sh DIR MODE  collect shell/GNU fixtures in separate environments
+  compare-parity.py GNU BX     compare captured bytes, status and filesystem results
   profiles.py                   selection and dependency contracts
   profile-smoke.py BIN          exact injected set and manifest checksum
   cross-smoke.sh BIN            full RISC-V fixtures under QEMU
@@ -202,6 +248,26 @@ docs/loadables-status.md       complete inventory, correctness findings and benc
 docs/loadables-status.csv      filterable loadable status and work priorities
 docs/PROVENANCE.md              where the code came from, and its licences
 ```
+
+For a representative Bash/GNU comparison, run the same fixture collector in
+each environment, then compare the result directories on a host with Python 3:
+
+```sh
+bash tests/bash-gnu-parity.sh gnu-results gnu
+out/bash-static tests/bash-gnu-parity.sh bashos-results builtins gnu-results
+python3 tests/compare-parity.py gnu-results bashos-results
+```
+
+Each result directory must be new. The `builtins` mode clears `PATH`; the optional
+reference directory enables live pass/fail output. For separate containers or
+machines, copy the collector and reference results into the candidate environment.
+The comparator checks raw output bytes (including NULs), exit status, and fixture
+contents, modes, and links. Error wording may differ, but errors must produce a
+diagnostic. The suite includes conventional command names, so missing GNU names
+are failures even when bash-os offers related functionality under another name.
+It covers representative behavior, not every Bash or GNU option. Fixtures are
+confined to the result directories; after comparison, their `cases/*/tree`
+directories may be removed because `tree.json` retains the captured file results.
 
 Names in a list that have no `loadables/NAME.c` here are bash's own
 `examples/loadables/NAME.c`, taken from the pinned tarball at build time.

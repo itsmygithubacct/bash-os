@@ -2,7 +2,7 @@
  *
  * Phase S of bash-os POSIX gap-fillers.
  *
- *   bashcp [-afipRrv] [-HLP] SOURCE... DEST
+ *   bashcp [-afinpRrv] [-HLP] SOURCE... DEST
  *
  *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
  *           metadata, recursive). Matches GNU coreutils cp -a semantics.
@@ -57,7 +57,7 @@ typedef struct bcp_dir {
 } bcp_dir;
 
 typedef struct {
-    int fflag, iflag, pflag, rflag, vflag;
+    int fflag, iflag, nflag, pflag, rflag, vflag;
     int Hflag, Lflag, aflag;
     bcp_link *links;
     bcp_dir *directories;
@@ -132,6 +132,7 @@ bcp_copy_link (const char *src, const char *dst, const struct stat *sst,
 {
     struct stat st;
     if (lstat (dst, &st) == 0) {
+        if (o->nflag) return 1;
         if (st.st_dev == sst->st_dev && st.st_ino == sst->st_ino) {
             builtin_error ("'%s' and '%s' are the same file", src, dst);
             return -1;
@@ -155,6 +156,7 @@ bcp_copy_link (const char *src, const char *dst, const struct stat *sst,
     }
     if (linkat (AT_FDCWD, entry->path, AT_FDCWD, dst,
                 entry->follow ? AT_SYMLINK_FOLLOW : 0) < 0) {
+        if (o->nflag && errno == EEXIST) return 1;
         builtin_error ("link %s -> %s: %s", entry->path, dst, strerror (errno));
         return -1;
     }
@@ -233,6 +235,7 @@ bcp_copy_regular (const char *src, const char *dst,
     struct stat dst_st;
     int dst_exists = (lstat (dst, &dst_st) == 0);
     if (dst_exists) {
+        if (o->nflag) return 1;
         /* Refuse identical-inode (cp file file). */
         if (dst_st.st_dev == sst->st_dev && dst_st.st_ino == sst->st_ino) {
             builtin_error ("'%s' and '%s' are the same file", src, dst);
@@ -277,8 +280,9 @@ bcp_copy_regular (const char *src, const char *dst,
     }
     /* Open without truncating: dst may be a symlink back to src, and the
        lstat check above compares the link's inode rather than its target. */
-    int dfd = open (dst, O_WRONLY | O_CREAT, sst->st_mode & 0777);
+    int dfd = open (dst, O_WRONLY | O_CREAT | (o->nflag ? O_EXCL : 0), sst->st_mode & 0777);
     if (dfd < 0) {
+        if (o->nflag && errno == EEXIST) { close (sfd); return 1; }
         builtin_error ("open %s for write: %s", dst, strerror (errno));
         close (sfd);
         return -1;
@@ -336,6 +340,7 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
        replacement is atomic (no window where dst doesn't exist). */
     struct stat ds;
     int dst_exists = (lstat (dst, &ds) == 0);
+    if (dst_exists && o->nflag) return 1;
     if (dst_exists && ds.st_dev == sst->st_dev && ds.st_ino == sst->st_ino) {
         builtin_error ("'%s' and '%s' are the same file", src, dst);
         return -1;
@@ -379,6 +384,7 @@ bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
         }
         if (failed) return -1;
     } else if (symlink (target, dst) < 0) {
+        if (o->nflag && errno == EEXIST) return 1;
         builtin_error ("symlink %s -> %s: %s", dst, target, strerror (errno));
         return -1;
     }
@@ -530,6 +536,18 @@ bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
     }
     if (S_ISDIR (sst.st_mode))    return bcp_copy_dir     (src, dst, &sst, o);
     if (S_ISREG (sst.st_mode) || S_ISLNK (sst.st_mode)) {
+        /* -n skips existing entries before same-file checks or link tracking.
+           GNU still diagnoses a dangling destination when copying regular
+           data through it. Directories continue to merge. */
+        struct stat dst_st;
+        if (o->nflag && lstat (dst, &dst_st) == 0) {
+            struct stat target;
+            if (S_ISREG (sst.st_mode) && S_ISLNK (dst_st.st_mode) && stat (dst, &target) < 0) {
+                builtin_error ("not writing through dangling symlink '%s'", dst);
+                return -1;
+            }
+            return 0;
+        }
         /* A later operand must not overwrite a result from this invocation:
            it may already be the backing file for preserved hard links. */
         for (bcp_link **slot = &o->links; *slot;) {
@@ -583,6 +601,9 @@ cp_builtin (WORD_LIST *list)
             free (positional.v);
             return EXECUTION_SUCCESS;
         }
+        if (!strcmp (w, "--no-clobber")) { o.nflag = 1; o.iflag = 0; continue; }
+        if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
+        if (!strcmp (w, "--force")) { o.fflag = 1; continue; }
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
                 if (bcp_words_add (&positional, p->word->word) < 0) {
@@ -609,8 +630,9 @@ cp_builtin (WORD_LIST *list)
                     o.Hflag = 0;
                     o.Lflag = 0;
                     break;
-                case 'f': o.fflag = 1; o.iflag = 0; break;
-                case 'i': o.iflag = 1; o.fflag = 0; break;
+                case 'f': o.fflag = 1; break;
+                case 'i': o.iflag = 1; o.nflag = 0; break;
+                case 'n': o.nflag = 1; o.iflag = 0; break;
                 case 'p': o.pflag = 1; break;
                 case 'R': case 'r': o.rflag = 1; break;
                 case 'H': o.Hflag = 1; o.Lflag = 0; break;
@@ -688,12 +710,13 @@ cp_builtin (WORD_LIST *list)
 char *cp_doc[] = {
     "Copy files and directories.",
     "",
-    "    bashcp [-afipRrv] [-HLP] SOURCE... DEST",
+    "    bashcp [-afinpRrv] [-HLP] SOURCE... DEST",
     "",
     "    -a   archive: same as -dpR (clone symlinks as symlinks,",
     "         preserve hard links and metadata, recursive)",
     "    -f   force: replace existing dest after the source is opened",
     "    -i   interactive: prompt before overwrite",
+    "    -n, --no-clobber   skip existing destinations; last -i/-n wins",
     "    -p   preserve mode/owner/group/timestamps",
     "    -R, -r   recursive",
     "    -v   verbose: print each completed copy",
@@ -709,6 +732,6 @@ struct builtin bashcp_struct = {
     cp_builtin,
     BUILTIN_ENABLED,
     cp_doc,
-    "bashcp [-afipRrv] [-HLP] SOURCE... DEST",
+    "bashcp [-afinpRrv] [-HLP] SOURCE... DEST",
     0
 };

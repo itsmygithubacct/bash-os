@@ -60,6 +60,8 @@ fi
 check 'release version in build manifests' python3 tests/build-version.py out/bash
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'GNU command compatibility and archive interoperability' python3 tests/gnu-command-compat.py out/bash
+check 'clear terminal bytes and shell output recovery' python3 tests/clear-check.py out/bash
 check 'clip contract' python3 tests/sol-clip-check.py out/bash
 check 'lpr list readdir error' python3 tests/sol-lpr-list-readdir.py out/bash
 check 'tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash
@@ -206,6 +208,7 @@ check procstat-smoke python3 tests/procstat-smoke.py out/bash
 check final-smoke python3 tests/final-smoke.py out/bash
 check 'builds out/bash-static' ./build.sh --static
 check 'static builtin regressions' python3 tests/regressions.py out/bash-static
+check 'static clear terminal bytes and shell output recovery' python3 tests/clear-check.py out/bash-static
 check 'static tui persistent screen and terminal contracts' python3 tests/sol-tui-check.py out/bash-static
 check 'static vi unterminated tail deletion' python3 tests/sol-vi-delete.py out/bash-static
 check 'static bc call-state and input-base contracts' python3 tests/sol-bc-regression.py out/bash-static
@@ -464,6 +467,7 @@ check 'clip LONG_MAX index under sanitized probe' env CLIP_LOAD_ENV="$scratch/cl
   check 'diff allocation fixture build' bash tests/sol-diff-build.sh "$scratch/diff" out/bash
   check 'diff allocation failures' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-native"
   check 'diff allocation failures under ASan+UBSan' python3 tests/sol-diff-alloc.py "$scratch/diff/bash-sanitize"
+  check 'GNU command interfaces under ASan+UBSan' bash tests/gnu-command-sanitize.sh out/bash
   check 'wc locale contracts under ASan+UBSan' bash tests/sol-wc-sanitize.sh out/bash
   check 'unexpand under ASan+UBSan' bash tests/sol-unexpand-sanitize.sh out/bash
   check 'crypto independent contracts under ASan+UBSan' env BASHOS_TASK_DIR="$scratch/crypto-contracts" bash tests/sol-crypto-sanitize.sh out/bash

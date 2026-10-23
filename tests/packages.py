@@ -36,8 +36,15 @@ arch = platform.machine()
 # needs libm, one that hung when its regexec lacked a symbol version, and a
 # pair that require each other.
 NAMES = ['seq', 'grep', 'col', 'cksum', 'crypto', 'head', 'mkdir', 'wc', 'awk', 'sudo', 'doas',
-         'chmod', 'mktemp']
+         'chmod', 'mktemp', 'bashclear', 'clear', 'base64', 'sha256sum', 'gzip', 'tar']
 CASES = {
+    'base64': 'printf "hello\\n" | base64',
+    'sha256sum': 'printf abc | sha256sum',
+    'gzip': 'printf payload | gzip -nc | gzip -dc',
+    'tar': 'printf archive > "$1/data"; tar -cf "$1/archive.tar" -C "$1" data && tar -xOf "$1/archive.tar" data',
+
+    'bashclear': 'bashclear -T xterm',
+    'clear': 'clear -x -T linux',
     'seq': 'seq -s, 5',
     'grep': "printf 'ab\\nzz\\n' | grep -n '[a-z]$'",
     'wc': "printf 'a b\\nc\\n' | wc",

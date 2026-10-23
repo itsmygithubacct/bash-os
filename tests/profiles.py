@@ -26,13 +26,18 @@ assert len(p['pure']['names'])==28
 for smaller,larger in [('shell','pure'),('pure','core'),('core','device'),('device','server'),('core','desktop'),('server','full'),('desktop','full')]:
     assert set(p[smaller]['names']) < set(p[larger]['names'])
 assert {'ls','grep','find','sort','cut','seq'} <= set(p['core']['names'])
+assert {'bashclear', 'clear'} <= set(p['core']['names'])
+assert {'base64', 'sha256sum', 'gzip', 'tar'} <= set(p['core']['names'])
+for name in ('bashclear', 'clear'):
+    selected = plan('--include', name)
+    assert selected['names'] == [name] and not selected['libraries']
 assert {'ip','bashmount','procstat'} <= set(p['device']['names'])
 assert {'ssh','sshd','crypto','sqlite'} <= set(p['server']['names'])
 assert {'nano','ts','hl','tiv','gpu'} <= set(p['desktop']['names'])
 assert not p['shell']['libraries'] and not p['pure']['libraries']
 for profile in ('core', 'device'):
-    assert p[profile]['libraries'] == ['-lpcre2-8']
-    assert plan('--profile', profile, '--exclude', 'grep')['libraries'] == []
+    assert set(p[profile]['libraries']) == {'-lpcre2-8', '-lz', '-lpthread'}
+    assert set(plan('--profile', profile, '--exclude', 'grep')['libraries']) == {'-lz', '-lpthread'}
 assert plan('--include', 'grep')['libraries'] == ['-lpcre2-8']
 for level,name in enumerate(['shell','pure','core','device','server','full']):
     assert plan('--level',str(level))['names']==p[name]['names']
@@ -59,7 +64,7 @@ for args in [('--profile','missing'),('--level','6'),('--profile','core','--leve
     run(*args,'--show-config',ok=False)
 for name, companion in [('killall','pgrep'),('pkill','pgrep'),('netstat','ss'),
                         ('zstdcat','zstd'),('scp','sftp'),('whatis','man'),
-                        ('undo','buf'),('ldap','crypto'),('ntp','crypto')]:
+                        ('undo','buf'),('ldap','crypto'),('ntp','crypto'),('tar','pax')]:
     run('--include',name,'--show-config',ok=False)
     assert plan('--include',name+','+companion)['names']==[name,companion]
 with tempfile.TemporaryDirectory() as d:

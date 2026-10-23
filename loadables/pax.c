@@ -27,6 +27,7 @@
 #include <time.h>
 #include <limits.h>
 #include "loadables.h"
+#include "pax-stream.h"
 
 static unsigned long octal(const char *s, size_t n){
     char b[32]; size_t j=0;
@@ -57,12 +58,11 @@ static int pax_numeric_ext(const struct stat *st, int regular){
    the stream where it was, so every later header read is misaligned. */
 static int skip_bytes(FILE *f, unsigned long n){
     if(n == 0) return 0;
-    if(fseek(f, (long)n, SEEK_CUR) == 0) return 0;
     unsigned char sink[4096];
     while(n){
         size_t want = n > sizeof sink ? sizeof sink : (size_t)n;
         size_t got = fread(sink, 1, want, f);
-        if(got == 0) return -1;
+        if(got == 0){ builtin_error("archive truncated in member body"); return -1; }
         n -= got;
     }
     return 0;
@@ -214,9 +214,11 @@ static int set_mtime(const char *path, time_t mtime, int is_symlink){
     return utimensat(AT_FDCWD, path, ts, is_symlink ? AT_SYMLINK_NOFOLLOW : 0);
 }
 
-static int pax_list_extract(const char *archive, int extract, int verbose){
-    FILE *f = archive ? fopen(archive,"rb") : stdin;
-    if(!f){ builtin_error("%s: %s", archive?archive:"(stdin)", strerror(errno)); return EXECUTION_FAILURE; }
+int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
+    int extract = options->extract, verbose = options->verbose;
+    mode_t mask = umask(0); umask(mask);
+    unsigned char *found = calloc(options->count ? options->count : 1, 1);
+    if(!found){ builtin_error("out of memory"); return 1; }
     unsigned char h[512]; int rc=EXECUTION_SUCCESS; int zero_seen=0;
     struct pax_meta global = {0}, local = {0};
     while(1){
@@ -284,17 +286,49 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
         if(eff.has_mtime) mtime = eff.mtime;
         if(eff.typeflag){ typeflag = eff.typeflag; has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7'); }
 
+        int selected = options->count == 0;
+        for(size_t i = 0; i < options->count; i++){
+            const char *wanted = options->members[i]; size_t len = strlen(wanted);
+            while(len && wanted[len-1] == '/') len--;
+            if(!strncmp(name, wanted, len) && (name[len] == 0 || name[len] == '/')){
+                selected = 1; found[i] = 1;
+            }
+        }
+        if(!selected){
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
+            pax_meta_free(&eff); continue;
+        }
         if(!extract){
             if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, sz, name);
-            else printf("%s\n", name);
-            if(has_body) skip_bytes(f, body_padded);
-            pax_meta_free(&eff);
-            continue;
+            else printf("%s%s\n", name, options->tar_mode && typeflag == '5' && name[strlen(name)-1] != '/' ? "/" : "");
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
+            pax_meta_free(&eff); continue;
         }
+        for(unsigned i = 0; i < options->strip; i++){
+            const char *slash = strchr(name, '/');
+            name = slash ? slash + 1 : "";
+        }
+        if(!*name){
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
+            pax_meta_free(&eff); continue;
+        }
+        if(options->tar_mode && !options->preserve) mode &= ~mask;
+        if(options->to_stdout){
+            unsigned char data[16384]; unsigned long left = sz;
+            while(left){
+                size_t want = left > sizeof data ? sizeof data : (size_t)left;
+                size_t got = fread(data, 1, want, f);
+                if(!got || (has_body && fwrite(data, 1, got, stdout) != got)){ rc = 1; break; }
+                left -= got;
+            }
+            if(left || skip_bytes(f, (512 - sz % 512) % 512) < 0) rc = 1;
+            pax_meta_free(&eff); if(rc) break; continue;
+        }
+        if(options->tar_mode && verbose) fprintf(stderr, "%s\n", name);
 
         if(unsafe_path(name)){
             builtin_error("%s: unsafe archive path", name); rc = EXECUTION_FAILURE;
-            if(has_body) skip_bytes(f, body_padded);
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
             pax_meta_free(&eff);
             continue;
         }
@@ -359,21 +393,26 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
                 size_t want = left > sizeof buf ? sizeof buf : (size_t)left;
                 size_t n = fread(buf,1,want,f);
                 if(n==0){ short_body = 1; break; }
-                fwrite(buf,1,n,o); left -= n;
+                if(fwrite(buf,1,n,o) != n){ builtin_error("%s: write error", name); rc = 1; }
+                left -= n;
             }
-            fclose(o);
+            if(fclose(o)){ builtin_error("%s: close error", name); rc = 1; }
             if(short_body){ builtin_error("%s: archive truncated in member body", name); rc = EXECUTION_FAILURE; break; }
             chmod(name, mode & 0777);
             set_mtime(name, mtime, 0);
             unsigned long pad = (512 - (sz % 512)) % 512;
-            if(pad) skip_bytes(f, pad);
+            if(pad && skip_bytes(f, pad) < 0){ builtin_error("archive truncated in padding"); rc = 1; }
             break;
         }
         }
         pax_meta_free(&eff);
     }
     pax_meta_free(&global); pax_meta_free(&local);
-    if(f != stdin) fclose(f);
+    for(size_t i = 0; i < options->count; i++) if(!found[i]){
+        builtin_error("%s: not found in archive", options->members[i]); rc = 1;
+    }
+    free(found);
+    if(ferror(f) || ferror(stdout)) rc = 1;
     return rc;
 }
 
@@ -413,8 +452,7 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
     memcpy(h+257, "ustar", 6); memcpy(h+263, "00", 2);
     unsigned sum = 0; for(int i=0;i<512;i++) sum += h[i];
     snprintf((char*)h+148, 8, "%06o", sum); h[154]='\0'; h[155]=' ';
-    fwrite(h, 1, 512, out);
-    return 0;
+    return fwrite(h, 1, 512, out) == 512 ? 0 : -1;
 }
 
 static int append_bytes(char **buf, size_t *len, size_t *cap, const char *s, size_t n){
@@ -537,11 +575,35 @@ static int write_member(FILE *out, const char *path){
     FILE *in = fopen(path, "rb");
     if(!in){ builtin_error("%s: %s", path, strerror(errno)); return 1; }
     unsigned char buf[4096]; size_t r;
-    while((r = fread(buf, 1, sizeof buf, in)) > 0) fwrite(buf, 1, r, out);
-    fclose(in);
+    off_t remaining = st.st_size;
+    int failed = 0;
+    while(remaining > 0){
+        size_t want = remaining > (off_t)sizeof buf ? sizeof buf : (size_t)remaining;
+        r = fread(buf, 1, want, in);
+        if(!r){ builtin_error("%s: short read", path); failed = 1; break; }
+        if(fwrite(buf, 1, r, out) != r){ failed = 1; break; }
+        remaining -= (off_t)r;
+    }
+    if(ferror(in)) failed = 1;
+    if(fclose(in)) failed = 1;
+    if(failed) return 1;
     long pad = (512 - ((long)st.st_size % 512)) % 512;
     for(long i = 0; i < pad; i++) fputc(0, out);
     return 0;
+}
+
+int bashos_pax_write_member(FILE *out, const char *path, int no_recurse){
+    bp_no_recurse = no_recurse;
+    return write_member(out, path) || ferror(out);
+}
+
+static int pax_list_extract(const char *archive, int extract, int verbose){
+    FILE *f = archive ? fopen(archive,"rb") : stdin;
+    if(!f){ builtin_error("%s: %s", archive ? archive : "stdin", strerror(errno)); return 1; }
+    struct bashos_pax_read_options options = { .extract = extract, .verbose = verbose };
+    int rc = bashos_pax_read(f, &options);
+    if(f != stdin && fclose(f)) rc = 1;
+    return rc;
 }
 
 static int pax_write(const char *archive, WORD_LIST *files){

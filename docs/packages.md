@@ -75,6 +75,10 @@ A source that defines no `NAME_struct` (`wc.c`, for one, registers
 `NAME_builtin`, its `NAME_doc`, and the short help from
 `config/bash-loadables.list`.
 
+`bashclear` and `clear` are independent packages backed by the same shared
+implementation. Either loads in a plain dynamic Bash without its sibling or
+`tput`; see [clearing the terminal](clear.md).
+
 The output directory receives the packages, an unsigned `INDEX` with one
 `pkg-loadable-v1` record per package, and `build-report.tsv` with each
 command's object size or failure reason. The exit status is 1 if any command
@@ -220,3 +224,7 @@ archives whose data disagrees with MANIFEST are refused. `tests/run.sh` runs
 all three.
 `tests/pkg-trust.py` checks missing, unreadable and invalid trust-file paths,
 including unsigned-install handling and recovery in the same shell.
+
+`base64`, `sha256sum`, `gzip`, and `tar` also have standalone packages. The
+`tar` package links its pax dependency; it does not need a separately enabled
+`pax` command. See [GNU compatibility](gnu-compatibility.md) for option coverage.

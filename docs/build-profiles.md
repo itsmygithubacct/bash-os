@@ -9,14 +9,17 @@ choice, not a runtime disable list.
 |---:|---|---:|---:|---|
 | 0 | `shell` | 0 | 1,364,160 | GNU Bash alone |
 | 1 | `pure` | 28 | 1,447,520 | Small baseline of POSIX utilities |
-| 2 | `core` | 89 | 2,067,616 | Everyday files, text processing and processes |
-| 3 | `device` | 160 | 2,734,528 | Core plus Linux devices, processes and basic networking |
-| 4 | `server` | 215 | — | Device plus services, TLS, SSH, accounts and data |
-| 4 | `desktop` | 155 | — | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 280 | — | Standard collection; optional integrations selected separately |
+| 2 | `core` | 95 | 2,067,616 | Everyday files, text processing and processes |
+| 3 | `device` | 166 | 2,734,528 | Core plus Linux devices, processes and basic networking |
+| 4 | `server` | 221 | — | Device plus services, TLS, SSH, accounts and data |
+| 4 | `desktop` | 161 | — | Core plus editors, terminal graphics and interactive tools |
+| 5 | `full` | 286 | — | Standard collection; optional integrations selected separately |
 
 Sizes are historical stripped x86-64 builds with GCC 14.2 and the default flags. See the
 [benchmarks](../bench/README.md) for static sizes, startup and resident memory.
+The historical core/device sizes predate the added GNU command names and
+`bashclear`/`clear`. See [GNU compatibility](gnu-compatibility.md) and
+[clear](clear.md) for their interfaces and limits.
 Desktop size awaits measurement after adding the native PTY broker; server
 and full sizes await measurement of their current command sets.
 Desktop and full include `ptybroker`; desktop also includes `bashpoll` for

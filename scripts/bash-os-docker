@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Run bash-os with the current directory mounted read/write at /work.
+set -euo pipefail
+
+image=${BASH_OS_IMAGE:-bash-os:local}
+workdir=$(pwd -P)
+# Docker's --mount value is CSV; quote the source field for commas and quotes.
+mount_source=${workdir//\"/\"\"}
+docker_args=(run --rm --pull=never --interactive)
+if [[ -t 0 && -t 1 ]]; then
+    docker_args+=(--tty)
+fi
+
+exec docker "${docker_args[@]}" \
+    --user "$(id -u):$(id -g)" \
+    --mount "type=bind,\"source=$mount_source\",target=/work" \
+    --workdir /work \
+    --env HOME=/tmp \
+    --env "TERM=${TERM:-xterm}" \
+    "$image" "$@"

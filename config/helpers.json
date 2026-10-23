@@ -200,7 +200,8 @@
     },
     "index": {
       "helpers": [
-        "_git", "_monocypher"
+        "_git",
+        "_monocypher"
       ],
       "libs": [
         "-lz"
@@ -208,7 +209,8 @@
     },
     "git": {
       "helpers": [
-        "_git", "_monocypher"
+        "_git",
+        "_monocypher"
       ],
       "libs": [
         "-lz"
@@ -229,7 +231,8 @@
     },
     "pkg": {
       "helpers": [
-        "_mbedtls", "_monocypher"
+        "_mbedtls",
+        "_monocypher"
       ],
       "libs": [
         "-llzma"
@@ -414,6 +417,24 @@
     "bashpython": {
       "helpers": [
         "_python"
+      ]
+    },
+    "sha256sum": {
+      "helpers": [
+        "_mbedtls"
+      ]
+    },
+    "gzip": {
+      "libs": [
+        "-lz"
+      ]
+    },
+    "tar": {
+      "requires": [
+        "pax"
+      ],
+      "libs": [
+        "-lz"
       ]
     }
   },

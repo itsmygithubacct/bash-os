@@ -1755,6 +1755,30 @@
       "status": "Contract",
       "evidence": "tests/sol-losetup-fixtures.py",
       "scope": "Loop-control and loop ioctls answered by tests/sol-losetup-shim.c."
+    },
+    {
+      "names": [
+        "bashclear",
+        "clear"
+      ],
+      "status": "Contract",
+      "evidence": "tests/clear-check.py",
+      "scope": "Captured bytes for 22 terminal types; host clear comparisons; private PTYs; options, terminal errors, repeated calls, input ownership and output-error recovery. The same suite supports independent loadable packages."
+    },
+    {
+      "names": [
+        "base64",
+        "sha256sum",
+        "gzip",
+        "tar",
+        "cat",
+        "cp",
+        "touch",
+        "pax"
+      ],
+      "status": "Parity",
+      "evidence": "tests/gnu-command-compat.py",
+      "scope": "Bounded GNU command byte/status comparisons, exact epoch nanoseconds, no-clobber file behavior, checksum verification, independent gzip/tar readers and output-error recovery. Common interfaces only; not complete GNU option parity."
     }
   ],
   "sanitizer_groups": [
@@ -2383,6 +2407,20 @@
       ],
       "evidence": "tests/secreview-ptybroker-sanitize.sh",
       "scope": "The create/terminate descriptor cycle on an ASan and UBSan ptybroker module."
+    },
+    {
+      "names": [
+        "base64",
+        "sha256sum",
+        "gzip",
+        "tar",
+        "cat",
+        "cp",
+        "touch",
+        "pax"
+      ],
+      "evidence": "tests/gnu-command-sanitize.sh",
+      "scope": "The bounded GNU compatibility and archive fixtures run with ASan and UBSan command modules."
     }
   ],
   "fuzz": {
@@ -2906,6 +2944,36 @@
       "program": "zstdcat",
       "applet": null,
       "scope": "Decompress fixed frames; verify output bytes before timing."
+    },
+    "bashclear": {
+      "program": "ncurses clear",
+      "applet": "clear",
+      "scope": "ncurses clear screen/scrollback sequences for the documented terminal table; serial padding, diagnostics, usage and write-error statuses differ."
+    },
+    "clear": {
+      "program": "ncurses clear",
+      "applet": "clear",
+      "scope": "ncurses clear screen/scrollback sequences for the documented terminal table; serial padding, diagnostics, usage and write-error statuses differ."
+    },
+    "base64": {
+      "program": "GNU coreutils",
+      "applet": "base64",
+      "scope": "Common interfaces and limits in docs/gnu-compatibility.md; no compression-byte or diagnostic-wording identity claim."
+    },
+    "sha256sum": {
+      "program": "GNU coreutils",
+      "applet": "sha256sum",
+      "scope": "Common interfaces and limits in docs/gnu-compatibility.md; no compression-byte or diagnostic-wording identity claim."
+    },
+    "gzip": {
+      "program": "GNU gzip",
+      "applet": "gzip",
+      "scope": "Common interfaces and limits in docs/gnu-compatibility.md; no compression-byte or diagnostic-wording identity claim."
+    },
+    "tar": {
+      "program": "GNU tar",
+      "applet": "tar",
+      "scope": "Common interfaces and limits in docs/gnu-compatibility.md; no compression-byte or diagnostic-wording identity claim."
     }
   },
   "notes": {
@@ -3409,6 +3477,30 @@
     "integrity": {
       "evidence": "loadables/integrity.c",
       "note": "integrity opens --root as named, without O_NOFOLLOW, and opens every component below it with O_NOFOLLOW. A symlink is recorded through readlinkat and not followed, so a link that points outside the root is not read. The builtin opens nothing for writing. No registered test plants a symlink; tests/final-smoke.py records one regular file."
+    },
+    "bashclear": {
+      "evidence": "docs/clear.md",
+      "note": "Added in 0.1.1 after the broad inventory review above. A fixed 22-terminal table works without terminfo files in static images. No external/custom terminfo or serial-line padding; dumb fails silently, unknown or unset TERM fails with a diagnostic, invalid usage returns 2, and output failures return 1. Host byte and private PTY comparisons are correctness checks, not timings."
+    },
+    "clear": {
+      "evidence": "docs/clear.md",
+      "note": "Added in 0.1.1 after the broad inventory review above. A fixed 22-terminal table works without terminfo files in static images. No external/custom terminfo or serial-line padding; dumb fails silently, unknown or unset TERM fails with a diagnostic, invalid usage returns 2, and output failures return 1. Host byte and private PTY comparisons are correctness checks, not timings."
+    },
+    "base64": {
+      "evidence": "docs/gnu-compatibility.md",
+      "note": "Native GNU-style interface covered by tests/gnu-command-compat.py and the visible Bash/GNU parity collector. See the documented option and archive-format limits."
+    },
+    "sha256sum": {
+      "evidence": "docs/gnu-compatibility.md",
+      "note": "Native GNU-style interface covered by tests/gnu-command-compat.py and the visible Bash/GNU parity collector. See the documented option and archive-format limits."
+    },
+    "gzip": {
+      "evidence": "docs/gnu-compatibility.md",
+      "note": "Native GNU-style interface covered by tests/gnu-command-compat.py and the visible Bash/GNU parity collector. See the documented option and archive-format limits."
+    },
+    "tar": {
+      "evidence": "docs/gnu-compatibility.md",
+      "note": "Native GNU-style interface covered by tests/gnu-command-compat.py and the visible Bash/GNU parity collector. See the documented option and archive-format limits."
     }
   },
   "repeat_input_findings": [],
@@ -3476,7 +3568,13 @@
     "top",
     "buf",
     "gpu",
-    "tui"
+    "tui",
+    "bashclear",
+    "clear",
+    "base64",
+    "sha256sum",
+    "gzip",
+    "tar"
   ],
   "baseline": {
     "source_commit": "af3c8c488d6b4d81025a5feab4d04f8ee5e402f5",
@@ -3495,7 +3593,7 @@
   "inventory_review": {
     "date": "2026-10-19",
     "source_commit": "7f2a2416d6a4993c6738aaab322a1cdf0448881e",
-    "validation_summary": "Additional per-command coverage references and bounded scope notes were refreshed on 2026-10-20 after the global inventory revision above. The aggregate and focused results below remain historical, not full-suite qualification of these later changes. On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules.",
+    "validation_summary": "The 0.1.1 bashclear/clear addition passed `tests/clear-check.py` in a dynamic build, independent packages loaded into a plain shell, and a full static build: 7 test groups, 44 host byte comparisons and 36 private PTY comparisons per run. These commands have no historical timings. Additional per-command coverage references and bounded scope notes were refreshed on 2026-10-20 after the global inventory revision above. The aggregate and focused results below remain historical, not full-suite qualification of these later changes. On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules.",
     "focused_checks": [
       {
         "name": "Git apply paths",
@@ -3534,9 +3632,9 @@
       }
     ],
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
-    "catalog_sha256": "7c4a09d1fc026a42cbf9e8d25073a0e5477689f78ae37c9f2477fedfd3eb05ab",
+    "catalog_sha256": "c1b2303075df99c7a2ccfdecc717695fc7d35374b6b8cdfa83cef55600e88be8",
     "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b",
-    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries.",
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged.",
     "historical_validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules."
   },
   "optional_integrations": {

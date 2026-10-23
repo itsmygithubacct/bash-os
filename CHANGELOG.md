@@ -5,14 +5,38 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.1 — 2026-10-22
 
-A completion and hardening release. No loadables were added. Existing
-loadables were brought up to documented contracts, with regression, sanitizer
-and benchmark evidence. Every loadable now has at least smoke coverage; none
-is left at build/help only.
+A completion and hardening release, adding `bashclear` and conventional `clear`.
+Existing loadables were brought up to documented contracts, with regression,
+sanitizer and benchmark evidence. Every loadable now has at least smoke
+coverage; none is left at build/help only.
+
+### Added
+
+- GNU command names `base64`, `sha256sum`, `gzip`, and `tar` in `core` and
+  inherited profiles, with binary-stream comparisons, checksum verification,
+  gzip cross-reader checks, and tar interoperability fixtures.
+- A scratch Docker image and `scripts/bash-os-docker` working-directory launcher.
+- A visible Bash/GNU parity suite comparing stdout, status, files, modes and links.
+
+### Compatibility fixes
+
+- `cp -n` / `--no-clobber` preserves existing files and symlinks, including
+  with `-f`; the last `-i` or `-n` controls prompting versus skipping.
+- `touch -d @SECONDS` accepts signed epoch times and nanosecond fractions.
+- `cat --` ends option parsing, with common GNU line/display options supported.
+
+### Terminal commands
+
+- `bashclear` and `clear`: independent builtins included from `core` upward,
+  with `-T`, `-x`, help/version, checked output, and a documented terminal
+  table usable in static images without terminfo files. Captured host byte
+  comparisons and private PTY tests cover screen/scrollback behavior, options,
+  terminal errors and output recovery. See [clear](docs/clear.md) for the
+  fixed-table and serial-padding limits.
 
 ### Loadable status
 
-64 of 280 loadables moved to a stronger evidence level, including all 20
+64 of the original 280 loadables moved to a stronger evidence level, including all 20
 that had only build and help checks, which are now covered by a contract.
 Status per loadable, with evidence and limits, is in
 `docs/loadables-status.md` and `docs/loadables-status.csv`.

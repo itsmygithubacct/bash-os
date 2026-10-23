@@ -13,7 +13,7 @@
  *     -c       don't create if missing
  *     -r REF   copy atime+mtime from REF
  *     -t TIME  use TIME ([[CC]YY]MMDDhhmm[.SS])
- *     -d DATE  use DATE (ISO 8601: YYYY-MM-DDThh:mm:ss[Z])
+ *     -d DATE  use ISO 8601 or @SECONDS[.NANOSECONDS]
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c / bashtail.c / bashlink.c.
@@ -30,6 +30,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
@@ -93,6 +95,49 @@ bt_parsetime (const char *str, time_t *out)
     return 0;
 }
 
+/* Parse epoch seconds without floating-point rounding. A negative fraction
+   is normalized to timespec's non-negative nanoseconds. Extra precision is
+   rounded down to the preceding representable nanosecond, as GNU date does. */
+static int
+bt_date (const char *s, struct timespec *out)
+{
+    out->tv_nsec = 0;
+    if (*s != '@') return bt_parsetime (s, &out->tv_sec);
+    s++;
+    int negative = *s == '-';
+    if (*s == '-' || *s == '+') s++;
+    if (*s < '0' || *s > '9') return -1;
+    char *end;
+    errno = 0;
+    uintmax_t whole = strtoumax (s, &end, 10);
+    if (errno || whole > (uintmax_t)INTMAX_MAX + (unsigned)negative) return -1;
+    long nano = 0;
+    int digits = 0, remainder = 0;
+    if (*end == '.' || *end == ',') {
+        end++;
+        if (*end < '0' || *end > '9') return -1;
+        for (; *end >= '0' && *end <= '9'; end++) {
+            if (digits < 9) { nano = nano * 10 + *end - '0'; digits++; }
+            else if (*end != '0') remainder = 1;
+        }
+        while (digits++ < 9) nano *= 10;
+    }
+    if (*end) return -1;
+    intmax_t seconds;
+    if (negative) {
+        if (remainder) nano++;
+        if (nano) {
+            if (whole > (uintmax_t)INTMAX_MAX) return -1;
+            seconds = -(intmax_t)whole - 1;
+            nano = 1000000000L - nano;
+        } else seconds = whole ? -(intmax_t)(whole - 1) - 1 : 0;
+    } else seconds = (intmax_t)whole;
+    out->tv_sec = (time_t)seconds;
+    if ((intmax_t)out->tv_sec != seconds) return -1;
+    out->tv_nsec = nano;
+    return 0;
+}
+
 /* Map a --time=WORD value to atime/mtime selection (GNU touch): access /
    atime / use → atime; modify / mtime → mtime. Returns 0 on success and
    sets *a or *m; -1 on an unrecognized word. */
@@ -142,7 +187,7 @@ touch_builtin (WORD_LIST *list)
 {
     int aflag = 0, mflag = 0, cflag = 0, hflag = 0;
     const char *ref = NULL;
-    time_t fixed = 0;
+    struct timespec fixed = {0};
     int have_fixed = 0;
 
     /* Hand-roll arg parsing to support both `-r REF` and `-rREF`,
@@ -191,7 +236,7 @@ touch_builtin (WORD_LIST *list)
                 list = list->next;
                 arg = list->word->word;
             }
-            if (bt_parsetime (arg, &fixed) < 0) {
+            if (bt_date (arg, &fixed) < 0) {
                 builtin_error ("invalid time/date: %s", arg);
                 builtin_usage ();
                 return EX_USAGE;
@@ -248,7 +293,8 @@ touch_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             list = list->next;
-            if (bt_parsetime (list->word->word, &fixed) < 0) {
+            if ((w[1] == 'd' ? bt_date (list->word->word, &fixed) :
+                (fixed.tv_nsec = 0, bt_parsetime (list->word->word, &fixed.tv_sec))) < 0) {
                 builtin_error ("invalid time/date: %s", list->word->word);
                 builtin_usage ();
                 return EX_USAGE;
@@ -258,7 +304,8 @@ touch_builtin (WORD_LIST *list)
             continue;
         }
         if ((!strncmp (w, "-t", 2) || !strncmp (w, "-d", 2)) && w[2]) {
-            if (bt_parsetime (w + 2, &fixed) < 0) {
+            if ((w[1] == 'd' ? bt_date (w + 2, &fixed) :
+                (fixed.tv_nsec = 0, bt_parsetime (w + 2, &fixed.tv_sec))) < 0) {
                 builtin_error ("invalid time/date: %s", w + 2);
                 builtin_usage ();
                 return EX_USAGE;
@@ -314,8 +361,7 @@ touch_builtin (WORD_LIST *list)
         times[0] = st.st_atim;
         times[1] = st.st_mtim;
     } else if (have_fixed) {
-        times[0].tv_sec = fixed; times[0].tv_nsec = 0;
-        times[1].tv_sec = fixed; times[1].tv_nsec = 0;
+        times[0] = times[1] = fixed;
     }
     if (!aflag) times[0].tv_nsec = UTIME_OMIT;
     if (!mflag) times[1].tv_nsec = UTIME_OMIT;
@@ -340,7 +386,7 @@ char *touch_doc[] = {
     "    -f        (ignored, for compatibility)",
     "    -r, --reference=REF  use REF's timestamps",
     "    -t TIME   use TIME ([[CC]YY]MMDDhhmm[.SS])",
-    "    -d, --date=DATE      use DATE (ISO 8601: YYYY-MM-DDThh:mm:ss[Z])",
+    "    -d, --date=DATE      use ISO 8601 or @SECONDS[.NANOSECONDS]",
     "    --time=WORD          WORD=access|atime|use → -a; modify|mtime → -m",
     "    --help    show this help",
     "    --version show version",

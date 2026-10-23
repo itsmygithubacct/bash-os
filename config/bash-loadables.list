@@ -156,6 +156,8 @@ col|Filter CTL-H overstrike sequences (util-linux col)
 colrm|Remove byte-columns from each stdin line (util-linux colrm)
 expr|Evaluate POSIX expr(1) expressions
 hexdump|Byte-oriented hex dump (hexdump-compatible, focused on -C canonical)
+bashclear|bashclear [-x] [-T TERM] | -V | --version | --help
+clear|clear [-x] [-T TERM] | -V | --version | --help
 tput|Query a curated terminfo-compatible ANSI capability table
 tinfo|Read compiled terminfo entries
 strings|Print printable character sequences from files or stdin
@@ -315,3 +317,9 @@ sudo|sudo
 # Persistent graphics canvas and optional GPU renderer
 gpu|gpu COMMAND [ARGUMENT ...]
 ptybroker|Persistent local raw PTYs with bounded native I/O
+
+# GNU-compatible command names
+base64|base64 [-di] [-w COLS] [FILE]
+sha256sum|sha256sum [-bctwz] [--tag] [FILE...]
+gzip|gzip [-cdfkntq1-9] [-S SUFFIX] [FILE...]
+tar|tar -c|-t|-x [-zv] [-f ARCHIVE] [-C DIR] [FILE...]
