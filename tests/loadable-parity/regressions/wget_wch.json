@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "loadable": "wget_wch",
+  "reference": "There is no GNU/POSIX command implementing this Bash builtin API, so runnable cases are contracts rather than GNU parity. Expected code points and byte lengths are independently derived from the UTF-8 encodings of the stated Unicode scalars; cluster expectations follow the documented decode-one-scalar plus combining-mark, variation-selector, and ZWJ-linked behavior. Bash type/help checks use Bash metadata builtins.",
+  "coverage": [
+    "Bash type/help metadata contract",
+    "ASCII and 2-, 3-, and 4-byte UTF-8 scalar decoding, including U+10FFFF",
+    "Combining marks, variation selectors, emoji modifiers, and repeated ZWJ joins",
+    "Malformed hex and malformed, truncated, surrogate, and out-of-range UTF-8 rejection",
+    "read from standard input and an explicitly selected file descriptor",
+    "Empty input failure and preservation of the next scalar across successive reads",
+    "Owned pipe EOF, Unicode clusters and multibyte scalar lookahead.",
+    "Independent descriptor switches, duplicate aliases, ordinary FD reuse, and seek-back on regular files."
+  ],
+  "exclusions": [
+    "No matching external GNU/POSIX wget_wch executable exists, so no GNU parity cases are claimed.",
+    "Real terminal input timing and fragmented multibyte delivery are deferred to a controlled private PTY fixture.",
+    "Nonseekable lookahead is owned by wget_wch; transparent mixing with Bash read or other raw FD consumers is not supported. Seekable file lookahead is rewound.",
+    "fstat identity distinguishes ordinary distinct anonymous pipes and descriptor switches. Reopened named FIFOs/TTYs with the same identity and recycled inode identities need a wider reader lifecycle/reset API; general reopen detection is not claimed.",
+    "The private pending-scalar cache has 1025 slots and does not evict saved lookahead. Closing an input before draining its pending scalar retains a slot for the shell lifetime. Exhaustion returns failure after the current cluster and lookahead were consumed; failure is not transactional.",
+    "Nonseekable lookahead is process-local: draining an owned stream across command substitutions or separate subshells is not supported. Tests keep successive reads in the same shell process."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports wget_wch as a builtin and help exposes its documented decode/read synopsis and output contract.",
+      "script": "type -t wget_wch\ndoc=$(help wget_wch)\ncase $doc in *\"wget_wch decode HEX...\"*\"read [FD]\"*\"Output is:\"*) printf 'metadata-ok\\n' ;; *) exit 1 ;; esac",
+      "expected_status": 0,
+      "stdout": "builtin\nmetadata-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-scalar-widths",
+      "kind": "contract",
+      "purpose": "Check one-scalar output for ASCII with a following scalar, prefixed multi-argument hex, 3- and 4-byte encodings, and the highest Unicode scalar U+10FFFF.",
+      "script": "wget_wch decode 4142\nwget_wch decode 0xc3 0xA9\nwget_wch decode e282ac\nwget_wch decode f09f9880\nwget_wch decode f48fbfbf",
+      "expected_status": 0,
+      "stdout": "wch U+0041 bytes=1\nwch U+00E9 bytes=2\nwch U+20AC bytes=3\nwch U+1F600 bytes=4\nwch U+10FFFF bytes=4\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-extension-clusters",
+      "kind": "contract",
+      "purpose": "Check documented cluster extension handling for two combining marks, a variation selector, and an emoji skin-tone modifier; byte totals are summed from the supplied UTF-8 encodings.",
+      "script": "wget_wch decode 61cc81e2839d\nwget_wch decode e29880efb88f\nwget_wch decode f09f918df09f8fbd",
+      "expected_status": 0,
+      "stdout": "wch U+0061,U+0301,U+20DD bytes=6\nwch U+2600,U+FE0F bytes=6\nwch U+1F44D,U+1F3FD bytes=8\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-zwj-chains",
+      "kind": "contract",
+      "purpose": "Check that a ZWJ admits the following scalar and that a sequence can contain repeated joins; code points and byte totals are independently derived from the UTF-8 sequences.",
+      "script": "wget_wch decode f09f91a9e2808df09f92bb\nwget_wch decode f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6",
+      "expected_status": 0,
+      "stdout": "wch U+1F469,U+200D,U+1F4BB bytes=11\nwch U+1F468,U+200D,U+1F469,U+200D,U+1F467,U+200D,U+1F466 bytes=25\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-invalid-inputs",
+      "kind": "contract",
+      "purpose": "Require rejection with diagnostics and no decoded stdout for odd/non-hex input, overlong and truncated UTF-8, a surrogate, an out-of-range scalar, and invalid read arguments.",
+      "script": "if wget_wch decode 4; then exit 1; fi\nif wget_wch decode gg; then exit 1; fi\nif wget_wch decode c0af; then exit 1; fi\nif wget_wch decode e282; then exit 1; fi\nif wget_wch decode eda080; then exit 1; fi\nif wget_wch decode f4908080; then exit 1; fi\nif wget_wch read 3 extra; then exit 1; fi\nprintf 'invalid inputs rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid inputs rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "read-stdin-cluster",
+      "kind": "contract",
+      "purpose": "Read one UTF-8 scalar followed by a combining mark from a small pipe; expected code points and byte count come from the literal octal UTF-8 bytes.",
+      "script": "printf 'a\\314\\201' | wget_wch read",
+      "expected_status": 0,
+      "stdout": "wch U+0061,U+0301 bytes=3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-explicit-fd",
+      "kind": "contract",
+      "purpose": "Exercise the documented optional FD argument using a private here-string containing a three-byte UTF-8 scalar.",
+      "script": "wget_wch read 3 3<<<$'\\342\\202\\254'",
+      "expected_status": 0,
+      "stdout": "wch U+20AC bytes=3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-empty-input",
+      "kind": "contract",
+      "purpose": "An empty input stream has no UTF-8 scalar to return and should fail without output or a diagnostic.",
+      "script": "if printf '' | wget_wch read; then exit 1; fi\nprintf 'empty input rejected\\n'",
+      "expected_status": 0,
+      "stdout": "empty input rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-preserves-following-scalar",
+      "kind": "contract",
+      "purpose": "Two consecutive reads from the same descriptor must return the first two scalars separately; the documented operation reads one cluster, so boundary detection must not consume the next scalar.",
+      "script": "{ wget_wch read 3; wget_wch read 3; } 3<<<$'\\303\\251A'",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nwch U+0041 bytes=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-fragmented-input",
+      "kind": "deferred",
+      "purpose": "Qualify terminal-facing read behavior when a multibyte scalar arrives in separate writes.",
+      "reason": "Requires a disposable private PTY plus a deterministic inter-byte input scheduler to distinguish a complete UTF-8 scalar from temporarily incomplete terminal input. The provided runner has no PTY driver; do not use a host terminal."
+    },
+    {
+      "id": "owned-pipe-clusters-eof",
+      "kind": "contract",
+      "purpose": "A single wget_wch-owned anonymous pipe contains independently encoded combining and ZWJ clusters followed by ASCII; drain each cluster and confirm EOF.",
+      "script": "printf 'a\\314\\201\\360\\237\\221\\251\\342\\200\\215\\360\\237\\222\\273Z' | { wget_wch read; wget_wch read; wget_wch read; if wget_wch read; then exit 91; fi; printf 'EOF\\n'; }",
+      "expected_status": 0,
+      "stdout": "wch U+0061,U+0301 bytes=3\nwch U+1F469,U+200D,U+1F4BB bytes=11\nwch U+005A bytes=1\nEOF\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "owned-multibyte-lookahead",
+      "kind": "contract",
+      "purpose": "Two consecutive multibyte scalars must remain separate, followed by an ordinary ASCII scalar; byte counts and code points come from literal UTF-8 bytes.",
+      "script": "printf '\\303\\251\\342\\202\\254Q' | { wget_wch read; wget_wch read; wget_wch read; }",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nwch U+20AC bytes=3\nwch U+0051 bytes=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "independent-input-descriptors",
+      "kind": "contract",
+      "purpose": "Alternate two owned input descriptors without moving pending scalar bytes from one stream into the other.",
+      "script": "{ wget_wch read 3; wget_wch read 4; wget_wch read 3; wget_wch read 4; } 3<<<$'\\303\\251A' 4<<<$'\\342\\202\\254B'",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nwch U+20AC bytes=3\nwch U+0041 bytes=1\nwch U+0042 bytes=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reused-fd-and-duplicate-alias",
+      "kind": "contract",
+      "purpose": "After caching lookahead from an owned pipe, duplicate it and redirect the original descriptor to a regular file. Each stream retains its own next scalar.",
+      "script": "printf 'xY' > regular\n{ wget_wch read 3; exec 4<&3; exec 3<regular; wget_wch read 3; wget_wch read 4; wget_wch read 3; } 3<<<$'\\303\\251A'",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nwch U+0078 bytes=1\nwch U+0041 bytes=1\nwch U+0059 bytes=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "redirected-stdin-reuse",
+      "kind": "contract",
+      "purpose": "Independent here-strings reuse descriptor zero; old owned-pipe lookahead must not appear in the new pipe.",
+      "script": "wget_wch read <<<$'\\303\\251A'\nwget_wch read <<<$'\\342\\202\\254B'",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nwch U+20AC bytes=3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "regular-seek-back-and-reopen",
+      "kind": "contract",
+      "purpose": "Regular file lookahead is rewound, so another reader sees the next byte and reopening the same file at offset zero returns its first scalar.",
+      "script": "printf '\\303\\251A' > regular\nexec 3<regular\nwget_wch read 3\nIFS= read -r -N 1 -u 3 next\nprintf 'next=%s\\n' \"$next\"\nexec 3<regular\nwget_wch read 3\nwget_wch read 3",
+      "expected_status": 0,
+      "stdout": "wch U+00E9 bytes=2\nnext=A\nwch U+00E9 bytes=2\nwch U+0041 bytes=1\n",
+      "stderr": "empty"
+    }
+  ]
+}

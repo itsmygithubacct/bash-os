@@ -2763,6 +2763,166 @@
       "status": "Parity",
       "evidence": "tests/loadable-parity/regressions/zcat.json",
       "scope": "25 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "wget_wch"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/wget_wch.json",
+      "scope": "0 bounded reference comparisons and 15 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "obj"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/obj.json",
+      "scope": "8 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "rsync"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/rsync.json",
+      "scope": "8 bounded reference comparisons and 1 documented contracts; 3 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "screen"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/screen.json",
+      "scope": "0 bounded reference comparisons and 2 documented contracts; 8 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "sixel"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/sixel.json",
+      "scope": "0 bounded reference comparisons and 6 documented contracts; 4 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "sudo"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/sudo.json",
+      "scope": "0 bounded reference comparisons and 3 documented contracts; 6 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "ssh"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/ssh.json",
+      "scope": "9 bounded reference comparisons and 4 documented contracts; 3 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Offline private known_hosts files only; no remote session or host-key trust qualification."
+    },
+    {
+      "names": [
+        "script"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/script.json",
+      "scope": "1 bounded reference comparisons and 22 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Raw payload format is a custom interface; only a common missing-file error is util-linux parity."
+    },
+    {
+      "names": [
+        "wall"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/wall.json",
+      "scope": "6 bounded reference comparisons and 4 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Only help and option-error paths; no broadcast or timeout operation was qualified."
+    },
+    {
+      "names": [
+        "nano2"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/nano2.json",
+      "scope": "0 bounded reference comparisons and 6 documented contracts; 2 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "dns"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/dns.json",
+      "scope": "0 bounded reference comparisons and 4 documented contracts; 6 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "dhcpd"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/dhcpd.json",
+      "scope": "0 bounded reference comparisons and 6 documented contracts; 3 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "awk"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/awk.json",
+      "scope": "17 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "bc"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/bc.json",
+      "scope": "9 bounded reference comparisons and 5 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "zlib"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/zlib.json",
+      "scope": "10 bounded reference comparisons and 7 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Codec round-trip results and independently encoded decoder vectors are distinguished; self-generated artifacts alone do not establish interoperability."
+    },
+    {
+      "names": [
+        "netids"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/netids.json",
+      "scope": "0 bounded reference comparisons and 9 documented contracts; 2 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Offline synthetic packets and explicit dry-run output only; no network or firewall mutation."
+    },
+    {
+      "names": [
+        "cksum"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/cksum.json",
+      "scope": "15 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "less"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/less.json",
+      "scope": "6 bounded reference comparisons and 3 documented contracts; 3 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "ts"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/ts.json",
+      "scope": "0 bounded reference comparisons and 8 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions."
+    },
+    {
+      "names": [
+        "pack"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/pack.json",
+      "scope": "7 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Metadata contracts do not establish operation coverage; each JSON file states its oracle and exclusions. Created-pack result comparison is a self round trip; external Git readability is unqualified."
     }
   ],
   "sanitizer_groups": [
@@ -4625,9 +4785,9 @@
       }
     ],
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
-    "catalog_sha256": "7ae8209c5397362b75b85f45531c9e57a25b16176e95d7b28794f12562590ca8",
+    "catalog_sha256": "b556dd11f659bcd8606e2d55928ef4a54b0a8cc39717f014458da05199b03728",
     "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b",
-    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged. 2026-10-23: refreshed help syntax and focused isolated parity fixtures for the GNU compatibility corrections. Historical timing and broad inventory records retain their original dates and commits. 2026-10-23: refreshed additional command synopses, formatting/CLI fixtures and the w explicit-file migration. The dated broad review and command measurements remain historical; no new timings are inferred. 2026-10-23: aligned additional static/package synopses and added array, FIFO, JSON, gzip-stream and ordinary-file regression fixtures. Historical broad-review dates, commits and timings remain unchanged.",
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged. 2026-10-23: refreshed help syntax and focused isolated parity fixtures for the GNU compatibility corrections. Historical timing and broad inventory records retain their original dates and commits. 2026-10-23: refreshed additional command synopses, formatting/CLI fixtures and the w explicit-file migration. The dated broad review and command measurements remain historical; no new timings are inferred. 2026-10-23: aligned additional static/package synopses and added array, FIFO, JSON, gzip-stream and ordinary-file regression fixtures. Historical broad-review dates, commits and timings remain unchanged. 2026-10-23: aligned more static/package help and recorded focused Unicode, raw-log, offline known_hosts and writable awk-counter fixtures. Broad review records and timings remain historical.",
     "historical_validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules."
   },
   "optional_integrations": {

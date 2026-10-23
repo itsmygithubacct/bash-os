@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "loadable": "rsync",
+  "reference": "GNU rsync (the system rsync executable invoked by reference Bash with PATH=/usr/bin:/bin) is the independent oracle for local-copy behavior. The metadata contract is grounded in Bash's type/help interface and the rsync documentation. No candidate-produced output is used as an expectation.",
+  "coverage": [
+    "Single-file destination selection and byte copying",
+    "Multiple source files mapped into a new destination directory",
+    "Recursive archive copy with permissions and a relative symlink",
+    "Source trailing-slash mapping of directory contents",
+    "Dry-run leaves a missing destination absent",
+    "--delete removes destination entries absent from the source",
+    "Partial source failure returns rsync status 23 while copying surviving sources",
+    "Default transfer preserves an existing destination file mode",
+    "Bash type/help metadata for the rsync builtin"
+  ],
+  "exclusions": [
+    "Remote rsh/SSH push and pull require a disposable peer or transport mock; no network activity is performed.",
+    "Native protocol and rsync daemon transfers require a disposable rsync server/mock and are not executed.",
+    "This suite does not qualify delta/compression wire transfers, hard-link preservation, ACLs, xattrs, special files, nanosecond mtime preservation, or atomic-write interruption behavior."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm builtin registration and the documented one-line description using Bash help -d; the first line of full help is a synopsis header.",
+      "script": "type -t rsync\nhelp -d rsync",
+      "expected_status": 0,
+      "stdout": "builtin\nrsync - Minimal rsync subset: push, pull, native proto-27 and daemon transfers.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "single-file-new-destination",
+      "kind": "parity",
+      "purpose": "A single source file copied to a missing destination without a slash is a file at that exact path, as GNU rsync specifies.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "printf 'small fixture\\n' > source\nrsync source copied",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-files-new-destination",
+      "kind": "parity",
+      "purpose": "Multiple source files make a missing destination a directory even without a trailing slash, with each file retaining its basename.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "printf 'first\\n' > one\nprintf 'second\\n' > two\nrsync -a one two bundle",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "archive-recursion-links-modes",
+      "kind": "parity",
+      "purpose": "Archive mode recursively copies a directory tree, preserves a non-default file mode, and recreates a relative symlink with the same target.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "mkdir -p src/nested\nprintf 'payload\\n' > src/nested/file\nchmod 640 src/nested/file\nln -s nested/file src/link\nrsync -a src dest/",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "source-trailing-slash",
+      "kind": "parity",
+      "purpose": "A trailing slash on a recursive source copies the directory contents directly into the destination instead of adding the source directory basename.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "mkdir -p src/sub\nprintf 'top\\n' > src/top\nprintf 'nested\\n' > src/sub/inner\nrsync -r src/ out",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dry-run-no-destination-write",
+      "kind": "parity",
+      "purpose": "Archive dry-run on a contents-style source reports success without creating the absent destination or changing the fixture tree.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "mkdir -p src/sub\nprintf 'dry run\\n' > src/sub/file\nrsync -an src/ absent",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delete-stale-destination-entries",
+      "kind": "parity",
+      "purpose": "With --delete, syncing source directory contents removes stale files at both the destination root and a nested directory while retaining source entries.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "mkdir -p src/sub dest/sub\nprintf 'keep\\n' > src/sub/keep\nprintf 'stale\\n' > dest/stale\nprintf 'extra\\n' > dest/sub/extra\nrsync -a --delete src/ dest/",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "partial-missing-source",
+      "kind": "parity",
+      "purpose": "GNU rsync returns status 23 for a missing source while still transferring a surviving source; capture that command status and verify the copied tree.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "printf 'surviving input\\n' > good\nrc=0\nrsync -a missing good dest/ || rc=$?\n[ \"$rc\" -eq 23 ]\nprintf 'rsync-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "rsync-status=23\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "existing-mode-without-perms-flag",
+      "kind": "parity",
+      "purpose": "When default rsync replaces an existing file without -p, GNU rsync retains the destination's existing mode.",
+      "requires": [
+        "rsync"
+      ],
+      "script": "printf 'new payload\\n' > source\nprintf 'old\\n' > target\nchmod 600 target\nrsync source target",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "rsh-push-requires-peer",
+      "kind": "deferred",
+      "purpose": "Exercise remote push and pull through an rsh command using a disposable transport peer.",
+      "reason": "Requires a reviewed disposable RSH/SSH peer or protocol mock so transfer and quoting behavior can be checked without a real network target or installed credentials. The mandated runner provides no peer fixture, and network activity is out of scope."
+    },
+    {
+      "id": "native-protocol-requires-server",
+      "kind": "deferred",
+      "purpose": "Exercise rsync --native interoperability against a disposable stock rsync server process.",
+      "reason": "Requires a future disposable protocol peer/server fixture to verify proto-27 negotiation and file transfer; this suite does not start server processes or contact a network endpoint."
+    },
+    {
+      "id": "daemon-protocol-requires-server",
+      "kind": "deferred",
+      "purpose": "Exercise rsync daemon URL/module transfers against a disposable rsync daemon mock.",
+      "reason": "Requires a future isolated rsync-daemon mock with a controlled module and protocol responses. No real or loopback network activity is allowed for this run."
+    }
+  ]
+}

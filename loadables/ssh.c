@@ -3526,6 +3526,39 @@ keyscan_cmd (WORD_LIST *args)
   return EXECUTION_SUCCESS;
 }
 
+/* Local file lookup supports hashed host fields and comma-separated literal
+ * aliases. Preserve the original line when isolating its host field. Marker
+ * records and wildcard/negated host patterns are outside this bounded helper. */
+static int
+bssh_known_line_matches (char *line, const char *host)
+{
+  char *field = line;
+  while (*field == ' ' || *field == '\t') field++;
+  if (!*field || *field == '\n' || *field == '#' || *field == '@') return 0;
+  char *end = field;
+  while (*end && !isspace ((unsigned char) *end)) end++;
+  if (!*end) return 0;
+  char saved = *end;
+  *end = '\0';
+  int matched = 0;
+  if (!strncmp (field, "|1|", 3))
+    matched = bk_hashed_match (field, host);
+  else
+    {
+      size_t len = strlen (host);
+      for (char *alias = field; *alias;)
+        {
+          char *comma = strchr (alias, ',');
+          size_t n = comma ? (size_t) (comma - alias) : strlen (alias);
+          if (n == len && strncasecmp (alias, host, n) == 0) matched = 1;
+          if (!comma) break;
+          alias = comma + 1;
+        }
+    }
+  *end = saved;
+  return matched;
+}
+
 /* known-hosts verify rc parity with OpenSSH-style trust prompts:
  *   0 = host matches recorded key (or recorded with no expected key supplied)
  *   1 = host recorded but key differs (mismatch — TOFU break, the dangerous case)
@@ -3624,13 +3657,9 @@ static int known_hosts_cmd (WORD_LIST *args)
       return rc;
     }
 
-  /* `ssh-keygen -F HOST` parity: print matching entries, rc 0 if any matched
-   * (or any printed when no filter is given), rc 1 if a filter was supplied
-   * but matched nothing.  Missing file is treated as empty: rc 1 with filter,
-   * rc 0 without.  Hashed entries (|1|salt|hash) are HMAC-matched against
-   * the filter via `bk_hashed_match`, matching `ssh-keygen -F HOST`
-   * behavior — pre-fix code did a literal `strncmp(field, filter)` so
-   * hashed entries were silently invisible to filtered list. */
+  /* Filtered list follows ssh-keygen -q -F for the bounded local host-field
+   * grammar above. Unfiltered list retains the custom records-only surface;
+   * a missing file remains empty for this existing list contract. */
   if (!strcmp (sub, "list"))
     {
       const char *filter = NULL, *w;
@@ -3641,94 +3670,96 @@ static int known_hosts_cmd (WORD_LIST *args)
         }
       FILE *f = fopen (path, "r");
       if (!f) return filter ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
-      char line[1024];
-      size_t flen = filter ? strlen (filter) : 0;
+      char *line = NULL;
+      size_t cap = 0;
+      ssize_t len;
       int matched = 0;
-      while (fgets (line, sizeof line, f))
+      while ((len = getline (&line, &cap, f)) >= 0)
         {
-          char *p = line;
-          while (*p == ' ' || *p == '\t') p++;
-          if (*p == '\0' || *p == '\n' || *p == '#') continue;
-          if (filter)
-            {
-              /* Isolate the first whitespace-delimited field so we can
-                 branch on `|1|`-prefix without re-scanning. */
-              char *field_end = p;
-              while (*field_end && *field_end != ' ' && *field_end != '\t')
-                field_end++;
-              if (*field_end != ' ' && *field_end != '\t') continue;
-              char saved = *field_end;
-              *field_end = '\0';
-              int host_matches;
-              if (p[0] == '|' && p[1] == '1' && p[2] == '|')
-                host_matches = bk_hashed_match (p, filter);
-              else
-                host_matches = (strlen (p) == flen
-                                && strncmp (p, filter, flen) == 0);
-              *field_end = saved;
-              if (!host_matches) continue;
-            }
-          fputs (p, stdout);
+          char *record = line;
+          while (*record == ' ' || *record == '\t') record++;
+          if (!*record || *record == '\n' || *record == '#') continue;
+          if (filter && !bssh_known_line_matches (line, filter)) continue;
+          fwrite (line, 1, (size_t) len, stdout);
           matched = 1;
         }
-      fclose (f);
-      if (filter && !matched) return EXECUTION_FAILURE;
-      return EXECUTION_SUCCESS;
+      int failed = !feof (f);
+      free (line);
+      if (fclose (f) != 0) failed = 1;
+      if (failed) builtin_error ("known-hosts: cannot read %s", path);
+      return sh_chkwrite (failed || (filter && !matched)
+                          ? EXECUTION_FAILURE : EXECUTION_SUCCESS);
     }
 
-  /* `ssh-keygen -R HOST` parity: rewrite the file removing every entry whose
-   * host token equals HOST; comments and blank lines are preserved verbatim.
-   * Always rc 0 (idempotent — missing file and no-match both succeed); the
-   * number of removed entries is reported on stderr. */
+  /* ssh-keygen -R: remove whole matching records, retain the original as
+   * PATH.old, preserve ordinary permission bits, and report found line numbers
+   * and the completed update on stdout. No-match leaves the file untouched. */
   if (!strcmp (sub, "remove"))
     {
       const char *host = next_word (&args);
       if (!host || next_word (&args))
         { builtin_error ("known-hosts remove HOST"); return EX_USAGE; }
       FILE *f = fopen (path, "r");
-      if (!f) { fprintf (stderr, "known-hosts: %s not found, nothing to remove\n", path); return EXECUTION_SUCCESS; }
-      char tmp[600];
-      snprintf (tmp, sizeof tmp, "%s.tmp", path);
-      FILE *t = fopen (tmp, "w");
-      if (!t) { fclose (f); builtin_error ("%s: %s", tmp, strerror (errno)); return EXECUTION_FAILURE; }
-      char line[1024];
-      size_t hlen = strlen (host);
-      size_t removed = 0;
-      while (fgets (line, sizeof line, f))
+      if (!f) {
+        builtin_error ("known-hosts: %s: %s", path, strerror (errno));
+        return 255;
+      }
+      struct stat st;
+      if (fstat (fileno (f), &st) < 0) {
+        builtin_error ("known-hosts: %s: %s", path, strerror (errno));
+        fclose (f); return EXECUTION_FAILURE;
+      }
+      char tmp[600], backup[600];
+      snprintf (tmp, sizeof tmp, "%s.XXXXXX", path);
+      snprintf (backup, sizeof backup, "%s.old", path);
+      int fd = mkstemp (tmp);
+      if (fd < 0) {
+        builtin_error ("known-hosts: %s: %s", path, strerror (errno));
+        fclose (f); return EXECUTION_FAILURE;
+      }
+      FILE *t = fdopen (fd, "w");
+      if (!t || fchmod (fd, st.st_mode & 0777) < 0) {
+        builtin_error ("known-hosts: %s: %s", path, strerror (errno));
+        if (t) fclose (t); else close (fd);
+        fclose (f); unlink (tmp); return EXECUTION_FAILURE;
+      }
+      char *line = NULL;
+      size_t cap = 0, lineno = 0, removed = 0;
+      ssize_t len;
+      int failed = 0;
+      while ((len = getline (&line, &cap, f)) >= 0)
         {
-          char *p = line;
-          while (*p == ' ' || *p == '\t') p++;
-          if (*p == '\0' || *p == '\n' || *p == '#')
-            { fputs (line, t); continue; }
-          /* Isolate the first whitespace-delimited field so hashed
-             `|1|salt|hash` entries can be HMAC-matched against the
-             literal host argument (matching `ssh-keygen -R HOST`).
-             Pre-fix code did a literal `strncmp(field, host)` so
-             hashed entries were immune to remove. */
-          char *field_end = p;
-          while (*field_end && *field_end != ' ' && *field_end != '\t')
-            field_end++;
-          if (*field_end != ' ' && *field_end != '\t')
-            { fputs (line, t); continue; }
-          char saved = *field_end;
-          *field_end = '\0';
-          int host_matches;
-          if (p[0] == '|' && p[1] == '1' && p[2] == '|')
-            host_matches = bk_hashed_match (p, host);
-          else
-            host_matches = (strlen (p) == hlen
-                            && strncmp (p, host, hlen) == 0);
-          *field_end = saved;
-          if (host_matches) { removed++; continue; }
-          fputs (line, t);
+          lineno++;
+          if (bssh_known_line_matches (line, host)) {
+            printf ("# Host %s found: line %zu\n", host, lineno);
+            removed++;
+          } else if (fwrite (line, 1, (size_t) len, t) != (size_t) len) {
+            failed = 1; break;
+          }
         }
-      fclose (f); fclose (t);
-      if (rename (tmp, path) < 0)
-        { unlink (tmp); builtin_error ("rename %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
-      chmod (path, 0644);
-      fprintf (stderr, "known-hosts: removed %zu entr%s for %s\n",
-               removed, removed == 1 ? "y" : "ies", host);
-      return EXECUTION_SUCCESS;
+      if (!feof (f)) failed = 1;
+      free (line);
+      if (fclose (f) != 0) failed = 1;
+      if (fclose (t) != 0) failed = 1;
+      if (failed) {
+        unlink (tmp);
+        builtin_error ("known-hosts: cannot rewrite %s", path);
+        return sh_chkwrite (EXECUTION_FAILURE);
+      }
+      if (!removed) {
+        unlink (tmp);
+        fprintf (stderr, "Host %s not found in %s\n", host, path);
+        return EXECUTION_SUCCESS;
+      }
+      /* Keep the source pathname intact until the replacement is complete.
+       * The backup links the original inode before atomic replacement. */
+      if ((unlink (backup) < 0 && errno != ENOENT)
+          || link (path, backup) < 0 || rename (tmp, path) < 0) {
+        builtin_error ("known-hosts: cannot update %s: %s", path, strerror (errno));
+        unlink (tmp); return sh_chkwrite (EXECUTION_FAILURE);
+      }
+      printf ("%s updated.\nOriginal contents retained as %s\n", path, backup);
+      return sh_chkwrite (EXECUTION_SUCCESS);
     }
 
   builtin_error ("known-hosts: unknown subcommand: %s", sub);
@@ -4918,7 +4949,8 @@ char *ssh_doc[] = {
   "known-hosts add HOST KEY",
   "known-hosts verify HOST [KEY] [-V RC]   (rc 0 match, 1 mismatch, 2 unknown)",
   "known-hosts list [HOST]                  (rc 0 if any matched / no filter, 1 if filtered no-match)",
-  "known-hosts remove HOST                  (idempotent; rewrites file, preserves comments/blanks)",
+  "known-hosts remove HOST                  (preserves comments/mode; backs up to FILE.old)",
+  "  remove reports updates on stdout; no-match succeeds, missing file returns 255.",
   NULL
 };
 struct builtin ssh_struct = {

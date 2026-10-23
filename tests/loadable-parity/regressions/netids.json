@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "netids",
+  "reference": "No matching GNU NetIDS CLI is available to this harness; Suricata is not treated as a GNU oracle. Contract expectations come from the netids source comments and registered help contract. Classic PCAP records are independently encoded with Python struct layouts matching the published PCAP little-endian header, Ethernet II, IPv4 and UDP field layouts; packet timestamps, IPs, ports and payload bytes are fixed inputs. Expected event lines are independently assembled from those fixed packet fields and the documented schema-level event fields, not captured from the candidate.",
+  "coverage": [
+    "Bash type/help/version metadata (metadata only; not counted as operation coverage).",
+    "Compile accepted rule count, CIDR/port-range syntax, bidirectional ip rule, and explicit PCRE opt-in.",
+    "Fail-closed compile rejection of an unsupported flowbits directive and PCRE when opt-in is absent.",
+    "Offline Ethernet IPv4/UDP alert matching, destination-port/CIDR filtering, nocase content, and -o file output readback.",
+    "Offline raw IPv4 decoding, binary hex content decoding, and AND semantics across content clauses.",
+    "Malformed PCAP failure and offline drop event under explicit dry-run only."
+  ],
+  "exclusions": [
+    "No GNU-compatible NetIDS CLI oracle is present; netids behavior cases are documented contracts, not GNU parity.",
+    "Live interface capture, active fw/firewall mutation, and real network interactions are deferred.",
+    "The suite does not cover IPv6, complete Suricata compatibility, or PCRE packet-match semantics.",
+    "No other bash-os loadable is tested.",
+    "A generic Bash-only redirection check is excluded because it never invokes netids and cannot establish loadable operation parity."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help-version",
+      "kind": "contract",
+      "purpose": "Check that Bash registers netids as a builtin, exposes its help text, and returns the documented version banner; this is metadata coverage only.",
+      "script": "help_text=$(help netids)\n[[ -n $help_text ]]\ntype -t netids\nprintf '%s\\n' 'help-present'\nnetids --version\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp-present\nnetids (bash-os AUDIT-6.4 A5 A6) NetIDS; Suricata subset, offline -r + live -i, pcre opt-in, blocking opt-in\n"
+    },
+    {
+      "id": "compile-valid-rules-and-pcre-option",
+      "kind": "contract",
+      "purpose": "Compile two documented subset rules, including a TCP port range, CIDR, bidirectional ip rule, and PCRE enabled explicitly; expected count follows the documented compile contract.",
+      "script": "printf '%s\\n' '# fixture rules' 'alert tcp 192.0.2.0/24 1024:65535 -> 198.51.100.5 443 (msg:\"tls client\"; pcre:\"/ClientHello/i\"; sid:101; rev:2; classtype:policy-violation;)' 'pass ip any any <> any any (msg:\"baseline\"; sid:102;)' > rules\nnetids compile -S rules --enable-pcre\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "compiled 2 rule(s)\n"
+    },
+    {
+      "id": "compile-rejects-unsupported-directive",
+      "kind": "contract",
+      "purpose": "Verify the documented fail-closed rule-subset behavior for flowbits; unsupported directives reject the whole rule file with status 2.",
+      "script": "printf '%s\\n' 'alert udp any any -> any any (msg:\"fixture\"; flowbits:set,seen; sid:1;)' > rules\nnetids compile -S rules\n",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "compile-requires-pcre-opt-in",
+      "kind": "contract",
+      "purpose": "Verify the documented default that pcre rules are rejected unless --enable-pcre or its environment opt-in is supplied.",
+      "script": "printf '%s\\n' 'alert tcp any any -> any any (msg:\"fixture\"; pcre:\"/hello/i\"; sid:21;)' > rules\nnetids compile -S rules\n",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "scan-udp-nocase-file-output",
+      "kind": "contract",
+      "purpose": "Scan an independently encoded little-endian classic PCAP Ethernet/IPv4/UDP frame; verify CIDR, destination port, nocase content, deterministic alert fields, and -o file output via Bash readback.",
+      "script": "pcap_bytes='\\xd4\\xc3\\xb2\\xa1\\x02\\x00\\x04\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\xff\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\xf1\\x53\\x65\\x40\\xe2\\x01\\x00\\x2f\\x00\\x00\\x00\\x2f\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08\\x00\\x45\\x00\\x00\\x21\\x00\\x01\\x00\\x00\\x40\\x11\\x00\\x00\\xc0\\x00\\x02\\x01\\xc6\\x33\\x64\\x02\\x30\\x39\\x00\\x35\\x00\\x0d\\x00\\x00\\x48\\x45\\x4c\\x4c\\x4f'\nprintf '%b' \"$pcap_bytes\" > traffic.pcap\nprintf '%s\\n' 'alert udp 192.0.2.0/24 any -> 198.51.100.2 53 (msg:\"dns hello\"; content:\"hello\"; nocase; sid:7; rev:1; classtype:attempted-admin;)' > rules\nnetids scan -r traffic.pcap -S rules -o events\nIFS= read -r event < events\nprintf '%s\\n' \"$event\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "{\"timestamp\":1700000000.123456,\"event_type\":\"alert\",\"proto\":\"UDP\",\"src_ip\":\"192.0.2.1\",\"src_port\":12345,\"dest_ip\":\"198.51.100.2\",\"dest_port\":53,\"alert\":{\"signature\":\"dns hello\",\"signature_id\":7,\"rev\":1,\"category\":\"attempted-admin\"}}\n"
+    },
+    {
+      "id": "scan-case-and-header-misses",
+      "kind": "contract",
+      "purpose": "Check case-sensitive content matching and destination-port filtering: the packet payload is uppercase HELLO, so neither the lowercase-only rule nor the rule for port 54 alerts.",
+      "script": "pcap_bytes='\\xd4\\xc3\\xb2\\xa1\\x02\\x00\\x04\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\xff\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\xf1\\x53\\x65\\x40\\xe2\\x01\\x00\\x2f\\x00\\x00\\x00\\x2f\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08\\x00\\x45\\x00\\x00\\x21\\x00\\x01\\x00\\x00\\x40\\x11\\x00\\x00\\xc0\\x00\\x02\\x01\\xc6\\x33\\x64\\x02\\x30\\x39\\x00\\x35\\x00\\x0d\\x00\\x00\\x48\\x45\\x4c\\x4c\\x4f'\nprintf '%b' \"$pcap_bytes\" > traffic.pcap\nprintf '%s\\n' 'alert udp any any -> any 53 (msg:\"wrong case\"; content:\"hello\"; sid:31;)' 'alert udp any any -> any 54 (msg:\"wrong port\"; content:\"HELLO\"; sid:32;)' > rules\nnetids scan -r traffic.pcap -S rules\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "scan-raw-ip-hex-content-and",
+      "kind": "contract",
+      "purpose": "Scan an independently encoded raw-IPv4 PCAP record and verify raw linktype decoding plus AND semantics across literal and hex content clauses containing binary bytes.",
+      "script": "pcap_bytes='\\xd4\\xc3\\xb2\\xa1\\x02\\x00\\x04\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\xff\\x00\\x00\\x65\\x00\\x00\\x00\\x01\\xf1\\x53\\x65\\xf1\\xfb\\x09\\x00\\x21\\x00\\x00\\x00\\x21\\x00\\x00\\x00\\x45\\x00\\x00\\x21\\x00\\x01\\x00\\x00\\x40\\x11\\x00\\x00\\xcb\\x00\\x71\\x07\\xcb\\x00\\x71\\x09\\x9c\\x40\\x14\\xe9\\x00\\x0d\\x00\\x00\\x41\\x42\\x01\\x02\\x21'\nprintf '%b' \"$pcap_bytes\" > traffic.pcap\nprintf '%s\\n' 'alert udp any any -> any 5353 (msg:\"raw bytes\"; content:\"AB\"; content:\"|01 02|\"; content:\"!\"; sid:9; rev:2;)' > rules\nnetids scan -r traffic.pcap -S rules\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "{\"timestamp\":1700000001.654321,\"event_type\":\"alert\",\"proto\":\"UDP\",\"src_ip\":\"203.0.113.7\",\"src_port\":40000,\"dest_ip\":\"203.0.113.9\",\"dest_port\":5353,\"alert\":{\"signature\":\"raw bytes\",\"signature_id\":9,\"rev\":2,\"category\":\"uncategorized\"}}\n"
+    },
+    {
+      "id": "scan-rejects-bad-pcap-magic",
+      "kind": "contract",
+      "purpose": "Verify a malformed offline capture is rejected with a failing status and diagnostic instead of being treated as an empty successful scan.",
+      "script": "printf '%s\\n' 'alert udp any any -> any any (msg:\"fixture\"; sid:1;)' > rules\nprintf '%s' 'bad' > traffic.pcap\nnetids scan -r traffic.pcap -S rules\n",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "offline-block-dry-run-event",
+      "kind": "contract",
+      "purpose": "Exercise offline drop-rule matching only with both --enable-blocking and --dry-run; assert the documented block event and dry_run=true without invoking fw or changing firewall state.",
+      "script": "pcap_bytes='\\xd4\\xc3\\xb2\\xa1\\x02\\x00\\x04\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\xff\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\xf1\\x53\\x65\\x40\\xe2\\x01\\x00\\x2f\\x00\\x00\\x00\\x2f\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x08\\x00\\x45\\x00\\x00\\x21\\x00\\x01\\x00\\x00\\x40\\x11\\x00\\x00\\xc0\\x00\\x02\\x01\\xc6\\x33\\x64\\x02\\x30\\x39\\x00\\x35\\x00\\x0d\\x00\\x00\\x48\\x45\\x4c\\x4c\\x4f'\nprintf '%b' \"$pcap_bytes\" > traffic.pcap\nprintf '%s\\n' 'drop udp any any -> any 53 (msg:\"fixture block\"; content:\"HELLO\"; sid:44; rev:3;)' > rules\nnetids scan -r traffic.pcap -S rules --enable-blocking --dry-run\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "{\"timestamp\":1700000000.123456,\"event_type\":\"block\",\"proto\":\"UDP\",\"src_ip\":\"192.0.2.1\",\"src_port\":12345,\"dest_ip\":\"198.51.100.2\",\"dest_port\":53,\"action\":\"drop\",\"dry_run\":true,\"bashfw_argv\":\"fw -n deny 192.0.2.1\",\"bashfw_rc\":0,\"alert\":{\"signature\":\"fixture block\",\"signature_id\":44,\"rev\":3,\"category\":\"uncategorized\"}}\n"
+    },
+    {
+      "id": "deferred-live-capture",
+      "kind": "deferred",
+      "purpose": "Qualify the -i interface path with a bounded one-packet capture.",
+      "reason": "Requires a disposable VM with a dedicated isolated veth pair, an independently verified packet injector on the peer, and a known interface name. This harness intentionally has no real network target or live-capture fixture."
+    },
+    {
+      "id": "deferred-active-firewall-blocking",
+      "kind": "deferred",
+      "purpose": "Verify non-dry-run drop/reject behavior and the exact fw deny request.",
+      "reason": "Requires a disposable VM/network namespace and a reviewed mock fw executable that records argv and cannot reach host firewall state. The active path is deliberately not invoked; the current candidate fixture PATH is empty and no firewall shim is supplied."
+    }
+  ]
+}

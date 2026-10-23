@@ -128,6 +128,11 @@ the reference's distinction between recoverable named-input errors and errors
 that stop later operands. Trailing non-member data and the wider gzip option
 interface remain outside its parity claim.
 
+The `zlib` decoder also preserves decoded prefix bytes returned alongside an
+integrity error. Its codec fixtures distinguish round-trip-result comparisons
+from independent fixed decoder vectors; self-generated compressed artifacts do
+not establish external format interoperability.
+
 The `jq` subset accepts ordinary JSON text streams and filter files, handles
 typed addition and optional type errors, and preserves successful outputs before
 later evaluation errors. Independent comparisons cover Cartesian output order,
@@ -140,10 +145,59 @@ general numeric precision remain unqualified. Compilation errors retain status
 notices, skipped missing operands and option-error statuses. `ncdu` diagnoses
 missing operands and incomplete scans instead of reporting a successful zero
 total. Interactive terminal behavior is separate from these file comparisons.
+`less` concatenates file payloads without separator headers when plain output
+is redirected. In that mode, file-open errors appear on stdout, later operands
+are still read, and file-open errors alone leave status 0, matching less 668.
+Its interactive path remains unqualified by these fixtures.
 `whatis` uses man-db's no-result status 16 and usage-error status 1. It retains
 exact-name lookup: the observed man-db legacy text backend also matches name
 prefixes, so that difference is documented as a custom contract. Help text and
 implementation version banners are not compared with another project's bytes.
+
+`ssh known-hosts list` and `remove` have offline comparisons with OpenSSH
+`ssh-keygen` using private files. Literal comma-separated aliases match without
+case sensitivity; removal preserves the original in `FILE.old`, keeps ordinary
+permission bits, and reports updates on stdout. No-match removal leaves the
+file unchanged, while a missing file returns 255. Marker records, wildcard
+patterns, concurrent replacement and remote SSH behavior remain unqualified.
+
+`script record` writes raw payload logs without util-linux's timestamped
+transcript wrappers. `script replay` consumes those raw logs and reports short
+input, invalid numeric timing fields and output errors. Byte-preserving replay,
+append/truncate recording and child statuses have explicit custom contracts;
+they are not timestamped typescript-file parity. Interactive resize, timing
+accuracy and cast output remain outside these comparisons.
+Explicit echo mode is configured before the recorder forwards input to its
+private PTY. Advanced H/S timing metadata is skipped rather than validated.
+
+`wget_wch read` assembles complete UTF-8 scalars before deciding cluster
+boundaries and retains the following scalar. Seekable input is rewound;
+nonseekable input uses process-local lookahead. Drain each nonseekable input
+with this builtin in one shell process: mixing readers, sharing reads across
+forks, or reopening the same FIFO/terminal with pending lookahead is unsupported.
+Closing an undrained stream retains a cache slot until shell exit, and failures
+can consume input. These are bounded Unicode contracts, not full grapheme or
+terminal-input parity.
+
+`wall -h` and `--help` print its own documentation without broadcasting.
+Invalid options and missing or invalid timeout arguments return status 1.
+Timeout values are parsed but synchronous terminal writes do not enforce a
+deadline. Broadcast behavior has no operational parity claim from these tests.
+
+`awk` honors assignments to `NR` and `FNR`, including compound updates and
+increments, and resets `FNR` for each named input file. Focused comparisons
+use GNU gawk and cover both expression evaluation paths. Existing differences
+in counters updated by explicit-file and command-pipe `getline`, and broader
+language and numeric limits, remain outside that claim.
+
+`bc` retains its documented expression-operand extension and returns status 1
+after syntax or runtime errors. GNU bc handles these cases differently, so
+their expected output and recovery are explicit custom contracts. Ordinary
+arithmetic, files, functions and recovery output have separate GNU comparisons.
+
+`cksum` retains the name `-` for explicit standard-input operands; implicit
+standard input has no CRC filename. Invalid algorithms and options return
+status 1, and repeated calls reset the selected algorithm and delimiter.
 
 `strptime` retains the platform C-library interface. Selected complete calendar
 dates are checked against Python; ISO week reconstruction, named timezone
@@ -206,3 +260,10 @@ with 173 deferred cases. It includes 154 sanitizer checks, 16 package loading
 gates, and 40 maintained `more` checks plus its focused smoke assertion.
 The updated Docker image passed all 131 comparisons against the unchanged
 namespace-isolated GNU reference. These runs add no performance measurements.
+
+The [fourth validation checkpoint](data/loadable-parity-validation-4.json)
+records 1,712 passing checks across 143 suites in each canonical build:
+1,193 reference comparisons and 519 custom contracts, with 221 deferred cases.
+It includes 83 sanitizer checks, 16 package loading gates and 131 passing
+Docker comparisons. These results cover the same fixtures in both builds;
+the two pass totals are not independent coverage or performance measurements.

@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "loadable": "obj",
+  "reference": "GNU Git (git hash-object, cat-file, mktree, ls-tree, and commit-tree) runs only in the reference fixture. Its object IDs and readers are the independent oracle; no expected operation output is derived from bash-os. Contract metadata is based on Bash's type/help builtins and obj_doc/short_doc in the pinned source. Parity cases require git.",
+  "coverage": [
+    "Bash type and short-help metadata for the obj builtin.",
+    "Git-compatible SHA-1 object IDs for empty and binary blob data.",
+    "hash --stdin-paths with multiple paths and repeated direct invocation in one shell.",
+    "Loose blob creation, cat/type/size reads, and upward repository discovery.",
+    "Batch and batch-check protocols with full IDs, abbreviated IDs, missing IDs, and repeated stdin reads.",
+    "Tree creation and NUL-safe parse-tree output compared with git mktree and git ls-tree, including a spaced filename.",
+    "Deterministic parent and child commit creation, with parse-commit checked against git cat-file.",
+    "Missing-object status and diagnostic presence."
+  ],
+  "exclusions": [
+    "Packed object lookup is deferred until a fixed pack/index fixture has been generated and independently checked with GNU Git; see the deferred case.",
+    "This suite does not cover worktrees, alternates, hash filters, annotated tags, malformed object stores, or NUL-truncated variable binding.",
+    "All runnable writes stay within each runner-created private /work fixture; no host or privileged operation is used."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports obj as a builtin, using Bash's documented type -t contract.",
+      "script": "type -t obj",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "short-help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm help -s exposes the builtin's documented short synopsis from obj_struct.short_doc.",
+      "script": "help -s obj",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "obj: obj cat|type|size|parse-tree|parse-commit|--batch|--batch-check|hash|blob|tree|commit|tag ARGS...\n"
+    },
+    {
+      "id": "hash-empty-blob",
+      "kind": "parity",
+      "purpose": "Compare the empty-blob object ID with GNU Git; this checks the object header, SHA-1, and empty-input boundary.",
+      "requires": [
+        "git"
+      ],
+      "script": "if type -t obj >/dev/null 2>&1; then\n  printf '' | obj hash --stdin\nelse\n  printf '' | git hash-object --stdin\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hash-binary-stdin",
+      "kind": "parity",
+      "purpose": "Compare a small blob containing NUL and newline bytes with GNU Git's hash-object --stdin result.",
+      "requires": [
+        "git"
+      ],
+      "script": "if type -t obj >/dev/null 2>&1; then\n  printf 'A\\000B\\n' | obj hash --stdin\nelse\n  printf 'A\\000B\\n' | git hash-object --stdin\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hash-stdin-paths-repeat",
+      "kind": "parity",
+      "purpose": "Check two path inputs, a filename containing a space, and a second direct stdin-paths invocation in the same shell.",
+      "requires": [
+        "git"
+      ],
+      "script": "printf 'first\\n' > first\nprintf 'second file\\n' > 'with space'\nprintf 'first\\nwith space\\n' > paths\nif type -t obj >/dev/null 2>&1; then\n  obj hash --stdin-paths < paths\n  obj hash --stdin-paths < paths\nelse\n  git hash-object --stdin-paths < paths\n  git hash-object --stdin-paths < paths\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "loose-blob-read",
+      "kind": "parity",
+      "purpose": "Compare loose blob write, type, size, and raw cat bytes with GNU Git; the final read runs below the repository root to exercise upward discovery. The filesystem snapshot is excluded because GNU Git and obj write different valid zlib streams for identical loose-object payloads; IDs, type, size, and raw cat bytes remain compared.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p repo/.git/objects/info repo/.git/refs/heads\nprintf 'ref: refs/heads/main\\n' > repo/.git/HEAD\nprintf '[core]\\n\\tbare = false\\n' > repo/.git/config\nprintf 'blob bytes\\000with NUL\\n' > repo/payload\nif type -t obj >/dev/null 2>&1; then\n  oid=$(obj blob repo/payload -r repo)\n  printf '%s\\n' \"$oid\"\n  obj type \"$oid\" -r repo\n  obj size \"$oid\" -r repo\n  mkdir -p repo/nested\n  cd repo/nested\n  obj cat \"$oid\"\nelse\n  oid=$(git -C repo hash-object -w payload)\n  printf '%s\\n' \"$oid\"\n  git -C repo cat-file -t \"$oid\"\n  git -C repo cat-file -s \"$oid\"\n  mkdir -p repo/nested\n  cd repo/nested\n  git cat-file blob \"$oid\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false
+    },
+    {
+      "id": "batch-protocols",
+      "kind": "parity",
+      "purpose": "Compare --batch-check and --batch with full and abbreviated IDs plus a missing ID. Two direct builtin reads also exercise stdin reset after EOF. The filesystem snapshot is excluded because GNU Git and obj write different valid zlib streams for identical loose-object payloads; full batch stdout and status remain byte-compared.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p repo/.git/objects/info repo/.git/refs/heads\nprintf 'ref: refs/heads/main\\n' > repo/.git/HEAD\nprintf '[core]\\n\\tbare = false\\n' > repo/.git/config\nif type -t obj >/dev/null 2>&1; then\n  oid=$(printf 'batch\\000payload\\n' | obj hash --stdin -w -r repo)\nelse\n  oid=$(printf 'batch\\000payload\\n' | git -C repo hash-object --stdin -w)\nfi\nmissing=0000000000000000000000000000000000000000\nprintf '%s\\n%s\\n%s\\n' \"$oid\" \"${oid:0:8}\" \"$missing\" > names\nif type -t obj >/dev/null 2>&1; then\n  obj --batch-check -r repo < names\n  obj --batch -r repo < names\nelse\n  git -C repo cat-file --batch-check < names\n  git -C repo cat-file --batch < names\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false
+    },
+    {
+      "id": "tree-parse-z",
+      "kind": "parity",
+      "purpose": "Compare obj tree and parse-tree -z with Git mktree/ls-tree. The NUL record keeps the spaced filename unambiguous. The filesystem snapshot is excluded because GNU Git and obj write different valid zlib streams for identical loose-object payloads; tree IDs and NUL-delimited parse output remain byte-compared.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p repo/.git/objects/info repo/.git/refs/heads\nprintf 'ref: refs/heads/main\\n' > repo/.git/HEAD\nprintf '[core]\\n\\tbare = false\\n' > repo/.git/config\nif type -t obj >/dev/null 2>&1; then\n  blob=$(printf 'tree child\\n' | obj hash --stdin -w -r repo)\n  tree=$(printf '100644 path with space.txt %s\\n' \"$blob\" | obj tree -r repo)\n  printf '%s\\n' \"$tree\"\n  obj parse-tree \"$tree\" -r repo -z\nelse\n  blob=$(printf 'tree child\\n' | git -C repo hash-object --stdin -w)\n  tree=$(printf '100644 blob %s\\tpath with space.txt\\n' \"$blob\" | git -C repo mktree)\n  printf '%s\\n' \"$tree\"\n  git -C repo ls-tree -z \"$tree\" |\n    while IFS= read -r -d '' entry; do\n      meta=${entry%%$'\\t'*}\n      name=${entry#*$'\\t'}\n      read -r mode type oid <<< \"$meta\"\n      printf '%s %s\\t%s\\000' \"$mode\" \"$oid\" \"$name\"\n    done\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false
+    },
+    {
+      "id": "commit-parse-parent",
+      "kind": "parity",
+      "purpose": "Create a deterministic two-commit chain and compare parse-commit output with Git's raw commit body, including its parent, identities, timestamps, and message. The filesystem snapshot is excluded because GNU Git and obj write different valid zlib streams for identical loose-object payloads; commit parse output and status remain compared.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p repo/.git/objects/info repo/.git/refs/heads\nprintf 'ref: refs/heads/main\\n' > repo/.git/HEAD\nprintf '[core]\\n\\tbare = false\\n' > repo/.git/config\nif type -t obj >/dev/null 2>&1; then\n  tree=$(obj tree -r repo </dev/null)\n  root=$(obj commit -t \"$tree\" -m root -a 'Fixture Author <author@fixture.invalid>' -c 'Fixture Committer <committer@fixture.invalid>' -d 1750000000 -r repo)\n  child=$(obj commit -t \"$tree\" -p \"$root\" -m child -a 'Fixture Author <author@fixture.invalid>' -c 'Fixture Committer <committer@fixture.invalid>' -d 1750000100 -r repo)\n  obj parse-commit \"$child\" -r repo\nelse\n  tree=$(git -C repo mktree </dev/null)\n  root=$(GIT_AUTHOR_NAME='Fixture Author' GIT_AUTHOR_EMAIL='author@fixture.invalid' GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_NAME='Fixture Committer' GIT_COMMITTER_EMAIL='committer@fixture.invalid' GIT_COMMITTER_DATE='1750000000 +0000' git -C repo commit-tree \"$tree\" -m root)\n  child=$(GIT_AUTHOR_NAME='Fixture Author' GIT_AUTHOR_EMAIL='author@fixture.invalid' GIT_AUTHOR_DATE='1750000100 +0000' GIT_COMMITTER_NAME='Fixture Committer' GIT_COMMITTER_EMAIL='committer@fixture.invalid' GIT_COMMITTER_DATE='1750000100 +0000' git -C repo commit-tree \"$tree\" -p \"$root\" -m child)\n  git -C repo cat-file commit \"$child\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false
+    },
+    {
+      "id": "missing-object-status",
+      "kind": "parity",
+      "purpose": "Check the documented Git-compatible fatal status for a missing object; wording is allowed to differ while stderr must be present.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p repo/.git/objects/info repo/.git/refs/heads\nprintf 'ref: refs/heads/main\\n' > repo/.git/HEAD\nprintf '[core]\\n\\tbare = false\\n' > repo/.git/config\nmissing=0000000000000000000000000000000000000000\nif type -t obj >/dev/null 2>&1; then\n  obj cat \"$missing\" -r repo\nelse\n  git -C repo cat-file blob \"$missing\"\nfi",
+      "expected_status": 128,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "packed-object-deferred",
+      "kind": "deferred",
+      "purpose": "Packed object traversal is part of obj's advertised read contract but is not exercised by the runnable loose-object cases.",
+      "reason": "Requires a pinned pack plus matching index independently generated by GNU Git pack-objects and validated with Git index-pack or verify-pack. A future disposable fixture should expose the same read-only packed repository to obj cat/type/size/--batch and git cat-file, then compare fixed object IDs and payload bytes. No packed-object operation was run or passed here."
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "loadable": "sixel",
+  "reference": "Contract cases use Bash's documented type/help builtins, the usage synopsis in the pinned sixel builtin descriptor, the sixel_doc lines, and the short-help entry in config/bash-loadables.list. Full help expectations apply Bash's documented short-help/long-help display format to those independent source strings; no operation output is used. The catalog names img2sixel as the independent encoder, but it is unavailable here, and there is no GNU/POSIX sixel command. Image-emission behavior is therefore deferred for an isolated independent encoder/terminal fixture.",
+  "coverage": [
+    "Bash recognizes sixel as a builtin and reports only its builtin definition.",
+    "Bash path-only command lookup does not mistake the builtin for an executable.",
+    "Bash help exposes the documented synopsis, short description, and full loadable help text."
+  ],
+  "exclusions": [
+    "No image-to-SIXEL operation is executed: img2sixel is unavailable and the harness has no independent SIXEL encoder oracle.",
+    "Pixel decoding, color quantization, resizing, SIXEL bands/RLE, base64 input, terminal-pixel ioctl sizing, and image/option error behavior remain unqualified pending the deferred fixtures."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "purpose": "Bash type -t must identify the registered sixel entry as a builtin.",
+      "kind": "contract",
+      "script": "type -t sixel",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-all-definitions",
+      "purpose": "Bash type -a must report the shell builtin definition and no second definition.",
+      "kind": "contract",
+      "script": "type -a sixel",
+      "expected_status": 0,
+      "stdout": "sixel is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "path-only-lookup",
+      "purpose": "Bash type -P searches for an executable without treating a loadable builtin as a PATH executable; the candidate PATH is empty.",
+      "kind": "contract",
+      "script": "if type -P sixel; then printf 'found\\n'; else rc=$?; printf 'not-found:%d\\n' \"$rc\"; fi",
+      "expected_status": 0,
+      "stdout": "not-found:1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "purpose": "Bash help -s must expose the loadable's registered usage synopsis.",
+      "kind": "contract",
+      "script": "help -s sixel",
+      "expected_status": 0,
+      "stdout": "sixel: sixel [-w N] [-H N] [--base64] FILE\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-description",
+      "purpose": "Bash help -d must expose the first documented sixel description line.",
+      "kind": "contract",
+      "script": "help -d sixel",
+      "expected_status": 0,
+      "stdout": "sixel - Display an image as SIXEL graphics (true per-pixel).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documentation",
+      "purpose": "Bash help must expose the full published usage, format, options, and terminal support documentation.",
+      "kind": "contract",
+      "script": "help sixel",
+      "expected_status": 0,
+      "stdout": "sixel: sixel [-w N] [-H N] [--base64] FILE\n    Display an image as SIXEL graphics (true per-pixel).\n    \n        sixel [OPTION]... FILE\n    \n    Decodes FILE (PNG/JPEG/GIF/BMP/TGA; - = stdin), scales to the target pixel\n    size, quantizes to a 6x6x6 (216) color cube, and emits DEC SIXEL. Works in\n    sixel-capable terminals (xterm -ti vt340, foot, mlterm, wezterm, recent VTE)\n    and passes through tmux >= 3.4. For Kitty-protocol terminals use kitty;\n    for any terminal use tiv (cell glyphs).\n    \n    Options:\n        -w, --width N    output width in pixels (default: terminal px, else 800)\n        -H, --height N   output height in pixels (default: keep aspect)\n            --base64     FILE / stdin holds base64-encoded image data\n        -h, --help       show this help\n        -V, --version    show version\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "emit-fixed-pixels",
+      "purpose": "Future operation comparison for a small known RGB image, checking dimensions, palette, pixel bands, run encoding, and SIXEL termination.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM fixture with a deterministic PNG/BMP pixel input, a pinned independent SIXEL encoder such as img2sixel (missing from this environment) or a separately reviewed spec-based encoder, and a captured output stream. Compare the same pixels and dimensions byte-for-byte; no image operation is run in this case."
+    },
+    {
+      "id": "resize-and-terminal-defaults",
+      "purpose": "Future operation comparison for explicit resize/aspect behavior and terminal-derived defaults, including a height not divisible by six.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a PTY/ioctl mock that returns fixed TIOCGWINSZ pixel dimensions and an independent resize plus SIXEL oracle. Include explicit width/height, aspect-preserving height, terminal-pixel defaults, and a short final band. No terminal or image operation is run in this case."
+    },
+    {
+      "id": "base64-image-input",
+      "purpose": "Future operation comparison for documented --base64 input from stdin and from a named fixture file.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a fixed encoded image, a pinned independent base64/image decoder and SIXEL encoder (or reviewed spec-based equivalent), and comparisons against the same decoded pixels through file and stdin paths. img2sixel is unavailable here; no image operation is run in this case."
+    },
+    {
+      "id": "invalid-input-and-options",
+      "purpose": "Future operation contract for malformed/truncated image data, a missing relative fixture, and invalid/missing option arguments, requiring failure without partial SIXEL output.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable fixture with a separately documented error contract or independent CLI oracle for status, stdout, and diagnostics. The available documentation does not define diagnostic bytes and img2sixel is missing, so these expected results cannot be grounded independently here. No operation is run in this case."
+    }
+  ]
+}

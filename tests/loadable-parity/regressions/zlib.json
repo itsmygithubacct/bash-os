@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "loadable": "zlib",
+  "reference": "Seven round-trip-result parity cases compare the final decoded bytes and private filesystem results of each implementation encoding and decoding its own data. GNU gzip/xz/bzip2/zstd and Python standard-library zlib provide the separate reference paths; those cases do not establish cross-decoding. Fixed decoder contracts below use byte vectors authored independently of candidate encoders: Python standard-library gzip/zlib/lzma/bz2 streams and a pre-existing independently authored raw-block Zstandard frame. Expected binary payload bytes are explicit base64 contracts. Gzip integrity-error cases retain identical-input GNU output/status parity.",
+  "coverage": [
+    "Bash type/help metadata and unsupported-format rejection.",
+    "Seven round-trip-result parity cases cover gzip, concatenated gzip, RFC 1950, raw DEFLATE, XZ, bzip2 and Zstandard; each side decodes its own encoded data.",
+    "Private fixture operations and final decoded mode/content parity; compressed artifacts are removed before tree comparison.",
+    "Fixed independently authored gzip, concatenated-gzip, RFC 1950 and raw-DEFLATE decoder vectors with binary payloads.",
+    "Fixed Python standard-library XZ/bzip2 decoder vectors and an independently authored binary Zstandard raw-block frame.",
+    "Identical fixed gzip truncation/CRC inputs, streamed error output and same-shell write-error recovery."
+  ],
+  "exclusions": [
+    "Compressed stream bytes are not asserted identical; codec headers and compressor choices may vary. Round trips and decoded bytes are compared, and temporary compressed artifacts are removed before tree comparison.",
+    "Deterministic short-write, zero-write and EINTR injection remain deferred pending a reviewed mock. Ordinary closed-output-descriptor failure and same-shell recovery are covered without a mock.",
+    "A parity case is skipped by the runner if its named GNU/reference executable is unavailable.",
+    "The seven round-trip-result cases do not assert candidate encoder interoperability or compressed-byte identity. Fixed vectors qualify only the stated decoder inputs; exhaustive codec options, block types, windows and header variations remain outside scope."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm the loadable is registered as a Bash builtin using Bash's type metadata.",
+      "script": "type -t zlib",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Check the help contract advertises the multi-format command and the documented RFC 1950 and concatenated-gzip behavior.",
+      "script": "help_text=$(help zlib)\n[[ $help_text == *'Multi-format compression / decompression'* ]]\n[[ $help_text == *'RFC 1950 (raw zlib wrap, NOT gzip)'* ]]\n[[ $help_text == *'Gzip decode handles concatenated (multi-member) .gz files.'* ]]\nprintf 'documented-help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "documented-help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gzip-roundtrip-result-and-fixture-ops",
+      "kind": "parity",
+      "purpose": "Compare final binary round-trip results and private fixture operations. The candidate encoder feeds its own decoder; the GNU encoder feeds the GNU decoder. No cross-decoding or compressed-byte identity is claimed by this case.",
+      "script": "mkdir -p fixture/source fixture/archive\nprintf 'header\\000middle\\377tail\\n' > fixture/source/payload\nchmod 640 fixture/source/payload\ncp fixture/source/payload fixture/archive/copy\nmv fixture/archive/copy fixture/archive/input\ntouch fixture/archive/marker\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -1 -f gzip fixture/archive/input > fixture/archive/data.gz\n  zlib -f gzip fixture/archive/data.gz > fixture/archive/unpacked\nelse\n  gzip -1 -c fixture/archive/input > fixture/archive/data.gz\n  gzip -dc fixture/archive/data.gz > fixture/archive/unpacked\nfi\ncmp fixture/archive/input fixture/archive/unpacked\nrm fixture/archive/data.gz\ncat fixture/archive/unpacked",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "chmod",
+        "cmp",
+        "cp",
+        "gzip",
+        "mkdir",
+        "mv",
+        "rm",
+        "touch"
+      ]
+    },
+    {
+      "id": "gzip-concatenated-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final output from two concatenated members encoded and decoded by each implementation separately. This establishes result parity for those round trips, not interoperability between their encoders and decoders.",
+      "script": "printf 'first-member\\n' > first\nprintf 'second\\000member\\n' > second\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -f gzip first > first.gz\n  zlib -e -f gzip second > second.gz\n  cat first.gz second.gz > combined.gz\n  zlib combined.gz > decoded\nelse\n  gzip -c first > first.gz\n  gzip -c second > second.gz\n  cat first.gz second.gz > combined.gz\n  gzip -dc combined.gz > decoded\nfi\ncat decoded\nrm first.gz second.gz combined.gz",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "gzip",
+        "rm"
+      ]
+    },
+    {
+      "id": "rfc1950-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final RFC 1950 round-trip results: candidate encoding is decoded by the candidate, while Python standard-library encoding is decoded by Python. This case alone does not establish cross-decoding interoperability.",
+      "script": "printf 'wrapped\\000zlib\\377payload\\n' > plain\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -z plain > packed.z\n  zlib -z packed.z > decoded\nelse\n  python3 -c 'import sys,zlib; sys.stdout.buffer.write(zlib.compress(sys.stdin.buffer.read()))' < plain > packed.z\n  python3 -c 'import sys,zlib; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' < packed.z > decoded\nfi\ncmp plain decoded\ncat decoded\nrm packed.z decoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "cmp",
+        "python3",
+        "rm"
+      ]
+    },
+    {
+      "id": "rfc1951-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final raw-DEFLATE round-trip results: candidate encoding is decoded by the candidate, while Python standard-library encoding is decoded by Python. Compressed bytes and cross-decoding are not compared here.",
+      "script": "printf 'raw\\000deflate\\377payload\\n' > plain\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -R plain > packed.deflate\n  zlib -R packed.deflate > decoded\nelse\n  python3 -c 'import sys,zlib; c=zlib.compressobj(wbits=-15); d=sys.stdin.buffer.read(); sys.stdout.buffer.write(c.compress(d)+c.flush())' < plain > packed.deflate\n  python3 -c 'import sys,zlib; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read(),-15))' < packed.deflate > decoded\nfi\ncmp plain decoded\ncat decoded\nrm packed.deflate decoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "cmp",
+        "python3",
+        "rm"
+      ]
+    },
+    {
+      "id": "xz-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final binary round-trip results from candidate XZ encode/decode and external xz encode/decode. Each implementation reads its own encoded stream in this case.",
+      "script": "printf 'xz\\000container\\377payload\\n' > plain\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -f xz plain > packed.xz\n  zlib -f xz packed.xz > decoded\nelse\n  xz -c plain > packed.xz\n  xz -dc packed.xz > decoded\nfi\ncmp plain decoded\ncat decoded\nrm packed.xz decoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "cmp",
+        "rm",
+        "xz"
+      ]
+    },
+    {
+      "id": "bzip2-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final binary round-trip results from candidate bzip2 encode/decode and external bzip2 encode/decode. Each implementation reads its own encoded stream in this case.",
+      "script": "printf 'bzip2\\000block\\377payload\\n' > plain\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -f bzip2 plain > packed.bz2\n  zlib -f bzip2 packed.bz2 > decoded\nelse\n  bzip2 -c plain > packed.bz2\n  bzip2 -dc packed.bz2 > decoded\nfi\ncmp plain decoded\ncat decoded\nrm packed.bz2 decoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "bzip2",
+        "cat",
+        "cmp",
+        "rm"
+      ]
+    },
+    {
+      "id": "zstd-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare final binary round-trip results from candidate Zstandard encode/decode and external zstd encode/decode. Each implementation reads its own encoded stream; quiet mode suppresses only external progress messages.",
+      "script": "printf 'zstandard\\000frame\\377payload\\n' > plain\nif [[ $(type -t zlib) == builtin ]]; then\n  zlib -e -f zstd plain > packed.zst\n  zlib -f zstd packed.zst > decoded\nelse\n  zstd -q -c plain > packed.zst\n  zstd -q -dc packed.zst > decoded\nfi\ncmp plain decoded\ncat decoded\nrm packed.zst decoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "cmp",
+        "rm",
+        "zstd"
+      ]
+    },
+    {
+      "id": "truncated-gzip-rejected",
+      "kind": "parity",
+      "purpose": "Decode the same fixed gzip-member prefix on both sides. This isolates partial-output/status parity from optional filename headers and per-encoder framing choices.",
+      "script": "printf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\x2b\\xca\\xcf' > broken.gz\nif [[ $(type -t zlib) == builtin ]]; then\n if zlib -f gzip broken.gz > decoded 2> diagnostic; then decoder_status=0; else decoder_status=$?; fi\nelse\n if gzip -dc broken.gz > decoded 2> diagnostic; then decoder_status=0; else decoder_status=$?; fi\nfi\n[[ $decoder_status == 1 && -s diagnostic ]]\nprintf 'truncated-member-rejected\\n'\ncat decoded\nrm broken.gz decoded diagnostic",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "gzip",
+        "rm"
+      ]
+    },
+    {
+      "id": "unsupported-format-contract",
+      "kind": "contract",
+      "purpose": "Verify that a format outside the documented gzip/xz/lzma/zstd/bzip2/zlib/deflate set is rejected before reading or emitting a stream.",
+      "script": "if zlib -f unsupported </dev/null > result 2> diagnostic; then command_status=0; else command_status=$?; fi\n[[ $command_status != 0 ]]\n[[ ! -s result ]]\n[[ -s diagnostic ]]\nrm result diagnostic\nprintf 'unsupported-format-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "unsupported-format-rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-write-and-eintr-faults",
+      "kind": "deferred",
+      "purpose": "Exercise byte-exact encoding and decoding across deterministic interrupted reads, short writes and zero writes.",
+      "reason": "Requires a reviewed FD/syscall mock in a future disposable VM to inject EINTR and partial/zero writes deterministically. Ordinary closed-descriptor write failure is covered separately in the private namespace fixture; injected faults are not claimed as passes."
+    },
+    {
+      "id": "gzip-crc-output-preserved",
+      "kind": "parity",
+      "purpose": "Preserve decompressed bytes produced before a tiny gzip member reports an incorrect CRC, matching streaming GNU gzip output and failure status.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x73\\x0e\\x72\\x56\\x28\\x48\\xac\\xcc\\xc9\\x4f\\x4c\\xe1\\x02\\x00\\xf0\\xe8\\xec\\xd1\\x0c\\x00\\x00\\x00' > bad.gz\nif [[ $(type -t zlib) == builtin ]]; then zlib -f gzip bad.gz; else gzip -dc bad.gz; fi",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gzip-concatenated-crc-output",
+      "kind": "parity",
+      "purpose": "Keep valid earlier-member output and the CRC-failing member output, then stop before the later member. Both decoders receive identical fixed bytes.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\x2b\\xca\\xcf\\x55\\x28\\x2e\\x49\\xc9\\xcc\\xe3\\x02\\x00\\x1d\\x7c\\xde\\x4f\\x0b\\x00\\x00\\x00\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x73\\x0e\\x72\\x56\\x28\\x48\\xac\\xcc\\xc9\\x4f\\x4c\\xe1\\x02\\x00\\xf0\\xe8\\xec\\xd1\\x0c\\x00\\x00\\x00\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\x4c\\x2b\\x49\\x2d\\x52\\x48\\x2d\\x2a\\xca\\x2f\\xe2\\x02\\x00\\x2d\\xcf\\x97\\x1c\\x0c\\x00\\x00\\x00' > members.gz\nif [[ $(type -t zlib) == builtin ]]; then zlib -f gzip members.gz; else gzip -dc members.gz; fi",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gzip-errors-and-write-recovery",
+      "kind": "contract",
+      "purpose": "Independent expected payload bytes survive CRC failure; closed stdout during decode and encode reports failure, then a later invocation decodes normally without leaked mode or codec state.",
+      "script": "printf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x73\\x0e\\x72\\x56\\x28\\x48\\xac\\xcc\\xc9\\x4f\\x4c\\xe1\\x02\\x00\\xf0\\xe8\\xec\\xd1\\x0c\\x00\\x00\\x00' > bad.gz\nprintf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\x2b\\xca\\xcf\\x55\\x28\\x2e\\x49\\xc9\\xcc\\xe3\\x02\\x00\\x1d\\x7c\\xde\\x4f\\x0b\\x00\\x00\\x00' > good.gz\nprintf 'ordinary payload\\n' > plain\nrc=0; zlib -f gzip bad.gz > partial 2> diagnostic || rc=$?\n[[ $rc == 1 && -s diagnostic ]]\ncat partial\nrc=0; zlib -f gzip good.gz 1>&- 2> write-diagnostic || rc=$?\n[[ $rc == 1 && -s write-diagnostic ]]\nrc=0; zlib -e -f gzip plain 1>&- 2> encode-diagnostic || rc=$?\n[[ $rc == 1 && -s encode-diagnostic ]]\nprintf 'write errors recovered\\n'\nzlib -f gzip good.gz",
+      "expected_status": 0,
+      "stdout": "CRC payload\nwrite errors recovered\nfrom stdin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fixed-libz-decoder-vectors",
+      "kind": "contract",
+      "purpose": "Decode independently encoded Python standard-library gzip/zlib/raw-DEFLATE bytes and concatenated gzip members. Literal payload bytes include NUL and 0xff; no candidate encoder creates these inputs.",
+      "script": "printf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x2b\\x4b\\x4d\\x2e\\xc9\\x2f\\x62\\xf8\\xcf\\x05\\x00\\x66\\x85\\xf3\\x7e\\x09\\x00\\x00\\x00' | zlib -f gzip\nprintf '%b' '\\x78\\x9c\\x2b\\x4b\\x4d\\x2e\\xc9\\x2f\\x62\\xf8\\xcf\\x05\\x00\\x12\\xbf\\x03\\x9d' | zlib -f zlib\nprintf '%b' '\\x2b\\x4b\\x4d\\x2e\\xc9\\x2f\\x62\\xf8\\xcf\\x05\\x00' | zlib -f deflate\nprintf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x2b\\x4b\\x4d\\x2e\\xc9\\x2f\\x62\\xf8\\xcf\\x05\\x00\\x66\\x85\\xf3\\x7e\\x09\\x00\\x00\\x00\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\x2b\\x49\\xcc\\xcc\\xe1\\x02\\x00\\x6e\\x1c\\x71\\x27\\x05\\x00\\x00\\x00' | zlib -f gzip",
+      "expected_status": 0,
+      "stdout_base64": "dmVjdG9yAP8KdmVjdG9yAP8KdmVjdG9yAP8KdmVjdG9yAP8KdGFpbAo=",
+      "stderr": "empty"
+    },
+    {
+      "id": "fixed-xz-bzip2-decoder-vectors",
+      "kind": "contract",
+      "purpose": "Decode fixed streams generated with Python standard-library lzma FORMAT_XZ/CHECK_CRC64 and bz2. Independent expected bytes contain NUL and 0xff; the candidate only decodes.",
+      "script": "printf '%b' '\\xfd\\x37\\x7a\\x58\\x5a\\x00\\x00\\x04\\xe6\\xd6\\xb4\\x46\\x02\\x00\\x21\\x01\\x16\\x00\\x00\\x00\\x74\\x2f\\xe5\\xa3\\x01\\x00\\x08\\x76\\x65\\x63\\x74\\x6f\\x72\\x00\\xff\\x0a\\x00\\x00\\x00\\x00\\x30\\x37\\xf3\\xb3\\x5e\\x1e\\x14\\xaf\\x00\\x01\\x21\\x09\\x6c\\x18\\xc5\\xd5\\x1f\\xb6\\xf3\\x7d\\x01\\x00\\x00\\x00\\x00\\x04\\x59\\x5a' | zlib -f xz\nprintf '%b' '\\x42\\x5a\\x68\\x39\\x31\\x41\\x59\\x26\\x53\\x59\\x88\\x12\\x88\\x13\\x00\\x00\\x03\\xc1\\x80\\xc0\\x10\\x0a\\x00\\x95\\x00\\x00\\x00\\xa0\\x00\\x31\\x06\\x4c\\x41\\x01\\x91\\xea\\x31\\x80\\x07\\x8b\\xb9\\x22\\x9c\\x28\\x48\\x44\\x09\\x44\\x09\\x80' | zlib -f bzip2",
+      "expected_status": 0,
+      "stdout_base64": "dmVjdG9yAP8KdmVjdG9yAP8K",
+      "stderr": "empty"
+    },
+    {
+      "id": "fixed-zstd-binary-decoder-vector",
+      "kind": "contract",
+      "purpose": "Decode the independently authored five-byte binary Zstandard raw-block frame already qualified against external zstd in the zstdcat fixture. Expected bytes are A, NUL, B, 0xff, LF; no candidate encoding is involved.",
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x05\\x29\\x00\\x00\\x41\\x00\\x42\\xff\\x0a' | zlib -f zstd",
+      "expected_status": 0,
+      "stdout_base64": "QQBC/wo=",
+      "stderr": "empty"
+    }
+  ]
+}

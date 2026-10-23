@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "pack",
+  "reference": "GNU Git (pack-objects, verify-pack, cat-file, unpack-objects) provides the independent object and pack oracle; GNU find is used for directory enumeration. The fixed pack/index fixture is encoded independently in Python from the published Git pack v2 and index v2 layouts using SHA-1, zlib, CRC-32, and big-endian fields. The create-self-roundtrip-result case compares payload recovery only: the candidate verifies/reads its own output, so this case does not establish independent Git readability of candidate packs.",
+  "coverage": [
+    "Bash builtin discovery and help metadata contract.",
+    "Binary blob read from an independently encoded pack/index, including an embedded NUL byte.",
+    "Index object enumeration and pack-file listing.",
+    "Valid pack/index checksum and CRC verification, plus invalid index rejection.",
+    "Unpack into a fresh loose-object database and read back the recovered bytes.",
+    "Candidate pack/index creation, self-verification and self-readback, comparing recovered payload bytes with Git's corresponding result; external readability is unqualified."
+  ],
+  "exclusions": [
+    "Only one blob object is covered; commit, tree, and tag objects, multi-object sorting/fanout, OFS_DELTA and REF_DELTA chains, and malformed pack bodies are not exercised.",
+    "A >2 GiB pack offset is deferred because the mandatory runner file and memory limits cannot hold a valid pack that reaches the 64-bit index-offset path.",
+    "No network transport or system operation is part of the pack builtin scope tested here.",
+    "Candidate-created packs/indexes are verified and read only by the candidate implementation; create-self-roundtrip-result compares payload recovery, not independent pack-format conformance. External Git readability of candidate output remains unqualified."
+  ],
+  "cases": [
+    {
+      "id": "metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports pack as a builtin and exposes its documented help entry.",
+      "script": "if [ \"$(type -t pack)\" = builtin ]; then\n  help pack >/dev/null\n  printf 'builtin with help\\n'\nelse\n  printf 'pack metadata missing\\n'\nfi",
+      "expected_status": 0,
+      "stdout": "builtin with help\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "cat-binary-object",
+      "kind": "parity",
+      "purpose": "Read a NUL-containing blob from a fixed pack and v2 index independently encoded from the published Git formats; compare with Git reading the same packed object. Filesystem comparison is disabled because GNU git init leaves repository template metadata absent from the hand-built candidate fixture; stdout and status still compare.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nif [ \"$(type -t pack)\" = builtin ]; then\n  mkdir -p packrepo/.git/objects/pack\n  printf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\n  printf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nelse\n  mkdir -p packrepo\n  git init -q --bare packrepo/.git\nfi\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack cat \"$pack_file\" \"$idx_file\" \"$sha\"\nelse\n  git --git-dir=packrepo/.git cat-file blob \"$sha\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "git",
+        "mkdir"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "list-objects",
+      "kind": "parity",
+      "purpose": "Enumerate the SHA entries from the independently encoded one-object index and compare with Git verify-pack object rows.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nmkdir -p packrepo/.git/objects/pack\nprintf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\nprintf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack list-objects \"$idx_file\"\nelse\n  git verify-pack -v \"$idx_file\" | while IFS=' ' read -r oid type size offset rest; do\n    case \"$type\" in\n      blob|tree|commit|tag) printf '%s\\n' \"$oid\" ;;\n    esac\n  done\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "git"
+      ]
+    },
+    {
+      "id": "list-packs",
+      "kind": "parity",
+      "purpose": "List a single .idx entry in the fixture repository and compare the path with GNU find.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nmkdir -p packrepo/.git/objects/pack\nprintf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\nprintf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack list-packs packrepo\nelse\n  find packrepo/.git/objects/pack -maxdepth 1 -type f -name '*.idx' -print\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "find",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "verify-valid-index",
+      "kind": "parity",
+      "purpose": "Validate the v2 index trailer, pack checksum link, and CRC table against the independent fixed pack; compare with Git verify-pack.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nmkdir -p packrepo/.git/objects/pack\nprintf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\nprintf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack verify-idx \"$idx_file\" \"$pack_file\"\nelse\n  git verify-pack -v \"$idx_file\" >/dev/null\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "git",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "reject-invalid-index",
+      "kind": "parity",
+      "purpose": "Reject an index with an invalid v2 signature while a matching pack exists, and compare failure status with Git verify-pack.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nmkdir -p packrepo/.git/objects/pack\nprintf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\nprintf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\ncp \"$pack_file\" packrepo/.git/objects/pack/bad.pack\nprintf 'not an index\\n' > packrepo/.git/objects/pack/bad.idx\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack verify-idx packrepo/.git/objects/pack/bad.idx\nelse\n  git verify-pack -v packrepo/.git/objects/pack/bad.idx >/dev/null\nfi",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "git",
+        "mkdir",
+        "cp"
+      ]
+    },
+    {
+      "id": "unpack-roundtrip",
+      "kind": "parity",
+      "purpose": "Unpack the fixed pack into a fresh object database, then prove the resulting loose object can be repacked and read back; Git unpack-objects and cat-file provide the reference. Filesystem comparison is disabled because GNU git init leaves repository template metadata absent from the hand-built candidate fixture; stdout and status still compare.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\npack_file=packrepo/.git/objects/pack/fixture.pack\nidx_file=packrepo/.git/objects/pack/fixture.idx\nif [ \"$(type -t pack)\" = builtin ]; then\n  mkdir -p packrepo/.git/objects/pack\n  printf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > packrepo/.git/config\n  printf 'ref: refs/heads/main\\n' > packrepo/.git/HEAD\nelse\n  mkdir -p packrepo\n  git init -q --bare packrepo/.git\nfi\nprintf '%b' '\\x50\\x41\\x43\\x4b\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\xbb\\x01\\x78\\x9c\\x2b\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\x94\\x03\\x0a\\x2c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d' > \"$pack_file\"\n{\n  printf '%b' '\\xfftOc\\x00\\x00\\x00\\x02'\n  for ((i=0; i<256; i++)); do\n    if (( i < 47 )); then\n      printf '%b' '\\x00\\x00\\x00\\x00'\n    else\n      printf '%b' '\\x00\\x00\\x00\\x01'\n    fi\n  done\n  printf '%b' '\\x2f\\xd9\\x48\\x0f\\x8c\\xe3\\xca\\x98\\x40\\x96\\xfe\\xb2\\x70\\x9e\\x28\\x82\\x4b\\x09\\x0c\\xec\\xf6\\x6d\\xd5\\xf6\\x00\\x00\\x00\\x0c\\xb8\\x39\\xcc\\x98\\x1a\\x04\\x34\\xc9\\x1f\\x21\\x99\\xd8\\x77\\xd4\\x12\\xa9\\x60\\xa6\\xe0\\x7d\\x15\\xc2\\x88\\x57\\x30\\xee\\x2b\\x10\\x31\\x43\\xee\\x5b\\x80\\x1d\\x9d\\xb5\\x39\\xf1\\xe9\\xc8'\n} > \"$idx_file\"\nif [ \"$(type -t pack)\" = builtin ]; then\n  mkdir -p unpacked/.git/objects\n  printf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > unpacked/.git/config\n  printf 'ref: refs/heads/main\\n' > unpacked/.git/HEAD\nelse\n  mkdir -p unpacked\n  git init -q --bare unpacked/.git\nfi\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack unpack \"$pack_file\" unpacked\n  pack create roundtrip.pack --idx roundtrip.idx -r unpacked \"$sha\" >/dev/null\n  pack cat roundtrip.pack roundtrip.idx \"$sha\"\n  rm roundtrip.pack roundtrip.idx\nelse\n  git --git-dir=unpacked/.git unpack-objects -q < \"$pack_file\"\n  printf '1\\n'\n  git --git-dir=unpacked/.git cat-file blob \"$sha\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "git",
+        "mkdir"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "create-self-roundtrip-result",
+      "kind": "parity",
+      "purpose": "Compare decoded round-trip results with the independently known blob payload and Git's corresponding round trip: create a pack/index from a fixed loose blob, run the same implementation's index verifier, remove the loose copy, and read its pack. This does not independently validate the candidate pack or prove external Git readability. Filesystem comparison is disabled because Git initialization creates unrelated template metadata and pack encodings need not be byte-identical; decoded bytes and status still compare.",
+      "script": "sha=2fd9480f8ce3ca984096feb2709e28824b090cec\nloose_path=source/.git/objects/2f/d9480f8ce3ca984096feb2709e28824b090cec\nif [ \"$(type -t pack)\" = builtin ]; then\n  mkdir -p source/.git/objects/2f source/.git/objects/pack\n  printf '[core]\\nrepositoryformatversion = 0\\nbare = true\\n' > source/.git/config\n  printf 'ref: refs/heads/main\\n' > source/.git/HEAD\nelse\n  mkdir -p source\n  git init -q --bare source/.git\nfi\nmkdir -p source/.git/objects/2f\nprintf '%b' '\\x78\\x9c\\x4b\\xca\\xc9\\x4f\\x52\\x30\\x32\\x67\\x28\\x48\\x2c\\xca\\x2c\\xa9\\x54\\x48\\xcb\\xac\\x28\\x29\\x2d\\x4a\\x65\\x28\\xcf\\x2c\\xc9\\x50\\x48\\xca\\xcc\\x4b\\x2c\\xaa\\xe4\\x02\\x00\\xda\\x4f\\x0c\\x54' > \"$loose_path\"\npack_path=source/.git/objects/pack/candidate.pack\nidx_path=source/.git/objects/pack/candidate.idx\nif [ \"$(type -t pack)\" = builtin ]; then\n  pack create \"$pack_path\" --idx \"$idx_path\" -r source \"$sha\" >/dev/null\n  pack verify-idx \"$idx_path\" \"$pack_path\"\n  rm \"$loose_path\"\n  pack cat \"$pack_path\" \"$idx_path\" \"$sha\"\n  rm \"$pack_path\" \"$idx_path\"\nelse\n  pack_id=$(printf '%s\\n' \"$sha\" | git --git-dir=source/.git pack-objects --window=0 --depth=0 source/.git/objects/pack/reference)\n  git verify-pack -v \"source/.git/objects/pack/reference-$pack_id.idx\" >/dev/null\n  rm \"$loose_path\"\n  git --git-dir=source/.git cat-file blob \"$sha\"\n  rm \"source/.git/objects/pack/reference-$pack_id.pack\" \"source/.git/objects/pack/reference-$pack_id.idx\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "git",
+        "mkdir",
+        "rm"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "large-offset-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise pack cat through an index v2 64-bit offset entry above the 32-bit offset range.",
+      "reason": "The runner limits individual files to 8 MiB and process memory to 768 MiB, while pack cat slurps the complete pack into memory. A valid object after offset 0x80000000 cannot be represented within those limits. A future disposable VM should use a sparse pack constructor or a bounded seek/read mock, produce an index v2 overflow table that Git verify-pack accepts, and compare the object bytes and status with git cat-file. This case does not execute."
+    }
+  ]
+}

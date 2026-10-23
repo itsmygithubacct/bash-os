@@ -231,15 +231,15 @@ escdelay|escdelay
 fifo|fifo
 kgetch|kgetch
 wgetch|wgetch
-wget_wch|wget_wch
+wget_wch|wget_wch decode HEX... | read [FD]
 mouse|mouse
-script|script
+script|script record|replay ARGS
 buf|buf
 undo|undo
 clip|clip
-nano2|nano2
+nano2|nano2 selftest
 watch|watch [-n SEC] [-x] [-b] [-e] [-g] [-d] [-t|--no-title] [-p|--precise] [-C FILE] CMD [ARGS...]
-wall|wall
+wall|wall [-n|--nobanner] [-t|--timeout N] [-g GROUP|--group GROUP] [-h|--help] [MSG ...]
 write|write
 
 # Additional upstream loadables
@@ -251,7 +251,7 @@ sv|sv
 cron|cron run [--once] [--interval SEC] | cron next [--from EPOCH] {MIN HOUR DOM MONTH DOW|@daily}
 curl|curl
 fw|fw
-dhcpd|dhcpd
+dhcpd|dhcpd serve|run|respond|lease-list|lease-add|lease-remove ARGS...
 fdisk|fdisk DEV (interactive; or -i DEV) | [--no-act] -l DEV ... | --create-mbr DEV SPEC ... | --create-mbr-extended DEV EXT_SPEC LOGICAL_SPEC ... | --create-gpt DEV SPEC ... | --apply DEV {mbr|gpt} SPEC ... | --delete DEV N | --delete-compact DEV N | --insert-logical DEV START,SIZE[,TYPE[,BOOT]] | --reorder DEV | --set-attrs DEV N ATTRS | --activate DEV N {on|off} | --part-type DEV N TYPE | --set-part DEV N START,SIZE[,TYPE[,BOOT|NAME]] | --part-label DEV N NAME | --part-uuid DEV N UUID | --repair DEV | --verify DEV | --list-free DEV | --list-types | --disk-id DEV [STR]
 strace|strace
 coreutils|coreutils
@@ -285,14 +285,14 @@ crypto|crypto
 claude|claude
 ldap|ldap
 integrity|integrity
-dns|dns
+dns|dns A|AAAA|MX|TXT|... HOST [-s SERVER] [-t TIMEOUT_MS] [-d] [--validate] [--skew SEC]
 login|login
 passwd|passwd
 auth|auth
 su|su
 doas|doas
 cksum|cksum
-obj|obj
+obj|obj cat|type|size|parse-tree|parse-commit|--batch|--batch-check|hash|blob|tree|commit|tag ARGS...
 index|index
 pack|pack
 git|git plumbing: objects, refs, config
@@ -300,19 +300,19 @@ ssh|ssh
 pkg|pkg
 ntp|ntp
 mail|mail
-rsync|rsync
+rsync|rsync [-a] [-v] [-n] [-e RSH] SRC [SRC...] [HOST]:DEST
 wg|wg
 acme|acme
 uuidgen|uuidgen
-screen|screen
+screen|screen <verb> [args...] [--help|--version]
 sshd|sshd
 tiv|tiv
 kitty|kitty
-sixel|sixel
+sixel|sixel [-w N] [-H N] [--base64] FILE
 nano|nano
 ts|ts
 hl|hl
-sudo|sudo
+sudo|sudo [-n] [-u USER] [-g GROUP] command [args...]
 
 # Persistent graphics canvas and optional GPU renderer
 gpu|gpu COMMAND [ARGUMENT ...]

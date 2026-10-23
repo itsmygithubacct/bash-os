@@ -140,6 +140,11 @@ bl_read_file_operand (const char *path, bl_lines *ls)
     FILE *f = !strcmp (path, "-") ? stdin : fopen (path, "r");
     if (!f)
     {
+        /* less(1)'s nonterminal copy path writes file-open diagnostics
+           into the output stream and continues with a successful status.
+           An actual failure writing that diagnostic still fails. */
+        if (!ls)
+            return fprintf (stdout, "%s: %s\n", path, strerror (errno)) < 0 ? -1 : 0;
         builtin_error ("%s: %s", path, strerror (errno));
         return -1;
     }
@@ -535,16 +540,15 @@ less_builtin (WORD_LIST *list)
         for (WORD_LIST *p = list; p; p = p->next) n_files++;
         for (WORD_LIST *p = list; p; p = p->next)
         {
-            if (n_files > 1)
+            /* Like less(1), redirected plain output concatenates payloads
+               without the interactive file-separator display. */
+            if (n_files > 1 && !drain)
             {
                 char hdr[512];
                 snprintf (hdr, sizeof hdr, "::::::::::::::\n%s\n::::::::::::::\n",
                           p->word->word);
                 size_t len = strlen (hdr);
-                if (drain) {
-                    if (fwrite (hdr, 1, len, stdout) != len)
-                        rc = EXECUTION_FAILURE;
-                } else if (bl_lines_push (&ls, hdr, len) < 0)
+                if (bl_lines_push (&ls, hdr, len) < 0)
                     rc = EXECUTION_FAILURE;
             }
             if (bl_read_file_operand (p->word->word, drain ? NULL : &ls) < 0)
@@ -576,6 +580,9 @@ char *less_doc[] = {
     "Interactive keys: space/f next page, b previous page, j/k line",
     "movement, g/G top/bottom, / and ? search, n/N repeat search, q quit.",
     "When /dev/tty is unavailable, drains input without pausing.",
+    "With redirected plain output, file-open errors are printed to standard",
+    "output and remaining operands are read; file-open errors alone do not",
+    "set a failure status, matching less(1).",
     (char *)NULL
 };
 

@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "loadable": "less",
+  "reference": "Installed less 668 (GNU regular expressions), /usr/bin/less, invoked by system Bash with private relative fixture files and redirected stdout. Copying and missing-file behavior use its exact byte/status oracle; Bash type/help builtins provide the metadata contract oracle.",
+  "coverage": [
+    "Redirected stdin passthrough of small binary data, including NUL, CRLF, and an unterminated final record, compared with GNU less.",
+    "Repeated redirected stdin invocations in one Bash process, compared with GNU less.",
+    "Multiple relative file operands in redirected-output mode, compared with GNU less, including any headers in the actual command output.",
+    "Bash builtin type metadata and the loadable's registered help synopsis/options and interactive-key documentation.",
+    "Empty named files, binary bytes spanning operand boundaries, and explicit stdin operands in redirected plain-output mode.",
+    "Missing operands in redirected plain-output mode: exact stdout diagnostics, zero status, continuation through later private files and same-shell recovery."
+  ],
+  "exclusions": [
+    "Interactive paging, search, resize, terminal restoration, and option behavior tied to terminal geometry are deferred because this runner supplies no PTY driver.",
+    "No result here claims GNU less interactive compatibility or physical-terminal qualification.",
+    "Only redirected plain-output copying and file-open errors are qualified. Interactive error handling, terminal-dependent options and stream read/write error parity remain unqualified."
+  ],
+  "cases": [
+    {
+      "id": "stdin-binary-passthrough",
+      "kind": "parity",
+      "purpose": "Compare nonterminal stdin copying byte for byte, including an embedded NUL, CRLF, and a final line without newline, against GNU less.",
+      "script": "printf 'plain\\nnul:\\0tail\\r\\nunterminated' > input; less < input",
+      "requires": [
+        "less"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-repeated-invocations",
+      "kind": "parity",
+      "purpose": "Ensure two less invocations reading different redirected files in the same Bash process each consume their own complete input, compared with GNU less.",
+      "script": "printf 'first input\\n' > first; printf 'second input\\n' > second; less < first; less < second",
+      "requires": [
+        "less"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-files-redirected-output",
+      "kind": "parity",
+      "purpose": "Compare redirected output for two named relative files with GNU less; this checks whether less emits file-separator headers in its nonterminal drain path.",
+      "script": "printf 'first file\\n' > first; printf 'second file\\n' > second; less first second",
+      "requires": [
+        "less"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-type-metadata",
+      "kind": "contract",
+      "purpose": "The compiled loadable is registered as a Bash builtin; type -t is Bash's metadata interface and should identify it as builtin.",
+      "script": "[[ $(type -t less) == builtin ]]; printf 'builtin\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "bash-help-synopsis-options",
+      "kind": "contract",
+      "purpose": "Bash help metadata should document the source-declared synopsis and the supported -F, -N, -S, and -n options.",
+      "script": "doc=$(help less); [[ $doc == *\"less [-F] [-N] [-S] [-n LINES] [FILE...]\"* ]] || exit 1; [[ $doc == *\"quit if content fits on one screen\"* ]] || exit 1; [[ $doc == *\"show line numbers\"* ]] || exit 1; [[ $doc == *\"chop long lines to screen width\"* ]] || exit 1; [[ $doc == *\"override screen-page size\"* ]] || exit 1; printf 'synopsis and options documented\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "synopsis and options documented\n"
+    },
+    {
+      "id": "bash-help-interaction-contract",
+      "kind": "contract",
+      "purpose": "Bash help metadata should list the documented navigation/search keys and the no-controlling-terminal drain behavior.",
+      "script": "doc=$(help less); [[ $doc == *\"space/f next page, b previous page\"* ]] || exit 1; [[ $doc == *\"g/G top/bottom\"* ]] || exit 1; [[ $doc == *\"/ and ? search, n/N repeat search\"* ]] || exit 1; [[ $doc == *\"When /dev/tty is unavailable, drains input without pausing.\"* ]] || exit 1; printf 'navigation and tty fallback documented\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "navigation and tty fallback documented\n"
+    },
+    {
+      "id": "pty-navigation-and-quit",
+      "kind": "deferred",
+      "purpose": "Exercise initial screen rendering, next/previous page and line movement, top/bottom navigation, and clean quit on a controlling terminal.",
+      "reason": "Requires a future disposable VM or PTY-capable fixture driver with a controlling 24x80 terminal, deterministic multi-page input, scripted space/b/j/k/g/G/q keystrokes, captured screen/prompt bytes, and checks that termios and SIGWINCH state are restored."
+    },
+    {
+      "id": "pty-search-and-repeat",
+      "kind": "deferred",
+      "purpose": "Exercise forward and reverse literal searches, repeat with n/N, and search input editing on a controlling terminal.",
+      "reason": "Requires a future disposable VM or PTY driver to feed deterministic / and ? prompts, backspace edits, n/N repeats, and q; capture the visible matched lines and verify prompt cleanup."
+    },
+    {
+      "id": "pty-options-and-resize",
+      "kind": "deferred",
+      "purpose": "Exercise -F, -N, -S, and -n against known terminal dimensions and verify behavior when the terminal changes size.",
+      "reason": "Requires a future disposable VM or controllable PTY with fixed and resized winsize values, short and long fixture lines, input just below/above the page size, and captured output checks for auto-quit, numbering, chopping, page count, and redraw."
+    },
+    {
+      "id": "multiple-files-empty-and-binary",
+      "kind": "parity",
+      "purpose": "Empty files add no separators or bytes, and binary payloads concatenate exactly across file boundaries with no final newline inserted.",
+      "requires": [
+        "less"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'A\\000B' > first\n: > empty\nprintf '\\r\\nC' > last\nless empty first empty last empty"
+    },
+    {
+      "id": "empty-file-and-stdin-operands",
+      "kind": "parity",
+      "purpose": "Check an empty named file produces no output and a dash operand reads a private redirected stdin stream in operand order.",
+      "requires": [
+        "less"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf A > first\nprintf 'B\\000C' > standard-input\nprintf D > last\n: > empty\nless empty\nless first - last < standard-input"
+    },
+    {
+      "id": "missing-files-recover",
+      "kind": "parity",
+      "purpose": "Compare exact redirected stdout diagnostics, zero status and operand-order continuation for missing files in first, middle and sole positions, then confirm a later same-shell invocation still copies normally.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf A > first\nprintf 'B\\n' > last\nfor operands in 'absent first last' 'first absent last' 'absent'; do\n rc=0; less $operands || rc=$?\n printf 'missing-status=%s\\n' \"$rc\"\ndone\nless last",
+      "requires": [
+        "less"
+      ]
+    }
+  ]
+}

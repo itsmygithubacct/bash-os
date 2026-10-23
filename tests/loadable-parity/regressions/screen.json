@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "loadable": "screen",
+  "reference": "No matching GNU CLI implements this loadable's Bash window and pane policy over ptybroker; GNU Screen has a different command and session contract. Runnable expectations use Bash's documented type/help builtin behavior and the registered screen short synopsis. All screen operations are deferred under the requested terminal and system-operation restrictions.",
+  "coverage": [
+    "Bash identifies screen as a builtin with type -t.",
+    "Bash help -s exposes screen's documented short command synopsis.",
+    "Deferred live-session lifecycle and child cleanup.",
+    "Deferred pane/window layout, literal argv, PTY attach and detach, raw capture, observer roles, rollback, and remote attach scenarios."
+  ],
+  "exclusions": [
+    "No matching GNU CLI is a reliable oracle for this loadable's operation semantics, so there are no parity cases.",
+    "No screen operation is invoked by this suite. Live PTY and broker behavior requires the disposable Linux VM described in each deferred case.",
+    "No high-volume/backpressure stress, real terminal, SSH/network target, physical display, GPU/Kitty/Sixel frontend, or host session is exercised."
+  ],
+  "cases": [
+    {
+      "id": "bash-type-builtin",
+      "kind": "contract",
+      "purpose": "Check Bash's documented type -t result for a command registered as a shell builtin, without invoking screen.",
+      "script": "type -t screen",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-synopsis",
+      "kind": "contract",
+      "purpose": "Check Bash help -s output against screen's registered short synopsis, without invoking screen.",
+      "script": "help -s screen",
+      "expected_status": 0,
+      "stdout": "screen: screen <verb> [args...] [--help|--version]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "session-lifecycle",
+      "kind": "deferred",
+      "purpose": "Create a live named session with a deterministic child, verify list/status state after the creating shell exits, then kill it and verify broker and child cleanup.",
+      "reason": "Requires a disposable Linux VM with /proc, PTYs, Unix SOCK_SEQPACKET, pidfd and subreaper support, plus the ptybroker companion and a private 0700 state directory. Use only a fixture-owned child and verify cleanup before the VM is discarded."
+    },
+    {
+      "id": "pane-layout-geometry",
+      "kind": "deferred",
+      "purpose": "Create windows and split panes, switch/select focus, resize and swap panes, and compare each fixture child's observed TIOCGWINSZ geometry with screen's reported layout.",
+      "reason": "Requires a disposable Linux VM with the screen and ptybroker services, private PTYs, and owned fixture children that report their terminal geometry. No host terminal or existing session may be used."
+    },
+    {
+      "id": "literal-child-argv",
+      "kind": "deferred",
+      "purpose": "Pass empty, spaced, quoted, wildcard, newline, and shell-looking arguments after -- through run, win-create, and pane-split; compare the child's argv byte-for-byte and confirm no shell interpretation.",
+      "reason": "Requires a disposable Linux VM with ptybroker and private PTYs plus a fixture child that records argv. Keep all commands and files within the fixture directory; no real commands or host paths."
+    },
+    {
+      "id": "attach-relay-detach",
+      "kind": "deferred",
+      "purpose": "Use a private frontend terminal driver to compare deterministic binary child output, exercise quoted Ctrl-A input and the Ctrl-A then d detach sequence, and verify frontend terminal settings are restored.",
+      "reason": "Requires a disposable Linux VM with ptybroker, an owned raw-mode child, and a private controlling PTY/terminal driver capable of checking termios restoration. Do not attach to a user or host terminal."
+    },
+    {
+      "id": "capture-raw-history",
+      "kind": "deferred",
+      "purpose": "Have an owned child emit deterministic text, binary bytes, and a terminal query sequence; verify capture returns raw history and a later attach does not replay the old query or claim a parsed terminal grid.",
+      "reason": "Requires a disposable Linux VM with ptybroker, a private PTY, and an owned child that records query replies. Use a small bounded fixture and a private terminal driver; no physical terminal or history replay into a real display."
+    },
+    {
+      "id": "controller-observer-roles",
+      "kind": "deferred",
+      "purpose": "With a small deterministic stream, verify one controller and an observer receive the expected live bytes while observer input is suppressed and neither role terminates the pane on disconnect.",
+      "reason": "Requires a disposable Linux VM with ptybroker, one owned child, and private attach clients. Keep the stream small and bounded; this case does not induce queue saturation or run a backpressure stress test."
+    },
+    {
+      "id": "operation-errors-rollback",
+      "kind": "deferred",
+      "purpose": "Check invalid names, malformed pane geometry, missing-session mutations, and controlled child-start failure for documented nonzero outcomes and absence of partial layout or leaked broker state.",
+      "reason": "Requires a disposable Linux VM with ptybroker and a private state root. To check partial-start rollback, use an owned fixture executable or a reviewed spawn-failure mock; inspect only fixture-owned processes and files."
+    },
+    {
+      "id": "remote-attach-mock",
+      "kind": "deferred",
+      "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
+      "reason": "Requires a disposable Linux VM with a mocked SSH/transport boundary and an independent BSCR frame encoder/decoder. No network activity, installed credentials, or real remote target is allowed."
+    }
+  ]
+}

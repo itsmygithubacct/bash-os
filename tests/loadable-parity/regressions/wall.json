@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "loadable": "wall",
+  "reference": "Installed util-linux wall for option-error statuses. Bash metadata and implementation-specific help content are explicit contracts; util-linux help wording is not copied or counted as parity. All runnable options return before any utmp or terminal access.",
+  "coverage": [
+    "Bash identifies wall as a builtin and exposes its registered short help description.",
+    "Util-linux wall option-error statuses, plus explicit help contracts with no terminal broadcast.",
+    "Deferred operational coverage for controlled utmp records and terminal destinations."
+  ],
+  "exclusions": [
+    "No broadcast or terminal-write operation was executed; these require a disposable PTY or syscall mock with all targets controlled.",
+    "Group filtering, duplicate utmp records, message escaping, banners, and the messages-disabled gate remain unqualified.",
+    "Help wording differs from util-linux and is checked as an implementation-specific contract.",
+    "Timeout values are validated but synchronous terminal writes do not yet enforce a deadline; no timeout/broadcast behavior is claimed."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify the registered wall command as a builtin, even with an empty executable search path.",
+      "script": "PATH=; type -t wall",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-shortdoc",
+      "kind": "contract",
+      "purpose": "Bash help must expose the registered short help string for wall.",
+      "script": "PATH=; help -s wall",
+      "expected_status": 0,
+      "stdout": "wall: wall [-n|--nobanner] [-t|--timeout N] [-g GROUP|--group GROUP] [-h|--help] [MSG ...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wall-help-option",
+      "kind": "contract",
+      "purpose": "Both help spellings succeed, document the supported interface and its timeout limitation, and return before any system accounting or terminal access.",
+      "script": "a=$(wall --help)\nb=$(wall -h)\n[[ $a == \"$b\" ]]\n[[ $a == *\"Broadcast a message to every logged-in terminal\"* ]]\n[[ $a == *\"wall -h|--help\"* ]]\n[[ $a == *\"synchronous writes have no deadline\"* ]]\nprintf \"help ok\\n\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help ok\n"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "An unknown option must be rejected before any message delivery or system-path access.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall --parity-invalid-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-timeout",
+      "kind": "parity",
+      "purpose": "A nonnumeric timeout must be rejected by option parsing before any message delivery or utmp access.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall --timeout=not-a-number",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "broadcast-mock",
+      "kind": "deferred",
+      "purpose": "Qualify wall's operational broadcast behavior only in a disposable environment where every utmp entry and destination is controlled.",
+      "reason": "Requires a disposable VM or reviewed PTY/syscall mock. Provide only synthetic USER_PROCESS utmp records and private terminal endpoints, then verify recipient selection, per-terminal de-duplication, message escaping and CRLF handling, banner suppression, and the messages-disabled gate. No broadcast was executed in this suite."
+    },
+    {
+      "id": "missing-timeout",
+      "kind": "parity",
+      "purpose": "Reject this incomplete or invalid option before opening accounting data or delivering any message.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall -t",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-group",
+      "kind": "parity",
+      "purpose": "Reject this incomplete or invalid option before opening accounting data or delivering any message.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall -g",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "zero-timeout",
+      "kind": "parity",
+      "purpose": "Reject this incomplete or invalid option before opening accounting data or delivering any message.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall --timeout=0",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-timeout",
+      "kind": "parity",
+      "purpose": "Reject this incomplete or invalid option before opening accounting data or delivering any message.",
+      "requires": [
+        "wall"
+      ],
+      "script": "wall --timeout=-1",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-closed-output",
+      "kind": "contract",
+      "purpose": "A failed help write reports failure while the calling shell remains usable.",
+      "script": "rc=0\nwall --help >&- || rc=$?\n[[ $rc -eq 1 ]]\nprintf \"write failure reported\\n\"",
+      "expected_status": 0,
+      "stdout": "write failure reported\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

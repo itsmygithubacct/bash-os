@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "loadable": "dns",
+  "reference": "GNU Bash's documented type and help builtins are the independent metadata oracle. Metadata predicates are grounded in the GNU Bash builtin contracts and the static dns_doc/dns_struct documentation in /source/loadables/dns.c. There is no matching GNU DNS command with the same interface/output contract; dig and drill are adapters, not direct parity oracles. No dns subcommand is invoked in this suite.",
+  "coverage": [
+    "Bash builtin classification for the statically installed dns loadable.",
+    "Short description, synopsis, and documented command-family metadata exposed by Bash help.",
+    "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges."
+  ],
+  "exclusions": [
+    "All dns operation subcommands are unexecuted under the task's explicit DNS/network safety restriction; DEFERRED cases are not passes.",
+    "No real network target, installed resolver, credential, TLS endpoint, or service was accessed.",
+    "Offline parser, signer, codec, trust-anchor, and fixture-file operations are not evaluated here; they need a separately authorized operation suite and independent references."
+  ],
+  "cases": [
+    {
+      "id": "dns-type-kind",
+      "kind": "contract",
+      "purpose": "GNU Bash type -t reports a loaded Bash builtin as builtin. This confirms availability metadata without invoking dns.",
+      "script": "test \"$(type -t dns)\" = builtin\nprintf 'builtin\\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "dns-help-description",
+      "kind": "contract",
+      "purpose": "The help -d metadata includes the independently documented one-line description from dns_doc in /source/loadables/dns.c.",
+      "script": "doc=$(help -d dns)\ncase \"$doc\" in\n  *\"DNS over UDP via hand-rolled RFC 1035.\"*) printf 'dns description documented\\n' ;;\n  *) exit 1 ;;\nesac\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dns description documented\n"
+    },
+    {
+      "id": "dns-help-synopsis",
+      "kind": "contract",
+      "purpose": "GNU Bash help -s prints a builtin's synopsis. The independent expected synopsis is the dns_struct.short_doc string in /source/loadables/dns.c; a mismatch is retained as a candidate contract failure.",
+      "script": "help -s dns\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dns: dns A|AAAA|MX|TXT|... HOST [-s SERVER] [-t TIMEOUT_MS] [-d] [--validate] [--skew SEC]\n"
+    },
+    {
+      "id": "dns-help-command-families",
+      "kind": "contract",
+      "purpose": "The complete help text retains stable documentation for the master-file checker, authoritative server, and DNSSEC features; checks only Bash metadata and does not run those commands.",
+      "script": "doc=$(help dns)\ncase \"$doc\" in\n  *\"validate an RFC 1035 master file\"*\"Authoritative DNS daemon\"*\"DNSSEC v2:\"*) printf 'documented command families present\\n' ;;\n  *) exit 1 ;;\nesac\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "documented command families present\n"
+    },
+    {
+      "id": "dns-query-udp-tcp",
+      "kind": "deferred",
+      "purpose": "Exercise DNS query construction, response parsing, common RR presentation, error responses, resolver search order, and TC-triggered TCP fallback.",
+      "reason": "Requires a controlled UDP DNS responder and TCP fallback peer to exchange packets. Network activity is outside this task's allowed execution. A future disposable VM must bind only private loopback fixtures, record request bytes, and compare response parsing against RFC 1035 encodings and normalized dig/drill output; include A, AAAA, MX, TXT, PTR, NXDOMAIN, malformed response, and truncation cases."
+    },
+    {
+      "id": "dns-dot-doh",
+      "kind": "deferred",
+      "purpose": "Exercise DNS-over-TLS and DNS-over-HTTPS framing, certificate validation, and DNS message handling through each transport.",
+      "reason": "Requires TLS and HTTPS peers plus certificate fixtures or the documented BASHDNS_DOT_CMD/BASHDNS_DOH_CMD transport seams. This task forbids network activity. A future disposable VM must use loopback-only mock peers, a private test CA, fixed DNS wire replies, and byte-level TLS/HTTP framing assertions."
+    },
+    {
+      "id": "dns-update-notify",
+      "kind": "deferred",
+      "purpose": "Exercise RFC 2136 update and RFC 1996 notify requests, prerequisite encodings, TSIG signing, and peer response validation.",
+      "reason": "These client operations send DNS packets and need a controlled authoritative peer. A future disposable VM must provide loopback UDP/TCP responders and compare the requests with independently encoded RFC 2136/RFC 1996 messages and HMAC-SHA256 TSIG calculations. No packets are sent in this suite."
+    },
+    {
+      "id": "dns-authoritative-service",
+      "kind": "deferred",
+      "purpose": "Exercise authoritative UDP/TCP answers, zone selection, transfer/update policy, TSIG, and opt-in service features against clients.",
+      "reason": "The auth-serve subcommand opens a network listener and requires client exchanges. A future disposable VM must isolate the listener to loopback, provide deterministic zone fixtures and independent DNS packet encoders, and verify answers, denied/allowed transfer behavior, and permitted update behavior without contacting any external peer."
+    },
+    {
+      "id": "dns-recursive-service",
+      "kind": "deferred",
+      "purpose": "Exercise resolver forwarding/cache behavior and the documented recursive, DNSSEC, DNS64, and policy paths against controlled peers.",
+      "reason": "The resolver service exchanges DNS packets with clients and upstreams. A future disposable VM must use a loopback client and scripted upstream server, fixed time and zone data, and independent DNSSEC/DNS64 expectations. This suite performs no network activity."
+    },
+    {
+      "id": "dns-slave-transfer-poll",
+      "kind": "deferred",
+      "purpose": "Exercise slave IXFR/AXFR transfer verification and DNSKEY polling used by trust-anchor rollover.",
+      "reason": "Transfer and polling paths require a controlled DNS primary and response stream. A future disposable VM must expose only a loopback primary with fixed signed zone/DNSKEY fixtures, injected timestamps, and independently computed TSIG/signature expectations. No transfer or poll is run here."
+    }
+  ]
+}

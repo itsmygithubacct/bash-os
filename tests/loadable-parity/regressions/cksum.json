@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "loadable": "cksum",
+  "reference": "GNU coreutils cksum invoked by name in the isolated reference PATH. Its POSIX CRC-32 mode and supported GNU digest modes are the independent behavioral oracle; reference status is checked before candidate parity is reported.",
+  "coverage": [
+    "POSIX CRC-32 output for named files and stdin",
+    "Empty and binary inputs, including the byte count",
+    "Multiple files, stdin in an argument list, and -- for dash-leading names",
+    "NUL record delimiters",
+    "All six documented digest algorithms, tagged and untagged formats, and digest stdin",
+    "Missing-file continuation and invalid algorithm/option errors",
+    "A filename containing a newline",
+    "Explicit dash operands retain their name, including repeated EOF and NUL-delimited records.",
+    "Same-shell parser failures leave input unread and reset options for later invocations.",
+    "Missing/directory/closed-input failures retain failure status while later checksums work."
+  ],
+  "exclusions": [
+    "GNU --check, --raw, --base64, --length, legacy sysv/bsd/crc32b modes, and algorithms outside the documented set",
+    "Version banner identity and exact diagnostic wording",
+    "Very large inputs beyond the harness fixture limits"
+  ],
+  "cases": [
+    {
+      "id": "crc-file-and-stdin",
+      "kind": "parity",
+      "purpose": "Compare POSIX CRC-32 and byte counts for the same small text input as a named file and as stdin; the named form must include the filename while stdin must omit it.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc\\n' > plain\ncksum plain\ncksum < plain",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "crc-empty-and-binary",
+      "kind": "parity",
+      "purpose": "Exercise the zero-byte boundary and non-text bytes so the CRC and reported byte count are checked independently of line-oriented input.",
+      "requires": [
+        "cksum"
+      ],
+      "script": ": > empty\nprintf '\\000\\377A\\n' > binary\ncksum empty binary\ncksum < empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "crc-multiple-with-piped-stdin",
+      "kind": "parity",
+      "purpose": "Check ordered output for multiple operands with stdin between two files, including a binary file payload.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'first\\n' > first\nprintf 'last\\000byte' > last\nprintf 'stream\\001bytes' | cksum first - last",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "crc-dash-leading-name",
+      "kind": "parity",
+      "purpose": "Verify that -- ends option parsing so a dash-leading relative filename is opened and printed as a filename.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'dash-name\\n' > ./-payload\ncksum -- -payload",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "crc-nul-delimited-records",
+      "kind": "parity",
+      "purpose": "Compare NUL-terminated checksum records for a filename containing a space and an empty file.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'space name data\\n' > 'space name'\n: > empty\ncksum --zero -- 'space name' empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "digest-all-document-algorithms",
+      "kind": "parity",
+      "purpose": "Compare GNU digest output for every digest algorithm documented by this loadable against deterministic binary input.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'digest\\000payload\\377\\n' > payload\nfor alg in md5 sha1 sha224 sha256 sha384 sha512; do cksum --algorithm=\"$alg\" payload; done",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "digest-format-and-stdin",
+      "kind": "parity",
+      "purpose": "Check default tagged and explicit --tag output, --untagged output, the documented '-' name for digest stdin, and NUL termination for an untagged digest record.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'sha input\\n' > payload\nprintf 'zero delimiter\\n' > 'space name'\ncksum -a sha256 payload\ncksum --tag --algorithm sha256 payload\ncksum --untagged --algorithm=sha256 payload\ncksum --untagged -a sha256 < payload\ncksum -z --untagged -a sha1 -- 'space name'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-continues",
+      "kind": "parity",
+      "purpose": "Ensure a missing operand reports an error and sets failure status while a later readable file still produces its checksum.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'readable\\n' > present\nif cksum absent present; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unsupported-algorithm-error",
+      "kind": "parity",
+      "purpose": "Compare failure status and nonempty diagnostics for an unsupported algorithm name.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "cksum --algorithm=not-a-real-algorithm",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option-error",
+      "kind": "parity",
+      "purpose": "Compare failure status and nonempty diagnostics for an unknown option.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "cksum --not-a-real-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "newline-filename",
+      "kind": "parity",
+      "purpose": "Check output for a relative filename containing a newline, where escaping or raw-name handling can affect checksum record bytes.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "name=$'line\\nbreak'\nprintf 'newline path\\n' > \"$name\"\ncksum \"$name\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "type-and-help-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash metadata only: cksum is a builtin and help output includes the documented POSIX CRC-32 summary.",
+      "script": "type -t cksum\nhelp cksum > help.txt\nfound=no\nwhile IFS= read -r line; do case $line in *'POSIX CRC-32'*) found=yes ;; esac; done < help.txt\n[[ $found == yes ]]\nprintf 'help summary present\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp summary present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit-dash-vs-default-and-zero",
+      "kind": "parity",
+      "purpose": "An explicit stdin operand is named dash; default stdin omits its name. Repeated dash operands see EOF on the second read, and zero mode keeps exact record delimiters.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc' | cksum -\nprintf 'abc' | cksum\nprintf 'A\\000B' | cksum -z - -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "same-shell-stdin-and-mode-reset",
+      "kind": "parity",
+      "purpose": "Repeated reads in one shell preserve descriptor ownership, observe EOF, accept a fresh redirection, and reset digest selection to CRC on a later call.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc' > plain\n{ cksum - -; cksum; } < plain\ncksum < plain\ncksum -a sha256 plain\ncksum plain",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parser-errors-leave-input-unread",
+      "kind": "parity",
+      "purpose": "Missing algorithm and unsupported algorithm errors return 1 before reading stdin; zero/digest options do not leak into a later same-shell invocation.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc' > plain\n{\n rc=0; cksum -a || rc=$?\n [[ $rc == 1 ]]\n printf 'missing-algorithm=%s\\n' \"$rc\"\n rc=0; cksum -z --algorithm=not-a-real-algorithm || rc=$?\n [[ $rc == 1 ]]\n printf 'unsupported=%s\\n' \"$rc\"\n cksum\n} < plain\ncksum --untagged -a sha256 plain\ncksum plain",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "input-errors-continue-and-recover",
+      "kind": "parity",
+      "purpose": "Missing operands and directory read errors continue to stdin and valid files; CRC and digest closed-input failures return 1 and leave later invocations usable.",
+      "requires": [
+        "cksum",
+        "mkdir"
+      ],
+      "script": "mkdir folder\nprintf 'abc' > present\nrc=0; cksum absent folder - present < present || rc=$?\n[[ $rc == 1 ]]\nprintf 'operands=%s\\n' \"$rc\"\nrc=0; cksum <&- || rc=$?\n[[ $rc == 1 ]]\nrc=0; cksum -a sha256 <&- || rc=$?\n[[ $rc == 1 ]]\nprintf 'closed-inputs-rejected\\n'\ncksum present",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}
