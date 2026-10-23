@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "mlock",
+  "reference": "Bash metadata contracts; read-only check compared byte-for-byte through a deliberate Python resource.getrlimit adapter. Locking and global policy operations require future mocks.",
+  "coverage": [
+    "Bash classifies mlock as a builtin using type -t.",
+    "Bash help metadata advertises the five documented subcommands and the loadable description.",
+    "Deferred operational scenarios specify controlled conditions for all, unlock, check, try-lock, and ptrace-scope.",
+    "Operation: read-only check formatting against an independent getrlimit adapter."
+  ],
+  "exclusions": [
+    "No GNU mlock CLI parity claim.",
+    "Lock/unlock and global ptrace policy operations remain deferred with specific future mocks."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Verify through Bash's type builtin that the selected mlock loadable is available as a builtin.",
+      "script": "[[ $(type -t mlock) == builtin ]] || exit 1\nprintf '%s\\n' 'mlock type: builtin'",
+      "expected_status": 0,
+      "stdout": "mlock type: builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Verify Bash help exposes the documented description and every advertised mlock subcommand without invoking an operation.",
+      "script": "doc=$(help mlock)\n[[ $doc == *'Pin/unpin process memory to prevent swap leakage of secrets.'* ]] || exit 1\nfor verb in all unlock check try-lock ptrace-scope; do\n  [[ $doc == *\"mlock $verb\"* ]] || exit 1\ndone\nprintf '%s\\n' 'mlock help documents all five subcommands'",
+      "expected_status": 0,
+      "stdout": "mlock help documents all five subcommands\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "all-operation",
+      "kind": "deferred",
+      "purpose": "Validate mlockall(MCL_CURRENT|MCL_FUTURE) success and its RLIMIT_MEMLOCK failure path, including whether failure leaves process state unchanged.",
+      "reason": "Requires a disposable Linux VM or reviewed mlockall/getrlimit syscall mock with a controlled RLIMIT_MEMLOCK, observable VmLck before and after, and guaranteed process teardown. The operation locks the shell's current and future pages, so it is not invoked by this fixture suite."
+    },
+    {
+      "id": "unlock-operation",
+      "kind": "deferred",
+      "purpose": "Verify munlockall releases a known locked mapping and does not leave locked pages after the call.",
+      "reason": "Requires a disposable Linux VM or reviewed mmap/mlock/munlockall mock that seeds a known locked region and observes lock accounting before and after. The operation changes process-wide memory-lock state; it is not invoked here."
+    },
+    {
+      "id": "check-operation",
+      "kind": "parity",
+      "purpose": "Read-only process RLIMIT_MEMLOCK formatting compared with Python getrlimit; no locked pages or limits change.",
+      "script": "if [[ $(type -t mlock) == builtin ]]; then mlock check; else /usr/bin/python3 -c 'import resource; a,b=resource.getrlimit(resource.RLIMIT_MEMLOCK); f=lambda n:'\"'\"'unlimited'\"'\"' if n==resource.RLIM_INFINITY else str(n); print('\"'\"'soft='\"'\"'+f(a)+'\"'\"' hard='\"'\"'+f(b))'; fi",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "try-lock-operation",
+      "kind": "deferred",
+      "purpose": "Exercise the bounded anonymous mapping probe on successful lock/unlock, the 1-byte and 1-MiB boundaries, malformed sizes, and an insufficient-limit failure with cleanup.",
+      "reason": "Requires a disposable Linux VM or reviewed mmap/mlock/munlock/getrlimit syscall mock that can force both success and EAGAIN deterministically and verify mapping cleanup. No probe is run in this suite."
+    },
+    {
+      "id": "ptrace-scope-operation",
+      "kind": "deferred",
+      "purpose": "Check parsing and descriptions for Yama ptrace_scope levels 0 through 3, unknown numeric levels, and unavailable or malformed procfs data.",
+      "reason": "Requires an isolated procfs fixture or reviewed open/read mock for /proc/sys/kernel/yama/ptrace_scope with controlled contents and error modes. The host's procfs state is not an acceptable oracle and is not queried by this suite."
+    }
+  ]
+}

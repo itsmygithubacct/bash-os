@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "loadable": "tui",
+  "reference": "Published tui API contracts for metadata, pure color-mode state, and parser/uninitialized errors. Screen rendering and input need an independent ECMA-48 decoder and disposable PTY; there is no matching GNU CLI.",
+  "coverage": [
+    "Bash reports tui as an available builtin.",
+    "Bash help exposes the documented tui synopsis, API families, and numeric limits.",
+    "The documented colormode choices reject an unsupported value with status 2 without opening a terminal.",
+    "Deferred: terminal initialization, drawing and refresh, rendition and ANSI handling, key input, line input, resize, and teardown.",
+    "In-memory color-mode persistence, uninitialized error and idempotent teardown without entering terminal mode."
+  ],
+  "exclusions": [
+    "No GNU CLI provides an independent oracle for the persistent screen API.",
+    "The fixture runner has no private controlling PTY, terminal input driver, resize injection, or ECMA-48 screen decoder; stateful terminal operations therefore remain deferred.",
+    "No privileged, host, network, device, or system-wide operation is exercised."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash's documented type -t builtin metadata identifies the loaded tui command as a builtin.",
+      "script": "[[ $(type -t tui) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Check Bash help text against the published tui synopsis, draw API, coordinate/timeout limits, and getkey result contract. The confirmation line is printed only after those independent documented strings are found.",
+      "script": "full=$(help tui)\nflat=${full//$'\\n'/ }\n[[ $flat == *'tui SUBCOMMAND [args...]'* ]]\n[[ $flat == *'init | end | lines | cols | resized | colormode'* ]]\n[[ $flat == *'hline [CH] N | vline [CH] N | box'* ]]\n[[ $flat == *'Coordinates: -32768..32767; line length: 0..32767; timeout: -1..INT_MAX.'* ]]\n[[ $flat == *'getkey prints a token'* && $flat == *'rc 0 key, 1 EOF, 2 timeout.'* ]]\nprintf 'documented tui help contract\\n'",
+      "expected_status": 0,
+      "stdout": "documented tui help contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-colormode",
+      "kind": "contract",
+      "purpose": "The documented colormode accepts only 16, 256, or truecolor and invalid arguments return status 2; verify rejection without requiring screen initialization or a terminal.",
+      "script": "if tui colormode 8; then\n  status=0\nelse\n  status=$?\nfi\n[[ $status == 2 ]]\nprintf 'unsupported colormode rejected with status 2\\n'",
+      "expected_status": 0,
+      "stdout": "unsupported colormode rejected with status 2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "terminal-init-dimensions",
+      "kind": "deferred",
+      "purpose": "Validate init/end, fixed screen rows and columns, raw-mode entry, alternate-screen/cursor handling, and restoration after teardown.",
+      "reason": "Requires a future disposable VM fixture with a private controlling PTY that supplies a fixed window size and records termios plus terminal output; compare the observed ECMA-48 stream and restored terminal state with an independent decoder. The current runner starts the shell without a controlling terminal."
+    },
+    {
+      "id": "cell-drawing-refresh",
+      "kind": "deferred",
+      "purpose": "Validate persistent cursor movement, addstr clipping and wrapping, erase, box, horizontal/vertical lines, clear-to-end operations, and changed-cell refresh output.",
+      "reason": "Requires a future disposable VM fixture with a private PTY and fixed geometry, plus an independent ECMA-48 screen decoder that checks resulting cells and exact refresh traffic. No matching GNU tui command exists and the current runner cannot provide that terminal oracle."
+    },
+    {
+      "id": "rendition-and-ansi",
+      "kind": "deferred",
+      "purpose": "Validate bold/dim/italic/underline/blink/reverse attributes, named/indexed/RGB colors, color-mode conversion, and addansi SGR/control parsing.",
+      "reason": "Requires a future disposable VM with a private controlling PTY and an independent ECMA-48 parser that records cell attributes and colors across 16-color, 256-color, and truecolor modes. Screen output cannot be meaningfully checked by this noninteractive runner."
+    },
+    {
+      "id": "key-input-and-timeouts",
+      "kind": "deferred",
+      "purpose": "Validate getkey character and escape-sequence tokens, queued ESC pushback, nonblocking/finite timeout status, and EOF behavior.",
+      "reason": "Requires a future disposable VM fixture with a private controlling PTY and a bounded terminal-input driver that can inject key byte sequences and close only the owned input endpoint; verify tokens and statuses from the documented API."
+    },
+    {
+      "id": "line-input-editing",
+      "kind": "deferred",
+      "purpose": "Validate getstr prompt placement, character entry, backspace editing, line completion, and ESC cancellation.",
+      "reason": "Requires a future disposable VM fixture with a private controlling PTY and an input driver for deterministic key sequences, plus an independent assertion of the returned text, cancellation status, and terminal restoration."
+    },
+    {
+      "id": "resize-and-lifecycle",
+      "kind": "deferred",
+      "purpose": "Validate resize notification and geometry updates, retained screen contents after growth/shrink, repeated init/end, and exit cleanup.",
+      "reason": "Requires a future disposable VM fixture with an owned PTY, controlled window-size changes, signals delivered only to the fixture process, and an independent terminal-state/ECMA-48 observer. Those terminal controls are unavailable in the current runner."
+    },
+    {
+      "id": "color-mode-state",
+      "kind": "contract",
+      "purpose": "Published color-mode values persist across calls without screen initialization or terminal access.",
+      "script": "tui colormode 16\ntui colormode\ntui colormode 256\ntui colormode\ntui colormode truecolor\ntui colormode",
+      "expected_status": 0,
+      "stdout": "16\n16\n256\n256\ntruecolor\ntruecolor\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "uninitialized-and-unknown",
+      "kind": "contract",
+      "purpose": "Known drawing commands require initialization, unknown commands use usage status, and end is idempotent.",
+      "script": "if tui erase; then rc=0; else rc=$?; fi\nprintf 'erase=%s\\n' \"$rc\"\n[[ $rc == 1 ]]\nif tui unknown; then rc=0; else rc=$?; fi\nprintf 'unknown=%s\\n' \"$rc\"\n[[ $rc == 2 ]]\ntui end\ntui end",
+      "expected_status": 0,
+      "stdout": "erase=1\nunknown=2\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

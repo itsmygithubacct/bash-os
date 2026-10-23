@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "loadable": "dialog",
+  "reference": "No matching dialog executable is available (the source catalog marks it missing). Contract expectations use Bash's documented type/help metadata plus the dialog loadable's published help and documented noninteractive widget/result-channel contract; no expected output is derived from candidate execution.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "Noninteractive yes/no selections, including the documented default-no behavior",
+    "Inputbox result routing to stdout, default stderr, and a selected output descriptor",
+    "Menu item text selection and checklist separate-output ordering",
+    "Mixedform editable, hidden, and readonly field handling",
+    "Relative textbox file open success and missing-file status"
+  ],
+  "exclusions": [
+    "dialog byte-for-byte parity is unavailable because no matching reference executable is installed.",
+    "Interactive rendering, keyboard navigation, escape handling, raw terminal restoration, resize behavior, and terminal dimensions require a controlled PTY and are deferred.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Bash type -t reports the registered dialog loadable as a builtin.",
+      "script": "[[ $(type -t dialog) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Bash help exposes the documented widget and output-fd synopsis for dialog.",
+      "script": "doc=$(help dialog)\n[[ $doc == *\"--yesno\"* && $doc == *\"--mixedform\"* && $doc == *\"--output-fd N\"* ]]\nprintf 'help-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "help-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "yesno-selections",
+      "kind": "contract",
+      "purpose": "In noninteractive mode, y/Y returns Yes status 0 and another response returns No status 1.",
+      "script": "dialog --yesno 'Continue?' 8 40 <<< 'Y'\nif dialog --yesno 'Continue?' 8 40 <<< 'n'; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]]\nprintf 'yes=0 no=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "yes=0 no=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "yesno-default-no",
+      "kind": "contract",
+      "purpose": "With no response, --defaultno selects the documented No result and returns status 1.",
+      "script": "if dialog --defaultno --yesno 'Continue?' 8 40 <<< ''; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]]\nprintf 'default-no=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "default-no=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "inputbox-stdout",
+      "kind": "contract",
+      "purpose": "--stdout sends the noninteractive inputbox response to stdout, preserving spaces.",
+      "script": "dialog --stdout --inputbox 'Name' 8 40 'initial' <<< 'hello shell'",
+      "expected_status": 0,
+      "stdout": "hello shell\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "inputbox-default-stderr",
+      "kind": "contract",
+      "purpose": "Without a result-channel flag, an inputbox response is written to stderr as documented.",
+      "script": "dialog --inputbox 'Name' 8 40 <<< 'private value'",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "exact",
+      "stderr_text": "private value\n"
+    },
+    {
+      "id": "menu-notags",
+      "kind": "contract",
+      "purpose": "A menu tag selects its row, while --notags emits that row's item text.",
+      "script": "dialog --stdout --notags --menu 'Pick one' 10 40 5 alpha 'Alpha item' beta 'Beta item' <<< 'beta'",
+      "expected_status": 0,
+      "stdout": "Beta item\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "checklist-separate-output",
+      "kind": "contract",
+      "purpose": "Checklist input tags are emitted one per line in item order with --separate-output.",
+      "script": "dialog --stdout --separate-output --checklist 'Pick several' 12 50 5 alpha Alpha off beta Beta off gamma Gamma off <<< $'gamma\\nalpha\\n'",
+      "expected_status": 0,
+      "stdout": "alpha\ngamma\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "mixedform-field-types",
+      "kind": "contract",
+      "purpose": "Noninteractive mixedform replaces editable type-0/type-1 fields, preserves type-2 readonly fields, and emits all values in field order.",
+      "script": "dialog --stdout --mixedform 'Edit record' 16 60 6 Name 0 0 Alice 0 0 12 20 0 Readonly 1 0 locked 1 0 12 20 2 Secret 2 0 old 2 0 12 20 1 <<< $'Bob\\nnew secret\\n'",
+      "expected_status": 0,
+      "stdout": "Bob\nlocked\nnew secret\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "output-fd",
+      "kind": "contract",
+      "purpose": "--output-fd routes a response to the requested open descriptor rather than stdout or the default stderr channel.",
+      "script": "dialog --output-fd 3 --inputbox 'Name' 8 40 3>capture.txt <<< 'fd result'\nIFS= read -r saved < capture.txt\n[[ $saved == 'fd result' ]]\nprintf '%s\\n' \"$saved\"",
+      "expected_status": 0,
+      "stdout": "fd result\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "textbox-relative-file",
+      "kind": "contract",
+      "purpose": "Textbox opens a relative fixture file successfully; a missing relative file returns the documented file-error status 2.",
+      "script": "printf 'alpha\\nbeta\\n' > note.txt\ndialog --textbox note.txt 10 40 <<< ''\nif dialog --textbox absent.txt 10 40 <<< ''; then rc=0; else rc=$?; fi\n[[ $rc -eq 2 ]]\nprintf 'existing=0 missing=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "existing=0 missing=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-pty",
+      "kind": "deferred",
+      "purpose": "Qualify interactive rendering and keyboard behavior against dialog in a controlled terminal.",
+      "reason": "Requires a future disposable VM with a matching dialog executable and a PTY driver that can set a fixed terminal size, inject bounded key sequences (including arrows, Enter, and Esc), and inspect terminal restoration. The current isolated runner has no PTY fixture interface and the GNU reference is absent; do not count this operation as passed."
+    }
+  ]
+}

@@ -208,6 +208,10 @@ bm_render_stream (FILE *in, FILE *out)
     int blanked = 1;        /* coalesce leading blank lines */
     int saw_th = 0;
 
+    /* stdin's FILE survives builtin calls and can retain EOF after the
+       shell redirects descriptor 0 to a new source. Start this render
+       with fresh stream indicators, as a separate man process would. */
+    clearerr (in);
     while ((n = getline (&line, &cap, in)) != -1)
     {
         if (n > 0 && line[n - 1] == '\n') { line[--n] = '\0'; }

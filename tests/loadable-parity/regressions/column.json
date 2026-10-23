@@ -171,6 +171,28 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "empty-and-width-error",
+      "kind": "parity",
+      "purpose": "Empty input is empty; negative output width is rejected diagnostically.",
+      "script": ": > empty; column -t empty; column -c -1 empty",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "column"
+      ]
+    },
+    {
+      "id": "negative-width-spellings-and-recovery",
+      "kind": "parity",
+      "purpose": "Ordinary negative widths fail with util-linux status 1 across short, attached and both long spellings, even for empty input; a later zero-width invocation remains valid.",
+      "requires": [
+        "column"
+      ],
+      "script": ": > empty\nfor form in split attached long-split long-equals; do\n rc=0\n case $form in\n  split) column -c -1 empty || rc=$? ;;\n  attached) column -c-1 empty || rc=$? ;;\n  long-split) column --output-width -1 empty || rc=$? ;;\n  long-equals) column --output-width=-1 empty || rc=$? ;;\n esac\n printf 'negative-status=%s\\n' \"$rc\"\n [[ $rc == 1 ]]\ndone\nprintf 'one\\n' > data\ncolumn -c 0 data",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

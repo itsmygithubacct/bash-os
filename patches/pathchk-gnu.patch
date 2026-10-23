@@ -6,7 +6,7 @@
  {
 -  int retval, pflag, opt;
 +  int retval, pflag = 0, opt;
- 
+
    reset_internal_getopt ();
    while ((opt = internal_getopt (list, "p")) != -1)
 @@ -114,7 +114,7 @@
@@ -25,9 +25,21 @@
 -      return (EX_USAGE);
 +      return (EXECUTION_FAILURE);
      }
- 
+
    for (retval = 0; list; list = list->next)
-@@ -362,7 +362,7 @@
+@@ -282,7 +282,10 @@
+     return 1;
+
+   if (*path == '\0')
+-    return 0;
++    {
++      builtin_error ("empty file name");
++      return 1;
++    }
+
+ #ifdef lint
+   /* Suppress `used before initialized' warning.  */
+@@ -362,7 +365,7 @@
    if (path_max < 0)
      path_max = _POSIX_PATH_MAX;
    free (parent);

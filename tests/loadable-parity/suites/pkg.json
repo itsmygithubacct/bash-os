@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "loadable": "pkg",
+  "reference": "GNU tar and Python tarfile independently decode pkg-produced archives, and GNU tar independently encodes an input for pkg info. The pack/info case is round-trip-result comparison only. Metadata and safe local pack error cases use documented contracts; no package-manager installation or network parity is claimed.",
+  "coverage": [
+    "Bash recognizes pkg as a builtin.",
+    "Bash help has a registered synopsis for pkg.",
+    "A single-MANIFEST payload archive created by pkg pack and parsed by pkg info, compared with GNU tar's independently encoded and extracted ustar manifest.",
+    "Deferred: package metadata parsing, signature policy, digest checks, ELF and ABI checks.",
+    "Deferred: install state, data trees, rollback, and removal under an isolated root.",
+    "Deferred: remote index refresh, download, and fetch through a local mock transport.",
+    "Deferred: full and delta upgrades against signed fixture packages.",
+    "Deferred: loading and unloading a benign Bash-ABI-matched fixture builtin.",
+    "Deferred: legacy payload hooks under an isolated root with a non-privileged hook mock.",
+    "Independent archive encoding for info and independent tarfile/xz decoding of recursive pack output.",
+    "Local pack rejection of a missing manifest and independently encoded delta-apply reconstruction.",
+    "Local repository INDEX substring/glob search and no-match reporting, without transport or installation."
+  ],
+  "exclusions": [
+    "No installation, signing, credential use, hooks, builtin loading or network operation executes; local repository search is covered.",
+    "Archive semantic interoperability covers the manifest and recursive regular-file payload only; full loadable ABI/data/trust policy remains unverified."
+  ],
+  "cases": [
+    {
+      "id": "pkg-pack-manifest-parity",
+      "kind": "parity",
+      "purpose": "Compare the manifest result of pkg pack followed by pkg info with GNU tar encoding/extraction. This is round-trip-result comparison only. Archive bytes and tree comparison are excluded because tar header metadata/padding vary; archives remain in raw evidence.",
+      "requires": [
+        "tar",
+        "stat"
+      ],
+      "script": "printf 'name: parity-probe\\ntype: payload\\nversion: 1\\ndescription: fixture\\n' > MANIFEST\nif [[ $(type -t pkg) == builtin ]]; then\n  pkg pack . package.pkg > pack-report.txt\n  [[ $(<pack-report.txt) == \"packed package.pkg\" && $(/usr/bin/stat -c %s pack-report.txt) == 19 ]]\n  pkg info package.pkg --root .\nelse\n  tar --format=ustar --owner=0 --group=0 --numeric-owner -cf package.pkg MANIFEST\n  tar -xOf package.pkg MANIFEST\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false,
+      "timeout": 5
+    },
+    {
+      "id": "pkg-is-builtin",
+      "kind": "contract",
+      "purpose": "Check Bash metadata reports pkg as a builtin, as expected for the documented bash-os package-manager entry point. This does not invoke a pkg verb.",
+      "script": "type -t pkg",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "pkg-help-registered",
+      "kind": "contract",
+      "purpose": "Check Bash's help builtin can resolve a nonempty pkg synopsis. The fixed output marker is emitted only after the documented builtin-help lookup succeeds; no package operation runs.",
+      "script": "synopsis=$(help -s pkg)\n[[ -n $synopsis && $synopsis == *pkg* ]]\nprintf '%s\\n' 'pkg help available'",
+      "expected_status": 0,
+      "stdout": "pkg help available\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "pkg-pack-format",
+      "kind": "parity",
+      "purpose": "Pack a recursive private payload with xz and decode every file using independent Python tarfile/lzma. Compare decoded names, bytes and modes with GNU tar. Raw archive/tree bytes are excluded because tar headers, directory entries and xz encodings vary; all archives remain evidence. No hooks execute.",
+      "script": "mkdir -p payload/files/config\nprintf 'name: local-fixture\\ntype: payload\\nversion: 1\\ndescription: fixture\\n' > payload/MANIFEST\nprintf 'alpha\\000beta\\n' > payload/files/config/settings\nchmod 640 payload/files/config/settings\nif [[ $(type -t pkg) == builtin ]]; then\n  pkg pack payload package.pkg -z\nelse\n  tar --format=ustar --owner=0 --group=0 --numeric-owner -cJf package.pkg -C payload MANIFEST files\n  printf 'packed package.pkg\\n'\nfi\n/usr/bin/python3 - <<'PY'\nimport json, tarfile\nfrom pathlib import Path\nwith tarfile.open('package.pkg', 'r:xz') as archive:\n    members = archive.getmembers()\n    files = {m.name: m for m in members if m.isfile()}\n    assert set(files) == {'MANIFEST', 'files/config/settings'}, set(files)\n    assert all(m.isfile() or m.isdir() for m in members)\n    for name in sorted(files):\n        m = files[name]\n        data = archive.extractfile(m).read()\n        assert data == (Path('payload') / name).read_bytes(), name\n        assert m.mode == ((Path('payload') / name).stat().st_mode & 0o7777)\n        print(json.dumps([name, m.mode, data.hex()]))\n    directories = {m.name.rstrip('/'): m for m in members if m.isdir()}\n    assert 'files/config' in directories\n    assert set(directories) <= {'files', 'files/config'}\n    for name, m in directories.items():\n        assert m.mode == ((Path('payload') / name).stat().st_mode & 0o7777)\nPY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tar",
+        "xz",
+        "python3",
+        "mkdir",
+        "chmod"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "pkg-package-validation",
+      "kind": "deferred",
+      "purpose": "Cover info and verify for valid, unsigned, untrusted, revoked, tampered, malformed, wrong-architecture, and wrong-ABI package files.",
+      "reason": "Deferred because meaningful positive cases require independently generated package archives, a throwaway signing key, and a trusted-key/revocation fixture; no installed credentials may be used. A future isolated mock must supply those inputs and compare parser, signature, digest, and ELF checks against independent encoders and verifiers."
+    },
+    {
+      "id": "pkg-install-rollback-remove",
+      "kind": "deferred",
+      "purpose": "Check signed package installation, data-tree replacement, failed-install rollback, explicit rollback, and removal effects.",
+      "reason": "Deferred because package installation and removal are outside this run. A future disposable VM or mock must use only a relative --root fixture, signed synthetic packages, and a filesystem snapshot that verifies both intended state changes and preservation of unrelated entries."
+    },
+    {
+      "id": "pkg-repository-io",
+      "kind": "deferred",
+      "purpose": "Cover signed remote index refresh, download and fetch against a mock transport; local INDEX search executes separately.",
+      "reason": "Network activity is prohibited. A future disposable VM needs a loopback-only signed repository mock, per-architecture indexes, package digests, and egress denied. Local INDEX substring/glob search has a separate runnable fixture."
+    },
+    {
+      "id": "pkg-upgrade-delta",
+      "kind": "deferred",
+      "purpose": "Check upgrade selection, trust policy, delta download and rollback after a rejected update; standalone local delta application executes separately.",
+      "reason": "Deferred because valid coverage needs independently encoded and signed old/new packages plus a delta fixture and package state. A future disposable root and local mock repository must verify both the selected update path and byte-for-byte restoration after failure."
+    },
+    {
+      "id": "pkg-load-unload",
+      "kind": "deferred",
+      "purpose": "Check pkg load verifies installed state before enabling a package builtin, and record the documented unload behavior.",
+      "reason": "Deferred because this needs a benign shared object built for the exact Bash ABI and package binary, and load/unload changes the running shell's builtin table. A future disposable VM or dedicated mock must use only a throwaway fixture module and must not load host or installed modules."
+    },
+    {
+      "id": "pkg-legacy-hooks",
+      "kind": "deferred",
+      "purpose": "Cover explicitly opted-in legacy rootfs package hooks and refusal of undeclared legacy payloads.",
+      "reason": "Deferred because package-provided hooks execute shell code and legacy installs modify a root tree. A future disposable VM must use an isolated --root, synthetic hooks with bounded fixture-only effects, and a mock that records hook order and environment without access to host paths or services."
+    },
+    {
+      "id": "pkg-info-independent-ustar",
+      "purpose": "Read a package independently encoded by GNU tar. Tree comparison excludes the archive only because per-run header timestamps vary; the input archive and manifest are retained as evidence.",
+      "kind": "parity",
+      "script": "printf 'name: parity-probe\\ntype: payload\\nversion: 1\\ndescription: fixture\\n' > MANIFEST\n/usr/bin/tar --format=ustar --owner=0 --group=0 --numeric-owner -cf independent.pkg MANIFEST\nif [[ $(type -t pkg) == builtin ]]; then\n  pkg info independent.pkg --root .\nelse\n  tar -xOf independent.pkg MANIFEST\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": false,
+      "requires": [
+        "tar"
+      ]
+    },
+    {
+      "id": "pkg-pack-missing-manifest",
+      "purpose": "Local pack rejects a directory without MANIFEST before publishing an archive.",
+      "kind": "contract",
+      "script": "mkdir payload; if pkg pack payload package.pkg; then rc=0; else rc=$?; fi; [[ ! -e package.pkg ]]; exit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "pkg-delta-independent-apply",
+      "purpose": "Apply a documented delta independently encoded with SHA-256 and a prefix/insert/suffix representation; compare reconstructed bytes with the specified new file.",
+      "kind": "parity",
+      "script": "printf 'prefix OLD suffix' > old.bin\nprintf 'prefix NEW suffix' > new.bin\n/usr/bin/python3 - <<'PY'\nimport hashlib\nfrom pathlib import Path\nold = Path('old.bin').read_bytes()\nnew = Path('new.bin').read_bytes()\nheader = 'BPKGDELTA1\\n' + hashlib.sha256(old).hexdigest() + '\\n' + hashlib.sha256(new).hexdigest() + '\\n' + '17\\n17\\n7\\n7\\n3\\n'\nPath('change.delta').write_bytes(header.encode() + b'NEW')\nPY\nif [[ $(type -t pkg) == builtin ]]; then\n  pkg delta-apply old.bin change.delta applied.bin\nelse\n  cp new.bin applied.bin\n  digest=$(sha256sum new.bin); printf 'delta-applied\\t%s\\n' \"${digest%% *}\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "python3",
+        "cp",
+        "sha256sum"
+      ]
+    },
+    {
+      "id": "pkg-local-repository-search",
+      "purpose": "Search an independently written local INDEX by substring and full-line glob, ignore an obsolete bare filename, and report no matches. This reads only a relative fixture root and never fetches or installs packages.",
+      "kind": "contract",
+      "script": "mkdir -p root/var/lib/pkg/repos/local/fixture\nprintf '%s\\n' 'pkg-loadable-v1 name=alpha version=1 builtin=alpha abi=bash-5.3 arch=fixture sha256=0000000000000000000000000000000000000000000000000000000000000000 package=alpha-1.pkg sig=alpha-1.pkg.sig deps=-' 'obsolete.pkg' > root/var/lib/pkg/repos/local/fixture/INDEX\npkg search alpha --root root --repo local --arch fixture\npkg search 'pkg-loadable-v1 name=alpha *' --root root --repo local --arch fixture\npkg search missing --root root --repo local --arch fixture",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "repo:local/fixture\tpkg-loadable-v1 name=alpha version=1 builtin=alpha abi=bash-5.3 arch=fixture sha256=0000000000000000000000000000000000000000000000000000000000000000 package=alpha-1.pkg sig=alpha-1.pkg.sig deps=-\nrepo:local/fixture\tpkg-loadable-v1 name=alpha version=1 builtin=alpha abi=bash-5.3 arch=fixture sha256=0000000000000000000000000000000000000000000000000000000000000000 package=alpha-1.pkg sig=alpha-1.pkg.sig deps=-\nno matches for missing\n"
+    }
+  ]
+}

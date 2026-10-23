@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "loadable": "caps",
+  "reference": "Documented caps file/no-xattr and pure name-validation contracts with private files. Bash metadata remains separate. Populated xattr decoding and process capability operations need fixed UAPI bytes with reviewed syscall/xattr mocks; no matching GNU CLI parity is claimed.",
+  "coverage": [
+    "Bash type metadata identifies caps as a builtin.",
+    "Bash help metadata advertises the documented probe, drop, add, clear, file, and has verbs.",
+    "Deferred: capability set inspection and -V bindings against independent kernel mask observations.",
+    "Deferred: capability name lookup and effective-set membership across low and high capability indices.",
+    "Deferred: add/drop/clear state transitions and capset/prctl permission failures in disposable children or syscall mocks.",
+    "Deferred: one-way bounding-set changes and clear all ordering in fresh disposable processes or mocks.",
+    "Deferred: security.capability xattr decoding against fixed vfs_cap_data bytes and getxattr outcomes.",
+    "Deferred: malformed arguments and kernel error paths with syscall-call recording.",
+    "Actual private-file no-capability and missing-file results, empty variable binding and pure unknown-name rejection."
+  ],
+  "exclusions": [
+    "Process capability probes/mutations and populated security.capability decoding remain deferred to fixed-state VM/syscall/xattr mocks. Private files created here are read without changing capability state.",
+    "No setuid/file-capability executable, installed identity, host xattr, or host capability state is inspected.",
+    "No direct GNU parity claim: capsh/setpriv do not implement the same CLI contract."
+  ],
+  "cases": [
+    {
+      "id": "caps-type-builtin",
+      "kind": "contract",
+      "purpose": "Check availability through Bash's type builtin without invoking caps operations.",
+      "script": "[[ $(type -t caps) == builtin ]] || exit 1\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "caps-help-verbs",
+      "kind": "contract",
+      "purpose": "Check the documented Bash help metadata lists each advertised caps verb; the script only reads help output.",
+      "script": "help caps > help.txt\nh=$(<help.txt)\nfor word in 'caps probe [-V VAR]' 'caps drop SET CAP1,CAP2,...' 'caps add SET CAP1,CAP2,...' 'caps clear SET' 'caps file PATH [-V VAR]' 'caps has CAP'; do\n  [[ $h == *\"$word\"* ]] || exit 1\ndone\nprintf 'probe drop add clear file has\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "probe drop add clear file has\n"
+    },
+    {
+      "id": "caps-probe-masks",
+      "kind": "deferred",
+      "purpose": "Validate the five rendered capability sets and -V bindings using fixed, independently known masks.",
+      "reason": "Requires a disposable VM with controlled initial capability state or reviewed capget/prctl mocks. Compare permitted, effective, inheritable, ambient, and bounding names against independently decoded kernel masks (and ambient prctl queries); check exact ordering and all five -V variables. This suite does not invoke caps probe."
+    },
+    {
+      "id": "caps-has-membership",
+      "kind": "deferred",
+      "purpose": "Check positive and negative effective-set membership, case-insensitive names, optional CAP_ prefix, and a capability index above bit 31.",
+      "reason": "Requires a disposable process with a fixed effective mask or a capget mock. Validate results against the independent effective mask from capget or /proc/self/status, including a high-index capability such as CAP_BPF; this suite does not invoke caps has."
+    },
+    {
+      "id": "caps-mutation-transitions",
+      "kind": "deferred",
+      "purpose": "Check drop/add behavior across permitted, effective, inheritable, and ambient sets, including kernel-rejected raises.",
+      "reason": "Requires fresh disposable child processes plus a reviewed capset/prctl mock or VM-controlled capability state. Record calls and independently verify before/after masks, the permitted-drop cascade, supported add targets, and permission errors; never apply these mutations to a shared shell."
+    },
+    {
+      "id": "caps-clear-bounding",
+      "kind": "deferred",
+      "purpose": "Check clear for individual sets and the ordering and final state of clear all, including the one-way bounding set.",
+      "reason": "Requires a disposable VM or syscall mock and a fresh child per invocation because bounding-set drops cannot be undone. Verify prctl/capset call order and resulting masks independently, then let each child exit; this suite does not invoke caps clear."
+    },
+    {
+      "id": "caps-file-decoder",
+      "kind": "deferred",
+      "purpose": "Check security.capability revision 2 and 3 decoding, effective flag handling, empty xattrs, malformed payload lengths, and -V binding.",
+      "reason": "Requires a private xattr-capable disposable filesystem with controlled file capabilities, or a reviewed getxattr mock returning fixed UAPI vfs_cap_data byte strings and ENODATA/ENOTSUP/error results. Expected masks must be independently encoded from Linux UAPI definitions; the runnable cases read only newly created private files without file capabilities."
+    },
+    {
+      "id": "caps-input-validation",
+      "kind": "deferred",
+      "purpose": "Check missing operands, unknown verbs/sets/capability names, and accepted case/prefix variants with exact status and diagnostics.",
+      "reason": "Requires an isolated candidate run with captured diagnostics and a reviewed syscall-call mock to prove malformed requests do not reach capset/prctl/getxattr. Use the documented CLI contract for expected statuses and distinguish parse rejection from kernel permission errors; the runnable unknown-name case covers only pure lookup rejection before capget."
+    },
+    {
+      "id": "caps-kernel-error-paths",
+      "kind": "deferred",
+      "purpose": "Check errno propagation and partial-operation behavior when capability syscalls fail at selected points.",
+      "reason": "Requires a reviewed capget/capset/prctl/getxattr mock that injects deterministic errno values and records all calls, or a dedicated disposable VM with a fixed policy. Assert diagnostics, status, and state after each injected failure; do not induce these paths against host capability state."
+    },
+    {
+      "id": "private-file-without-capabilities",
+      "kind": "contract",
+      "purpose": "Read only the newly created private file; absent or unsupported security.capability yields the documented empty result and variable binding.",
+      "script": ": > ordinary\ncaps file ordinary\nvalue=sentinel\ncaps file ordinary -V value\nprintf 'value=%s\\n' \"$value\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "(no file caps)\nvalue=\n"
+    },
+    {
+      "id": "missing-private-file",
+      "kind": "contract",
+      "purpose": "A missing private file returns an xattr read failure without inspecting process capabilities.",
+      "script": "caps file absent",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-capability-name",
+      "kind": "contract",
+      "purpose": "Reject an unknown capability name in the pure lookup path before capget.",
+      "script": "caps has NOT_A_CAPABILITY",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

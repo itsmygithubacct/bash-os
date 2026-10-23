@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "loadable": "mail",
+  "reference": "Fixed independently specified queue/envelope/message and sorted-alias contracts. Bounded direct submission and queue operations use only relative files. Transport, credentials and wakeup signals stay deferred. Metadata passes are distinct from operations.",
+  "coverage": [
+    "Bash metadata separately counted.",
+    "Direct private submission: empty, LF, CRLF and NUL messages, member bytes/modes and staging cleanup.",
+    "Independently seeded queue show/list/delete and missing IDs.",
+    "Private alias compilation/expansion, malformed input and cycle rejection.",
+    "Transport, signals and DKIM deferred with VM/mock prerequisites."
+  ],
+  "exclusions": [
+    "No socket, SMTP connection, host spool, installed aliases, credentials or process signal.",
+    "Arrival times and generated queue IDs are checked structurally and against the same entry; no GNU mail CLI parity claim."
+  ],
+  "cases": [
+    {
+      "id": "builtin_identity",
+      "kind": "contract",
+      "purpose": "Check through Bash's type builtin that mail is registered as a shell builtin, and emit a fixed contract marker only after the check succeeds.",
+      "script": "[[ $(type -t mail) == builtin ]]\nprintf '%s\\n' 'mail is registered as a Bash builtin'",
+      "expected_status": 0,
+      "stdout": "mail is registered as a Bash builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_contract",
+      "kind": "contract",
+      "purpose": "Check Bash's short-help output against the published mail builtin synopsis. The expected synopsis is fixed from the builtin's documented short-help contract.",
+      "script": "help -s mail",
+      "expected_status": 0,
+      "stdout": "mail: mail submit|serve|queue-list|queue-show|queue-delete [OPTIONS]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "full_help_contract",
+      "kind": "contract",
+      "purpose": "Check that Bash help exposes the documented mail purpose, queue-list entry, and DKIM verification entry, then print a fixed marker.",
+      "script": "doc=$(help mail)\n[[ $doc == *'Local mail queue + UNIX-socket submission daemon (MTA 6.1).'* ]]\n[[ $doc == *'mail queue-list [--queue DIR]'* ]]\n[[ $doc == *'mail dkim-verify'* ]]\nprintf '%s\\n' 'mail help contains documented queue and verification entries'",
+      "expected_status": 0,
+      "stdout": "mail help contains documented queue and verification entries\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unix_submission_protocol",
+      "kind": "deferred",
+      "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
+      "reason": "The operation requires socket I/O, which this task forbids. A future disposable VM or socket mock must provide only a private AF_UNIX endpoint beneath the fixture directory and an independently implemented bounded BASHMAIL1 peer; verify framing and queue contents against that model, with no host socket path, external network, or system service."
+    },
+    {
+      "id": "smtp_outbound_delivery",
+      "kind": "deferred",
+      "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
+      "reason": "No matching GNU SMTP-delivery CLI provides an equivalent oracle, and the current task forbids network activity. A future disposable VM or transport mock must connect only to a private socketpair or isolated loopback stub, use deterministic SMTP replies, and independently validate wire bytes, status mapping, and unchanged queue contents after temporary/permanent failures. Do not use DNS, MX lookup, TLS deployment credentials, or external peers."
+    },
+    {
+      "id": "smtp_inbound_server",
+      "kind": "deferred",
+      "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
+      "reason": "The operation requires a listening socket and has no equivalent GNU CLI. A future disposable VM or reviewed socket mock must bind only an isolated fixture endpoint, use a synthetic client, and compare accepted message bytes and metadata to an independent SMTP/queue model. It must not alter users, accounts, host services, or external network state."
+    },
+    {
+      "id": "dkim_contract_vectors",
+      "kind": "deferred",
+      "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
+      "reason": "There is no matching GNU DKIM verification command suitable as a reference. A future disposable VM fixture needs an independent RFC 6376 implementation or published deterministic vectors, fixed fixture keys only, and byte-exact canonicalization/signature checks. No installed credentials or live mail path may be used."
+    },
+    {
+      "id": "queue_runner_wakeup",
+      "kind": "deferred",
+      "purpose": "Check queue-flush PID parsing and the documented runner wakeup request without signaling an unrelated process.",
+      "reason": "Queue flush sends a process signal and has no GNU parity command. A future syscall mock or dedicated disposable VM must intercept the signal request and verify that only the fixture runner identity and documented wakeup signal are selected; do not signal any host or unrelated process."
+    },
+    {
+      "id": "direct_queue_submission",
+      "kind": "contract",
+      "purpose": "Independent queue-format assertions for four small messages: exact members, metadata fields, modes and no staging leftovers. Direct mode never opens transport.",
+      "script": "/usr/bin/python3 -c 'from pathlib import Path; import time; Path('\"'\"'arrival-start'\"'\"').write_text(str(int(time.time()))); Path('\"'\"'message'\"'\"').write_bytes(b'\"'\"''\"'\"')'\nmail submit --direct --queue queue0 -f sender@example.invalid first@example.invalid second@example.invalid < message > qid0\n/usr/bin/python3 -c 'from pathlib import Path\nimport re,stat,time\nroot=Path('\"'\"'queue0'\"'\"')\nraw=Path('\"'\"'qid0'\"'\"').read_bytes()\nassert re.fullmatch(rb'\"'\"'[0-9A-F]{15}\\n'\"'\"',raw)\nqid=raw.decode().strip()\nactive=root/'\"'\"'active'\"'\"'\nassert [p.name for p in active.iterdir()]==[qid]\nentry=active/qid\nassert {p.name for p in entry.iterdir()}=={'\"'\"'envelope'\"'\"','\"'\"'headers'\"'\"','\"'\"'body'\"'\"','\"'\"'meta'\"'\"'}\nassert (entry/'\"'\"'envelope'\"'\"').read_bytes()==b'\"'\"'from sender@example.invalid\\nrcpt first@example.invalid\\nrcpt second@example.invalid\\n'\"'\"'\nassert (entry/'\"'\"'headers'\"'\"').read_bytes()==b'\"'\"''\"'\"'\nassert (entry/'\"'\"'body'\"'\"').read_bytes()==b'\"'\"''\"'\"'\npairs=[x.split('\"'\"'='\"'\"',1) for x in (entry/'\"'\"'meta'\"'\"').read_text().splitlines()]\nmeta=dict(pairs)\nassert len(pairs)==6\nassert meta['\"'\"'qid'\"'\"']==qid and meta['\"'\"'size'\"'\"']=='\"'\"'0'\"'\"' and meta['\"'\"'separator'\"'\"']=='\"'\"'0'\"'\"'\nassert meta['\"'\"'sender'\"'\"']=='\"'\"'sender@example.invalid'\"'\"' and meta['\"'\"'nrcpt'\"'\"']=='\"'\"'2'\"'\"'\nassert meta['\"'\"'arrival'\"'\"'].isdigit()\nassert int(Path('\"'\"'arrival-start'\"'\"').read_text()) <= int(meta['\"'\"'arrival'\"'\"']) <= int(time.time())\nassert all(stat.S_IMODE(p.stat().st_mode)==0o700 for p in [root,active,entry])\nassert all(stat.S_IMODE(p.stat().st_mode)==0o600 for p in entry.iterdir())\nprint('\"'\"'message 0 queue verified'\"'\"')\n'\n/usr/bin/python3 -c 'from pathlib import Path; import time; Path('\"'\"'arrival-start'\"'\"').write_text(str(int(time.time()))); Path('\"'\"'message'\"'\"').write_bytes(b'\"'\"'Subject: fixture\\n\\nbody\\x00tail\\n'\"'\"')'\nmail submit --direct --queue queue1 -f sender@example.invalid first@example.invalid second@example.invalid < message > qid1\n/usr/bin/python3 -c 'from pathlib import Path\nimport re,stat,time\nroot=Path('\"'\"'queue1'\"'\"')\nraw=Path('\"'\"'qid1'\"'\"').read_bytes()\nassert re.fullmatch(rb'\"'\"'[0-9A-F]{15}\\n'\"'\"',raw)\nqid=raw.decode().strip()\nactive=root/'\"'\"'active'\"'\"'\nassert [p.name for p in active.iterdir()]==[qid]\nentry=active/qid\nassert {p.name for p in entry.iterdir()}=={'\"'\"'envelope'\"'\"','\"'\"'headers'\"'\"','\"'\"'body'\"'\"','\"'\"'meta'\"'\"'}\nassert (entry/'\"'\"'envelope'\"'\"').read_bytes()==b'\"'\"'from sender@example.invalid\\nrcpt first@example.invalid\\nrcpt second@example.invalid\\n'\"'\"'\nassert (entry/'\"'\"'headers'\"'\"').read_bytes()==b'\"'\"'Subject: fixture\\n'\"'\"'\nassert (entry/'\"'\"'body'\"'\"').read_bytes()==b'\"'\"'body\\x00tail\\n'\"'\"'\npairs=[x.split('\"'\"'='\"'\"',1) for x in (entry/'\"'\"'meta'\"'\"').read_text().splitlines()]\nmeta=dict(pairs)\nassert len(pairs)==6\nassert meta['\"'\"'qid'\"'\"']==qid and meta['\"'\"'size'\"'\"']=='\"'\"'28'\"'\"' and meta['\"'\"'separator'\"'\"']=='\"'\"'1'\"'\"'\nassert meta['\"'\"'sender'\"'\"']=='\"'\"'sender@example.invalid'\"'\"' and meta['\"'\"'nrcpt'\"'\"']=='\"'\"'2'\"'\"'\nassert meta['\"'\"'arrival'\"'\"'].isdigit()\nassert int(Path('\"'\"'arrival-start'\"'\"').read_text()) <= int(meta['\"'\"'arrival'\"'\"']) <= int(time.time())\nassert all(stat.S_IMODE(p.stat().st_mode)==0o700 for p in [root,active,entry])\nassert all(stat.S_IMODE(p.stat().st_mode)==0o600 for p in entry.iterdir())\nprint('\"'\"'message 1 queue verified'\"'\"')\n'\n/usr/bin/python3 -c 'from pathlib import Path; import time; Path('\"'\"'arrival-start'\"'\"').write_text(str(int(time.time()))); Path('\"'\"'message'\"'\"').write_bytes(b'\"'\"'Subject: fixture\\r\\n\\r\\nbody\\xff\\r\\n'\"'\"')'\nmail submit --direct --queue queue2 -f sender@example.invalid first@example.invalid second@example.invalid < message > qid2\n/usr/bin/python3 -c 'from pathlib import Path\nimport re,stat,time\nroot=Path('\"'\"'queue2'\"'\"')\nraw=Path('\"'\"'qid2'\"'\"').read_bytes()\nassert re.fullmatch(rb'\"'\"'[0-9A-F]{15}\\n'\"'\"',raw)\nqid=raw.decode().strip()\nactive=root/'\"'\"'active'\"'\"'\nassert [p.name for p in active.iterdir()]==[qid]\nentry=active/qid\nassert {p.name for p in entry.iterdir()}=={'\"'\"'envelope'\"'\"','\"'\"'headers'\"'\"','\"'\"'body'\"'\"','\"'\"'meta'\"'\"'}\nassert (entry/'\"'\"'envelope'\"'\"').read_bytes()==b'\"'\"'from sender@example.invalid\\nrcpt first@example.invalid\\nrcpt second@example.invalid\\n'\"'\"'\nassert (entry/'\"'\"'headers'\"'\"').read_bytes()==b'\"'\"'Subject: fixture\\r\\n'\"'\"'\nassert (entry/'\"'\"'body'\"'\"').read_bytes()==b'\"'\"'body\\xff\\r\\n'\"'\"'\npairs=[x.split('\"'\"'='\"'\"',1) for x in (entry/'\"'\"'meta'\"'\"').read_text().splitlines()]\nmeta=dict(pairs)\nassert len(pairs)==6\nassert meta['\"'\"'qid'\"'\"']==qid and meta['\"'\"'size'\"'\"']=='\"'\"'27'\"'\"' and meta['\"'\"'separator'\"'\"']=='\"'\"'2'\"'\"'\nassert meta['\"'\"'sender'\"'\"']=='\"'\"'sender@example.invalid'\"'\"' and meta['\"'\"'nrcpt'\"'\"']=='\"'\"'2'\"'\"'\nassert meta['\"'\"'arrival'\"'\"'].isdigit()\nassert int(Path('\"'\"'arrival-start'\"'\"').read_text()) <= int(meta['\"'\"'arrival'\"'\"']) <= int(time.time())\nassert all(stat.S_IMODE(p.stat().st_mode)==0o700 for p in [root,active,entry])\nassert all(stat.S_IMODE(p.stat().st_mode)==0o600 for p in entry.iterdir())\nprint('\"'\"'message 2 queue verified'\"'\"')\n'\n/usr/bin/python3 -c 'from pathlib import Path; import time; Path('\"'\"'arrival-start'\"'\"').write_text(str(int(time.time()))); Path('\"'\"'message'\"'\"').write_bytes(b'\"'\"'header without separator'\"'\"')'\nmail submit --direct --queue queue3 -f sender@example.invalid first@example.invalid second@example.invalid < message > qid3\n/usr/bin/python3 -c 'from pathlib import Path\nimport re,stat,time\nroot=Path('\"'\"'queue3'\"'\"')\nraw=Path('\"'\"'qid3'\"'\"').read_bytes()\nassert re.fullmatch(rb'\"'\"'[0-9A-F]{15}\\n'\"'\"',raw)\nqid=raw.decode().strip()\nactive=root/'\"'\"'active'\"'\"'\nassert [p.name for p in active.iterdir()]==[qid]\nentry=active/qid\nassert {p.name for p in entry.iterdir()}=={'\"'\"'envelope'\"'\"','\"'\"'headers'\"'\"','\"'\"'body'\"'\"','\"'\"'meta'\"'\"'}\nassert (entry/'\"'\"'envelope'\"'\"').read_bytes()==b'\"'\"'from sender@example.invalid\\nrcpt first@example.invalid\\nrcpt second@example.invalid\\n'\"'\"'\nassert (entry/'\"'\"'headers'\"'\"').read_bytes()==b'\"'\"'header without separator'\"'\"'\nassert (entry/'\"'\"'body'\"'\"').read_bytes()==b'\"'\"''\"'\"'\npairs=[x.split('\"'\"'='\"'\"',1) for x in (entry/'\"'\"'meta'\"'\"').read_text().splitlines()]\nmeta=dict(pairs)\nassert len(pairs)==6\nassert meta['\"'\"'qid'\"'\"']==qid and meta['\"'\"'size'\"'\"']=='\"'\"'24'\"'\"' and meta['\"'\"'separator'\"'\"']=='\"'\"'0'\"'\"'\nassert meta['\"'\"'sender'\"'\"']=='\"'\"'sender@example.invalid'\"'\"' and meta['\"'\"'nrcpt'\"'\"']=='\"'\"'2'\"'\"'\nassert meta['\"'\"'arrival'\"'\"'].isdigit()\nassert int(Path('\"'\"'arrival-start'\"'\"').read_text()) <= int(meta['\"'\"'arrival'\"'\"']) <= int(time.time())\nassert all(stat.S_IMODE(p.stat().st_mode)==0o700 for p in [root,active,entry])\nassert all(stat.S_IMODE(p.stat().st_mode)==0o600 for p in entry.iterdir())\nprint('\"'\"'message 3 queue verified'\"'\"')\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "message 0 queue verified\nmessage 1 queue verified\nmessage 2 queue verified\nmessage 3 queue verified\n"
+    },
+    {
+      "id": "queue_inspection_mutation",
+      "kind": "contract",
+      "purpose": "Independently seeded binary queue-show, single-entry deletion and empty listing.",
+      "script": "/usr/bin/python3 -c 'from pathlib import Path\np=Path('\"'\"'queue/active/ABC123'\"'\"'); p.mkdir(parents=True)\n(p/'\"'\"'envelope'\"'\"').write_bytes(b'\"'\"'from sender@example.invalid\\nrcpt receiver@example.invalid\\n'\"'\"')\n(p/'\"'\"'headers'\"'\"').write_bytes(b'\"'\"'Subject: fixture\\n'\"'\"')\n(p/'\"'\"'body'\"'\"').write_bytes(b'\"'\"'body\\x00tail\\n'\"'\"')\n(p/'\"'\"'meta'\"'\"').write_text('\"'\"'qid=ABC123\\narrival=1\\nsize=28\\nseparator=1\\nsender=sender@example.invalid\\nnrcpt=1\\n'\"'\"')\n'\nmail queue-show ABC123 --queue queue\nmail queue-delete ABC123 --queue queue\n[[ ! -e queue/active/ABC123 ]]; mail queue-list --queue queue",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "ZnJvbSBzZW5kZXJAZXhhbXBsZS5pbnZhbGlkCnJjcHQgcmVjZWl2ZXJAZXhhbXBsZS5pbnZhbGlkCi0tClN1YmplY3Q6IGZpeHR1cmUKCmJvZHkAdGFpbAptYWlsOiBkZWxldGVkIEFCQzEyMwpNYWlsIHF1ZXVlIGlzIGVtcHR5Cg=="
+    },
+    {
+      "id": "queue-list-fixed-time",
+      "kind": "contract",
+      "purpose": "Seeded C/UTC timestamp and exact listing spacing; no time mock required.",
+      "script": "/usr/bin/python3 -c 'from pathlib import Path\np=Path('\"'\"'queue/active/ABC123'\"'\"'); p.mkdir(parents=True)\n(p/'\"'\"'envelope'\"'\"').write_bytes(b'\"'\"'from sender@example.invalid\\nrcpt receiver@example.invalid\\n'\"'\"')\n(p/'\"'\"'headers'\"'\"').write_bytes(b'\"'\"'Subject: fixture\\n'\"'\"')\n(p/'\"'\"'body'\"'\"').write_bytes(b'\"'\"'body\\x00tail\\n'\"'\"')\n(p/'\"'\"'meta'\"'\"').write_text('\"'\"'qid=ABC123\\narrival=1\\nsize=28\\nseparator=1\\nsender=sender@example.invalid\\nnrcpt=1\\n'\"'\"')\n'\nmail queue-list --queue queue",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "-Queue ID-  --Size-- ----Arrival Time---- -Sender/Recipient-------\nABC123           28 Thu Jan  1 00:00:01  sender@example.invalid\n                                         receiver@example.invalid\n\n-- 1 Kbytes in 1 Request.  (* = deferred)\n"
+    },
+    {
+      "id": "missing-queue-id",
+      "kind": "contract",
+      "purpose": "Missing valid ID fails against a private empty queue.",
+      "script": "mkdir queue; mail queue-show ABC123 --queue queue",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "aliases_and_expansion",
+      "kind": "contract",
+      "purpose": "Fixed sorted alias DB and private synthetic recipient expansion through explicit DB/source/forward roots.",
+      "script": "printf '%s\\n' 'zeta: \\final' 'team: alpha, beta' > aliases\nmail newaliases --aliases aliases --db aliases.db\ncat aliases.db\nmail expand --aliases-db aliases.db --aliases aliases --forward-root forwards team zeta",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "# mail-aliases-db v1 (2 entries)\nteam: alpha, beta\nzeta: \\final\nalpha\nbeta\nfinal\n"
+    },
+    {
+      "id": "alias-malformed-preserves-db",
+      "kind": "contract",
+      "purpose": "Malformed alias source returns 78 and preserves an existing DB.",
+      "script": "printf 'old database\\n' > aliases.db; printf 'invalid entry\\n' > aliases\nrc=0; mail newaliases --aliases aliases --db aliases.db || rc=$?\nprintf 'status=%s\\n' \"$rc\"; [[ $rc == 78 ]]; cat aliases.db",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "status=78\nold database\n"
+    },
+    {
+      "id": "alias-cycle",
+      "kind": "contract",
+      "purpose": "Small private two-alias cycle fails with a diagnostic and no mailbox output.",
+      "script": "printf 'one: two\\ntwo: one\\n' > aliases; mail newaliases --aliases aliases --db aliases.db; mail expand --aliases-db aliases.db --aliases aliases --forward-root forwards one",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "private-forward-file",
+      "kind": "contract",
+      "purpose": "Synthetic .forward comma/comment parsing and escaped local target use only an explicit private forward root.",
+      "script": "mkdir -p forwards/alice; : > aliases; printf '%s\\n' '\\carol, dave # fixture comment' > forwards/alice/.forward; mail expand --aliases aliases --forward-root forwards alice",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "carol\ndave\n"
+    },
+    {
+      "id": "remote-alias-rejected",
+      "kind": "contract",
+      "purpose": "Recipient expansion is local-only; reject a remote address lexically without transport or resolution.",
+      "script": ": > aliases; mail expand --aliases aliases --forward-root forwards remote@example.invalid",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

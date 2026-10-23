@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "loadable": "man",
+  "reference": "There is no matching GNU man(1) CLI oracle for this minimal Bash builtin. Expected results are contract values from loadables/man.c's public help/source documentation plus fixed roff inputs rendered independently according to its documented supported subset. Bash type/help availability is checked through Bash's own metadata builtins. No expectation is copied from candidate output.",
+  "coverage": [
+    "Bash builtin type and help metadata availability.",
+    "Roff from stdin: section headings, paragraph spacing, comments, font escapes and common special characters.",
+    "No-fill blocks preserve literal indentation and spacing.",
+    "Relative -f file rendering and file-not-found diagnostics.",
+    "Relative MANPATH lookup, explicit section selection, -w path output and colon-list search order.",
+    "Missing page and incomplete option diagnostics."
+  ],
+  "exclusions": [
+    "Full man-db/mandoc formatting and advanced roff requests such as tables, pic and eqn are outside this minimal renderer contract.",
+    "The interactive /bash-os/man.sh pager wrapper and installed system man-page corpus are not exercised; cases use stdin or private relative fixtures only."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "The target is advertised to Bash as a builtin and has help metadata. This checks Bash type/help behavior without invoking man-page lookup.",
+      "script": "type -t man\nhelp man > metadata-output\nprintf 'help entry available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp entry available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-roff-sections-and-escapes",
+      "kind": "contract",
+      "purpose": "The documented man - interface renders a bounded roff stream. The literal expected text is independently transcribed from the documented SH/SS, PP, comment, font and common-special subset.",
+      "script": "man - <<'ROFF'\n.TH DEMO 1\n.\\\" ignored comment\n.SH NAME\ndemo \\- sample \\(co\n.PP\nA \\fBbold\\fR and \\fIitalic\\fR word.\n.SS NOTES\nliteral \\\\ path and \\&sign.\nROFF",
+      "expected_status": 0,
+      "stdout": "NAME\ndemo - sample (c)\n\nA bold and italic word.\n\n  NOTES\nliteral \\ path and sign.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-no-fill",
+      "kind": "contract",
+      "purpose": "The documented minimal roff renderer supports .nf/.fi; this fixed input checks that a no-fill block keeps leading and repeated spaces while surrounding paragraph structure is rendered.",
+      "script": "man - <<'ROFF'\n.TH BLOCK 1\n.SH EXAMPLE\n.nf\n  first  line\n    second line\n.fi\n.PP\nafter\nROFF",
+      "expected_status": 0,
+      "stdout": "EXAMPLE\n  first  line\n    second line\n\nafter\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "file-operand-render",
+      "kind": "contract",
+      "purpose": "The documented -f PATH form reads a relative page file and renders its section, body, paragraph break and alternating bold request. The expected text is hand-derived from the literal fixture.",
+      "script": "printf '%s\\n' '.TH LOCAL 1' '.SH NAME' 'local \\- file page' '.PP' '.BR bold (1)' > local.1\nman -f local.1",
+      "expected_status": 0,
+      "stdout": "NAME\nlocal - file page\n\nbold (1)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "section-selection-and-where",
+      "kind": "contract",
+      "purpose": "Private pages in sections 1 and 3 exercise the documented MANPATH search, -w resolved-path output, explicit -s selection and SECTION NAME shorthand. The path and rendered strings are fixed by the relative fixture.",
+      "script": "mkdir -p manuals/man1 manuals/man3\nprintf '%s\\n' '.TH SAMPLE 1' '.SH SECTION' 'one' > manuals/man1/sample.1\nprintf '%s\\n' '.TH SAMPLE 3' '.SH SECTION' 'three' > manuals/man3/sample.3\nMANPATH=manuals man -w sample\nMANPATH=manuals man -s 3 sample\nMANPATH=manuals man 1 sample",
+      "expected_status": 0,
+      "stdout": "manuals/man1/sample.1\nSECTION\nthree\nSECTION\none\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "manpath-colon-order",
+      "kind": "contract",
+      "purpose": "The documented colon-separated MANPATH lookup uses the first root that contains the requested page. Two private roots make the selected relative path and rendered page unambiguous.",
+      "script": "mkdir -p first/man1 second/man1\nprintf '%s\\n' '.SH SOURCE' 'first-root' > first/man1/choose.1\nprintf '%s\\n' '.SH SOURCE' 'second-root' > second/man1/choose.1\nMANPATH=first:second man -w choose\nMANPATH=first:second man choose",
+      "expected_status": 0,
+      "stdout": "first/man1/choose.1\nSOURCE\nfirst-root\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-manual-entry",
+      "kind": "contract",
+      "purpose": "A name absent from the private MANPATH produces no page text, a failing status and a diagnostic; wording is intentionally not pinned because the documented contract only requires lookup/render behavior.",
+      "script": "MANPATH=empty man absent-page",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-file-operand",
+      "kind": "contract",
+      "purpose": "The documented -f PATH form reports a missing relative fixture file as an error without rendering output.",
+      "script": "man -f absent.1",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "section-option-needs-argument",
+      "kind": "contract",
+      "purpose": "The documented -s SECTION form requires its section argument; an incomplete invocation returns a usage failure and emits a diagnostic without page output.",
+      "script": "man -s",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-and-unknown-request",
+      "kind": "contract",
+      "purpose": "After empty stdin reaches EOF, the next invocation must read its newly redirected stream and ignore the unknown request; exact body output must remain visible.",
+      "script": ": > empty; man - < empty; printf '.UNKNOWN ignored\\nplain\\n' | man -",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "plain\n"
+    },
+    {
+      "id": "unknown-request-fresh-input",
+      "kind": "contract",
+      "purpose": "A fresh stdin invocation ignores an unsupported roff request and emits its following body.",
+      "script": "printf '.UNKNOWN ignored\\nplain\\n' | man -",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "plain\n"
+    },
+    {
+      "id": "repeated-private-streams-after-eof",
+      "kind": "contract",
+      "purpose": "Each man invocation must consume its current private stdin after prior empty and nonempty files reached EOF; unknown requests are ignored and render state resets between sources.",
+      "script": ": > empty\nprintf '.SH FIRST\\nfirst-body\\n' > first\nprintf '.UNKNOWN ignored\\nsecond-body\\n' > second\nfor page in empty first empty second; do\n man - < \"$page\"\ndone",
+      "expected_status": 0,
+      "stdout": "FIRST\nfirst-body\nsecond-body\n",
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,17 +1,18 @@
 {
   "version": 1,
   "loadable": "chrt",
-  "reference": "Read-only CLI behavior is compared with the installed GNU util-linux chrt under the same isolated namespace; Bash type/help metadata is checked against Bash's builtin contract and the documented chrt synopsis in the pinned loadable source. No scheduler policy is changed.",
+  "reference": "Read-only CLI behavior is compared with the installed util-linux chrt under the same isolated namespace; Bash type/help metadata is checked against Bash's builtin contract and the documented chrt synopsis in the documented loadable source. No scheduler policy is changed.",
   "coverage": [
     "Bash identifies chrt as a loadable builtin and help exposes its documented query/set synopsis and policy names.",
-    "GNU util-linux parity for short and long priority-bound query options.",
+    "util-linux parity for short and long priority-bound query options.",
     "Read-only scheduling policy/priority query for the fixture shell itself, with only its variable PID normalized.",
     "Safe invalid PID and unknown-option errors (status, stdout, and nonempty diagnostic presence)."
   ],
   "exclusions": [
     "No sched_setscheduler or sched_setattr operation is executed; changing a process scheduling policy is deferred to a disposable VM or syscall mock.",
     "No --all-tasks, reset-on-fork, deadline parameter, or child-command scheduling behavior is exercised; the two deferred cases name the needed isolated fixtures.",
-    "The current-process query is read-only and does not cover behavior against other processes or thread groups."
+    "The current-process query is read-only and does not cover behavior against other processes or thread groups.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
   ],
   "cases": [
     {
@@ -44,7 +45,7 @@
     {
       "id": "max-priority-short",
       "kind": "parity",
-      "purpose": "Compare the non-mutating -m scheduler priority bounds query byte-for-byte with GNU util-linux chrt.",
+      "purpose": "Compare the non-mutating -m scheduler priority bounds query byte-for-byte with util-linux chrt.",
       "requires": [
         "chrt"
       ],
@@ -55,7 +56,7 @@
     {
       "id": "max-priority-long",
       "kind": "parity",
-      "purpose": "Check that --max is equivalent to the GNU util-linux priority-bounds query and is accepted by both implementations.",
+      "purpose": "Check that --max is equivalent to the util-linux priority-bounds query and is accepted by both implementations.",
       "requires": [
         "chrt"
       ],
@@ -77,24 +78,24 @@
     {
       "id": "invalid-pid",
       "kind": "parity",
-      "purpose": "An invalid PID operand must fail before any scheduler syscall; compare GNU status, stdout, and exact diagnostic bytes. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "purpose": "An invalid PID operand must fail before any scheduler syscall; compare GNU status, stdout, and exact diagnostic bytes.",
       "requires": [
         "chrt"
       ],
       "script": "chrt -p not-a-pid",
       "expected_status": 1,
-      "stderr": "nonempty"
+      "stderr": "exact"
     },
     {
       "id": "unknown-option",
       "kind": "parity",
-      "purpose": "An unknown option is a safe parser error; compare status, stdout, and diagnostic bytes against GNU. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "purpose": "An unknown option is a safe parser error; compare status, stdout, and diagnostic bytes against GNU.",
       "requires": [
         "chrt"
       ],
       "script": "chrt --not-a-chrt-option",
       "expected_status": 1,
-      "stderr": "nonempty"
+      "stderr": "exact"
     },
     {
       "id": "deferred-policy-command",
@@ -107,6 +108,17 @@
       "kind": "deferred",
       "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
       "reason": "Requires a disposable VM with a dedicated throwaway process/thread group and appropriate scheduling privilege, or a reviewed sched_setscheduler/sched_setattr mock. The future fixture should check -p PRIO PID, --all-tasks, deadline runtime/deadline/period constraints, reset-on-fork interactions, and failure behavior without targeting any host process."
+    },
+    {
+      "id": "invalid-pid-with-priority",
+      "kind": "parity",
+      "purpose": "Reject nonnumeric PID text before a scheduler call, including the form with an explicit priority.",
+      "script": "chrt -p 0 not-a-pid",
+      "expected_status": 1,
+      "stderr": "exact",
+      "requires": [
+        "chrt"
+      ]
     }
   ]
 }

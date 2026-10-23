@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "loadable": "losetup",
+  "reference": "Contract oracle: Bash's documented `type -t` and `help` behavior, together with the losetup usage and permission text in docs/sol-losetup.md and loadables/losetup.c. No loop-device operation is used as a parity oracle: those operations require a controlled /sys and /dev loop interface, and the available losetup CLI is util-linux rather than a GNU utility.",
+  "coverage": [
+    "The candidate registers losetup as a Bash builtin when PATH is empty.",
+    "Bash help exposes the documented listing, find, attach, detach, and associated-file forms and the documented device requirements.",
+    "Deferred operation coverage is grouped around listing, associated-file matching, loop allocation, attachment configuration and argument checks, read-only fallback/rollback, and detach ownership/error behavior."
+  ],
+  "exclusions": [
+    "No losetup operation is invoked: listing and association lookup need controlled sysfs, while allocation, attach, and detach use loop-control or loop-device ioctls.",
+    "The existing native syscall-shim tests under tests require a separately built module and are not run by the provided candidate-only fixture runner.",
+    "No GNU losetup CLI exists as an independent operation oracle; util-linux loop operations are deferred under the requested safety boundary."
+  ],
+  "cases": [
+    {
+      "id": "builtin-registration",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify a registered loadable builtin as `builtin`; this checks candidate availability without calling losetup.",
+      "script": "type -t losetup",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-contract",
+      "kind": "contract",
+      "purpose": "Bash help is metadata access and does not invoke a losetup operation. Check the published forms and the permission/listing note against the pinned documented contract, then emit a stable marker.",
+      "script": "doc=$(help losetup); [[ $doc == *'Set up and control loop devices.'* && $doc == *'losetup [-l|-a]'* && $doc == *'losetup -f --show'* && $doc == *'losetup /dev/loopN'* && $doc == *'losetup -d /dev/loopN'* && $doc == *'losetup -j FILE'* && $doc == *'Attach/detach require suitable permissions; listing reads /sys/block/loop*.'* ]] && printf 'losetup help contract present\n'",
+      "expected_status": 0,
+      "stdout": "losetup help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "list-sysfs-rows",
+      "kind": "deferred",
+      "purpose": "Verify default listing and -a/-l/--list headers, row fields, ignored malformed entries, and optional sysfs attributes.",
+      "reason": "Future requirement: run with a private sysfs fixture and deterministic backing-file metadata, or in a disposable VM with private loop devices. The fixture must control /sys/block/loop* and must not expose host devices; compare row formatting and status to util-linux losetup there."
+    },
+    {
+      "id": "associated-file-aliases",
+      "kind": "deferred",
+      "purpose": "Verify -j/--associated filtering for a backing file, no match, and a symlink or inode-equivalent path, including the list header.",
+      "reason": "Future requirement: use an isolated syscall/filesystem mock that redirects /sys and stats only relative fixture files, or a disposable VM with private loop devices. The mock must supply stable backing paths and inode metadata; no host path may be used."
+    },
+    {
+      "id": "find-free-and-exhaustion",
+      "kind": "deferred",
+      "purpose": "Verify -f/--find selection, the returned device name, and the no-free-device error when allocation is exhausted.",
+      "reason": "Future requirement: provide a private loop-control ioctl mock with configured free/busy device state, or a disposable VM with private loop support and no host device mappings. The case must assert the selected index and exhaustion status without touching host loop devices."
+    },
+    {
+      "id": "automatic-attach-options",
+      "kind": "deferred",
+      "purpose": "Verify -f --show attachment of a small relative backing file and construction of read-only, partition-scan, offset, and size-limit settings.",
+      "reason": "Future requirement: use a stateful ioctl mock that confines all backing-file access to the private fixture tree and records LOOP_SET_FD/LOOP_SET_STATUS64 requests, or use a disposable VM with private loop devices. Assert the selected device, flags, offset, size limit, and show output from the independent mock state."
+    },
+    {
+      "id": "selected-attach-and-validation",
+      "kind": "deferred",
+      "purpose": "Verify explicit loop-device attachment, --show output, option ordering and -- termination, plus incompatible or surplus operand rejection before device access.",
+      "reason": "Future requirement: use an ioctl/open mock that records exact relative fixture inputs and proves invalid argument combinations make no device calls, or a disposable VM with private loop devices. The mock must model attachment state and keep all paths inside the fixture tree."
+    },
+    {
+      "id": "readonly-fallback-and-rollback",
+      "kind": "deferred",
+      "purpose": "Verify the documented read-only backing-file fallback on EACCES/EROFS and rollback behavior after loop status configuration failures, including rollback failure reporting.",
+      "reason": "Future requirement: use a fault-injecting syscall mock for open and loop ioctls, with per-call errno controls and an inspectable association state. A disposable VM alone cannot safely or deterministically produce these errno sequences."
+    },
+    {
+      "id": "detach-and-ownership",
+      "kind": "deferred",
+      "purpose": "Verify successful detach, detach error handling, and preservation of an association owned by another caller.",
+      "reason": "Future requirement: use a stateful loop ioctl mock that models a foreign association and LOOP_CLR_FD outcomes, or a disposable VM with isolated private loop devices. Assert both the reported result and final association state; never use host loop devices."
+    }
+  ]
+}

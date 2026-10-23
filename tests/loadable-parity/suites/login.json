@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "loadable": "login",
+  "reference": "GNU parity uses GNU coreutils for relative fixture file operations and GNU awk as an independent encoder of one valid passwd(5) record into the documented lookup output fields. The login lookup, aging-check, and synthetic policy-eval interfaces have no matching GNU CLI, so those are honest contract cases based on the loadable documentation, passwd/shadow account-file conventions, and Linux-PAM control-flag semantics; their expected output is authored independently of the candidate. No authentication, identity transition, or session operation is invoked.",
+  "coverage": [
+    "Bash type/help registration for the login builtin.",
+    "Lookup of a controlled passwd-format entry, including comment and malformed-record handling and the documented missing-user status/output.",
+    "Shadow aging checks before warning, during warning, at password expiration, at inactivity, and at account expiration.",
+    "Synthetic policy evaluator behavior for required, requisite, and sufficient controls, plus fail-closed handling of an invalid directive.",
+    "GNU parity for ordinary relative fixture operations: mkdir, touch, chmod, cp, ln, mv, and rm; the same case exercises lookup with an independent awk oracle."
+  ],
+  "exclusions": [
+    "Interactive password authentication, retries, persistent lockout, and session accounting are deferred because they require a disposable VM or controlled auth-device mock, fixed account databases, and a bounded PTY.",
+    "The become path is deferred because it performs real credential and capability transitions and execs a target shell; it needs a disposable privileged VM with controlled identities and an auth-token mock.",
+    "There is no GNU command matching login lookup, aging-check, or policy-eval, so these interfaces are tested as documented contracts rather than labeled GNU parity."
+  ],
+  "cases": [
+    {
+      "id": "lookup-fileops-parity",
+      "purpose": "Compare ordinary relative fixture file operations with GNU coreutils, then compare login lookup against a GNU awk encoder for a valid passwd(5) record. The reference branch never invokes an external login program.",
+      "kind": "parity",
+      "requires": [
+        "awk",
+        "mkdir",
+        "touch",
+        "chmod",
+        "cp",
+        "ln",
+        "mv",
+        "rm"
+      ],
+      "script": "mkdir -m 700 accounts\nprintf '%s\\n' 'fixtureuser:x:12345:12346:Fixture User:/home/fixture:/bin/sh' > accounts/passwd.seed\ntouch accounts/marker\nchmod 640 accounts/passwd.seed\ncp accounts/passwd.seed accounts/passwd.copy\nln accounts/passwd.copy accounts/passwd.link\nmv accounts/passwd.copy accounts/passwd\nrm accounts/passwd.seed\nPHCLIB_PASSWD=accounts/passwd\nexport PHCLIB_PASSWD\nif [[ $(type -t login) == builtin ]]; then\n  login lookup fixtureuser\nelse\n  awk -F: '$1 == \"fixtureuser\" { printf \"%s:%s:%s:%s:%s\\n\", $3, $4, $6, $7, $5; exit }' accounts/passwd\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "type-help-contract",
+      "purpose": "Check the documented Bash loadable metadata contract: login is a builtin and help exposes its lookup synopsis, without invoking an operation.",
+      "kind": "contract",
+      "script": "kind=$(type -t login)\ndoc=$(help login)\nif [[ $kind == builtin && $doc == *'login lookup USER'* ]]; then\n  printf 'builtin\\nhelp documents login lookup\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp documents login lookup\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "lookup-passwd-contract",
+      "purpose": "Check lookup's documented uid:gid:home:shell:gecos output from a private passwd-format fixture, skipping comments and a malformed record. Also check the documented missing-user status and empty stdout; missing-user diagnostics remain visible and are checked for presence without fixing wording.",
+      "kind": "contract",
+      "script": "printf '%s\\n' '# local passwd fixture' 'malformed:x:3000:3000:missing-home' 'fixtureuser:x:12345:12346:Fixture User,Room 7:/srv/fixture:/bin/sh' > passwd.fixture\nPHCLIB_PASSWD=passwd.fixture\nexport PHCLIB_PASSWD\nlogin lookup fixtureuser\nmissing_status=0\nlogin lookup absentuser > missing.stdout || missing_status=$?\nif [[ -s missing.stdout ]]; then\n  printf 'missing user produced stdout\\n'\n  exit 2\nfi\nprintf 'missing status=%s output=empty\\n' \"$missing_status\"",
+      "expected_status": 0,
+      "stdout": "12345:12346:/srv/fixture:/bin/sh:Fixture User,Room 7\nmissing status=1 output=empty\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "aging-boundaries-contract",
+      "purpose": "Exercise the offline aging contract with fixed shadow day counts: before the warning window, inside it, password expiration, inactivity after expiration, and account expiration. Nonzero aging results are explicitly captured so all boundaries run.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'ok:fixturehash:100:0:30:5:10:1000' 'warn:fixturehash:100:0:30:5:10:' 'expired:fixturehash:100:0:30:5:10:' 'inactive:fixturehash:100:0:30:5:10:' 'account:fixturehash:100:0:30:5:10:150' > shadow.fixture\nPHCLIB_SHADOW=shadow.fixture\nexport PHCLIB_SHADOW\nrc=0; login aging-check ok 110 || rc=$?; printf 'ok status=%s\\n' \"$rc\"\nrc=0; login aging-check warn 127 || rc=$?; printf 'warn status=%s\\n' \"$rc\"\nrc=0; login aging-check expired 130 || rc=$?; printf 'expired status=%s\\n' \"$rc\"\nrc=0; login aging-check inactive 140 || rc=$?; printf 'inactive status=%s\\n' \"$rc\"\nrc=0; login aging-check account 150 || rc=$?; printf 'account status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "ok\nok status=0\nwarn 3\nwarn status=0\npassword-expired\nexpired status=1\ninactive\ninactive status=1\naccount-expired\naccount status=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "policy-required-requisite-contract",
+      "purpose": "Check PAM-style ordered control flow with synthetic module results: a required failure remains the final denial after a later optional pass, while a requisite failure denies immediately. The evaluator does not invoke the policy modules.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'version 2' 'account required deny all' 'account optional warn fixture-warning' > login.policy\nBASHAUTH_LOGIN_POLICY=login.policy\nexport BASHAUTH_LOGIN_POLICY\nrc=0; result=$(login policy-eval account fail ok) || rc=$?; printf 'required:%s:%s\\n' \"$result\" \"$rc\"\nprintf '%s\\n' 'version 2' 'auth requisite deny all' 'auth required limits nofile=64' > login.policy\nrc=0; result=$(login policy-eval auth fail ok) || rc=$?; printf 'requisite:%s:%s\\n' \"$result\" \"$rc\"",
+      "expected_status": 0,
+      "stdout": "required:deny module=deny:1\nrequisite:deny module=deny:1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "policy-sufficient-contract",
+      "purpose": "Check the documented sufficient control: a successful sufficient account module allows immediately when no prior required module failed, even when a later required result is failure. Results are synthetic and no NSS lookup runs.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'version 2' 'account sufficient userdb source=nss' 'account required deny all' > login.policy\nBASHAUTH_LOGIN_POLICY=login.policy\nexport BASHAUTH_LOGIN_POLICY\nlogin policy-eval account ok fail",
+      "expected_status": 0,
+      "stdout": "allow module=userdb\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "policy-invalid-contract",
+      "purpose": "Verify that an invalid policy directive fails closed before evaluation and emits a diagnostic, as documented for policy parse errors.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'version 2' 'account required time unsupported-value' > login.policy\nBASHAUTH_LOGIN_POLICY=login.policy\nexport BASHAUTH_LOGIN_POLICY\nlogin policy-eval account",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-auth-session-deferred",
+      "purpose": "Future end-to-end coverage of password verification, retry and lockout state, TTY policy, session accounting, and successful login session setup.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed auth-device mock providing /dev/bashos-auth, controlled passwd and shadow databases, isolated lock/accounting files, frozen time, and a bounded PTY. The current fixture environment has no such device or terminal driver, and this operation is not safe to invoke here."
+    },
+    {
+      "id": "credential-transition-deferred",
+      "purpose": "Future verification of become's token handling, supplementary groups, uid/gid transition, environment, working directory, and exec arguments.",
+      "kind": "deferred",
+      "reason": "Requires a disposable privileged VM with controlled test identities, a reviewed kernel auth-token mock, and a harmless instrumented target shell to observe credential and exec state. This fixture runner intentionally provides neither privilege nor an auth device."
+    }
+  ]
+}

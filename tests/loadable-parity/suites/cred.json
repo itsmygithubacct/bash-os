@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "loadable": "cred",
+  "reference": "No matching GNU CLI exists for this consolidated credential builtin. Runnable contract expectations use Bash type/help metadata and the documented cred help contract. Operational verbs are deferred because they inspect or change process identity, credentials, or kernel security state; no candidate operation output is used as an oracle.",
+  "coverage": [
+    "Bash reports cred as a builtin with PATH empty.",
+    "Bash help exposes all five documented cred verbs.",
+    "Deferred: status identity snapshot, lookup against synthetic account databases, privilege drop, no-new-privileges, and capability clearing."
+  ],
+  "exclusions": [
+    "No cred operational verb is invoked in this suite; no account data, privilege transition, or kernel security state is accessed or changed.",
+    "GNU id does not provide the same getgroups snapshot contract as cred status, and this harness does not provide an independent same-process syscall oracle.",
+    "Ordinary file utilities are unrelated to cred's interface and are not tested as other loadables."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash recognizes the installed cred command as a builtin. This checks metadata only and does not invoke a cred verb.",
+      "script": "type -t cred",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Verify Bash help contains each of the five documented verb names without executing any verb.",
+      "script": "help_text=$(help cred)\nfor topic in 'cred drop USER' 'cred no-new-privs' 'cred caps-clear' 'cred lookup USER' 'cred status'; do\n  [[ $help_text == *\"$topic\"* ]] || exit 1\ndone\nprintf 'five documented verbs\\n'",
+      "expected_status": 0,
+      "stdout": "five documented verbs\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "status-oracle",
+      "kind": "deferred",
+      "purpose": "The read-only status verb formats real/effective UID/GID and the supplementary group list. A future fixture should compare the complete line against an independently obtained same-process getuid/getgid/geteuid/getegid/getgroups snapshot, including an empty group list and multiple groups.",
+      "reason": "Deferred by the task's operational-path restriction. A future disposable process fixture needs a same-process syscall oracle for getgroups; GNU id's user-facing group list is not a guaranteed byte-for-byte substitute for getgroups(2)."
+    },
+    {
+      "id": "lookup-synthetic-databases",
+      "kind": "deferred",
+      "purpose": "Exercise name and numeric-UID resolution, UID/GID variable binding, optional supplementary groups, not-found behavior, and malformed account rows using only synthetic account records.",
+      "reason": "The implementation reads /etc/passwd and /etc/group directly. A future disposable VM or reviewed resolver mock must supply private synthetic databases, including malformed and duplicate records, and use an independent field parser as the oracle. No installed account data is read here."
+    },
+    {
+      "id": "drop-identity-transition",
+      "kind": "deferred",
+      "purpose": "Verify the ordered setgroups, setresgid, and setresuid transition, primary-group fallback, optional supplementary-group retention, saved-ID verification, and fail-closed diagnostics.",
+      "reason": "This changes the caller's process credentials and can leave a partial transition. It requires a disposable VM with a synthetic target identity or an independently reviewed syscall mock that records call order and injected failures; it must not run against the suite worker."
+    },
+    {
+      "id": "no-new-privileges",
+      "kind": "deferred",
+      "purpose": "Verify PR_SET_NO_NEW_PRIVS success, its observable state, and EPERM/ENOSYS diagnostics.",
+      "reason": "The prctl state is irreversible for the calling process. A future disposable child process or reviewed prctl mock must verify the set value and error paths without changing the suite worker's security state."
+    },
+    {
+      "id": "caps-clear",
+      "kind": "deferred",
+      "purpose": "Verify capability-name parsing, keep-list handling, and clearing of bounding, ambient, permitted, effective, and inheritable sets.",
+      "reason": "Capability operations change process security state and may irreversibly reduce the bounding set. A future disposable VM with known capability sets or a reviewed prctl/capset mock must provide independent readback and injected error cases."
+    }
+  ]
+}

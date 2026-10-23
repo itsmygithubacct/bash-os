@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "uudecode",
+  "reference": "Traditional uuencode 6-bit grouping and RFC 4648 supply independent fixed decode vectors. Python-free Bash assertions check file bytes and independent stat checks verify modes and lengths. No sharutils executable is available for direct CLI parity; malformed-input rejection is a separate documented contract.",
+  "coverage": [
+    "Traditional uuencode from stdin to an embedded relative filename, decoded contents, and read-only mode behavior",
+    "Traditional uuencode from a relative input file with -o override and a two-byte final group",
+    "Base64-uuencode auto-detection and binary output containing NUL and 0xff",
+    "Padded base64 output to stdout with -o -",
+    "Preamble scanning before the begin header",
+    "Empty traditional payload",
+    "Documented -m no-op behavior",
+    "Bash builtin type/help metadata"
+  ],
+  "exclusions": [
+    "GNU error status, diagnostics, and partial-output cleanup comparisons are deferred because the GNU uudecode reference is absent.",
+    "The documented absolute /dev/stdout alias is deferred because fixtures prohibit absolute device paths; the safe -o - equivalent is covered.",
+    "No large records, long-line boundaries, multiple encoded streams, or hostile output path traversal are exercised."
+  ],
+  "cases": [
+    {
+      "id": "traditional-embedded-output",
+      "kind": "contract",
+      "purpose": "Decode the independently encoded bytes abc from stdin to the embedded relative filename and check that the encoded 0444 mode prevents owner writes.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "abc\n444 3\n",
+      "script": "uudecode <<'EOF'\nbegin 444 decoded.txt\n#86)C\n`\nend\nEOF\ntest -f decoded.txt\ndecoded=$(<decoded.txt)\ntest \"$decoded\" = abc\nprintf '%s\\n' \"$decoded\"\n/usr/bin/stat -c \"%a %s\" decoded.txt"
+    },
+    {
+      "id": "traditional-file-override",
+      "kind": "contract",
+      "purpose": "Read a relative encoded input file, override the embedded output name with -o, and decode the independently encoded bytes ab from a two-byte final group.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ab\n600 2\n",
+      "script": "printf '%s\\n' 'begin 600 embedded.dat' '\"86(`' '`' 'end' > input.uue\nuudecode -o actual.dat input.uue\ntest -f actual.dat\ntest ! -e embedded.dat\ndecoded=$(<actual.dat)\ntest \"$decoded\" = ab\nprintf '%s\\n' \"$decoded\"\n/usr/bin/stat -c \"%a %s\" actual.dat"
+    },
+    {
+      "id": "base64-binary-stdout",
+      "kind": "contract",
+      "purpose": "Auto-detect a begin-base64 stream and emit the RFC 4648-decoded bytes 00 ff 41 to stdout without creating the embedded filename.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AP9B",
+      "script": "uudecode -o - <<'EOF'\nbegin-base64 600 ignored.dat\nAP9B\n====\nEOF\ntest ! -e ignored.dat"
+    },
+    {
+      "id": "base64-padded-stdout",
+      "kind": "contract",
+      "purpose": "Decode the independently known padded base64 value QQ== to stdout using the safe -o - form.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "A",
+      "script": "uudecode -o - <<'EOF'\nbegin-base64 600 ignored.dat\nQQ==\n====\nEOF\ntest ! -e ignored.dat"
+    },
+    {
+      "id": "preamble-before-header",
+      "kind": "contract",
+      "purpose": "Find a traditional begin header after ordinary preamble lines and verify the decoded relative file contents.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "abc\n444 3\n",
+      "script": "uudecode <<'EOF'\nMail subject text\nAn introductory line\nbegin 444 after-preamble.txt\n#86)C\n`\nend\nEOF\ntest -f after-preamble.txt\ndecoded=$(<after-preamble.txt)\ntest \"$decoded\" = abc\nprintf '%s\\n' \"$decoded\"\n/usr/bin/stat -c \"%a %s\" after-preamble.txt"
+    },
+    {
+      "id": "empty-traditional-payload",
+      "kind": "contract",
+      "purpose": "Create an empty relative output file from the traditional zero-length record and honor its read-only mode behavior.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "empty file verified\n444 0\n",
+      "script": "uudecode <<'EOF'\nbegin 444 empty.dat\n`\nend\nEOF\ntest -f empty.dat\ntest ! -s empty.dat\nprintf '%s\\n' 'empty file verified'\n/usr/bin/stat -c \"%a %s\" empty.dat"
+    },
+    {
+      "id": "traditional-m-option",
+      "kind": "contract",
+      "purpose": "Check the documented -m no-op option while decoding the independently encoded traditional payload abc to stdout.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "abc",
+      "script": "uudecode -m -o - <<'EOF'\nbegin 644 ignored.dat\n#86)C\n`\nend\nEOF"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check the Bash builtin type and that its registered help topic is available; this is metadata coverage, not decoder operation coverage.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n",
+      "script": "kind=$(type -t uudecode)\n[[ $kind == builtin ]]\nhelp uudecode > metadata.out\nprintf '%s\\n' \"$kind\""
+    },
+    {
+      "id": "invalid-input-reference-cases",
+      "kind": "deferred",
+      "purpose": "Compare the full GNU malformed-input status, diagnostic and partial-output cleanup behavior beyond the independently checked rejection contracts.",
+      "reason": "Requires a future disposable reference image with sharutils uudecode. The current environment lacks that CLI; missing-header and invalid-base64 rejection are already exercised as contracts, without claiming GNU compatibility."
+    },
+    {
+      "id": "dev-stdout-alias",
+      "kind": "deferred",
+      "purpose": "The source documents an absolute /dev/stdout output alias in addition to -o -.",
+      "reason": "This path is an absolute device path and is excluded by the fixture safety rules. A future isolated VM or reviewed path-resolution mock must provide a controlled /dev/stdout alias and verify that decoding writes only to captured stdout. The equivalent relative-safe -o - behavior is covered by base64-padded-stdout."
+    },
+    {
+      "id": "missing-header-contract",
+      "kind": "contract",
+      "purpose": "Reject input containing no begin header with failure and a diagnostic.",
+      "script": "printf 'ordinary text\\n' > input\nuudecode input",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-base64-cleanup",
+      "kind": "contract",
+      "purpose": "Reject an invalid base64 alphabet and remove the incomplete output file, preserving the diagnostic.",
+      "script": "printf '%s\\n' 'begin-base64 600 decoded' '!!!!' '====' > input\nif uudecode input; then rc=0; else rc=$?; fi\n[[ ! -e decoded ]] || exit 90\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

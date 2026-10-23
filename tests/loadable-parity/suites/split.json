@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "loadable": "split",
+  "reference": "GNU coreutils split(1), run under system Bash with the harness reference PATH; parity compares status, stdout, and complete private fixture trees including bytes and modes. Bash type/help metadata contracts use Bash builtins and the generated short-help description pinned in config/bash-loadables.list.",
+  "coverage": [
+    "Default stdin input and xaa prefix naming",
+    "Line chunk boundaries, a one-character suffix, and an unterminated final record",
+    "Byte chunk boundaries over NUL and high-bit bytes, including an exact multiple with no empty trailing piece",
+    "The 1k byte-size suffix at the 1024-byte boundary",
+    "Two redirected stdin invocations in one shell",
+    "Truncation of an existing piece and umask-derived modes for a new piece",
+    "An output-path directory obstruction",
+    "Zero line count rejection",
+    "Bash builtin type and generated short-help metadata"
+  ],
+  "exclusions": [
+    "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --number, --filter, and --elide-empty-files are outside the documented builtin interface.",
+    "No host/device paths, write-failure devices, or input aliasing cases are used."
+  ],
+  "cases": [
+    {
+      "id": "default_stdin_prefix",
+      "kind": "parity",
+      "purpose": "With no input or prefix operand, split reads stdin and creates the default xaa piece.",
+      "script": "printf 'alpha\\nbeta\\n' | split",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "line_suffix_boundary",
+      "kind": "parity",
+      "purpose": "Split five records into two-line pieces, use a one-character suffix, and preserve the final unterminated record.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nlast' > input; split -l 2 -a 1 input part_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary_byte_exact_multiple",
+      "kind": "parity",
+      "purpose": "Byte splitting must preserve NUL and high-bit bytes and must not create an empty piece when the input length is an exact multiple of the chunk size.",
+      "script": "printf 'A\\000BC\\377D' > input; split -b 3 input binary_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "k_suffix_boundary",
+      "kind": "parity",
+      "purpose": "The 1k byte-size suffix denotes 1024 bytes: a 1025-byte fixture should produce one full piece and one one-byte piece.",
+      "script": "printf '%1025s' '' > input; split -b 1k input kilo_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated_redirected_stdin",
+      "kind": "parity",
+      "purpose": "Two split invocations in one shell consume separate redirected stdin streams, first by lines and then by bytes.",
+      "script": "printf 'a\\nb\\nc\\n' > first; printf '\\000xyz' > second; split -l 2 - first_ < first; split -b 2 - second_ < second",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "existing_output_modes",
+      "kind": "parity",
+      "purpose": "An existing first piece is truncated rather than appended, its existing mode remains, and a newly created second piece follows the active umask.",
+      "script": "printf 'fresh\\nnext\\n' > input; umask 077; printf 'old data that must be truncated\\n' > itemaa; split -l 1 input item",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "directory_output_error",
+      "kind": "parity",
+      "purpose": "If the first output name is an existing directory, split reports a write/open failure and leaves the directory and input fixture intact.",
+      "script": "printf 'content\\n' > input; mkdir pieceaa; split -l 1 input piece",
+      "requires": [
+        "mkdir",
+        "split"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid_zero_line_count",
+      "kind": "parity",
+      "purpose": "A zero line count is invalid; GNU status and candidate status are both asserted against the reference, and no output piece should be created.",
+      "script": "printf 'unchanged\\n' > input; split -l 0 input bad_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "type_metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata identifies the statically provided split command as a builtin, independently of PATH lookup.",
+      "script": "type -t split",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_metadata",
+      "kind": "contract",
+      "purpose": "Bash short help reports the supported split command synopsis.",
+      "script": "help -s split",
+      "expected_status": 0,
+      "stdout": "split: split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-input",
+      "kind": "parity",
+      "purpose": "Empty input creates no output pieces.",
+      "script": ": > empty\nsplit -l 2 empty out_",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "split"
+      ]
+    },
+    {
+      "id": "missing-input",
+      "kind": "parity",
+      "purpose": "Missing input fails without creating output pieces.",
+      "script": "split -b 2 missing part_",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "split"
+      ]
+    },
+    {
+      "id": "leading-dash-input",
+      "kind": "parity",
+      "purpose": "Option terminator allows a relative leading-dash input filename.",
+      "script": "printf 'abcd' > -input\nsplit -b 2 -- -input out_",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "split"
+      ]
+    }
+  ]
+}

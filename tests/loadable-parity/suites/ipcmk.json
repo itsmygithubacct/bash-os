@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "loadable": "ipcmk",
+  "reference": "Bash's documented type/help builtin behavior and the ipcmk interface documented in docs/sol-ipcmk.md are the oracle for contract cases. No resource-creation parity oracle was executed. A future isolated operation suite should compare GNU util-linux ipcmk where syntax overlaps and independently inspect and remove only objects created by the fixture using Linux IPC metadata APIs.",
+  "coverage": [
+    "Contract: ipcmk is registered as a Bash builtin and is visible through type -t.",
+    "Contract: Bash help exposes the documented resource forms and POSIX mode/persistence notes.",
+    "Deferred: System V shared memory creation, metadata, and owned-object cleanup.",
+    "Deferred: System V semaphore array creation, metadata, and owned-object cleanup.",
+    "Deferred: System V message queue creation, metadata, and owned-object cleanup.",
+    "Deferred: named POSIX shared memory creation, size/mode, collision behavior, and unlink.",
+    "Deferred: named POSIX semaphore creation, initial value/mode, collision behavior, and unlink.",
+    "Deferred: named POSIX message queue creation, default attributes/mode, collision behavior, and unlink."
+  ],
+  "exclusions": [
+    "No ipcmk creation or parsing operation was invoked; this task forbids dangerous loadable operations on the host, and IPC operations require a separately approved disposable VM or reviewed mock.",
+    "No raw output from GNU ipcmk is compared because System V identifiers are allocated dynamically and POSIX operations create kernel objects; operation coverage needs a purpose-built independent inspector and owned-object cleanup inside an isolated VM.",
+    "No ipcctl or other loadable was used. The suite is not marked optional because ipcmk is not listed in bash-loadables-optional.list."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Use Bash type -t to confirm ipcmk is exposed as a shell builtin without invoking its implementation.",
+      "script": "kind=$(type -t ipcmk)\n[[ $kind == builtin ]]\nprintf '%s\\n' \"$kind\"\n",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Use Bash help to check the documented command synopsis, all resource forms, POSIX umask behavior, and persistence statement without invoking ipcmk.",
+      "script": "[[ $(type -t ipcmk) == builtin ]]\ndoc=$(help ipcmk)\n[[ $doc == *\"Create System V or named POSIX IPC resources.\"* ]]\n[[ $doc == *\"ipcmk [-p mode] -M size\"* ]]\n[[ $doc == *\"ipcmk [-p mode] -S number\"* ]]\n[[ $doc == *\"ipcmk [-p mode] -Q\"* ]]\n[[ $doc == *\"ipcmk [-p mode] -n /name (-m size|-s|-q)\"* ]]\n[[ $doc == *\"POSIX permissions are filtered by umask; semaphore initial value is zero.\"* ]]\n[[ $doc == *\"Successful resources persist until explicitly removed or unlinked.\"* ]]\nprintf 'documented ipcmk help markers present\\n'\n",
+      "expected_status": 0,
+      "stdout": "documented ipcmk help markers present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sysv-shared-memory",
+      "kind": "deferred",
+      "purpose": "Verify creation and kernel metadata for one IPC_PRIVATE System V shared memory segment, then remove only the ID returned by the fixture.",
+      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create a small segment (for example, 4096 bytes at mode 0600), parse its returned ID, independently verify size, mode, and owner with shmctl(IPC_STAT), then remove and confirm absence with shmctl(IPC_RMID/IPC_STAT). Do not inspect or remove any pre-existing ID."
+    },
+    {
+      "id": "sysv-semaphore-array",
+      "kind": "deferred",
+      "purpose": "Verify a System V semaphore array's requested count and mode, then remove only the array created by the fixture.",
+      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create a small array (for example, two semaphores at mode 0600), parse its returned ID, independently check sem_nsems, mode, and owner with semctl(IPC_STAT), then remove and confirm absence with semctl(IPC_RMID/IPC_STAT). Use no existing semaphore IDs."
+    },
+    {
+      "id": "sysv-message-queue",
+      "kind": "deferred",
+      "purpose": "Verify System V message queue creation, empty initial state, and requested mode, then remove only the created queue.",
+      "reason": "Requires a disposable Linux VM with a fresh private IPC namespace and GNU util-linux ipcmk. A future test should create one queue at a small explicit mode, parse the returned ID, independently verify owner, mode, and zero queued messages with msgctl(IPC_STAT), then remove and confirm absence with msgctl(IPC_RMID/IPC_STAT). Never target an unrelated queue."
+    },
+    {
+      "id": "posix-shared-memory",
+      "kind": "deferred",
+      "purpose": "Verify named POSIX shared memory size, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
+      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should create a small named object under a controlled umask, inspect its owner, exact length, and mode through shm_open/fstat, confirm a second exclusive create fails without changing the object, and shm_unlink only the name it created."
+    },
+    {
+      "id": "posix-semaphore",
+      "kind": "deferred",
+      "purpose": "Verify named POSIX semaphore initial value, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
+      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should create under a controlled umask, independently confirm sem_getvalue is zero and inspect owner/mode, verify a second exclusive create fails without taking ownership, and sem_unlink only the name created by the fixture."
+    },
+    {
+      "id": "posix-message-queue",
+      "kind": "deferred",
+      "purpose": "Verify named POSIX message queue default attributes, umask-filtered mode, exclusive creation, and cleanup of the fixture-owned name.",
+      "reason": "Requires a disposable Linux VM with isolated POSIX IPC backing storage, a unique slash-prefixed name, and GNU util-linux ipcmk. A future test should independently inspect mq_getattr for zero queued messages and positive kernel-default capacities, inspect owner/mode under a controlled umask, confirm a second exclusive create fails, and mq_unlink only the fixture-owned name."
+    }
+  ]
+}

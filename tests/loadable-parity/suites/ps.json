@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "loadable": "ps",
+  "reference": "GNU procps ps for invalid queries only, compared with separate stdout/stderr and direct status validation. Normal table contracts use the existing BASHOS_PROC_ROOT interface, proc(5) field positions, documented output and independent synthetic expectations; no live process queries.",
+  "coverage": [
+    "Bash builtin type/help metadata and the documented POSIX-shaped output columns.",
+    "GNU ps versus candidate rejection of an unknown -o column, preserving status and diagnostic presence.",
+    "Synthetic proc records for stat field parsing, UID fallback, STAT flags, comm containing a right parenthesis, and NUL-separated argv conversion.",
+    "Full-format row layout, explicit PID-list order, and the documented [comm] fallback for empty cmdline.",
+    "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option."
+  ],
+  "exclusions": [
+    "Full process-table enumeration and aux percentages/START values are deferred because a stable VM process set and procps comparison are required.",
+    "The synthetic proc-root checks are independent contracts, not GNU parity, because GNU ps reads the mounted procfs rather than BASHOS_PROC_ROOT.",
+    "Extra invalid-option cases cover distinct parser entry points."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Confirm ps is exposed as a Bash builtin and its help text documents the process-listing contract.",
+      "script": "[[ $(type -t ps) == builtin ]]\nhelp_text=$(help ps)\n[[ $help_text == *\"List processes via /proc (POSIX-shape ps).\"* ]]\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-invalid-column",
+      "kind": "parity",
+      "purpose": "An invalid column must return GNU status 1 with empty stdout; stderr is checked separately without merging the diagnostic into stdout.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps -o definitely_not_a_ps_column",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "proc-columns-and-stat-flags",
+      "kind": "contract",
+      "purpose": "Check deterministic custom columns against a synthetic proc record, including a comm containing ')' and the procps nice/thread/foreground STAT flags. The stat record has exactly 24 fields; VSZ independently checks field 23 (8192 bytes = 8 KiB).",
+      "script": "PATH=; export PATH\nexport BASHOS_PROC_ROOT=procfix\nmkdir -p procfix/9001\nprintf '%s\\n' '9001 (worker ) core) S 32 77 70 0 77 0 0 0 0 0 0 0 0 0 20 2 3 0 1000 8192 4' > procfix/9001/stat\nprintf 'Name:\\tworker ) core\\nUid:\\t70001\\t70001\\t70001\\t70001\\nVmLck:\\t0 kB\\n' > procfix/9001/status\nprintf 'alpha\\0--flag\\0two words\\0' > procfix/9001/cmdline\nps -p 9001 -o pid,ppid,pgrp,sid,uid,user,state,stat,vsz,comm,args",
+      "expected_status": 0,
+      "stdout": "PID PPID PGRP SID UID USER S STAT VSZ COMMAND COMMAND\n9001 32 77 70 70001 70001 S SNl+ 8 worker ) core alpha --flag two words\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "full-format-pid-list-and-empty-cmdline",
+      "kind": "contract",
+      "purpose": "Check documented -f formatting, PID-list order, zero CPU-time formatting, and the [comm] fallback for an empty cmdline using two synthetic proc records.",
+      "script": "PATH=; export PATH\nexport BASHOS_PROC_ROOT=procfix\nmkdir -p procfix/9101 procfix/9102\nprintf '%s\\n' '9101 (zombie) Z 1 91 9101 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 1000 4096 1' > procfix/9101/stat\nprintf 'Name:\\tzombie\\nUid:\\t70002\\t70002\\t70002\\t70002\\n' > procfix/9101/status\n: > procfix/9101/cmdline\nprintf '%s\\n' '9102 (worker) R 9101 92 9101 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 1000 8192 2' > procfix/9102/stat\nprintf 'Name:\\tworker\\nUid:\\t70003\\t70003\\t70003\\t70003\\n' > procfix/9102/status\nprintf 'worker\\0--mode\\0quick\\0' > procfix/9102/cmdline\nps -f -p 9102,9101",
+      "expected_status": 0,
+      "stdout": "USER       PID  PPID S TIME     CMD\n70003     9102  9101 R 00:00:00 worker --mode quick\n70002     9101     1 Z 00:00:00 [zombie]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-version-contract",
+      "kind": "contract",
+      "purpose": "Confirm the documented -V/--version entry points return the loadable's published version string.",
+      "script": "PATH=; export PATH\nps --version",
+      "expected_status": 0,
+      "stdout": "bashps 1.0 (bash-loadable, procps-compatible)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-invalid-column-attached",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps -odefinitely_not_a_ps_column",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-invalid-column-combined",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps -eo definitely_not_a_ps_column",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-invalid-column-after-valid",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps -o pid -o definitely_not_a_ps_column",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-missing-column-list",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps -o",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-invalid-pid-list",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps --pid=not_a_pid",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-unknown-option",
+      "kind": "parity",
+      "purpose": "Compare status, empty stdout and diagnostic presence for an invalid query rejected before procfs access.",
+      "requires": [
+        "ps"
+      ],
+      "script": "ps --fixture-unknown-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "synthetic-selection-and-empty-header",
+      "kind": "contract",
+      "purpose": "Use the established BASHOS_PROC_ROOT fixture interface to assert exact selected PID, both option spellings and empty-header behavior without observing live processes.",
+      "script": "PATH=; export PATH\nexport BASHOS_PROC_ROOT=procfix\nmkdir -p procfix/9101 procfix/9102\nprintf '%s\\n' '9101 (zombie) Z 1 91 9101 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 1000 4096 1' > procfix/9101/stat\nprintf 'Name:\\tzombie\\nUid:\\t70002\\t70002\\t70002\\t70002\\n' > procfix/9101/status\n: > procfix/9101/cmdline\nprintf '%s\\n' '9102 (worker) R 9101 92 9101 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 1000 8192 2' > procfix/9102/stat\nprintf 'Name:\\tworker\\nUid:\\t70003\\t70003\\t70003\\t70003\\n' > procfix/9102/status\nprintf 'worker\\0--mode\\0quick\\0' > procfix/9102/cmdline\nps -p 9101 -o pid=\nps --pid 9102 -o pid=",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "9101\n9102\n"
+    },
+    {
+      "id": "gnu-invalid-pid-spellings",
+      "kind": "parity",
+      "purpose": "Invalid PID syntax and missing PID arguments must each return status 1 before process observation, including grouped and positional parser routes.",
+      "requires": [
+        "ps"
+      ],
+      "script": "for option in -p --pid -ep; do\n rc=0; ps \"$option\" || rc=$?\n [[ $rc == 1 ]]\ndone\nfor option in -pnot_a_pid --pid=not_a_pid; do\n rc=0; ps \"$option\" || rc=$?\n [[ $rc == 1 ]]\ndone\nrc=0; ps not_a_pid || rc=$?\n[[ $rc == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "live-table-and-aux-snapshot",
+      "kind": "deferred",
+      "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",
+      "reason": "Requires a disposable Linux VM with a private procfs mount, a controlled process tree, fixed locale/time settings, and GNU procps ps observing the same snapshot. The provided runner's live process table is intentionally nondeterministic, and GNU ps cannot consume the candidate's BASHOS_PROC_ROOT fixture."
+    }
+  ]
+}

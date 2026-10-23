@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "loadable": "dhcp6",
+  "reference": "No matching GNU DHCPv6 CLI is documented for this loadable. Contract expectations use RFC 8415 wire formats: DUID-LL (type 3, hardware type 1), DHCPv6 message headers, big-endian option codes and lengths, CLIENTID/SERVERID, ELAPSED_TIME, IA_NA/IAADDR, ORO, and relay-message/interface-id options. The parse fixture is a hand-authored packet decoded independently from its TLVs; relay expectations are independently serialized from the same fixed address and payload values. Help strings are checked against the pinned builtin documentation. No expected value was taken from candidate output.",
+  "coverage": [
+    "Bash builtin type/help metadata and documented version string",
+    "DUID-LL serialization for a fixed Ethernet MAC",
+    "SOLICIT construction with explicit transaction ID and default IAID",
+    "REQUEST construction with server DUID, IAADDR lifetimes, IAID, and ORO",
+    "INFORMATION-REQUEST construction without IA_NA",
+    "ADVERTISE parsing of DUIDs, IA_NA/IAADDR, DNS, status, and ORO",
+    "Associative-array output from parse -V",
+    "Malformed option-length rejection",
+    "RELAY-FORW wrapping and independent relay unwrapping"
+  ],
+  "exclusions": [
+    "There is no matching GNU DHCPv6 CLI, so these are contract checks rather than claimed GNU parity comparisons.",
+    "Live solicit and inforequest exchanges are deferred because they require an isolated disposable network with a controlled DHCPv6 server and packet capture.",
+    "RECONFIGURE HMAC verification and less common parser fields such as IA_PD/IAPREFIX are not covered by this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata_help_version",
+      "kind": "contract",
+      "purpose": "Check Bash reports dhcp6 as a builtin, its registered help contains the documented builder/parser and relay forms, and --version prints the pinned documented version string.",
+      "script": "type -t dhcp6\ndoc=$(help dhcp6)\n[[ $doc == *\"DHCPv6 (RFC 8415) client message builder + parser.\"* ]]\n[[ $doc == *\"dhcp6 build TYPE -d CLIENT_DUID\"* ]]\n[[ $doc == *\"dhcp6 relay-unwrap RELAY_HEX\"* ]]\ndhcp6 --version",
+      "expected_status": 0,
+      "stdout": "builtin\ndhcp6 (bash-os F03 DHCPv6) RFC 8415 client message core\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "duid_ll_ethernet",
+      "kind": "contract",
+      "purpose": "Check DUID-LL encodes the RFC type 3 and Ethernet hardware type 1 before the six supplied MAC octets.",
+      "script": "dhcp6 duid-ll 02:00:00:00:00:01",
+      "expected_status": 0,
+      "stdout": "00030001020000000001\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "build_solicit_fixed_xid",
+      "kind": "contract",
+      "purpose": "Check deterministic SOLICIT wire bytes: message type 1, XID 0x123456, CLIENTID, zero ELAPSED_TIME, and default IA_NA IAID 1 with zero T1/T2.",
+      "script": "dhcp6 build solicit -d 00030001020000000099 -x 123456",
+      "expected_status": 0,
+      "stdout": "011234560001000a000300010200000000990008000200000003000c000000010000000000000000\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "build_request_address_oro",
+      "kind": "contract",
+      "purpose": "Check REQUEST serialization with both DUID options, explicit transaction ID and IAID, an IAADDR for 2001:db8::1 with 3600/7200-second lifetimes, and ORO codes 23 and 24.",
+      "script": "dhcp6 build request -d 00030001020000000099 -s 00030001aabbccddeeff -i 0x01020304 -a 2001:db8::1 -x a1b2c3 -o 23,24",
+      "expected_status": 0,
+      "stdout": "03a1b2c30001000a000300010200000000990002000a00030001aabbccddeeff000800020000000300280102030400000000000000000005001820010db800000000000000000000000100000e1000001c200006000400170018\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "build_information_request",
+      "kind": "contract",
+      "purpose": "Check INFORMATION-REQUEST uses message type 11, includes CLIENTID, ELAPSED_TIME, and the selected ORO, and omits IA_NA as required for a stateless request.",
+      "script": "dhcp6 build information-request -d 00030001020000000099 -x 000001 -o 23,24",
+      "expected_status": 0,
+      "stdout": "0b0000010001000a000300010200000000990008000200000006000400170018\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse_advertise_options",
+      "kind": "contract",
+      "purpose": "Decode a fixed ADVERTISE packet independently encoded with client/server DUIDs, IA_NA containing IAADDR, two DNS servers, Success status text, and an ORO; check field names, ordering, numeric decoding, and IPv6 text formatting.",
+      "script": "dhcp6 parse 02a1b2c30001000a000300010200000000990002000a00030001aabbccddeeff000300280102030400000000000000000005001820010db800000000000000000000000100000258000004b0001700202001486048600000000000000000888820014860486000000000000000008844000d000400006f6b0006000400170018",
+      "expected_status": 0,
+      "stdout": "msg_type=ADVERTISE\nxid=0xa1b2c3\nclient_id=00030001020000000099\nserver_id=00030001aabbccddeeff\niaid=16909060\nt1=0\nt2=0\naddress=2001:db8::1\npreferred=600\nvalid=1200\ndns=2001:4860:4860::8888,2001:4860:4860::8844\nstatus=0\nstatus_msg=ok\noro=23,24\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse_assoc_array_output",
+      "kind": "contract",
+      "purpose": "Check parse -V binds documented message fields into a Bash associative array without emitting key=value lines to stdout.",
+      "script": "declare -A parsed=()\ndhcp6 parse 02010203 -V parsed\nprintf '%s|%s\\n' \"${parsed[msg_type]}\" \"${parsed[xid]}\"",
+      "expected_status": 0,
+      "stdout": "ADVERTISE|0x010203\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reject_truncated_option",
+      "kind": "contract",
+      "purpose": "Reject an otherwise valid four-byte message header whose CLIENTID option declares four data bytes but supplies only two.",
+      "script": "dhcp6 parse 0200000000010004aabb",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "relay_wrap_layout",
+      "kind": "contract",
+      "purpose": "Check independent RFC relay serialization: RELAY-FORW type 12, hop count, fixed link/peer IPv6 addresses, OPTION_RELAY_MSG with the inner message, and OPTION_INTERFACE_ID containing lan0.",
+      "script": "dhcp6 relay-wrap --link 2001:db8::1 --peer fe80::2 --interface-id lan0 --hop 2 01010203",
+      "expected_status": 0,
+      "stdout": "0c0220010db8000000000000000000000001fe8000000000000000000000000000020009000401010203001200046c616e30\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "relay_unwrap_fields",
+      "kind": "contract",
+      "purpose": "Decode a fixed independently encoded RELAY-FORW packet and check hop, link/peer addresses, interface identifier, and inner message hex.",
+      "script": "dhcp6 relay-unwrap 0c0220010db8000000000000000000000001fe8000000000000000000000000000020009000401010203001200046c616e30",
+      "expected_status": 0,
+      "stdout": "type=RELAY-FORW\nhop=2\nlink=2001:db8::1\npeer=fe80::2\ninterface_id=lan0\ninner=01010203\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred_solicit_exchange",
+      "kind": "deferred",
+      "purpose": "Exercise the live SOLICIT to ADVERTISE to REQUEST to REPLY state machine only in a future disposable network fixture.",
+      "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547, permission to bind the client UDP/546 socket, and packet capture to verify XIDs, requested options, retries, and the accepted REPLY. This suite must not contact a real network target."
+    },
+    {
+      "id": "deferred_inforequest_exchange",
+      "kind": "deferred",
+      "purpose": "Exercise the live stateless INFORMATION-REQUEST exchange and DNS/domain option handling only in a future disposable network fixture.",
+      "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547 that returns DNS/domain configuration, permission to bind the client UDP/546 socket, and packet capture proving the request/reply behavior. This suite must not contact a real network target."
+    },
+    {
+      "id": "invalid-duid",
+      "kind": "contract",
+      "purpose": "Malformed DUID syntax returns documented usage status without packet activity.",
+      "script": "dhcp6 duid-ll invalid",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

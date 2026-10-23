@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "loadable": "sqlite",
+  "reference": "No matching GNU sqlite command-line program is available for this Bash builtin API. These are contract checks, not GNU parity: metadata stdout follows the builtin's documented help; SQL result expectations are derived from SQLite 3.47.2 SQL semantics and the documented tab-separated row contract. Error wording is deliberately checked only for nonempty stderr.",
+  "coverage": [
+    "Bash builtin availability and documented help text (metadata only).",
+    "In-memory open/close, typed TEXT/INTEGER/REAL/NULL/BLOB bindings, and row conversion.",
+    "Prepared insert with quoted text, changes/rowid reporting, and persistence after closing and reopening a relative fixture database.",
+    "Explicit transaction rollback and commit.",
+    "Multirow stepping, SQLITE_DONE status, statement reset, and clearing bindings on reset.",
+    "SQL exec error status and continued usability of the database handle.",
+    "Invalid BLOB hex rejection, documented statement auto-finalization, and empty BLOB typing.",
+    "Close refusal while a prepared statement remains active, followed by successful use and cleanup."
+  ],
+  "exclusions": [
+    "Concurrent file writers and lock contention are deferred because the documented unix-none file VFS has no interprocess locking.",
+    "BLOB values containing NUL bytes in row output and ambiguous tab/newline field serialization are not covered.",
+    "Handle-table exhaustion and multiple simultaneous database connections are outside this small deterministic suite.",
+    "No case is labeled GNU parity because there is no matching sqlite CLI; no external CLI is substituted."
+  ],
+  "cases": [
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Check the Bash builtin type and exact documented help surface without counting metadata as operation coverage.",
+      "script": "type -t sqlite\nhelp sqlite\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nsqlite: sqlite\n    SQLite handle API for bash-os.\n      sqlite open PATH -h DB_VAR\n      sqlite exec DB SQL\n      sqlite prepare DB SQL -h STMT_VAR\n      sqlite bind STMT N VALUE [-t TEXT|INTEGER|REAL|NULL|BLOB]\n      sqlite step STMT [-V ROW_VAR]\n      sqlite reset|finalize STMT\n      sqlite close DB\n      sqlite transaction DB BEGIN|COMMIT|ROLLBACK\n      sqlite changes DB\n      sqlite last-insert-rowid DB\n      sqlite --stats             # print active_stmts and max_stmts\n    \n      (file databases use unix-none VFS, memory SQLITE_OPEN_NOMUTEX; no locking)\n      bind failure auto-finalizes the prepared statement (slot reclaimed).\n"
+    },
+    {
+      "id": "typed-bindings",
+      "kind": "contract",
+      "purpose": "Check the documented bind types and tab-separated row conversion using a single deterministic in-memory SELECT.",
+      "script": "sqlite open :memory: -h db\nsqlite prepare \"$db\" 'SELECT typeof(?1), ?1, typeof(?2), ?2, typeof(?3), ?3, typeof(?4), ?4, typeof(?5), length(?5), hex(?5)' -h st\nsqlite bind \"$st\" 1 'row text'\nsqlite bind \"$st\" 2 42 -t INTEGER\nsqlite bind \"$st\" 3 2.5 -t REAL\nsqlite bind \"$st\" 4 ignored -t NULL\nsqlite bind \"$st\" 5 410042 -t BLOB\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "text\trow text\tinteger\t42\treal\t2.5\tnull\t\tblob\t3\t410042\n"
+    },
+    {
+      "id": "file-persistence",
+      "kind": "contract",
+      "purpose": "Check prepared text insertion, changes and rowid reporting, and persistence after closing and reopening a relative fixture database.",
+      "script": "sqlite open records.db -h db\nsqlite exec \"$db\" 'CREATE TABLE records (id INTEGER PRIMARY KEY, value TEXT UNIQUE)'\nsqlite prepare \"$db\" 'INSERT INTO records(value) VALUES (?1)' -h ins\nsqlite bind \"$ins\" 1 \"O'Reilly & sons\"\nif sqlite step \"$ins\"; then exit 90; else step_rc=$?; fi\n[[ $step_rc -eq 1 ]]\nprintf 'changes=%s rowid=%s\\n' \"$(sqlite changes \"$db\")\" \"$(sqlite last-insert-rowid \"$db\")\"\nsqlite finalize \"$ins\"\nsqlite close \"$db\"\nsqlite open records.db -h db\nsqlite prepare \"$db\" 'SELECT id, value FROM records' -h sel\nsqlite step \"$sel\" -V row\nprintf 'row=%s\\n' \"$row\"\nsqlite finalize \"$sel\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "changes=1 rowid=1\nrow=1\tO'Reilly & sons\n"
+    },
+    {
+      "id": "transactions",
+      "kind": "contract",
+      "purpose": "Check that rollback removes an uncommitted insert and commit preserves the following insert.",
+      "script": "sqlite open :memory: -h db\nsqlite exec \"$db\" 'CREATE TABLE records (value TEXT)'\nsqlite transaction \"$db\" BEGIN\nsqlite exec \"$db\" \"INSERT INTO records VALUES ('rolled back')\"\nsqlite transaction \"$db\" ROLLBACK\nsqlite transaction \"$db\" BEGIN\nsqlite exec \"$db\" \"INSERT INTO records VALUES ('kept')\"\nsqlite transaction \"$db\" COMMIT\nsqlite prepare \"$db\" 'SELECT count(*), min(value), max(value) FROM records' -h st\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1\tkept\tkept\n"
+    },
+    {
+      "id": "step-reset",
+      "kind": "contract",
+      "purpose": "Check ordered row streaming, the no-more-rows status, statement rewind, and reset's documented binding clear.",
+      "script": "sqlite open :memory: -h db\nsqlite exec \"$db\" 'CREATE TABLE n (v INTEGER); INSERT INTO n VALUES (3),(1),(2)'\nsqlite prepare \"$db\" 'SELECT v FROM n ORDER BY v' -h st\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nif sqlite step \"$st\"; then exit 91; else step_rc=$?; fi\n[[ $step_rc -eq 1 ]]\nsqlite reset \"$st\"\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite prepare \"$db\" 'SELECT ?1' -h st\nsqlite bind \"$st\" 1 before-reset\nsqlite step \"$st\" -V row\nprintf 'bound=<%s>\\n' \"$row\"\nsqlite reset \"$st\"\nsqlite step \"$st\" -V row\nprintf 'cleared=<%s>\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1\n2\n3\n1\nbound=<before-reset>\ncleared=<>\n"
+    },
+    {
+      "id": "exec-error-recovery",
+      "kind": "contract",
+      "purpose": "Check nonzero SQL execution failure and that a failed statement leaves the open database usable.",
+      "script": "sqlite open :memory: -h db\nif sqlite exec \"$db\" 'SELECT * FROM absent_table'; then exit 92; else sql_rc=$?; fi\n[[ $sql_rc -eq 1 ]]\nsqlite exec \"$db\" 'CREATE TABLE valid (v INTEGER); INSERT INTO valid VALUES (7)'\nsqlite prepare \"$db\" 'SELECT v FROM valid' -h st\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "7\n"
+    },
+    {
+      "id": "blob-validation",
+      "kind": "contract",
+      "purpose": "Check rejection of non-hex BLOB input, documented automatic statement reclamation, and the empty BLOB representation.",
+      "script": "sqlite open :memory: -h db\nsqlite prepare \"$db\" 'SELECT ?1' -h bad\nif sqlite bind \"$bad\" 1 0g -t BLOB; then exit 93; else bind_rc=$?; fi\n[[ $bind_rc -eq 2 ]]\nsqlite --stats\nsqlite prepare \"$db\" 'SELECT typeof(?1), length(?1)' -h st\nsqlite bind \"$st\" 1 '' -t BLOB\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "active_stmts 0\nmax_stmts 256\nblob\t0\n"
+    },
+    {
+      "id": "close-with-active-statement",
+      "kind": "contract",
+      "purpose": "Check the close precondition for unfinalized statements and verify the database handle remains usable after the rejected close.",
+      "script": "sqlite open :memory: -h db\nsqlite prepare \"$db\" 'SELECT 1' -h st\nif sqlite close \"$db\"; then exit 94; else close_rc=$?; fi\n[[ $close_rc -eq 1 ]]\nsqlite step \"$st\" -V row\nprintf '%s\\n' \"$row\"\nsqlite finalize \"$st\"\nsqlite close \"$db\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "1\n"
+    },
+    {
+      "id": "concurrent-file-locking",
+      "kind": "deferred",
+      "purpose": "Record the unsupported concurrent-writer/lock-contention scenario without making concurrent writes to the unlocked VFS.",
+      "reason": "Requires a future disposable VM with two explicitly synchronized writer processes and a lock-capable SQLite reference VFS or syscall-level SQLite VFS mock. The documented unix-none VFS supplies no interprocess locking, so this suite does not execute the scenario."
+    },
+    {
+      "id": "separate-databases-and-stale-handle",
+      "kind": "contract",
+      "purpose": "Two independent in-memory connections retain separate SQL state; a closed handle fails with usage status and diagnostic.",
+      "script": "sqlite open :memory: -h first\nsqlite open :memory: -h second\nsqlite exec \"$first\" 'CREATE TABLE t(v); INSERT INTO t VALUES(1)'\nsqlite exec \"$second\" 'CREATE TABLE t(v); INSERT INTO t VALUES(2)'\nfor db in \"$first\" \"$second\"; do\n sqlite prepare \"$db\" 'SELECT v FROM t' -h st\n sqlite step \"$st\" -V row\n printf '%s\\n' \"$row\"\n sqlite finalize \"$st\"\ndone\nsqlite close \"$first\"\nif sqlite exec \"$first\" 'SELECT 1'; then exit 90; else rc=$?; fi\n[[ $rc -eq 2 ]]\nsqlite close \"$second\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "1\n2\n"
+    }
+  ]
+}

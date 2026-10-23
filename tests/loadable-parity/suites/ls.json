@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "loadable": "ls",
+  "reference": "GNU coreutils ls from the runner's read-only /usr tree, invoked by system Bash under LC_ALL=C and TZ=UTC. Each parity case runs the same fixture script on that GNU ls and on bash-os with PATH empty; fixture contents are created by equivalent shell redirections and ordinary file commands.",
+  "coverage": [
+    "Bash builtin type and help synopsis metadata contract",
+    "No-operand listing, C-locale name order, hidden entries, -a and -A",
+    "Backup, ignore and hide patterns, including -a override",
+    "C-style escaping, quoting, control bytes and NUL-delimited output",
+    "Directory and symlink indicators with -F and -p",
+    "Recursive listing with hidden entries in nested directories",
+    "Version, size and extension sorting",
+    "Long numeric listing, permissions, sizes and fixed UTC timestamps",
+    "Command-line symlink-to-directory, -d and -L behavior",
+    "Missing operand and invalid option exit statuses and diagnostics"
+  ],
+  "exclusions": [
+    "Terminal-dependent multi-column layout, terminal color and hyperlink behavior are not exercised; fixtures run with captured non-terminal stdout.",
+    "Non-C locale collation and multibyte display width are outside this C-locale suite.",
+    "ACL/security labels, special device nodes, filesystem-specific metadata and birth-time availability are not covered.",
+    "GNU version differences outside the tested common ls behavior are not qualified."
+  ],
+  "cases": [
+    {
+      "id": "bash_metadata",
+      "kind": "contract",
+      "purpose": "Check through Bash metadata builtins that ls is installed as a builtin and help exposes the catalog synopsis.",
+      "script": "[[ $(type -t ls) == builtin ]]\nh=$(help ls)\n[[ $h == *\"ls [OPTION]... [FILE]...\"* ]]\nprintf '%s\\n' builtin synopsis-present",
+      "expected_status": 0,
+      "stdout": "builtin\nsynopsis-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_and_hidden",
+      "kind": "parity",
+      "purpose": "Exercise the implicit current-directory operand, deterministic one-per-line name order, default dotfile omission, and the distinct -A and -a hidden-entry rules.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree\n: > tree/zeta\n: > tree/alpha\n: > tree/.hidden\n: > 'tree/two words'\nprintf '%s\\n' 'no operand:'\nls -1\nprintf '%s\\n' 'default:'\nls -1 tree\nprintf '%s\\n' 'almost all:'\nls -1A tree\nprintf '%s\\n' 'all:'\nls -1a tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore_and_hide",
+      "kind": "parity",
+      "purpose": "Check backup suppression, -I ignore patterns, --hide behavior, and that -a overrides a hide pattern.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree\n: > tree/base\n: > tree/backup~\n: > tree/.save~\n: > tree/object.o\n: > tree/object.c\nprintf '%s\\n' 'backup and ignore:'\nls -1B -I '*.o' tree\nprintf '%s\\n' 'hide:'\nls -1 --hide='*.c' tree\nprintf '%s\\n' 'all overrides hide:'\nls -1a --hide='*.c' tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quoting_and_zero",
+      "kind": "parity",
+      "purpose": "Compare quoting of spaces, quotes, backslashes, tabs and newlines, then verify --zero emits literal filenames with NUL separators.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree\n: > 'tree/two words'\n: > 'tree/double\"quote'\n: > 'tree/back\\slash'\nline=$'line\\nbreak'\ntab=$'tab\\tname'\n: > \"tree/$line\"\n: > \"tree/$tab\"\nprintf '%s\\n' 'escape:'\nls -1b tree\nprintf '%s\\n' 'quoted:'\nls -1Q tree\nprintf '%s\\n' 'zero:'\nls --zero tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "file_indicators",
+      "kind": "parity",
+      "purpose": "Check -F classification for directories, ordinary files and symlinks, plus -p's directory-only slash marker.",
+      "requires": [
+        "ls",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p tree/dir\n: > tree/file\nln -s dir tree/linkdir\nln -s absent tree/dangling\nprintf '%s\\n' 'classify:'\nls -1F tree\nprintf '%s\\n' 'directories only:'\nls -1p tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "recursive_hidden",
+      "kind": "parity",
+      "purpose": "Check recursive traversal order, directory headings, and hidden-file handling at multiple levels.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree/sub/deep\n: > tree/root\n: > tree/.hidden\n: > tree/sub/child\n: > tree/sub/.secret\n: > tree/sub/deep/leaf\nls -1R -A tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "sort_modes",
+      "kind": "parity",
+      "purpose": "Exercise natural version ordering, descending size ordering and extension ordering on the same small deterministic directory.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree\nprintf x > tree/item1\nprintf xx > tree/item2\nprintf xxx > tree/item10\nprintf xxxx > tree/thing.c\nprintf xxxxx > tree/thing.a\nprintf '%s\\n' 'version:'\nls -1 --sort=version tree\nprintf '%s\\n' 'size:'\nls -1S tree\nprintf '%s\\n' 'extension:'\nls -1X tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long_numeric_fixed_time",
+      "kind": "parity",
+      "purpose": "Check long-format mode, link count, numeric IDs, byte sizes and an independently pinned UTC mtime so output does not depend on the run date.",
+      "requires": [
+        "ls",
+        "mkdir",
+        "touch",
+        "chmod"
+      ],
+      "script": "mkdir -p tree\nprintf abc > tree/alpha\nprintf z > tree/zeta\nchmod 640 tree/alpha\ntouch -t 202001020304.05 tree/alpha\ntouch -t 202006070809.10 tree/zeta\nls -ln --time-style=+%Y-%m-%dT%H:%M:%S tree",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink_directory_operands",
+      "kind": "parity",
+      "purpose": "Check GNU's default command-line symlink-to-directory behavior against -d's link listing and -L's dereferenced directory listing.",
+      "requires": [
+        "ls",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p tree/target/nested\n: > tree/target/first\nln -s target tree/link\nprintf '%s\\n' 'default:'\nls -1 tree/link\nprintf '%s\\n' 'directory entry:'\nls -1d tree/link\nprintf '%s\\n' 'dereference:'\nls -1L tree/link",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_path_diagnostic",
+      "kind": "parity",
+      "purpose": "Check a nonempty diagnostic for a missing command-line operand while checking that a valid operand is still listed and serious trouble returns status 2. Diagnostic prefixes identify the builtin and need not reproduce an external executable name.",
+      "requires": [
+        "ls",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree\n: > tree/good\nif ls -1 tree/good tree/missing; then rc=0; else rc=$?; fi\nif [[ $rc -ne 2 ]]; then exit 99; fi\nexit \"$rc\"",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid_option",
+      "kind": "parity",
+      "purpose": "Check invalid long-option status, no stdout, and a nonempty usage diagnostic for option parsing errors. Diagnostic prefixes identify the builtin and need not reproduce an external executable name.",
+      "requires": [
+        "ls"
+      ],
+      "script": "if ls --no-such-parity-option; then rc=0; else rc=$?; fi\nif [[ $rc -ne 2 ]]; then exit 99; fi\nexit \"$rc\"",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "reverse-and-dirs-first",
+      "kind": "parity",
+      "purpose": "Compare reverse ordering and directory-first ordering on a small private directory.",
+      "script": "mkdir tree tree/adir\n: > tree/alpha\n: > tree/zeta\nls -1r tree\nls -1 --group-directories-first tree",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ls",
+        "mkdir"
+      ]
+    }
+  ]
+}

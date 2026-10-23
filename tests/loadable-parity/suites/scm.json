@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "loadable": "scm",
+  "reference": "There is no matching GNU command for the SCM_RIGHTS builtin. Runnable contract expectations come from Bash type/help behavior and the documented scm_doc/version strings in scm.c. Deferred data-path cases specify Python's AF_UNIX sendmsg/recvmsg SCM_RIGHTS interface as the future independent oracle; those operations are not executed here.",
+  "coverage": [
+    "Bash type -t reports scm as a registered builtin.",
+    "Bash help exposes the documented verbs and recv-fd checks.",
+    "The documented scm --version output.",
+    "Deferred AF_UNIX pair, listen/connect, descriptor transfer, token/data binding, descriptor-type filters, and peer-credential checks with independent Python socket expectations.",
+    "Metadata results are not operation coverage; deferred operations are not passes."
+  ],
+  "exclusions": [
+    "No GNU CLI implements this loadable's SCM_RIGHTS API, so no command-parity case is claimed; Python socket is an adapter oracle, not a GNU command and cannot be substituted as fake parity.",
+    "Actual scm socket and descriptor operations are deferred under the task's safety instruction. Their expected behavior and the disposable Linux VM or reviewed mock needed to test them are recorded per case.",
+    "The suite does not qualify cross-host behavior, real network activity, host credentials, or a physical terminal."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "purpose": "Verify Bash classifies scm as a builtin, matching the loadable registration contract.",
+      "kind": "contract",
+      "script": "type -t scm",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help-contract",
+      "purpose": "Check the Bash help entry exposes each documented verb and the important recv-fd filters without invoking socket operations.",
+      "kind": "contract",
+      "script": "doc=$(help scm)\nif [[ $doc == *'Unix-domain socket FD passing via SCM_RIGHTS.'* &&\n      $doc == *'scm pair [-h FDVAR1] [-h FDVAR2]'* &&\n      $doc == *'scm listen PATH [-h FDVAR]'* &&\n      $doc == *'scm connect PATH [-h FDVAR]'* &&\n      $doc == *'scm send-fd SOCK_FD MSG_FD [DATA]'* &&\n      $doc == *'scm recv-fd SOCK_FD [-h FDVAR] [-V DATAVAR]'* &&\n      $doc == *'--peer-uid UID'* && $doc == *'--token DATA'* &&\n      $doc == *'--fd-regular'* ]]; then\n  printf 'scm help contract ok\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "scm help contract ok\n"
+    },
+    {
+      "id": "version-contract",
+      "purpose": "Verify the documented version metadata output without exercising an scm operation.",
+      "kind": "contract",
+      "script": "scm --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "scm 1.0 (bash-loadable)\n"
+    },
+    {
+      "id": "pair-endpoints",
+      "purpose": "Check the pair verb creates two usable AF_UNIX datagram endpoints and supports binding their descriptor numbers to shell variables.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM or reviewed in-process AF_UNIX socketpair mock. A future case should compare against Python socket.socketpair(AF_UNIX, SOCK_DGRAM), verify distinct open endpoint descriptors and -h variable binding, and check the expected close-on-exec behavior. No scm operation runs in this suite."
+    },
+    {
+      "id": "listen-connect-paths",
+      "purpose": "Check local datagram bind/connect behavior and the listen path rule that only a stale socket may be removed while a non-socket entry is preserved.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM or reviewed AF_UNIX bind/connect mock using only a relative fixture path. A future independent Python socket case should verify datagram delivery, replacement of a stale socket node, and refusal to unlink a regular file or symlink while preserving its contents/target and mode. This loadable-specific socket-path contract has no GNU CLI parity oracle."
+    },
+    {
+      "id": "send-fd-payload",
+      "purpose": "Check send-fd passes a fixture descriptor with SCM_RIGHTS and carries explicit, omitted, and empty DATA bodies according to its documented fallback behavior.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM or reviewed AF_UNIX sendmsg mock, a small regular fixture file, and a Python recvmsg(SCM_RIGHTS) oracle. A future case should verify the received descriptor refers to the fixture and the explicit body is preserved; omitted or empty DATA should produce the documented one-byte F fallback."
+    },
+    {
+      "id": "recv-fd-token-data",
+      "purpose": "Check recv-fd receives a descriptor, binds its number and message body to requested shell variables, accepts a matching token, and closes the received descriptor on token mismatch.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM or reviewed AF_UNIX recvmsg mock paired with an independent Python sendmsg(SCM_RIGHTS) peer and a regular fixture file. Future cases should assert matching-token success, exact -V body binding, mismatch failure, descriptor cleanup, and no host path access."
+    },
+    {
+      "id": "recv-fd-type-filters",
+      "purpose": "Check --fd-regular, --fd-socket, and --fd-tty accept matching received descriptors and reject mismatches while closing rejected descriptors.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM or reviewed AF_UNIX descriptor-injection mock. Use a regular fixture file and a private socket; the tty branch additionally needs a bounded private PTY driver. Compare fstat/isatty results with Python and verify rejected descriptors are closed."
+    },
+    {
+      "id": "recv-fd-peer-credentials",
+      "purpose": "Check the optional peer UID, GID, and PID filters, including mismatches and malformed numeric arguments.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM with controlled same-namespace peer processes or a reviewed getsockopt(SO_PEERCRED) mock that injects fixed credentials. A future test must use only fixture identities and must not inspect host credentials or claim cross-account enforcement from same-UID results."
+    }
+  ]
+}

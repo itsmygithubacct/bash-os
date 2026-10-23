@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "loadable": "genl",
+  "reference": "There is no matching GNU CLI or independent command oracle for this loadable's generic-netlink API (the source catalog records no program/applet counterpart). Runnable expectations are contract checks against Bash's documented type/help builtins and the genl help text documented by the loadable. The ctrl operations are deferred because invoking them would issue NETLINK_GENERIC requests, which this suite is forbidden to perform.",
+  "coverage": [
+    "Executed coverage is Bash availability/help metadata only; no operational behavior is counted as a pass.",
+    "Bash reports genl as a loadable builtin through type metadata.",
+    "Bash help exposes the documented ctrl list, ctrl get name, and ctrl get id forms.",
+    "Help metadata identifies this as a read-only generic-netlink controller reader."
+  ],
+  "exclusions": [
+    "No parity case is claimed because the catalog documents no matching GNU CLI or applet oracle.",
+    "No operation is invoked: even read-only controller queries send NETLINK_GENERIC requests and real kernel state would not be a deterministic independent fixture.",
+    "Deferred operations need a disposable VM with an isolated generic-netlink controller fixture or a reviewed mock that returns deterministic family, operation, capability, and multicast-group attributes."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Verify the Bash metadata contract that genl is registered as a builtin, rather than relying on an external executable in PATH.",
+      "script": "[[ $(type -t genl) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-commands",
+      "kind": "contract",
+      "purpose": "Verify that help advertises each documented controller command form. The required strings are taken from genl's documented interface.",
+      "script": "h=$(help genl)\nfor item in 'genl ctrl list' 'genl ctrl get name NAME' 'genl ctrl get id ID'; do\n  case $h in\n    *\"$item\"*) printf '%s\\n' \"$item\" ;;\n    *) exit 1 ;;\n  esac\ndone",
+      "expected_status": 0,
+      "stdout": "genl ctrl list\ngenl ctrl get name NAME\ngenl ctrl get id ID\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-scope",
+      "kind": "contract",
+      "purpose": "Check the documented command description and read-only controller scope in Bash help metadata.",
+      "script": "h=$(help genl)\ncase $h in\n  *'Generic-netlink controller reader.'*) printf 'Generic-netlink controller reader.\\n' ;;\n  *) exit 1 ;;\nesac\ncase $h in\n  *'Read-only CTRL_CMD_GETFAMILY frontend'*) printf 'Read-only CTRL_CMD_GETFAMILY frontend\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "Generic-netlink controller reader.\nRead-only CTRL_CMD_GETFAMILY frontend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ctrl-list",
+      "kind": "deferred",
+      "purpose": "Exercise CTRL_CMD_GETFAMILY dump formatting across registered families, their command capability flags, and multicast groups.",
+      "reason": "Requires a disposable VM with isolated generic-netlink state or a reviewed NETLINK_GENERIC mock returning deterministic multipart controller responses. Running the query here would perform prohibited network activity and use environment-dependent kernel state."
+    },
+    {
+      "id": "ctrl-get-name",
+      "kind": "deferred",
+      "purpose": "Look up one known fixture family by name and check the returned family metadata and optional operation/group sections.",
+      "reason": "Requires a disposable VM or reviewed generic-netlink mock that registers a known family name and returns deterministic CTRL_CMD_GETFAMILY attributes. No real NETLINK_GENERIC request is run in this suite."
+    },
+    {
+      "id": "ctrl-get-id",
+      "kind": "deferred",
+      "purpose": "Look up one known fixture family by numeric ID and check it formats the same family record as name lookup.",
+      "reason": "Requires a disposable VM or reviewed generic-netlink mock with a known family ID and deterministic controller response. No real NETLINK_GENERIC request is run in this suite."
+    }
+  ]
+}

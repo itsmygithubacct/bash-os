@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "loadable": "top",
+  "reference": "There is no matching GNU CLI for this loadable: procps top is a different implementation, and the project documentation explicitly does not claim procps parity. Runnable contracts use Bash's documented type/help metadata and the loadable's published help text. Future operation references must use an independent encoder based on the documented top contract and Linux proc(5) field positions, with private proc and terminal fixtures; never use this candidate's output as the oracle.",
+  "coverage": [
+    "Bash identifies top as a builtin and resolves it through command -v.",
+    "Bash short synopsis and description metadata match the loadable documentation.",
+    "The loadable's non-operational --help path prints its documented help and usage status.",
+    "Deferred batch snapshots cover sort order, ties, row caps, CPU/memory headers, PID churn, and malformed or missing proc records using a private proc fixture.",
+    "Deferred interactive checks require a private PTY; mutation prompts require a syscall mock that records and blocks kill and priority changes.",
+    "Runnable option-parser rejection only: delay bounds, malformed count, negative row cap, unknown sort, missing option argument and unexpected operand. No snapshot operation coverage."
+  ],
+  "exclusions": [
+    "No live /proc observation, process signal, or priority change is attempted.",
+    "No procps output comparison is claimed because procps top is not an independent implementation of this documented contract.",
+    "Operation cases remain deferred until a disposable VM or reviewed private proc/PTY/syscall mocks are available."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "purpose": "Verify through Bash's type metadata that the statically available top command is a builtin, as required for a bash-os loadable.",
+      "kind": "contract",
+      "script": "type -t top",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command-v-resolution",
+      "purpose": "Verify Bash command lookup resolves top by its builtin name even with the candidate's empty executable PATH.",
+      "kind": "contract",
+      "script": "command -v top",
+      "expected_status": 0,
+      "stdout": "top\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-synopsis",
+      "purpose": "Check Bash help -s reports the registered short documentation string from the loadables catalog (top|top).",
+      "kind": "contract",
+      "script": "help -s top",
+      "expected_status": 0,
+      "stdout": "top: top\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-description",
+      "purpose": "Check Bash help's short description against the first line of the documented top help text.",
+      "kind": "contract",
+      "script": "help -d top",
+      "expected_status": 0,
+      "stdout": "top - Interactive process viewer over /proc (top(1) shape).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-full-documentation",
+      "purpose": "Check Bash help exposes the documented options, key bindings, columns, and CPU accounting note for top.",
+      "kind": "contract",
+      "script": "help top",
+      "expected_status": 0,
+      "stdout": "top: top\n    Interactive process viewer over /proc (top(1) shape).\n    \n        top [--once|-b] [-n COUNT] [-d SEC] [-o COL] [-r N]\n    \n        --once / -b   one snapshot, write to stdout, exit (batch).\n        -n COUNT      run COUNT interactive redraws then exit (0: unlimited).\n        -d SEC        refresh interval (integer 1..3599 seconds, default 2).\n        -o COL        initial sort: cpu | mem | pid | time (default cpu).\n        -r N          cap process rows shown (0: available terminal rows).\n    \n    Interactive keys:\n        q / ESC       exit.\n        space         redraw immediately.\n        Up / Down     scroll the process list one row.\n        PgUp / PgDn   scroll the process list one page.\n        Home / End    jump to first / last process.\n        n             prompt for new refresh interval.\n        o             cycle sort column.\n        k             prompt for PID + signal, send signal.\n        r             prompt for PID + nice delta, renice.\n    \n    Header lines: load averages, process count, sort column, refresh;\n    Mem total/used/avail (kB); Swap total/used/free (kB). Row columns:\n    PID USER %CPU RSS S COMMAND. %CPU is computed across two snapshots\n    (refresh interval in interactive mode, 200ms in --once).\n    CPU percentages are a share of total machine time; ties use descending PID.\n    New/reused PIDs have zero CPU delta until their next observation.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command-help-path",
+      "purpose": "Exercise top's documented --help fast path, which prints help without sampling processes and returns the usage status.",
+      "kind": "contract",
+      "script": "top --help",
+      "expected_status": 2,
+      "stdout": "Interactive process viewer over /proc (top(1) shape).\n\n    top [--once|-b] [-n COUNT] [-d SEC] [-o COL] [-r N]\n\n    --once / -b   one snapshot, write to stdout, exit (batch).\n    -n COUNT      run COUNT interactive redraws then exit (0: unlimited).\n    -d SEC        refresh interval (integer 1..3599 seconds, default 2).\n    -o COL        initial sort: cpu | mem | pid | time (default cpu).\n    -r N          cap process rows shown (0: available terminal rows).\n\nInteractive keys:\n    q / ESC       exit.\n    space         redraw immediately.\n    Up / Down     scroll the process list one row.\n    PgUp / PgDn   scroll the process list one page.\n    Home / End    jump to first / last process.\n    n             prompt for new refresh interval.\n    o             cycle sort column.\n    k             prompt for PID + signal, send signal.\n    r             prompt for PID + nice delta, renice.\n\nHeader lines: load averages, process count, sort column, refresh;\nMem total/used/avail (kB); Swap total/used/free (kB). Row columns:\nPID USER %CPU RSS S COMMAND. %CPU is computed across two snapshots\n(refresh interval in interactive mode, 200ms in --once).\nCPU percentages are a share of total machine time; ties use descending PID.\nNew/reused PIDs have zero CPU delta until their next observation.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "batch-proc-snapshots",
+      "purpose": "Compare deterministic --once/-b/--batch output, CPU and memory sorting, PID tie breaks, and row caps against an independent proc-fixture encoder.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed interposition mock that redirects every /proc directory scan and file open to two small private snapshots (stat, status, cmdline, meminfo, loadavg). The future oracle must independently encode proc(5) fields and the documented headers/rows; live host proc data is not a valid reference."
+    },
+    {
+      "id": "proc-record-and-pid-lifecycle",
+      "purpose": "Check malformed/truncated and vanishing records, empty process lists, CPU counter rollback, guest accounting, and new or reused PIDs with independently specified records.",
+      "kind": "deferred",
+      "reason": "Requires a private proc interposition fixture with controllable snapshots and directory entries. The fixture must not expose host /proc; expected inclusion, identity, and CPU deltas must be computed independently from proc(5) field positions and the documented top rules."
+    },
+    {
+      "id": "interactive-pty-contract",
+      "purpose": "Check bounded redraw count, delay and sort prompts, scrolling keys, resize behavior, empty-list recovery, exit keys, and terminal/shell trap restoration.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or private PTY driver plus the same controlled proc snapshots. A cell decoder must independently interpret the emitted ECMA-48 subset; no real user's terminal or host process table may be used."
+    },
+    {
+      "id": "mutation-prompts-mocked",
+      "purpose": "Check PID/signal and PID/nice input validation and request construction without sending a signal or changing any process priority.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM/private PTY and a reviewed syscall mock that intercepts kill, getpriority, and setpriority, records arguments, and never forwards calls to the kernel."
+    },
+    {
+      "id": "batch-failure-cleanup",
+      "purpose": "Check missing proc input, output write failure, repeated invocations, and descriptor/state cleanup while preserving the documented failure statuses.",
+      "kind": "deferred",
+      "reason": "Requires a private proc fixture and bounded output-failure injection in a disposable VM (for example, a controlled failing sink); it must not read host proc data or use a host device path."
+    },
+    {
+      "id": "invalid-delay-zero",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -d 0",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-delay-upper",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -d 3600",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-count",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -n nope",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-rows",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -r -1",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-sort",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -o unknown",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "missing-delay",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top -d",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unexpected-operand",
+      "kind": "contract",
+      "purpose": "Reject invalid documented options before any procfs sampling or interactive action.",
+      "script": "top fixture",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

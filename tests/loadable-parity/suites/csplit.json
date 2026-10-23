@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "loadable": "csplit",
+  "reference": "GNU coreutils csplit, invoked from the runner's independent system PATH on the same fixture scripts; the runner checks expected status, stdout, stderr policy, and the resulting private file tree.",
+  "coverage": [
+    "Absolute line-number split points, default byte-count output, and named output pieces.",
+    "Regex splits with repetition and --suppress-matched.",
+    "Negative regex offsets and skip patterns.",
+    "Suffix digit width, printf suffix formats, and zero-length piece elision.",
+    "Regex repetition until no further match is found.",
+    "Failure cleanup by default and output retention with -k.",
+    "Fresh redirected stdin across repeated invocations in one shell."
+  ],
+  "exclusions": [
+    "Large inputs, locale-specific regex behavior, malformed option combinations, and filesystem permission failures are outside this compact suite.",
+    "The case count exceeds the preferred range to preserve existing cases and isolate additional boundaries and regressions."
+  ],
+  "cases": [
+    {
+      "id": "line-number-counts",
+      "kind": "parity",
+      "purpose": "Check the standard absolute line split, default byte counts, prefix naming, and complete output bytes against GNU csplit.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'first\\nsecond\\nthird\\nfourth\\n' > data; csplit -f line- data 3"
+    },
+    {
+      "id": "regex-repeat-suppress",
+      "kind": "parity",
+      "purpose": "Check repeated regex split points while omitting each matched separator line.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'head\\nSEP\\nmiddle\\nSEP\\ntail\\n' > data; csplit -s --suppress-matched -f sec- data '/^SEP$/' '{1}'"
+    },
+    {
+      "id": "negative-regex-offset",
+      "kind": "parity",
+      "purpose": "Check the documented negative regex offset, which places the split before a line preceding the match.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'head\\nbody\\npre-end\\nEND\\ntail\\n' > data; csplit -s -f offset- data '/^END$/-1'"
+    },
+    {
+      "id": "skip-pattern",
+      "kind": "parity",
+      "purpose": "Check a skip pattern followed by a regex split, including which lines remain in the resulting pieces.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'discard\\nDROP\\nkeep-a\\nEND\\nkeep-b\\n' > data; csplit -s -f section- data '%^DROP$%' '/^END$/'"
+    },
+    {
+      "id": "suffix-digits",
+      "kind": "parity",
+      "purpose": "Check -n digit width and -f prefix on output piece names.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\n' > data; csplit -s -n 3 -f part- data 3"
+    },
+    {
+      "id": "suffix-format",
+      "kind": "parity",
+      "purpose": "Check GNU's printf-style suffix format on generated piece names.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\n' > data; csplit -s -f piece- -b '.%03d.txt' data 3"
+    },
+    {
+      "id": "elide-empty-piece",
+      "kind": "parity",
+      "purpose": "Check --elide-empty-files when the first regex matches the first input line.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'START\\nbody\\n' > data; csplit -s -z -f z- data '/^START$/'"
+    },
+    {
+      "id": "regex-repeat-until-end",
+      "kind": "parity",
+      "purpose": "Check {*} repeated regex splitting through all matching separators and the final unmatched tail.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'a\\nSEP\\nb\\nSEP\\nc\\n' > data; csplit -s -f loop- data '/^SEP$/' '{*}'"
+    },
+    {
+      "id": "failure-cleans-pieces",
+      "kind": "parity",
+      "purpose": "Check GNU's nonzero status and default removal of pieces after a later pattern fails.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\n' > data; set +e; csplit -s -f fail- data 3 '/^MISSING$/'; result=$?; set -e; exit \"$result\""
+    },
+    {
+      "id": "failure-keeps-pieces",
+      "kind": "parity",
+      "purpose": "Check -k retaining pieces made before and during a later pattern failure.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\n' > data; set +e; csplit -s -k -f keep- data 3 '/^MISSING$/'; result=$?; set -e; exit \"$result\""
+    },
+    {
+      "id": "repeated-stdin-redirection",
+      "kind": "parity",
+      "purpose": "Check that two csplit calls in one persistent shell each read a fresh copy of the redirected input and write independent pieces.",
+      "requires": [
+        "csplit"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf 'one\\ntwo\\nthree\\n' > data; csplit -s -f first- - 2 < data; csplit -s -f again- - 2 < data"
+    },
+    {
+      "id": "unterminated-binary-records",
+      "kind": "parity",
+      "purpose": "Line splits preserve embedded NUL and an unterminated final record including exact byte counts.",
+      "script": "printf 'one\\000tail\\nlast' > data\ncsplit -f piece- data 2",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "csplit"
+      ]
+    },
+    {
+      "id": "missing-input",
+      "kind": "parity",
+      "purpose": "A missing relative input fails without output pieces.",
+      "script": "csplit absent 2",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "csplit"
+      ]
+    }
+  ]
+}

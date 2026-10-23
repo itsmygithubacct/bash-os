@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "loadable": "pty",
+  "reference": "Bash metadata and documented pty contracts. Private regular-file descriptors independently fix the negative isatty and successful/duplicate-close outcomes. Terminal/session behavior remains deferred; no external GNU PTY API parity is claimed.",
+  "coverage": [
+    "Bash type -t and type identify pty as an enabled shell builtin.",
+    "Bash help exposes the pty documentation and lists each public subcommand family.",
+    "Actual private-descriptor nonterminal classification, closure, duplicate-close error and descriptor parse rejection."
+  ],
+  "exclusions": [
+    "No GNU command provides this loadable's PTY/session API; no operational parity oracle is available.",
+    "Session/TTY allocation, positive terminal classification, child PTY lifecycle and serial line-discipline behavior remain deferred. Only ordinary private-file descriptors are used by runnable operations."
+  ],
+  "cases": [
+    {
+      "id": "pty-type-kind",
+      "kind": "contract",
+      "purpose": "Bash type -t must classify the statically enabled pty loadable as a builtin.",
+      "script": "type -t pty",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-type-description",
+      "kind": "contract",
+      "purpose": "Bash type must describe pty as a shell builtin, not as an external executable.",
+      "script": "type pty",
+      "expected_status": 0,
+      "stdout": "pty is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-help-subcommands",
+      "kind": "contract",
+      "purpose": "The Bash help entry must document every public subcommand family declared by the loadable.",
+      "script": "doc=$(help pty)\nfor text in \\\n  'pty setsid' \\\n  'pty open-tty PATH' \\\n  'pty isatty FD' \\\n  'pty tty-name FD' \\\n  'pty foreground PGRP' \\\n  'pty close FD' \\\n  'pty spawn FDVAR PIDVAR CMD' \\\n  'pty waitpid PID' \\\n  'pty echo FD on|off' \\\n  'pty resize FD' \\\n  'pty set-ldisc LDISC DEVICE'; do\n  case $doc in\n    *\"$text\"*) ;;\n    *) exit 1 ;;\n  esac\ndone\nprintf 'all documented subcommands present\\n'",
+      "expected_status": 0,
+      "stdout": "all documented subcommands present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-session-control-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise setsid, open-tty, and foreground against a controlled session and controlling terminal.",
+      "reason": "Requires a future disposable Linux VM with a private PTY/TTY fixture and session support. That fixture must verify setsid, TIOCSCTTY acquisition, FDVAR versus stdio behavior, and foreground process-group assignment without opening a host console. No controlling-terminal or session operation is run by this suite."
+    },
+    {
+      "id": "pty-terminal-io-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise isatty, tty-name, close, echo, and resize on a private PTY pair.",
+      "reason": "Requires a future disposable VM or reviewed PTY mock that provides a private master/slave pair, stable tty-name, and observable termios and winsize state. It must verify terminal classification, descriptor closure, echo toggling, geometry updates, and any SIGWINCH effect without using a host terminal. No terminal state mutation is invoked."
+    },
+    {
+      "id": "pty-spawn-waitpid-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise spawn and waitpid with bounded child output, exit status, and descriptor cleanup.",
+      "reason": "Requires a future disposable VM with a private PTY driver and process namespace, or a reviewed syscall mock for PTY allocation and child handoff. A bounded fixture should run only a fixed harmless child, check master/slave wiring, captured output, exit-status propagation, repeated waits, and cleanup. This suite must not start pty spawn or waitpid operations here."
+    },
+    {
+      "id": "pty-serial-ldisc-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise set-ldisc validation and line-discipline changes against an isolated serial endpoint.",
+      "reason": "Requires a reviewed ioctl mock or a disposable VM with a dedicated virtual serial endpoint and narrowly scoped capability support. The future fixture must validate termios options and TIOCSETD on that virtual endpoint only; no real device or privileged operation is suitable for this runner."
+    },
+    {
+      "id": "regular-file-is-not-terminal",
+      "kind": "contract",
+      "purpose": "The assigned isatty interface classifies a private regular-file descriptor as nonterminal.",
+      "script": ": > ordinary\nexec 9<ordinary\npty isatty 9",
+      "expected_status": 1,
+      "stderr": "empty",
+      "stdout": ""
+    },
+    {
+      "id": "close-private-descriptor",
+      "kind": "contract",
+      "purpose": "Close an explicitly opened private descriptor and verify a second close fails while the file remains intact.",
+      "script": "exec 9>ordinary\nprintf saved >&9\npty close 9\nif pty close 9; then rc=0; else rc=$?; fi\nprintf 'second-close=%s\\n' \"$rc\"\nexec 9<ordinary\nvalue=$(<ordinary)\n[[ $value == saved ]]\nexec 9<&-\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "second-close=1\n"
+    },
+    {
+      "id": "invalid-close-operand",
+      "kind": "contract",
+      "purpose": "Reject a nonnumeric descriptor before closing anything.",
+      "script": "pty close invalid",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

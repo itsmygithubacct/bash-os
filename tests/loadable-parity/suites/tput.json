@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "loadable": "tput",
+  "reference": "Independent system ncurses tput in the mandatory isolated reference namespace, using the installed entries for all seven curated terminal names. Raw byte/status/tree evidence is retained. Custom query, sidecar, listing, info and variable binding are independent contracts, not GNU parity.",
+  "coverage": [
+    "xterm control strings, colors and numeric capabilities",
+    "Terminal-specific attribute resets, standout modes, numeric absence and longname bytes across all seven curated entries",
+    "Parameterized capabilities with zero arguments (raw templates) and partial/full numeric arguments",
+    "Twelve common boolean capabilities, true/false status and empty output, across all curated entries",
+    "Leading -T, attached -TTERM, repeated overrides, -- and environment dimension behavior",
+    "Usage/missing TERM, unknown capability/terminal and known unavailable capability statuses",
+    "Custom sidecar escape decoding, parameter expansion, listing, info, -T selection and -V variable binding"
+  ],
+  "exclusions": [
+    "Metadata is excluded from operation coverage. Version/implementation identity is a custom contract, not an ncurses byte-equality requirement.",
+    "The curated data is qualified against the installed independent reference entries, not arbitrary compiled terminfo databases or user database replacements.",
+    "Only the twelve listed common booleans are supported; the complete standard/extended capability namespace is outside this suite.",
+    "init/reset terminal driver actions, serial padding timing, live dimensions, hardware and visible screen effects remain deferred."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash identifies tput as a builtin and its registered help is available, without invoking a terminal capability.",
+      "script": "trap 'rm -f discard.out' EXIT\ntype -t tput\nhelp tput >discard.out && printf 'help available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "xterm-common-capabilities",
+      "kind": "parity",
+      "purpose": "Compare xterm dimensions, color count, bold, attribute reset, cursor addressing, erase and basic/indexed color encodings.",
+      "script": "TERM=xterm-256color tput cols\nTERM=xterm-256color tput lines\nTERM=xterm-256color tput colors\nTERM=xterm-256color tput bold\nTERM=xterm-256color tput sgr0\nTERM=xterm-256color tput cup 2 4\nTERM=xterm-256color tput el\nprintf '\\n'\nTERM=xterm-256color tput setaf 9\nTERM=xterm-256color tput setab 4\nTERM=xterm-256color tput setaf 196\nprintf '\\n'",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal-profiles",
+      "kind": "parity",
+      "purpose": "Compare attribute reset and standout bytes, numeric values (including absent -1), and longname without a trailing newline across every curated terminal. Known absent strings return 1 with no output.",
+      "script": "for term in xterm-256color xterm screen-256color tmux-256color linux vt100 dumb; do\n for cap in sgr0 smso rmso colors cols lines longname; do\n  rc=0; TERM=$term tput \"$cap\" > \"$term.$cap\" || rc=$?\n  printf '%s %s %s\\n' \"$term\" \"$cap\" \"$rc\"\n done\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "clear-profiles",
+      "kind": "parity",
+      "purpose": "Compare terminal-specific clear bytes including scrollback clearing; dumb lacks clear and is checked in the error case. Output stays in isolated private files.",
+      "script": "for term in xterm-256color xterm screen-256color tmux-256color linux vt100; do\n TERM=$term tput clear > \"$term.clear\"\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-parameter-templates",
+      "kind": "parity",
+      "purpose": "Compare unexpanded raw templates for every existing parameterized capability on all profiles, and no-output status 1 where VT100/dumb lack the capability. This qualifies per-profile data instead of copying xterm to every name.",
+      "script": "for term in xterm-256color xterm screen-256color tmux-256color linux vt100 dumb; do\n for cap in cup cuu cud cuf cub sgr setaf setab hpa vpa ich dch dl il; do\n  rc=0; TERM=$term tput \"$cap\" > \"$term.$cap\" || rc=$?\n  printf '%s %s %s\\n' \"$term\" \"$cap\" \"$rc\"\n done\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "partial-and-full-parameters",
+      "kind": "parity",
+      "purpose": "Compare cup with its missing second argument defaulting to zero, explicit zero coordinates, motion/edit counts, colors and profile-specific sgr evaluation.",
+      "script": "for term in xterm-256color xterm screen-256color tmux-256color linux vt100; do\n TERM=$term tput cup 2 > \"$term.partial\"\n TERM=$term tput cup 0 0 > \"$term.origin\"\n TERM=$term tput cuu 3 > \"$term.motion\"\n TERM=$term tput sgr 1 1 0 1 1 1 1 0 1 > \"$term.sgr\"\n if [[ $term != vt100 ]]; then\n  TERM=$term tput hpa 2 > \"$term.hpa\"\n  TERM=$term tput vpa 3 > \"$term.vpa\"\n  TERM=$term tput ich 2 > \"$term.ich\"\n  TERM=$term tput setaf 4 > \"$term.fg\"\n  TERM=$term tput setab 2 > \"$term.bg\"\n fi\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "boolean-profile-matrix",
+      "kind": "parity",
+      "purpose": "Compare true/false boolean statuses with no capability output for twelve common boolean codes across all seven profiles.",
+      "script": "for term in xterm-256color xterm screen-256color tmux-256color linux vt100 dumb; do\n for cap in am bw xenl bce km mir msgr xon ccc hc npc hs; do\n  rc=0; TERM=$term tput \"$cap\" > \"$term.$cap\" || rc=$?\n  printf '%s %s %s\\n' \"$term\" \"$cap\" \"$rc\"\n done\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal-option",
+      "kind": "parity",
+      "purpose": "Compare separate/attached/repeated -T and --, its override of TERM and dimension environment variables, and ordinary dimensions without -T.",
+      "script": "TERM=dumb tput -T xterm-256color bold\nTERM=dumb tput -Tlinux -Txterm colors\nTERM=dumb tput -T linux -T xterm-256color -- colors\nCOLUMNS=99 LINES=33 tput -Txterm cols\nCOLUMNS=99 LINES=33 tput -T xterm lines\nCOLUMNS=99 LINES=33 TERM=xterm tput cols\nCOLUMNS=99 LINES=33 TERM=xterm tput lines",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "errors-and-precedence",
+      "kind": "parity",
+      "purpose": "Validate documented error statuses explicitly: 2 usage/missing TERM, 3 unknown terminal (before checking capability), 4 unknown capability. Diagnostic wording is intentionally unconstrained; stderr remains captured by the harness.",
+      "script": "check_status () {\n expected=$1; shift\n rc=0; \"$@\" || rc=$?\n printf '%s\\n' \"$rc\"\n [[ $rc -eq $expected ]]\n}\nexport TERM=xterm-256color\ncheck_status 4 tput no_such_capability\nTERM=parity-no-such-terminal check_status 3 tput cols\nTERM=parity-no-such-terminal check_status 3 tput no_such_capability\nunset TERM\ncheck_status 2 tput bold\nTERM= check_status 2 tput bold\ncheck_status 2 tput -T\ncheck_status 2 tput -Q\ncheck_status 2 tput -T xterm\nTERM=dumb check_status 2 tput clear",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "known-but-unavailable",
+      "kind": "parity",
+      "purpose": "Known absent strings and false booleans return status 1, without output or diagnostics; explicitly validate each individual status.",
+      "script": "rc=0; TERM=dumb tput sgr0 || rc=$?\n[[ $rc -eq 1 ]]\nprintf \"%s\\n\" \"$rc\"\nTERM=xterm-256color tput bw",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "sidecar-query-list-info",
+      "kind": "contract",
+      "purpose": "Preserve independent custom sidecar contracts: explicit -T and query -T selection, -V binding without output, cap-list, info, longname newline and sidecar expansion without arguments. A sidecar named xterm does not override a curated built-in entry, as before.",
+      "script": "printf '%s\\n' 'name=Fixture' 'cursor=\\E[%i%p1%d;%p2%dH' 'literal=A\\nB\\tC' 'cols=90' > custom\nexport BASHTPUT_TERMINFO_DIR=.\nexport TERM=dumb\ntput -T custom cursor 1 2\nprintf '\\n'\ntput query literal -T custom -V value\nprintf '%s\\n' \"$value\"\ntput cap-list -T custom -V names\nprintf '%s\\n' \"$names\"\ntput info -T custom\ntput -T custom longname\ntput -T custom cursor\nprintf '\\n'\nprintf '%s\\n' 'bold=SIDE' > xterm\ntput -T xterm bold\nprintf '\\n'\nentries=$(tput entry-list)\n[[ $entries == *custom* ]]\nprintf \"listed\\n\"\ntput info -T xterm\ntput info -T dumb",
+      "expected_status": 0,
+      "stdout": "\u001b[2;3H\nA\nB\tC\ncursor literal cols\nname=Fixture\ncols=90\nFixture\n\u001b[1;1H\n\u001b[1m\nlisted\nname=xterm\ncols=80\nlines=24\ncolors=8\nname=dumb\ncols=80\nlines=24\ncolors=-1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "custom-query-errors-and-boolean",
+      "kind": "contract",
+      "purpose": "Custom query recognizes boolean aliases/status and rejects incomplete option operands with usage status 2; variable binding for ordinary capabilities remains supported.",
+      "script": "tput query auto_right_margin -T xterm\nrc=0; tput query auto_left_margin -T xterm || rc=$?\n[[ $rc -eq 1 ]]\nprintf '%s\\n' \"$rc\"\nrc=0; tput query bold -T || rc=$?\n[[ $rc -eq 2 ]]\nprintf '%s\\n' \"$rc\"\ntput query bold -T xterm -V style\nprintf '%s\\n' \"$style\"\ntput query cup -T xterm -1 -2\nprintf \"\\n\"\nrc=0; tput cap-list -T parity-no-such-terminal || rc=$?\n[[ $rc -eq 3 ]]\nprintf \"%s\\n\" \"$rc\"",
+      "expected_status": 0,
+      "stdout": "1\n2\n\u001b[1m\n\u001b[0;-1H\n3\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "private-pty-terminal-integration",
+      "kind": "deferred",
+      "purpose": "Validate terminal-size queries and the visible effect of emitted control strings in a controlled PTY session.",
+      "reason": "Requires a future disposable VM or isolated PTY mock with a fixed xterm-256color terminfo entry, a controlled window size, and a terminal emulator/driver to observe the resulting screen state. The current harness captures stdout with no controlling terminal, so this integration behavior is not executed or counted as a pass."
+    },
+    {
+      "id": "compiled-terminfo",
+      "kind": "deferred",
+      "purpose": "Full compiled terminfo loading, arbitrary user database replacements, aliases, extended capabilities and padding timing need separate implementation and qualification; this command intentionally preserves its custom text sidecar interface.",
+      "reason": "Requires a future disposable VM with a version-pinned compiled terminfo database and independent ncurses reader. Arbitrary database parsing and padding timing are not qualified by the curated byte fixtures."
+    },
+    {
+      "id": "hardware-init-reset",
+      "kind": "deferred",
+      "purpose": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures.",
+      "reason": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures."
+    }
+  ]
+}

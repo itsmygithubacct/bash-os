@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "loadable": "base64",
+  "reference": "GNU coreutils base64, invoked by the system Bash with the same fixture script and a normal system PATH; the documented RFC 4648/GNU behavior is the independent oracle. Candidate execution uses the provided runner with an empty executable PATH.",
+  "coverage": [
+    "Default 76-column wrapping at a line boundary using stdin.",
+    "Binary-safe encoding and -w0 output without a final newline.",
+    "Custom non-default wrapping and the long --wrap spelling.",
+    "Binary-safe decoding of padded data.",
+    "Concatenated padded groups and LF-separated input from a relative file.",
+    "GNU-compatible unpadded final groups of two and three characters.",
+    "Long --decode and --ignore-garbage options.",
+    "Malformed input status, diagnostic presence, and already-decoded output.",
+    "Invalid wrap-size status and diagnostic presence.",
+    "-- handling for a relative filename beginning with a dash."
+  ],
+  "exclusions": [
+    "Not a complete GNU option or diagnostic-wording test; diagnostic text may vary.",
+    "Large streaming loads, signals, output-device failures, and locale-specific behavior are outside this bounded suite."
+  ],
+  "cases": [
+    {
+      "id": "encode_default_wrap_boundary",
+      "kind": "parity",
+      "purpose": "Check stdin encoding with GNU's default 76-column wrapping when 58 input bytes produce output beyond one line.",
+      "script": "printf '%058d' 0 | base64",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "encode_binary_no_wrap",
+      "kind": "parity",
+      "purpose": "Check binary input containing NUL and high bytes with -w0, including the documented absence of a trailing newline.",
+      "script": "printf '\\000\\001\\376\\377z' | base64 -w0",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "encode_custom_wrap_and_long_option",
+      "kind": "parity",
+      "purpose": "Check --wrap with a non-default seven-column width, plus long-option width zero and its no-newline behavior.",
+      "script": "printf 'abcdefghijklmnop' | base64 --wrap=7; printf '|'; printf 'xyz' | base64 --wrap=0; printf '|';",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_binary_padded",
+      "kind": "parity",
+      "purpose": "Check that padded decoding preserves NUL, high-bit, and ordinary bytes exactly.",
+      "script": "printf 'AAH+/3o=' | base64 --decode",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_concatenated_groups_file",
+      "kind": "parity",
+      "purpose": "Check GNU-compatible adjacent padded groups and LF handling when the encoded data comes from a relative file.",
+      "script": "printf 'YQ==Yg==\\nY2Q=' > encoded; base64 -d encoded",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_unpadded_final_groups",
+      "kind": "parity",
+      "purpose": "Check GNU-compatible incomplete final groups with two and three Base64 characters.",
+      "script": "printf 'YQ' | base64 -d; printf '|'; printf 'YWI' | base64 -d; printf '|';",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_ignore_garbage",
+      "kind": "parity",
+      "purpose": "Check long decode and ignore-garbage options with embedded whitespace and punctuation while preserving decoded bytes.",
+      "script": "printf 'Y Q!I=' | base64 --decode --ignore-garbage",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_invalid_partial_output",
+      "kind": "parity",
+      "purpose": "Check that incomplete padding is rejected with nonzero status and a diagnostic after already-decoded bytes are emitted.",
+      "script": "printf 'YQ=' | base64 --decode",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "reject_invalid_wrap_width",
+      "kind": "parity",
+      "purpose": "Check nonzero status and a diagnostic for a negative --wrap width.",
+      "script": ": > empty-input\nbase64 --wrap=-1 <empty-input",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "option_terminator_dash_file",
+      "kind": "parity",
+      "purpose": "Check -- option termination and opening a relative input file whose name begins with a dash.",
+      "script": "printf '\\377x' > ./-payload; base64 -- -payload",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "empty-input-and-option-reset",
+      "kind": "parity",
+      "purpose": "Empty encoding/decoding and same-shell decode-to-encode option reset preserve exact bytes.",
+      "script": ": > empty\nbase64 empty\nbase64 -d empty\nprintf YQ== > encoded\nbase64 -d encoded\nprintf xyz > plain\nbase64 plain",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "missing-file-error",
+      "kind": "parity",
+      "purpose": "A missing private file fails with a diagnostic.",
+      "script": "base64 missing",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "base64"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "loadable": "fifo",
+  "reference": "No GNU command implements this process-local shell queue; expected values are derived from the published docs/sol-fifo.md API contract, the help text contract, and an independent abstract list plus peek-cursor model. These are contract tests, not GNU CLI parity claims.",
+  "coverage": [
+    "Bash builtin availability and the documented help interface",
+    "Decimal signed-int input, FIFO order, depth, and non-consuming peek",
+    "Successful push, unget, pull, and clear cursor resets",
+    "Empty and exhausted status 1 behavior",
+    "Atomic rejection of malformed batches and request status 2 behavior",
+    "INT_MIN/INT_MAX, decimal leading zeros, and invalid integer forms",
+    "Capacity 64, all-values ordering across ring wrap, and overflow rejection",
+    "Subshell state isolation",
+    "Queue and cursor retention after closed-stdout write errors"
+  ],
+  "exclusions": [
+    "There is no equivalent GNU/POSIX external command, so no cases are labeled parity.",
+    "A true ENOSPC or partial-write failure at fflush is deferred because it needs a controlled failing-writer mock; absolute device paths are outside this fixture scope.",
+    "Terminal input decoding and integration with an interactive application are outside this in-memory queue API."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash advertises fifo as a builtin, as documented by the loadable API.",
+      "script": "type -t fifo",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Check that Bash help exposes the documented FIFO operations, numeric rules, cursor behavior, status codes, write-failure contract, and shell-state scope; formatting is left to Bash's help builtin.",
+      "script": "help_text=$(help fifo)\nrequired=(\n  'Process-local 64-entry input FIFO of signed int events.'\n  'fifo push INT [INT...]'\n  'fifo pull'\n  'fifo peek'\n  'fifo unget INT [INT...]'\n  'fifo clear'\n  'fifo depth'\n  'push and unget preserve argument order and reject a whole invalid batch.'\n  'Successful push, unget, pull and clear reset the peek cursor to the head.'\n  'depth and failed operations preserve the cursor; exhausted peek returns 1.'\n  'Status: 0 success; 1 empty/exhausted or output error; 2 invalid request.'\n  'Failed output preserves the queue and cursor (partial output is possible).'\n  'State persists in this shell; subshells inherit a private copy.'\n)\nfor fragment in \"${required[@]}\"; do\n  [[ $help_text == *\"$fragment\"* ]] || exit 92\ndone\nprintf 'documented-help-contract=present\\n'",
+      "expected_status": 0,
+      "stdout": "documented-help-contract=present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fifo-order-and-peek",
+      "kind": "contract",
+      "purpose": "Exercise append order, decimal interpretation of signed and zero-padded values, independent peek advancement, pull consumption, and depth.",
+      "script": "fifo push -2 +03 0004 -0 010\nfifo depth\nfifo peek\nfifo peek\nfifo pull\nfifo depth\nfifo pull\nfifo pull\nfifo pull\nfifo pull\nfifo depth",
+      "expected_status": 0,
+      "stdout": "5\n-2\n3\n-2\n4\n3\n4\n0\n10\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "mutation-cursor-resets",
+      "kind": "contract",
+      "purpose": "Verify successful push and unget rewind peek to the current head, pull rewinds after consuming, and clear resets an occupied queue and is safe when repeated.",
+      "script": "fifo push 10 20 30\nfifo peek\nfifo peek\nfifo push 40\nfifo peek\nfifo unget 1 2\nfifo peek\nfifo pull\nfifo peek\nfifo depth\nfifo clear\nfifo clear\nfifo depth\nif fifo peek; then rc=0; else rc=$?; fi\nprintf 'empty-after-clear=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "10\n20\n10\n1\n1\n2\n5\n0\nempty-after-clear=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-and-atomic-failures",
+      "kind": "contract",
+      "purpose": "Check empty and exhausted operations return 1, failed multi-value push/unget batches return 2 without changing queue contents or the peek cursor, and depth does not rewind an exhausted cursor.",
+      "script": "show_status() { local label=$1; shift; local rc; if \"$@\"; then rc=0; else rc=$?; fi; printf '%s=%d\\n' \"$label\" \"$rc\"; }\nshow_status empty-pull fifo pull\nshow_status empty-peek fifo peek\nfifo push 10 20\nfifo peek\nshow_status invalid-push fifo push 30 bad 40\nfifo peek\nshow_status exhausted-peek fifo peek\nshow_status exhausted-peek-again fifo peek\nfifo depth\nshow_status invalid-unget fifo unget 5 bad 6\nshow_status cursor-still-exhausted fifo peek\nfifo pull\nfifo peek",
+      "expected_status": 0,
+      "stdout": "empty-pull=1\nempty-peek=1\n10\ninvalid-push=2\n20\nexhausted-peek=1\nexhausted-peek-again=1\n2\ninvalid-unget=2\ncursor-still-exhausted=1\n10\n20\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "integer-bounds-and-request-errors",
+      "kind": "contract",
+      "purpose": "Check both C int limits, decimal leading zeros, and status 2 for missing values, overflow, leading whitespace, trailing text, unknown verbs, and extra arguments; rejected requests leave the valid queue intact.",
+      "script": "show_status() { local label=$1; shift; local rc; if \"$@\"; then rc=0; else rc=$?; fi; printf '%s=%d\\n' \"$label\" \"$rc\"; }\nfifo push -2147483648 2147483647 +0007 -0 010\nshow_status missing-push fifo push\nshow_status integer-overflow fifo push 99 2147483648\nshow_status leading-space fifo push ' 1'\nshow_status trailing-text fifo unget 6x\nshow_status unknown-verb fifo unknown\nshow_status extra-depth-argument fifo depth extra\nshow_status extra-help-argument fifo --help extra\nfifo depth\nfifo pull\nfifo pull\nfifo pull\nfifo pull\nfifo pull\nfifo depth",
+      "expected_status": 0,
+      "stdout": "missing-push=2\ninteger-overflow=2\nleading-space=2\ntrailing-text=2\nunknown-verb=2\nextra-depth-argument=2\nextra-help-argument=2\n5\n-2147483648\n2147483647\n7\n0\n10\n0\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "capacity-wrap-and-atomic-overflow",
+      "kind": "contract",
+      "purpose": "Move the empty ring head to offset 60, fill all 64 slots across wraparound, reject an over-capacity batch atomically, and independently check every dequeued value in order.",
+      "script": "nums=()\nfor ((i=0; i<60; i++)); do nums+=(\"$i\"); done\nfifo push \"${nums[@]}\"\nfor ((i=0; i<60; i++)); do\n  fifo pull > .fifo-event\n  IFS= read -r got < .fifo-event\n  [[ $got == \"$i\" ]] || exit 70\ndone\nnums=()\nfor ((i=0; i<64; i++)); do nums+=(\"$((100+i))\"); done\nfifo push \"${nums[@]}\"\nif fifo push 200 201; then rc=0; else rc=$?; fi\nprintf 'over-capacity=%d\\n' \"$rc\"\nfifo depth\nfor ((i=0; i<64; i++)); do\n  fifo pull > .fifo-event\n  IFS= read -r got < .fifo-event\n  want=$((100+i))\n  [[ $got == \"$want\" ]] || exit 71\ndone\nprintf 'ordered-full-ring=64\\n'\nfifo depth\nif fifo pull; then rc=0; else rc=$?; fi\nprintf 'empty-after-drain=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "over-capacity=2\n64\nordered-full-ring=64\n0\nempty-after-drain=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "subshell-private-copy",
+      "kind": "contract",
+      "purpose": "Verify a parenthesized subshell can consume and prepend in its inherited queue copy while the parent retains its original events.",
+      "script": "fifo push 7 8\n( fifo pull; fifo unget 99; fifo depth; fifo pull )\nfifo depth\nfifo pull\nfifo pull\nfifo depth",
+      "expected_status": 0,
+      "stdout": "7\n2\n99\n2\n7\n8\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "closed-stdout-retention",
+      "kind": "contract",
+      "purpose": "Use a closed descriptor as a bounded write-error fixture and verify failed peek, pull, and depth output leave queue/cursor state usable after stdout is restored.",
+      "script": "try_closed() { local label=$1; shift; local rc; exec 3>&1; exec 1>&-; if \"$@\"; then rc=0; else rc=$?; fi; exec 1>&3; exec 3>&-; printf '%s=%d\\n' \"$label\" \"$rc\"; }\nfifo push 41 42\ntry_closed peek-write fifo peek\nfifo depth\nfifo peek\ntry_closed pull-write fifo pull\nfifo depth\nfifo peek\ntry_closed depth-write fifo depth\nfifo depth\nfifo pull\nfifo peek",
+      "expected_status": 0,
+      "stdout": "peek-write=1\n2\n41\npull-write=1\n2\n42\ndepth-write=1\n2\n41\n42\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "enospc-write-failure",
+      "kind": "deferred",
+      "purpose": "Exercise ENOSPC or a short write reported only at flush time and confirm queue/cursor retention for that failure mode.",
+      "reason": "Requires a reviewed per-process failing-writer shim or disposable VM fixture that can return ENOSPC/short writes on the fifo output stream. This suite cannot use an absolute device path, and a closed descriptor tests EBADF rather than disk-full or partial-write behavior."
+    },
+    {
+      "id": "command-substitution-copy",
+      "kind": "contract",
+      "purpose": "Command substitution consumes an inherited queue copy and leaves the parent queue and peek cursor intact.",
+      "script": "fifo push 7 8\nfifo peek\nvalue=$(fifo pull)\n[[ $value == 7 ]]\nfifo peek\nfifo depth\nfifo pull\nfifo pull",
+      "expected_status": 0,
+      "stdout": "7\n8\n2\n7\n8\n",
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "loadable": "expand",
+  "reference": "GNU coreutils expand, invoked through PATH in the reference run, provides independent byte-for-byte output and status comparisons. Invalid-option usage status and builtin metadata use the documented Bash-OS/Bash contract; help availability is checked with Bash's help builtin.",
+  "coverage": [
+    "Default eight-column stops and newline resets",
+    "Initial-only conversion, explicit stops, and backspace behavior",
+    "Finite stops, /N extension, +N extension, and repeated -t options",
+    "Column state across multiple files and unterminated file boundaries",
+    "Stdin interleaved with files and repeated '-' operands",
+    "NUL and control-byte preservation with byte-column accounting",
+    "Long-option aliases, options after operands, and -- for a dash-leading filename",
+    "Missing-file failure while processing a valid file",
+    "Fresh options and column state on repeated calls in one shell",
+    "Bash type/help metadata and documented invalid-option usage status"
+  ],
+  "exclusions": [
+    "Terminal newline flush while input remains open is deferred because this runner has no PTY driver or synchronized producer/consumer fixture.",
+    "Very large records, output-device failures, signal behavior, and cross-libc behavior are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "default-columns",
+      "kind": "parity",
+      "purpose": "Compare default eight-column expansion and verify that each newline resets the next tab's column.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'one\\ttwo\\n12345678\\tz\\n' | expand",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "initial-only-backspace",
+      "kind": "parity",
+      "purpose": "Compare -i with an initial blank, a tab after the first nonblank, and backspace before a later tab; explicit stops are included.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf ' \\tA\\tB\\n\\b\\tC\\n' | expand -i -t 4,8",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tab-stop-extensions",
+      "kind": "parity",
+      "purpose": "Compare finite explicit stops, repeated -t stop accumulation, and the distinct GNU /N and +N extension rules.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf '\\tX\\tY\\tZ\\n' | expand -t 3,7\nprintf '\\tX\\tY\\tZ\\n' | expand -t 3 -t 7\nprintf '\\tX\\tY\\tZ\\n' | expand -t '3,7,/5'\nprintf '\\tX\\tY\\tZ\\n' | expand -t '3,7,+5'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "file-stream-boundaries",
+      "kind": "parity",
+      "purpose": "Compare the documented single-stream behavior: column state carries across an unterminated file boundary and resets after a newline.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'abc' > first\nprintf '\\tX\\n' > second\nprintf 'q\\tR\\n' > third\nexpand first second third",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-between-files",
+      "kind": "parity",
+      "purpose": "Compare stdin as part of the file stream, including column continuity from a file into stdin and onward to a later file; a second '-' sees the exhausted stream.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'ab' > left\nprintf '\\tR' > right\nprintf 'c\\tS' | expand left - right -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-control-bytes",
+      "kind": "parity",
+      "purpose": "Compare preservation of NUL, backspace, carriage return, and other bytes while tab columns count bytes and handle backspace/newline specially.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'a\\0b\\b\\tZ\\r\\tQ\\n' | expand -t 4",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aliases-and-dash-file",
+      "kind": "parity",
+      "purpose": "Compare GNU long-option aliases after a file operand, then verify that -- permits reading a relative filename beginning with a dash.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf ' \\tA\\tB\\n' > input\nexpand input --initial --tabs=4\nprintf '\\tD\\n' > -draft\nexpand -- -draft",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-status",
+      "kind": "parity",
+      "purpose": "Verify that a valid operand is still processed when another file cannot be opened, and that expand returns failure with a diagnostic.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'a\\tb\\n' > good\nif expand good absent; then exit 91; else rc=$?; fi\n[[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "repeated-call-state",
+      "kind": "parity",
+      "purpose": "Run both commands directly in one persistent shell, with different options and the same reopened input, to check option and column reset.",
+      "requires": [
+        "expand"
+      ],
+      "script": "printf 'a\\tX' > input\nexpand -t 4 < input\nexpand < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Check the documented Bash loadable metadata contract without invoking an external command: type identifies expand as a builtin and help has an entry.",
+      "script": "[[ $(type -t expand) == builtin ]] || exit 90\nhelp expand >metadata.txt\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-tablist-contract",
+      "kind": "contract",
+      "purpose": "Reject descending tab stops with failure status 1 and a diagnostic.",
+      "script": "if printf '\\tX' | expand -t 3,2; then exit 91; else rc=$?; fi\n[[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "terminal-newline-flush",
+      "kind": "deferred",
+      "purpose": "Check terminal output delivery at newline while expand input remains open.",
+      "reason": "Requires a PTY and a synchronized producer/consumer that can write one line, observe output before EOF, then close the input. The declarative fixture runner captures stdout in a regular file and has no PTY driver; perform this in a future disposable VM with an isolated PTY harness."
+    },
+    {
+      "id": "invalid-tablist-gnu",
+      "kind": "parity",
+      "purpose": "Compare GNU invalid-tablist status directly; retain any usage-status difference despite the separate documented Bash contract.",
+      "script": ": > empty\nexpand -t 3,2 < empty",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "expand"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "loadable": "cluster",
+  "reference": "Bash metadata plus GNU cat on fixed private offline roster snapshots. Only cluster members is invoked for operation coverage; source dispatch and documentation specify that it streams a local snapshot without any socket/listener. Protocol and lifecycle operations need a future disposable VM with independent peers.",
+  "coverage": [
+    "Metadata: builtin registration and help.",
+    "GNU cat parity for small offline roster streaming, binary/blank/unterminated input, repeated calls, empty snapshots and temporary relative directory assignments.",
+    "Custom parse contract for timeout endpoints without any network verb.",
+    "Deferred membership initialization, joins, protocol, listener lifecycle and state recovery."
+  ],
+  "exclusions": [
+    "Offline members streaming establishes file-interface parity only. It does not establish network membership, authentication, key handling, listener or kernel behavior.",
+    "All network, listener-start/stop and membership mutation operations remain deferred with explicit future VM prerequisites."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "GNU Bash type -t reports the builtin category without invoking the cluster implementation.",
+      "script": "type -t cluster",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "GNU Bash help can resolve the cluster synopsis and documentation using builtin metadata only.",
+      "script": "help -s cluster >metadata.discard && help cluster >metadata.discard && printf 'help-entry-present\\n'",
+      "expected_status": 0,
+      "stdout": "help-entry-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "seed-initialization",
+      "kind": "deferred",
+      "purpose": "Verify seed startup, ephemeral loopback port selection, generated key and node IDs, initial one-member roster, private file modes, and listener ownership by a persistent shell.",
+      "reason": "Requires a disposable Linux VM with a writable private 0700 fixture directory, loopback UDP, and an owned persistent bash-os shell/listener child. Use a fresh state directory and port 0; independently validate the documented output fields, 0600 state files, and roster format. Do not use a host service, host path, or real network peer."
+    },
+    {
+      "id": "authenticated-join",
+      "kind": "deferred",
+      "purpose": "Verify a peer joins the seed using its key file, receives the seed cluster ID, and rejects a different valid key without changing either roster.",
+      "reason": "Requires two persistent bash-os processes in a disposable Linux VM, distinct private state directories, and owned IPv4 loopback UDP peers. The future oracle should independently parse member rows and use a separately implemented keyed BLAKE2b-256 packet exchange; expected membership must not be read from candidate output alone."
+    },
+    {
+      "id": "roster-heartbeats",
+      "kind": "deferred",
+      "purpose": "Verify three-peer roster convergence after joins and leaves, heartbeat refresh, peer expiry, and leaf disconnection after seed loss.",
+      "reason": "Requires three owned persistent shells and listeners in a disposable Linux VM with isolated loopback networking and private directories. Check exact node-to-endpoint sets from each peer, use a bounded deadline based on the documented timeout and heartbeat intervals, and terminate only owned fixture processes."
+    },
+    {
+      "id": "ping-protocol",
+      "kind": "deferred",
+      "purpose": "Verify ping by both node ID and numeric loopback endpoint, plus unknown-node and non-protocol timeout failures.",
+      "reason": "Requires an owned protocol peer in an isolated disposable Linux VM. The peer must independently validate packet size, request nonce, cluster ID, and keyed MAC, and provide a bounded silent endpoint for timeout behavior. Use only 127.0.0.1 fixture sockets and a short documented timeout."
+    },
+    {
+      "id": "packet-rejection",
+      "kind": "deferred",
+      "purpose": "Verify malformed, truncated, oversized, wrong-key, invalid-count, and invalid-node packets do not add members or prevent a later valid ping.",
+      "reason": "Requires an isolated disposable Linux VM with an owned UDP injector and a separately implemented Python packet encoder/MAC oracle. Send only to a fixture listener on 127.0.0.1, compare the roster before and after each rejected packet, then check a valid independent exchange. No host or external target may be used."
+    },
+    {
+      "id": "leave-and-owner-lifecycle",
+      "kind": "deferred",
+      "purpose": "Verify leave is repeatable, removes owned state while preserving unrelated fixture files, notifies the seed, and cleans up the listener when its owning shell exits.",
+      "reason": "Requires an isolated disposable Linux VM with an owned shell, listener child, seed peer, and private temporary state directories. Observe only those fixture processes and paths; any forced termination must target a PID created and recorded by the fixture itself. Check roster convergence and socket release on loopback."
+    },
+    {
+      "id": "private-state-recovery",
+      "kind": "deferred",
+      "purpose": "Verify private-directory checks, 0600 state files, key-file syntax, lock collision behavior, atomic snapshot recovery, stale state cleanup, and preservation of unrelated files.",
+      "reason": "Requires a disposable Linux VM with relative fixture paths on a private writable filesystem and a controlled listener lifecycle. Seed deterministic key files and filesystem fault fixtures independently; verify exact file contents, modes, cleanup, and lock behavior without touching host paths."
+    },
+    {
+      "id": "argument-and-timeout-validation",
+      "kind": "deferred",
+      "purpose": "Validate init/join/ping arguments and timeout handling in lifecycle contexts; the offline members parser is covered separately.",
+      "reason": "Requires a future disposable VM or independently reviewed socket/listener mock to verify malformed init/join/ping requests never start listeners or leave state. No network verb is invoked in the current suite; offline members timeout parsing is covered by runnable cases."
+    },
+    {
+      "id": "offline-members-stream",
+      "purpose": "Read a fixed private roster byte-for-byte against GNU cat without initializing membership, opening sockets or starting a listener.",
+      "script": "mkdir state\nprintf '%s\n' '0123456789abcdef0123456789abcdef 127.0.0.1:1234' 'fedcba9876543210fedcba9876543210 127.0.0.1:2345' > state/members\nif [[ $(type -t cluster) == builtin ]]; then\n BASHCLUSTER_STATE_DIR=state cluster members\nelse\n cat state/members\nfi",
+      "kind": "parity",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "offline-members-binary-and-reuse",
+      "purpose": "Offline roster streaming retains NUL, blank records and the unterminated final record across repeated calls; no membership protocol is exercised.",
+      "script": "mkdir state\nprintf 'one\\000two\\n\\nlast' > state/members\nfor repeat in 1 2; do\n if [[ $(type -t cluster) == builtin ]]; then BASHCLUSTER_STATE_DIR=state cluster members; else cat state/members; fi\ndone",
+      "kind": "parity",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "offline-members-path-and-timeout-bounds",
+      "purpose": "Switch relative snapshot directories with temporary environment assignments and accepted timeout endpoints; stream exact bytes against GNU cat.",
+      "script": "mkdir first second\nprintf A > first/members\n: > second/members\nfor setting in 'first 50' 'second 5000' 'first 5000'; do\n read -r dir timeout <<< \"$setting\"\n if [[ $(type -t cluster) == builtin ]]; then BASHCLUSTER_STATE_DIR=\"$dir\" BASHCLUSTER_TIMEOUT_MS=\"$timeout\" cluster members; else cat \"$dir/members\"; fi\ndone",
+      "kind": "parity",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cat",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "offline-members-invalid-timeout",
+      "purpose": "Reject out-of-range timeout values before opening even a private roster; these parse-only operations cannot enter a network verb.",
+      "script": "for timeout in 49 5001; do\n rc=0; BASHCLUSTER_STATE_DIR=state BASHCLUSTER_TIMEOUT_MS=\"$timeout\" cluster members || rc=$?\n [[ $rc == 1 ]]\ndone\nprintf 'invalid timeout rejected\\n' ",
+      "kind": "contract",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "invalid timeout rejected\n"
+    }
+  ]
+}

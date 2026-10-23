@@ -11,9 +11,10 @@
   ],
   "exclusions": [
     "Raw default and -t output are not byte-compared because their inode and creation-time fields vary between the harness's independently constructed reference and candidate fixture trees; stable format directives are compared directly.",
-    "Birth-time and access/modify/change-time output is omitted because those values vary with filesystem support and fixture creation timing.",
     "Character and block device directives and the device-specific default layout are deferred: fixed-major/minor nodes require a disposable VM or an independently reviewed metadata mock. No host device is used.",
-    "Security-context output and unusual filesystems are not covered."
+    "Security-context output and unusual filesystems are not covered.",
+    "Birth/change times and default/terse inode-dependent layouts remain outside cross-fixture byte comparison; access/modify timestamps are explicitly fixed and compared.",
+    "Only ordinary bounded integer/string precision and printable ASCII quote-selection cases are extended. Fractional epoch timestamp precision, additional printf flags, control-byte quoting, QUOTING_STYLE overrides and exhaustive quoting styles remain unqualified."
   ],
   "cases": [
     {
@@ -119,7 +120,7 @@
       "id": "bash-metadata",
       "kind": "contract",
       "purpose": "Check the Bash builtin type and that Bash help resolves the loadable's documented help entry. This is metadata coverage, not stat operation coverage.",
-      "script": "[[ $(type -t stat) == builtin ]]\nhelp stat > /dev/null\nprintf 'type=builtin\\nhelp=available\\n'",
+      "script": "[[ $(type -t stat) == builtin ]]\nhelp stat > metadata.txt\nprintf 'type=builtin\\nhelp=available\\n'",
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "type=builtin\nhelp=available\n"
@@ -160,6 +161,75 @@
       "requires": [
         "stat"
       ]
+    },
+    {
+      "id": "format-precision",
+      "kind": "parity",
+      "purpose": "Compare normal GNU printf precision on names, size and symbolic mode, preserving all output bytes.",
+      "script": "printf abc > data\nstat --format='[%10.3n]|[%5.1s]|[%5.3A]' data",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "stat"
+      ]
+    },
+    {
+      "id": "quoted-apostrophe",
+      "kind": "parity",
+      "purpose": "Compare GNU quoted-name formatting for an ordinary filename containing an apostrophe.",
+      "script": "printf x > \"has'quote\"\nstat -c '%N' \"has'quote\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "stat"
+      ]
+    },
+    {
+      "id": "fixed-atime-mtime",
+      "kind": "parity",
+      "purpose": "Compare fixed independently assigned nanosecond access/modify timestamps in C locale and UTC.",
+      "script": "printf x > data\n/usr/bin/python3 -c 'import os; os.utime(\"data\", ns=(946684800123456789,978307200987654321))'\nstat -c '%x|%X|%y|%Y' data",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "stat",
+        "python3"
+      ]
+    },
+    {
+      "id": "precision-types",
+      "kind": "parity",
+      "purpose": "Observe ordinary string truncation and integer minimum-digit precision with width, zero and empty values.",
+      "requires": [
+        "stat",
+        "chmod"
+      ],
+      "script": "printf abc > data\n: > empty\nchmod 0640 data\nstat --printf='n=<%8.3n> A=<%-6.3A> size=<%8.5s> zero=<%08.5s>\\n' data\nstat --printf='zero=<%.0s> width=<%5.0s> A=<%5.0A>\\n' empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "apostrophe-quoting-choices",
+      "kind": "parity",
+      "purpose": "Observe GNU shell-escape-always quote selection for ordinary literal filename punctuation, without interpreting those bytes as shell code.",
+      "requires": [
+        "stat"
+      ],
+      "script": "names=('has'\"'\"'quote' 'two'\"'\"'apostrophes'\"'\"'here' 'both'\"'\"'and\"quote' 'cash'\"'\"'$name' 'slash'\"'\"'\\name' 'grave'\"'\"'`name')\nfor name in \"${names[@]}\"; do printf x > \"$name\"; stat -c \"%N\" \"$name\"; done",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quoted-apostrophe-link-target",
+      "kind": "parity",
+      "purpose": "GNU apostrophe quote selection applies independently to an ordinary relative symlink name and target; all output bytes remain compared.",
+      "requires": [
+        "stat",
+        "ln"
+      ],
+      "script": "printf x > \"target'quote\"\nln -s \"target'quote\" \"link'quote\"\nstat -c '%N' \"link'quote\"",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

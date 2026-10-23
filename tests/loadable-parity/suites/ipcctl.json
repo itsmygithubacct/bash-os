@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "loadable": "ipcctl",
+  "reference": "Runnable cases use GNU Bash type/help builtin behavior plus the documented ipcctl API and loadable synopsis in docs/sol-ipcctl.md and config/bash-loadables.list. GNU ipcrm is related but does not accept ipcctl's interface, and its removal operations cannot be run safely here. No operation behavior is claimed as parity.",
+  "coverage": [
+    "Bash identifies ipcctl as a builtin while the candidate fixture has an empty PATH.",
+    "Short-help output matches the configured ipcctl short description.",
+    "Full help metadata presents the configured description and the documented command synopsis, ID grammar, and removal policy.",
+    "Deferred operation coverage is specified separately for shared memory, message queues, and semaphore sets."
+  ],
+  "exclusions": [
+    "No System V IPC removal command is executed. Future operation validation requires a disposable Linux VM with a private IPC namespace and objects allocated by the fixture, or a closed syscall mock that cannot call the kernel.",
+    "No GNU parity claim is made for ipcrm because its CLI is not a direct match for ipcctl."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves ipcctl as a builtin; the candidate fixture uses an empty PATH, so this verifies its loadable registration without invoking the operation.",
+      "script": "type -t ipcctl",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help",
+      "kind": "contract",
+      "purpose": "Check Bash's short-help metadata against ipcctl's configured short description in bash-loadables.list.",
+      "script": "help -s ipcctl",
+      "expected_status": 0,
+      "stdout": "ipcctl: Run gated System V IPC control operations\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "full-help",
+      "kind": "contract",
+      "purpose": "Check that builtin help contains the documented ipcctl synopsis, decimal ID constraint, and exact opt-in policy; the fixture emits a fixed marker after all fields are found.",
+      "script": "doc=$(help ipcctl)\n[[ $doc == *'ipcctl --rm shm|msg|sem <id>'* ]] || exit 1\n[[ $doc == *'IDs must contain only decimal digits and fit in a nonnegative int.'* ]] || exit 1\n[[ $doc == *'Mutating removal requires BASHOS_IPCRM_ALLOW_RMID=1.'* ]] || exit 1\nprintf 'documented ipcctl help fields present\\n'",
+      "expected_status": 0,
+      "stdout": "documented ipcctl help fields present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer-shm-removal",
+      "kind": "deferred",
+      "purpose": "Validate gated shared-memory removal, policy denial, and exact-object selection.",
+      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V shared memory. A future fixture must allocate two IPC_PRIVATE mode-0600 segments itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected segment via an independent IPC_STAT check, and clean up only IDs it allocated. A closed shmctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and the null argument."
+    },
+    {
+      "id": "defer-msg-removal",
+      "kind": "deferred",
+      "purpose": "Validate gated message-queue removal, policy denial, and exact-object selection.",
+      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V message queues. A future fixture must allocate two IPC_PRIVATE mode-0600 queues itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected queue via an independent IPC_STAT check, and clean up only IDs it allocated. A closed msgctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and the null argument."
+    },
+    {
+      "id": "defer-sem-removal",
+      "kind": "deferred",
+      "purpose": "Validate gated semaphore-set removal, policy denial, and exact-object selection.",
+      "reason": "Requires a disposable Linux VM with a private IPC namespace and working System V semaphore sets. A future fixture must allocate two IPC_PRIVATE mode-0600 sets itself, use only those returned IDs, verify that an unset/non-1 policy preserves both, verify that exact policy value 1 removes only the selected set via an independent IPC_STAT check, and clean up only IDs it allocated. A closed semctl mock that cannot reach the kernel is an acceptable alternative for validating IPC_RMID dispatch and semaphore number zero."
+    }
+  ]
+}

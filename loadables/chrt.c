@@ -479,16 +479,23 @@ chrt_builtin (WORD_LIST *list)
         {
           pid_t pid;
           if (bchrt_parse_pid (list->word->word, &pid) < 0)
-            { bchrt_bad_usage (); return EXECUTION_FAILURE; }
+            {
+              fprintf (stderr, "chrt: invalid PID argument: '%s'\n", list->word->word);
+              return EXECUTION_FAILURE;
+            }
           return bchrt_print_pid (pid);
         }
       if (argc == 2)
         {
           long prio_l;
           pid_t pid;
-          if (bchrt_parse_long (list->word->word, 0, INT_MAX, &prio_l) < 0 ||
-              bchrt_parse_pid (list->next->word->word, &pid) < 0)
+          if (bchrt_parse_long (list->word->word, 0, INT_MAX, &prio_l) < 0)
             { bchrt_bad_usage (); return EXECUTION_FAILURE; }
+          if (bchrt_parse_pid (list->next->word->word, &pid) < 0)
+            {
+              fprintf (stderr, "chrt: invalid PID argument: '%s'\n", list->next->word->word);
+              return EXECUTION_FAILURE;
+            }
           return bchrt_set_pid (pid, policy, reset_on_fork, (int) prio_l,
                                 runtime, deadline, period);
         }

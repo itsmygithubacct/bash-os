@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "setsid",
+  "reference": "util-linux setsid for bounded waited fixture-owned children, plus an independent Python POSIX session identity assertion. Bash type/help are metadata contracts.",
+  "coverage": [
+    "Waited child argv/environment/output/status; forced-fork session identity; relative missing and nonexecutable children.",
+    "Bash type/help metadata, separate from operations.",
+    "Default asynchronous lifecycle and controlling-terminal behavior remain deferred."
+  ],
+  "exclusions": [
+    "Default asynchronous return timing and -c controlling-terminal setup require a disposable VM/private PTY fixture. No signals are sent."
+  ],
+  "cases": [
+    {
+      "id": "type_is_builtin",
+      "kind": "contract",
+      "purpose": "Check through Bash's type builtin that this name is registered as a builtin without invoking it.",
+      "script": "[[ $(type -t setsid) == builtin ]]; printf '%s\\n' builtin",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_documents_options",
+      "kind": "contract",
+      "purpose": "Check that Bash help publishes the documented invocation and semantics for each supported option; only fixed confirmation text is emitted.",
+      "script": "h=$(help setsid)\n[[ $h == *'setsid [-w] [-f] [-c] program [args...]'* ]]\n[[ $h == *'Run a program in a new session.'* ]]\n[[ $h == *'-w, --wait'* && $h == *'-f, --fork'* && $h == *'-c, --ctty'* ]]\n[[ $h == *'Without -w, setsid returns immediately and the program runs detached.'* ]]\nprintf '%s\\n' 'documented help fields present'",
+      "expected_status": 0,
+      "stdout": "documented help fields present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_return_and_fork_policy",
+      "kind": "deferred",
+      "purpose": "Verify the default return timing and compare default versus -f/--fork when the caller is and is not a process-group leader, using a gated child to make waiting observable.",
+      "reason": "The operation creates a new session and its GNU default fork decision depends on process-group state. A future disposable Linux VM must control the parent PGID, gate and reap the private child, and use an independent helper to record PID/PGID/SID while comparing with GNU util-linux setsid."
+    },
+    {
+      "id": "ctty_with_private_pty",
+      "kind": "deferred",
+      "purpose": "Check -c/--ctty with a private pseudo-terminal, including that the child sees the expected controlling terminal and that setup failure does not execute the helper.",
+      "reason": "TIOCSCTTY requires a suitable session and terminal. A future disposable Linux VM must provide a private PTY and a helper that reports its controlling-terminal state; no host terminal or terminal driver may be used."
+    },
+    {
+      "id": "wait_status_and_forwarding",
+      "kind": "parity",
+      "purpose": "Compare waited child argv/environment/output and nonzero exit status; no process signals or host sessions are touched.",
+      "script": "printf '%s\\n' '#!/bin/bash' 'printf \"env=<%s>\\n\" \"$SESSION_VALUE\"' 'printf \"arg=<%s>\\n\" \"$@\"' 'printf \"child stderr\\n\" >&2' > child\nchmod 755 child\nexport SESSION_VALUE='private environment'\nsetsid -w ./child '' 'two words' '*'\nprintf '%s\\n' '#!/bin/bash' 'exit 7' > child\nsetsid --wait ./child",
+      "expected_status": 7,
+      "stderr": "nonempty",
+      "requires": [
+        "setsid",
+        "chmod"
+      ]
+    },
+    {
+      "id": "argument_and_exec_errors",
+      "kind": "parity",
+      "purpose": "A missing relative executable returns status 127 in a waited private child.",
+      "script": "setsid -w ./missing-program",
+      "expected_status": 127,
+      "stderr": "nonempty",
+      "requires": [
+        "setsid"
+      ]
+    },
+    {
+      "id": "force-wait-session-identity",
+      "kind": "parity",
+      "purpose": "Independently assert the fixture child becomes its own SID and PGID leader, without emitting variable process IDs.",
+      "script": "printf '%s\\n' '#!/usr/bin/python3' 'import os' 'assert os.getpid()==os.getsid(0)==os.getpgrp()' 'print(\"private-session-leader\")' > child\nchmod 755 child\nsetsid --fork --wait ./child",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "setsid",
+        "chmod",
+        "python3"
+      ]
+    },
+    {
+      "id": "private-nonexecutable",
+      "kind": "parity",
+      "purpose": "A waited private nonexecutable file returns status 126.",
+      "script": "printf bytes > child\nchmod 600 child\nsetsid -w ./child",
+      "expected_status": 126,
+      "stderr": "nonempty",
+      "requires": [
+        "setsid",
+        "chmod"
+      ]
+    },
+    {
+      "id": "missing-program",
+      "kind": "parity",
+      "purpose": "Missing program syntax is rejected before child creation; compare the independent util-linux status and visible diagnostics.",
+      "script": "setsid",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "setsid"
+      ]
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "An unknown option is rejected before child creation; retain any util-linux usage-status difference.",
+      "script": "setsid --fixture-unknown-option",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "setsid"
+      ]
+    }
+  ]
+}

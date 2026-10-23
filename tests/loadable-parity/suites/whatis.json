@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "loadable": "whatis",
+  "reference": "The independent man-db whatis CLI reads private legacy text indexes using an empty private -C configuration. The installed legacy backend matches prefixes even with -w; Bash-os retains its documented exact-name lookup, checked separately as a contract. Help, implementation version identity and no-name diagnostic text are custom contracts. Successful lookups and no-result/invalid-option statuses retain independent parity cases.",
+  "coverage": [
+    "single exact-name lookup from a whatis index",
+    "Hyphenated names and explicit whole-name matching against a longer name",
+    "multiple query arguments and mixed hit/miss status behavior",
+    "no-match and missing-index diagnostics/statuses",
+    "Documented help and version identity; usage error statuses",
+    "Bash builtin type and short-description metadata contracts"
+  ],
+  "exclusions": [
+    "No generated man-db binary index or mandb database lifecycle is exercised; fixtures use the documented legacy MANPATH/whatis text index.",
+    "No deferred operation case is applicable: this loadable performs read-only lookup against a private relative fixture and requires no privileged or hardware-backed operation.",
+    "Bash-os retains exact-name matching. The installed man-db legacy text backend matches a name prefix both by default and with -w; the exact boundary is checked both as a custom contract and as an explicit GNU comparison that retains the intentional difference."
+  ],
+  "cases": [
+    {
+      "id": "single_lookup",
+      "kind": "parity",
+      "purpose": "A straightforward exact name returns its complete whatis record.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nprintf '%s\\n' 'alpha (1) - fixture alpha utility' > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf alpha; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis alpha; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hyphenated_name",
+      "kind": "parity",
+      "purpose": "A conventional hyphenated manual-page name is looked up as a complete name.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nprintf '%s\\n' 'alpha-beta (1) - hyphenated fixture' > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf alpha-beta; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis alpha-beta; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "exact_boundary",
+      "kind": "contract",
+      "purpose": "Verify the documented Bash-os exact-name contract: tool must not match toolbox. The independent legacy man-db backend matches both even with -w, so this is an explicit compatibility limit rather than a parity assertion.",
+      "script": "printf '%s\\n' 'tool (1) - exact fixture' 'toolbox (1) - longer fixture' > whatis\nMANPATH=. BASHMAN_STALE_QUIET=1 whatis tool",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "tool (1) - exact fixture\n"
+    },
+    {
+      "id": "multiple_names",
+      "kind": "parity",
+      "purpose": "Several requested names each produce their matching record in one invocation.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nprintf '%s\\n' 'alpha (1) - first fixture' 'beta (1) - second fixture' > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf beta alpha; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis beta alpha; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mixed_hit_miss",
+      "kind": "parity",
+      "purpose": "A successful lookup alongside an absent name reports the hit and a miss diagnostic.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nprintf '%s\\n' 'present (1) - present fixture' > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf absent present; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis absent present; fi",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no_match",
+      "kind": "parity",
+      "purpose": "An index with no matching name returns GNU man-db status 16 and its diagnostic.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nprintf '%s\\n' 'known (1) - known fixture' > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf absent; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis absent; fi",
+      "expected_status": 16,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_index",
+      "kind": "parity",
+      "purpose": "A missing whatis index is reported as a GNU no-result status 16.",
+      "requires": [
+        "whatis"
+      ],
+      "script": ": > manpath.conf\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf absent; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis absent; fi",
+      "expected_status": 16,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "cli_help",
+      "kind": "contract",
+      "purpose": "Verify the documented Bash-os help synopsis. Output from a different implementation is not a byte-equality oracle.",
+      "script": "whatis --help",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "whatis NAME [NAME ...]\n"
+    },
+    {
+      "id": "cli_version",
+      "kind": "contract",
+      "purpose": "Verify the documented Bash-os implementation identity. Output from a different implementation is not a byte-equality oracle.",
+      "script": "whatis --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "whatis 0.1 (bash-os whatis lookup)\n"
+    },
+    {
+      "id": "bash_type_metadata",
+      "kind": "contract",
+      "purpose": "The loadable is registered as a Bash builtin, as required for this loadable interface.",
+      "script": "type -t whatis",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash_description_help",
+      "kind": "contract",
+      "purpose": "Bash help metadata exposes the independent one-line description declared by the builtin contract.",
+      "script": "help -d whatis",
+      "expected_status": 0,
+      "stdout": "whatis - Display one-line manpage descriptions for NAME(s).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-name",
+      "kind": "contract",
+      "purpose": "Require usage failure status 1 and a diagnostic. The independent man-db implementation writes its no-name prompt to stdout; diagnostic wording and output channel are explicit interface differences.",
+      "script": "whatis",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "Reject invalid usage before accessing any manual index; compare the man-db failure status.",
+      "script": "whatis --invalid-option",
+      "requires": [
+        "whatis"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "prefix-compatibility",
+      "kind": "parity",
+      "purpose": "Compare the legacy man-db prefix lookup with the custom exact-name interface, retaining an intentional output difference as FAIL.",
+      "script": ": > manpath.conf\nprintf \"%s\\n\" \"tool (1) - exact fixture\" \"toolbox (1) - longer fixture\" > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf tool; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis tool; fi",
+      "requires": [
+        "whatis"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

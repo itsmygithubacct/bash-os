@@ -6463,6 +6463,8 @@ bn_selftest_highlight (void)
 #undef BN_ST_ASSERT
 #undef BN_ST_KEYS
 
+extern char *nano_doc[];
+
 int
 nano_builtin (WORD_LIST *list)
 {
@@ -6516,12 +6518,20 @@ nano_builtin (WORD_LIST *list)
         const char *w = list->word->word;
         const char *num = NULL;
         if (strcmp (w, "--") == 0) { list = list->next; break; }
+        if (strcmp (w, "-h") == 0 || strcmp (w, "--help") == 0) {
+            for (char **line = nano_doc; *line; line++) puts (*line);
+            return sh_chkwrite (EXECUTION_SUCCESS);
+        }
         if (strcmp (w, "-M") == 0 || strcmp (w, "--trimblanks") == 0)
             bn_trimblanks = 1;
         else if (strncmp (w, "--fill=", 7) == 0)
             num = w + 7;
         else if (strcmp (w, "-r") == 0 || strcmp (w, "--fill") == 0) {
-            if (!list->next) { builtin_usage (); return EX_USAGE; }
+            if (!list->next) {
+                builtin_error ("%s: option requires an argument", w);
+                puts ("Type 'nano -h' for a list of available options.");
+                return sh_chkwrite (EXECUTION_FAILURE);
+            }
             list = list->next;
             num = list->word->word;
         } else if (strncmp (w, "-r", 2) == 0)
@@ -6531,8 +6541,8 @@ nano_builtin (WORD_LIST *list)
             bn_speller = strdup (w + 10);
         } else {
             builtin_error ("%s: invalid option", w);
-            builtin_usage ();
-            return EX_USAGE;
+            puts ("Type 'nano -h' for a list of available options.");
+            return sh_chkwrite (EXECUTION_FAILURE);
         }
         if (num) {
             char *end = NULL;
@@ -6540,7 +6550,7 @@ nano_builtin (WORD_LIST *list)
             long v = strtol (num, &end, 10);
             if (!*num || *end || errno || v > 100000 || v < -100000) {
                 builtin_error ("%s: invalid fill width", num);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             bn_fill = v;
         }
@@ -6668,9 +6678,13 @@ char *nano_doc[] = {
     "",
     "    nano [-r N | --fill=N] [-M | --trimblanks] [--speller=CMD] [--] [FILE]",
     "",
+    "    -h, --help shows this builtin's documentation without opening a file.",
+    "    Interactive editing requires terminal input and output; otherwise",
+    "    the builtin returns failure before loading a file or drawing a screen.",
     "Options: -r/--fill sets the justify width (N <= 0 is relative to the",
     "      terminal width; default -8, as in GNU nano); -M/--trimblanks drops",
     "      the blanks at justified line breaks; --speller names the spell helper.",
+    "      Fill widths are limited to -100000 through 100000.",
     "",
     "Keys: arrows / Home / End / PgUp / PgDn — move; up/down keep the screen",
     "      column across short lines, as in GNU nano. Keys that arrive in one",

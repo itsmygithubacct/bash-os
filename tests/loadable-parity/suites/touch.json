@@ -1,0 +1,286 @@
+{
+  "version": 1,
+  "loadable": "touch",
+  "reference": "GNU coreutils touch is the parity oracle. The independent system /usr/bin/stat observes nanosecond timestamps, size and mode on both arms; fixture paths are relative. Tree comparison also verifies bytes, modes and links. Bash type/help are metadata contracts only.",
+  "coverage": [
+    "Default creation under umask 022 and preservation of existing file bytes.",
+    "-c no-create behavior, -- option termination, and relative names containing spaces or a leading dash.",
+    "-d/--date epoch timestamps with positive nanoseconds and a negative fractional epoch.",
+    "-a and -m timestamp selection while preserving the other timestamp.",
+    "-r reference timestamp copying and POSIX -t timestamp parsing.",
+    "-h symlink timestamp updates without changing the target.",
+    "Invalid date diagnostics/status and continued processing of later operands.",
+    "Bash builtin type/help metadata contract.",
+    "GNU argument-error statuses for missing values, invalid values and unknown options.",
+    "Default symlink following, directory timestamps and hardlink timestamp identity."
+  ],
+  "exclusions": [
+    "This suite does not exhaustively cover GNU natural-language date parsing, every long-option spelling, fractional precision beyond nanoseconds, inaccessible filesystems, or all error diagnostics.",
+    "The fixture compares timestamps through GNU stat output; the generic tree snapshot does not include timestamps."
+  ],
+  "cases": [
+    {
+      "id": "default-create-preserve",
+      "purpose": "Default touch creates an empty file with mode 0644 under the runner's umask 022 and leaves existing binary contents intact.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "printf 'payload\\000x' > keep; touch fresh keep; [[ -f fresh && $(/usr/bin/stat -c '%a:%s' fresh) == 644:0 && $(/usr/bin/stat -c %s keep) == 9 ]] || exit 1; printf 'created empty 0644 file; kept 9 bytes\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-create-and-dash-names",
+      "purpose": "-c leaves a missing relative operand absent; -- allows creation of a leading-dash name, and a spaced operand is handled as one path.",
+      "kind": "parity",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -c -- absent; [[ ! -e absent ]] || exit 1; touch -- '-leading' 'two words'; [[ -f '-leading' && -f 'two words' ]] || exit 1; printf 'no-create and option terminator honored\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "epoch-fractions",
+      "purpose": "-d and --date preserve subsecond precision and normalize a negative fractional epoch; GNU stat renders both timestamp fields independently.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "touch -d @1234567890.123456789 positive; touch --date=@-0.25 negative; /usr/bin/stat -c '%n %x | %y' positive negative",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "access-modify-selection",
+      "purpose": "-a updates only access time and -m updates only modification time, with the untouched timestamp retained across each operation.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "touch -d @1000000000 item; touch -a -d @2000000000 item; access_only=$(/usr/bin/stat -c '%X:%Y' item); [[ $access_only == 2000000000:1000000000 ]] || exit 1; touch -m -d @3000000000 item; modify_only=$(/usr/bin/stat -c '%X:%Y' item); [[ $modify_only == 2000000000:3000000000 ]] || exit 1; printf '%s\\n%s\\n' \"$access_only\" \"$modify_only\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reference-copy",
+      "purpose": "-r copies both timestamps, including nanoseconds, from a relative reference file onto an existing target.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "touch -d @1234567890.987654321 reference; touch target; touch -r reference target; /usr/bin/stat -c '%n %x | %y' reference target",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix-t-time",
+      "purpose": "POSIX -t with the seconds field sets both file timestamps to the specified UTC calendar time.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "touch -t 200102030405.06 calendar; /usr/bin/stat -c '%X:%Y %x | %y' calendar",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-no-dereference",
+      "purpose": "-h timestamps the symlink itself while leaving its relative target's timestamps unchanged.",
+      "kind": "parity",
+      "requires": [
+        "touch",
+        "stat",
+        "ln"
+      ],
+      "script": "touch -d @1000000000 target; ln -s target link; touch -h -d @2000000000 link; link_time=$(/usr/bin/stat -c '%X:%Y' link); target_time=$(/usr/bin/stat -L -c '%X:%Y' link); [[ $link_time == 2000000000:2000000000 && $target_time == 1000000000:1000000000 ]] || exit 1; printf 'link=%s target=%s\\n' \"$link_time\" \"$target_time\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-date-status",
+      "purpose": "An invalid --date value is rejected before creating the requested file; GNU touch returns status 1 and emits a diagnostic.",
+      "kind": "parity",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --date='not a date' invalid-output",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "continue-after-operand-error",
+      "purpose": "A failed first operand does not prevent touch from processing a later valid relative operand; the overall invocation reports failure.",
+      "kind": "parity",
+      "requires": [
+        "touch"
+      ],
+      "script": "if touch absent/child survivor; then rc=0; else rc=$?; fi; [[ $rc == 1 && -f survivor ]] || exit 1; printf 'failed operand reported; later operand created\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-builtin-help-contract",
+      "purpose": "Bash exposes touch as a builtin and its help advertises the timestamp-changing contract and --date spelling.",
+      "kind": "contract",
+      "script": "[[ $(type -t touch) == builtin ]] || exit 1; touch_help=$(help touch) || exit 1; [[ $touch_help == *'change file timestamps'* && $touch_help == *'--date=DATE'* ]] || exit 1; printf 'touch builtin and documented help available\\n'",
+      "expected_status": 0,
+      "stdout": "touch builtin and documented help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch ",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -d",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -t",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-3",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -r",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-4",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --date",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-5",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --reference",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-6",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --time",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-7",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --time=invalid",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-8",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch --unknown",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-9",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -t not-a-timestamp output",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-10",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -dnot-a-date output",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "default-symlink-dereference",
+      "purpose": "Default touch follows the relative link; compare the target timestamp and the resulting symlink tree.",
+      "kind": "parity",
+      "script": "touch -d @100 target; ln -s target link; touch -d @200 link; /usr/bin/stat -c '%X:%Y' target",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "touch",
+        "ln",
+        "stat"
+      ]
+    },
+    {
+      "id": "directory-and-hardlink",
+      "purpose": "Timestamp a directory and a hardlinked regular file without changing link identity or contents.",
+      "kind": "parity",
+      "script": "mkdir box; printf data > original; ln original alias; touch -d @123 box alias; /usr/bin/stat -c '%X:%Y' box original alias",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "touch",
+        "mkdir",
+        "ln",
+        "stat"
+      ]
+    }
+  ]
+}

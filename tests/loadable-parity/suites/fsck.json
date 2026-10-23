@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "loadable": "fsck",
+  "reference": "There is no equivalent GNU command for this loadable's documented primary-superblock-only verifier. e2fsck checks the complete filesystem and cannot serve as a byte/status oracle for intentionally minimal superblock fixtures. Runnable expectations therefore use the loadable's documented subset contracts and an independent Bash encoder for the public ext2 superblock layout and feature bits; no candidate output is used to generate expectations.",
+  "coverage": [
+    "Bash builtin availability and help metadata",
+    "Clean ext2 superblock acceptance and verbose field reporting",
+    "ext2/ext3/ext4 feature-based classification, including ext4 extents and huge-file flags",
+    "64 KiB block-size boundary with matching first-data-block value",
+    "Dirty-bit verify-only behavior, -p repair, and -n precedence over -p",
+    "Bad magic, short superblock read, invalid free counts, missing image and missing operand statuses"
+  ],
+  "exclusions": [
+    "Full filesystem traversal of inode tables, bitmaps, directories or journals is outside this loadable's documented scope.",
+    "Repair beyond clearing the dirty state bit is outside the documented v1 contract.",
+    "Real block-device access needs a disposable VM and a dedicated throwaway device; no device path is used here."
+  ],
+  "cases": [
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Confirm fsck is registered as a Bash builtin and its documented help is available without executing a filesystem operation.",
+      "script": "[[ $(type -t fsck) == builtin ]]\nhelp fsck > help.txt 2>&1\n[[ -s help.txt ]]\nprintf 'fsck builtin and help available\\n'",
+      "expected_status": 0,
+      "stdout": "fsck builtin and help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "clean-superblock",
+      "kind": "contract",
+      "purpose": "Accept a deterministic, independently encoded ext2 superblock with sane counts and a clean state; the documented clean case returns status 0. An independent Python byte snapshot verifies the entire image, allowing only the documented two-byte state repair where requested. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\nmake_image() { local target=$1 state=$2 compat=$3 incompat=$4 ro=$5 log=$6 first=$7 free=$8 magic=$9; { zero 1024; u32 8; u32 32; u32 0; u32 \"$free\"; u32 7; u32 \"$first\"; u32 \"$log\"; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 \"$magic\"; u16 \"$state\"; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 \"$compat\"; u32 \"$incompat\"; u32 \"$ro\"; zero 16; printf 'fixture'; zero 9; zero 888; } > \"$target\"; }\nmake_image image.img 1 0 0 0 0 1 20 61267\nPATH=/usr/bin:/bin python3 -c 'from pathlib import Path; Path(\"before.img\").write_bytes(Path(\"image.img\").read_bytes())'\nif fsck image.img > run.out 2> run.err; then status=0; else status=$?; fi; cat run.err >&2;\n[[ $status -eq 0 && ! -s run.err ]]\nprintf 'clean superblock accepted (status 0)\\n'\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nbefore=bytearray(Path('before.img').read_bytes())\nassert Path('image.img').read_bytes()==before, 'unexpected image byte changes'\nPYC\n",
+      "expected_status": 0,
+      "stdout": "clean superblock accepted (status 0)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "feature-classification",
+      "kind": "contract",
+      "purpose": "Check feature-bit classification for ext2, journaled ext3, and ext4 via both extents and huge-file read-only-compatible flags. The fixture encoder writes public ext2 superblock fields independently. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\nmake_image() { local target=$1 state=$2 compat=$3 incompat=$4 ro=$5 log=$6 first=$7 free=$8 magic=$9; { zero 1024; u32 8; u32 32; u32 0; u32 \"$free\"; u32 7; u32 \"$first\"; u32 \"$log\"; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 \"$magic\"; u16 \"$state\"; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 \"$compat\"; u32 \"$incompat\"; u32 \"$ro\"; zero 16; printf 'fixture'; zero 9; zero 888; } > \"$target\"; }\ncheck_variant() { local wanted=$1 compat=$2 incompat=$3 ro=$4; make_image image.img 1 \"$compat\" \"$incompat\" \"$ro\" 0 1 20 61267; if fsck -v image.img > run.out 2> run.err; then status=0; else status=$?; fi; cat run.err >&2; [[ $status -eq 0 && -s run.err ]]; summary=$(<run.err); [[ $summary == *\"variant=$wanted\"* ]]; }\ncheck_variant ext2 0 0 0\ncheck_variant ext3 4 0 0\ncheck_variant ext4 0 64 0\ncheck_variant ext4 0 0 8\nprintf 'ext2/ext3/ext4 feature flags classified\\n'",
+      "expected_status": 0,
+      "stdout": "ext2/ext3/ext4 feature flags classified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "verbose-boundary",
+      "kind": "contract",
+      "purpose": "Exercise the largest documented block-size encoding (log size 6, 65536 bytes) with the required first-data-block value 0 and verify decoded verbose fields against the independently encoded fixture. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\nmake_image() { local target=$1 state=$2 compat=$3 incompat=$4 ro=$5 log=$6 first=$7 free=$8 magic=$9; { zero 1024; u32 8; u32 32; u32 0; u32 \"$free\"; u32 7; u32 \"$first\"; u32 \"$log\"; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 \"$magic\"; u16 \"$state\"; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 \"$compat\"; u32 \"$incompat\"; u32 \"$ro\"; zero 16; printf 'fixture'; zero 9; zero 888; } > \"$target\"; }\nmake_image image.img 1 0 0 0 6 0 20 61267\nif fsck -v image.img > run.out 2> run.err; then status=0; else status=$?; fi; cat run.err >&2;\n[[ $status -eq 0 && -s run.err ]]\nsummary=$(<run.err)\n[[ $summary == *'block_size=65536'* && $summary == *'blocks=32'* && $summary == *'inodes=8'* ]]\nprintf '65536-byte block boundary decoded\\n'",
+      "expected_status": 0,
+      "stdout": "65536-byte block boundary decoded\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dirty-readonly",
+      "kind": "contract",
+      "purpose": "Verify that a dirty state returns the documented uncorrected-error status without a repair flag and remains dirty across repeated read-only checks. An independent Python byte snapshot verifies the entire image, allowing only the documented two-byte state repair where requested. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\nmake_image() { local target=$1 state=$2; { zero 1024; u32 8; u32 32; u32 0; u32 20; u32 7; u32 1; u32 0; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 61267; u16 \"$state\"; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 0; u32 0; u32 0; zero 16; printf 'fixture'; zero 9; zero 888; } > \"$target\"; }\nmake_image image.img 2\nPATH=/usr/bin:/bin python3 -c 'from pathlib import Path; Path(\"before.img\").write_bytes(Path(\"image.img\").read_bytes())'\nif fsck image.img > first.out 2> first.err; then status=0; else status=$?; fi; cat first.err >&2;\n[[ $status -eq 4 && ! -s first.out && -s first.err ]]\nif fsck image.img > second.out 2> second.err; then status=0; else status=$?; fi; cat second.err >&2;\n[[ $status -eq 4 && ! -s second.out && -s second.err ]]\nprintf 'dirty state reported twice without repair\\n'\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nbefore=bytearray(Path('before.img').read_bytes())\nassert Path('image.img').read_bytes()==before, 'unexpected image byte changes'\nPYC\n",
+      "expected_status": 0,
+      "stdout": "dirty state reported twice without repair\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dirty-repair",
+      "kind": "contract",
+      "purpose": "Check the documented -p dirty-bit repair on a private regular image, then confirm a default read returns status 0, demonstrating that the state was persisted as clean. An independent Python byte snapshot verifies the entire image, allowing only the documented two-byte state repair where requested. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\nmake_image() { local target=$1 state=$2; { zero 1024; u32 8; u32 32; u32 0; u32 20; u32 7; u32 1; u32 0; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 61267; u16 \"$state\"; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 0; u32 0; u32 0; zero 16; printf 'fixture'; zero 9; zero 888; } > \"$target\"; }\nmake_image image.img 2\nPATH=/usr/bin:/bin python3 -c 'from pathlib import Path; Path(\"before.img\").write_bytes(Path(\"image.img\").read_bytes())'\nif fsck -p image.img > repair.out 2> repair.err; then status=0; else status=$?; fi; cat repair.err >&2;\n[[ $status -eq 0 ]]\nif fsck image.img > verify.out 2> verify.err; then status=0; else status=$?; fi; cat verify.err >&2;\n[[ $status -eq 0 && ! -s verify.err ]]\nprintf 'dirty bit repaired and subsequent check is clean\\n'\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nbefore=bytearray(Path('before.img').read_bytes())\nbefore[1082:1084]=b'\\x01\\x00'\nassert Path('image.img').read_bytes()==before, 'unexpected image byte changes'\nPYC\n",
+      "expected_status": 0,
+      "stdout": "dirty bit repaired and subsequent check is clean\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nochange-precedence",
+      "kind": "contract",
+      "purpose": "Confirm the documented -n read-only option takes precedence over -p: the initial and subsequent checks both report the dirty state as status 4. An independent Python byte snapshot verifies the entire image, allowing only the documented two-byte state repair where requested. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\n{ zero 1024; u32 8; u32 32; u32 0; u32 20; u32 7; u32 1; u32 0; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 61267; u16 2; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 0; u32 0; u32 0; zero 16; printf 'fixture'; zero 9; zero 888; } > image.img\nPATH=/usr/bin:/bin python3 -c 'from pathlib import Path; Path(\"before.img\").write_bytes(Path(\"image.img\").read_bytes())'\nif fsck -p -n image.img > first.out 2> first.err; then status=0; else status=$?; fi; cat first.err >&2;\n[[ $status -eq 4 && ! -s first.out && -s first.err ]]\nif fsck image.img > second.out 2> second.err; then status=0; else status=$?; fi; cat second.err >&2;\n[[ $status -eq 4 && ! -s second.out && -s second.err ]]\nprintf '%s\\n' '-n overrides -p and preserves dirty state'\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nbefore=bytearray(Path('before.img').read_bytes())\nassert Path('image.img').read_bytes()==before, 'unexpected image byte changes'\nPYC\n",
+      "expected_status": 0,
+      "stdout": "-n overrides -p and preserves dirty state\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-image-formats",
+      "kind": "contract",
+      "purpose": "Check documented status 4 for a bad ext magic and for an image too short to contain the primary 1024-byte superblock. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\n{ zero 1024; u32 8; u32 32; u32 0; u32 20; u32 7; u32 1; u32 0; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 0; u16 1; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 0; u32 0; u32 0; zero 16; printf 'fixture'; zero 9; zero 888; } > bad.img\n: > short.img\nfor target in bad.img short.img; do if fsck \"$target\" > run.out 2> run.err; then status=0; else status=$?; fi; cat run.err >&2; [[ $status -eq 4 && ! -s run.out && -s run.err ]]; done\nprintf 'bad magic and short superblock rejected\\n'",
+      "expected_status": 0,
+      "stdout": "bad magic and short superblock rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-counts-no-repair",
+      "kind": "contract",
+      "purpose": "Check that an invalid free-block count remains an uncorrected sanity error even with -p and that the failed repair attempt leaves the image invalid. An independent Python byte snapshot verifies the entire image, allowing only the documented two-byte state repair where requested. Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "zero() { local n=$1 i; for ((i=0; i<n; i++)); do printf '\\0'; done; }\nbyte() { local h; printf -v h '%02x' \"$(( $1 & 255 ))\"; printf '%b' \"\\\\x${h}\"; }\nu16() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; }\nu32() { local v=$1; byte \"$v\"; byte \"$((v >> 8))\"; byte \"$((v >> 16))\"; byte \"$((v >> 24))\"; }\n{ zero 1024; u32 8; u32 32; u32 0; u32 33; u32 7; u32 1; u32 0; u32 0; u32 8192; u32 8192; u32 8; u32 0; u32 0; u16 0; u16 0; u16 61267; u16 2; u16 0; u16 0; u32 0; u32 0; u32 0; u32 1; u16 0; u16 0; u32 11; u16 128; u16 0; u32 0; u32 0; u32 0; zero 16; printf 'fixture'; zero 9; zero 888; } > image.img\nPATH=/usr/bin:/bin python3 -c 'from pathlib import Path; Path(\"before.img\").write_bytes(Path(\"image.img\").read_bytes())'\nif fsck -p image.img > repair.out 2> repair.err; then status=0; else status=$?; fi; cat repair.err >&2;\n[[ $status -eq 4 && -s repair.err ]]\nif fsck image.img > verify.out 2> verify.err; then status=0; else status=$?; fi; cat verify.err >&2;\n[[ $status -eq 4 && -s verify.err ]]\nprintf 'invalid counts remain uncorrected\\n'\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nbefore=bytearray(Path('before.img').read_bytes())\nassert Path('image.img').read_bytes()==before, 'unexpected image byte changes'\nPYC\n",
+      "expected_status": 0,
+      "stdout": "invalid counts remain uncorrected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "usage-and-open-errors",
+      "kind": "contract",
+      "purpose": "Check the documented subset statuses for a missing relative image (operational error 8) and missing operand (usage error 16). Captured diagnostics are retained in private files and relayed to stderr.",
+      "script": "if fsck missing.img > open.out 2> open.err; then open_status=0; else open_status=$?; fi; cat open.err >&2;\n[[ $open_status -eq 8 && ! -s open.out && -s open.err ]]\nif fsck > usage.out 2> usage.err; then usage_status=0; else usage_status=$?; fi; cat usage.err >&2;\n[[ $usage_status -eq 16 && ! -s usage.out && -s usage.err ]]\nprintf 'open and usage errors return 8 and 16\\n'",
+      "expected_status": 0,
+      "stdout": "open and usage errors return 8 and 16\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "real-block-device",
+      "kind": "deferred",
+      "purpose": "Qualify behavior when IMAGE is an actual block device rather than a private regular-file fixture.",
+      "reason": "DEFERRED: Requires a disposable VM with a dedicated throwaway block device and a bounded fixture filesystem. The supplied harness exposes only private regular-file fixtures; no host device path or live device operation is allowed."
+    }
+  ]
+}

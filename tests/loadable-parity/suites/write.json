@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "loadable": "write",
+  "reference": "Published write target-directory/banner-suppression and careful-byte-output contracts, independently encoded literal byte strings checked using Python. The receiver is an ordinary relative private file, with forced mode gating. No GNU terminal-delivery parity or live terminal claim is made.",
+  "coverage": [
+    "Loadable registration as a Bash builtin, checked with type -t without invoking write.",
+    "Help synopsis and documented message/target behavior, checked through Bash help without invoking write.",
+    "Contract: private-file argument/stdin delivery, careful-byte escaping and forced permission/missing-target errors; PTY/banner/EOF/fault behavior remains deferred.",
+    "Executed joined arguments, binary stdin, newline conversion, control/high-byte rendering and permission/missing-target errors through private regular-file receivers."
+  ],
+  "exclusions": [
+    "Real PTY banners, EOF/session semantics, system recipients and injected write faults remain deferred; regular-file capture only qualifies the documented byte transformation and append behavior."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type-metadata",
+      "purpose": "Bash type -t classifies an enabled shell builtin as builtin; this confirms write registration without calling the loadable.",
+      "kind": "contract",
+      "script": "type -t write",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract-metadata",
+      "purpose": "Check that Bash help exposes the documented synopsis, command purpose, EOF marker, and target-directory environment knob. The assertions are grounded in the builtin help contract and do not invoke write.",
+      "kind": "contract",
+      "script": "help_text=$(help write)\n[[ $help_text == *'write TTY [MSG ...]'* ]]\n[[ $help_text == *'Send a message to a single terminal (write(1)).'* ]]\n[[ $help_text == *'trailing EOF marker.'* ]]\n[[ $help_text == *'BASHWALL_DEV_DIR'* ]]\nprintf 'write help metadata present\\n'",
+      "expected_status": 0,
+      "stdout": "write help metadata present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argv-message-delivery",
+      "kind": "contract",
+      "purpose": "Use the documented target-directory override and banner suppression to append joined arguments to a private regular-file receiver; no terminal recipient is addressed.",
+      "script": "export BASHWALL_DEV_DIR=. BASHWALL_NOBANNER=1 BASHWALL_FORCE_MESG=1\numask 000\nprintf 'prefix:' > receiver\nchmod 666 receiver\nwrite receiver hello \"two words\"\nPATH=/usr/bin:/bin python3 - <<'PY'\nfrom pathlib import Path\nassert Path(\"receiver\").read_bytes() == b\"prefix:hello two words\\r\\n\"\nprint(\"argument bytes appended\")\nPY",
+      "expected_status": 0,
+      "stdout": "argument bytes appended\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-message-delivery",
+      "kind": "contract",
+      "purpose": "Private-file receiver checks stdin with and without a final newline; CRLF input remains CRLF.",
+      "script": "export BASHWALL_DEV_DIR=. BASHWALL_NOBANNER=1 BASHWALL_FORCE_MESG=1\numask 000\nprintf 'prefix:' > receiver\nchmod 666 receiver\nprintf 'first\\nsecond' | write receiver\nprintf 'last\\r\\n' | write receiver\nPATH=/usr/bin:/bin python3 - <<'PY'\nfrom pathlib import Path\nassert Path('receiver').read_bytes() == b'prefix:first\\r\\nsecond\\r\\nlast\\r\\n'\nprint('stdin newline bytes')\nPY",
+      "expected_status": 0,
+      "stdout": "stdin newline bytes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal-byte-escaping",
+      "kind": "contract",
+      "purpose": "Capture control-byte rendering in an ordinary private receiver using the published careful-output rules, including NUL, DEL and high bytes. No terminal interprets these bytes.",
+      "script": "export BASHWALL_DEV_DIR=. BASHWALL_NOBANNER=1 BASHWALL_FORCE_MESG=1\numask 000\nprintf 'prefix:' > receiver\nchmod 666 receiver\nprintf 'A\\000B\\177C\\200D\\tE\\n' | write receiver\nPATH=/usr/bin:/bin python3 - <<'PY'\nfrom pathlib import Path\nassert Path('receiver').read_bytes() == b'prefix:A^@B^?C\\\\200D\\tE\\r\\n'\nprint('careful byte encoding')\nPY",
+      "expected_status": 0,
+      "stdout": "careful byte encoding\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "disabled-target-and-write-errors",
+      "kind": "contract",
+      "purpose": "A forced messages-disabled mode gate rejects a private regular-file receiver; missing relative targets also fail and leave existing data intact.",
+      "script": "export BASHWALL_DEV_DIR=. BASHWALL_NOBANNER=1 BASHWALL_FORCE_MESG=1\numask 077\nprintf retained > receiver\nif write receiver message; then a=0; else a=$?; fi\nif write absent message; then b=0; else b=$?; fi\n[[ $(<receiver) == retained ]]\nprintf '%s %s\\n' \"$a\" \"$b\"",
+      "expected_status": 0,
+      "stdout": "1 1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "pty-banner-eof-and-faults",
+      "kind": "deferred",
+      "purpose": "Qualify real terminal/session banner, EOF marker and partial-write behavior.",
+      "reason": "Requires a future disposable VM with a private PTY/session driver, a fixed clock/user/host mock and reviewed stat/open/write fault injection. No real terminal recipient or host session may be used. Private regular-file byte checks do not qualify PTY behavior."
+    }
+  ]
+}

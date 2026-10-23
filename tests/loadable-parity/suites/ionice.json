@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "loadable": "ionice",
+  "reference": "Contract cases use Bash's documented `type -t` and `help` builtins and static ionice help text documented in config/bash-loadables.list and loadables/ionice.c. The expected type tag is `builtin`; help assertions check documented summary, synopsis and option descriptions. No ionice operation was run to derive an expectation. Deferred operations are intended for comparison with util-linux ionice(1) plus a deterministic ioprio_get/ioprio_set mock that never forwards calls to the kernel.",
+  "coverage": [
+    "Bash recognizes ionice as a builtin with PATH empty.",
+    "Bash help exposes the documented ionice summary, synopsis, classes, levels and ignore-fail option.",
+    "Deferred: own-process and explicit-PID query output, including all scheduling class formats.",
+    "Deferred: class aliases, default set values, explicit priority bounds and class-specific data handling.",
+    "Deferred: malformed and overflowing arguments are rejected before any ioprio syscall.",
+    "Deferred: repeated PID processing, syscall failures and -t behavior.",
+    "Deferred: command form, option terminator, child output and exit-status propagation."
+  ],
+  "exclusions": [
+    "No ionice operation is invoked: even queries call the loadable, and setters or command form can alter process I/O scheduling. All operation scenarios require a future disposable VM or an equivalent deterministic syscall mock.",
+    "Metadata checks are contract coverage only; they do not count as operation coverage or GNU ionice parity."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Check Bash reports the loadable as a builtin without invoking ionice. The `builtin` type tag is the documented result for a shell builtin.",
+      "script": "[[ $(type -t ionice) == builtin ]]\nprintf '%s\\n' 'builtin'\n",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Check help metadata remains available and contains the loadable's documented summary, invocation synopsis and option descriptions, without calling the ionice operation.",
+      "script": "help_text=$(help ionice)\n[[ $help_text == *'Get or set the I/O scheduling class and priority of a process.'* ]]\n[[ $help_text == *'ionice [-c CLASS] [-n LEVEL] -p PID...'* ]]\n[[ $help_text == *'-c CLASS  none|0, realtime|rt|1, best-effort|be|2, idle|3'* ]]\n[[ $help_text == *'-n LEVEL  0 (highest) .. 7 (lowest); default 4'* ]]\n[[ $help_text == *'-t        ignore set failures'* ]]\nprintf '%s\\n' 'documented help present'\n",
+      "expected_status": 0,
+      "stdout": "documented help present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-format",
+      "kind": "deferred",
+      "purpose": "Compare own-process and explicit-PID queries for none, realtime, best-effort and idle classes, including priority formatting and get failures.",
+      "reason": "Requires a future disposable VM or deterministic ioprio_get mock supplying packed class/priority values and controlled errors to both the candidate and util-linux ionice(1). No process query was run here."
+    },
+    {
+      "id": "class-and-level-set",
+      "kind": "deferred",
+      "purpose": "Compare numeric and named class aliases, default best-effort class/priority, explicit levels 0 and 7, and the effective data for none and idle classes.",
+      "reason": "Set operations can mutate process scheduling and realtime class changes may require privilege. A future disposable VM or syscall mock must intercept ioprio_set for candidate and GNU ionice(1), record the requested class/data, and never forward the call to the host kernel."
+    },
+    {
+      "id": "argument-validation",
+      "kind": "deferred",
+      "purpose": "Check missing option operands, unknown classes, priorities outside 0..7, malformed/overflowing PIDs and excessive PID lists, while confirming rejected requests make no syscall.",
+      "reason": "Although these inputs should fail before mutation, they still invoke the loadable. A future syscall-mocked disposable fixture must compare util-linux ionice(1) status/diagnostics and verify the mock recorded no ioprio_get/ioprio_set calls."
+    },
+    {
+      "id": "multiple-pids-and-ignore",
+      "kind": "deferred",
+      "purpose": "Check processing of multiple explicit PIDs when one target fails, accumulated status, and -t/--ignore behavior for failed sets.",
+      "reason": "Requires deterministic per-PID success and failure injection for both implementations. A future disposable VM or syscall mock must use only fixture PIDs, record call order and errors, and ensure no mock call reaches the kernel."
+    },
+    {
+      "id": "command-wrapper",
+      "kind": "deferred",
+      "purpose": "Check command form applies the requested policy to a child, honors -- before command arguments, preserves child output and propagates its exit status; also check set failure versus -t continuation.",
+      "reason": "Command form forks and attempts to change the child's I/O priority before exec. A future disposable VM or syscall-mocked runner must intercept ioprio_set for candidate and util-linux ionice(1), execute only a small relative fixture command, and verify child output/status without any real kernel priority change."
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "loadable": "audit",
+  "reference": "No GNU command has this loadable's argv or output contract: auditctl/ausearch operate through a different CLI and emit different formats. Contract expectations use Bash's documented type/help builtins, Linux Audit UAPI message type numbers, and the documented pinned map plus 9-field TSV encoding. Decoder records below are independently constructed from fixed payload fields, decimal timestamp arithmetic, and the documented unknown-type and tab/newline escaping rules; no candidate output is used as an oracle.",
+  "coverage": [
+    "Static builtin availability and Bash help metadata with PATH empty.",
+    "Known Linux Audit message type name/number lookups and unknown lookup behavior.",
+    "decode-text timestamp conversion, quoted lifted fields, and retained key/value fields.",
+    "Unknown numeric message preservation and missing-field defaults.",
+    "Tab/newline escaping that keeps each decoded message on one TSV line.",
+    "Relative output-file append behavior for decode-text."
+  ],
+  "exclusions": [
+    "There is no GNU CLI with matching decode-text, typename, typenum, or canonical rule-argument behavior, so these are honest contract cases rather than fabricated parity comparisons.",
+    "Kernel netlink operations are deferred: they require an audit-enabled disposable VM, audit capabilities, and controlled baseline/cleanup for global audit state. No live status, rule, enablement, or daemon operation is claimed as passed."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-metadata",
+      "purpose": "Confirm the compiled builtin remains available with an empty executable path and that Bash help exposes the documented audit verbs and pure lookup/decoder operations.",
+      "kind": "contract",
+      "script": "PATH=\n[[ $(type -t audit) == builtin ]]\nhelp audit > audit-help.txt\nIFS= read -r synopsis < audit-help.txt\n[[ $synopsis == 'audit: audit' ]]\nheader_doc=0\nstatus_doc=0\ndecode_doc=0\ntype_doc=0\nwhile IFS= read -r line; do\n  [[ $line == *'NETLINK_AUDIT consumer for the bash-os audit engine (AUDIT-6.2).'* ]] && header_doc=1\n  [[ $line == *'audit status [-V VAR]'* ]] && status_doc=1\n  [[ $line == *'audit decode-text TYPE PAYLOAD [-o FILE]'* ]] && decode_doc=1\n  [[ $line == *'pinned AUDIT_* map.'* ]] && type_doc=1\ndone < audit-help.txt\n[[ $header_doc == 1 && $status_doc == 1 && $decode_doc == 1 && $type_doc == 1 ]]\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "typenum-known",
+      "purpose": "Check representative Linux Audit UAPI message numbers across syscall, configuration, user-authentication, and anomaly event families.",
+      "kind": "contract",
+      "script": "[[ $(audit typenum SYSCALL) == 1300 ]]\n[[ $(audit typenum EXECVE) == 1309 ]]\n[[ $(audit typenum CONFIG_CHANGE) == 1305 ]]\n[[ $(audit typenum USER_AUTH) == 1100 ]]\n[[ $(audit typenum USER_LOGIN) == 1112 ]]\n[[ $(audit typenum ANOM_LOGIN_FAILURES) == 2100 ]]\nprintf '1300 1309 1305 1100 1112 2100\\n'",
+      "expected_status": 0,
+      "stdout": "1300 1309 1305 1100 1112 2100\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "typename-known",
+      "purpose": "Check reverse lookups for pinned message numbers from the same independent Linux Audit UAPI families.",
+      "kind": "contract",
+      "script": "[[ $(audit typename 1300) == SYSCALL ]]\n[[ $(audit typename 1309) == EXECVE ]]\n[[ $(audit typename 1100) == USER_AUTH ]]\n[[ $(audit typename 2100) == ANOM_LOGIN_FAILURES ]]\nprintf 'SYSCALL EXECVE USER_AUTH ANOM_LOGIN_FAILURES\\n'",
+      "expected_status": 0,
+      "stdout": "SYSCALL EXECVE USER_AUTH ANOM_LOGIN_FAILURES\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "typename-unknown",
+      "purpose": "Verify an unpinned numeric type prints UNKNOWN and returns failure, as specified by the type lookup contract.",
+      "kind": "contract",
+      "script": "if result=$(audit typename 9999); then exit 90; else status=$?; fi\n[[ $status == 1 && $result == UNKNOWN ]]\nprintf 'UNKNOWN (status %s)\\n' \"$status\"",
+      "expected_status": 0,
+      "stdout": "UNKNOWN (status 1)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "typenum-unknown",
+      "purpose": "Verify an unpinned symbolic name is rejected with failure and no stdout instead of being assigned a guessed number.",
+      "kind": "contract",
+      "script": "if result=$(audit typenum NOT_AUDIT_TYPE); then exit 90; else status=$?; fi\n[[ $status == 1 && -z $result ]]\nprintf 'unknown-name-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "unknown-name-rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "decode-known-record",
+      "purpose": "Decode a fixed SYSCALL payload and independently check timestamp milliseconds, serial, quoted auid/uid/pid/exe/key extraction, and the remaining key/value tail.",
+      "kind": "contract",
+      "script": "audit decode-text 1300 'audit(5.007:12): arch=c000003e syscall=59 success=yes auid=1000 uid=1001 pid=77 exe=\"/bin/a shell\" key=\"exec watch\" comm=\"shell\"' -o -",
+      "expected_status": 0,
+      "stdout": "SYSCALL\t5007\t12\t1000\t1001\t77\t/bin/a shell\texec watch\tarch=c000003e syscall=59 success=yes comm=\"shell\"\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-unknown-record",
+      "purpose": "Check that an unpinned numeric event is retained as UNKNOWN with its numeric type in the kv tail, while absent lifted columns use the documented dash defaults.",
+      "kind": "contract",
+      "script": "audit decode-text 2222 'audit(0.010:8): type=custom uid=42 extra=value' -o -",
+      "expected_status": 0,
+      "stdout": "UNKNOWN\t10\t8\t-\t42\t-\t-\t-\taudit_type=2222 type=custom extra=value\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-escaped-whitespace",
+      "purpose": "Verify tabs and newlines inside a quoted audit value are percent-escaped so a message remains one nine-column TSV record.",
+      "kind": "contract",
+      "script": "payload=$'audit(9.008:17): uid=7 comm=\"a\\tb\\nc\"'\naudit decode-text 1300 \"$payload\" -o -",
+      "expected_status": 0,
+      "stdout": "SYSCALL\t9008\t17\t-\t7\t-\t-\t-\tcomm=\"a%09b%0ac\"\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-file-append",
+      "purpose": "Exercise decode-text -o with a relative private fixture file: existing contents must remain and two decoded records must be appended in order.",
+      "kind": "contract",
+      "script": "printf 'seed\\n' > records.tsv\naudit decode-text 1300 'audit(1.002:3): success=yes' -o records.tsv\naudit decode-text 1302 'audit(1.004:5): name=\"file\"' -o records.tsv\nmapfile -t rows < records.tsv\n[[ ${#rows[@]} == 3 ]]\n[[ ${rows[0]} == seed ]]\n[[ ${rows[1]} == $'SYSCALL\\t1002\\t3\\t-\\t-\\t-\\t-\\t-\\tsuccess=yes' ]]\n[[ ${rows[2]} == $'PATH\\t1004\\t5\\t-\\t-\\t-\\t-\\t-\\tname=\"file\"' ]]\nprintf 'append-ok\\n'",
+      "expected_status": 0,
+      "stdout": "append-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-kernel-queries",
+      "purpose": "Cover status and list-rules netlink read behavior against a controlled audit kernel state.",
+      "kind": "deferred",
+      "reason": "Requires a disposable audit-enabled Linux VM with CAP_AUDIT_READ and a recorded baseline for audit status and rules. A future fixture should query status and an empty/known rule set without touching host kernel audit state."
+    },
+    {
+      "id": "deferred-kernel-rule-changes",
+      "purpose": "Cover set-enabled, add-rule, and del-rule encoding plus kernel acknowledgement and resulting rule state.",
+      "kind": "deferred",
+      "reason": "Requires a disposable QEMU VM with CAP_AUDIT_WRITE and an audit subsystem that permits rule changes. Snapshot the enabled mode and rules, exercise a harmless fixture rule through add/list/del, and restore the snapshot; these operations were not invoked here."
+    },
+    {
+      "id": "deferred-audit-consumer",
+      "purpose": "Cover run registration, bounded event collection, decode integration, and cleanup of the audit daemon PID.",
+      "kind": "deferred",
+      "reason": "Requires a disposable audit-enabled VM with CAP_AUDIT_READ and CAP_AUDIT_WRITE, no competing audit daemon, controlled fixture-owned syscall event generation, and a snapshot/restore procedure for daemon PID and audit state. No daemon or netlink operation was invoked here."
+    },
+    {
+      "id": "empty-record-defaults",
+      "kind": "contract",
+      "purpose": "An empty local payload encodes a nine-column record with zero timestamp/serial and missing lifted-field defaults.",
+      "script": "audit decode-text 1300 '' -o -",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "SYSCALL\t0\t0\t-\t-\t-\t-\t-\t\n"
+    },
+    {
+      "id": "output-parent-missing",
+      "kind": "contract",
+      "purpose": "A missing private output parent fails before emitting a record; no netlink operation is invoked.",
+      "script": "audit decode-text 1300 'audit(1.000:1): uid=7' -o absent/records",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

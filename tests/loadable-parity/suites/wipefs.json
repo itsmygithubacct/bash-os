@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "loadable": "wipefs",
+  "reference": "Bash metadata and the documented concise signature-list contract. Synthetic regular files encode filesystem magic offsets independently; util-linux wipefs is used only for empty/unmatched-file CLI comparisons, since its detailed signature validation and row format differ.",
+  "coverage": [
+    "Bash reports wipefs as a builtin with the executable search path disabled by the runner.",
+    "Bash help registration and the loadable's published synopsis are checked.",
+    "The command's own --help output is checked against its published help text.",
+    "Future safe inspection, dry-run, and erase behavior is specified as deferred work with independent reference requirements.",
+    "Read-only listing and -n/--no-act on independently encoded private regular files; missing operands and aggregate continuation."
+  ],
+  "exclusions": [
+    "Raw devices and actual -a erasure remain deferred to a disposable VM or reviewed pwrite mock.",
+    "The concise offset/type/path rows are a custom contract, not full util-linux probing parity.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves the loadable as a builtin when candidate execution uses an empty PATH.",
+      "script": "type -t wipefs",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-registration",
+      "kind": "contract",
+      "purpose": "Verify Bash has registered help for wipefs; the marker makes the expected output independent of help formatting.",
+      "script": "help wipefs >metadata-sink; printf 'help-registered\\n'",
+      "expected_status": 0,
+      "stdout": "help-registered\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-synopsis",
+      "kind": "contract",
+      "purpose": "Check Bash's short-help form against the usage synopsis declared in the builtin table entry.",
+      "script": "help -s wipefs",
+      "expected_status": 0,
+      "stdout": "wipefs: wipefs [-a] [-n] device...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command-help-contract",
+      "kind": "contract",
+      "purpose": "Check wipefs --help prints the documented mode descriptions and signature-family scope without opening a target.",
+      "script": "wipefs --help",
+      "expected_status": 0,
+      "stdout": "Detect or wipe filesystem / swap signatures.\n\n    wipefs device       list detected signatures (offset, type)\n    wipefs -a device    erase all detected signatures\n    wipefs -n device    dry-run: show what -a would erase\n\nRecognises swap, ext, xfs, btrfs, ntfs, vfat and iso9660 magics.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "signature-inspection-deferred",
+      "purpose": "List an independently encoded XFS magic at offset zero using default and read-only dry-run modes; verify the complete input remains unchanged.",
+      "kind": "contract",
+      "script": "printf 'XFSBfixture' > image\nwipefs image\nwipefs -n image\nwipefs --no-act image\n[[ $(<image) == XFSBfixture ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0x0\txfs\timage\n0x0\txfs\timage\n0x0\txfs\timage\n"
+    },
+    {
+      "id": "signature-erasure-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify -a byte changes, including multiple signatures and preservation of unrelated fixture data.",
+      "reason": "Requires a disposable VM or reviewed private-image mock that confines all writes to throwaway regular-file images, plus independently encoded signature vectors and an independent util-linux/reference-byte oracle. Verify -a clears only specified magic bytes, preserves neighboring data, and compare repeated/no-match behavior; separately verify -n preserves the image. The destructive operation is not run here."
+    },
+    {
+      "id": "no-signature-files",
+      "purpose": "Empty and unmatched private regular files are silent and unchanged in both independent util-linux and candidate runs.",
+      "kind": "parity",
+      "script": ": > empty\nprintf 'ordinary bytes\\n' > plain\nwipefs empty plain",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "wipefs"
+      ]
+    },
+    {
+      "id": "multiple-signature-offsets",
+      "purpose": "List two independently encoded magic offsets in one bounded regular file and verify all bytes with an independent Python byte oracle.",
+      "kind": "contract",
+      "script": "{ printf 'XFSB'; printf '%1076s' ''; printf '\\123\\357'; printf 'tail'; } > image\nwipefs -n image\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nassert Path('image').read_bytes() == b'XFSB'+b' '*1076+b'\\x53\\xef'+b'tail'\nPY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0x0\txfs\timage\n0x438\text\timage\n"
+    },
+    {
+      "id": "missing-and-continuation",
+      "purpose": "A missing private operand fails overall while later regular-file inspection still emits its signature.",
+      "kind": "contract",
+      "script": "printf XFSB > image\nwipefs absent image",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": "0x0\txfs\timage\n"
+    }
+  ]
+}

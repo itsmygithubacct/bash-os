@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "loadable": "sudo",
+  "reference": "Independent metadata contracts: GNU Bash type -t reports a registered shell builtin as builtin; Bash help -d/-s render the builtin's documented description and short synopsis. The sudo-specific help strings are the public metadata declared for the sudo builtin in the pinned source. No executable GNU sudo oracle is run: real command behavior requires policy, credentials, a privilege route, or the bash-os authority, and this task prohibits invoking sudo.",
+  "coverage": [
+    "Bash recognizes sudo as a loadable builtin without invoking it.",
+    "Bash help -d exposes the documented sudo summary.",
+    "Bash help -s exposes the sudo builtin's declared synopsis.",
+    "Deferred authority authorization, credential-drop, shell, timestamp, sudoedit, and policy-list operation routes with explicit disposable test dependencies."
+  ],
+  "exclusions": [
+    "No GNU sudo parity case is run because every executable sudo invocation is forbidden in this task and the relevant oracle requires configured policy and credentials.",
+    "Parser errors, explicit/default external-doas delegation, and fallback argument translation are not exercised. These paths do not inherently need privilege, but invoking the sudo frontend is expressly out of scope here; they are recorded as gaps rather than mislabeled privilege deferrals.",
+    "Bash metadata checks are contract checks only and do not count as command-operation coverage.",
+    "No host account, credential, policy, authority device, service, network, or protected filesystem is accessed."
+  ],
+  "cases": [
+    {
+      "id": "builtin-registration",
+      "kind": "contract",
+      "purpose": "Bash type -t must classify the registered sudo loadable as a builtin. This checks metadata only and does not invoke sudo.",
+      "script": "type -t sudo",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "Bash help -d must return the documented first-line description registered for sudo.",
+      "script": "help -d sudo",
+      "expected_status": 0,
+      "stdout": "sudo - sudo - conservative sudo front-end backed by doas policy\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s must report the sudo builtin's declared short synopsis using Bash's name-prefixed short-help format.",
+      "script": "help -s sudo",
+      "expected_status": 0,
+      "stdout": "sudo: sudo [-n] [-u USER] [-g GROUP] command [args...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "authority-command-authorization",
+      "kind": "deferred",
+      "purpose": "Exercise an authorized command, a policy denial, non-interactive denial, verifier success/failure, and fail-closed reauthorization on the v2 authority route.",
+      "reason": "Requires a disposable bash-os VM with a provisioned v2 /dev/bashos-auth implementation, synthetic policy and identities, and a controlled verifier response. The live authority and sudo invocation are prohibited in this environment."
+    },
+    {
+      "id": "root-credential-drop",
+      "kind": "deferred",
+      "purpose": "Check child uid/gid and supplementary groups, environment scrubbing and assignment replacement, descriptor and signal cleanup, literal argv, and child exit/signal statuses on the root route.",
+      "reason": "Requires a disposable privileged user namespace or VM with private passwd/group fixtures and an exec recorder so real credential transitions can be verified without host accounts or privileges. This suite cannot invoke sudo."
+    },
+    {
+      "id": "login-shell-and-command-quoting",
+      "kind": "deferred",
+      "purpose": "Check -i home and login-shell selection, -s shell selection, and sudo command-string escaping for metacharacters, dollar signs, empty arguments, quotes, and newlines.",
+      "reason": "Requires the root credential route in a disposable account namespace plus controlled target shells and an argv recorder. These execution semantics cannot be reached here without invoking sudo."
+    },
+    {
+      "id": "timestamp-validation-flows",
+      "kind": "deferred",
+      "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
+      "reason": "Requires a disposable v2 authority or reviewed authority mock that records reset and authorization requests and supplies deterministic policy/verifier outcomes; no live authorization state may be used."
+    },
+    {
+      "id": "sudoedit-safe-copyback",
+      "kind": "deferred",
+      "purpose": "Exercise sudoedit over private relative fixture files: safe open, private editor copies, reauthorization, digest-bound copyback, rejection cleanup, and multi-file behavior.",
+      "reason": "The production path depends on kernel safe-open and copyback mediation plus the sudoedit_live gate. It needs a disposable VM with that authority or an independently reviewed syscall mock operating only on private fixture files."
+    },
+    {
+      "id": "policy-list-projection",
+      "kind": "deferred",
+      "purpose": "Check -l, -ll, and --list against a caller-readable private policy snapshot, including digest binding and empty/no-match behavior, without treating listing as execution approval.",
+      "reason": "Requires a disposable authority mock that publishes a private fixture policy path, digest, and generation. No live authority metadata or host policy can be read here, and invoking sudo is prohibited."
+    }
+  ]
+}

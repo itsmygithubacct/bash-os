@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "loadable": "procstat",
+  "reference": "No GNU utility implements this procstat builtin's command surface, and the pinned source inventory records its existing tests as contract tests. Expected outputs below are independent contract values: help/type text follows the documented Bash builtin interface and procstat --help text; numeric columns are manually calculated from the Linux kernel procfs and diskstats field definitions cited by the implementation (docs.kernel.org/filesystems/proc.html and docs.kernel.org/admin-guide/iostats.html). Synthetic records are authored in each script. No expected value was collected from the candidate.",
+  "coverage": [
+    "Bash builtin type/help metadata and procstat's documented help text",
+    "Aggregate CPU accounting, including guest/guest_nice subtraction and sar alias output",
+    "All-CPU selection and per-core CPU output",
+    "Disk operation and sector-to-KiB rate calculations",
+    "Process stat parsing with a command containing spaces and closing parentheses, plus raw output",
+    "pidstat single-PID and proc-root enumeration paths",
+    "pmap, pmap -x offsets, and pldd shared-object deduplication",
+    "Invalid option usage, malformed CPU counters, and an absent process",
+    "Nonzero CPU and RSS accounting checked by an independent Python calculation with platform clock ticks and page size."
+  ],
+  "exclusions": [
+    "There is no matching procstat executable in GNU userland; runnable cases are honest documented-contract checks rather than synthetic parity comparisons.",
+    "Default live /proc behavior is deferred because this suite uses only relative synthetic proc roots and does not rely on changing live counters or a host process inventory.",
+    "No privileged, hardware, network, or process-control operation is part of procstat's tested contract."
+  ],
+  "cases": [
+    {
+      "id": "metadata-and-help",
+      "kind": "contract",
+      "purpose": "Check Bash reports procstat as a builtin, exposes its registered short synopsis, and returns the documented help text.",
+      "script": "type -t procstat\nhelp -s procstat\nprocstat --help",
+      "expected_status": 0,
+      "stdout": "builtin\nprocstat: procstat iostat|mpstat|sar|pidstat|prtstat|pmap|pldd [OPTIONS]\nprocstat iostat [-d] | mpstat [-P ALL] | sar [-u] | pidstat [-p PID]\nprocstat prtstat [-r] PID... | pmap [-x] PID... | pldd PID\nLinux snapshots. CPU/disk averages are since boot; process CPU averages\nare since process start. pmap -x adds file offsets; pldd lists mapped\nshared-object paths. BASHOS_PROC_ROOT selects an alternate proc tree.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "cpu-aggregate-and-sar",
+      "kind": "contract",
+      "purpose": "Verify aggregate CPU percentages from procfs counters, including subtraction of guest time from user/nice while retaining guest columns; sar -u documents the same aggregate report.",
+      "script": "mkdir -p proc\nprintf '100.0 0.0\\n' > proc/uptime\nprintf 'cpu 100 20 30 400 10 5 5 0 10 2\\ncpu0 50 0 10 40 0 0 0 0 0 0\\nintr 99\\n' > proc/stat\nBASHOS_PROC_ROOT=proc procstat mpstat\nBASHOS_PROC_ROOT=proc procstat sar -u",
+      "expected_status": 0,
+      "stdout": "CPU %usr %nice %sys %iowait %irq %soft %steal %guest %gnice %idle\nall 15.79 3.16 5.26 1.75 0.88 0.88 0.00 1.75 0.35 70.18\nCPU %usr %nice %sys %iowait %irq %soft %steal %guest %gnice %idle\nall 15.79 3.16 5.26 1.75 0.88 0.88 0.00 1.75 0.35 70.18\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "cpu-per-core",
+      "kind": "contract",
+      "purpose": "Verify mpstat -P ALL includes the aggregate and each numbered CPU row, preserving row labels and percentages.",
+      "script": "mkdir -p proc\nprintf 'cpu 100 20 30 400 10 5 5 0 10 2\\ncpu0 50 0 10 40 0 0 0 0 0 0\\ncpu2 0 10 0 90 0 0 0 0 0 0\\n' > proc/stat\nBASHOS_PROC_ROOT=proc procstat mpstat -P ALL",
+      "expected_status": 0,
+      "stdout": "CPU %usr %nice %sys %iowait %irq %soft %steal %guest %gnice %idle\nall 15.79 3.16 5.26 1.75 0.88 0.88 0.00 1.75 0.35 70.18\n0 50.00 0.00 10.00 0.00 0.00 0.00 0.00 0.00 0.00 40.00\n2 0.00 10.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 90.00\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "disk-rates",
+      "kind": "contract",
+      "purpose": "Check diskstats operation counts and sectors are converted to rates and KiB totals using the synthetic uptime, for both documented iostat forms.",
+      "script": "mkdir -p proc\nprintf '20.0 0.0\\n' > proc/uptime\nprintf '8 0 sda 8 1 100 11 4 1 300 12 0 5 6\\n' > proc/diskstats\nBASHOS_PROC_ROOT=proc procstat iostat\nBASHOS_PROC_ROOT=proc procstat iostat -d",
+      "expected_status": 0,
+      "stdout": "Device tps kB_read/s kB_wrtn/s kB_read kB_wrtn\nsda 0.60 2.50 7.50 50.0 150.0\nDevice tps kB_read/s kB_wrtn/s kB_read kB_wrtn\nsda 0.60 2.50 7.50 50.0 150.0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "process-stat-and-raw",
+      "kind": "contract",
+      "purpose": "Check field extraction from a proc stat record whose command contains spaces and a closing parenthesis, and verify -r preserves the complete raw record.",
+      "script": "mkdir -p proc/42\nstat_fields=(17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 4096 0)\nprintf '42 (worker ) pool) R' > proc/42/stat\nprintf ' %s' \"${stat_fields[@]}\" >> proc/42/stat\nprintf '\\n' >> proc/42/stat\nBASHOS_PROC_ROOT=proc procstat prtstat 42\nBASHOS_PROC_ROOT=proc procstat prtstat -r 42",
+      "expected_status": 0,
+      "stdout": "Process: 42 (worker ) pool)\nState: R\nParent: 17\nThreads: 3\nUser seconds: 0.00\nSystem seconds: 0.00\nVirtual bytes: 4096\nResident KiB: 0\n42 (worker ) pool) R 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 4096 0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pidstat-explicit-and-scan",
+      "kind": "contract",
+      "purpose": "Verify pidstat's explicit -p path and its numeric proc-root scan agree for a single deterministic process record.",
+      "script": "mkdir -p proc/42\nprintf '100.0 0.0\\n' > proc/uptime\nstat_fields=(17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 4096 0)\nprintf '42 (worker ) pool) R' > proc/42/stat\nprintf ' %s' \"${stat_fields[@]}\" >> proc/42/stat\nprintf '\\n' >> proc/42/stat\nBASHOS_PROC_ROOT=proc procstat pidstat -p 42\nBASHOS_PROC_ROOT=proc procstat pidstat",
+      "expected_status": 0,
+      "stdout": "PID %usr %system %CPU RSS_KiB Command\n42 0.00 0.00 0.00 0 worker ) pool\nPID %usr %system %CPU RSS_KiB Command\n42 0.00 0.00 0.00 0 worker ) pool\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "maps-offsets-and-libraries",
+      "kind": "contract",
+      "purpose": "Check mapping byte ranges become KiB totals, pmap -x prints offsets, and pldd lists a repeated shared object once while omitting anonymous mappings.",
+      "script": "mkdir -p proc/42\nprintf '1000-3000 r-xp 00000000 08:01 1 /lib/demo.so.1\\n3000-4000 r--p 00002000 08:01 1 /lib/demo.so.1\\n5000-6000 rw-p 00000000 00:00 0 [heap]\\n' > proc/42/maps\nBASHOS_PROC_ROOT=proc procstat pmap 42\nBASHOS_PROC_ROOT=proc procstat pmap -x 42\nBASHOS_PROC_ROOT=proc procstat pldd 42",
+      "expected_status": 0,
+      "stdout": "42:\nAddress Kbytes Mode Mapping\n0000000000001000 8 r-xp /lib/demo.so.1\n0000000000003000 4 r--p /lib/demo.so.1\n0000000000005000 4 rw-p [heap]\ntotal 16K\n42:\nAddress Kbytes Mode Offset Mapping\n0000000000001000 8 r-xp 0000000000000000 /lib/demo.so.1\n0000000000003000 4 r--p 0000000000002000 /lib/demo.so.1\n0000000000005000 4 rw-p 0000000000000000 [heap]\ntotal 16K\n42:\n/lib/demo.so.1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option-usage",
+      "kind": "contract",
+      "purpose": "Check an unsupported mpstat interval argument is rejected as usage without producing a report.",
+      "script": "procstat mpstat 2",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "malformed-cpu-record",
+      "kind": "contract",
+      "purpose": "Check malformed aggregate CPU counters fail with a diagnostic after the report header, as required for invalid proc stat input.",
+      "script": "mkdir -p proc\nprintf 'cpu bad\\n' > proc/stat\nBASHOS_PROC_ROOT=proc procstat mpstat",
+      "expected_status": 1,
+      "stdout": "CPU %usr %nice %sys %iowait %irq %soft %steal %guest %gnice %idle\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-process-stat",
+      "kind": "contract",
+      "purpose": "Check a syntactically valid but absent PID reports a read failure and returns nonzero.",
+      "script": "mkdir -p proc\nBASHOS_PROC_ROOT=proc procstat prtstat 404",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "default-live-procfs-integration",
+      "kind": "deferred",
+      "purpose": "Exercise the default /proc root and process enumeration against a controlled live Linux kernel ABI.",
+      "reason": "Requires a disposable Linux VM with a controlled procfs snapshot or a procfs mock mounted as the default root, plus a pinned kernel ABI and known process inventory. The current suite deliberately uses only relative synthetic proc roots and does not read live system data; no result is claimed for default-root integration."
+    },
+    {
+      "id": "nonzero-process-accounting",
+      "kind": "contract",
+      "purpose": "Compute nonzero process CPU averages and RSS independently using proc(5) field positions, Python clock ticks/page size and fixed elapsed time; preserve the raw report.",
+      "script": "/usr/bin/python3 - <<'BUILD'\nfrom pathlib import Path\nimport os\np=Path('proc/42'); p.mkdir(parents=True)\nticks=os.sysconf('SC_CLK_TCK')\nfields={i:0 for i in range(4,25)}\nfields.update({4:17,14:2*ticks,15:ticks,20:3,22:5*ticks,23:8192,24:3})\n(p/'stat').write_text('42 (accounted worker) R '+' '.join(str(fields[i]) for i in range(4,25))+'\\n')\nPath('proc/uptime').write_text('25.0 0.0\\n')\nBUILD\nBASHOS_PROC_ROOT=proc procstat pidstat -p 42 > report\n/usr/bin/python3 - <<'CHECK'\nfrom pathlib import Path\nimport os\nrss=3*os.sysconf('SC_PAGESIZE')//1024\nexpected='PID %usr %system %CPU RSS_KiB Command\\n'+f'42 10.00 5.00 15.00 {rss} accounted worker\\n'\nactual=Path('report').read_text()\nassert actual==expected, (actual,expected)\nprint('independent-accounting-ok')\nCHECK",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "independent-accounting-ok\n"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "loadable": "chgrp",
+  "reference": "GNU coreutils chgrp for private file metadata with the GID already owned by the fixture; no users, authentication, capabilities or group memberships change. Bash help/type are metadata contracts.",
+  "coverage": [
+    "Numeric existing-group application, symlink default/-h, multiple paths with a missing middle file, missing operands and unknown group.",
+    "Bash registration and documented help metadata only for the metadata cases."
+  ],
+  "exclusions": [
+    "Changing to distinct GIDs and controlled named-group resolution remain deferred for a disposable VM or syscall mock."
+  ],
+  "cases": [
+    {
+      "id": "type-t-builtin",
+      "kind": "contract",
+      "purpose": "Confirm through Bash's documented type -t interface that the statically compiled chgrp name is registered as a builtin, without invoking it.",
+      "script": "type -t chgrp",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-synopsis",
+      "kind": "contract",
+      "purpose": "Check the synopsis registered for chgrp using Bash's help -s builtin interface; this checks metadata only.",
+      "script": "help -s chgrp",
+      "expected_status": 0,
+      "stdout": "chgrp: chgrp GROUP FILE...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-full-documentation",
+      "kind": "contract",
+      "purpose": "Check Bash's long help text against the documented chgrp description and usage line, without running an ownership operation.",
+      "script": "help chgrp",
+      "expected_status": 0,
+      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [-h] GROUP FILE...   GROUP is a name or numeric id.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "named-group-resolution",
+      "kind": "deferred",
+      "purpose": "Compare a valid named group, an unknown group name, and a numeric group ID against GNU using a controlled group database; verify status and resulting metadata for successful calls.",
+      "reason": "Requires a future disposable VM or resolver/chown syscall mock with synthetic group mappings and distinct permitted GIDs. Current cases only reapply the existing group of private fixture files; no account database is modified."
+    },
+    {
+      "id": "numeric-group-effects",
+      "kind": "parity",
+      "purpose": "Apply the existing fixture GID to two private files and verify contents and mode preservation.",
+      "script": "printf private > data\ngid=$(/usr/bin/python3 -c 'import os; print(os.stat(\"data\").st_gid)')\nprintf second > other\nchmod 640 data\nchgrp \"$gid\" data other\n/usr/bin/python3 -c 'import os; a=os.stat(\"data\"); b=os.stat(\"other\"); assert a.st_gid == b.st_gid; print(oct(a.st_mode & 0o777), open(\"data\").read())'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "chmod",
+        "python3"
+      ]
+    },
+    {
+      "id": "symlink-follow-policy",
+      "kind": "parity",
+      "purpose": "Exercise default and -h symlink policy using the already-owned GID, preserving the private link and target.",
+      "script": "printf private > data\ngid=$(/usr/bin/python3 -c 'import os; print(os.stat(\"data\").st_gid)')\nln -s data link\nchgrp \"$gid\" link\nchgrp -h \"$gid\" link\n[[ -L link ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "ln",
+        "python3"
+      ]
+    },
+    {
+      "id": "multi-path-partial-failure",
+      "kind": "parity",
+      "purpose": "A missing middle file reports failure while valid neighbors use an already-owned fixture GID.",
+      "script": "printf private > data\ngid=$(/usr/bin/python3 -c 'import os; print(os.stat(\"data\").st_gid)')\nprintf tail > after\nchgrp \"$gid\" data missing after",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chgrp",
+        "python3"
+      ]
+    },
+    {
+      "id": "operand-and-group-errors",
+      "kind": "parity",
+      "purpose": "Compare a missing-operand error rejected before any file ownership syscall.",
+      "script": "chgrp",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chgrp"
+      ]
+    },
+    {
+      "id": "unknown-group",
+      "kind": "parity",
+      "purpose": "An unknown group is rejected without changing the private file.",
+      "script": "printf private > data\nchgrp fixture-group-that-does-not-exist data",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chgrp"
+      ]
+    }
+  ]
+}

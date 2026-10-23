@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "loadable": "lsof",
+  "reference": "GNU lsof is used only for a safe missing-option-argument exit-status comparison. Help and version cases assert documented Bash builtin contracts; live /proc queries are deferred.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "--help usage and --version/-v aliases",
+    "missing -p and -u arguments and rejection of a nonnumeric operand",
+    "GNU lsof comparison of missing -p argument status",
+    "deferred controlled PID, user-filter, and process-table queries"
+  ],
+  "exclusions": [
+    "No lsof case enumerates or reads /proc during validation.",
+    "PID descriptor listing, user filtering, and whole-table enumeration require a disposable VM or an independently reviewed procfs mock with controlled processes."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Check that Bash reports lsof as a builtin and that help exposes the documented description and synopsis.",
+      "script": "kind=$(type -t lsof)\n[[ $kind == builtin ]]\nhelp lsof >metadata.help\nhave_description=0\nhave_synopsis=0\nwhile IFS= read -r line; do\n  case $line in\n    *'List open file descriptors via /proc/PID/fd.'*) have_description=1 ;;\n    *'lsof [-p PID]... [-u USER] [PID...]'*) have_synopsis=1 ;;\n  esac\ndone <metadata.help\n[[ $have_description == 1 && $have_synopsis == 1 ]]\nprintf 'builtin-metadata-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin-metadata-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-pid-descriptors",
+      "kind": "deferred",
+      "purpose": "Qualify -p listing of known open descriptor types and paths against GNU lsof.",
+      "reason": "Requires a disposable Linux VM with isolated /proc and a controlled child holding known regular-file, directory, FIFO, and socket descriptors. Compare its -p rows and FD/TYPE/PATH fields against GNU lsof for that same child; this fixture runner is not used to inspect its process table."
+    },
+    {
+      "id": "deferred-user-filter",
+      "kind": "deferred",
+      "purpose": "Qualify -u name and numeric-UID filtering across processes with distinct owners.",
+      "reason": "Requires a disposable Linux VM or reviewed procfs mock with controlled passwd mappings and processes under at least two UIDs. Use GNU lsof as the reference and verify that only matching owners appear; no installed host accounts or credentials are used."
+    },
+    {
+      "id": "deferred-process-scan",
+      "kind": "deferred",
+      "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
+      "reason": "Requires a disposable Linux VM with an isolated, bounded PID namespace and only controlled processes, or a reviewed procfs mock. Compare no-argument and filtered output with GNU lsof there; the current fixture runner must not walk /proc."
+    },
+    {
+      "id": "missing-pid-gnu-status",
+      "kind": "parity",
+      "purpose": "Compare missing -p status, empty stdout and separate diagnostic presence; no proc query.",
+      "script": "lsof -p",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "lsof"
+      ]
+    },
+    {
+      "id": "missing-pid-contract",
+      "kind": "contract",
+      "purpose": "Reject invalid invocation with status 1, no stdout, and visible diagnostic before procfs enumeration.",
+      "script": "lsof -p",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "missing-user-contract",
+      "kind": "contract",
+      "purpose": "Reject invalid invocation with status 1, no stdout, and visible diagnostic before procfs enumeration.",
+      "script": "lsof -u",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "nonnumeric-operand-contract",
+      "kind": "contract",
+      "purpose": "Reject invalid invocation with status 1, no stdout, and visible diagnostic before procfs enumeration.",
+      "script": "lsof fixture-name",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "help-option",
+      "kind": "contract",
+      "purpose": "Help returns success with the documented registered usage on stderr; metadata only.",
+      "script": "lsof --help",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "version-aliases",
+      "kind": "contract",
+      "purpose": "Both documented aliases print the independently specified version banner; metadata only.",
+      "script": "lsof --version\nlsof -v",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "lsof 1.0 (bash-loadable)\nlsof 1.0 (bash-loadable)\n"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "bashpoll",
+  "reference": "Documented descriptor API contracts and Linux epoll readiness semantics for private pipes/FIFOs. There is no matching GNU persistent-descriptor CLI; network and signal behavior require separate reviewed mocks.",
+  "coverage": [
+    "Bash reports bashpoll as an available builtin.",
+    "help bashpoll exposes the documented subcommand synopsis and descriptor/event contract.",
+    "wait returns successfully with empty output on a zero-timeout pipe with no read event, and reports writable for explicit write interests.",
+    "wait reports read readiness and hangup after a private pipe writer reaches EOF.",
+    "Unknown subcommands and invalid wait options use the documented usage status and produce diagnostics.",
+    "TCP, UNIX socket, UDP, signalfd, and injected descriptor lifecycle behavior is recorded as deferred pending isolated fixtures.",
+    "Private FIFO descriptor flag-setter/close and simultaneous two-descriptor readiness contracts, with exact event-set assertions.",
+    "Independent Python fcntl checks for private descriptor flag bits and exec inheritance; only the selected fixture FD is inspected."
+  ],
+  "exclusions": [
+    "There is no matching GNU command-line implementation for persistent descriptor semantics, so runnable checks are honest contract cases rather than parity cases.",
+    "No real or host network target is used. TCP and UDP peer behavior is deferred to a future disposable network fixture.",
+    "No signal is generated. signalfd mask ownership is deferred to a future disposable process fixture.",
+    "The runner has no setup hook for injected socketpair or PTY descriptors; only Bash-created private pipes are used for bounded wait checks.",
+    "The case count exceeds the preferred range to retain original coverage and isolate independent additional edge cases."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Bash's type -t contract identifies a compiled-in loadable as a builtin, even with an empty executable PATH.",
+      "script": "[[ $(type -t bashpoll) == builtin ]] || exit 1\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-surface",
+      "kind": "contract",
+      "purpose": "Check that Bash help exposes the advertised API and the key wait/readiness descriptor contract documented by bashpoll_doc.",
+      "script": "doc=$(help bashpoll) || exit 1\nfor item in \\\n  'bashpoll listen ADDR:PORT' \\\n  'bashpoll listen-unix /path/sock FDVAR' \\\n  'bashpoll listen-udp ADDR:PORT FDVAR' \\\n  'bashpoll send-udp HOST:PORT' \\\n  'bashpoll recv-udp FD' \\\n  'bashpoll accept LISTEN_FD FDVAR' \\\n  'bashpoll connect HOST:PORT' \\\n  'bashpoll wait [-t TIMEOUT_MS]' \\\n  'bashpoll close FD' \\\n  'bashpoll set-nonblock FD on|off' \\\n  'bashpoll clear-cloexec FD' \\\n  'bashpoll signalfd SIG... FDVAR' \\\n  'FDVAR receives the new fd in the caller' \\\n  'Bare FDs request read readiness'; do\n  [[ $doc == *\"$item\"* ]] || exit 2\ndone\nprintf 'help contract ok\\n'",
+      "expected_status": 0,
+      "stdout": "help contract ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wait-timeout-and-write",
+      "kind": "contract",
+      "purpose": "Use a private Bash process-substitution pipe to verify zero-timeout empty output for read interest and the documented writable event for explicit write interests.",
+      "script": "exec {probe}> >(while IFS= read -r line; do :; done)\nquiet=$(bashpoll wait -t 0 \"$probe\") || exit 1\nwrite=$(bashpoll wait -t 0 \"$probe:write\") || exit 2\nread_write=$(bashpoll wait -t 0 \"$probe:read,write\") || exit 3\n[[ -z $quiet ]] || exit 4\n[[ $write == \"$probe writable\" ]] || exit 5\n[[ $read_write == \"$probe writable\" ]] || exit 6\nexec {probe}>&-\nprintf 'quiet=empty;write=writable;read-write=writable\\n'",
+      "expected_status": 0,
+      "stdout": "quiet=empty;write=writable;read-write=writable\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wait-pipe-eof",
+      "kind": "contract",
+      "purpose": "A private pipe whose writer exits with no queued bytes reports EPOLLHUP; bashpoll maps that event to its documented hup label.",
+      "script": "exec {eof}< <(:)\nobserved=$(bashpoll wait -t 1000 \"$eof\") || exit 1\n[[ $observed == \"$eof hup\" ]] || exit 2\nexec {eof}<&-\nprintf 'eof=hup\\n'",
+      "expected_status": 0,
+      "stdout": "eof=hup\n",
+      "stderr": "empty",
+      "timeout": 3
+    },
+    {
+      "id": "argument-errors",
+      "kind": "contract",
+      "purpose": "The documented parser rejects an invalid timeout, invalid readiness suffix, and unknown subcommand with Bash's conventional EX_USAGE status 2.",
+      "script": "if bashpoll wait -t nope 3; then exit 1; else timeout_status=$?; fi\nif bashpoll wait -t 0 3:invalid; then exit 2; else interest_status=$?; fi\nif bashpoll __suite_unknown_subcommand__; then exit 3; else command_status=$?; fi\n[[ $timeout_status == 2 && $interest_status == 2 && $command_status == 2 ]] || exit 4\nprintf 'usage-errors=2,2,2\\n'",
+      "expected_status": 0,
+      "stdout": "usage-errors=2,2,2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "tcp-stream-api",
+      "kind": "deferred",
+      "purpose": "Exercise TCP listen, accept, connect, data exchange, timeout and close behavior with a bounded private peer.",
+      "reason": "Requires a future disposable VM or reviewed loopback socket fixture that allocates a private free port and runs a controlled peer. This suite does not attempt network activity or contact a real target."
+    },
+    {
+      "id": "unix-socket-lifecycle",
+      "kind": "deferred",
+      "purpose": "Exercise listen-unix and accept, relative socket-path creation and cleanup, stale socket replacement, and refusal to unlink a non-socket entry.",
+      "reason": "Requires a future disposable VM with a reviewed socket syscall mock and a controlled local client/server driver so socket creation, accept and cleanup are observable as one bounded operation."
+    },
+    {
+      "id": "udp-datagram-api",
+      "kind": "deferred",
+      "purpose": "Exercise listen-udp, send-udp and recv-udp with empty and binary datagrams, timeout, source-address reporting, and hex output.",
+      "reason": "Requires a future disposable VM with a reviewed UDP syscall mock and a controlled sender/receiver providing deterministic payload, source address and port; no real network traffic is authorized."
+    },
+    {
+      "id": "signalfd-ownership",
+      "kind": "deferred",
+      "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
+      "reason": "Requires a future disposable VM with a signal syscall mock that records mask ownership, selected delivery and descriptor cleanup for only the fixture shell; no host signals are authorized."
+    },
+    {
+      "id": "descriptor-flags-and-close",
+      "kind": "deferred",
+      "purpose": "Socket/PTY descriptor behavior and failure injection beyond the runnable private FIFO flag, inheritance and close coverage.",
+      "reason": "Requires a future disposable VM with a reviewed socket/PTY descriptor injector and fault mock to cover non-FIFO flags, failed operations, and lifetime cleanup beyond the runnable private FIFO checks."
+    },
+    {
+      "id": "multi-fd-readiness",
+      "kind": "deferred",
+      "purpose": "Socket half-close/error and PTY readiness beyond the runnable simultaneous private FIFO readiness contract.",
+      "reason": "Requires a future disposable VM with a reviewed socketpair/PTY fixture whose controlled peer generates half-close/error states; simultaneous private FIFO readiness already has a runnable contract."
+    },
+    {
+      "id": "private-fifo-descriptor-lifecycle",
+      "kind": "contract",
+      "script": "mkfifo private-pipe\nexec {probe}<> private-pipe\nbashpoll set-nonblock \"$probe\" on\nbashpoll clear-cloexec \"$probe\"\ncommand -p python3 -c 'import fcntl,os,sys; assert fcntl.fcntl(int(sys.argv[1]),fcntl.F_GETFL)&os.O_NONBLOCK; print(\"nonblock=on;inherited=yes\")' \"$probe\"\nprintf 'queued\\n' >&\"$probe\"\nobserved=$(bashpoll wait -t 0 \"$probe:read\")\n[[ $observed == \"$probe readable\" ]]\nIFS= read -r row <&\"$probe\"\n[[ $row == queued ]]\nbashpoll set-nonblock \"$probe\" off\ncommand -p python3 -c 'import fcntl,os,sys; assert not (fcntl.fcntl(int(sys.argv[1]),fcntl.F_GETFL)&os.O_NONBLOCK); print(\"nonblock=off\")' \"$probe\"\nbashpoll close \"$probe\"\nif bashpoll wait -t 0 \"$probe\"; then rc=0; else rc=$?; fi\n[[ $rc == 1 ]]\nprintf 'ready=readable;payload=queued;closed-status=%s\\n' \"$rc\"\n",
+      "stdout": "nonblock=on;inherited=yes\nnonblock=off\nready=readable;payload=queued;closed-status=1\n",
+      "purpose": "A private FIFO opened read/write permits readiness, payload consumption and close tests without peer scheduling. Independent Python fcntl checks observe on/off O_NONBLOCK bits and exec inheritance of the selected private descriptor after clear-cloexec.",
+      "stderr": "nonempty",
+      "expected_status": 0
+    },
+    {
+      "id": "multi-private-fifo-readiness",
+      "kind": "contract",
+      "script": "mkfifo first second\nexec {one}<> first\nexec {two}<> second\nprintf 'first\\n' >&\"$one\"\nprintf 'second\\n' >&\"$two\"\nobserved=$(bashpoll wait -t 0 \"$one\" \"$two\")\ncount=0\nwhile IFS=' ' read -r fd event; do\n [[ $event == readable ]]\n case $fd in \"$one\") [[ ${seen_one:-0} == 0 ]]; seen_one=1 ;; \"$two\") [[ ${seen_two:-0} == 0 ]]; seen_two=1 ;; *) exit 1 ;; esac\n count=$((count+1))\ndone <<< \"$observed\"\n[[ $count == 2 && $seen_one == 1 && $seen_two == 1 ]]\nbashpoll close \"$one\"\nbashpoll close \"$two\"\nprintf 'both private FIFOs readable exactly once\\n'\n",
+      "stdout": "both private FIFOs readable exactly once\n",
+      "purpose": "Both bounded private FIFO descriptors must be reported exactly once; event ordering is unspecified by epoll and no payload or event label is normalized.",
+      "stderr": "empty",
+      "expected_status": 0
+    }
+  ]
+}

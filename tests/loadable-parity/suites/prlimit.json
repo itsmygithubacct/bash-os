@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "loadable": "prlimit",
+  "reference": "Own-process read-only queries compare with util-linux prlimit through explicit text/raw output adapters. Bash metadata contracts use the published synopsis. Limit mutations, command execution with changed limits, cross-PID errors and controlled JSON snapshots remain deferred.",
+  "coverage": [
+    "Bash identifies prlimit as a builtin with type -t.",
+    "Bash detailed help exposes the documented query, set, range, output-format, and command-mode synopsis.",
+    "Bash brief help exposes the documented command summary.",
+    "Deferred: resource queries and text/raw/JSON formatting.",
+    "Deferred: limit parsing, set behavior, and validation in a disposable target.",
+    "Deferred: selected-PID behavior and permission/missing-target errors.",
+    "Deferred: child command inheritance, exit propagation, and exec failure behavior.",
+    "Read-only own-process NOFILE/CORE/CPU queries with independent util-linux raw/text adapters."
+  ],
+  "exclusions": [
+    "No resource limit is set and no unrelated process is queried.",
+    "Command-mode mutations and controlled worker/permission/error scenarios require the deferred disposable VM or syscall mock."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "purpose": "Confirm through Bash metadata that the candidate registers prlimit as a builtin.",
+      "kind": "contract",
+      "script": "kind=$(type -t prlimit)\n[[ $kind == builtin ]] || exit 1\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documented-forms",
+      "purpose": "Check Bash help against the declared documented query, command, range, and output forms without invoking prlimit itself.",
+      "kind": "contract",
+      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: default text lines, --raw tab-delimited lines, or --json objects.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
+      "expected_status": 0,
+      "stdout": "pid query/set, command mode, ranges, and output formats documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-brief-summary",
+      "purpose": "Bash help -s publishes the registered invocation synopsis, including PID selection and command mode; help -d is the description.",
+      "kind": "contract",
+      "script": "summary=$(help -s prlimit)\n[[ $summary == *'--pid PID'* ]] || exit 1\n[[ $summary == *'--nofile=LIMIT COMMAND'* ]] || exit 1\nprintf '%s\\n' 'brief command summary documented'",
+      "expected_status": 0,
+      "stdout": "brief command summary documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-output-formats",
+      "purpose": "Cover current-process and selected-PID reads, including default text, raw columns, JSON, resource selection, and unlimited-value rendering.",
+      "kind": "deferred",
+      "reason": "Own-process text/raw and JSON queries are runnable elsewhere in this suite. Controlled selected-worker and injected-error snapshots require a future disposable VM with controlled worker lifetime/limits or an independently reviewed prlimit syscall mock; no resource limit is changed here."
+    },
+    {
+      "id": "limit-set-and-validation",
+      "purpose": "Cover numeric and unlimited limits, SOFT:HARD and partial-range forms, soft-greater-than-hard rejection, invalid values, and preservation of unspecified sides.",
+      "kind": "deferred",
+      "reason": "The task explicitly excludes limit-setting operations. A future fixture needs a disposable process whose limits can be initialized, changed, read back, and discarded, or a controlled prlimit64 syscall mock. It must verify only that expendable target's limits change and that malformed or invalid requests do not alter them."
+    },
+    {
+      "id": "pid-target-and-errors",
+      "purpose": "Cover explicit --pid selection, invalid and nonexistent PIDs, and permission errors without touching unrelated processes.",
+      "kind": "deferred",
+      "reason": "Meaningful cross-PID checks require controlled process identities and target lifetimes. A future fixture needs same-UID and restricted disposable workers in a private PID namespace or a syscall mock, so GNU util-linux and the builtin see stable targets and EPERM/ESRCH cases without referencing host PIDs."
+    },
+    {
+      "id": "command-mode-child",
+      "purpose": "Cover command-mode limit inheritance, parent-state preservation, child exit/signal propagation, and exec failure status.",
+      "kind": "deferred",
+      "reason": "Command mode forks, changes a child's resource limit, and execs a command. A future fixture needs a disposable VM or controlled syscall/process mock plus a private reporting helper to verify inherited limits, parent preservation, and status mapping without involving host commands or processes."
+    },
+    {
+      "id": "query-self-nofile",
+      "kind": "parity",
+      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
+      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --nofile --raw --noheadings\nelse\n values=$(prlimit --nofile --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'NOFILE\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "prlimit"
+      ]
+    },
+    {
+      "id": "query-self-core",
+      "kind": "parity",
+      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
+      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --core --raw --noheadings\nelse\n values=$(prlimit --core --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'CORE\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "prlimit"
+      ]
+    },
+    {
+      "id": "query-self-cpu",
+      "kind": "parity",
+      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
+      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --cpu --raw --noheadings\nelse\n values=$(prlimit --cpu --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'CPU\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "prlimit"
+      ]
+    },
+    {
+      "id": "query-self-text",
+      "kind": "parity",
+      "purpose": "Compare the custom plain-text NOFILE query format with independently read util-linux soft/hard values.",
+      "script": "if [[ $(type -t prlimit) == builtin ]]; then prlimit -r NOFILE; else\n values=$(prlimit --nofile --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'NOFILE %s %s\\n' \"$soft\" \"$hard\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "prlimit"
+      ]
+    },
+    {
+      "id": "query-self-json-contract",
+      "kind": "contract",
+      "purpose": "Compare every JSON output byte, including PID and newline, against an independent Bash ulimit query and the known calling PID. Query in the parent shell, retain the output file and prove limits were unchanged.",
+      "script": "soft=$(ulimit -Sn)\nhard=$(ulimit -Hn)\nprintf -v expected '{\"pid\":%s,\"resource\":\"NOFILE\",\"soft\":\"%s\",\"hard\":\"%s\"}\\n' \"$$\" \"$soft\" \"$hard\"\nprlimit --json --pid \"$$\" -r NOFILE > limits.json\nexec 3< limits.json\nIFS= read -r -N \"${#expected}\" actual <&3\n[[ $actual == \"$expected\" ]]\nif IFS= read -r -N 1 extra <&3; then exit 90; fi\n[[ -z $extra ]]\nexec 3<&-\n[[ $(ulimit -Sn) == \"$soft\" && $(ulimit -Hn) == \"$hard\" ]]\nprintf 'self JSON limits and parent state verified\\n' ",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "self JSON limits and parent state verified\n"
+    }
+  ]
+}

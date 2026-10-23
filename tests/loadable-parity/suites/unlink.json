@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "loadable": "unlink",
+  "reference": "GNU coreutils unlink invoked by the system Bash when unlink is not an enabled builtin. The one-operand CLI contract and GNU unlink(2) behavior are the independent oracle. Fixture links/directories are created by GNU ln/mkdir in the same private tree.",
+  "coverage": [
+    "Remove an empty or nonempty regular file and compare the resulting tree.",
+    "Pass a quoted filename containing whitespace and glob metacharacters literally.",
+    "Remove a symlink while preserving its referent.",
+    "Remove one name from a multiply linked inode while preserving the other names and contents.",
+    "Check directory and missing-path failures without changing the fixture tree.",
+    "Exercise GNU CLI operand-count and option-terminator behavior against the loadable's documented name argument.",
+    "Check Bash type/help metadata against the loadable's documented help text."
+  ],
+  "exclusions": [
+    "No path outside the runner's private relative fixture tree is used.",
+    "No system, device, network, privileged, or race-sensitive operation is executed.",
+    "Exact diagnostic wording is not asserted for parity failures because GNU coreutils and Bash builtin diagnostics differ by interface."
+  ],
+  "cases": [
+    {
+      "id": "regular-file",
+      "purpose": "A successful unlink removes an empty regular file and emits no output.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": ": > victim\nunlink victim",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quoted-glob-name",
+      "purpose": "A quoted operand containing spaces and glob characters is treated as one literal directory entry; a similarly prefixed neighbor remains.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": ": > 'item * [x]'\n: > 'item alpha x'\nunlink 'item * [x]'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-entry",
+      "purpose": "Unlinking a symbolic-link entry removes the link itself and preserves its regular-file target.",
+      "kind": "parity",
+      "requires": [
+        "unlink",
+        "ln"
+      ],
+      "script": ": > target\nprintf 'target payload\\n' > target\ncommand -p ln -s target shortcut\nunlink shortcut",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "one-hardlink",
+      "purpose": "Removing one of three hard-link names leaves the other two names attached to the same inode with their contents intact.",
+      "kind": "parity",
+      "requires": [
+        "unlink",
+        "ln"
+      ],
+      "script": "printf 'linked payload\\n' > source\ncommand -p ln source first-link\ncommand -p ln source second-link\nunlink first-link",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "directory-rejected",
+      "purpose": "The ordinary unlink operation cannot remove a directory entry of directory type; the directory remains after the expected failure.",
+      "kind": "parity",
+      "requires": [
+        "unlink",
+        "mkdir"
+      ],
+      "script": "command -p mkdir directory\nif unlink directory; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-path",
+      "purpose": "A nonexistent relative path reports failure and does not create or remove any fixture entry.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": "if unlink absent; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-operand",
+      "purpose": "GNU unlink requires one operand; this also records whether the Bash loadable's usage status matches that CLI contract.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": "if unlink; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "extra-operand",
+      "purpose": "GNU unlink rejects an extra operand before deleting either file; compare that one-operand CLI rule with the loadable's first-argument behavior.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": ": > first\n: > second\nif unlink first second; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "option-terminator",
+      "purpose": "GNU unlink accepts -- before an operand; this checks whether the loadable implements the same CLI option terminator or treats it as a pathname.",
+      "kind": "parity",
+      "requires": [
+        "unlink"
+      ],
+      "script": ": > victim\nif unlink -- victim; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "purpose": "Help documents the enforced single-file interface and registered builtin.",
+      "kind": "contract",
+      "script": "type -t unlink; doc=$(help unlink); [[ $doc == *'unlink name'* && $doc == *'exactly one file name'* ]]; printf 'single-file contract documented\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nsingle-file contract documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "immutable-file-denial",
+      "purpose": "A future protected-file case can qualify unlink's kernel-level denial path without touching a host path.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed filesystem/syscall mock that can create and verify an immutable regular file (for example, a dedicated disposable filesystem with the required immutable-file capability). The fixture must stay relative and prove the entry and contents remain after unlink is denied. No immutable attribute operation is attempted in this suite."
+    },
+    {
+      "id": "dash-prefixed-name",
+      "kind": "parity",
+      "purpose": "An explicit option terminator permits a dash-prefixed file.",
+      "script": ": > ./-target; unlink -- -target",
+      "requires": [
+        "unlink",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option-preserves-files",
+      "kind": "parity",
+      "purpose": "An invalid option does not remove the named file.",
+      "script": ": > keep; unlink --unknown keep",
+      "requires": [
+        "unlink",
+        "rm"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-with-operand",
+      "kind": "contract",
+      "purpose": "Help metadata requested with a pathname preserves its bytes; GNU help formatting is not asserted.",
+      "script": "printf keep > keep; unlink keep --help > usage; [[ -s usage ]]; [[ $(<keep) == keep ]]; doc=$(<usage); [[ $doc == *'Remove a directory entry.'* ]]; printf 'help preserves operand\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help preserves operand\n"
+    },
+    {
+      "id": "dangling-symlink",
+      "kind": "parity",
+      "purpose": "Remove a dangling link entry without resolving its absent referent.",
+      "script": "ln -s absent link; unlink link",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "unlink",
+        "ln"
+      ]
+    }
+  ]
+}

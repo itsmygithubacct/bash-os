@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "cron",
+  "reference": "No matching GNU CLI is available: crontab manages tables, while GNU cron/crond has no command that prints the next matching epoch. cron next expectations below use the documented five-field/nickname contract and independently calculated UTC Unix timestamps. cron run --once expectations use the documented private-spool/state behavior and relative fixture markers; these are contract checks, not GNU parity.",
+  "coverage": [
+    "Bash type/help metadata for the cron builtin.",
+    "cron next minute steps, leap-day calendar traversal, Vixie day-of-month/day-of-week OR semantics, named month/day fields, and a documented nickname.",
+    "Rejection of @reboot by cron next, as the help text says it is not a cron next schedule.",
+    "cron run --once creation and persistence of a private spool/state file using relative fixture paths.",
+    "cron run --once execution and removal of a due atjob while retaining a future atjob, with marker files confined to the fixture directory."
+  ],
+  "exclusions": [
+    "No cron-specific parity cases are claimed because there is no matching GNU next-time CLI; unrelated utility parity would not test cron.",
+    "Long-running daemon polling, @reboot dispatch, reload/shutdown, and system-crontab privilege dropping are deferred.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help-docs",
+      "kind": "contract",
+      "purpose": "Checks Bash's builtin type result and the documented run, next, and @reboot help topics. The required phrases come from cron_doc in the documented source.",
+      "script": "[[ $(type -t cron) == builtin ]] || exit 10\ncron_docs=$(help cron)\n[[ $cron_docs == *\"cron run [--once] [--interval SEC]\"* && $cron_docs == *\"cron next [--from EPOCH]\"* && $cron_docs == *\"@reboot runs once when daemon mode starts\"* ]] || exit 11\nprintf 'builtin and documented help are available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin and documented help are available\n"
+    },
+    {
+      "id": "metadata-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s prints the builtin's one-line usage synopsis. The expected synopsis is the short_doc field declared in cron_struct in the documented source.",
+      "script": "help -s cron",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "cron: cron run [--once] [--interval SEC] | cron next [--from EPOCH] {MIN HOUR DOM MONTH DOW|@daily}\n"
+    },
+    {
+      "id": "next-quarter-hour-step",
+      "kind": "contract",
+      "purpose": "At 2023-11-14 22:13:20 UTC, */15 next matches 22:15:00 UTC. The expected epoch 1700000100 is independently derived from the UTC calendar and minute-step rule.",
+      "script": "cron next --from 1700000000 '*/15' '*' '*' '*' '*'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1700000100\n"
+    },
+    {
+      "id": "next-leap-day",
+      "kind": "contract",
+      "purpose": "Checks sparse calendar traversal to 2024-02-29 04:30:00 UTC; its independently calculated Unix timestamp is 1709181000.",
+      "script": "cron next --from 1700000000 30 4 29 2 '*'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1709181000\n"
+    },
+    {
+      "id": "next-dom-dow-or",
+      "kind": "contract",
+      "purpose": "With both day fields restricted, standard Vixie cron semantics match either the 13th or Monday. From 2023-11-14, the next match is Monday 2023-11-20 00:00 UTC (1700438400).",
+      "script": "cron next --from 1700000000 0 0 13 '*' MON",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1700438400\n"
+    },
+    {
+      "id": "next-month-weekday-names",
+      "kind": "contract",
+      "purpose": "Checks documented JAN and MON field names. The first matching January Monday after 2023-11-14 is 2024-01-01 04:00 UTC (1704081600).",
+      "script": "cron next --from 1700000000 0 4 '*' JAN MON",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1704081600\n"
+    },
+    {
+      "id": "next-daily-nickname",
+      "kind": "contract",
+      "purpose": "Checks the documented @daily nickname from one second after the Unix epoch; the next midnight is epoch 86400.",
+      "script": "cron next --from 1 @daily",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "86400\n"
+    },
+    {
+      "id": "next-reboot-rejected",
+      "purpose": "cron next rejects @reboot with usage status and a visible diagnostic; no daemon starts.",
+      "kind": "contract",
+      "script": "cron next --from 1 @reboot",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "run-once-state-file",
+      "kind": "contract",
+      "purpose": "Runs only cron run --once with relative private paths. The documented state minute for epoch 1700000000 is floor(epoch/60)=28333333; the script also asserts that the spool subdirectories and configured output directory exist.",
+      "script": "BASHCRON_SPOOL_DIR=spool BASHCRON_OUTPUT_DIR=out BASHCRON_ETC_DIR=etc BASHCRON_CROND_DIR=cron.d BASHCRON_NOW_EPOCH=1700000000 BASHCRON_STATE_FILE=state cron run --once\n[[ -d spool/atjobs && -d spool/tabs && -d out && -f state ]] || exit 10\nIFS= read -r saved_minute < state\n[[ $saved_minute == 28333333 ]] || exit 11\nprintf 'minute=%s directories=ready\\n' \"$saved_minute\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "minute=28333333 directories=ready\n"
+    },
+    {
+      "id": "run-once-atjob-boundary",
+      "kind": "contract",
+      "purpose": "Uses a private spool and fixed epoch to run a due fixture job, remove its consumed .job file, and retain a job scheduled one second in the future. Both job payloads only write relative marker files.",
+      "script": "BASHCRON_SPOOL_DIR=spool BASHCRON_OUTPUT_DIR=out BASHCRON_ETC_DIR=etc BASHCRON_CROND_DIR=cron.d BASHCRON_NOW_EPOCH=1700000000 cron run --once\nprintf '%s\\n' '# run_at=1700000000' \"printf 'ran\\\\n' > due-marker\" > spool/atjobs/due.job\nprintf '%s\\n' '# run_at=1700000001' \"printf 'ran\\\\n' > future-marker\" > spool/atjobs/future.job\nBASHCRON_SPOOL_DIR=spool BASHCRON_OUTPUT_DIR=out BASHCRON_ETC_DIR=etc BASHCRON_CROND_DIR=cron.d BASHCRON_NOW_EPOCH=1700000000 cron run --once\n[[ -f due-marker && ! -e spool/atjobs/due.job && -f spool/atjobs/future.job && ! -e future-marker ]] || exit 10\nIFS= read -r due_result < due-marker\n[[ $due_result == ran ]] || exit 11\nprintf 'due=ran future=waiting\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "due=ran future=waiting\n"
+    },
+    {
+      "id": "deferred-daemon-lifecycle",
+      "kind": "deferred",
+      "purpose": "Long-lived polling, @reboot execution, clock catch-up across polls, reload, and shutdown behavior.",
+      "reason": "Requires a future disposable VM or purpose-built mock clock and child-process harness to keep cron run alive, advance time deterministically, inspect @reboot and catch-up dispatch, and deliver reload/shutdown signals only to that private process. This suite does not run a daemon or signal fixtures."
+    },
+    {
+      "id": "deferred-system-user-drop",
+      "kind": "deferred",
+      "purpose": "System crontab dispatch under root with a real USER-column privilege transition, including failure refusal.",
+      "reason": "Requires a future disposable VM with an isolated account database and controlled root privilege, or a reviewed syscall mock for getpwnam/initgroups/setgid/setuid. User/account changes and privilege manipulation are out of scope here; the test must verify the selected uid and that a failed drop never executes the command."
+    }
+  ]
+}

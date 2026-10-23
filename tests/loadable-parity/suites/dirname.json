@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "loadable": "dirname",
+  "reference": "GNU coreutils dirname, invoked from the reference side's PATH. The input/output cases follow POSIX dirname pathname processing; the option case checks GNU's documented --zero option. The Bash type/help case is an independent metadata contract based on the dirname builtin's published synopsis and short documentation.",
+  "coverage": [
+    "nested and bare path components",
+    "empty operand and ordinary dot components",
+    "trailing and repeated separators",
+    "root and top-level absolute paths",
+    "relative paths containing dot-dot components without canonicalization",
+    "option terminator with a dash-leading operand",
+    "missing operand status and diagnostic presence",
+    "GNU --zero output behavior",
+    "Bash builtin type and short-help metadata"
+  ],
+  "exclusions": [
+    "No deferred cases: dirname performs bounded pathname-string processing, and the GNU reference is available in the fixture environment.",
+    "Long path limits, every GNU diagnostic wording, locale-specific diagnostics, and all option permutations are not exhaustively covered."
+  ],
+  "cases": [
+    {
+      "id": "nested-path",
+      "purpose": "Check the directory portion of a three-component relative pathname.",
+      "kind": "parity",
+      "script": "dirname 'one/two/three'",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bare-and-empty",
+      "purpose": "Check that a name without a slash and an empty operand both map to the current-directory marker.",
+      "kind": "parity",
+      "script": "dirname 'leaf'; dirname ''",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "trailing-and-repeated-separators",
+      "purpose": "Check removal of trailing slashes and trimming of repeated separators immediately before the final component, while preserving repeated separators inside the resulting directory name.",
+      "kind": "parity",
+      "script": "for path in 'one/two///' 'one//two///' 'one//two//three///'; do dirname \"$path\"; done",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "root-and-top-level",
+      "purpose": "Check all-slash operands, the root pathname, and a top-level absolute component.",
+      "kind": "parity",
+      "script": "for path in '/' '////' '/leaf'; do dirname \"$path\"; done",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "relative-dot-components",
+      "purpose": "Check that dirname removes only the final component and does not canonicalize dot-dot components.",
+      "kind": "parity",
+      "script": "dirname './leaf'; dirname '../leaf'; dirname 'one/../leaf'",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dash-leading-operand",
+      "purpose": "Check that -- ends option parsing so a dash-leading pathname is treated as the operand.",
+      "kind": "parity",
+      "script": "dirname -- '-leaf'; dirname -- './-leaf'",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-operand",
+      "purpose": "Check GNU's missing-operand exit status and ensure both implementations report the usage error; the failure is explicitly captured before the fixture returns it.",
+      "kind": "parity",
+      "script": "status=0; dirname || status=$?; exit \"$status\"",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-zero-option",
+      "purpose": "Check GNU dirname's --zero option, which emits a NUL terminator instead of a newline and may reveal an option-support compatibility difference in the loadable.",
+      "kind": "parity",
+      "script": "dirname --zero 'one/two'",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "purpose": "Check Bash metadata without invoking dirname: type reports a builtin and short help matches the dirname builtin's documented short description.",
+      "kind": "contract",
+      "script": "kind=$(type -t dirname); summary=$(help -d dirname); [[ $kind == builtin ]] || exit 1; [[ $summary == 'dirname - Display directory portion of pathname.' ]] || exit 1; printf 'builtin\\nhelp-summary-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-summary-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-operands",
+      "kind": "parity",
+      "purpose": "GNU dirname multiple operands and separator option semantics.",
+      "script": "dirname a/b c/d bare \"\"",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-short-and-trailing-option",
+      "kind": "parity",
+      "purpose": "GNU dirname multiple operands and separator option semantics.",
+      "script": "dirname a/b -z c/d",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-prefix",
+      "kind": "parity",
+      "purpose": "GNU dirname multiple operands and separator option semantics.",
+      "script": "dirname --ze a/b",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix-options-stop",
+      "kind": "parity",
+      "purpose": "GNU dirname multiple operands and separator option semantics.",
+      "script": "export POSIXLY_CORRECT=1; dirname a/b -z",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-nonempty",
+      "kind": "parity",
+      "purpose": "GNU dirname multiple operands and separator option semantics.",
+      "script": "dirname --help > usage; [[ -s usage ]]; rm usage; printf \"help available\\n\"",
+      "requires": [
+        "dirname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

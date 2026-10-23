@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "loadable": "ip",
+  "reference": "The runnable contract expectations are based on Bash type/help builtin behavior and the documented ip synopsis and capability text in the loadable documentation. Operational parity is not run here: a future isolated Linux VM or controlled rtnetlink mock should compare against iproute2 ip with explicitly seeded network state.",
+  "coverage": [
+    "Bash recognizes ip as a builtin and exposes its short help metadata.",
+    "The full help metadata retains the documented rtnetlink scope, CAP_NET_ADMIN requirement, and unique-prefix contract.",
+    "Deferred read-only link, address, route, rule, and neighbour query output and filters.",
+    "Deferred link and address state changes in a disposable network namespace.",
+    "Deferred route, policy-rule, and neighbour updates against seeded state.",
+    "Deferred batch parsing, error handling, and -force continuation with a controlled rtnetlink endpoint."
+  ],
+  "exclusions": [
+    "No ip operation was invoked: even read-only operations would access kernel network state, and mutations require privileged state changes.",
+    "There are no parity cases because operation fixtures need controlled rtnetlink state; their outputs cannot be honestly inferred from this candidate or from this host.",
+    "The suite does not exercise real interfaces, packet exchange, network peers, or CAP_NET_ADMIN behavior."
+  ],
+  "cases": [
+    {
+      "id": "ip-builtin-metadata",
+      "kind": "contract",
+      "purpose": "Check the Bash type builtin identifies the shipped ip command as a builtin and that Bash can retrieve its short synopsis metadata.",
+      "script": "[[ $(type -t ip) == builtin ]]\nsynopsis=$(help -s ip)\n[[ $synopsis == ip:* ]]\nprintf 'ip builtin and short help available\\n'",
+      "expected_status": 0,
+      "stdout": "ip builtin and short help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ip-documented-help",
+      "kind": "contract",
+      "purpose": "Check the full Bash help entry exposes documented implementation scope, privilege requirements, and keyword-prefix behavior without invoking ip operations.",
+      "script": "details=$(help ip)\n[[ $details == *rtnetlink* ]]\n[[ $details == *CAP_NET_ADMIN* ]]\n[[ $details == *'Unique prefixes are accepted for implemented objects, verbs, and selectors.'* ]]\nprintf 'documented ip help contract present\\n'",
+      "expected_status": 0,
+      "stdout": "documented ip help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ip-read-only-queries",
+      "kind": "deferred",
+      "purpose": "Compare link, address, route, rule, and neighbour show output, including JSON/brief forms, family filtering, and selectors against independent rtnetlink state.",
+      "reason": "Requires a disposable Linux VM or controlled rtnetlink mock with seeded interfaces, addresses, routes, rules, and neighbours, plus iproute2 ip as the independent formatter/reference. No query was run because the requested safety scope forbids invoking ip against kernel network state."
+    },
+    {
+      "id": "ip-link-changes",
+      "kind": "deferred",
+      "purpose": "Exercise link up/down, MTU and address setters, dummy/veth creation, and deletion while checking resulting link state.",
+      "reason": "Requires a disposable network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, deterministic dummy/veth state, and iproute2 ip for independent command semantics. It must not touch host interfaces or send traffic."
+    },
+    {
+      "id": "ip-address-changes",
+      "kind": "deferred",
+      "purpose": "Exercise address add, delete, change, replace, flush, and address selectors against a known interface state.",
+      "reason": "Requires a disposable Linux VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, a seeded virtual interface, and iproute2 ip. The expected address state must be read from the isolated fixture, not from a host interface."
+    },
+    {
+      "id": "ip-route-rule-neighbour-changes",
+      "kind": "deferred",
+      "purpose": "Exercise route add/delete/replace/flush, policy-rule add/delete/flush, and neighbour add/change/replace/delete with deterministic state checks.",
+      "reason": "Requires a disposable VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, seeded private tables and neighbour entries, and iproute2 ip as oracle. No real peer, packet exchange, host route, or host neighbour state may be used."
+    },
+    {
+      "id": "ip-batch-mode",
+      "kind": "deferred",
+      "purpose": "Check batch-file tokenization, blank lines, stopping at the first failing command, and -force continuation using a bounded sequence with observable state.",
+      "reason": "Meaningful batch commands dispatch into rtnetlink, so the case requires a disposable namespace or controlled rtnetlink mock, a small relative batch fixture, and iproute2 ip for per-command reference behavior. A parse-only invocation was not run because this suite does not invoke the loadable's operational interface."
+    }
+  ]
+}

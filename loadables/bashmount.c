@@ -476,22 +476,22 @@ bm_mountpoint (const char *path, int quiet, int print_dir_dev, int print_block_d
             return EXECUTION_SUCCESS;
         }
         if (!quiet)
-            fprintf (stderr, "mountpoint: %s: not a mountpoint\n", canon);
+            printf ("%s is not a mountpoint\n", path);
         free (canon);
-        return EXECUTION_FAILURE;
+        return 32;
     }
 
     if (found) {
         if (!quiet)
-            printf ("%s is a mountpoint\n", canon);
+            printf ("%s is a mountpoint\n", path);
         free (canon);
         return EXECUTION_SUCCESS;
     }
 
     if (!quiet)
-        printf ("%s is not a mountpoint\n", canon);
+        printf ("%s is not a mountpoint\n", path);
     free (canon);
-    return EXECUTION_FAILURE;
+    return 32;
 }
 
 /* ---------------- argv parser & dispatch -------------------------------- */

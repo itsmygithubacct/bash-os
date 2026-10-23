@@ -129,21 +129,25 @@ stat_time_string (char *out, size_t n, time_t sec, long nsec)
   snprintf (out, n, "%s.%09ld %s", date, nsec, zone);
 }
 
-/* %N: coreutils single-quotes the name in a user-supplied format, and prints
+/* %N: coreutils shell-quotes the name in a user-supplied format, and prints
    it bare in its own default layout. */
 static void
 stat_quote_name (char *out, size_t n, const char *name, int quote)
 {
   const char *p; size_t o = 0;
+  int delimiter = '\'';
   if (quote == 0)
     { snprintf (out, n, "%s", name); return; }
-  if (o < n - 1) out[o++] = '\'';
+  /* GNU shell-escape-always selects double quotes for apostrophes when
+     the name contains no characters requiring double-quote escaping. */
+  if (strchr (name, '\'') && !strpbrk (name, "\"\\$`")) delimiter = '"';
+  if (o < n - 1) out[o++] = (char)delimiter;
   for (p = name; *p && o < n - 6; p++)
     {
-      if (*p == '\'') { memcpy (out + o, "'\\''", 4); o += 4; }
+      if (*p == '\'' && delimiter == '\'') { memcpy (out + o, "'\\''", 4); o += 4; }
       else out[o++] = *p;
     }
-  if (o < n - 1) out[o++] = '\'';
+  if (o < n - 1) out[o++] = (char)delimiter;
   out[o] = 0;
 }
 
@@ -246,13 +250,31 @@ stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t 
 }
 
 static void
-stat_put_padded (const char *val, int left, int zero, int width)
+stat_put_padded (const char *val, int left, int zero, int width, int precision, int numeric)
 {
-  int len = (int) strlen (val), pad = width > len ? width - len : 0, i;
+  int len = (int) strlen (val), digits = 0, sign = 0, i;
+  if (numeric)
+    {
+      sign = len && (val[0] == '-' || val[0] == '+');
+      if (precision == 0 && len == 1 && val[0] == '0') len = 0;
+      digits = precision > len - sign ? precision - (len - sign) : 0;
+      if (precision >= 0) zero = 0;
+    }
+  else
+    {
+      zero = 0;
+      if (precision >= 0 && len > precision) len = precision;
+    }
+  int pad = width > len && width - len > digits ? width - len - digits : 0;
   if (!left)
-    for (i = 0; i < pad; i++)
-      putchar (zero && ISDIGIT ((unsigned char) val[0]) ? '0' : ' ');
-  fputs (val, stdout);
+    {
+      if (zero && sign) { putchar (*val++); len--; sign = 0; }
+      for (i = 0; i < pad; i++)
+        putchar (zero ? '0' : ' ');
+    }
+  if (sign) { putchar (*val++); len--; }
+  for (i = 0; i < digits; i++) putchar ('0');
+  fwrite (val, 1, (size_t)len, stdout);
   if (left)
     for (i = 0; i < pad; i++) putchar (' ');
 }
@@ -269,16 +291,34 @@ stat_print (const struct stat_file *f, const char *fmt, int escapes)
     {
       if (*p == '%')
         {
-          int left = 0, zero = 0, width = 0, prefix = 0;
+          int left = 0, zero = 0, width = 0, precision = -1, prefix = 0;
           const char *start = p++;
           while (*p && strchr ("-#0+ '", *p)) { if (*p == '-') left = 1; if (*p == '0') zero = 1; p++; }
-          while (ISDIGIT ((unsigned char) *p)) width = width * 10 + (*p++ - '0');
-          if (*p == '.') { p++; while (ISDIGIT ((unsigned char) *p)) p++; }   /* precision: accepted, ignored */
+          while (ISDIGIT ((unsigned char) *p))
+            {
+              int digit = *p++ - '0';
+              if (width > (INT_MAX - digit) / 10) { builtin_error ("format width out of range"); return -1; }
+              width = width * 10 + digit;
+            }
+          if (*p == '.')
+            {
+              precision = 0; p++;
+              while (ISDIGIT ((unsigned char) *p))
+                {
+                  int digit = *p++ - '0';
+                  if (precision > (INT_MAX - digit) / 10) { builtin_error ("format precision out of range"); return -1; }
+                  precision = precision * 10 + digit;
+                }
+            }
           if (*p == 'H' || *p == 'L') prefix = *p++;
           if (*p == 0) { fputs (start, stdout); break; }
           if (stat_directive (f, prefix, *p, val, sizeof val) != 0)
             failed = 1;
-          stat_put_padded (val, left, zero, width);
+          /* Epoch timestamps have separate fractional precision semantics,
+             which this integer/string formatting subset does not implement. */
+          if (strchr ("WXYZ", *p)) precision = -1;
+          stat_put_padded (val, left, zero, width, precision,
+                           strchr ("abBdhiorstuDfgTtWXYZ", *p) != NULL);
           p++;
         }
       else if (*p == '\\' && escapes)
@@ -445,7 +485,9 @@ char *stat_doc[] = {
   "                              uid gid rdev size blksize blocks atime mtime",
   "                              ctime link) instead of printing",
   "",
-  "Directives take an optional - (left-align), 0 (zero-pad) and width:",
+  "Directives take optional - (left-align), 0 (zero-pad), width and precision.",
+  "String precision limits bytes; integer precision sets minimum digits.",
+  "Fractional epoch-timestamp precision is not implemented.",
   "  %a octal perms   %A symbolic perms   %b blocks       %B block size (512)",
   "  %d device        %D device (hex)     %Hd/%Ld major/minor of device",
   "  %f raw mode hex  %F file type        %g gid          %G group name",

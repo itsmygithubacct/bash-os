@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "loadable": "du",
+  "reference": "GNU Coreutils du invoked by the system Bash in the harness. Parity scripts use GNU-supported options and small relative fixtures. Byte and human-size cases use apparent sizes so expected amounts do not depend on filesystem allocation.",
+  "coverage": [
+    "Bash builtin type and short help metadata contracts",
+    "GNU apparent byte sizes for named operands and the default current-directory operand",
+    "Recursive directory totals, -a output, and maximum output depth",
+    "NUL-terminated output and paths containing spaces",
+    "Block-size ceiling, grand totals, binary human-readable units, and decimal SI units",
+    "Default hard-link de-duplication and --count-links behavior",
+    "Default symlink handling, command-line dereferencing, and recursive dereferencing"
+  ],
+  "exclusions": [
+    "The cross-filesystem effect of -x is deferred because it requires a separate disposable filesystem mount.",
+    "Other du options and error wording are not covered by this focused suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Bash type -t identifies du as a builtin, as required for the loadable to be available with an empty executable PATH.",
+      "script": "type -t du",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-short-description",
+      "kind": "contract",
+      "purpose": "The Bash help database exposes the documented short description embedded in the du loadable metadata.",
+      "script": "help -d du",
+      "expected_status": 0,
+      "stdout": "du - Estimate disk usage of files and directories.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "apparent-bytes-multiple-files",
+      "kind": "parity",
+      "purpose": "GNU du -b reports apparent byte sizes for multiple named regular files in argument order.",
+      "script": "printf 'abc' > alpha\nprintf '12345' > beta\ndu -b alpha beta",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-current-directory",
+      "kind": "parity",
+      "purpose": "With no path operand, GNU du uses the current directory; --bytes makes the one-file total independent of allocated blocks.",
+      "script": "printf 'abc' > leaf\ndu --bytes",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "all-files-depth-limited-tree",
+      "kind": "parity",
+      "purpose": "GNU du --all prints immediate files while --max-depth limits displayed entries; parent totals still include deeper files.",
+      "script": "PATH=/usr/bin mkdir -p tree/sub/leaf\nprintf 'x' > tree/top\nprintf 'yz' > tree/sub/middle\nprintf '123' > tree/sub/leaf/deep\ndu --all --bytes --max-depth=1 tree",
+      "requires": [
+        "du",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "null-terminated-all-output",
+      "kind": "parity",
+      "purpose": "GNU du --null terminates each -a result with NUL, including a filename containing a space.",
+      "script": "PATH=/usr/bin mkdir tree\nprintf 'xy' > 'tree/space name'\nprintf 'z' > tree/plain\ndu --null --all --bytes tree",
+      "requires": [
+        "du",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "block-rounding-grand-total",
+      "kind": "parity",
+      "purpose": "Apparent byte counts rounded to 1024-byte units round each operand upward, while --total rounds the combined byte count.",
+      "script": "printf '%1025s' '' > a\nprintf '%1023s' '' > b\ndu --apparent-size --block-size=1024 --total a b",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "human-and-si-units",
+      "kind": "parity",
+      "purpose": "GNU du formats the same apparent 1500-byte file in binary human-readable units and decimal SI units.",
+      "script": "printf '%1500s' '' > data\ndu --apparent-size --human-readable data\ndu --apparent-size --si data",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hardlink-dedup-and-count-links",
+      "kind": "parity",
+      "purpose": "GNU du counts a hard-linked file once by default and twice with --count-links; the fixture also checks hard-link identity in the resulting tree.",
+      "script": "PATH=/usr/bin mkdir tree\nprintf 'abcde' > tree/original\nPATH=/usr/bin ln tree/original tree/alias\ndu --bytes --summarize tree\ndu --bytes --count-links --summarize tree",
+      "requires": [
+        "du",
+        "mkdir",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-dereference-modes",
+      "kind": "parity",
+      "purpose": "GNU du reports a symlink's own apparent size by default, follows a command-line link with -H, and follows nested links with -L while avoiding duplicate accounting of the target.",
+      "script": "PATH=/usr/bin mkdir tree\nprintf 'data' > tree/target\nPATH=/usr/bin ln -s target tree/alias\ndu --bytes tree/alias\ndu --bytes -H tree/alias\ndu --bytes --summarize -L tree",
+      "requires": [
+        "du",
+        "mkdir",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "one-filesystem-boundary",
+      "kind": "deferred",
+      "purpose": "Check that -x excludes a nested directory on a different device while retaining the root filesystem total.",
+      "reason": "Requires a disposable VM or controlled fixture with two mounted filesystems and a GNU du comparison across that boundary. The mandated runner does not provide a separate mounted fixture filesystem; do not attempt a mount in this suite."
+    },
+    {
+      "id": "dereference-target-first",
+      "kind": "parity",
+      "purpose": "Deduplicate a regular file reached through multiple nested symbolic links under -L regardless of creation order; -l counts each link and -H preserves nested links. Repeated calls reset accounting.",
+      "script": "mkdir tree\nprintf data > tree/target\nln -s target tree/alias\nln -s target tree/second\ndu -bLs tree\ndu -blLs tree\ndu -bHs tree\ndu -bLs tree\n",
+      "requires": [
+        "du",
+        "mkdir",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dereference-link-first",
+      "kind": "parity",
+      "purpose": "Deduplicate a regular file reached through multiple nested symbolic links under -L regardless of creation order; -l counts each link and -H preserves nested links. Repeated calls reset accounting.",
+      "script": "mkdir tree\nln -s target tree/alias\nprintf data > tree/target\nln -s target tree/second\ndu -bLs tree\ndu -blLs tree\ndu -bHs tree\ndu -bLs tree\n",
+      "requires": [
+        "du",
+        "mkdir",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-among-valid",
+      "kind": "parity",
+      "purpose": "Readable operands around a missing input retain output and aggregate failure.",
+      "script": "printf abc > first\nprintf xy > last\ndu -b first absent last",
+      "requires": [
+        "du"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

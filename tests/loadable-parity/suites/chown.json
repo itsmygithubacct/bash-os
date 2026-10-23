@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "loadable": "chown",
+  "reference": "GNU coreutils chown invoked by system Bash is the independent oracle for runnable parity cases. The runner provides a deterministic runner user/group whose IDs own each private fixture. GNU ln is used only to construct a dangling symlink for the -h and dereference cases; the behavior under test is chown.",
+  "coverage": [
+    "Bash builtin type/help availability metadata",
+    "Numeric owner and named owner/group resolution for the fixture's existing identity",
+    "Group-only syntax across multiple operands",
+    "Legacy OWNER.GROUP separator",
+    "-h changes a dangling symlink itself; default behavior follows it",
+    "Invalid owner, negative numeric owner, missing operand, status, diagnostics, and unchanged fixture effects"
+  ],
+  "exclusions": [
+    "A successful ownership change to a distinct UID or non-member GID needs CAP_CHOWN or a reviewed syscall mock. The mandatory runner has no capabilities, so that operation is deferred rather than represented as passing."
+  ],
+  "cases": [
+    {
+      "id": "type_builtin",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify the registered chown loadable as a builtin; this is availability metadata, not operation coverage.",
+      "script": "type -t chown",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help_entry",
+      "kind": "contract",
+      "purpose": "Bash help must recognize the documented chown loadable entry. The fixture emits a marker after help succeeds so documentation wording is not mistaken for GNU parity.",
+      "script": "help chown > metadata.out\nprintf 'help-entry-present\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help-entry-present\n"
+    },
+    {
+      "id": "numeric_owner_named_group",
+      "kind": "parity",
+      "purpose": "A numeric owner equal to the fixture's effective UID and named group runner exercise numeric owner parsing and OWNER:GROUP with a safe identity-preserving request.",
+      "script": "printf 'owned fixture\\n' > item\nchown \"$EUID:runner\" item\n/usr/bin/stat -c \"%u:%g %a\" item",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "stat"
+      ]
+    },
+    {
+      "id": "group_only_multiple_files",
+      "kind": "parity",
+      "purpose": "The :GROUP form must leave owner unchanged and accept multiple relative file operands; runner is the file's existing primary group.",
+      "script": "printf 'first\\n' > first\nprintf 'second\\n' > second\nchown :runner first second\n/usr/bin/stat -c \"%u:%g %a\" first second",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "stat"
+      ]
+    },
+    {
+      "id": "legacy_dot_separator",
+      "kind": "parity",
+      "purpose": "GNU accepts the legacy OWNER.GROUP spelling but emits a deprecation warning. Compare that diagnostic policy as well as status and effects; the loadable source has a legacy dot parser.",
+      "script": "printf 'legacy syntax\\n' > item\nchown runner.runner item\n/usr/bin/stat -c \"%u:%g %a\" item",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chown",
+        "stat"
+      ]
+    },
+    {
+      "id": "symlink_h_dangling_target",
+      "kind": "parity",
+      "purpose": "With -h, chown must operate on a dangling symlink itself; without no-follow behavior this same path would fail because its target does not exist.",
+      "script": "ln -s missing-target link\nchown -h runner:runner link\n/usr/bin/stat -c \"%u:%g %a\" link",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "ln",
+        "stat"
+      ]
+    },
+    {
+      "id": "default_follows_dangling_target",
+      "kind": "parity",
+      "purpose": "Without -h, chown follows a dangling symlink and reports the missing target; capture the command failure before reporting its status.",
+      "script": "ln -s missing-target link\nrc=0\nchown runner:runner link || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown",
+        "ln"
+      ]
+    },
+    {
+      "id": "invalid_owner_name",
+      "kind": "parity",
+      "purpose": "An unresolvable nonnumeric owner must fail with a diagnostic and leave the private file unchanged.",
+      "script": "printf 'unchanged\\n' > item\nrc=0\nchown no_such_user_bashos_suite_987654 item || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown"
+      ]
+    },
+    {
+      "id": "negative_numeric_owner",
+      "kind": "parity",
+      "purpose": "GNU chown does not accept a negative UID as a valid owner. This also checks that -1 is not accidentally treated as the chown(2) unchanged-UID sentinel by the command parser.",
+      "script": "printf 'unchanged\\n' > item\nrc=0\nchown -- -1 item || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown"
+      ]
+    },
+    {
+      "id": "valid_then_missing_operand",
+      "kind": "parity",
+      "purpose": "A missing later operand must produce a failure status and diagnostic after a valid operand; capture the aggregate command status.",
+      "script": "printf 'fixture\\n' > present\nrc=0\nchown :runner present missing || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "chown"
+      ]
+    },
+    {
+      "id": "distinct_identity_transfer",
+      "kind": "deferred",
+      "purpose": "Successful change to ownership IDs distinct from the fixture identity, with a resulting UID/GID check.",
+      "reason": "Requires a disposable VM with CAP_CHOWN and an isolated throwaway user/group database, or a reviewed syscall mock that can safely grant the operation. The mandatory fixture runner drops capabilities, so this transition cannot be honestly exercised there."
+    },
+    {
+      "id": "invalid-identity-0",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- ':-1' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-identity-1",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- '4294967295' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-identity-2",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- ':4294967295' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-identity-3",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- '4294967296' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-identity-4",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- ':4294967296' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-identity-5",
+      "kind": "parity",
+      "purpose": "Reject negative IDs, the unchanged-identity sentinel and values outside the platform UID/GID range before attempting any ownership change.",
+      "script": "printf keep > item\nchown -- '-2' item",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "Missing operands and invalid options return GNU failure status without changing ownership.",
+      "script": "chown ",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "Missing operands and invalid options return GNU failure status without changing ownership.",
+      "script": "chown runner",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "Missing operands and invalid options return GNU failure status without changing ownership.",
+      "script": "chown --unknown",
+      "requires": [
+        "chown"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "repeat-calls-and-numeric-group",
+      "kind": "parity",
+      "purpose": "Repeated safe owner/group calls in one shell and numeric primary-group syntax.",
+      "script": "printf keep > item\nchown \"$EUID\" item\nchown :runner item\nchown \"$EUID:$(/usr/bin/id -g)\" item\n/usr/bin/stat -c \"%u:%g\" item",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "stat"
+      ]
+    }
+  ]
+}

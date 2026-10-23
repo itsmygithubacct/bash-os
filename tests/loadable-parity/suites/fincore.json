@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "loadable": "fincore",
+  "reference": "util-linux fincore with full raw empty-file tables. Nonempty tables are validated byte-for-byte against independent rendering conditional only on observed PAGES, checked for bounds and RES conversion using independently queried getconf PAGESIZE. Fixed input lengths, SIZE units, headers, spacing and operand order are independently specified. This validates conditional formatting and count bounds, not equality of residency in separate runs.",
+  "coverage": [
+    "Bash type and help metadata for the builtin, checked without invoking fincore operations.",
+    "Default table headings and a small nonempty private file.",
+    "--noheadings and --bytes aliases on a small file.",
+    "Empty-file output, multiple file arguments, and -- option termination for a dash-prefixed relative name.",
+    "Missing operand and missing-file failures, including continued output for a valid file beside a missing file.",
+    "Human size rounding through 8193 bytes, grouped short options, spaces and repeated filenames, and unknown options.",
+    "Nonempty table formatting checked independently of nondeterministic residency; zero-size output compared directly."
+  ],
+  "exclusions": [
+    "Cold-page eviction and exact resident-page transitions are deferred until a disposable VM or reviewed mincore shim can control cache state.",
+    "No absolute paths, device files, host files, cache eviction, or system-wide operations are exercised.",
+    "No cold/warm cache-state claim is inferred from freshly created files."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "kind": "contract",
+      "purpose": "Confirm through Bash type metadata that fincore is installed as a builtin.",
+      "script": "type -t fincore",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-available",
+      "kind": "contract",
+      "purpose": "Confirm the documented fincore help entry is available through Bash help without running a fincore query.",
+      "script": "help_text=$(help fincore)\n[[ -n $help_text ]]\nprintf 'help-available\\n'",
+      "expected_status": 0,
+      "stdout": "help-available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "small-default-headings",
+      "kind": "parity",
+      "purpose": "Check every heading and row byte for a private small file, conditional only on its observed PAGES. No resident count is prescribed.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf 'fincore parity\\n' > payload\nnames=(payload); lengths=(15); human=(15B)\ncheck_table 1 0 0 4 payload",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "bytes-and-noheadings-aliases",
+      "kind": "parity",
+      "purpose": "Validate byte units, exact alignment and both long and grouped short aliases, without comparing residency between separate invocations.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf '1234567\\n' > payload\nnames=(payload); lengths=(8); human=(8B)\ncheck_table 0 1 0 5 --noheadings --bytes payload\ncheck_table 0 1 0 5 -bn payload\ncheck_table 0 1 0 5 -nb payload\ncheck_table 1 1 0 4 --bytes payload\ncheck_table 0 0 0 5 --noheadings payload",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "empty-file",
+      "kind": "parity",
+      "purpose": "An empty regular file has deterministically zero pages: compare full unmodified tables in all heading/unit modes.",
+      "script": ": > empty\nfincore empty\nfincore -n empty\nfincore --bytes empty\nfincore --bytes --noheadings empty",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore"
+      ]
+    },
+    {
+      "id": "multiple-files",
+      "kind": "parity",
+      "purpose": "Check row order, units and shared column widths across tiny private regular files; counts remain observational.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf a > alpha\nprintf two > beta\nnames=(alpha beta); lengths=(1 3); human=(1B 3B)\ncheck_table 1 0 0 4 alpha beta\ncheck_table 0 0 0 5 -n alpha beta",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "dash-prefixed-name",
+      "kind": "parity",
+      "purpose": "Validate -- option termination and exact relative operand spelling on a private regular file.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf x > ./-entry\nnames=(-entry); lengths=(1); human=(1B)\ncheck_table 0 0 0 5 -n -- -entry",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "missing-operand",
+      "kind": "parity",
+      "purpose": "Require the independently observed util-linux failure status 1 for missing operands; diagnostic wording may vary.",
+      "script": "if fincore -n; then exit 41; else rc=$?; fi\n[[ $rc -eq 1 ]]\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "fincore"
+      ]
+    },
+    {
+      "id": "missing-file",
+      "kind": "parity",
+      "purpose": "Reject a missing private relative operand with status 1, no table, and a diagnostic.",
+      "script": "if fincore -n absent; then exit 42; else rc=$?; fi\n[[ $rc -eq 1 ]]\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "fincore"
+      ]
+    },
+    {
+      "id": "continue-after-missing-file",
+      "kind": "parity",
+      "purpose": "Check valid rows before and after a missing operand and overall failure. Formatting is checked independently of residency.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf ok > present\nnames=(present); lengths=(2); human=(2B)\ncheck_table 0 0 1 5 -n present absent\ncheck_table 1 0 1 4 absent present",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "human-rounding",
+      "kind": "parity",
+      "purpose": "Check independently observed binary-unit rounding at ordinary boundaries using files of at most 8193 bytes. Expected SIZE strings are literal oracle observations; RES is conditional on PAGES.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nnames=(size-1023 size-1024 size-1025 size-1075 size-1126 size-1536 size-4095 size-8193)\nlengths=(1023 1024 1025 1075 1126 1536 4095 8193)\nhuman=(1023B 1K 1K 1K 1.1K 1.5K 4K 8K)\nfor ((i=0;i<${#names[@]};i++)); do\n printf -v data '%*s' \"${lengths[i]}\" ''; printf '%s' \"$data\" > \"${names[i]}\"\ndone\ncheck_table 1 0 0 5 \"${names[@]}\"\ncheck_table 1 1 0 5 --bytes \"${names[@]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "space-in-name",
+      "kind": "parity",
+      "purpose": "Preserve spaces in a relative private filename and repeated operand order.",
+      "script": "page_size=$(getconf PAGESIZE)\n[[ $page_size =~ ^[1-9][0-9]*$ ]]\n# This check asserts table bytes conditional on the observed PAGES value.\n# It never requires a page to be resident. Page size is read independently through getconf.\ncheck_table() {\n local heading=$1 bytes=$2 expected_rc=$3 size_width=$4; shift 4\n local table rc line res pages size name i=0 rw=3 pw=5 expected='' row h\n local -a counts=() resident=()\n if table=$(if fincore \"$@\"; then rc=0; else rc=$?; fi; printf '\\001'; exit \"$rc\"); then rc=0; else rc=$?; fi\n [[ $rc == \"$expected_rc\" ]]\n table=${table%$'\\001'}\n while IFS= read -r line; do\n  if (( heading && i == 0 )); then i=1; continue; fi\n  read -r res pages size name <<< \"$line\"\n  [[ $pages =~ ^[0-3]$ ]]\n  counts+=(\"$pages\")\n done <<< \"${table%$'\\n'}\"\n [[ ${#counts[@]} == ${#names[@]} ]]\n for ((i=0;i<${#counts[@]};i++)); do\n  pages=${counts[i]}\n  # Only representation and internal unit conversion are asserted here.\n  # The count itself can vary independently in the reference and candidate.\n  [[ $pages -le $(( (lengths[i] + page_size - 1) / page_size )) ]]\n  if (( bytes )); then\n   res=$((pages * page_size))\n   if (( pages > 0 )); then rw=5; fi\n  else\n   resident_bytes=$((pages * page_size))\n   if (( resident_bytes < 1024 )); then res=${resident_bytes}B\n   else\n    printf -v res '%.1f' \"$((resident_bytes / 1024))\"\n    res=${res%.0}K\n   fi\n   if (( ${#res} >= 3 )); then rw=5; fi\n  fi\n  resident+=(\"$res\")\n done\n if (( !heading )); then rw=5; pw=1; fi\n if (( heading )); then\n  printf -v h '%*s %*s %*s FILE\\n' \"$rw\" RES \"$pw\" PAGES \"$size_width\" SIZE\n  expected+=$h\n fi\n for ((i=0;i<${#names[@]};i++)); do\n  if (( bytes )); then size=${lengths[i]}; else size=${human[i]}; fi\n  printf -v row '%*s %*s %*s %s\\n' \"$rw\" \"${resident[i]}\" \"$pw\" \"${counts[i]}\" \"$size_width\" \"$size\" \"${names[i]}\"\n  expected+=$row\n done\n if [[ $table != \"$expected\" ]]; then\n  printf 'actual=%q\\nexpected=%q\\n' \"$table\" \"$expected\" >&2\n  return 1\n fi\n printf 'validated headings=%s bytes=%s files=%s status=%s\\n' \"$heading\" \"$bytes\" \"${#names[@]}\" \"$rc\"\n}\nprintf abc > 'a file'\nnames=('a file' 'a file'); lengths=(3 3); human=(3B 3B)\ncheck_table 1 0 0 4 'a file' 'a file' ",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fincore",
+        "getconf"
+      ]
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "Reject unsupported long and short options with util-linux status 1 before any file access.",
+      "script": "for flag in --not-a-fincore-option -z; do\n if fincore \"$flag\" absent; then exit 43; else rc=$?; fi\n [[ $rc -eq 1 ]]; printf 'status=%s\\n' \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "fincore"
+      ]
+    },
+    {
+      "id": "controlled-cache-transitions",
+      "kind": "deferred",
+      "purpose": "Exercise exact cold, resident, and page-boundary counts for mincore-based reporting.",
+      "reason": "Exact cold/warm nonempty-file residency and cache transitions require a disposable VM with controlled eviction/warm-up or a reviewed mincore shim. The current runner does not control page-cache state. Empty-file zero counts and nonempty formatting conditional on observed counts are already exercised; neither establishes a live-cache-state claim."
+    }
+  ]
+}

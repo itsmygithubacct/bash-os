@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "uuidgen",
+  "reference": "Independent RFC 4122 Appendix C DNS namespace UUIDv3/UUIDv5 vectors and RFC 4122/RFC 9562 layout rules, plus the loadable's documented CLI contract and Bash builtin metadata. The repository status inventory records the matching GNU uuidgen reference as missing, so runnable operation checks are contracts rather than claimed GNU parity.",
+  "coverage": [
+    "Bash type/help metadata identifies the builtin and exposes its count option documentation.",
+    "RFC 4122 DNS namespace UUIDv3 and UUIDv5 known vectors; hexadecimal name decoding is checked against the same ASCII name bytes.",
+    "Count behavior and long/short options; random UUIDv4 shape, version and RFC variant bits.",
+    "UUIDv1 and UUIDv6 version, variant and multicast node-bit layout; UUIDv7 version, variant and plausible Unix-millisecond timestamp.",
+    "Usage errors for missing names, invalid namespaces, invalid hexadecimal names and conflicting version options."
+  ],
+  "exclusions": [
+    "No matching GNU uuidgen is available in the repository's reference inventory, so this suite reports no parity cases.",
+    "Random payload bits are not compared to fixed values; v4 checks shape/version/variant, while v1/v6 and v7 check documented layout. Collision probability, monotonicity and clock precision are outside this suite.",
+    "Entropy-source failure and fallback fault injection is deferred because this runner has no deterministic RNG syscall/device mock."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Bash type metadata should report uuidgen as a statically registered builtin.",
+      "script": "[[ $(type -t uuidgen) == builtin ]]\nprintf 'uuidgen is a builtin\\n'",
+      "expected_status": 0,
+      "stdout": "uuidgen is a builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-help",
+      "kind": "contract",
+      "purpose": "Bash help metadata should expose the documented uuidgen help text, including count support.",
+      "script": "help uuidgen > uuidgen-help.txt\ndescription=0\ncount_option=0\nwhile IFS= read -r line; do\n    case $line in\n        *'Generate a UUID (RFC 4122).'*) description=1 ;;\n        *'--count NUM'*) count_option=1 ;;\n    esac\ndone < uuidgen-help.txt\n[[ $description -eq 1 && $count_option -eq 1 ]]\nprintf 'uuidgen help documents count\\n'",
+      "expected_status": 0,
+      "stdout": "uuidgen help documents count\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "rfc-v3-dns-vector",
+      "kind": "contract",
+      "purpose": "The RFC 4122 DNS namespace vector for the name www.widgets.com independently fixes the UUIDv3 digest, version and variant bits.",
+      "script": "uuidgen -m -n @dns -N www.widgets.com",
+      "expected_status": 0,
+      "stdout": "3d813cbb-47fb-32ba-91df-831e1593ac29\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "rfc-v5-dns-vector-long-options",
+      "kind": "contract",
+      "purpose": "The same RFC 4122 DNS namespace known vector checks UUIDv5 and the long option forms, including equals-value parsing.",
+      "script": "uuidgen --sha1 --namespace=@dns --name=www.widgets.com",
+      "expected_status": 0,
+      "stdout": "21f7f8de-8051-5b89-8680-0195ef798b6a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hex-name-decodes-to-rfc-vector",
+      "kind": "contract",
+      "purpose": "The documented hex-name option should decode the ASCII bytes of www.widgets.com before UUIDv3 hashing, reproducing the independently published RFC vector.",
+      "script": "uuidgen -m -x -n @dns -N 7777772e776964676574732e636f6d",
+      "expected_status": 0,
+      "stdout": "3d813cbb-47fb-32ba-91df-831e1593ac29\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "count-repeats-name-uuid",
+      "kind": "contract",
+      "purpose": "A count of three should produce three identical deterministic UUIDv5 values; the expected bytes are the RFC vector, and -CNUM parsing is exercised.",
+      "script": "uuidgen -s -n @dns -N www.widgets.com -C3",
+      "expected_status": 0,
+      "stdout": "21f7f8de-8051-5b89-8680-0195ef798b6a\n21f7f8de-8051-5b89-8680-0195ef798b6a\n21f7f8de-8051-5b89-8680-0195ef798b6a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "random-v4-count-and-layout",
+      "kind": "contract",
+      "purpose": "Generate four random UUIDv4 values and independently check line count, canonical lowercase shape, version nibble 4 and RFC variant bits.",
+      "script": "uuidgen --random --count=4 > generated\n[[ $(stat -c %s generated) == 148 ]]\nmapfile -t values < generated\nif [[ ${#values[@]} -ne 4 ]]; then exit 1; fi\npattern='^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'\nfor value in \"${values[@]}\"; do\n    if [[ ! $value =~ $pattern ]]; then exit 1; fi\ndone\nprintf '4 well-formed RFC variant UUIDv4 values\\n'",
+      "expected_status": 0,
+      "stdout": "4 well-formed RFC variant UUIDv4 values\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "time-v1-v6-layout",
+      "kind": "contract",
+      "purpose": "UUIDv1 and reordered UUIDv6 should carry their respective version nibbles, RFC variant bits and multicast node bit documented for random-node generation.",
+      "script": "valid_clock_uuid() {\n    local value=$1 expected_version=$2\n    local pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[16][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'\n    if [[ ! $value =~ $pattern ]]; then return 1; fi\n    if [[ ${value:14:1} != $expected_version ]]; then return 1; fi\n    case ${value:25:1} in 1|3|5|7|9|b|d|f) ;; *) return 1 ;; esac\n}\nv1=$(uuidgen --time)\nv6=$(uuidgen --time-v6)\nvalid_clock_uuid \"$v1\" 1\nvalid_clock_uuid \"$v6\" 6\nprintf 'UUIDv1 and UUIDv6 layouts valid\\n'",
+      "expected_status": 0,
+      "stdout": "UUIDv1 and UUIDv6 layouts valid\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "time-v7-layout-and-timestamp",
+      "kind": "contract",
+      "purpose": "Validate UUIDv7 RFC layout and bound its timestamp by independently sampled enclosing wall-clock milliseconds.",
+      "script": "before=${EPOCHREALTIME/./}\nvalue=$(uuidgen --time-v7)\nafter=${EPOCHREALTIME/./}\npattern='^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'\nif [[ ! $value =~ $pattern ]]; then exit 1; fi\ntimestamp_hex=${value:0:8}${value:9:4}\ntimestamp_ms=$((16#$timestamp_hex))\nif (( timestamp_ms < 10#$before / 1000 - 1 || timestamp_ms > 10#$after / 1000 + 1 )); then exit 1; fi\nprintf 'UUIDv7 timestamp and layout valid\\n'",
+      "expected_status": 0,
+      "stdout": "UUIDv7 timestamp and layout valid\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "usage-error-contracts",
+      "kind": "contract",
+      "purpose": "Invalid documented invocations should fail with the conventional usage status: missing name, malformed namespace, malformed hex name and conflicting version selectors.",
+      "script": "missing_name=0\nif uuidgen --md5 --namespace @dns; then missing_name=0; else missing_name=$?; fi\ninvalid_namespace=0\nif uuidgen -m -n not-a-uuid -N x; then invalid_namespace=0; else invalid_namespace=$?; fi\ninvalid_hex=0\nif uuidgen -m -x -n @dns -N zz; then invalid_hex=0; else invalid_hex=$?; fi\nconflicting_modes=0\nif uuidgen -r -s -n @dns -N x; then conflicting_modes=0; else conflicting_modes=$?; fi\nif [[ $missing_name -ne 2 || $invalid_namespace -ne 2 || $invalid_hex -ne 2 || $conflicting_modes -ne 2 ]]; then exit 1; fi\nprintf 'missing-name=2 invalid-namespace=2 invalid-hex=2 conflicting-modes=2\\n'",
+      "expected_status": 0,
+      "stdout": "missing-name=2 invalid-namespace=2 invalid-hex=2 conflicting-modes=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "entropy-failure-injection",
+      "kind": "deferred",
+      "purpose": "Exercise failure handling for both entropy acquisition paths without relying on host randomness state.",
+      "reason": "Requires a disposable VM or syscall/device mock that can deterministically make the preferred CSPRNG call unavailable and the fallback entropy source fail or return a short read; verify nonzero status and no UUID bytes. The current runner has no deterministic RNG fault injection."
+    }
+  ]
+}

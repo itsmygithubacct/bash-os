@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "loadable": "head",
+  "reference": "GNU coreutils head in the isolated reference environment. Bash type/help metadata follows the documented builtin options and is counted separately.",
+  "coverage": [
+    "Explicit line and byte prefixes, including embedded NUL bytes.",
+    "Negative line counts with an unterminated final record.",
+    "NUL-delimited records.",
+    "Default, quiet, and forced single-file headers across multiple files.",
+    "GNU binary suffix count, option permutation, and -- option termination.",
+    "Malformed count failure status and diagnostics presence.",
+    "Seekable stdin consumption followed by a Bash read.",
+    "Bash builtin type and help metadata contracts."
+  ],
+  "exclusions": [
+    "The documented positive-line repeated '-' pipe case intentionally preserves bytes that GNU head may read ahead; it is not compared as GNU parity.",
+    "Signals, live input mutation, write-failure injection, large streaming workloads, cross-libc behavior, and full GNU option coverage are outside this focused suite.",
+    "The type/help cases validate Bash metadata only and do not count as head operation coverage. No operation requires a privileged VM or mock, so no deferred cases are needed.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "line-prefix",
+      "kind": "parity",
+      "purpose": "Copies two newline-delimited records and leaves a following unterminated record out of the output.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'alpha\\nbeta\\nlast' > input\nhead -n 2 input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-byte-prefix",
+      "kind": "parity",
+      "purpose": "Checks byte-count mode against data containing an embedded NUL and newline.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'ab\\000cd\\nend' > input\nhead -c 5 input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "exclude-final-line",
+      "kind": "parity",
+      "purpose": "Negative line count excludes the trailing unterminated record while preserving earlier complete records.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'alpha\\nbeta\\nlast' > input\nhead -n -1 input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-records",
+      "kind": "parity",
+      "purpose": "Uses NUL as the record delimiter and copies exactly the first two records.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'red\\000green\\000blue' > input\nhead -z -n 2 input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "headers-and-quiet",
+      "kind": "parity",
+      "purpose": "Checks default headers for two named operands and quiet suppression over both operands.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'first\\nmore\\n' > one\nprintf 'second\\nmore\\n' > two\nhead -n 1 one two\nhead --quiet -n 1 one two",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "verbose-single-header",
+      "kind": "parity",
+      "purpose": "Forces a filename header for one input operand.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'only\\nrest\\n' > one\nhead --verbose -n 1 one",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-suffix",
+      "kind": "parity",
+      "purpose": "Checks GNU's 1K binary byte suffix at the 1024-byte boundary.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf '%01030d' 0 > input\nhead -c 1K input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-order-and-dash-file",
+      "kind": "parity",
+      "purpose": "Checks option permutation after an operand and -- handling for a relative filename beginning with a dash.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'one\\ntwo\\nthree\\n' > input\nprintf 'dash\\nmore\\n' > -input\nhead input -n 2\nhead -n 1 -- -input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-count",
+      "kind": "parity",
+      "purpose": "A malformed line count must fail before producing file data and emit a diagnostic.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'one\\ntwo\\n' > input\nhead -n 2x input",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "seekable-stdin-consumption",
+      "kind": "parity",
+      "purpose": "After reading one line from seekable stdin, a Bash read sees the next line, validating exact input consumption.",
+      "requires": [
+        "head"
+      ],
+      "script": "printf 'one\\ntwo\\nthree\\n' > input\n{\n  head -n 1\n  IFS= read -r next\n  printf 'read:%s\\n' \"$next\"\n} < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the registered head command as a builtin.",
+      "script": "type -t head",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-options",
+      "kind": "contract",
+      "purpose": "Bash help must expose the documented --lines and --bytes options for this builtin.",
+      "script": "help head | { lines=0; bytes=0; while IFS= read -r line; do case $line in *--lines=*) lines=1;; esac; case $line in *--bytes=*) bytes=1;; esac; done; printf 'lines=%s bytes=%s\\n' \"$lines\" \"$bytes\"; }",
+      "expected_status": 0,
+      "stdout": "lines=1 bytes=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-and-negative-byte-counts",
+      "purpose": "Zero counts emit nothing; tail-excluding byte mode handles binary data and a count larger than the input.",
+      "kind": "parity",
+      "script": "printf 'ab\\000cd\\n' > input\nhead -n 0 input\nhead -c 0 input\nhead -c -2 input\nhead -c -99 input",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "head"
+      ]
+    },
+    {
+      "id": "missing-then-valid",
+      "purpose": "A missing first operand must not hide the bytes from a later valid file or erase aggregate failure.",
+      "kind": "parity",
+      "script": "printf 'kept\\nnext\\n' > present\nhead -n 1 absent present",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "head"
+      ]
+    }
+  ]
+}

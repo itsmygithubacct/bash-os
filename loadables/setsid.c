@@ -49,13 +49,13 @@ setsid_builtin (WORD_LIST *list)
         if (!strcmp (w, "-c") || !strcmp (w, "--ctty")) { set_ctty = 1; list = list->next; continue; }
         builtin_error ("unknown option: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     if (!list) {
         builtin_error ("no program specified");
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     int argc = 0;

@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "loadable": "xattr",
+  "reference": "Fixed documented xattr/POSIX contracts plus Python os.setxattr/getxattr/listxattr independent API comparisons on private user.* files. No claim of GNU getfattr/setfattr CLI parity.",
+  "coverage": [
+    "Bash builtin registration and help metadata",
+    "user namespace attribute write/read, including a zero-length value and -V binding",
+    "XATTR_CREATE and XATTR_REPLACE write flags, including conflict failure and unchanged old value",
+    "list variable contents with order-insensitive assertion",
+    "remove and missing-attribute failure",
+    "-F descriptor write/read and -L no-follow read against an attributed target",
+    "Python API interoperability for binary reads and independently inspected writes; not GNU CLI parity."
+  ],
+  "exclusions": [
+    "The read ERANGE retry loop needs a deterministic concurrent-writer syscall fixture or mock; this suite does not introduce a timing race.",
+    "Security namespaces, privileged ownership changes, and filesystem-wide xattr capability behavior are outside the private user.* file fixtures."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm xattr is registered as a Bash builtin and its help metadata is available, without counting this as operation coverage.",
+      "script": "trap 'rm -f discard.out' EXIT\n[[ $(type -t xattr) == builtin ]]\nhelp xattr >discard.out\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "write-read-value",
+      "kind": "contract",
+      "purpose": "Write and read a user.* value containing a space; the documented syscall wrapper returns the value bytes unchanged.",
+      "script": ": > note\nxattr write note user.note 'hello shell'\nxattr read note user.note\nprintf '\\n'",
+      "expected_status": 0,
+      "stdout": "hello shell\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-length-value",
+      "kind": "contract",
+      "purpose": "Exercise a valid zero-byte xattr value and distinguish it from command output using fixed delimiters.",
+      "script": ": > empty-value\nxattr write empty-value user.empty ''\nprintf 'before<'\nxattr read empty-value user.empty\nprintf '>after\\n'",
+      "expected_status": 0,
+      "stdout": "before<>after\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-variable-binding",
+      "kind": "contract",
+      "purpose": "Check the documented read -V binding path with a simple value that is representable in a Bash variable.",
+      "script": ": > variable-value\nxattr write variable-value user.value 'kept value'\nxattr read variable-value user.value -V got\nprintf '<%s>\\n' \"$got\"",
+      "expected_status": 0,
+      "stdout": "<kept value>\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "create-and-replace-flags",
+      "kind": "contract",
+      "purpose": "Check that create initializes an absent name and replace updates an existing name, as defined by XATTR_CREATE and XATTR_REPLACE.",
+      "script": ": > flagged\nxattr write flagged user.state first -f create\nxattr write flagged user.state second -f replace\nxattr read flagged user.state\nprintf '\\n'",
+      "expected_status": 0,
+      "stdout": "second\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "create-conflict-preserves-value",
+      "kind": "contract",
+      "purpose": "Require create-on-existing to fail with command status 1 and leave the prior attribute value intact.",
+      "script": ": > conflict\nxattr write conflict user.state preserved\nrc=0\nxattr write conflict user.state rejected -f create || rc=$?\n[[ $rc -eq 1 ]]\nxattr read conflict user.state\nprintf '\\nwrite-status=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "preserved\nwrite-status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "list-variable-names",
+      "kind": "contract",
+      "purpose": "Check newline-separated list -V binding while accepting either kernel enumeration order for the two names.",
+      "script": ": > names\nxattr write names user.alpha a\nxattr write names user.beta b\nxattr list names -V attrs\ncase ${attrs//$'\\n'/|} in\n  'user.alpha|user.beta'|'user.beta|user.alpha') printf 'two names present\\n' ;;\n  *) exit 2 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "two names present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "remove-and-absent-read",
+      "kind": "contract",
+      "purpose": "Remove an existing value, then verify a read of the missing name fails with status 1.",
+      "script": ": > removable\nxattr write removable user.gone value\nxattr remove removable user.gone\nrc=0\nxattr read removable user.gone || rc=$?\n[[ $rc -eq 1 ]]\nprintf 'removed; absent-read-status=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "removed; absent-read-status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "descriptor-write-read",
+      "kind": "contract",
+      "purpose": "Descriptor mode replaces the PATH operand. Independently cross-check descriptor writes with path reads and path writes with descriptor reads.",
+      "script": ": > fd-file\nexec {xattr_fd}<>fd-file\nxattr -F \"$xattr_fd\" write user.fd 'via descriptor'\nxattr read fd-file user.fd\nprintf '\\n'\nxattr write fd-file user.fd 'via path'\nxattr -F \"$xattr_fd\" read user.fd\nprintf '\\n'\nexec {xattr_fd}>&-",
+      "expected_status": 0,
+      "stdout": "via descriptor\nvia path\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nofollow-read",
+      "kind": "contract",
+      "purpose": "Verify -L read does not follow a symlink to an attributed target: the link read must fail while a normal target read still returns the stored value.",
+      "script": ": > target\nln -s target link\nxattr write target user.marker target-value\nrc=0\nxattr -L read link user.marker || rc=$?\n[[ $rc -eq 1 ]]\nxattr read target user.marker\nprintf '\\nlink-read-status=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "target-value\nlink-read-status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "read-erange-race",
+      "kind": "deferred",
+      "purpose": "Qualify the documented read retry path when an attribute grows between the size probe and data read.",
+      "reason": "Requires a deterministic syscall interposer or mock that can force ERANGE and control successive getxattr sizes. Do not substitute an uncontrolled concurrent writer race; run this later with a dedicated disposable VM/mock fixture."
+    },
+    {
+      "id": "descriptor-list-remove",
+      "kind": "contract",
+      "purpose": "Descriptor list and remove omit PATH and operate on an independently opened private fixture.",
+      "script": ": > fd-file\nexec {fd}<>fd-file\nxattr -F \"$fd\" write user.one value\nxattr -F \"$fd\" list -V keys\n[[ $keys == user.one ]]\nxattr -F \"$fd\" remove user.one\nxattr list fd-file -V remaining\n[[ -z $remaining ]]\nxattr -F \"$fd\" list\nexec {fd}>&-",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-containing-read",
+      "kind": "parity",
+      "purpose": "Read an independently seeded NUL/high-bit user attribute and compare raw bytes against Python os.getxattr.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nimport os\nopen('binary-value','wb').close()\nos.setxattr('binary-value','user.binary',b'A\\0B\\xff')\nPYC\nif [[ $(type -t xattr) == builtin ]]; then\n xattr read binary-value user.binary\nelse\n python3 -c 'import os,sys; sys.stdout.buffer.write(os.getxattr(\"binary-value\",\"user.binary\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "write-independent-read",
+      "kind": "parity",
+      "purpose": "Independently inspect candidate-written attribute bytes and names with Python; this checks actual xattrs, which are absent from harness tree snapshots.",
+      "script": "printf payload > target\nif [[ $(type -t xattr) == builtin ]]; then\n xattr write target user.value 'spaces and text'\nelse\n python3 -c 'import os; os.setxattr(\"target\",\"user.value\",b\"spaces and text\")'\nfi\nPATH=/usr/bin:/bin python3 - <<'PYC'\nimport os,sys\nsys.stdout.buffer.write(os.getxattr('target','user.value'))\nprint()\nprint(','.join(sorted(os.listxattr('target'))))\nPYC",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "replace-absent",
+      "kind": "contract",
+      "purpose": "XATTR_REPLACE must fail for an absent attribute.",
+      "script": ": > target\nxattr write target user.absent value -f replace",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

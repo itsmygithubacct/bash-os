@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "loadable": "httpd",
+  "reference": "Bash type/help metadata is checked against the documented static-builtin registration and the httpd_doc contract in the pinned source. Local multipart expectations come from the explicit fixture bytes and the documented field, delimiter, filename-basename, length, and return-value rules. No GNU CLI implements this HTTP server primitive, so socket operations are deferred rather than presented as parity.",
+  "coverage": [
+    "Bash reports httpd as a builtin.",
+    "help httpd exposes documented listen, accept, reply, and part usage and behavior.",
+    "Safe local multipart parsing: named field selection, exact CRLF payload, filename basename, byte length, quoted boundary, default first filename, and missing-field behavior."
+  ],
+  "exclusions": [
+    "No listen, accept, or reply operation is run because the user forbids network activity. Those behaviors remain DEFERRED for a disposable VM with isolated loopback or a reviewed socket mock.",
+    "No GNU command provides equivalent server-primitive behavior, so no synthetic parity oracle is used.",
+    "Request watchdog timing is not exercised; a future fixture needs a bounded client or deterministic socket and clock mock."
+  ],
+  "cases": [
+    {
+      "id": "metadata_type",
+      "kind": "contract",
+      "purpose": "Check the Bash type builtin reports the documented statically integrated httpd command as a builtin.",
+      "script": "type -t httpd",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_help_doc",
+      "kind": "contract",
+      "purpose": "Check help httpd contains the command forms and core behavior promised by httpd_doc, using Bash's documented help interface.",
+      "script": "doc=$(help httpd)\n[[ $doc == *\"httpd listen PORT [-a ADDR] -H VAR\"* ]]\n[[ $doc == *\"httpd accept LFD -H CFD -m METHOD -p PATH -q QUERY -B BODYFILE\"* ]]\n[[ $doc == *\"-t SECS: return 3 on timeout, nothing bound.\"* ]]\n[[ $doc == *\"httpd reply CFD [-s STATUS] [-t CONTENT_TYPE] [-f FILE]\"* ]]\n[[ $doc == *\"httpd part BODYFILE -b BOUNDARY -o OUTFILE\"* ]]\nprintf 'documented httpd help sections present\\n'",
+      "expected_status": 0,
+      "stdout": "documented httpd help sections present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "part_named_field",
+      "kind": "contract",
+      "purpose": "Extract one selected multipart field from a deterministic local fixture; verify exact CRLF payload, Windows-style filename basename, length binding, and the documented silent miss result without networking.",
+      "script": "{\n  printf '%s\\r\\n' '--BND' 'Content-Disposition: form-data; name=\"other\"' '' 'ignore'\n  printf '%s\\r\\n' '--BND' 'Content-Disposition: form-data; name=\"payload\"; filename=\"C:\\tmp\\sample.txt\"' 'Content-Type: text/plain' ''\n  printf '%s' $'alpha\\r\\nomega'\n  printf '\\r\\n--BND--\\r\\n'\n} > body\nhttpd part body -b BND -o result -n payload -F file_name -l part_len\nactual=$(<result)\n[[ $actual == $'alpha\\r\\nomega' && $file_name == sample.txt && $part_len == 12 && -f result ]]\nif httpd part body -b BND -o missing -n absent; then\n  missing_status=0\nelse\n  missing_status=$?\nfi\n[[ $missing_status == 1 && ! -e missing ]]\nprintf 'named multipart payload and miss behavior match the documented contract\\n'",
+      "expected_status": 0,
+      "stdout": "named multipart payload and miss behavior match the documented contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "part_default_filename",
+      "kind": "contract",
+      "purpose": "Check the documented default selection of the first part with filename=, quoted-boundary handling, basename extraction, and exact payload length using a local fixture.",
+      "script": "{\n  printf '%s\\r\\n' '--BND' 'Content-Disposition: form-data; name=\"note\"' '' 'readme' '--BND' 'Content-Disposition: form-data; name=\"upload\"; filename=\"C:\\docs\\first.bin\"' '' 'upload-bytes' '--BND--' ''\n} > body\nhttpd part body -b '\"BND\"' -o result -F file_name -l part_len\nactual=$(<result)\n[[ $actual == upload-bytes && $file_name == first.bin && $part_len == 12 && -f result ]]\nprintf 'default multipart filename selection matches the documented contract\\n'",
+      "expected_status": 0,
+      "stdout": "default multipart filename selection matches the documented contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred_socket_lifecycle",
+      "kind": "deferred",
+      "purpose": "Verify listen on loopback with an ephemeral port, one successful HTTP/1.1 GET accept and its bound variables, then a nonblocking timeout with no client.",
+      "reason": "Requires a future disposable VM with an isolated loopback client/server fixture or an independently reviewed socket mock. The current task forbids network activity, so neither httpd listen nor accept is invoked."
+    },
+    {
+      "id": "deferred_request_errors",
+      "kind": "deferred",
+      "purpose": "Verify malformed request handling and the documented 400, 413, and 431 refusals, including an oversized Content-Length rejected before a body is sent.",
+      "reason": "Requires a future disposable VM or deterministic socket mock that can submit bounded raw requests and capture replies. The current task forbids network activity, so accept is not invoked."
+    },
+    {
+      "id": "deferred_reply_framing",
+      "kind": "deferred",
+      "purpose": "Verify reply emits byte-exact status, Content-Type, Content-Length, Connection: close, and file/stdin bodies, and closes the client descriptor.",
+      "reason": "Requires a future disposable VM with a socket-pair fixture or a reviewed send/close syscall mock. No reply socket is created or used in this suite."
+    },
+    {
+      "id": "deferred_request_deadline",
+      "kind": "deferred",
+      "purpose": "Verify a partial request that stalls past the documented total request deadline receives 408 and leaves request variables unbound.",
+      "reason": "Requires a future disposable VM with a bounded loopback client and the dedicated short-timeout test build, or a deterministic socket/clock mock. No client connection or timeout operation is run here."
+    },
+    {
+      "id": "part-binary-and-output-mode",
+      "kind": "contract",
+      "purpose": "Extract exact binary bytes with a trailing LF and verify output truncation and private 0600 permissions.",
+      "script": "printf '%s\\r\\n' '--B' 'Content-Disposition: form-data; name=\"data\"; filename=\"sub/blob\"' '' > body\nprintf '\\000A\\377\\n\\r\\n--B--\\r\\n' >> body\nprintf old > result\nchmod 644 result\nhttpd part body -b B -o result -F filename -l length\n[[ $filename == blob && $length == 4 ]]\nprintf '\\000A\\377\\n' > expected\ncmp result expected\nmode=$(stat -c %a result)\n[[ $mode == 600 ]]\nprintf 'binary payload and mode verified\\n' ",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "binary payload and mode verified\n"
+    },
+    {
+      "id": "part-empty-body-miss",
+      "kind": "contract",
+      "purpose": "An empty multipart input yields a silent miss and creates no result file.",
+      "script": ": > body\nif httpd part body -b B -o result -n absent; then rc=0; else rc=$?; fi\n[[ ! -e result ]]\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "status=1\n"
+    },
+    {
+      "id": "part-missing-file",
+      "kind": "contract",
+      "purpose": "Missing local input fails with no extracted payload.",
+      "script": "httpd part absent -b B -o result",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

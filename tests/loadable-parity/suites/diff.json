@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "diff",
+  "reference": "GNU diff for parity cases; Bash type/help metadata and the documented CLI contract for the metadata case.",
+  "coverage": [
+    "Bash builtin/help availability and the documented --version operation.",
+    "Equal files, POSIX normal edit scripts, and unified output with three lines of context.",
+    "Quiet and case-insensitive comparisons, including their exit statuses.",
+    "Missing final newlines and binary input containing NUL bytes.",
+    "Both stdin operand positions, differing stdin, diff - -, and preservation of unread stdin.",
+    "Leading-dash relative filenames with --, missing-file diagnostics, and invalid-option status."
+  ],
+  "exclusions": [
+    "GNU directory comparison and options outside the documented -u/-q/-i, --, and stdin subset are not asserted.",
+    "Unified output uses a deliberate GNU --label adapter for the documented filename-only header contract. Raw timestamped GNU headers differ by design and are not claimed as equal.",
+    "Repeated-record minimal-edit replay, allocation-failure injection, output-write failure recovery, and low-memory recovery need dedicated generated or fault-injection fixtures and remain outside this compact declarative suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-contract",
+      "kind": "contract",
+      "purpose": "Check Bash metadata and the documented help and version entry points without relying on an external command.",
+      "script": "kind=$(type -t diff)\nif help diff > help.out && [[ -s help.out ]]; then help_state=available; else help_state=missing; fi\nif diff --version > version.out && [[ -s version.out ]]; then version_state=available; else version_state=missing; fi\nprintf 'kind=%s\\nhelp=%s\\nversion=%s\\n' \"$kind\" \"$help_state\" \"$version_state\"",
+      "expected_status": 0,
+      "stdout": "kind=builtin\nhelp=available\nversion=available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "identical-files",
+      "kind": "parity",
+      "purpose": "Identical byte-for-byte text files produce no output and status zero.",
+      "script": "printf 'alpha\\nbeta\\n' > left\nprintf 'alpha\\nbeta\\n' > right\ndiff left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "normal-edit-addresses",
+      "kind": "parity",
+      "purpose": "Exercise a leading insertion, an interior deletion, and a later replacement whose normal diff addresses depend on preceding edits.",
+      "script": "printf 'a\\nb\\nc\\nd\\n' > left\nprintf 'x\\na\\nc\\ny\\n' > right\ndiff left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "unified-context",
+      "kind": "parity",
+      "purpose": "Compare every byte of the documented filename-only unified output against GNU diff with explicit labels. The deliberate reference adapter asks GNU for those headers; no output bytes or timestamps are removed.",
+      "script": "printf 'first\\nold\\nmiddle\\nlast\\n' > left\nprintf 'first\\nnew\\nmiddle\\nlast\\n' > right\nif [[ $(type -t diff) == builtin ]]; then\n  diff -u left right\nelse\n  diff -u --label left --label right left right\nfi",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "quiet-difference",
+      "kind": "parity",
+      "purpose": "Quiet mode reports differing relative filenames without a content script and returns the difference status.",
+      "script": "printf 'old\\n' > left\nprintf 'new\\n' > right\ndiff -q left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-case-equality",
+      "kind": "parity",
+      "purpose": "Combined -qi flags treat ASCII case-only line differences as equal under the runner's C locale.",
+      "script": "printf 'ALPHA\\n' > left\nprintf 'alpha\\n' > right\ndiff -qi left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-final-newline",
+      "kind": "parity",
+      "purpose": "A final-newline-only difference remains visible and carries the standard no-newline marker.",
+      "script": "printf 'prefix\\nold' > left\nprintf 'prefix\\nnew\\n' > right\ndiff left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-nul-difference",
+      "kind": "parity",
+      "purpose": "Different files with NUL bytes in the initial probe block use GNU diff's binary diagnostic instead of a text edit script.",
+      "script": "printf 'prefix\\000old\\n' > left\nprintf 'prefix\\000new\\n' > right\ndiff left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-operands",
+      "kind": "parity",
+      "purpose": "Check changed stdin as the first operand, equal stdin in both operand positions, and that diff - - leaves the supplied descriptor unread.",
+      "script": "printf 'same\\n' > input\nif diff - input <<< 'other'; then printf 'stdin-left-status=0\\n'; else rc=$?; printf 'stdin-left-status=%s\\n' \"$rc\"; fi\ndiff - input <<< 'same'\ndiff input - <<< 'same'\nexec 3<<<'retained'\ndiff - - <&3\nIFS= read -r remaining <&3\nprintf 'remaining=%s\\n' \"$remaining\"\nexec 3<&-",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "leading-dash-filenames",
+      "kind": "parity",
+      "purpose": "The -- option terminator allows comparison of two relative filenames beginning with a dash.",
+      "script": "printf 'old\\n' > -left\nprintf 'new\\n' > -right\ndiff -- -left -right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-error",
+      "kind": "parity",
+      "purpose": "A missing relative operand is an error with status two and a diagnostic; wording is allowed to follow each implementation.",
+      "script": "printf 'present\\n' > present\ndiff absent present",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option-error",
+      "kind": "parity",
+      "purpose": "An unsupported option is rejected with usage status two and a diagnostic.",
+      "script": "printf 'same\\n' > left\nprintf 'same\\n' > right\ndiff --definitely-invalid left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-sided-normal",
+      "kind": "parity",
+      "purpose": "An empty left operand and an unterminated right record produce the GNU insertion script and newline marker.",
+      "script": ": > left\nprintf 'one\\ntwo' > right\ndiff left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    }
+  ]
+}

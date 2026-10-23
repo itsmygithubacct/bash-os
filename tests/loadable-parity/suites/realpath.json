@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "loadable": "realpath",
+  "reference": "GNU coreutils realpath is the independent parity oracle. Fixture scripts use only relative paths and create small files and symlinks under the private fixture tree. For the Bash-only -c option, the reference branch uses GNU realpath -e on an existing fixture path, which gives the comparable all-components-exist behavior. Bash-only array, verbose, and builtin help metadata are checked against the documented contract in stock-loadables/realpath.c.",
+  "coverage": [
+    "Canonical output for relative paths containing dot and dot-dot components, including a path with a space in its name.",
+    "Resolution of a relative directory symlink and a symlink chain.",
+    "Lexical canonicalization with -s while a symlink component is present.",
+    "Existence checking through the loadable's -c option.",
+    "GNU's default handling of a missing final component and multiple operands with a missing parent.",
+    "No-operand usage behavior compared with GNU coreutils.",
+    "Bash builtin type/help metadata and the loadable-only -a, -q, and -v contracts."
+  ],
+  "exclusions": [
+    "GNU-only realpath options such as -m, --relative-to, and -z are outside the Bash loadable's documented interface.",
+    "The loadable's -a array assignment and -v formatting have no GNU CLI equivalent, so they are contract cases rather than claimed GNU parity.",
+    "No privileged, hardware, network, or host-system path behavior is included; all operations use ordinary fixture paths."
+  ],
+  "cases": [
+    {
+      "id": "relative_components",
+      "kind": "parity",
+      "purpose": "Canonicalizes existing relative paths with redundant dot and dot-dot components and preserves a filename containing spaces.",
+      "requires": [
+        "python3",
+        "realpath"
+      ],
+      "script": "/usr/bin/python3 -c 'import os; os.makedirs(\"d/sub\", exist_ok=True); open(\"d/file with space\", \"wb\").close(); open(\"d/sub/item\", \"wb\").close()'\ncd d/sub\nrealpath '.././file with space' './item' '../../d/../d/sub/item'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink_chain",
+      "kind": "parity",
+      "purpose": "Follows a relative directory symlink and a second symlink whose target traverses the first link.",
+      "requires": [
+        "python3",
+        "realpath"
+      ],
+      "script": "/usr/bin/python3 -c 'import os; os.makedirs(\"target/nested\", exist_ok=True); open(\"target/nested/file\", \"wb\").close(); os.symlink(\"target\", \"dirlink\"); os.symlink(\"dirlink/nested/file\", \"chain\")'\nrealpath dirlink/nested/file chain",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "strip_symlinks",
+      "kind": "parity",
+      "purpose": "Checks -s lexical dot-dot removal without following a symlink component; the nested target makes following the link produce a different path.",
+      "requires": [
+        "python3",
+        "realpath"
+      ],
+      "script": "/usr/bin/python3 -c 'import os; os.makedirs(\"real/deep\", exist_ok=True); open(\"rootfile\", \"wb\").close(); os.symlink(\"real/deep\", \"shortcut\")'\nrealpath -s shortcut/../rootfile",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "check_existing",
+      "kind": "parity",
+      "purpose": "Exercises the loadable's -c existence check on an existing path and compares it with GNU realpath -e, the corresponding all-components-exist mode.",
+      "requires": [
+        "python3",
+        "realpath"
+      ],
+      "script": "/usr/bin/python3 -c 'open(\"present\", \"wb\").close()'\nkind=$(type -t realpath)\nif [[ $kind == builtin ]]; then\n  realpath -c present\nelif [[ $kind == file ]]; then\n  realpath -e present\nelse\n  exit 99\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_final_component",
+      "kind": "parity",
+      "purpose": "Checks GNU coreutils' default handling of a missing final component. GNU canonicalizes this path successfully; the candidate's differing status and output are retained as a parity failure.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "realpath absent",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "partial_failure",
+      "kind": "parity",
+      "purpose": "With multiple operands, emits canonical paths for successful operands before and after a path with a missing parent, then reports overall failure.",
+      "requires": [
+        "python3",
+        "realpath"
+      ],
+      "script": "/usr/bin/python3 -c 'open(\"first\", \"wb\").close(); open(\"last\", \"wb\").close()'\nrc=0\nrealpath first missing-parent/absent last || rc=$?\n[[ $rc == 1 ]] || exit 99\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_operand",
+      "kind": "parity",
+      "purpose": "Checks the no-operand error status and diagnostic presence against GNU coreutils; a status difference is retained as a compatibility failure.",
+      "requires": [
+        "realpath"
+      ],
+      "script": "realpath",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Confirms realpath is registered as a Bash builtin and that help exposes the documented description and synopsis.",
+      "script": "[[ $(type -t realpath) == builtin ]] || exit 10\nhelp realpath > help.txt\nhave_description=0\nhave_array_doc=0\nhave_strip_doc=0\nwhile IFS= read -r line; do\n  case $line in\n    *'Display pathname in canonical form.'*) have_description=1 ;;\n    *'The -a option stores each canonicalized PATHNAME argument'*) have_array_doc=1 ;;\n    *'canonicalize . and .. pathname components'*) have_strip_doc=1 ;;\n  esac\ndone < help.txt\n[[ $have_description == 1 && $have_array_doc == 1 && $have_strip_doc == 1 ]] || exit 11\ntype -t realpath\nprintf 'help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "array_assignment",
+      "kind": "contract",
+      "purpose": "Checks documented -a indexed-array assignment, input order, symlink canonicalization, and that -q suppresses command output without suppressing assignment.",
+      "script": "/usr/bin/python3 -c 'import os; os.makedirs(\"dir\", exist_ok=True); open(\"dir/file\", \"wb\").close(); os.symlink(\"dir/file\", \"alias\")'\nrealpath -q -a resolved dir/file alias\n[[ ${#resolved[@]} == 2 ]] || exit 10\n[[ ${resolved[0]} == \"$PWD/dir/file\" ]] || exit 11\n[[ ${resolved[1]} == \"$PWD/dir/file\" ]] || exit 12\nprintf 'count=%s\\n%s\\n%s\\n' \"${#resolved[@]}\" \"${resolved[0]#\"$PWD\"/}\" \"${resolved[1]#\"$PWD\"/}\"",
+      "expected_status": 0,
+      "stdout": "count=2\ndir/file\ndir/file\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verbose_output",
+      "kind": "contract",
+      "purpose": "Checks the documented -v prefix and canonical destination for one relative pathname.",
+      "script": "/usr/bin/python3 -c 'from pathlib import Path; Path('\"'\"'object'\"'\"').touch()'\nrealpath -v object > result\n/usr/bin/python3 -c 'from pathlib import Path; import os; assert Path('\"'\"'result'\"'\"').read_bytes()==('\"'\"'object -> '\"'\"'+os.getcwd()+'\"'\"'/object\\n'\"'\"').encode(); print('\"'\"'verbose-ok'\"'\"')'",
+      "expected_status": 0,
+      "stdout": "verbose-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ordinary-leaf-paths",
+      "kind": "parity",
+      "purpose": "Compare missing final components, trailing slashes, dangling links and non-directory prefixes.",
+      "requires": [
+        "ln",
+        "mkdir",
+        "python3",
+        "realpath"
+      ],
+      "script": "mkdir real; printf x > regular; ln -s absent dangling; ln -s real/leaf nested\nfor p in absent absent/ missing/leaf dangling nested regular/child absent/..; do\n if realpath \"$p\" > result; then rc=0; else rc=$?; fi\n printf 'operand=%s status=%s\\n' \"$p\" \"$rc\"\n /usr/bin/python3 -c 'from pathlib import Path; import sys; sys.stdout.buffer.write(Path('\"'\"'result'\"'\"').read_bytes())'\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lexical-paths",
+      "kind": "parity",
+      "purpose": "Compare lexical paths with missing, symlink and regular-file components.",
+      "requires": [
+        "ln",
+        "python3",
+        "realpath"
+      ],
+      "script": "printf x > regular; ln -s absent dangling; ln -s regular filelink\nfor p in absent missing/leaf dangling regular/child missing/../leaf regular/../leaf dangling/child filelink/child; do\n if realpath -s \"$p\" > result; then rc=0; else rc=$?; fi\n printf 'operand=%s status=%s\\n' \"$p\" \"$rc\"\n /usr/bin/python3 -c 'from pathlib import Path; import sys; sys.stdout.buffer.write(Path('\"'\"'result'\"'\"').read_bytes())'\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "loadable": "kgetch",
+  "reference": "Literal ECMA-48/xterm sequences, the documented bash-os key API constants and keymap syntax independently define decoder contracts. No matching GNU/POSIX CLI exists. Bash type/help cover metadata; timed reads require a controlled PTY fixture.",
+  "coverage": [
+    "Static Bash builtin availability through type -t.",
+    "Documented help -d description.",
+    "CSI cursor and PageUp sequences, including hex split across arguments.",
+    "ASCII, CR/LF, TAB, DEL, and BS mappings.",
+    "SS3 F1 sequence.",
+    "Documented relative keymap fixture syntax and \\E/\\xHH unescaping.",
+    "Missing and malformed decode arguments return usage status.",
+    "One-key-at-a-time read from a private pipe-backed file descriptor.",
+    "Deferred timing behavior for a private PTY feeder."
+  ],
+  "exclusions": [
+    "No GNU/POSIX CLI provides a comparable kgetch decoder, so there are no parity cases.",
+    "Controlling-terminal behavior, ESC timing boundaries, incomplete-sequence timeout, and total sequence cap need a controlled PTY input/timing driver and are deferred.",
+    "No real terminal, device, network, privilege, or host operation is exercised."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies the statically provided kgetch name as a builtin.",
+      "script": "[[ $(type -t kgetch) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-description",
+      "kind": "contract",
+      "purpose": "Check the documented one-line description exposed through Bash help metadata.",
+      "script": "help -d kgetch",
+      "expected_status": 0,
+      "stdout": "kgetch - Decode one terminal key using a terminfo-style trie.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-csi-cursor-and-page",
+      "kind": "contract",
+      "purpose": "Decode a standard CSI Up key and PageUp, and accept one sequence split over HEX arguments.",
+      "script": "kgetch decode 1b5b41\nkgetch decode 1b5b 357e",
+      "expected_status": 0,
+      "stdout": "key_up 257\nkey_ppage 266\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-ascii-and-controls",
+      "kind": "contract",
+      "purpose": "Check the documented ASCII-byte behavior and special codes for CR, LF, TAB, DEL, and BS.",
+      "script": "kgetch decode 71\nkgetch decode 0d\nkgetch decode 0a\nkgetch decode 09\nkgetch decode 7f\nkgetch decode 08",
+      "expected_status": 0,
+      "stdout": "char 113\nenter 264\nenter 264\ntab 269\nbackspace 263\nbackspace 263\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-function-key",
+      "kind": "contract",
+      "purpose": "Decode the conventional xterm SS3 F1 sequence to the shared F1 key code.",
+      "script": "kgetch decode 1b4f50",
+      "expected_status": 0,
+      "stdout": "key_f1 272\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-terminfo-fixture",
+      "kind": "contract",
+      "purpose": "Load documented key_up/key_down escape strings from a relative fixture, exercising both \\E and \\xHH forms.",
+      "script": "printf 'key_up=\\\\E[99~\\nkey_down=\\\\x1b[98~\\n' > keymap\nBASHKGETCH_TERMINFO=keymap kgetch decode 1b5b39397e\nBASHKGETCH_TERMINFO=keymap kgetch decode 1b5b39387e",
+      "expected_status": 0,
+      "stdout": "key_up 257\nkey_down 258\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-invalid-input",
+      "kind": "contract",
+      "purpose": "Ensure missing bytes and non-hex bytes are rejected with the documented usage status and a diagnostic.",
+      "script": "capture_status() { local status; if kgetch decode \"$@\"; then status=0; else status=$?; fi; printf '%s\\n' \"$status\"; }\ncapture_status\ncapture_status z0",
+      "expected_status": 0,
+      "stdout": "2\n2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "read-pipe-fd-stream",
+      "kind": "contract",
+      "purpose": "Read one recognized CSI key and then the next plain byte from a private pipe-backed FD, checking one-key-at-a-time consumption without requiring a terminal.",
+      "script": "exec {keyfd}< <(printf '%s' $'\\e[Aq')\nkgetch read \"$keyfd\"\nkgetch read \"$keyfd\"\nexec {keyfd}<&-",
+      "expected_status": 0,
+      "stdout": "key_up 257\nchar 113\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-esc-grace-and-partial-sequence",
+      "kind": "deferred",
+      "purpose": "Validate the bare-ESC grace period and behavior when a CSI prefix arrives but does not complete.",
+      "reason": "Requires a disposable PTY fixture with a byte feeder that can schedule lone ESC, completed CSI, and incomplete CSI input around the documented 50 ms grace interval. The current runner supplies no controllable terminal input or clock; run this only in a dedicated VM/mock with tolerant timing bounds."
+    },
+    {
+      "id": "read-sequence-total-cap",
+      "kind": "deferred",
+      "purpose": "Validate that slowly arriving escape-sequence bytes cannot extend one key read beyond the documented total cap.",
+      "reason": "Requires a disposable PTY feeder or mocked poll/monotonic-clock boundary that drips a valid-looking sequence across the max(400 ms, ESCDELAY*8) cap and records the result. Timing assertions are not stable in this bounded fixture runner, so no pass is claimed."
+    }
+  ]
+}

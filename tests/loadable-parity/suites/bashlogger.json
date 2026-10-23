@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "loadable": "bashlogger",
+  "reference": "Bash type/help metadata and documented pre-socket parser/input rejection contracts. No matching GNU logger interface is claimed. Datagram wire values require an independent receiver or reviewed syscall mock in a future disposable VM.",
+  "coverage": [
+    "Bash builtin classification through type -t.",
+    "Documented short usage through help -s.",
+    "Deferred: default and explicit wire formatting, tag and PID options.",
+    "Deferred: decimal, named, mixed and boundary priority parsing, aliases and invalid priorities.",
+    "Deferred: argument joining, -- handling, stdin framing, NUL rejection and message-size limits.",
+    "Deferred: private socket destination errors, path-length handling and truncation safety.",
+    "Deferred: close-on-exec, interrupted-send retry and cleanup on send failures using a syscall mock.",
+    "Runnable pre-socket priority/option/input rejection, including NUL and empty stdin; no datagram operation coverage."
+  ],
+  "exclusions": [
+    "No datagram is sent and no socket destination is contacted. Successful priority/message formatting, delivery and descriptor behavior remain deferred for an independently reviewed socket mock or future disposable VM. GNU logger has a different CLI/protocol contract."
+  ],
+  "cases": [
+    {
+      "id": "type-classification",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies the available bashlogger command as a builtin using the documented type -t contract, without invoking its logging operation.",
+      "script": "PATH=\ntype -t bashlogger",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help",
+      "kind": "contract",
+      "purpose": "Confirm help -s exposes the documented short synopsis. Expected text comes from the published bashlogger synopsis and Bash help -s formatting, not candidate output.",
+      "script": "PATH=\nhelp -s bashlogger",
+      "expected_status": 0,
+      "stdout": "bashlogger: bashlogger [-i] [-t TAG] [-p PRI] [MESSAGE...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wire-format-options",
+      "kind": "deferred",
+      "purpose": "Check one datagram per valid call, default <13> user formatting, explicit tags and priorities, and the PID-bearing -i/--id form. Compute the expected PRI independently as facility * 8 + severity and compare exact packet bytes.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Independently compute facility*8+severity, exact tag/PID bytes and one datagram per call."
+    },
+    {
+      "id": "priority-grammar",
+      "kind": "deferred",
+      "purpose": "Check decimal PRI endpoints 0 and 191, named and numeric facility/severity pairs, case-insensitive names and documented aliases; verify invalid or out-of-range priorities fail before any datagram is sent.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Exercise valid named, numeric and mixed priority forms and audit that invalid values open no socket; ordinary invalid-input rejection is covered separately."
+    },
+    {
+      "id": "message-framing-limits",
+      "kind": "deferred",
+      "purpose": "Check argument joining including empty arguments, -- termination, stdin input, removal of one trailing LF/CRLF, preservation of internal newlines, NUL rejection, and the documented 2047-byte message boundary against exact received bytes/status.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Check exact packet bytes for argument joining, stdin newline framing and documented size boundaries; pre-socket NUL/empty rejection is covered separately."
+    },
+    {
+      "id": "socket-path-errors",
+      "kind": "deferred",
+      "purpose": "Check missing and non-socket destinations fail, an overlong socket path is rejected before send, and a path that would otherwise be truncated never receives a packet. Use only private relative fixture paths and independently inspect packet delivery/status.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Use only relative private endpoints and a mock for socket/send/path-length outcomes; no real service endpoint may be used."
+    },
+    {
+      "id": "descriptor-safety",
+      "kind": "deferred",
+      "purpose": "Check SOCK_CLOEXEC/FD_CLOEXEC on the sending socket, no descriptor inheritance by an exec child, interrupted-send retry, and descriptor closure after one injected send failure or short send.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX receiver and an independently reviewed socket/syscall mock that prevents any host logging or network effects. Record CLOEXEC, closure and single-call EINTR/short-send/failure outcomes through the mock; no stress loop."
+    },
+    {
+      "id": "invalid-priority",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": "bashlogger -p 192 message",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-facility",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": "bashlogger --priority=24.info message",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-severity",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": "bashlogger -p local0.8 message",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "missing-tag",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": "bashlogger -t",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "nul-stdin",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": "printf 'before\\0after' | bashlogger",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "empty-stdin",
+      "kind": "contract",
+      "purpose": "Reject invalid syntax/input before the logging socket path; no socket or network operation is attempted.",
+      "script": ": > empty\nbashlogger < empty",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

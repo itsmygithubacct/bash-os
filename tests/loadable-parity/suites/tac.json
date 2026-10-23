@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "loadable": "tac",
+  "reference": "GNU coreutils tac selected from PATH under system Bash; the runner checks its expected status first, then compares raw stdout and the fixture tree. Contract metadata assertions use Bash's type/help builtins and the documented tac synopsis/help text.",
+  "coverage": [
+    "Default newline records from stdin, including empty input, adjacent blank records, and a missing final newline.",
+    "Custom literal separators, multiple files in operand order, and trailing separators.",
+    "-b separator attachment with leading and adjacent multi-byte separators.",
+    "An empty -s argument selecting NUL record boundaries on pipe input.",
+    "GNU Emacs regex character-class repetition and dot behavior across NUL/newline bytes.",
+    "GNU option permutation after an operand and -- handling for a dash-leading relative fixture path.",
+    "Missing-file continuation and invalid-option exit/error behavior.",
+    "Bash builtin availability and documented help metadata."
+  ],
+  "exclusions": [
+    "PTY-specific shell stdout ordering and flush behavior is deferred because the runner has no terminal driver.",
+    "No /dev paths, output-device failures, locale matrix, large-input stress, concurrent file mutation, or system operations are exercised.",
+    "Advanced GNU regex anchor corner cases and resource-limit behavior are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "default_stdin_boundaries",
+      "kind": "parity",
+      "purpose": "Check default newline records on stdin, including empty input, blank records, and an unterminated last record.",
+      "requires": [
+        "tac"
+      ],
+      "script": ": > empty\ntac < empty\nprintf '%s\\n' '---'\nprintf 'A\\n\\nB' | tac",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "literal_separator_files",
+      "kind": "parity",
+      "purpose": "Check GNU literal multi-byte separator handling across two files, preserving operand order and a trailing separator.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf '%s' 'one::two::tail' > first\nprintf '%s' 'red::blue::' > second\ntac --separator='::' first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "before_custom_separator",
+      "kind": "parity",
+      "purpose": "Check -b with a multi-byte separator at the start and between adjacent records.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf '%s' '::alpha::::beta::tail' > records\ntac --before -s '::' records",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul_separator_pipe",
+      "kind": "parity",
+      "purpose": "Check that an empty -s argument selects NUL separators and preserves empty binary records from stdin.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf 'A\\0B\\0\\0C' | tac -s ''",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "emacs_regex_class",
+      "kind": "parity",
+      "purpose": "Check GNU Emacs regex character-class repetition, whose reverse matching differs from ordinary forward splitting.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf '%s' 'a,b::c' | tac -r -s '[,:]+'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "regex_dot_binary_boundary",
+      "kind": "parity",
+      "purpose": "Check GNU regex dot matching NUL while excluding newline in a binary stdin stream.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf 'A\\0B\\nC' | tac -r -s '.'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option_permutation_and_dash_operand",
+      "kind": "parity",
+      "purpose": "Check options after an operand and -- protection for a dash-leading relative file name.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf '%s' 'one::two::tail' > records\nprintf 'first\\nsecond\\n' > -dash\ntac records --before --separator=::\ntac -- -dash",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_file_continues",
+      "kind": "parity",
+      "purpose": "Check that a missing operand reports failure but tac still processes a following valid relative file.",
+      "requires": [
+        "tac"
+      ],
+      "script": "printf 'first\\nlast' > good\ntac missing good",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid_option",
+      "kind": "parity",
+      "purpose": "Check nonzero status and a diagnostic for an unknown option without constraining GNU wording.",
+      "requires": [
+        "tac"
+      ],
+      "script": "tac --no-such-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash_type_help_metadata",
+      "kind": "contract",
+      "purpose": "Check Bash reports tac as a builtin and exposes the documented synopsis and key help text through help tac.",
+      "script": "[[ $(type -t tac) == builtin ]] || exit 1\nhelp_text=$(help tac)\n[[ $help_text == *'tac [OPTION]... [FILE]...'* && $help_text == *'Concatenate and print files in reverse'* && $help_text == *'GNU Emacs regex'* ]] || exit 1\nprintf '%s\\n' 'type/help metadata contract verified'",
+      "expected_status": 0,
+      "stdout": "type/help metadata contract verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal_ordering_deferred",
+      "kind": "deferred",
+      "purpose": "Verify Bash output ordering and tac's flush behavior when builtin output shares a terminal stream.",
+      "reason": "The runner does not provide a PTY driver. A future isolated PTY fixture should write a Bash prefix, invoke builtin tac on controlled input, capture prefix/tac/suffix byte order and flush boundaries, then confirm the shell remains usable; use only a disposable local PTY, never a host terminal."
+    },
+    {
+      "id": "literal-overlap-and-long-separator",
+      "kind": "parity",
+      "purpose": "Compare overlapping literal separators in both attachment modes and a separator longer than the input.",
+      "script": "printf '%s' ababa | tac -s aba\nprintf '\\n'\nprintf '%s' ababa | tac -b -s aba\nprintf '\\n'\nprintf '%s' abc | tac -s abcdef",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tac"
+      ]
+    },
+    {
+      "id": "repeated-redirected-stdin",
+      "kind": "parity",
+      "purpose": "Repeated calls in one shell must use the newly redirected input without stale EOF or buffered bytes.",
+      "script": "printf 'a\\nb\\n' > one\nprintf 'c\\nd' > two\ntac < one\ntac < two",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tac"
+      ]
+    }
+  ]
+}

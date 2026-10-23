@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "loadable": "uptime",
+  "reference": "The parity case compares uptime -s with procps-ng uptime, which reports the integer /proc/stat btime. Fixture contracts use the documented uptime interface, hard-coded UTC encodings of fixture btime, and Bash printf's independent epoch-to-calendar-time conversion for the fallback case. Type/help metadata is checked through Bash builtins.",
+  "coverage": [
+    "GNU uptime -s parity in UTC",
+    "Bash builtin type and help metadata, plus the documented version string",
+    "Pretty output at minute/hour boundaries and for singular/plural day forms",
+    "Fixture btime parsing after a long /proc/stat line and the missing-btime fallback",
+    "Missing uptime input, unknown option, and unexpected operand errors"
+  ],
+  "exclusions": [
+    "Default output is deferred because wall time, load averages, and utmp user counts cannot be fixed for both GNU uptime and the loadable in this runner.",
+    "Alternate locales, malformed proc files, and utmp session counting are not covered."
+  ],
+  "cases": [
+    {
+      "id": "gnu-since-parity",
+      "kind": "parity",
+      "purpose": "Compare the stable boot timestamp from the builtin with GNU procps uptime -s; the runner fixes TZ=UTC and each side reads the same boot-time contract.",
+      "script": "uptime -s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "uptime"
+      ]
+    },
+    {
+      "id": "type-help-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash registers uptime as a builtin and exposes the documented usage and option descriptions through help.",
+      "script": "[[ $(type -t uptime) == builtin ]]\nhelptext=$(help uptime)\ncase \"$helptext\" in\n  *\"uptime [-p] [-s] [-h|--help|-V|--version]\"*\"-s   since: print boot timestamp (YYYY-MM-DD HH:MM:SS)\"*\"-V   show version\"*) ;;\n  *) exit 1 ;;\nesac\nprintf 'builtin\\nhelp metadata available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp metadata available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version-contract",
+      "kind": "contract",
+      "purpose": "Check the version text documented by the loadable's -V option.",
+      "script": "uptime -V",
+      "expected_status": 0,
+      "stdout": "uptime 1.0 (bash-loadable)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pretty-unit-boundaries",
+      "kind": "contract",
+      "purpose": "Check seconds below a minute, singular and plural minute labels, and the transition to one hour using small deterministic proc uptime fixtures.",
+      "script": "export BASHOS_PROC_ROOT=.\nprintf '59.99 0.00\\n' > uptime\nuptime -p\nprintf '60.00 0.00\\n' > uptime\nuptime -p\nprintf '3599.99 0.00\\n' > uptime\nuptime -p\nprintf '3600.00 0.00\\n' > uptime\nuptime -p",
+      "expected_status": 0,
+      "stdout": "up 0 minutes\nup 1 minute\nup 59 minutes\nup 1 hour, 0 minutes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pretty-day-forms",
+      "kind": "contract",
+      "purpose": "Check day, hour, and minute fields including singular day wording and plural days with zero-valued smaller units.",
+      "script": "export BASHOS_PROC_ROOT=.\nprintf '90061.00 10.00\\n' > uptime\nuptime -p\nprintf '172800.00 20.00\\n' > uptime\nuptime -p",
+      "expected_status": 0,
+      "stdout": "up 1 day, 1 hour, 1 minute\nup 2 days, 0 hours, 0 minutes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "since-long-stat-line",
+      "kind": "contract",
+      "purpose": "Verify -s finds the documented btime line even when a preceding /proc/stat line exceeds 4096 bytes; the expected UTC timestamp is independently encoded from epoch 1700000000.",
+      "script": "export BASHOS_PROC_ROOT=.\nprintf '90061.00 10.00\\n' > uptime\nprintf 'cpu 0\\nintr %05000d\\nbtime 1700000000\\n' 0 > stat\nuptime -s",
+      "expected_status": 0,
+      "stdout": "2023-11-14 22:13:20\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "since-fallback-without-btime",
+      "kind": "contract",
+      "purpose": "Exercise the documented now-minus-uptime fallback when stat has no btime; independently encode both possible enclosing wall-clock seconds with Bash printf %T.",
+      "script": "export BASHOS_PROC_ROOT=.\nprintf '90061.99 0.00\\n' > uptime\nbefore=$EPOCHSECONDS\nactual=$(uptime -s)\nafter=$EPOCHSECONDS\nprintf -v expected_before '%(%Y-%m-%d %H:%M:%S)T' \"$((before - 90061))\"\nprintf -v expected_after '%(%Y-%m-%d %H:%M:%S)T' \"$((after - 90061))\"\n[[ $actual == \"$expected_before\" || $actual == \"$expected_after\" ]]\nprintf 'fallback timestamp verified\\n'",
+      "expected_status": 0,
+      "stdout": "fallback timestamp verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-proc-uptime",
+      "kind": "contract",
+      "purpose": "Check that a missing fixture uptime file fails with a diagnostic instead of reporting a plausible duration.",
+      "script": "export BASHOS_PROC_ROOT=.\nuptime -p",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "contract",
+      "purpose": "Check the documented usage failure for an unrecognized option.",
+      "script": "uptime --not-an-option",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unexpected-operand",
+      "kind": "contract",
+      "purpose": "Check the documented usage failure when an operand follows the supported options.",
+      "script": "uptime extra",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "default-format-deferred",
+      "kind": "deferred",
+      "purpose": "Compare the complete default uptime row, including wall clock, user count, and load averages.",
+      "reason": "Requires a disposable VM or reviewed mock that fixes time, proc uptime/loadavg/stat, and /var/run/utmp for both GNU uptime and the loadable. The runner cannot redirect GNU uptime to the relative proc fixture, and live clock/load/session fields are not stable parity inputs."
+    }
+  ]
+}

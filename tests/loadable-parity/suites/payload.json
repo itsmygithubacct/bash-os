@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "loadable": "payload",
+  "reference": "No matching GNU/POSIX payload CLI exists. Fixed contract outputs follow the documented INDEX format, porcelain columns, inventory filters, info fields and relative installed-state layout in docs/opus-payload.md and docs/sol-payload.md; Bash supplies type/help metadata.",
+  "coverage": [
+    "Bash reports payload as a builtin and its help includes the configured short label and documented install/remove forms.",
+    "A one-record, relative-path INDEX produces the documented porcelain columns and available status.",
+    "Deferred follow-up requirements cover mocked helper argv/status behavior, rollback transaction behavior and image-level helper integration; ordinary inventory edges execute.",
+    "Native inventory filters, installed/available info, empty/default fields, nonregular state directories and usage errors on private relative files.",
+    "Bounded malformed/binary/overlong record skipping, missing/directory/FIFO INDEX refusal and nonregular FIFO state status, all through the native inventory API."
+  ],
+  "exclusions": [
+    "No host repo, installed package state, default image path, network peer, archive extraction, or real bl-pkg.sh helper is accessed.",
+    "There is no GNU/POSIX oracle for payload operations; operation-level deferrals are not reported as passes."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "kind": "contract",
+      "purpose": "Check the Bash type metadata contract for the statically included payload command.",
+      "script": "type -t payload",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash help metadata contains the configured short label and install/remove forms without depending on Bash version text.",
+      "script": "doc=$(help payload)\ncase \"$doc\" in\n  *\"payload: payload\"*\"payload install NAME...\"*\"payload remove \"*)\n    printf '%s\\n' 'payload help contract present'\n    ;;\n  *)\n    exit 1\n    ;;\nesac",
+      "expected_status": 0,
+      "stdout": "payload help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "list-porcelain-row",
+      "kind": "contract",
+      "purpose": "Verify the documented porcelain field order with one deterministic package record in the private fixture directory.",
+      "script": "printf '%s\\n' 'blpkg-v1 name=sample version=1.2.3 arch=x86_64 type=toolchain provides=bin/sample' > INDEX\nPAYLOAD_REPO=. PAYLOAD_ROOT=. payload list --porcelain",
+      "expected_status": 0,
+      "stdout": "available\tsample\t1.2.3\tbin/sample\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "inventory-edge-contracts",
+      "kind": "contract",
+      "purpose": "Bounded INDEX records with missing names, embedded NUL, a control byte, an overlong field and an overlong line are skipped with diagnostics; valid records before and after them retain their exact rows. No installer/helper runs.",
+      "script": "mkdir repo\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=.\nprintf '%s\\n' '# ignored comment' 'blpkg-v1 version=0' 'blpkg-v1 name=good version=1 provides=bin/good' > repo/INDEX\nprintf 'blpkg-v1 name=nul version=1\\000tail\\n' >> repo/INDEX\nprintf 'blpkg-v1 name=control version=\\001\\n' >> repo/INDEX\nprintf -v wide_field '%0256d' 0\nprintf 'blpkg-v1 name=wide version=%s\\n' \"$wide_field\" >> repo/INDEX\nprintf -v wide_line '%8192s' ''\nprintf 'blpkg-v1 name=long provides=%s\\n' \"$wide_line\" >> repo/INDEX\nprintf '%s\\n' 'blpkg-v1 name=last version=2' >> repo/INDEX\npayload list --porcelain\n",
+      "expected_status": 0,
+      "stdout": "available\tgood\t1\tbin/good\navailable\tlast\t2\t\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "install-helper-boundary",
+      "kind": "deferred",
+      "purpose": "Check install validation, single-call batching, literal helper argv, and helper exit-status propagation.",
+      "reason": "Requires a future disposable VM with an independently reviewed recording helper mock that performs no installation or real rollback. Requires a disposable private repo/root and a recording mock bl-pkg.sh, not the image helper. The mock should record argv elements and call count, avoid extraction and host writes, and return chosen statuses. Verify valid multiple names, missing/invalid names causing no helper call, one-command environment overrides, and returned helper status. Do not invoke /bash-os/bl-pkg.sh or install a real payload."
+    },
+    {
+      "id": "remove-rollback-boundary",
+      "kind": "deferred",
+      "purpose": "Check transaction lookup and rollback dispatch without performing a real package rollback.",
+      "reason": "Requires a future disposable VM with an independently reviewed recording helper mock that performs no installation or real rollback. Requires a disposable private state tree plus a recording rollback mock. Seed regular state files with distinct, shared, missing, malformed, and boundary transaction values; verify txn selection, one call per distinct transaction, argument order, partial failures, and propagated status. The mock must not remove or alter anything outside the private fixture."
+    },
+    {
+      "id": "image-helper-integration",
+      "kind": "deferred",
+      "purpose": "Qualify the real image-owned helper's install/remove integration and resulting package state.",
+      "reason": "The actual bl-pkg.sh and payload share belong to the bashy.box image and are absent from this source tree. This requires a disposable bashy.box VM with a private root/share, a tiny locally staged deterministic package, and the real image helper; verify installed files/state and rollback cleanup without network access or host paths."
+    },
+    {
+      "id": "inventory-filters",
+      "kind": "contract",
+      "purpose": "List all, installed and available records from a relative INDEX and one regular state file.",
+      "script": "mkdir -p repo root/var/lib/bl-pkg/installed\nprintf '%s\\n' 'blpkg-v1 name=alpha version=1 arch=x86_64 type=tool provides=bin/alpha' 'blpkg-v1 name=beta version=2 arch=any provides=bin/beta' > repo/INDEX\nprintf 'txn=fixture-1\\n' > root/var/lib/bl-pkg/installed/alpha\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=root\npayload list --porcelain\nprintf 'installed-only\\n'\npayload list --installed --porcelain\nprintf 'available-only\\n'\npayload list --available -p",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "installed\talpha\t1\tbin/alpha\navailable\tbeta\t2\tbin/beta\ninstalled-only\ninstalled\talpha\t1\tbin/alpha\navailable-only\navailable\tbeta\t2\tbin/beta\n"
+    },
+    {
+      "id": "info-installed-and-available",
+      "kind": "contract",
+      "purpose": "Info preserves record fields, default type, available status and the installed transaction identifier.",
+      "script": "mkdir -p repo root/var/lib/bl-pkg/installed\nprintf '%s\\n' 'blpkg-v1 name=alpha version=1 arch=x86_64 type=tool provides=bin/alpha' 'blpkg-v1 name=beta version=2 arch=any provides=bin/beta' > repo/INDEX\nprintf 'txn=fixture-1\\n' > root/var/lib/bl-pkg/installed/alpha\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=root\npayload info alpha\npayload info beta",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "name:      alpha\nversion:   1\narch:      x86_64\ntype:      tool\nprovides:  bin/alpha\nstatus:    installed (txn fixture-1)\nname:      beta\nversion:   2\narch:      any\ntype:      payload\nprovides:  bin/beta\nstatus:    available (not installed)\n"
+    },
+    {
+      "id": "empty-and-default-fields",
+      "kind": "contract",
+      "purpose": "Empty inventory is valid; absent optional fields have documented default spellings.",
+      "script": "mkdir repo\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=.\n: > repo/INDEX\npayload list --porcelain\nprintf '%s\\n' '# comment' 'blpkg-v1 name=minimal' > repo/INDEX\npayload list --porcelain\npayload info minimal",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "available\tminimal\t-\t\nname:      minimal\nversion:   -\narch:      -\ntype:      payload\nstatus:    available (not installed)\n"
+    },
+    {
+      "id": "directory-state-is-available",
+      "kind": "contract",
+      "purpose": "A directory at a package state name is not a regular installed-state file.",
+      "script": "mkdir -p root/var/lib/bl-pkg/installed/sample\nprintf '%s\\n' 'blpkg-v1 name=sample version=1' > INDEX\nPAYLOAD_REPO=. PAYLOAD_ROOT=root payload list -p",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "available\tsample\t1\t\n"
+    },
+    {
+      "id": "info-missing",
+      "kind": "contract",
+      "purpose": "An unknown inventory name returns failure with a diagnostic.",
+      "script": "mkdir -p repo root/var/lib/bl-pkg/installed\nprintf '%s\\n' 'blpkg-v1 name=alpha version=1 arch=x86_64 type=tool provides=bin/alpha' 'blpkg-v1 name=beta version=2 arch=any provides=bin/beta' > repo/INDEX\nprintf 'txn=fixture-1\\n' > root/var/lib/bl-pkg/installed/alpha\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=root\npayload info absent",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "list-unknown-option",
+      "kind": "contract",
+      "purpose": "Unsupported inventory options return usage status without invoking a helper.",
+      "script": "mkdir -p repo root/var/lib/bl-pkg/installed\nprintf '%s\\n' 'blpkg-v1 name=alpha version=1 arch=x86_64 type=tool provides=bin/alpha' 'blpkg-v1 name=beta version=2 arch=any provides=bin/beta' > repo/INDEX\nprintf 'txn=fixture-1\\n' > root/var/lib/bl-pkg/installed/alpha\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=root\npayload list --unknown",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "info-extra-operand",
+      "kind": "contract",
+      "purpose": "Info requires exactly one name.",
+      "script": "mkdir -p repo root/var/lib/bl-pkg/installed\nprintf '%s\\n' 'blpkg-v1 name=alpha version=1 arch=x86_64 type=tool provides=bin/alpha' 'blpkg-v1 name=beta version=2 arch=any provides=bin/beta' > repo/INDEX\nprintf 'txn=fixture-1\\n' > root/var/lib/bl-pkg/installed/alpha\nexport PAYLOAD_REPO=repo PAYLOAD_ROOT=root\npayload info alpha beta",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "fifo-state-is-available",
+      "kind": "contract",
+      "purpose": "A private FIFO at a package state name is not a regular installed-state file and does not count as installed. Only inventory stat calls are needed; no FIFO writer or helper starts.",
+      "script": "mkdir -p root/var/lib/bl-pkg/installed\nmkfifo root/var/lib/bl-pkg/installed/sample\nprintf '%s\\n' 'blpkg-v1 name=sample version=1' > INDEX\nPAYLOAD_REPO=. PAYLOAD_ROOT=root payload list -p",
+      "expected_status": 0,
+      "stdout": "available\tsample\t1\t\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-index-error",
+      "kind": "contract",
+      "purpose": "INDEX must be a readable regular file; a private missing INDEX reports failure without falling back to image state or starting a helper.",
+      "script": "mkdir repo\nPAYLOAD_REPO=repo PAYLOAD_ROOT=. payload list --porcelain",
+      "expected_status": 1,
+      "stdout": "payload: no payload repo staged at repo\npayload: (this image has no staged payloads; nothing to list)\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "directory-index-error",
+      "kind": "contract",
+      "purpose": "INDEX must be a readable regular file; a private directory INDEX reports failure without falling back to image state or starting a helper.",
+      "script": "mkdir -p repo/INDEX\nPAYLOAD_REPO=repo PAYLOAD_ROOT=. payload list --porcelain",
+      "expected_status": 1,
+      "stdout": "payload: no payload repo staged at repo\npayload: (this image has no staged payloads; nothing to list)\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "fifo-index-error",
+      "kind": "contract",
+      "purpose": "INDEX must be a readable regular file; a private fifo INDEX reports failure without falling back to image state or starting a helper.",
+      "script": "mkdir repo\nmkfifo repo/INDEX\nPAYLOAD_REPO=repo PAYLOAD_ROOT=. payload list --porcelain",
+      "expected_status": 1,
+      "stdout": "payload: no payload repo staged at repo\npayload: (this image has no staged payloads; nothing to list)\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

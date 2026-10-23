@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "loadable": "readlink",
+  "reference": "GNU coreutils readlink from the isolated reference PATH is the independent oracle for parity cases, including stdout bytes and exit status. Bash type/help metadata is checked separately against the documented readlink builtin registration and source help text.",
+  "coverage": [
+    "Default mode reads literal relative and dangling symlink targets; a regular file failure checks aggregate status and successful output from multiple operands.",
+    "An option-like pathname after --, --no-newline output, and NUL-delimited output with a newline inside a link target.",
+    "-f canonicalization through a symlink with dot-dot components, including an absent final component.",
+    "-e canonicalization of an existing symlink path and failure on a missing operand.",
+    "-m lexical canonicalization through a missing prefix, plus verbose missing-path diagnostics.",
+    "Bash builtin type and help metadata contract."
+  ],
+  "exclusions": [
+    "No absolute host paths, devices, network peers, credentials, privileged operations, destructive inputs, or system state are used.",
+    "No deferred case is needed: readlink operates on ordinary relative fixtures and GNU coreutils provides a matching reference."
+  ],
+  "cases": [
+    {
+      "id": "raw-literal-multiple",
+      "purpose": "Read relative and dangling symlinks without resolving their targets, continue after a regular-file failure, and return failure if any operand is not a symlink.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln"
+      ],
+      "script": "ln -s 'target with spaces' 'relative link'; ln -s 'absent/file' dangling; : > regular; readlink 'relative link' dangling regular",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-like-path",
+      "purpose": "Use -- to treat a symlink named -n as a pathname rather than an option.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln"
+      ],
+      "script": "ln -s 'dash-target' ./-n; readlink -- -n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-newline",
+      "purpose": "Verify --no-newline suppresses the output delimiter while preserving following shell output.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln"
+      ],
+      "script": "ln -s 'target text' link; readlink --no-newline link; printf '[end]\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-delimiter-bytes",
+      "purpose": "Verify -z emits NUL delimiters for multiple links and preserves an embedded newline in a symlink target.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln"
+      ],
+      "script": "ln -s $'line\\nbreak' first; ln -s 'second target' second; readlink -z first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "canonicalize-f",
+      "purpose": "Resolve a relative symlink and dot-dot components with -f, and allow a missing final path component when its parent exists.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln",
+        "mkdir"
+      ],
+      "script": "mkdir -p real/sub; : > real/file; ln -s real alias; readlink -f alias/sub/../file alias/sub/not-created",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "canonicalize-e-partial-failure",
+      "purpose": "Resolve an existing path with -e, omit a missing operand from stdout, and return failure when any operand does not exist.",
+      "kind": "parity",
+      "requires": [
+        "readlink",
+        "ln",
+        "mkdir"
+      ],
+      "script": "mkdir -p real/sub; : > real/file; ln -s real alias; readlink -e alias/sub/../file absent",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "canonicalize-m-missing-prefix",
+      "purpose": "Canonicalize lexically with -m through a missing prefix and normalize dot and dot-dot components.",
+      "kind": "parity",
+      "requires": [
+        "readlink"
+      ],
+      "script": "readlink -m absent/../missing/./leaf",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "verbose-missing-path",
+      "purpose": "Check that -v reports a missing-path diagnostic, emits no path result, and returns failure. Diagnostic prefixes identify the builtin and are outside byte comparison.",
+      "kind": "parity",
+      "requires": [
+        "readlink"
+      ],
+      "script": "readlink -v missing",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "purpose": "Check Bash reports readlink as a builtin and exposes the documented readlink help, including its canonicalization modes.",
+      "kind": "contract",
+      "script": "[[ $(type -t readlink) == builtin ]] || exit 1; help_text=$(help readlink); [[ $help_text == *'Read a symbolic link or canonicalize a path.'* ]] || exit 2; [[ $help_text == *'--canonicalize-missing'* ]] || exit 3; printf 'builtin\\nhelp documents canonicalization\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp documents canonicalization\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-intermediate-f",
+      "kind": "parity",
+      "purpose": "Unlike -m, -f requires all intermediate components to exist.",
+      "script": "readlink -f missing/parent/leaf",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "readlink"
+      ]
+    },
+    {
+      "id": "quiet-overrides-verbose",
+      "kind": "parity",
+      "purpose": "The last diagnostic-selection option suppresses a missing-path diagnostic.",
+      "script": "readlink -vq missing",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "readlink"
+      ]
+    },
+    {
+      "id": "option-reset",
+      "kind": "parity",
+      "purpose": "No-newline and NUL delimiter state resets before the next same-shell invocation.",
+      "script": "ln -s target link\nreadlink -nz link\nreadlink link",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "readlink",
+        "ln"
+      ]
+    }
+  ]
+}

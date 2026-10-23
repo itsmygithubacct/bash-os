@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "loadable": "opt",
+  "reference": "For parity cases, the same script selects the opt builtin when Bash type metadata reports it as a builtin (candidate run), and otherwise invokes the external util-linux GNU getopt(1) CLI (GNU Bash reference run). The expected parser stream and status therefore come from GNU getopt, independently of the candidate. Contract cases use the documented Bash builtin type/help interface. The opt-specific -U unknown-option extension has no GNU getopt flag, so that case uses the documented contract and an independently assembled normalized stream rather than claiming parity.",
+  "coverage": [
+    "Bash builtin availability and documented help metadata",
+    "Short option clusters, required arguments, and shell quoting of spaces and apostrophes",
+    "Long options with required and optional arguments, equals syntax, and unique abbreviations",
+    "Default operand permutation and POSIXLY_CORRECT stop-at-first-operand behavior",
+    "The opt-specific unknown-option preservation contract, quiet missing-argument status, the -T sentinel, and compatibility syntax"
+  ],
+  "exclusions": [
+    "The opt loadable only parses arguments and emits text; it has no file, device, service, network, or privilege operation to defer.",
+    "This suite does not claim complete util-linux getopt coverage; tcsh/csh output, single-dash alternative long options, and parameter-error wording are outside the selected cases."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the compiled opt loadable as a builtin.",
+      "script": "type -t opt",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_contract",
+      "kind": "contract",
+      "purpose": "Bash help metadata must expose the documented parser, alternative option, long-option specification, and -T status contract; the script emits a fixed success marker only after those independent documented fragments are present.",
+      "script": "help_text=$(help opt); [[ $help_text == *\"Parse command options\"* && $help_text == *\"--alternative\"* && $help_text == *\"LONGS format\"* && $help_text == *\"4 -T sentinel.\"* ]]; printf 'opt-help-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "opt-help-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_bundle_quote",
+      "kind": "parity",
+      "purpose": "Compare clustered short options, a required argument, and default Bash quoting for an argument containing spaces and apostrophes with GNU getopt.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o ab: -- -ab 'two words' \"it's done\"",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long_required_optional",
+      "kind": "parity",
+      "purpose": "Compare a long optional argument supplied with equals syntax, a required long argument supplied as the next word, a short flag, and a trailing operand.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o v -l color::,output: -- --color=always --output 'report file' -v tail",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unique_long_prefix",
+      "kind": "parity",
+      "purpose": "Compare GNU unique long-option abbreviation resolution together with an equals-form required argument.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o '' -l verbose,output: -- --verb --output=result.txt",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default_permutation",
+      "kind": "parity",
+      "purpose": "Compare GNU default option permutation when operands appear before and after recognized short options.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o ab: -- first -a -b second last",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix_first_operand",
+      "kind": "parity",
+      "purpose": "Compare POSIXLY_CORRECT ordering, where parsing stops at the first non-option operand.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; POSIXLY_CORRECT=1 \"$parser\" -o ab: -- first -a -b second",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_preserved",
+      "kind": "contract",
+      "purpose": "Check the documented opt-specific -U extension, which implies quiet errors and preserves an unknown -x token before the recognized -a option; expected normalized token quoting is assembled from the documented output contract.",
+      "script": "opt -U -o a -- -x -a tail",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": " '-x' -a -- 'tail'\n"
+    },
+    {
+      "id": "quiet_missing_argument",
+      "kind": "parity",
+      "purpose": "Compare the documented getopt error status for a missing required short-option argument while -q suppresses diagnostics.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -q -o a: -- -a",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "test_sentinel",
+      "kind": "parity",
+      "purpose": "Compare the enhanced-getopt -T sentinel, which exits with status 4 and emits no output.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -T",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 4,
+      "stderr": "empty"
+    },
+    {
+      "id": "compat_syntax",
+      "kind": "parity",
+      "purpose": "Compare the documented compatibility form with an optstring as the first argument and its unquoted normalized output.",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" ab: -a -b 'two words' tail",
+      "requires": [
+        "getopt"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "optional-short-and-terminator",
+      "purpose": "GNU optional short arguments attach to their option; -- preserves later dash-prefixed operands.",
+      "kind": "parity",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o a:: -l color:: -- -a --color -- -x '' ",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getopt"
+      ]
+    },
+    {
+      "id": "ambiguous-long-option",
+      "purpose": "Reject an ambiguous long-option abbreviation, retaining its diagnostic and normalized output.",
+      "kind": "parity",
+      "script": "if [[ $(type -t opt) == builtin ]]; then parser=opt; else parser=getopt; fi; \"$parser\" -o '' -l output:,other -- --o=value",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "getopt"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "loadable": "utf8",
+  "reference": "No GNU CLI implements this Bash builtin. Runnable expected values are fixed independently from Python's UTF-8 replacement decoder, str.lower/upper/title/casefold and unicodedata.normalize, plus UAX #29 grapheme rules and Unicode width properties for the selected examples. Bash type/help expectations follow the Bash builtin metadata contract. These are contract checks, not GNU parity; no expected value comes from the candidate.",
+  "coverage": [
+    "Bash builtin type and registered help metadata",
+    "Grapheme, codepoint, byte and display-width length modes on mixed UTF-8",
+    "Grapheme, codepoint, byte and display-width slicing boundaries",
+    "Unicode lower, upper and title mappings, including expansion and final sigma",
+    "Canonical and compatibility normalization, including algorithmic Hangul",
+    "Full casefold output and cmp equality, inequality and normalization options",
+    "-V output binding and preservation of surrounding spaces",
+    "Malformed UTF-8 replacement and invalid mode/form status handling",
+    "Empty transformations and slice endpoint boundaries."
+  ],
+  "exclusions": [
+    "No same-name GNU/POSIX command exists, so runnable operation cases use independent contract values rather than fabricated parity comparisons.",
+    "Full Unicode 17 normalization/case-mapping coverage and exhaustive UAX #29 conformance need pinned reference data; an exhaustive grapheme case is deferred.",
+    "Locale/libc-dependent display width modes are not asserted; the runnable width case names the deterministic wcwidth table backend.",
+    "Bash arguments cannot contain NUL bytes, so embedded-NUL input is outside this interface suite."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm utf8 is registered as a Bash builtin and help has a nonempty topic, using only Bash metadata builtins.",
+      "script": "kind=$(type -t utf8)\ndoc=$(help utf8)\n[[ $kind == builtin && -n $doc ]]\nprintf '%s\\n%s\\n' \"$kind\" help-registered",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-registered\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "length-modes-mixed-unicode",
+      "kind": "contract",
+      "purpose": "Check grapheme, codepoint, byte and wcwidth counts across ASCII, accented text, a regional-indicator flag, a combining sequence and a ZWJ emoji.",
+      "script": "text='A\u00e9\ud83c\uddfa\ud83c\uddf3a\u0301\ud83d\udc69\u200d\ud83d\udcbb'\nutf8 length \"$text\"\nutf8 length \"$text\" -T codepoint\nutf8 length \"$text\" -T byte\nutf8 length \"$text\" -T width -L wcwidth",
+      "expected_status": 0,
+      "stdout": "5\n9\n25\n7\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "slice-grapheme-codepoint-byte",
+      "kind": "contract",
+      "purpose": "Verify half-open slice indexes in grapheme and codepoint modes, including selecting only a combining mark, plus byte slicing on ASCII.",
+      "script": "text='Ae\u0301\ud83d\ude00Z'\nutf8 slice \"$text\" 1 2\nutf8 slice \"$text\" 1 2 -T codepoint\nutf8 slice \"$text\" 2 3 -T codepoint\nutf8 slice abcdef 1 4 -T byte",
+      "expected_status": 0,
+      "stdout": "e\u0301\ne\n\u0301\nbcd\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "slice-width-keeps-wide-cluster",
+      "kind": "contract",
+      "purpose": "Check display-width slice bounds around a two-cell CJK scalar with the explicit wcwidth table backend.",
+      "script": "utf8 slice 'a\u754cb' 1 3 -T width -L wcwidth",
+      "expected_status": 0,
+      "stdout": "\u754c\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "case-mapping-expansion-context",
+      "kind": "contract",
+      "purpose": "Cover Unicode lower, upper and title operations with Greek final sigma, sharp-s expansion and mixed-case words.",
+      "script": "utf8 lower '\u039f\u03a3'\nutf8 upper 'stra\u00dfe'\nutf8 title 'hELLo wORLD'",
+      "expected_status": 0,
+      "stdout": "\u03bf\u03c2\nSTRASSE\nHello World\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "normalization-canonical-compat-hangul",
+      "kind": "contract",
+      "purpose": "Check NFC/NFD canonical composition and decomposition, NFKC/NFKD compatibility mappings, and Hangul algorithmic normalization.",
+      "script": "utf8 normalize NFC 'A\u030a'\nutf8 normalize NFD '\u00c5'\nutf8 normalize NFKC '\ufb01'\nutf8 normalize NFKD '\u00b2'\nutf8 normalize NFD '\uac01'\nutf8 normalize NFC '\u1100\u1161\u11a8'",
+      "expected_status": 0,
+      "stdout": "\u00c5\nA\u030a\nfi\n2\n\u1100\u1161\u11a8\n\uac01\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "casefold-and-compare-options",
+      "kind": "contract",
+      "purpose": "Check full casefold expansion, case-insensitive cmp, normalized cmp, and the non-equal return status.",
+      "script": "utf8 casefold 'Stra\u00dfe \u03a3\u03c2'\nif utf8 cmp 'Stra\u00dfe' 'STRASSE' -i; then printf 'case-insensitive-equal\\n'; else exit 41; fi\nif utf8 cmp '\u00c5' 'A\u030a' -N NFC; then printf 'nfc-equal\\n'; else exit 42; fi\nif utf8 cmp cat dog; then printf 'unexpected-equal\\n'; else rc=$?; printf 'different-status:%s\\n' \"$rc\"; fi",
+      "expected_status": 0,
+      "stdout": "strasse \u03c3\u03c3\ncase-insensitive-equal\nnfc-equal\ndifferent-status:1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "output-variable-binding",
+      "kind": "contract",
+      "purpose": "Verify -V binds transformed text without emitting command output and preserves leading/trailing spaces.",
+      "script": "utf8 upper '  Stra\u00dfe  ' -V mapped\n[[ $mapped == '  STRASSE  ' ]]\nutf8 casefold 'Stra\u00dfe' -V folded\n[[ $folded == strasse ]]\nprintf 'mapped=<%s>\\nfolded=<%s>\\n' \"$mapped\" \"$folded\"",
+      "expected_status": 0,
+      "stdout": "mapped=<  STRASSE  >\nfolded=<strasse>\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "malformed-utf8-replacement",
+      "kind": "contract",
+      "purpose": "Check the documented Python-compatible replacement policy for a truncated multibyte sequence in codepoint counting and normalization.",
+      "script": "bad=$'\\xe2\\x82'\nutf8 length \"$bad\" -T codepoint\nutf8 normalize NFC \"$bad\"",
+      "expected_status": 0,
+      "stdout": "1\n\ufffd\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-form-and-mode-status",
+      "kind": "contract",
+      "purpose": "Check usage failure status and diagnostics for an unsupported normalization form and length mode.",
+      "script": "if utf8 normalize BAD 'x'; then nrc=0; else nrc=$?; fi\nif utf8 length x -T words; then lrc=0; else lrc=$?; fi\nprintf 'normalize-status=%d\\nlength-status=%d\\n' \"$nrc\" \"$lrc\"",
+      "expected_status": 0,
+      "stdout": "normalize-status=2\nlength-status=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unicode17-exhaustive-grapheme-reference",
+      "kind": "deferred",
+      "purpose": "Exercise the complete Unicode grapheme boundary corpus through length and slice operations.",
+      "reason": "DEFERRED: the harness does not supply a pinned Unicode 17 GraphemeBreakTest.txt corpus or an independent grapheme oracle. A future disposable fixture environment must provide both (for example, the pinned corpus plus a pinned Python regex \\X implementation) before exhaustive results can be claimed. The small rule examples above remain runnable contract checks."
+    },
+    {
+      "id": "empty-strings-and-slice-boundaries",
+      "kind": "contract",
+      "purpose": "Empty strings have zero length; empty transformations and an empty in-range half-open slice produce only their newline delimiter.",
+      "script": "utf8 length ''\nutf8 length '' -T byte\nutf8 normalize NFC ''\nutf8 casefold ''\nutf8 slice abc 1 1",
+      "stdout": "0\n0\n\n\n\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "slice-past-end",
+      "purpose": "Half-open substring bounds past the end of an ASCII string yield an empty string, independently matching Python string slicing. Compare grapheme/codepoint/byte modes without Unicode boundary ambiguity.",
+      "script": "for mode in grapheme codepoint byte; do\n utf8 slice abc 9 12 -T \"$mode\"\ndone",
+      "kind": "contract",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "\n\n\n"
+    },
+    {
+      "id": "slice-endpoint-clamping",
+      "kind": "contract",
+      "purpose": "Half-open valid Unicode grapheme/codepoint slices clamp both bounds at the string end; independent Python substring semantics establish empty end/beyond-end intervals and the retained Unicode suffix.",
+      "script": "for mode in grapheme codepoint; do\n utf8 slice 'a\u00e9x' 3 3 -T \"$mode\"\n utf8 slice 'a\u00e9x' 3 9 -T \"$mode\"\n utf8 slice 'a\u00e9x' 9 9 -T \"$mode\"\n utf8 slice 'a\u00e9x' 1 9 -T \"$mode\"\ndone",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "\n\n\n\u00e9x\n\n\n\n\u00e9x\n"
+    },
+    {
+      "id": "maximal-subpart-python-reference",
+      "kind": "parity",
+      "purpose": "Compare short malformed/truncated UTF-8 replacement boundaries directly with independent Python bytes.decode(utf-8,replace), NFC normalization and casefold. These are ordinary encoding inputs; no stress or crash probes.",
+      "requires": [
+        "python3"
+      ],
+      "script": "inputs=( $'\\xe2\\x82' $'\\xf0\\x9f\\x92' $'\\xe2\\x82A' $'\\xc2B' $'\\x80Z' $'\\xe0\\x80\\x80' $'\\xed\\xa0\\x80' $'\\xf4\\x90\\x80\\x80' )\nfor text in \"${inputs[@]}\"; do\n if [[ $(type -t utf8) == builtin ]]; then\n  utf8 length \"$text\" -T codepoint\n  utf8 normalize NFC \"$text\"\n  utf8 casefold \"$text\"\n else\n  printf '%s' \"$text\" | python3 -c 'import sys,unicodedata; s=sys.stdin.buffer.read().decode(\"utf-8\",\"replace\"); print(len(s)); print(unicodedata.normalize(\"NFC\",s)); print(s.casefold())'\n fi\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replacement-binding-and-compare",
+      "kind": "contract",
+      "purpose": "The same maximal-subpart replacement is used when binding normalized/folded text and comparing after NFC normalization.",
+      "script": "bad=$'\\xe2\\x82'\nutf8 normalize NFC \"$bad\" -V normalized\nutf8 casefold \"$bad\" -V folded\n[[ $normalized == $'\\xef\\xbf\\xbd' && $folded == $'\\xef\\xbf\\xbd' ]]\nutf8 cmp \"$bad\" $'\\xef\\xbf\\xbd' -N NFC\nprintf 'replacement consistent\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "replacement consistent\n"
+    }
+  ]
+}

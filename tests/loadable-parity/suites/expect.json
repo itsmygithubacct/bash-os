@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "expect",
+  "reference": "Documented expect FD/regex/status/logging contracts with literal independently authored private-file bytes. No GNU/Tcl CLI parity is claimed. Bash type/help are metadata.",
+  "coverage": [
+    "Bash type metadata identifies expect as a builtin.",
+    "Bash help metadata exposes the documented expect subcommands, timeout behavior, and result statuses.",
+    "Deferred: PTY spawn, prompt matching, sendline, EOF, close, and child status.",
+    "Deferred: expect-alt priority, regex capture, and immediately available input at zero timeout.",
+    "Deferred: whole-wait timeout under continuous output and EOF-versus-timeout behavior.",
+    "Deferred: transcript logging, direction markers, log_user visibility, and secret-handle delivery.",
+    "Runnable regular-file FD send/sendline, exact match binding, alternative priority, zero-timeout ready input, EOF, transcript markers and invalid-regex rejection."
+  ],
+  "exclusions": [
+    "PTY spawn/lifecycle, scheduling/deadlines, live terminal relay and secret-handle delivery remain deferred. Ordinary FD operations are independently tested without a PTY."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "purpose": "Check Bash's documented type classification for a registered loadable; this is metadata coverage, not expect operation coverage.",
+      "kind": "contract",
+      "script": "printf '%s\\n' \"$(type -t expect)\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "purpose": "Check the documented help body and subcommands; the Bash help prefix contains a synopsis, not the first description sentence.",
+      "kind": "contract",
+      "script": "doc=$(help expect)\ncase \"$doc\" in\n  *\"Expect-style pty automation for bash-os.\"*\"expect spawn CMD [ARGS...] -h FD_VAR -h PID_VAR\"*\"expect expect-alt FD PAT1 [PAT2 ...] [-t SEC] -V WHICH_VAR -V MATCH_VAR\"*\"Positive -t SEC bounds the whole wait, including while output keeps arriving.\"*\"expect and expect-alt return 0 for a match, 1 for timeout, 2 for EOF.\"*) printf 'documented expect help present\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "documented expect help present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-round-trip",
+      "purpose": "Defer an end-to-end session covering PTY allocation, prompt matching, sendline input, EOF, close, and child exit status.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM with a controlled private PTY child and a bounded independent Tcl Expect reference transcript. This suite does not claim PTY session behavior passed."
+    },
+    {
+      "id": "alt-pattern-buffering",
+      "purpose": "Defer validation of expect-alt first-pattern priority, regex match capture, matches spanning reads, and zero-timeout draining of already-ready bytes.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM or deterministic PTY mock that can schedule input chunks and readiness, plus an independent Tcl Expect oracle for pattern selection. No operation result is claimed."
+    },
+    {
+      "id": "deadline-eof-timeout",
+      "purpose": "Defer checks that a positive timeout bounds the entire wait during continuous output and that EOF and timeout produce distinct documented statuses.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a deterministic PTY producer and clock/readiness control so the continuous-output deadline and EOF boundary can be compared against a documented Tcl Expect reference without timing ambiguity."
+    },
+    {
+      "id": "transcript-logging",
+      "purpose": "Qualify PTY transcript ordering, outgoing markers, multiple log descriptors and log_user behavior; regular-file input logging is separately exercised.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a deterministic private PTY producer and independent transcript encoder to verify interleaved input/output ordering. Existing regular-file FD contracts do not establish terminal scheduling behavior."
+    },
+    {
+      "id": "secret-handle-delivery",
+      "purpose": "Defer send-secret validation, including delivery through the crypto secret-handle interface without exposing the secret in shell variables or logs.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with the bashcrypto_secret_write_fd integration and a synthetic secret-handle provider/mock plus an isolated PTY receiver. No secret-delivery behavior is claimed as passed."
+    },
+    {
+      "id": "send-private-descriptor",
+      "kind": "contract",
+      "purpose": "Send and sendline preserve literal bytes through a private regular-file descriptor.",
+      "script": "exec 3>sent\nexpect send 3 'literal * text'\nexpect sendline 3 ' plus line'\nexec 3>&-\n/usr/bin/python3 -c 'from pathlib import Path; import sys; sys.stdout.buffer.write(Path(\"sent\").read_bytes())'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "literal * text plus line\n"
+    },
+    {
+      "id": "regular-file-match-and-eof",
+      "kind": "contract",
+      "purpose": "Match independent fixed input at zero timeout, bind exact regex match, and observe EOF on a regular file.",
+      "script": "printf 'prefix value=42 suffix\\n' > input\nexec 3<input\nexpect log_user off\nexpect expect 3 'value=[0-9]+' -t 0 -V match\nprintf 'match=%s\\n' \"$match\"\nexpect eof 3 -t 0\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "match=value=42\n"
+    },
+    {
+      "id": "alternative-priority",
+      "kind": "contract",
+      "purpose": "Pattern list priority is independent of occurrence position within already-ready private input.",
+      "script": "printf 'early late\\n' > input\nexec 3<input\nexpect log_user off\nexpect expect-alt 3 late early -t 0 -V which -V match\nprintf '%s|%s\\n' \"$which\" \"$match\"\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0|late\n"
+    },
+    {
+      "id": "unmatched-file-eof",
+      "kind": "contract",
+      "purpose": "An unmatched finite private input reports documented EOF status 2 without diagnostics.",
+      "script": "printf input > input\nexec 3<input\nexpect log_user off\nexpect expect 3 absent -t 0",
+      "expected_status": 2,
+      "stderr": "empty",
+      "stdout": ""
+    },
+    {
+      "id": "private-transcript",
+      "kind": "contract",
+      "purpose": "Independently check input-direction marker and transcript bytes on private regular file descriptors.",
+      "script": "printf 'hello\\n' > input\nexec 3<input 4>transcript\nexpect log_user off\nexpect log 3 -F 4 -m\nexpect expect 3 hello -t 0\nexpect log 3 off\nexpect eof 3 -t 0\nexec 3<&- 4>&-\n/usr/bin/python3 -c 'from pathlib import Path; import sys; sys.stdout.buffer.write(Path(\"transcript\").read_bytes())'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "<<<\nhello\n"
+    },
+    {
+      "id": "invalid-regex",
+      "kind": "contract",
+      "purpose": "A syntactically invalid regular expression is a usage error before matching.",
+      "script": "printf input > input\nexec 3<input\nexpect expect 3 '[' -t 0",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

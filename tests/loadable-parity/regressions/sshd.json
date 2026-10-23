@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "loadable": "sshd",
+  "reference": "No GNU/POSIX sshd command implements this Bash builtin's command-stream server contract, so operation parity would be misleading. The runnable contract cases use Bash's documented type/help builtin behavior; expected builtin kind and synopsis come from Bash metadata semantics and the sshd short_doc/sshd_doc entries in loadables/sshd.c. Server operations are deferred with their required isolated protocol, key, or process references stated explicitly.",
+  "coverage": [
+    "Bash reports sshd as an enabled builtin through type -t.",
+    "Bash help -s exposes the documented sshd synopsis.",
+    "Bash help -d exposes the short description registered for sshd.",
+    "Deferred native and encrypted listener interoperability, host-key lifecycle, configuration and authorization policy, session lifecycle, and SFTP/forwarding behavior."
+  ],
+  "exclusions": [
+    "There is no matching GNU/POSIX CLI for this native Bash server; OpenSSH sshd is a different implementation and protocol surface, so it is not used as a fake parity oracle.",
+    "No sshd operation was invoked. Listener setup, authentication, user/account interaction, key generation, session signaling, SFTP, and forwarding require future disposable fixtures or mocks and are deferred by the task's safety limits."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin-kind",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves the registered sshd command as a builtin, using the documented type -t result.",
+      "script": "type -t sshd",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Verify help -s reports the short synopsis registered for sshd; expected text is the sshd_struct short_doc in the pinned source.",
+      "script": "help -s sshd",
+      "expected_status": 0,
+      "stdout": "sshd: sshd <verb> [args...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "Verify help -d exposes the documented short description registered in sshd_doc[0].",
+      "script": "help -d sshd",
+      "expected_status": 0,
+      "stdout": "sshd - sshd native command-stream server\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hostkey-lifecycle",
+      "kind": "deferred",
+      "purpose": "Exercise sshd keygen, explicit missing-key refusal, and lazy native/encrypted host-key creation and permissions.",
+      "reason": "Requires a future disposable writable VM fixture with fresh ephemeral key paths and an independent OpenSSH ssh-keygen/key parser to check key encodings and modes. The task forbids invoking sshd operations here."
+    },
+    {
+      "id": "native-command-stream",
+      "kind": "deferred",
+      "purpose": "Check the native framed loopback protocol, --once behavior, stdin/stdout/stderr streaming, remote exit status, and session recording.",
+      "reason": "Requires a future disposable VM with a private loopback peer implementing the documented native frame protocol and a fixture-only command. No listener or network operation is run in this suite."
+    },
+    {
+      "id": "encrypted-ssh-interoperability",
+      "kind": "deferred",
+      "purpose": "Check encrypted SSH key exchange and public-key authentication against an independent SSH client using generated test-only keys.",
+      "reason": "Requires a future disposable VM with private loopback networking, newly generated fixture keys, and an independent OpenSSH client/protocol oracle. No network or authentication operation is run here."
+    },
+    {
+      "id": "configuration-policy",
+      "kind": "deferred",
+      "purpose": "Check sshd -F parsing for supported directives, Include expansion, Match blocks, invalid values, and configuration reload behavior.",
+      "reason": "Configuration is consumed through server startup/reload, so useful assertions need a future disposable VM with fixture-only configs and a private listener or reviewed listener/process mock. The loadable is not invoked here."
+    },
+    {
+      "id": "authentication-authorization",
+      "kind": "deferred",
+      "purpose": "Check authorized-key matching and restrictions, password-auth policy, forced commands, accepted environment variables, root-login policy, and forwarding authorization.",
+      "reason": "Requires a future disposable VM with an isolated mock/test identity and ephemeral credentials plus an independent SSH protocol client. The task excludes account and credential operations, so no authentication path is run."
+    },
+    {
+      "id": "session-management",
+      "kind": "deferred",
+      "purpose": "Check status, sessions, stale-session cleanup, kick, stop, and reload against recorded runtime state.",
+      "reason": "These commands probe or signal process IDs; validation needs a future disposable VM with a reviewed fake process/signal interface or dedicated isolated server process. No process-control operation is run here."
+    },
+    {
+      "id": "sftp-and-forwarding",
+      "kind": "deferred",
+      "purpose": "Check SFTP file requests and direct/reverse TCP and agent forwarding after authentication, including denied-policy cases.",
+      "reason": "Requires a future disposable VM with a protocol client, disposable fixture files, and private loopback-only endpoint mocks. No network, credential, or filesystem transfer operation is run in this suite."
+    }
+  ]
+}

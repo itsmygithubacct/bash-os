@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "loadable": "userdb",
+  "reference": "GNU getent passwd on the harness-generated runner account, projected to uid:gid:gecos:home:shell, is the independent oracle for the runnable lookup parity case. The harness reference namespace has a synthetic passwd database and files-only NSS configuration. Contract expectations for Bash metadata and the custom userdb API come from its documented help contract and POSIX passwd field ordering; no expectation is derived from candidate output. The custom provider and authentication APIs have no matching GNU CLI.",
+  "coverage": [
+    "Bash reports userdb as a builtin and exposes its documented help synopsis.",
+    "GNU getent comparison for the harness-generated runner passwd record, projected to the five fields returned by userdb lookup.",
+    "Contract lookup using a relative private passwd fixture, including empty GECOS and shell fields.",
+    "Contract not-found status and empty-config built-in provider listing.",
+    "Private malformed-record skipping, first valid match and invalid output-variable rejection."
+  ],
+  "exclusions": [
+    "No installed or real account database, password, shadow entry, or authentication credential is read or changed.",
+    "Built-in password verification, external provider execution, provider registration/removal, provider error handling, and LDAP password-fd behavior are deferred for isolated disposable fixtures and mocks."
+  ],
+  "cases": [
+    {
+      "id": "lookup-getent-runner",
+      "kind": "parity",
+      "purpose": "Compare userdb's five-field record for the harness's synthetic runner account with GNU getent passwd. The reference branch projects away the name and password fields; this account exists only in the isolated harness metadata.",
+      "requires": [
+        "getent"
+      ],
+      "script": "if [[ $(type -t userdb) == builtin ]]; then\n  userdb lookup runner -V record\n  printf '%s\\n' \"$record\"\nelse\n  entry=$(getent passwd runner)\n  IFS=: read -r name passwd uid gid gecos home shell <<< \"$entry\"\n  printf '%s:%s:%s:%s:%s\\n' \"$uid\" \"$gid\" \"$gecos\" \"$home\" \"$shell\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-type-metadata",
+      "kind": "contract",
+      "purpose": "Check that Bash resolves the loadable through its builtin type metadata.",
+      "script": "type -t userdb",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-help-metadata",
+      "kind": "contract",
+      "purpose": "Check the Bash help entry contains the documented lookup, verification, provider-management synopsis, and provider deadline without invoking those operations.",
+      "script": "help userdb > help.txt\nhelp_text=$(<help.txt)\n[[ $help_text == *\"userdb lookup USER -V VAR\"* ]] || exit 1\n[[ $help_text == *\"userdb verify USER PASSWORD\"* ]] || exit 1\n[[ $help_text == *\"userdb add-provider NAME PATH [ARGS...]\"* ]] || exit 1\n[[ $help_text == *\"Provider exchange (including password input) has a five-second deadline.\"* ]] || exit 1\nprintf 'documented help entries present\\n'",
+      "expected_status": 0,
+      "stdout": "documented help entries present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "lookup-empty-passwd-fields",
+      "kind": "contract",
+      "purpose": "Check the documented uid:gid:gecos:home:shell result preserves empty GECOS and shell fields from a small relative private passwd fixture.",
+      "script": "printf '%s\\n' 'fixture:x:4242:4343::home-fixture:' > users.fixture\n: > providers.fixture\nBASHUSERDB_PASSWD=users.fixture BASHUSERDB_CONF=providers.fixture userdb lookup fixture -V answer\nprintf '%s\\n' \"$answer\"",
+      "expected_status": 0,
+      "stdout": "4242:4343::home-fixture:\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "lookup-not-found-status",
+      "kind": "contract",
+      "purpose": "Check the documented rc 1 for a missing user when the private passwd fixture and provider configuration are empty; the diagnostic is intentionally checked only for being present.",
+      "script": "printf '%s\\n' 'fixture:x:4242:4343:Fixture:home-fixture:shell-fixture' > users.fixture\n: > providers.fixture\nrc=0\nBASHUSERDB_PASSWD=users.fixture BASHUSERDB_CONF=providers.fixture userdb lookup absent -V answer || rc=$?\n[[ $rc == 1 ]] || exit 1\nprintf 'missing status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "missing status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "list-empty-provider-chain",
+      "kind": "contract",
+      "purpose": "Check the documented initial provider listing with an empty relative configuration file; this does not invoke a provider or access account data.",
+      "script": ": > providers.fixture\nBASHUSERDB_CONF=providers.fixture userdb list-providers",
+      "expected_status": 0,
+      "stdout": "passwd builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer-passwd-verification",
+      "kind": "deferred",
+      "purpose": "Built-in passwd-backed userdb verification, including success and wrong-password results.",
+      "reason": "Requires a future disposable VM or reviewed auth mock with a dedicated synthetic passwd/shadow fixture, a fixed dummy password hash, and an independent verifier. This suite must not inspect installed credentials or invoke authentication against a real account."
+    },
+    {
+      "id": "defer-provider-lookup",
+      "kind": "deferred",
+      "purpose": "Configured provider lookup ordering, record validation, return-code handling, and timeout behavior.",
+      "reason": "Requires a future disposable fixture with a reviewed bounded mock provider executable and independently specified records and return codes. No configured provider process or live service is executed here."
+    },
+    {
+      "id": "defer-provider-registry",
+      "kind": "deferred",
+      "purpose": "Configured provider listing plus add-provider and remove-provider state and validation behavior.",
+      "reason": "Requires a future disposable VM or reviewed provider-registry mock with a private configuration and fixture executable mapping. Successful registration requires absolute executable paths in this API; current fixtures permit only relative private paths and make no authentication-provider configuration changes. Verify ordering, duplicate/invalid definitions and removal there."
+    },
+    {
+      "id": "defer-ldap-password-fd",
+      "kind": "deferred",
+      "purpose": "LDAP provider password transport on fd 3, bounded output handling, timeout, and child cleanup.",
+      "reason": "Requires a future disposable VM with a reviewed mock ldap provider that consumes only a fixed dummy password over fd 3. This is needed to test provider process and timeout behavior without real LDAP, network access, or installed credentials."
+    },
+    {
+      "id": "lookup-private-record-selection",
+      "kind": "contract",
+      "purpose": "Skip malformed matching records and select the first valid private passwd record; preserve all five fields without authentication.",
+      "script": "printf '%s\n' 'other:x:1:2:Other:h:s' 'fixture:x:bad:3:Bad:h:s' 'fixture:x:12:34:Fixture User:private-home:private-shell' 'fixture:x:99:98:Later:h:s' > users.fixture\n: > providers.fixture\nBASHUSERDB_PASSWD=users.fixture BASHUSERDB_CONF=providers.fixture userdb lookup fixture -V answer\nprintf '%s\\n' \"$answer\"",
+      "stdout": "12:34:Fixture User:private-home:private-shell\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lookup-invalid-output-variable",
+      "kind": "contract",
+      "purpose": "Reject a nonidentifier output destination before lookup and preserve the private input.",
+      "script": "printf '%s\\n' 'fixture:x:12:34:Fixture:h:s' > users.fixture\n: > providers.fixture\nBASHUSERDB_PASSWD=users.fixture BASHUSERDB_CONF=providers.fixture userdb lookup fixture -V invalid-name",
+      "stdout": "",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

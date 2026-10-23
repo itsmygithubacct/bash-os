@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "loadable": "nohup",
+  "reference": "GNU nohup supplies the functional parity oracle. Help and version identify bash-os and are checked as documented metadata contracts; GNU branding and release numbers are not functional compatibility requirements. Child commands use private fixtures only.",
+  "coverage": [
+    "Bash builtin type and help metadata contract",
+    "Argument boundaries and exported environment passed to a child",
+    "Child exit status propagation",
+    "Relative fixture file creation, directory creation, and removal through child commands",
+    "Missing command and operand/option error boundaries",
+    "GNU --help and --version byte parity",
+    "TTY-specific descriptor redirection and terminal hangup behavior recorded as deferred"
+  ],
+  "exclusions": [
+    "TTY stdin/stdout/stderr combinations, nohup.out append behavior, and HOME fallback need a disposable PTY fixture; the supplied runner uses stdin /dev/null and captured pipes.",
+    "Survival across a controlling-terminal hangup needs a disposable PTY session with a controlled terminal disconnect. No signal operation is run in this suite."
+  ],
+  "cases": [
+    {
+      "id": "nohup-bash-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash identifies nohup as a builtin and provides a nonempty help topic, independently of GNU nohup output.",
+      "script": "type -t nohup\nhelp_text=$(help nohup)\n[[ -n $help_text ]]\nprintf 'help-topic-present\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-topic-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-argv-environment",
+      "kind": "parity",
+      "purpose": "A private child expands the exported variable itself and prints exact empty, spaced, wildcard and shell-looking literal argv.",
+      "requires": [
+        "nohup",
+        "chmod"
+      ],
+      "script": "export NOHUP_PARITY_VALUE='exported value'\nprintf '%s\\n' '#!/bin/bash' 'printf \"env=<%s>\\n\" \"$NOHUP_PARITY_VALUE\"' 'printf \"arg=<%s>\\n\" \"$@\"' > child\nchmod 755 child\nnohup ./child '' 'two words' '*' '$(touch injected)'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-child-status",
+      "kind": "parity",
+      "purpose": "Verify nohup returns the child's nonzero exit status while leaving stdout and stderr empty.",
+      "requires": [
+        "nohup",
+        "false"
+      ],
+      "script": "rc=0\nnohup false || rc=$?\nprintf 'child-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-touch-relative-file",
+      "kind": "parity",
+      "purpose": "Run the ordinary touch operation through nohup on a relative path inside the private fixture tree; compare the resulting file and mode with GNU.",
+      "requires": [
+        "nohup",
+        "touch"
+      ],
+      "script": "nohup touch fixture-file\nprintf 'created\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-mkdir-relative-directory",
+      "kind": "parity",
+      "purpose": "Run mkdir through nohup on a relative fixture path and compare the created directory and permissions with GNU.",
+      "requires": [
+        "nohup",
+        "mkdir"
+      ],
+      "script": "nohup mkdir fixture-dir\nprintf 'created\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-rm-relative-file",
+      "kind": "parity",
+      "purpose": "Remove a small relative fixture file through nohup and compare the final file tree with GNU.",
+      "requires": [
+        "nohup",
+        "rm"
+      ],
+      "script": "printf 'private fixture\\n' > fixture-file\nnohup rm fixture-file\nprintf 'removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nohup-missing-command",
+      "kind": "parity",
+      "purpose": "Check the documented 127 status when command lookup fails, without relying on any installed command or credential.",
+      "requires": [
+        "nohup"
+      ],
+      "script": "nohup bash-os-nohup-command-that-does-not-exist",
+      "expected_status": 127,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "nohup-error-boundaries",
+      "kind": "parity",
+      "purpose": "Check GNU's missing-operand status and its treatment of an unrecognized leading-dash command name; print both statuses so a candidate mismatch remains visible.",
+      "requires": [
+        "nohup"
+      ],
+      "script": "missing=0\nnohup || missing=$?\nleading_dash=0\nnohup --bash-os-nohup-command-that-does-not-exist || leading_dash=$?\nprintf 'missing=%s leading-dash=%s\\n' \"$missing\" \"$leading_dash\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "nohup-help-contract",
+      "kind": "contract",
+      "purpose": "The loadable help describes its command and signal behavior.",
+      "script": "metadata=$(nohup --help); [[ $metadata == *'Run CMD with SIGHUP ignored'* && $metadata == *'CMD may be an enabled shell builtin or an external executable.'* ]]; printf 'help-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help-ok\n"
+    },
+    {
+      "id": "nohup-version-contract",
+      "kind": "contract",
+      "purpose": "Version output identifies the loadable implementation without claiming to be the GNU release.",
+      "script": "metadata=$(nohup --version); [[ $metadata == bashnohup\\ * && $metadata == *bash-loadable* ]]; printf 'version-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "version-ok\n"
+    },
+    {
+      "id": "nohup-tty-redirection-deferred",
+      "kind": "deferred",
+      "purpose": "The tty branches select /dev/null for terminal stdin and append terminal stdout to nohup.out, with related stderr routing and HOME fallback.",
+      "reason": "Requires a disposable PTY fixture that can assign stdin/stdout/stderr as tty or pipe independently, inspect nohup.out contents and mode, and arrange a relative nohup.out open failure to exercise the HOME fallback. The supplied runner uses stdin /dev/null plus captured output pipes, so it cannot establish these conditions."
+    },
+    {
+      "id": "nohup-terminal-hangup-deferred",
+      "kind": "deferred",
+      "purpose": "Verify the child ignores SIGHUP across a controlled controlling-terminal disconnect.",
+      "reason": "Requires a disposable PTY session and a helper that closes the PTY master to generate hangup only for the fixture's foreground process group, then observes the child's completion and status. This runner has no PTY control interface; no process signal is sent by this suite."
+    },
+    {
+      "id": "private-nonexecutable",
+      "kind": "parity",
+      "purpose": "A relative nonexecutable regular file produces GNU status 126.",
+      "script": "printf bytes > child\nchmod 600 child\nnohup ./child",
+      "expected_status": 126,
+      "stderr": "nonempty",
+      "requires": [
+        "nohup",
+        "chmod"
+      ]
+    }
+  ]
+}

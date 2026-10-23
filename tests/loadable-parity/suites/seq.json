@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "seq",
+  "reference": "GNU coreutils seq, invoked by the same shell script and argv as the candidate; GNU stdout, exit status, and fixture tree are the parity oracle.",
+  "coverage": [
+    "Bash builtin availability and help metadata",
+    "One-, two-, and three-operand integer sequences, signed ranges, and non-divisible endpoints",
+    "Exact output for small ranges above 64-bit integer precision",
+    "Decimal precision, exponent notation, and rounded floating endpoints",
+    "Equal-width padding, custom separators, and printf-style format strings",
+    "Empty ranges and representative zero-increment, invalid-format, and option errors"
+  ],
+  "exclusions": [
+    "Interactive, filesystem, privileged, hardware, and network behavior is outside seq's contract; no deferred operation case applies.",
+    "Diagnostic wording is not compared because GNU and Bash builtin diagnostics may differ; failures require nonempty stderr.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "seq-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash reports seq as a builtin and that its help entry is available. Bash type -t documents the literal builtin result; help is redirected because wording is implementation metadata.",
+      "script": "type -t seq\nhelp seq >metadata-sink",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-integer-forms",
+      "kind": "parity",
+      "purpose": "Exercise the one-operand default, two-operand default step, explicit positive step, non-divisible endpoint, and -- before negative operands against GNU seq.",
+      "script": "seq 4\nseq 2 5\nseq 1 2 6\nseq -- -3 -1",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-signed-increment",
+      "kind": "parity",
+      "purpose": "Check descending signed integer sequences and a step that does not land exactly on LAST.",
+      "script": "seq 9 -2 3\nseq -5 2 2",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-large-integers",
+      "kind": "parity",
+      "purpose": "Verify short ranges above 64-bit integer precision preserve every decimal digit. GNU coreutils seq is the independent oracle for these exact operands.",
+      "script": "seq 99999999999999999999 100000000000000000001\nseq 18446744073709551615 18446744073709551617",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-decimals-exponents",
+      "kind": "parity",
+      "purpose": "Check operand-derived decimal precision, scientific exponent operands, and the rounded final value for a decimal increment.",
+      "script": "seq 0 0.1 0.3\nseq 1.5e-3 1e-3 4e-3\nseq 1e-2 1e-2 3e-2",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-empty-ranges",
+      "kind": "parity",
+      "purpose": "Check that ranges whose direction cannot reach LAST succeed with no output, while a positive stepped range with an omitted endpoint still emits its values.",
+      "script": "seq 5 1\nseq 1 -1 3\nseq 1 3 8",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-width-separator",
+      "kind": "parity",
+      "purpose": "Exercise equal-width zero padding with both a conventional range and leading-zero operands, plus a multi-byte separator.",
+      "script": "seq -w 8 12\nseq --equal-width --separator=' | ' 007 9",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-format",
+      "kind": "parity",
+      "purpose": "Check custom printf conversion precision, literal prefix/suffix text, escaped percent, and the long format option spelling.",
+      "script": "seq -f 'n=%.1f%%;' 1 0.5 2\nseq --format='[%g]' 1 2",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seq-zero-increment",
+      "kind": "parity",
+      "purpose": "A zero increment is invalid. Require GNU's status 1, empty stdout, and a diagnostic without pinning implementation-specific wording.",
+      "script": "seq 1 0 4",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "seq-invalid-format",
+      "kind": "parity",
+      "purpose": "A printf format with an integer conversion is outside seq's supported floating conversions and must fail with a diagnostic.",
+      "script": "seq --format='%d' 1 2",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "seq-invalid-option",
+      "kind": "parity",
+      "purpose": "Check an unrecognized option returns GNU seq's error status and produces a diagnostic.",
+      "script": "seq -q 1",
+      "requires": [
+        "seq"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-separator-and-singleton",
+      "purpose": "An empty separator preserves the terminal newline; a singleton descending range is emitted once.",
+      "kind": "parity",
+      "script": "seq -s '' 1 3\nseq 4 -2 4",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "seq"
+      ]
+    },
+    {
+      "id": "format-width-conflict",
+      "purpose": "Equal-width and explicit formatting conflict before any output.",
+      "kind": "parity",
+      "script": "seq -w -f '%g' 1 2",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "seq"
+      ]
+    }
+  ]
+}

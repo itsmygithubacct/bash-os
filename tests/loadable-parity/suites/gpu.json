@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "loadable": "gpu",
+  "reference": "No GNU canvas CLI exists. Fixed independent RGBA/P6 byte arrays follow documented row order, opaque alpha, clipping, resize and scroll rules; Bash metadata remains separate. Every image operation uses a tiny headless canvas and relative private files.",
+  "coverage": [
+    "Metadata: type/help entry points.",
+    "Headless operation contracts: clear/pixel/rect clipping, independent P6 and RGBA imports/exports, clipped blit, viewport scroll, overlap-preserving resize/black fill, ownership, repeated stop, restart, import errors and save failure recovery.",
+    "Terminal presentation/input and native GLES/DMA-BUF operations are deferred with dedicated prerequisites."
+  ],
+  "exclusions": [
+    "Antialiased line/circle/polyline edges and bitmap font glyphs are not exhaustively checked; no general raster equivalence is claimed.",
+    "Shell-exit/module-unload resource release needs a reviewed lifecycle observer; explicit stop/restart is covered.",
+    "No terminal, render node, GPU driver, native shader or DMA-BUF operation is invoked."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Verify Bash's type builtin classifies the available gpu loadable as a builtin.",
+      "script": "type -t gpu",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-entry-points",
+      "kind": "contract",
+      "purpose": "Check that no-argument, --help, and help invocations expose the same documented gpu synopsis, including canvas, presentation, and shader commands.",
+      "script": "plain=$(gpu)\nlong=$(gpu --help)\nalias=$(gpu help)\n[[ $plain == \"$long\" && $long == \"$alias\" ]]\n[[ $plain == *'gpu start WIDTH HEIGHT'* ]]\n[[ $plain == *'present [X Y WIDTH HEIGHT]'* ]]\n[[ $plain == *'gpu shader FRAGMENT_FILE'* ]]\nprintf 'gpu help entry points and synopsis are available\\n'",
+      "expected_status": 0,
+      "stdout": "gpu help entry points and synopsis are available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-registration",
+      "kind": "contract",
+      "purpose": "Verify the loadable's Bash help metadata is registered and advertises representative documented drawing and image commands.",
+      "script": "metadata=$(help gpu)\n[[ $metadata == *'gpu COMMAND [ARGUMENT ...]'* ]]\n[[ $metadata == *'gpu rect X Y W H RRGGBB'* ]]\n[[ $metadata == *'gpu load PPM_FILE'* ]]\nprintf 'gpu Bash help metadata is registered\\n'",
+      "expected_status": 0,
+      "stdout": "gpu Bash help metadata is registered\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "kitty-presentation-transports",
+      "kind": "deferred",
+      "purpose": "Validate full frames, damage patches, scroll composition, synchronization, terminal rejection/fallback, and shared-memory cleanup for inline and shared-memory transports.",
+      "reason": "A future disposable VM needs a bounded PTY terminal peer implementing the Kitty graphics protocol and private shared-memory acknowledgements. The current declarative runner supplies no PTY peer, and no real terminal is within scope."
+    },
+    {
+      "id": "terminal-input-and-restoration",
+      "kind": "deferred",
+      "purpose": "Validate key, UTF-8, mouse, resize, and timeout event decoding plus restoration of terminal settings on return and failure.",
+      "reason": "A future disposable VM needs a PTY driver that sends deterministic event sequences and independently checks variable bindings, timeouts, and termios restoration. The current runner has no controllable terminal fixture."
+    },
+    {
+      "id": "gles-shader-and-dmabuf",
+      "kind": "deferred",
+      "purpose": "Validate shader compile/render output, CPU-canvas shader input retention, resize/readback behavior, and DMA-BUF handoff/fallback and resource retirement.",
+      "reason": "A future disposable VM must provide an independently reviewed GLES/GBM ABI mock or dedicated render-node fixture with an independent frame oracle and FD handoff peer. This suite does not open render devices or claim GPU rendering passed."
+    },
+    {
+      "id": "headless-clear-pixel-clip",
+      "kind": "contract",
+      "purpose": "Fixed 2x2 RGBA oracle checks clear, one pixel, clipping, color prefixes and opaque output.",
+      "script": "\ngpu start 2 2 --headless\ngpu clear 000000\ngpu pixel 1 0 \"#ff0000\"\ngpu pixel -1 1 ffffff\ngpu pixel 0 1 0x00ff00\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AAAA//8AAP8A/wD/AAAA/w=="
+    },
+    {
+      "id": "headless-clipped-rectangle",
+      "kind": "contract",
+      "purpose": "A rectangle crossing the left boundary covers exactly the left column of the 2x2 image.",
+      "script": "\ngpu start 2 2 --headless\ngpu clear 000000\ngpu rect -1 0 2 2 0000ff\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AAD//wAAAP8AAP//AAAA/w=="
+    },
+    {
+      "id": "headless-load-ppm",
+      "kind": "contract",
+      "purpose": "Independently encoded P6 input loads exact RGB rows and exports the documented opaque P6 format.",
+      "script": "printf '%b' '\\120\\066\\012\\043\\040\\146\\151\\170\\164\\165\\162\\145\\012\\062\\040\\062\\012\\062\\065\\065\\012\\377\\000\\000\\000\\377\\000\\000\\000\\377\\377\\377\\377' > source.ppm\ngpu start 2 2 --headless\ngpu load source.ppm\ngpu save result ppm\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "UDYKMiAyCjI1NQr/AAAA/wAAAP////8="
+    },
+    {
+      "id": "headless-load-rgba",
+      "kind": "contract",
+      "purpose": "Independent RGBA input ignores alpha and retains RGB order and exact output length.",
+      "script": "printf '%b' '\\377\\000\\000\\000\\000\\377\\000\\001\\000\\000\\377\\200\\377\\377\\377\\376' > source.rgba\ngpu start 2 2 --headless\ngpu load-rgba source.rgba\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "/wAA/wD/AP8AAP///////w=="
+    },
+    {
+      "id": "headless-blit-clipping",
+      "kind": "contract",
+      "purpose": "Blit an independently encoded 2x1 image at a negative X offset; only its second pixel lands on the canvas.",
+      "script": "printf '%b' '\\120\\066\\012\\062\\040\\061\\012\\062\\065\\065\\012\\377\\000\\000\\000\\377\\000' > source.ppm\ngpu start 2 2 --headless\ngpu clear 000000\ngpu blit source.ppm -1 1\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AAAA/wAAAP8A/wD/AAAA/w=="
+    },
+    {
+      "id": "headless-scroll-viewport",
+      "kind": "contract",
+      "purpose": "Scroll a private 1x2 viewport down by one cell, preserve pixels outside it and fill the exposed cell.",
+      "script": "\ngpu start 2 2 --headless\ngpu clear 000000\ngpu pixel 0 0 ff0000\ngpu pixel 1 0 00ff00\ngpu pixel 0 1 0000ff\ngpu scroll 0 1 ffffff 0 0 1 2\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "/////wD/AP//AAD/AAAA/w=="
+    },
+    {
+      "id": "headless-resize-and-session",
+      "kind": "contract",
+      "purpose": "Resize preserves overlap, fills new cells black, rejects a second start and subshell mutation, then permits repeated stop and a fresh session.",
+      "script": "gpu start 1 1 --headless\ngpu clear ff0000\ngpu resize 2 2\ngpu save result rgba\nrc=0; gpu start 1 1 --headless || rc=$?; [[ $rc == 1 ]]\nrc=0; (gpu clear 000000) || rc=$?; [[ $rc == 1 ]]\ngpu save after rgba\n/usr/bin/cmp result after\ngpu info\ngpu stop\ngpu stop\ngpu start 1 1 --headless\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout_base64": "YWN0aXZlPTEgd2lkdGg9MiBoZWlnaHQ9MiB0cmFuc3BvcnQ9aGVhZGxlc3MgZnJhbWVzPTAgYnl0ZXM9MCBwYXRjaGVzPTAgY29tcG9zZXM9MCBmYWxsYmFja3M9MCByZWFkYmFja3M9MCB1cGxvYWRzPTAK/wAA/wAAAP8AAAD/AAAA/w=="
+    },
+    {
+      "id": "headless-import-error-preserves-canvas",
+      "kind": "contract",
+      "purpose": "Wrong-size RGBA, mismatched PPM dimensions and a missing save parent fail while preserving a small canvas; later export still succeeds.",
+      "script": "printf '%b' '\\120\\066\\012\\061\\040\\061\\012\\062\\065\\065\\012\\377\\000\\000' > small.ppm\nprintf AB > short.rgba\ngpu start 2 2 --headless\ngpu clear 000000\nfor cmd in 'load small.ppm' 'load-rgba short.rgba' 'save absent/output'; do\n read -r -a args <<< \"$cmd\"\n rc=0; gpu \"${args[@]}\" || rc=$?; [[ $rc == 1 ]]\ndone\ngpu save result rgba\ngpu stop\n/usr/bin/cat result",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout_base64": "AAAA/wAAAP8AAAD/AAAA/w=="
+    }
+  ]
+}

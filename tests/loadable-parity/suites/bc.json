@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "loadable": "bc",
+  "reference": "GNU bc 1.07.1, invoked by the reference Bash with PATH=/usr/bin:/bin; each parity case compares the same bounded shell fixture on both sides. Bash type/help and the builtin-only -e/-f form use documented contracts instead.",
+  "coverage": [
+    "GNU arithmetic precision, decimal scale, division and signed remainder",
+    "GNU input/output bases and integer rendering",
+    "Functions, recursion, local variables, arrays and loop control",
+    "The -l math library and representative built-in functions",
+    "Expression precedence, booleans, comments, strings and print escapes",
+    "Relative named input files followed by standard input, including tree effects",
+    "Missing named-file diagnostics and status",
+    "BC_LINE_LENGTH wrapping with a small deterministic output",
+    "Bash builtin availability/help metadata and the documented -e/-f contract"
+  ],
+  "exclusions": [
+    "Custom contracts and separate GNU compatibility cases retain the documented expression-operand, diagnostic and error-status differences. Actual statuses are not discarded.",
+    "Interactive readline and terminal rendering need a PTY fixture; no terminal is allocated by this runner.",
+    "This suite does not claim coverage of every language production, warning, resource limit or diagnostic wording."
+  ],
+  "cases": [
+    {
+      "id": "arithmetic_precision",
+      "kind": "parity",
+      "purpose": "Compare large exact integers, scaled division and signed remainder with GNU bc; BC_LINE_LENGTH=0 removes presentation wrapping from the long result.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "export BC_LINE_LENGTH=0\nbc <<'BC'\nscale=18\nx=123456789012345678901234567890\nx*x\nx/97\nscale=5\n-23%7\n1/8\nBC"
+    },
+    {
+      "id": "input_output_bases",
+      "kind": "parity",
+      "purpose": "Check hexadecimal input and hexadecimal/binary output against GNU base conversion behavior.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "bc <<'BC'\nibase=16\nFF\nibase=A\nobase=16\n65535\nobase=2\n13\nBC"
+    },
+    {
+      "id": "functions_arrays_loops",
+      "kind": "parity",
+      "purpose": "Exercise recursive user functions, autos, array reads, a while loop and a for loop with independently checkable results.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "bc <<'BC'\ndefine gcd(a,b) {\n auto r\n while (b) { r=a%b; a=b; b=r }\n return a\n}\ndefine sumsq(n) {\n auto i,s\n for (i=1; i<=n; i++) s+=i^2\n return s\n}\nv[0]=48; v[1]=18\ngcd(v[0],v[1])\nsumsq(5)\nBC"
+    },
+    {
+      "id": "math_library",
+      "kind": "parity",
+      "purpose": "Compare representative sine, cosine, arctangent, exponential, logarithm and Bessel calls with GNU bc -l at a fixed scale.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "export BC_LINE_LENGTH=0\nbc -l <<'BC'\nscale=8\ns(1)\nc(0)\n4*a(1)\ne(1)\nl(e(1))\nj(0,1)\nBC"
+    },
+    {
+      "id": "operators_strings_comments",
+      "kind": "parity",
+      "purpose": "Check relational assignment, logical results, comments, and print string escapes against GNU bc.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "bc <<'BC'\na=3<5\na\n0&&7\n2||0\nprint \"left\\tright=\", 1+2, \"\\n\"\n# ignored comment\n(2+3)*4\nBC"
+    },
+    {
+      "id": "named_files_then_stdin",
+      "kind": "parity",
+      "purpose": "Use relative fixture files to compare GNU's named-file order followed by standard input; resulting files and their modes are compared too.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf '%s\\n' 'define square(x) { return x*x }' > lib.bc\nprintf '%s\\n' 'square(12)' > main.bc\nbc lib.bc main.bc <<'BC'\nsquare(5)\nBC"
+    },
+    {
+      "id": "missing_named_file",
+      "kind": "contract",
+      "purpose": "The documented fallback parses a nonexistent bare operand as an expression; an unset variable evaluates to zero, while a dotted filename is a syntax error. Both calls leave redirected standard input unread.",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "if bc absent <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'variable-status=%s\\n' \"$rc\"\nif bc absent.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'filename-status=%s\\n' \"$rc\"",
+      "stdout": "0\nvariable-status=0\nfilename-status=1\n"
+    },
+    {
+      "id": "line_length_wrapping",
+      "kind": "parity",
+      "purpose": "Compare GNU's output line wrapping at an explicitly exported short BC_LINE_LENGTH.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "export BC_LINE_LENGTH=12\nbc <<'BC'\n2^100\nobase=16\n2^64\nBC"
+    },
+    {
+      "id": "documented_error_status_difference",
+      "kind": "contract",
+      "purpose": "The documented builtin status is 1 after a runtime error, and evaluation resumes at the next top-level item. Expected output and status follow docs/bc.md rather than GNU's incompatible exit status.",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "if bc <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\"",
+      "stdout": "42\nbc-status=1\n"
+    },
+    {
+      "id": "bash_metadata",
+      "kind": "contract",
+      "purpose": "Check through Bash builtins that bc is registered as a builtin and that help exposes the documented GNU-compatible calculator description.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp documented\n",
+      "script": "kind=$(type -t bc)\ndoc=$(help bc)\n[[ $kind == builtin ]] || exit 10\ncase $doc in *'Arbitrary-precision calculator language (GNU bc compatible).'*) printf '%s\\n' 'builtin' 'help documented' ;; *) exit 11 ;; esac"
+    },
+    {
+      "id": "expression_file_options",
+      "kind": "contract",
+      "purpose": "Check the documented builtin-only -f missing-file status and ordered -e/-f expression/file interface with relative fixture input; expected output and status come from docs/bc.md.",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "missing-status=1\n20\n11\n",
+      "script": "if bc -f absent.bc; then rc=0; else rc=$?; fi\nprintf 'missing-status=%s\\n' \"$rc\"\nprintf '%s\\n' 'x*2' > program.bc\nbc -e 'x=10' -f program.bc -e 'x+1'"
+    },
+    {
+      "id": "runtime_error_recovery",
+      "kind": "parity",
+      "purpose": "Compare recovery output, restored locals and actual command status after a runtime error. The documented status difference remains FAIL.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "if bc <<'BC'\na=7\ndefine fail(a) { auto x; x=99; a=8; return 1/0 }\nfail(3); 99\na\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\" "
+    },
+    {
+      "id": "syntax_error_status_contract",
+      "kind": "contract",
+      "purpose": "The documented builtin status is 1 after a syntax error, and no statements in the malformed top-level item execute; subsequent items remain usable.",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "7\nsyntax-status=1\n",
+      "script": "if bc <<'BC'\na=7\na=8; (\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\""
+    },
+    {
+      "id": "missing_file_after_existing",
+      "kind": "parity",
+      "purpose": "Once the first bare operand names an existing input file, subsequent operands are files: stop with status 1 on a missing file, preserve output already produced, and do not evaluate stdin. Diagnostic spelling is explicitly different in docs/bc.md.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "printf '17\\n' > first.bc\nif bc first.bc absent.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\""
+    },
+    {
+      "id": "interactive_terminal_editing",
+      "kind": "deferred",
+      "purpose": "Interactive readline and terminal rendering are distinct from the covered piped-program interface.",
+      "reason": "The fixture runner connects stdin to /dev/null and does not allocate a PTY. A future disposable PTY driver must feed a short expression plus an editing key sequence and compare captured interactive behavior with GNU bc; no real terminal should be used."
+    },
+    {
+      "id": "missing_named_file_gnu_difference",
+      "kind": "parity",
+      "purpose": "GNU compatibility difference, separate from documented builtin contracts: Preserve GNU's treatment of a nonexistent bare filename as a file-open error. The builtin documents falling back to expression parsing when the first bare operand is absent, so exact diagnostics retain this real incompatibility as a FAIL.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "exact",
+      "script": "if bc absent.bc; then rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\""
+    },
+    {
+      "id": "documented_error_status_difference_gnu_difference",
+      "kind": "parity",
+      "purpose": "GNU compatibility difference, separate from documented builtin contracts: Retain the documented compatibility failure: GNU bc returns zero after a runtime error while this builtin returns one. The wrapper captures the bc status before printing it, so the reference shell itself exits successfully and the actual difference remains a FAIL.",
+      "requires": [
+        "bc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "if bc <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\""
+    },
+    {
+      "id": "independent-integer-contract",
+      "kind": "contract",
+      "purpose": "Pure integer calculations with independent Python integer expected values; no external bc dependency.",
+      "script": "export BC_LINE_LENGTH=0\nbc -e '123456789012345678901234567890^2; 2^100; -12345678901234567890+7'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "15241578753238836750495351562536198787501905199875019052100\n1267650600228229401496703205376\n-12345678901234567883\n"
+    },
+    {
+      "id": "repeated-state-reset",
+      "kind": "contract",
+      "purpose": "Repeated invocations reset scale, bases, variables and arrays.",
+      "script": "bc -e 'scale=3; x=9; a[0]=7; 1/8'\nbc -e 'scale; ibase; obase; x; a[0]; 2+3'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": ".125\n0\n10\n10\n0\n0\n5\n"
+    }
+  ]
+}

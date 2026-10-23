@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "undo",
+  "reference": "Independent literal line-array and hex byte-array edit histories derived from the public undo/buf contract, including inverse ordering, branch invalidation and a two-record depth cap. No GNU CLI parity is claimed.",
+  "coverage": [
+    "Bash reports the registered undo loadable as a builtin.",
+    "The Bash help entry advertises the documented verbs, grouped history, branch clearing, and opaque byte policy.",
+    "Independent state contracts cover line records, binary byte records, grouped ordering/redo branches, and bounded history lifecycle.",
+    "Executed line and byte undo/redo, grouped ordering, branch invalidation, bounded-depth eviction and history lifecycle contracts."
+  ],
+  "exclusions": [
+    "Automatic time-window coalescing, allocation-fault injection and editor terminal integration remain unqualified; no privileged environment is needed for the covered in-memory API."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "purpose": "Bash type -t reports the registered loadable as a builtin, as required for an enabled Bash builtin.",
+      "kind": "contract",
+      "script": "type -t undo",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help-metadata",
+      "purpose": "Check that Bash help exposes the documented undo verbs and key history/byte contracts without invoking an operation.",
+      "kind": "contract",
+      "script": "doc=$(help undo)\n[[ $doc == *'undo new -h HVAR -B BUF_SLOT [-d DEPTH]'* ]]\n[[ $doc == *'undo record HANDLE TYPE LINENO [COL] TEXT [-X]'* ]]\n[[ $doc == *'undo begin-group HANDLE'* && $doc == *'undo end-group HANDLE'* ]]\n[[ $doc == *'undo redo HANDLE'* && $doc == *'undo clear HANDLE'* && $doc == *'undo depth HANDLE'* ]]\n[[ $doc == *'record clears redo history (new branch)'* ]]\n[[ $doc == *'opaque byte string'* && $doc == *'byte-buffer-indexed'* ]]\nprintf 'undo help covers verbs, grouping, branches, and byte policy\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "undo help covers verbs, grouping, branches, and byte policy\n"
+    },
+    {
+      "id": "line-record-undo-redo",
+      "kind": "contract",
+      "purpose": "Fixed line-array contract checks insert, delete, changed-line inverse/redo and exact depth transitions.",
+      "script": "buf new -h b\nundo new -h u -B \"$b\" -d 2\nbuf insert-line \"$b\" 0 alpha\nundo record \"$u\" I 0 alpha\nundo depth \"$u\"\nundo undo \"$u\"\nbuf lines \"$b\"\nundo depth \"$u\"\nundo redo \"$u\"\nbuf line \"$b\" 0\nbuf delete-line \"$b\" 0\nundo record \"$u\" D 0 alpha\nundo undo \"$u\"\nbuf line \"$b\" 0\nbuf delete-line \"$b\" 0\nbuf insert-line \"$b\" 0 beta\nundo record \"$u\" C 0 alpha\nundo undo \"$u\"\nbuf line \"$b\" 0\nundo redo \"$u\"\nbuf line \"$b\" 0\nundo free \"$u\"\nbuf free \"$b\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1 0\n0\n0 1\nalpha\nalpha\nalpha\nbeta\n"
+    },
+    {
+      "id": "binary-byte-records",
+      "kind": "contract",
+      "purpose": "Independent hex byte-array states validate UTF-8 bytes and NUL transit through insertion/removal undo and redo.",
+      "script": "buf new -h b\nundo new -h u -B \"$b\" -d 2\nbuf insert-line \"$b\" 0 410042 -X\nbuf insert-at \"$b\" 0 1 c3a9 -X\nundo record \"$u\" A 0 1 c3a9 -X\nbuf line \"$b\" 0 -X\nundo undo \"$u\"\nbuf line \"$b\" 0 -X\nundo redo \"$u\"\nbuf line \"$b\" 0 -X\nbuf delete-at \"$b\" 0 3 1\nundo record \"$u\" R 0 3 00 -X\nundo undo \"$u\"\nbuf line \"$b\" 0 -X\nundo redo \"$u\"\nbuf line \"$b\" 0 -X\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "41c3a90042\n410042\n41c3a90042\n41c3a90042\n41c3a942\n"
+    },
+    {
+      "id": "group-order-and-branch",
+      "kind": "contract",
+      "purpose": "Grouped dependent edits reverse in inverse order, replay forward and a new branch invalidates redo.",
+      "script": "buf new -h b\nundo new -h u -B \"$b\" -d 2\nundo begin-group \"$u\"\nbuf insert-line \"$b\" 0 first\nundo record \"$u\" I 0 first\nbuf insert-line \"$b\" 1 second\nundo record \"$u\" I 1 second\nundo end-group \"$u\"\nundo depth \"$u\"\nundo undo \"$u\"\nbuf lines \"$b\"\nundo redo \"$u\"\nbuf text \"$b\" -X\nundo undo \"$u\"\nundo begin-group \"$u\"\nbuf insert-line \"$b\" 0 branch\nundo record \"$u\" I 0 branch\nundo end-group \"$u\"\nundo depth \"$u\"\nif undo redo \"$u\"; then rc=0; else rc=$?; fi\nprintf 'redo=%s\\n' \"$rc\"\nbuf line \"$b\" 0\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1 0\n0\n66697273740a7365636f6e64\n1 0\nredo=1\nbranch\n"
+    },
+    {
+      "id": "history-cap-and-lifecycle",
+      "kind": "contract",
+      "purpose": "A depth cap of two evicts the oldest record; empty-stack, clear, empty group, free and reallocation retain the documented state.",
+      "script": "buf new -h b\nundo new -h u -B \"$b\" -d 2\nfor value in one two three; do\n count=$(buf lines \"$b\")\n buf insert-line \"$b\" \"$count\" \"$value\"\n undo record \"$u\" I \"$count\" \"$value\"\ndone\nundo depth \"$u\"\nundo undo \"$u\"\nundo undo \"$u\"\nif undo undo \"$u\"; then rc=0; else rc=$?; fi\nprintf 'empty=%s\\n' \"$rc\"\nbuf line \"$b\" 0\nundo clear \"$u\"\nundo depth \"$u\"\nundo begin-group \"$u\"\nundo end-group \"$u\"\nundo depth \"$u\"\nundo free \"$u\"\nundo new -h v -B \"$b\"\nundo depth \"$v\"\nundo free \"$v\"\nbuf free \"$b\"\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "2 0\nempty=1\none\n0 0\n0 0\n0 0\n"
+    }
+  ]
+}

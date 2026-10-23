@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "tiv",
+  "reference": "No GNU/POSIX command matches tiv; the loadable inventory lists chafa as missing, and chafa encoding is not a byte-for-byte tiv oracle. These are contract cases, not GNU parity. Help/version expectations follow tiv's documented interface. Rendering expectations use a 2x2 RGB PNG independently encoded from the PNG format (filter-0 scanlines, zlib IDAT, chunk CRCs) with known pixels: top row red/green, bottom row blue/white. The truecolor expectation is computed directly from the documented half-block layout: top pixels become foreground, bottom pixels background, one U+2580 per column, then reset and newline. Inversion complements each known 8-bit channel. File and stdin base64 cases must decode the same independent image bytes.",
+  "coverage": [
+    "Bash type/help metadata and the documented tiv --help and --version output.",
+    "Default half-block truecolor rendering for two known vertical pixel pairs at explicit dimensions.",
+    "The documented color inversion option over the same image.",
+    "PNG input from a base64 file, raw stdin, and base64 stdin.",
+    "PTY-dependent sizing and real terminal glyph presentation are recorded as deferred."
+  ],
+  "exclusions": [
+    "No matching GNU/POSIX tiv CLI is available, so the suite has no parity cases and does not claim GNU parity.",
+    "PTY ioctl dimensions, isatty-dependent width/height fitting, and visual terminal/font behavior require a controlled PTY or terminal emulator and are deferred.",
+    "Other color reducers, dense quad/sextant/octant glyphs, malformed-image diagnostics, and broader image formats are not qualified here."
+  ],
+  "cases": [
+    {
+      "id": "bash-type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash advertises tiv as a loadable builtin through the type builtin.",
+      "script": "type -t tiv",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-summary",
+      "kind": "contract",
+      "purpose": "Confirm Bash help metadata exposes the documented one-line description for tiv.",
+      "script": "help -d tiv",
+      "expected_status": 0,
+      "stdout": "tiv - Display an image in the terminal (truecolor by default).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version-output",
+      "kind": "contract",
+      "purpose": "Check the documented version string without invoking image decoding or terminal operations.",
+      "script": "tiv --version",
+      "expected_status": 0,
+      "stdout": "tiv 1.1 (bash-os terminal image viewer, stb_image)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-output",
+      "kind": "contract",
+      "purpose": "Check the complete documented option and format help text emitted by tiv --help.",
+      "script": "tiv --help",
+      "expected_status": 0,
+      "stdout": "Display an image in the terminal (truecolor by default).\n\n    tiv [OPTION]... FILE\n\nDecodes FILE (PNG/JPEG/GIF/BMP/TGA; - = stdin) and prints it with block\nglyphs. The default half-block glyph shows two vertical pixels per cell;\ndenser glyphs (-g) pack more detail into the SAME font size by using more\nsub-pixels per cell, each cell drawn in two colors (fg/bg).\n\nOptions:\n    -w, --width N    output width in columns (default: terminal width / 80)\n    -H, --height N   output height in terminal rows (default: keep aspect)\n    -m, --mode MODE  color: rgb (default) | 256 | ansi | grey | ascii\n    -g, --glyph G    density: half (default,1x2) | quad (2x2) | sextant\n                     (2x3) | octant (2x4). Denser needs a modern terminal\n                     (sextant: Unicode 13; octant: Unicode 16). Ignored for\n                     -m ascii.\n    -i, --invert     invert colors\n        --full       use the full terminal width\n        --base64     FILE / stdin holds base64-encoded image data\n    -h, --help       show this help\n    -V, --version    show version\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "truecolor-half-block",
+      "kind": "contract",
+      "purpose": "Render two known vertical RGB pixel pairs at an explicit 2-column by 1-row size; verify foreground/background ordering, U+2580 cells, reset, and newline.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x02\\x08\\x02\\x00\\x00\\x00\\xfd\\xd4\\x9a\\x73\\x00\\x00\\x00\\x12\\x49\\x44\\x41\\x54\\x78\\x9c\\x63\\xf8\\xcf\\xc0\\xc0\\x00\\xc2\\x0c\\xff\\x81\\x00\\x00\\x1f\\xee\\x05\\xfb\\x0b\\xd9\\x68\\x8b\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > image.png\ntiv --width 2 --height 1 image.png",
+      "expected_status": 0,
+      "stdout": "\u001b[38;2;255;0;0;48;2;0;0;255m\u2580\u001b[38;2;0;255;0;48;2;255;255;255m\u2580\u001b[0m\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invert-known-pixels",
+      "kind": "contract",
+      "purpose": "Verify --invert complements each 8-bit channel while preserving the documented half-block foreground/background layout.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x02\\x08\\x02\\x00\\x00\\x00\\xfd\\xd4\\x9a\\x73\\x00\\x00\\x00\\x12\\x49\\x44\\x41\\x54\\x78\\x9c\\x63\\xf8\\xcf\\xc0\\xc0\\x00\\xc2\\x0c\\xff\\x81\\x00\\x00\\x1f\\xee\\x05\\xfb\\x0b\\xd9\\x68\\x8b\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > image.png\ntiv --invert --width 2 --height 1 image.png",
+      "expected_status": 0,
+      "stdout": "\u001b[38;2;0;255;255;48;2;255;255;0m\u2580\u001b[38;2;255;0;255;48;2;0;0;0m\u2580\u001b[0m\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "base64-file-input",
+      "kind": "contract",
+      "purpose": "Verify --base64 decodes a base64-encoded PNG file and renders the same independent pixel fixture.",
+      "script": "printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAAMIM/4EAAB/uBfsL2WiLAAAAAElFTkSuQmCC' > image.b64\ntiv --base64 --width 2 --height 1 image.b64",
+      "expected_status": 0,
+      "stdout": "\u001b[38;2;255;0;0;48;2;0;0;255m\u2580\u001b[38;2;0;255;0;48;2;255;255;255m\u2580\u001b[0m\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "raw-and-base64-stdin",
+      "kind": "contract",
+      "purpose": "Verify both documented stdin forms: raw PNG from FILE '-' and base64 PNG with --base64 and FILE '-'. Each must render the independently calculated pixels.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x02\\x08\\x02\\x00\\x00\\x00\\xfd\\xd4\\x9a\\x73\\x00\\x00\\x00\\x12\\x49\\x44\\x41\\x54\\x78\\x9c\\x63\\xf8\\xcf\\xc0\\xc0\\x00\\xc2\\x0c\\xff\\x81\\x00\\x00\\x1f\\xee\\x05\\xfb\\x0b\\xd9\\x68\\x8b\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' | tiv --width 2 --height 1 -\nprintf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP4z8DAAMIM/4EAAB/uBfsL2WiLAAAAAElFTkSuQmCC' | tiv --base64 --width 2 --height 1 -",
+      "expected_status": 0,
+      "stdout": "\u001b[38;2;255;0;0;48;2;0;0;255m\u2580\u001b[38;2;0;255;0;48;2;255;255;255m\u2580\u001b[0m\n\u001b[38;2;255;0;0;48;2;0;0;255m\u2580\u001b[38;2;0;255;0;48;2;255;255;255m\u2580\u001b[0m\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-sizing-and-fit",
+      "kind": "deferred",
+      "purpose": "Qualify the isatty and TIOCGWINSZ sizing branches with a controlled terminal, including default width, --full width, explicit width, and height-fit behavior.",
+      "reason": "The supplied runner redirects stdout to a regular file, so it cannot exercise tiv's TTY-dependent behavior. A future disposable Linux VM or PTY harness must attach a controlling PTY, set known TIOCSWINSZ dimensions, feed a small asymmetric PNG, and assert output rows/columns and the documented rows-minus-one height fit without touching host terminals."
+    },
+    {
+      "id": "unicode-terminal-display",
+      "kind": "deferred",
+      "purpose": "Qualify how the half, quad, sextant, and octant output appears in a terminal with known Unicode and color support.",
+      "reason": "Captured bytes cannot establish that a terminal renders the selected block glyphs at the expected cell width or honors the color sequences. A future disposable VM must provide a controlled PTY and a pinned terminal emulator/font configuration, then verify cell geometry and appearance for the advertised glyph densities and color modes; no host terminal is in scope."
+    },
+    {
+      "id": "missing-image",
+      "kind": "contract",
+      "purpose": "A missing private image fails with no rendered bytes and a diagnostic.",
+      "script": "tiv --width 2 --height 1 missing.png",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "grey-half-block",
+      "kind": "contract",
+      "purpose": "Documented greyscale reducer maps RGB channel means 85 and 255 to xterm greys 239 and 255; preserve half-block geometry.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x02\\x08\\x02\\x00\\x00\\x00\\xfd\\xd4\\x9a\\x73\\x00\\x00\\x00\\x12\\x49\\x44\\x41\\x54\\x78\\x9c\\x63\\xf8\\xcf\\xc0\\xc0\\x00\\xc2\\x0c\\xff\\x81\\x00\\x00\\x1f\\xee\\x05\\xfb\\x0b\\xd9\\x68\\x8b\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > image.png\ntiv --mode grey --width 2 --height 1 image.png",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "\u001b[38;5;239;48;5;239m\u2580\u001b[38;5;239;48;5;255m\u2580\u001b[0m\n"
+    }
+  ]
+}

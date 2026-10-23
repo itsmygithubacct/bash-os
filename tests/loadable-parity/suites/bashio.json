@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "loadable": "bashio",
+  "reference": "GNU coreutils touch and file-scoped GNU sync -d provide direct parity oracles for those two operations. bashio's descriptor-based random-access API has no matching GNU CLI, so its cases are contracts based on the documented interface and POSIX pread/pwrite/lseek/fstat/ftruncate semantics; expected hex bytes are independently calculated from literal fixture data. Bash type/help metadata is checked as a contract. Ownership and network configuration are deferred.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "GNU touch parity for existing-file preservation and missing-file creation",
+    "GNU file-scoped sync -d parity",
+    "Open creation, exclusive creation, truncation modes, and FD variable binding",
+    "Binary pread/pwrite, lowercase hex output, positional offset independence, and EOF behavior",
+    "lseek set/current positions and fstat size/mode fields",
+    "truncate shrink and zero-filled extension"
+  ],
+  "exclusions": [
+    "bashio chown is deferred because ownership changes are prohibited in this fixture run.",
+    "bashio set-addr and set-route are deferred because network configuration must not be attempted.",
+    "The harness tree snapshot does not include timestamps, so touch mtime changes are not asserted.",
+    "No device paths, external network targets, or host/system state are used."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "purpose": "The candidate registers bashio as a Bash builtin, as required for the loadable interface.",
+      "kind": "contract",
+      "script": "kind=$(type -t bashio)\n[[ $kind == builtin ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "purpose": "Bash help must resolve the loadable's documented usage; the check requires nonempty help text without asserting presentation formatting.",
+      "kind": "contract",
+      "script": "help_text=$(help bashio)\n[[ -n $help_text ]]\nprintf 'help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "random-access-binary",
+      "purpose": "Checks binary-safe hex reads and writes, lseek set/current results, and the POSIX guarantee that pread and pwrite leave the descriptor's current offset unchanged.",
+      "kind": "contract",
+      "script": "printf 'abcdef' > sample.bin\nbashio open sample.bin r+ fd\nbashio lseek \"$fd\" 3 set\nbashio pread \"$fd\" 4 1 -x\nbashio lseek \"$fd\" 0 cur\nbashio pwrite \"$fd\" 414200ff 2\nbashio lseek \"$fd\" 0 cur\nbashio pread \"$fd\" 6 0 -x\nbashio close \"$fd\"",
+      "expected_status": 0,
+      "stdout": "3\n62636465\n3\n4\n3\n6162414200ff\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "open-modes-and-excl",
+      "purpose": "Checks w+ truncation, r+ creation with -c -x, FD variable binding, fstat size and octal mode, pwrite/readback, and EEXIST failure on a second exclusive create. The changing mtime field is checked for integer form but omitted from cross-run output.",
+      "kind": "contract",
+      "script": "umask 022\nprintf 'obsolete' > trunc.bin\nbashio open trunc.bin w+ fd\nmeta=$(bashio fstat \"$fd\")\nread -r size mtime mode <<< \"$meta\"\n[[ $size == 0 && $mtime =~ ^[0-9]+$ && $mode == 644 ]]\nprintf '%s %s\\n' \"$size\" \"$mode\"\nbashio close \"$fd\"\nbashio open fresh.bin r+ -c -x fd\nbashio pwrite \"$fd\" 515253 0\nmeta=$(bashio fstat \"$fd\")\nread -r size mtime mode <<< \"$meta\"\n[[ $size == 3 && $mtime =~ ^[0-9]+$ && $mode == 644 ]]\nprintf '%s %s\\n' \"$size\" \"$mode\"\nbashio pread \"$fd\" 3 0 -x\nbashio close \"$fd\"\nset +e\nbashio open fresh.bin r+ -c -x duplicate\nrc=$?\nset -e\n[[ $rc == 1 ]]\nprintf 'collision=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "0 644\n3\n3 644\n515253\ncollision=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "truncate-fstat",
+      "purpose": "Checks descriptor truncation both downward and upward, fstat's resulting size field, and zero-filled bytes in the extension.",
+      "kind": "contract",
+      "script": "printf '0123456789' > sample.bin\nbashio open sample.bin r+ fd\nbashio truncate \"$fd\" 4\nmeta=$(bashio fstat \"$fd\")\nread -r size mtime mode <<< \"$meta\"\n[[ $size == 4 && $mtime =~ ^[0-9]+$ ]]\nprintf '%s\\n' \"$size\"\nbashio truncate \"$fd\" 7\nbashio pread \"$fd\" 7 0 -x\nbashio close \"$fd\"",
+      "expected_status": 0,
+      "stdout": "4\n30313233000000\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pread-zero-and-eof",
+      "purpose": "Covers zero-length pread (no bytes emitted), a positive-length short read at EOF, and a positive-length hex read starting at EOF.",
+      "kind": "contract",
+      "script": "printf 'abc' > sample.bin\nbashio open sample.bin r fd\nbashio pread \"$fd\" 0 0 -x\nprintf '|'\nbashio pread \"$fd\" 5 2 -x\nprintf '|'\nbashio pread \"$fd\" 3 3 -x\nbashio close \"$fd\"",
+      "expected_status": 0,
+      "stdout": "|63\n|\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "touch-parity",
+      "purpose": "Compares bashio touch with GNU touch for preserving an existing file and creating a missing empty file. The runner compares resulting file bytes and modes; it does not snapshot timestamps.",
+      "kind": "parity",
+      "requires": [
+        "touch"
+      ],
+      "script": "candidate=0\nif [[ $(type -t bashio) == builtin ]]; then candidate=1; fi\nprintf 'kept\\n' > existing.txt\nif (( candidate )); then\n  bashio touch existing.txt created.txt\nelse\n  touch existing.txt created.txt\nfi\n[[ -f existing.txt && -f created.txt && $(<existing.txt) == kept && ! -s created.txt ]]\nprintf 'touch-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "touch-ok\n"
+    },
+    {
+      "id": "sync-file-parity",
+      "purpose": "Compares bashio sync on an open private fixture file with GNU coreutils sync -d on that same relative file; no system-wide sync operation is used.",
+      "kind": "parity",
+      "requires": [
+        "sync"
+      ],
+      "script": "candidate=0\nif [[ $(type -t bashio) == builtin ]]; then candidate=1; fi\nprintf 'private fixture data\\n' > sync.bin\nif (( candidate )); then\n  bashio open sync.bin r+ fd\n  bashio sync \"$fd\"\n  bashio close \"$fd\"\nelse\n  sync -d sync.bin\nfi\nprintf 'sync-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "sync-ok\n"
+    },
+    {
+      "id": "chown-deferred",
+      "purpose": "Ownership changes are outside the permitted fixture operations for this run.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM or reviewed lchown syscall mock with synthetic passwd/group data and dedicated test IDs. Validate numeric and named UID/GID parsing plus symlink ownership there; do not modify host accounts or ownership during this suite."
+    },
+    {
+      "id": "set-addr-deferred",
+      "purpose": "The command issues interface-address and interface-flag ioctls, which must not be attempted here.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a dedicated virtual interface and an ioctl mock/capture that verifies address, netmask, and flag requests without configuring any host or real interface."
+    },
+    {
+      "id": "set-route-deferred",
+      "purpose": "The command issues a route-add ioctl and must not alter network routing in this run.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with an isolated routing table and a reviewed ioctl mock/capture that verifies the default-route fields and optional interface without changing host or real network state."
+    },
+    {
+      "id": "raw-binary-output",
+      "kind": "contract",
+      "purpose": "Compare raw pread stdout, including NUL and high-bit bytes, with independently encoded literal input.",
+      "script": "printf 'A\\0B\\377C' > binary\nbashio open binary r fd\nbashio pread \"$fd\" 5 0\nbashio close \"$fd\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "QQBC/0M="
+    },
+    {
+      "id": "missing-open",
+      "kind": "contract",
+      "purpose": "Opening a missing private input for read fails without creating it.",
+      "script": "bashio open missing r fd",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

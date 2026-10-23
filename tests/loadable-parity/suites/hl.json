@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "hl",
+  "reference": "Fixed documented contracts. JSON and Bash byte spans are hand-computed from literal ASCII inputs and curated query classes; ANSI bytes follow the documented palette and capture precedence. Candidate captures and the shared ts renderer are not oracles.",
+  "coverage": [
+    "Metadata separately counted.",
+    "Exact JSON key/string/escape byte spans and ANSI bytes.",
+    "Nested Bash function/string/variable/comment spans and ANSI bytes.",
+    "Relative file preservation, empty input, uncaptured whitespace and argument/input errors."
+  ],
+  "exclusions": [
+    "No exhaustive grammar/query or grapheme/locale qualification is claimed; fixed spans qualify only these examples."
+  ],
+  "cases": [
+    {
+      "id": "builtin-kind",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify hl as a builtin, matching the loadable contract.",
+      "script": "type -t hl",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help must expose the documented invocation and the resolved-span description for -S.",
+      "script": "h=$(help hl); [[ $h == *'hl -L LANG [-S] [FILE]'* && $h == *'resolved nonoverlapping spans'* ]]; printf '%s\\n' 'help synopsis and span description present'",
+      "expected_status": 0,
+      "stdout": "help synopsis and span description present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "json-render-and-spans",
+      "kind": "contract",
+      "purpose": "Hand-computed key and nested escape precedence byte ranges.",
+      "script": "printf %s '{\"k\":\"v\\n\"}' | hl -L json -S",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1-4 1;36 string.special.key\n5-7 32 string\n7-9 1;33 escape\n9-10 32 string\n"
+    },
+    {
+      "id": "json-exact-render",
+      "kind": "contract",
+      "purpose": "Exact SGR framing; uncaptured punctuation is unchanged.",
+      "script": "printf %s '{\"k\":\"v\\n\"}' | hl -L json",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "extbMTszNm0iayIbWzBtOhtbMzJtInYbWzBtG1sxOzMzbVxuG1swbRtbMzJtIhtbMG19"
+    },
+    {
+      "id": "bash-nested-captures",
+      "kind": "contract",
+      "purpose": "Hand-computed ASCII byte spans for function, command, quoted string, expansion and comment.",
+      "script": "printf %s 'f() { echo \"a $x b\" # c\n}\n' | hl -L bash -S",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "0-1 36 function\n6-10 36 function\n11-14 32 string\n14-16 37 variable\n16-19 32 string\n20-23 90 comment\n"
+    },
+    {
+      "id": "bash-exact-render",
+      "kind": "contract",
+      "purpose": "Exact ANSI bytes for nested Bash captures without escape stripping.",
+      "script": "printf %s 'f() { echo \"a $x b\" # c\n}\n' | hl -L bash",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G1szNm1mG1swbSgpIHsgG1szNm1lY2hvG1swbSAbWzMybSJhIBtbMG0bWzM3bSR4G1swbRtbMzJtIGIiG1swbSAbWzkwbSMgYxtbMG0KfQo="
+    },
+    {
+      "id": "relative-file-and-empty-input",
+      "kind": "contract",
+      "purpose": "Whitespace remains unchanged; empty render/span output is empty; private source is preserved.",
+      "script": "printf '[ ]\\n' > source; hl -L json source; [[ $(<source) == '[ ]' ]]; : > empty; hl -L json < empty; hl -L json -S < empty",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "[ ]\n"
+    },
+    {
+      "id": "argument-errors",
+      "kind": "contract",
+      "purpose": "Documented argument/input rejection with visible diagnostics and no stdout.",
+      "script": "hl",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-option",
+      "kind": "contract",
+      "purpose": "Documented argument/input rejection with visible diagnostics and no stdout.",
+      "script": "hl -Z",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-language",
+      "kind": "contract",
+      "purpose": "Documented argument/input rejection with visible diagnostics and no stdout.",
+      "script": "hl -L nonexistent",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "missing-input",
+      "kind": "contract",
+      "purpose": "Documented argument/input rejection with visible diagnostics and no stdout.",
+      "script": "hl -L json absent",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

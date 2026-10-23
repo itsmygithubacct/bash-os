@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "loadable": "netstat",
+  "reference": "Metadata contracts use Bash's documented type/help builtins and the netstat synopsis and help text documented by this loadable. No GNU netstat output is used as an oracle: operation-level netstat reads kernel socket state, which is outside this task's execution scope.",
+  "coverage": [
+    "Executed coverage is Bash availability/help metadata only; no operational behavior is counted as a pass.",
+    "Bash builtin discoverability and documented synopsis/description metadata"
+  ],
+  "exclusions": [
+    "No netstat operation was invoked; the backend reads live sock_diag and /proc socket state, forbidden by the task's execution limits.",
+    "No real or fixture-created network sockets, syscall shims, or proc overlays were executed; deterministic operation coverage requires a future disposable VM/mock run.",
+    "No matching GNU netstat parity case is claimed."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Check that the candidate exposes netstat as a Bash builtin, using Bash's documented type -t result.",
+      "script": "type -t netstat",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Check the public option synopsis through Bash help metadata; the expected synopsis is the documented netstat short usage.",
+      "script": "help -s netstat",
+      "expected_status": 0,
+      "stdout": "netstat: netstat -tuln (via ss backend)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "Check the concise help description against the first sentence in the loadable's published builtin documentation.",
+      "script": "help -d netstat",
+      "expected_status": 0,
+      "stdout": "netstat - netstat(8) surface (legacy column headers) over bashss.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer-inet-snapshot",
+      "kind": "deferred",
+      "purpose": "Compare numeric TCP, UDP, and IPv6 rows, headers, and state labels from an independently encoded deterministic socket snapshot.",
+      "reason": "Requires a future disposable VM with an independently reviewed sock_diag syscall mock or isolated proc socket-table fixture; the production operation reads host kernel socket state and must not be invoked in this run."
+    },
+    {
+      "id": "defer-family-options",
+      "kind": "deferred",
+      "purpose": "Compare short and long family aliases, listen-only filtering, all-state selection, default families, and per-call option reset behavior against known fixture rows.",
+      "reason": "Requires the deterministic sock_diag/proc fixtures above and a future disposable VM. Executing these netstat options now would enter the live socket backend, which is outside the allowed operation scope."
+    },
+    {
+      "id": "defer-unix-sockets",
+      "kind": "deferred",
+      "purpose": "Compare Unix listener and connected rows, legacy state labels, and queue fields using an independently encoded Unix diagnostic fixture.",
+      "reason": "Requires a future disposable VM with a Unix sock_diag mock and a private proc Unix table. No socket operation or backend read is run here."
+    },
+    {
+      "id": "defer-process-ownership",
+      "kind": "deferred",
+      "purpose": "Compare -p annotations using controlled inode-to-PID/FD ownership, including an inaccessible fixture directory.",
+      "reason": "Requires a future disposable VM with a private proc tree or reviewed proc-reader mock so ownership results are deterministic and cannot inspect host processes."
+    },
+    {
+      "id": "defer-transport-errors",
+      "kind": "deferred",
+      "purpose": "Exercise malformed and interrupted sock_diag dumps, per-family proc fallback, denied transports, and output-write failure recovery while checking exact status and rows.",
+      "reason": "Requires a future disposable VM with an independently reviewed syscall/proc mock and controlled failing-output fixture. These paths invoke the live backend and are not run under the current safety restrictions."
+    }
+  ]
+}

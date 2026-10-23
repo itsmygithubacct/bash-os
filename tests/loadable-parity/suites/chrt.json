@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "chrt",
+  "reference": "Read-only CLI behavior is compared with the installed util-linux chrt under the same isolated namespace; Bash type/help metadata is checked against Bash's builtin contract and the documented chrt synopsis in the documented loadable source. No scheduler policy is changed.",
+  "coverage": [
+    "Bash identifies chrt as a loadable builtin and help exposes its documented query/set synopsis and policy names.",
+    "util-linux parity for short and long priority-bound query options.",
+    "Read-only scheduling policy/priority query for the fixture shell itself, with only its variable PID normalized.",
+    "Safe invalid PID and unknown-option errors (status, stdout, and nonempty diagnostic presence)."
+  ],
+  "exclusions": [
+    "No sched_setscheduler or sched_setattr operation is executed; changing a process scheduling policy is deferred to a disposable VM or syscall mock.",
+    "No --all-tasks, reset-on-fork, deadline parameter, or child-command scheduling behavior is exercised; the two deferred cases name the needed isolated fixtures.",
+    "The current-process query is read-only and does not cover behavior against other processes or thread groups.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "bash-type-builtin",
+      "kind": "contract",
+      "purpose": "Bash type metadata must resolve chrt as a builtin, consistent with the loadable registration contract.",
+      "script": "[[ $(type -t chrt) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help must expose the documented read-only PID query and both policy-setting forms.",
+      "script": "doc=$(help chrt)\n[[ $doc == *'chrt -p PID'* && $doc == *'chrt [policy] PRIO COMMAND [ARG...]'* && $doc == *'chrt [policy] --pid PRIO PID'* ]] || exit 1\nprintf 'query and policy forms documented\\n'",
+      "expected_status": 0,
+      "stdout": "query and policy forms documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-policy-names",
+      "kind": "contract",
+      "purpose": "Bash help must document the supported policy selector spellings and their scheduler names.",
+      "script": "doc=$(help chrt)\n[[ $doc == *'Policy flags: -o/-b/-i/-f/-r/-d for OTHER/BATCH/IDLE/FIFO/RR/DEADLINE.'* ]] || exit 1\nprintf 'policy flags documented\\n'",
+      "expected_status": 0,
+      "stdout": "policy flags documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "max-priority-short",
+      "kind": "parity",
+      "purpose": "Compare the non-mutating -m scheduler priority bounds query byte-for-byte with util-linux chrt.",
+      "requires": [
+        "chrt"
+      ],
+      "script": "chrt -m",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "max-priority-long",
+      "kind": "parity",
+      "purpose": "Check that --max is equivalent to the util-linux priority-bounds query and is accepted by both implementations.",
+      "requires": [
+        "chrt"
+      ],
+      "script": "chrt --max",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "query-current-process",
+      "kind": "parity",
+      "purpose": "Compare the read-only -p query for the running fixture shell; normalize only the sandbox-specific PID so policy, priority, and any runtime fields remain checked.",
+      "requires": [
+        "chrt"
+      ],
+      "script": "pid=$$\nraw=$(chrt -p \"$pid\")\nnormalized=${raw//\"pid $pid\"/\"pid PID\"}\nprintf '%s\\n' \"$normalized\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-pid",
+      "kind": "parity",
+      "purpose": "An invalid PID operand must fail before any scheduler syscall; compare GNU status, stdout, and exact diagnostic bytes.",
+      "requires": [
+        "chrt"
+      ],
+      "script": "chrt -p not-a-pid",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "An unknown option is a safe parser error; compare status, stdout, and diagnostic bytes against GNU.",
+      "requires": [
+        "chrt"
+      ],
+      "script": "chrt --not-a-chrt-option",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "deferred-policy-command",
+      "kind": "deferred",
+      "purpose": "Exercise policy selection, priority boundaries, reset-on-fork, argv forwarding, and child exit-status propagation without changing host process scheduling.",
+      "reason": "Requires a disposable VM with scheduling changes confined to disposable child processes, or an independently reviewed syscall mock for sched_setscheduler plus fork/exec/wait. The future fixture should cover OTHER/BATCH/IDLE/FIFO/RR, valid and invalid priorities, -R, command arguments, and child exit/signal status."
+    },
+    {
+      "id": "deferred-pid-deadline",
+      "kind": "deferred",
+      "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
+      "reason": "Requires a disposable VM with a dedicated throwaway process/thread group and appropriate scheduling privilege, or a reviewed sched_setscheduler/sched_setattr mock. The future fixture should check -p PRIO PID, --all-tasks, deadline runtime/deadline/period constraints, reset-on-fork interactions, and failure behavior without targeting any host process."
+    },
+    {
+      "id": "invalid-pid-with-priority",
+      "kind": "parity",
+      "purpose": "Reject nonnumeric PID text before a scheduler call, including the form with an explicit priority.",
+      "script": "chrt -p 0 not-a-pid",
+      "expected_status": 1,
+      "stderr": "exact",
+      "requires": [
+        "chrt"
+      ]
+    }
+  ]
+}

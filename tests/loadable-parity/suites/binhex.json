@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "loadable": "binhex",
+  "reference": "Valid complete hexadecimal byte streams are compared against xxd plain mode. Separate contracts cover the documented optional leading 0x prefix and strict rejection of malformed input; xxd intentionally tolerates malformed input and is not an error-path oracle.",
+  "coverage": [
+    "Bash metadata: `type -t` reports binhex as a builtin and `help binhex` contains the documented description.",
+    "Encode empty input, mixed binary stdin containing NUL and high-bit bytes, a relative file argument, and 4097 deterministic bytes across the implementation's 4096-byte read boundary.",
+    "Decode compact hex, whitespace-separated hex, and a relative hex-file argument, preserving arbitrary output bytes.",
+    "Documented leading 0x/0X decoder prefix behavior.",
+    "Separate strict malformed-input contracts and permissive xxd compatibility differences; no full decoder equivalence claim."
+  ],
+  "exclusions": [
+    "Deterministically injecting EINTR and short read/write results requires syscall fault injection and is listed as deferred.",
+    "No privilege, device, terminal, network, or host-path operation is part of binhex.",
+    "Full xxd decoding compatibility is not claimed: binhex rejects nonhex characters and incomplete bytes."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check Bash reports binhex as a builtin and its help text contains the documented description.",
+      "script": "kind=$(type -t binhex)\nhelp_text=$(help binhex)\ncase \"$kind\" in\n  builtin)\n    case \"$help_text\" in\n      *'Hex-encode or decode a byte stream'*) printf 'available documented builtin\\n' ;;\n      *) exit 1 ;;\n    esac\n    ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "available documented builtin\n"
+    },
+    {
+      "id": "encode-empty-stdin",
+      "kind": "parity",
+      "purpose": "Empty stdin encodes to zero hex bytes with no newline.",
+      "requires": [
+        "xxd",
+        "python3"
+      ],
+      "script": "if [[ $(type -t binhex) == builtin ]]; then\nprintf '' | binhex\nelse\nprintf '' | xxd -p -c 999999 | /usr/bin/python3 -c 'import sys; d=sys.stdin.buffer.read(); assert not d or d.endswith(b'\"'\"'\\n'\"'\"'); sys.stdout.buffer.write(d[:-1] if d else d)'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-mixed-binary-stdin",
+      "kind": "parity",
+      "purpose": "Encode NUL, control, high-bit, and printable bytes from stdin as lowercase hex.",
+      "requires": [
+        "xxd",
+        "python3"
+      ],
+      "script": "if [[ $(type -t binhex) == builtin ]]; then\nprintf '\\000\\001\\012\\015\\177\\200\\377A\\n' | binhex\nelse\nprintf '\\000\\001\\012\\015\\177\\200\\377A\\n' | xxd -p -c 999999 | /usr/bin/python3 -c 'import sys; d=sys.stdin.buffer.read(); assert not d or d.endswith(b'\"'\"'\\n'\"'\"'); sys.stdout.buffer.write(d[:-1] if d else d)'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-relative-file",
+      "kind": "parity",
+      "purpose": "Encode bytes read from one relative FILE argument, including an embedded NUL.",
+      "requires": [
+        "xxd",
+        "python3"
+      ],
+      "script": "printf 'Bash\\nbinary\\000tail' > sample.bin\nif [[ $(type -t binhex) == builtin ]]; then\nbinhex sample.bin\nelse\nxxd -p -c 999999 sample.bin | /usr/bin/python3 -c 'import sys; d=sys.stdin.buffer.read(); assert not d or d.endswith(b'\"'\"'\\n'\"'\"'); sys.stdout.buffer.write(d[:-1] if d else d)'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-read-boundary",
+      "kind": "parity",
+      "purpose": "Encode 4097 deterministic bytes to cover a read crossing the implementation's 4096-byte buffer boundary.",
+      "requires": [
+        "xxd",
+        "python3"
+      ],
+      "script": "printf '%4097s' '' > boundary.bin\nif [[ $(type -t binhex) == builtin ]]; then\nbinhex boundary.bin\nelse\nxxd -p -c 999999 boundary.bin | /usr/bin/python3 -c 'import sys; d=sys.stdin.buffer.read(); assert not d or d.endswith(b'\"'\"'\\n'\"'\"'); sys.stdout.buffer.write(d[:-1] if d else d)'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-compact-binary",
+      "kind": "parity",
+      "purpose": "Decode compact uppercase and lowercase hex into NUL, newline, printable, and high-bit bytes.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if [[ $(type -t binhex) != builtin ]]; then\n  printf '000a41b2ff\\n' | xxd -r -p\nelse\n  printf '000a41b2ff\\n' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-whitespace",
+      "kind": "parity",
+      "purpose": "Decode plain hex containing spaces, a tab, and a line break between byte pairs.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if [[ $(type -t binhex) != builtin ]]; then\n  printf '00 41\\nFF\\t42\\n' | xxd -r -p\nelse\n  printf '00 41\\nFF\\t42\\n' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-relative-file",
+      "kind": "parity",
+      "purpose": "Decode a whitespace-formatted relative FILE argument and preserve binary output.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "printf '0a 00 5a ff\\n' > encoded.txt\nif [[ $(type -t binhex) != builtin ]]; then\n  xxd -r -p encoded.txt\nelse\n  binhex -d encoded.txt\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-leading-prefix",
+      "kind": "contract",
+      "purpose": "Check the documented one-time leading 0X prefix and ASCII whitespace handling.",
+      "script": "printf ' \\t0X0041 ff\\n' | binhex -d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AEH/"
+    },
+    {
+      "id": "decode-odd-nibble",
+      "kind": "contract",
+      "purpose": "Strict rejection of input with no complete valid byte: no output and visible diagnostic. Original valid-prefix malformed inputs remain in separate xxd compatibility cases.",
+      "script": "printf '%s' 4 | binhex -d",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "decode-nonhex-characters",
+      "kind": "contract",
+      "purpose": "Strict rejection of input with no complete valid byte: no output and visible diagnostic. Original valid-prefix malformed inputs remain in separate xxd compatibility cases.",
+      "script": "printf '%s' g | binhex -d",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "deferred-short-io-injection",
+      "kind": "deferred",
+      "purpose": "Exercise binhex read/write loops after deterministic EINTR and short transfers.",
+      "reason": "A future disposable VM or audited syscall mock must wrap only fixture file descriptors and inject EINTR plus short reads/writes. The provided harness has no deterministic syscall-injection fixture, and ordinary files/pipes cannot reliably force these return patterns."
+    },
+    {
+      "id": "decode-single-zero",
+      "kind": "contract",
+      "purpose": "Strict rejection of input with no complete valid byte: no output and visible diagnostic. Original valid-prefix malformed inputs remain in separate xxd compatibility cases.",
+      "script": "printf '%s' 0 | binhex -d",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "decode-odd-nibble-xxd-compatibility",
+      "kind": "parity",
+      "purpose": "Compare malformed input with permissive xxd reverse mode. FAIL records an intentional interface difference, not a strict-decoder defect. Raw output/status/diagnostics are retained.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if [[ $(type -t binhex) != builtin ]]; then\n  printf '414' | xxd -r -p\nelse\n  printf '414' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-nonhex-characters-xxd-compatibility",
+      "kind": "parity",
+      "purpose": "Compare malformed input with permissive xxd reverse mode. FAIL records an intentional interface difference, not a strict-decoder defect. Raw output/status/diagnostics are retained.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if [[ $(type -t binhex) != builtin ]]; then\n  printf '41gg42' | xxd -r -p\nelse\n  printf '41gg42' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file",
+      "kind": "contract",
+      "purpose": "Missing relative input fails before encoding any bytes.",
+      "script": "binhex absent",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "dash-input-and-empty-decode",
+      "kind": "contract",
+      "purpose": "Explicit dash reads stdin; empty hex decodes to no bytes.",
+      "script": "printf 'A' | binhex -\nprintf '' | binhex -d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "41"
+    }
+  ]
+}

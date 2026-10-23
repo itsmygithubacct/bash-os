@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "loadable": "script",
+  "reference": "The builtin deliberately records and replays raw byte logs, as documented in script.c. util-linux script writes timestamped typescript wrappers and scriptreplay skips a header line and adds a final newline, so raw-format operation cases use independent byte/status contracts. Only the common missing-file error uses util-linux parity.",
+  "coverage": [
+    "Bash registration/help and custom version metadata.",
+    "Independent raw PTY log truncation, append-prefix preservation, echo-disabled input/output logs and child status propagation.",
+    "Independent byte-exact classic/advanced raw replay, selected streams, bounded I/O failures and same-shell recovery.",
+    "Common missing timing-file failure compared with installed util-linux scriptreplay.",
+    "Recorder size-limit validation rejects nonfinite, negative and out-of-range values before opening logs or starting a child; small finite recordings preserve integer, fractional, suffixed and maximum-limit acceptance."
+  ],
+  "exclusions": [
+    "Live terminal input, terminal resize and SIGWINCH recording are deferred because the fixture runner supplies no PTY interaction or resize driver.",
+    "Timing delays, advanced resize records, asciinema timestamps and chunk partitioning are not asserted: those outputs depend on scheduling and need a PTY-aware independent validator.",
+    "This loadable does not implement general filesystem utilities; ordinary private transcript file creation, truncation and append are covered through its custom recording interface.",
+    "No timestamped util-linux typescript-file parity is claimed: this builtin intentionally stores raw payloads. Timing values, chunk scheduling, cast files and interactive resizing are outside these bounded fixtures.",
+    "Advanced H/S replay metadata is skipped without validation; only classic and O/I data records receive the checked numeric-field parser."
+  ],
+  "cases": [
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Check Bash exposes script as a builtin and its registered help text includes the documented replay synopsis.",
+      "script": "[[ $(type -t script) == builtin ]]\n[[ $(help script) == *'script replay TIMING OUT'* ]]\nprintf 'builtin help available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version-contract",
+      "kind": "contract",
+      "purpose": "Check the loadable's documented --version output without treating it as GNU parity.",
+      "script": "script --version",
+      "expected_status": 0,
+      "stdout": "script 1.0 (bash-loadable)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "record-truncate",
+      "kind": "contract",
+      "purpose": "Independently verify the documented raw-log contract: truncate existing content to exactly the child PTY bytes. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "printf 'obsolete transcript\\n' > transcript\n  script record -c 'printf \"new\\n\"' -O transcript\nprintf '%s' $'new\\r\\n' > expected.log\n/usr/bin/cmp expected.log transcript\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10,
+      "stdout": "new\r\n"
+    },
+    {
+      "id": "record-append",
+      "kind": "contract",
+      "purpose": "Independently verify the documented raw-log contract: retain the exact existing prefix and append only child PTY bytes. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "printf 'prefix:' > transcript\n  script record -a -c 'printf \"tail\\n\"' -O transcript\nprintf '%s' $'prefix:tail\\r\\n' > expected.log\n/usr/bin/cmp expected.log transcript\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10,
+      "stdout": "tail\r\n"
+    },
+    {
+      "id": "record-input-no-echo",
+      "kind": "contract",
+      "purpose": "Independently verify the documented raw-log contract: preserve exact input bytes, output CRLF bytes and echo-disabled visible reply. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "  printf 'pear\\n' | script record -E never -c 'IFS= read -r answer; printf \"reply:%s\\n\" \"$answer\"' -I input.log -O output.log\nprintf '%s' $'pear\\n' > expected.log\n/usr/bin/cmp expected.log input.log\nprintf '%s' $'reply:pear\\r\\n' > expected.log\n/usr/bin/cmp expected.log output.log\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10,
+      "stdout": "reply:pear\r\n"
+    },
+    {
+      "id": "record-child-status",
+      "kind": "contract",
+      "purpose": "Independently verify the documented raw-log contract: return child status 7 while preserving the exact output log. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "if script record -c 'printf \"child-failure\\n\"; exit 7' -O transcript; then rc=0; else rc=$?; fi\n[[ $rc == 7 ]]\nprintf 'child status=%d\\n' \"$rc\"\nprintf '%s' $'child-failure\\r\\n' > expected.log\n/usr/bin/cmp expected.log transcript\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10,
+      "stdout": "child-failure\r\nchild status=7\n"
+    },
+    {
+      "id": "replay-classic-binary-chunks",
+      "kind": "contract",
+      "purpose": "Independently assert byte-exact raw-log replay with zero-delay classic chunks including NUL.",
+      "script": "printf '0.000000 3\\n0.000000 2\\n' > timing\nprintf 'A\\000BC\\n' > output.log\nscript replay timing output.log -d 1000",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "A\u0000BC\n"
+    },
+    {
+      "id": "replay-advanced-output",
+      "kind": "contract",
+      "purpose": "Independently assert byte-exact raw-log replay with zero-delay advanced output records while skipping metadata and input events.",
+      "script": "printf 'H 0.000000 START_TIME 1\\nO 0.000000 3\\nI 0.000000 2\\nO 0.000000 2\\n' > timing\nprintf 'abcde' > output.log\nprintf 'XY' > input.log\nscript replay timing output.log -I input.log",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "abcde"
+    },
+    {
+      "id": "replay-selected-input",
+      "kind": "contract",
+      "purpose": "Independently assert byte-exact raw-log replay with zero-delay advanced input-only selection while consuming skipped output records.",
+      "script": "printf 'H 0.000000 START_TIME 1\\nO 0.000000 3\\nI 0.000000 2\\nO 0.000000 2\\n' > timing\nprintf 'abcde' > output.log\nprintf 'XY' > input.log\nscript replay timing output.log -I input.log -x I",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "XY"
+    },
+    {
+      "id": "replay-missing-timing",
+      "kind": "parity",
+      "purpose": "Check a missing relative timing file fails with a diagnostic and leaves the existing output log unchanged, compared with util-linux scriptreplay.",
+      "script": "printf 'untouched' > output.log\nif [[ $(type -t script) == builtin ]]; then\n  if script replay missing.timing output.log; then exit 90; else rc=$?; fi\nelse\n  if scriptreplay -t missing.timing -O output.log; then exit 91; else rc=$?; fi\nfi\nexit \"$rc\"",
+      "requires": [
+        "scriptreplay"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-resize-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise live keystrokes, terminal echo restoration, window-size propagation, SIGWINCH timing events and asciinema resize events.",
+      "reason": "Requires a dedicated PTY driver in a future disposable VM or syscall mock that can inject input, change TIOCSWINSZ, deliver SIGWINCH, and inspect termios plus recorded resize output. The current fixture runner supplies stdin from /dev/null and has no terminal-control driver; no live resize operation is claimed here."
+    },
+    {
+      "id": "replay-short-log-error",
+      "kind": "contract",
+      "purpose": "A valid classic count requiring more bytes than a tiny raw log contains must fail, reporting truncation after its available prefix.",
+      "script": "printf '0 3\\n' > timing\nprintf AB > output.log\nscript replay timing output.log",
+      "expected_status": 1,
+      "stdout": "AB",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-closed-output-error",
+      "kind": "contract",
+      "purpose": "Writing a valid raw replay to an explicitly closed private descriptor must report failure rather than succeeding silently.",
+      "script": "printf '0 2\\n' > timing\nprintf AB > output.log\nscript replay timing output.log -F 9 9>&-",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-invalid-timing-error",
+      "kind": "contract",
+      "purpose": "An ordinary non-record line is not a valid classic or advanced timing event and must fail without invented output.",
+      "script": "printf 'not-a-timing-record\\n' > timing\nprintf AB > output.log\nscript replay timing output.log",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-error-recovery",
+      "kind": "contract",
+      "purpose": "A failed output descriptor leaves later same-shell replay state and bytes intact; selecting input then replaying default output must reset stream selection.",
+      "script": "printf 'O 0 2\\nI 0 2\\n' > timing\nprintf AB > output.log\nprintf XY > input.log\nrc=0; script replay timing output.log -F 9 9>&- || rc=$?\n[[ $rc == 1 ]]\nprintf 'failed=%s\\n' \"$rc\"\nscript replay timing output.log -I input.log -x I\nscript replay timing output.log -I input.log",
+      "expected_status": 0,
+      "stdout": "failed=1\nXYAB",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-skipped-short-log-error",
+      "kind": "contract",
+      "purpose": "Selecting input still consumes declared output records; a missing skipped-output byte must fail instead of seeking beyond EOF and concealing truncation.",
+      "script": "printf 'O 0 3\\nI 0 2\\n' > timing\nprintf AB > output.log\nprintf XY > input.log\nscript replay timing output.log -I input.log -x I",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-selected-input-needs-log",
+      "kind": "contract",
+      "purpose": "Selecting an advanced input event requires an input log instead of silently returning success without the requested bytes.",
+      "script": "printf 'I 0 2\\n' > timing\nprintf AB > output.log\nscript replay timing output.log -x I",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-option-errors-recover",
+      "kind": "contract",
+      "purpose": "Invalid divisor and output-descriptor spellings return custom API usage status 2 without consuming output, and a later valid replay succeeds.",
+      "script": "printf '0 2\\n' > timing\nprintf AB > output.log\nfor value in bad 0; do\n rc=0; script replay timing output.log -d \"$value\" || rc=$?\n [[ $rc == 2 ]]\ndone\nrc=0; script replay timing output.log -F bad || rc=$?\n[[ $rc == 2 ]]\nscript replay timing output.log",
+      "expected_status": 0,
+      "stdout": "AB",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "record-open-error-and-state-reset",
+      "kind": "contract",
+      "purpose": "A missing private log parent fails before running a child. Later recordings restore child state and reset append mode so a default recording truncates the prior raw log. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "rc=0; script record -c 'printf unwanted' -O absent/transcript || rc=$?\n[[ $rc == 1 && ! -e absent ]]\nprintf 'open-error=%s\\n' \"$rc\"\nscript record -a -c 'printf A' -O transcript\nscript record -c 'printf B' -O transcript\nprintf '%s' 'B' > expected.log\n/usr/bin/cmp expected.log transcript",
+      "expected_status": 0,
+      "stdout": "open-error=1\nAB",
+      "stderr": "nonempty",
+      "timeout": 10
+    },
+    {
+      "id": "replay-record-number-validation",
+      "kind": "contract",
+      "purpose": "Ordinary malformed, negative and out-of-range byte counts, delays and resize dimensions fail before emitting raw log bytes. This is input validation, not a crash test.",
+      "script": "printf AB > output.log\nfor record in '0 -1' '0 9223372036854775808' '0 2x' 'O 0 9223372036854775808' '1e999 0' '0 RESIZE -1 80' '0 RESIZE 4294967296 80' '0 RESIZE 24 18446744073709551616' '0 RESIZE 24x 80'; do\n printf '%s\\n' \"$record\" > timing\n rc=0; script replay timing output.log || rc=$?\n [[ $rc == 1 ]]\ndone\nprintf 'invalid numeric records rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid numeric records rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replay-classic-resize-and-advanced-metadata",
+      "kind": "contract",
+      "purpose": "Checked numeric parsing keeps classic resize markers skippable and retains advanced header/signal metadata semantics without consuming payload bytes.",
+      "script": "printf '0.000000 RESIZE 24 80\\n0.000000 2\\n' > timing\nprintf AB > output.log\nscript replay timing output.log\nprintf 'H 0.000000 START_TIME 1\\nS 0.000000 SIGWINCH ROWS=24 COLS=80\\nO 0.000000 2\\n' > timing\nprintf CD > output.log\nscript replay timing output.log",
+      "expected_status": 0,
+      "stdout": "ABCD",
+      "stderr": "empty"
+    },
+    {
+      "id": "record-valid-size-limits",
+      "kind": "contract",
+      "purpose": "Preserve accepted nonnegative size syntax using only empty or two-byte child output: zero, integer and fractional limits, K/M/G suffixes, and the largest signed 64-bit limit. No large output is generated. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "script record -c ':' -O empty.log -l 0\n[[ ! -s empty.log ]]\nfor limit in 2 2.9 1K 1m 1G 9223372036854775807; do\n script record -c 'printf AB' -O output.log -l \"$limit\"\n printf '%s' 'AB' > expected.log\n/usr/bin/cmp expected.log output.log\ndone",
+      "expected_status": 0,
+      "stdout": "ABABABABABAB",
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
+      "id": "record-invalid-size-limits",
+      "kind": "contract",
+      "purpose": "reject ordinary malformed, negative, nonfinite and excessive size limits with usage status 2 before creating logs or running a child. All inputs are short and output remains bounded.",
+      "script": "for limit in bad -1 12Q nan inf 1e99999 9223372036854775808 9000000000G; do\n rc=0; script record -c 'printf child-ran > marker' -O output.log -l \"$limit\" || rc=$?\n [[ $rc == 2 && ! -e marker && ! -e output.log ]]\ndone\nprintf 'invalid size limits rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid size limits rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "record-echo-mode-before-input",
+      "kind": "contract",
+      "purpose": "Configure each new private PTY before forwarding already available pipe input. Explicit echo modes must take effect on the first byte and reset across calls. Compare the entire raw file with independent fixed bytes, including any NUL or trailing data.",
+      "script": "for mode in never always never; do\n printf 'ready\\n' | script record -E \"$mode\" -c 'IFS= read -r answer; printf \"reply:%s\\n\" \"$answer\"' -O output.log\n expected=$'reply:ready\\r\\n'\n if [[ $mode == always ]]; then expected=$'ready\\r\\nreply:ready\\r\\n'; fi\n printf '%s' \"$expected\" > expected.log\n /usr/bin/cmp expected.log output.log\ndone",
+      "expected_status": 0,
+      "stdout": "reply:ready\r\nready\r\nreply:ready\r\nreply:ready\r\n",
+      "stderr": "empty",
+      "timeout": 10
+    }
+  ]
+}

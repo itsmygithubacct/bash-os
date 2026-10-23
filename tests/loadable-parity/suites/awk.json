@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "loadable": "awk",
+  "reference": "Parity cases call GNU awk via the gawk executable in reference Bash; a small Bash function dispatches to the awk builtin only when that builtin exists, which occurs in the candidate. The runner checks the reference exit status, then compares stdout bytes, stderr policy, and relative fixture trees (contents, modes, hardlinks, and symlink targets). The sole contract case uses Bash type/help builtins and the source's awk_doc text; its expected stdout is stated directly.",
+  "coverage": [
+    "Bash builtin availability and help metadata",
+    "Field splitting, -F and -v, record counters, associative aggregation, OFS, and formatted output",
+    "User functions, multidimensional associative subscripts, membership, and for-in iteration",
+    "gsub, match/RSTART/RLENGTH, regex split, and sub",
+    "Multiple input files, FILENAME, NR/FNR, and nextfile",
+    "getline and close on a relative fixture file",
+    "Output redirection and append effects on relative fixture files",
+    "-f and -e script composition with a relative fixture script file",
+    "exit status and END execution after exit",
+    "GNU's writable FNR behavior, retained as a parity assertion",
+    "A gated system() call restricted to a shell builtin and a relative fixture output",
+    "Invalid option status with diagnostic presence",
+    "Writable NR/FNR assignments, compound and increment forms, strings/fractions and new-input FNR reset.",
+    "Counter changes with fallback AST dispatch and main-input getline."
+  ],
+  "exclusions": [
+    "RT is outside the implementation's documented scope.",
+    "Time-dependent functions, random-number sequences, and ENVIRON contents are omitted because their values depend on runtime state.",
+    "print-to-command and command-pipe getline behavior are not covered; the system() fixture exercises only a fixed printf command that writes inside the private fixture tree.",
+    "Locale-sensitive behavior beyond the harness's C locale is not covered."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirms Bash reports awk as a builtin and exposes the builtin help topic.",
+      "script": "[[ $(type -t awk) == builtin ]] && doc=$(help awk) && printf 'builtin-and-help\\n'",
+      "expected_status": 0,
+      "stdout": "builtin-and-help\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fields-and-aggregation",
+      "kind": "parity",
+      "purpose": "Checks comma field splitting, pre-BEGIN -v assignment, OFS formatting, record numbers, and associative totals against GNU awk.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'a,2' 'b,3' 'a,4' | awk_cmd -F, -v OFS=: '{ total[$1] += $2; print NR, $1, NF } END { print \"sum\", total[\"a\"], total[\"b\"], NR }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "functions-and-arrays",
+      "kind": "parity",
+      "purpose": "Checks user-defined return values, multidimensional subscripts, array membership, and order-independent for-in aggregation.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'function twice(x) { return 2*x } BEGIN { a[\"north\",\"oak\"] = 3; a[\"south\",\"pine\"] = 4; sum = 0; for (k in a) sum += a[k]; printf \"double=%d north=%d member=%d\\n\", twice(sum), a[\"north\",\"oak\"], ((\"north\",\"oak\") in a) }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "regex-string-builtins",
+      "kind": "parity",
+      "purpose": "Checks substitution counts and mutation, match positions and special variables, regex field splitting, and single substitution.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { s = \"abracadabra\"; n = gsub(/a/, \"A\", s); print n, s; pos = match(s, /cA/); print pos, RSTART, RLENGTH; n = split(\"red::blue:green\", parts, /:+/); print n, parts[1], parts[2], parts[3]; t = \"x9\"; print sub(/[0-9]/, \"!\", t), t }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-files-nextfile",
+      "kind": "parity",
+      "purpose": "Checks per-file counters, global NR, FILENAME, and nextfile while reading two relative fixtures.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'a1' 'a2' > first\nprintf '%s\\n' 'b1' 'b2' > second\nawk_cmd 'FNR == 2 { nextfile } { print FILENAME, NR, FNR, $0 } END { print \"end\", NR }' first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "getline-relative-file",
+      "kind": "parity",
+      "purpose": "Checks explicit getline return values, successive reads, EOF, and close on a private relative input file.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'red' 'blue' > side\nawk_cmd 'BEGIN { rc = (getline first < \"side\"); print rc, first; rc = (getline second < \"side\"); print rc, second; rc = (getline third < \"side\"); print rc; close(\"side\") }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "relative-output-redirection",
+      "kind": "parity",
+      "purpose": "Checks truncate and append redirections, implicit stream closure, stdout, and the resulting relative report file.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'alpha' 'beta' > input\nawk_cmd 'BEGIN { print \"header\" > \"report\"; print \"intro\" >> \"report\" } { print NR, $0 >> \"report\"; print $0 } END { print \"count\", NR >> \"report\" }' input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "script-files-and-options",
+      "kind": "parity",
+      "purpose": "Checks GNU-compatible -F, -v, -f, and -e option composition using only relative fixture files.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'BEGIN { OFS = \"|\" }' > setup.awk\nprintf '%s\\n' 'low:3' 'high:8' > values\nawk_cmd -F: -v limit=5 -f setup.awk -e '$2 >= limit { print $1, $2 }' values",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "exit-runs-end",
+      "kind": "parity",
+      "purpose": "Checks that exit in BEGIN preserves its status and still runs END.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { print \"begin\"; exit 7 } END { print \"end\", NR }'",
+      "expected_status": 7,
+      "stderr": "empty"
+    },
+    {
+      "id": "writable-fnr",
+      "kind": "parity",
+      "purpose": "Check GNU gawk's writable FNR and subsequent automatic increment; retain the original independent parity assertion.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' 'first' 'second' > records\nawk_cmd '{ if (NR == 1) FNR = 40; print NR, FNR }' records",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "system-private-file",
+      "kind": "parity",
+      "purpose": "Checks the documented BASHAWK_ALLOW_SYSTEM gate with one fixed shell-builtin printf that creates a relative fixture file, then reads that file through Bash.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nBASHAWK_ALLOW_SYSTEM=1 awk_cmd 'BEGIN { print system(\"printf \\\"child\\\\n\\\" > system.out\") }'\nIFS= read -r child < system.out\nprintf 'child=%s\\n' \"$child\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Check GNU gawk's status 1 and diagnostic for an unknown long option.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd --not-an-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "writable-counter-forms",
+      "kind": "parity",
+      "purpose": "GNU gawk oracle for assignment, compound assignment, prefix/postfix increments, ordinary fractional counters and retained assigned string spelling.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { NR=5; FNR=8; print NR,FNR; print NR++,++FNR; NR+=2; FNR-=3; print NR,FNR; FNR=\"0040\"; print \"<\" FNR \">\"; FNR++; NR=2.5; NR+=0.25; print NR,FNR }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "writable-counters-file-reset",
+      "kind": "parity",
+      "purpose": "Counter assignments affect subsequent record increments; FNR resets on each input file while NR continues from its assigned value. Run both lowered and fallback AST dispatch.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' a b > first\nprintf '%s\\n' c d > second\nfor mode in 0 1; do\n BASHAWK_NO_LOWER=$mode awk_cmd '{ if ($0==\"a\") { NR=20; FNR=30 } print FILENAME,NR,FNR } END { print NR,FNR }' first second\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "counter-presets-and-stdin",
+      "kind": "parity",
+      "purpose": "GNU gawk initializes FNR after command-line presets; NR retains its preset integer value. Later string assignments affect automatic stdin record increments.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' first second | awk_cmd -v NR=10.5 -v FNR=20 'BEGIN { print NR,FNR } { print NR,FNR; if ($0==\"first\") { NR=\"0030\"; FNR=\"0040\"; print \"<\" NR \">\",\"<\" FNR \">\" } } END { print NR,FNR }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "main-getline-counter-assignment",
+      "kind": "parity",
+      "purpose": "Main-input getline during BEGIN opens stdin and advances both counters. Later reassignment must survive into subsequent automatic reads without a second FNR reset.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '%s\\n' first second | awk_cmd 'BEGIN { print getline item; print item,NR,FNR; NR=10; FNR=20 } { print $0,NR,FNR } END { print NR,FNR }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-options-and-no-program",
+      "kind": "parity",
+      "purpose": "Check GNU gawk usage-error statuses for unknown short/long options and no program; preserve diagnostics without comparing implementation-specific wording.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nfor scenario in short long none; do\n if case $scenario in short) awk_cmd -Z ;; long) awk_cmd --not-an-option ;; none) awk_cmd ;; esac; then exit 91; else rc=$?; fi\n printf '%s:%s\\n' \"$scenario\" \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "counter-value-conversion",
+      "kind": "parity",
+      "purpose": "Independent GNU gawk oracle for ordinary fractional/string counter assignment values versus subsequent counter reads.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { NR=2.5; FNR=3.5; print \"assigned\",NR,FNR; print \"expr\",(NR=4.5),(FNR=5.5); print \"read\",NR,FNR; NR=\"004.5\"; FNR=\"005.5\"; print \"str\",NR,FNR; print \"post\",NR++,FNR++; print \"read\",NR,FNR }'\nprintf '%s\\n' a b | awk_cmd 'BEGIN { NR=10; FNR=20; print \"begin\",NR,FNR } { print \"record\",NR,FNR }'\nprintf '%s\\n' a b | awk_cmd 'BEGIN { FNR=20; print \"getline\",(getline x),NR,FNR } { print \"record\",NR,FNR }'\nprintf '%s\\n' a b > counter-file\nawk_cmd -v FNR=20 'BEGIN { print \"file-preset\",FNR } { print \"file-record\",NR,FNR }' counter-file\nawk_cmd 'BEGIN { FNR=20; print \"file-begin\",FNR } { print \"file-record\",NR,FNR }' counter-file\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

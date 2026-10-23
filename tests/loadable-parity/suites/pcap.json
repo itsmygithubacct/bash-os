@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "loadable": "pcap",
+  "reference": "No matching GNU pcap-info/capture CLI is available in the pinned inventory (tcpdump is marked missing). Runnable contracts use manually byte-encoded classic pcap fixtures based on the independent version-2.4 file-format layout and the documented pcap info output; metadata cases use Bash's documented type/help builtins. Packet-capture behavior is deferred pending an isolated privileged VM or AF_PACKET mock.",
+  "coverage": [
+    "Bash builtin availability and documented help metadata",
+    "pcap info on empty and multi-record little-endian classic pcap files",
+    "swapped-endian microsecond and little-endian nanosecond pcap headers",
+    "recognized linktype names and accumulated captured-payload byte count",
+    "rejection of invalid magic and incomplete global/record framing",
+    "rejection of record payloads shorter than incl_len"
+  ],
+  "exclusions": [
+    "No GNU parity cases: the pinned loadables inventory names tcpdump as the counterpart but marks it missing, and Bash does not provide the pcap loadable in reference mode.",
+    "Live capture, interface binding, packet-count/snaplen behavior, timeout behavior, output record timestamps, and CAP_NET_RAW capability handling require controlled packet injection and an isolated privileged VM or AF_PACKET mock."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Check Bash type metadata identifies pcap as a loadable builtin; this is availability metadata, not operation coverage.",
+      "script": "type -t pcap",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Check Bash help metadata contains the documented capture synopsis, info verb, and short description; this is metadata, not operation coverage.",
+      "script": "doc=$(help pcap)\n[[ $doc == *'pcap [-i IFACE] -w FILE'* ]]\n[[ $doc == *'Packet capture writer (libpcap classic file format).'* ]]\n[[ $doc == *'pcap info FILE'* ]]\nprintf 'documented pcap help entries present\\n'",
+      "expected_status": 0,
+      "stdout": "documented pcap help entries present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "info-empty-file",
+      "kind": "contract",
+      "purpose": "Check the documented info summary for a zero-record little-endian microsecond classic pcap with Ethernet linktype and snaplen 64.",
+      "script": "printf '\\324\\303\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > empty.pcap\npcap info empty.pcap",
+      "expected_status": 0,
+      "stdout": "file:     empty.pcap\nmagic:    0xa1b2c3d4\nversion:  2.4\nsnaplen:  64\nlinktype: 1 (EN10MB)\nrecords:  0\npayload:  0 bytes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "info-multiple-records",
+      "kind": "contract",
+      "purpose": "Check record walking and payload accounting on two valid records, including an incl_len smaller than orig_len and a NUL payload byte.",
+      "script": "printf '\\324\\303\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > records.pcap\nprintf '\\001\\000\\000\\000\\002\\000\\000\\000\\003\\000\\000\\000\\003\\000\\000\\000abc' >> records.pcap\nprintf '\\004\\000\\000\\000\\005\\000\\000\\000\\002\\000\\000\\000\\007\\000\\000\\000\\000Z' >> records.pcap\npcap info records.pcap",
+      "expected_status": 0,
+      "stdout": "file:     records.pcap\nmagic:    0xa1b2c3d4\nversion:  2.4\nsnaplen:  64\nlinktype: 1 (EN10MB)\nrecords:  2\npayload:  5 bytes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "info-swapped-endian",
+      "kind": "contract",
+      "purpose": "Check decoding of a standard swapped-endian microsecond header and record length, including the RAW linktype label.",
+      "script": "printf '\\241\\262\\303\\324\\000\\002\\000\\004' > swapped.pcap\nprintf '\\000\\000\\000\\000\\000\\000\\000\\000' >> swapped.pcap\nprintf '\\000\\000\\000\\100\\000\\000\\000\\145' >> swapped.pcap\nprintf '\\000\\000\\000\\011\\000\\000\\000\\012\\000\\000\\000\\001\\000\\000\\000\\001z' >> swapped.pcap\npcap info swapped.pcap",
+      "expected_status": 0,
+      "stdout": "file:     swapped.pcap\nmagic:    0xd4c3b2a1 (swapped endian)\nversion:  2.4\nsnaplen:  64\nlinktype: 101 (RAW)\nrecords:  1\npayload:  1 bytes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "info-nanosecond-header",
+      "kind": "contract",
+      "purpose": "Check acceptance of the classic pcap nanosecond-resolution magic and a recognized Linux cooked linktype.",
+      "script": "printf '\\115\\074\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\200\\000\\000\\000\\161\\000\\000\\000' > nano.pcap\npcap info nano.pcap",
+      "expected_status": 0,
+      "stdout": "file:     nano.pcap\nmagic:    0xa1b23c4d\nversion:  2.4\nsnaplen:  128\nlinktype: 113 (LINUX_SLL)\nrecords:  0\npayload:  0 bytes\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "info-bad-magic",
+      "kind": "contract",
+      "purpose": "Check rejection of a full-sized global header whose magic field is not any recognized classic pcap byte order or timestamp resolution.",
+      "script": "printf '\\000\\000\\000\\000\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > bad-magic.pcap\npcap info bad-magic.pcap",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "info-truncated-global",
+      "kind": "contract",
+      "purpose": "Check that a file shorter than the required 24-byte global pcap header is reported as malformed.",
+      "script": ": > short-global.pcap\npcap info short-global.pcap",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "info-truncated-record-header",
+      "kind": "contract",
+      "purpose": "Check that an incomplete 16-byte per-record header fails after the valid global metadata is read.",
+      "script": "printf '\\324\\303\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > short-record.pcap\nprintf '\\001\\000\\000\\000\\002\\000\\000\\000' >> short-record.pcap\npcap info short-record.pcap",
+      "expected_status": 1,
+      "stdout": "file:     short-record.pcap\nmagic:    0xa1b2c3d4\nversion:  2.4\nsnaplen:  64\nlinktype: 1 (EN10MB)\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "info-truncated-payload",
+      "kind": "contract",
+      "purpose": "Require info to reject a record that declares three captured bytes but contains only one, as classic pcap framing requires incl_len payload bytes. This catches a real parser compatibility gap if the record walk skips beyond EOF.",
+      "script": "printf '\\324\\303\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > short-payload.pcap\nprintf '\\001\\000\\000\\000\\002\\000\\000\\000\\003\\000\\000\\000\\003\\000\\000\\000a' >> short-payload.pcap\npcap info short-payload.pcap",
+      "expected_status": 1,
+      "stdout": "file:     short-payload.pcap\nmagic:    0xa1b2c3d4\nversion:  2.4\nsnaplen:  64\nlinktype: 1 (EN10MB)\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "capture-write-fixed-frames",
+      "kind": "deferred",
+      "purpose": "Capture a known frame count into a classic pcap file and verify global and per-record fields, snaplen truncation, and output permissions.",
+      "reason": "Requires CAP_NET_RAW plus deterministic Ethernet frame injection on a private isolated link, or a reviewed AF_PACKET mock. A future disposable VM must inject fixed frame bytes, run capture with bounded -c/-s/-W settings, and independently decode the resulting pcap; no host interface or real network target is in scope."
+    },
+    {
+      "id": "capture-interface-timeout",
+      "kind": "deferred",
+      "purpose": "Check interface selection and bounded timeout behavior with and without injected packets.",
+      "reason": "Requires a disposable VM with a private test interface that can be selected by name and driven by a controlled packet source while holding CAP_NET_RAW. A future fixture should verify only frames from that interface are written and that -W terminates the no-traffic case within a bounded interval."
+    },
+    {
+      "id": "info-swapped-nanosecond",
+      "kind": "contract",
+      "purpose": "Decode the standard big-endian nanosecond classic pcap magic 0xa1b23c4d and version-2.4 header, independently encoded with snaplen 128 and LINKTYPE_LINUX_SLL. This is a normal zero-record file, requiring no capture or network activity.",
+      "script": "printf '\\241\\262\\074\\115\\000\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\200\\000\\000\\000\\161' > swapped-nano.pcap\npcap info swapped-nano.pcap",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "file:     swapped-nano.pcap\nmagic:    0x4d3cb2a1 (swapped endian)\nversion:  2.4\nsnaplen:  128\nlinktype: 113 (LINUX_SLL)\nrecords:  0\npayload:  0 bytes\n"
+    },
+    {
+      "id": "info-zero-length-record",
+      "kind": "contract",
+      "purpose": "A complete record header with incl_len zero contributes one record and no payload; original length may exceed captured length.",
+      "script": "printf '\\324\\303\\262\\241\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\100\\000\\000\\000\\001\\000\\000\\000' > zero.pcap\nprintf '\\001\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\007\\000\\000\\000' >> zero.pcap\npcap info zero.pcap",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "file:     zero.pcap\nmagic:    0xa1b2c3d4\nversion:  2.4\nsnaplen:  64\nlinktype: 1 (EN10MB)\nrecords:  1\npayload:  0 bytes\n"
+    },
+    {
+      "id": "info-swapped-nanosecond-record",
+      "kind": "contract",
+      "purpose": "Read a normal big-endian nanosecond record whose header and payload are independently encoded from the classic pcap 2.4 field layout.",
+      "script": "printf '\\241\\262\\074\\115\\000\\002\\000\\004\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\200\\000\\000\\000\\161\\000\\000\\000\\007\\000\\000\\037\\100\\000\\000\\000\\003\\000\\000\\000\\003\\141\\142\\143' > swapped-record.pcap\npcap info swapped-record.pcap",
+      "expected_status": 0,
+      "stdout": "file:     swapped-record.pcap\nmagic:    0x4d3cb2a1 (swapped endian)\nversion:  2.4\nsnaplen:  128\nlinktype: 113 (LINUX_SLL)\nrecords:  1\npayload:  3 bytes\n",
+      "stderr": "empty"
+    }
+  ]
+}

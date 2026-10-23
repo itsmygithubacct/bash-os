@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "loadable": "bsdgames",
+  "reference": "GNU coreutils tr 9.x under LC_ALL=C provides independent ASCII ROT13 and fixed Caesar transliteration maps. GNU coreutils file commands provide the reference side for a private relative-path file lifecycle and tree comparison. The other runnable expectations are contract checks: Bash type/help metadata, mathematically enumerated primes, English cardinal spelling, standard International Morse code, and the documented invalid-game usage status. No bsdgames result is used to construct an expectation.",
+  "coverage": [
+    "Bash builtin type/help metadata is present.",
+    "ROT13 stdin filtering preserves binary nonletters, NUL, high bytes, and a missing final newline against GNU tr.",
+    "ROT13 argument joining and newline behavior are compared against GNU tr.",
+    "An explicit positive Caesar shift is compared against GNU tr on binary stdin.",
+    "Prime range lower and upper boundaries are checked against a hand-enumerated mathematical result.",
+    "Negative grouped and zero integer spelling are checked against the English cardinal contract.",
+    "Morse letters, a digit, punctuation skipping, and word separation are checked against International Morse code.",
+    "Unknown-game dispatch returns a usage failure without stdout.",
+    "ROT13 consumes a moved file after ordinary private file setup; tree comparison covers setup effects without inflating game operation counts."
+  ],
+  "exclusions": [
+    "No full upstream BSD-games conformance is claimed; the binary contains bounded adapters and contracts vary by game.",
+    "Interactive terminal gameplay is deferred because this runner has no PTY or terminal-driver fixture mode.",
+    "External game data, score/state persistence, and broad adapter coverage are not exercised."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify bsdgames as a builtin, and the documented loadable help topic must be available.",
+      "script": "type -t bsdgames\ndoc=$(help bsdgames)",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "rot13-binary-stream",
+      "kind": "parity",
+      "purpose": "Compare the byte-stream filter against GNU tr, including NUL, 0xff, CR/LF, punctuation, and input without a final newline.",
+      "script": "if [[ $(type -t bsdgames) == builtin ]]; then\n  printf '\\000Az Nn! \\377\\r\\nlastZ' | bsdgames rot13\nelse\n  printf '\\000Az Nn! \\377\\r\\nlastZ' | tr 'A-Za-z' 'N-ZA-Mn-za-m'\nfi",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "rot13-arguments",
+      "kind": "parity",
+      "purpose": "Compare argument joining with spaces and the required trailing newline against GNU tr on the equivalent text stream.",
+      "script": "if [[ $(type -t bsdgames) == builtin ]]; then\n  bsdgames rot13 'Hello,' 'WORLD!' '123'\nelse\n  printf '%s\\n' 'Hello, WORLD! 123' | tr 'A-Za-z' 'N-ZA-Mn-za-m'\nfi",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "caesar-positive-shift-stream",
+      "kind": "parity",
+      "purpose": "Compare an explicit Caesar shift of five on stdin against GNU tr's independently written alphabet mapping, preserving nonletters and binary endpoints.",
+      "script": "if [[ $(type -t bsdgames) == builtin ]]; then\n  printf '\\000Az, Hello! \\377' | bsdgames caesar 5\nelse\n  printf '\\000Az, Hello! \\377' | tr 'A-Za-z' 'F-ZA-Ef-za-e'\nfi",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "private-fixture-file-operations",
+      "kind": "parity",
+      "purpose": "Compare ROT13 of a moved private file with GNU tr, with ordinary file operations as setup. Tree comparison additionally checks setup contents/modes/links; these are not separate bsdgames operations.",
+      "script": "mkdir box\ntouch box/temporary\nprintf 'Az, file!\\n' > box/source\nchmod 640 box/source\ncp box/source box/copy\nln box/source box/hard\nln -s source box/symbolic\nmv box/copy box/moved\nrm box/temporary\nif [[ $(type -t bsdgames) == builtin ]]; then\n  bsdgames rot13 < box/moved > box/output\nelse\n  tr 'A-Za-z' 'N-ZA-Mn-za-m' < box/moved > box/output\nfi",
+      "requires": [
+        "mkdir",
+        "touch",
+        "chmod",
+        "cp",
+        "ln",
+        "mv",
+        "rm",
+        "tr"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "primes-inclusive-boundaries",
+      "kind": "contract",
+      "purpose": "Check that a range beginning below the first prime clamps to two and includes a prime at the upper endpoint; the expected list is independently enumerated by divisibility.",
+      "script": "bsdgames primes 0 13",
+      "expected_status": 0,
+      "stdout": "2\n3\n5\n7\n11\n13\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "number-negative-groups-and-zero",
+      "kind": "contract",
+      "purpose": "Check the documented English cardinal spelling for a negative value with omitted zero groups and for zero.",
+      "script": "bsdgames number -2040030\nbsdgames number 0",
+      "expected_status": 0,
+      "stdout": "minus two million forty thousand thirty\nzero\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "morse-word-and-digit-encoding",
+      "kind": "contract",
+      "purpose": "Check standard International Morse encodings for SOS and digit 2, a slash word separator, punctuation skipping, and output newline behavior without a trailing input newline.",
+      "script": "printf 'SOS 2!' | bsdgames morse",
+      "expected_status": 0,
+      "stdout": "... --- ... / ..---\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-game-usage-error",
+      "kind": "contract",
+      "purpose": "An unknown game name must be rejected as a usage error, emit no stdout, and provide a diagnostic.",
+      "script": "bsdgames no-such-game",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-tetris-pty-session",
+      "kind": "deferred",
+      "purpose": "Interactive game controls and terminal redraw behavior need a real bounded terminal session.",
+      "reason": "The declarative runner supplies stdin from /dev/null and has no PTY or terminal driver mode. A future disposable VM test needs a private PTY, fixed TERM and terminal dimensions, scripted key input, deterministic seed, and captured exit/output checks for a short tetris session. This operation was not executed and is not claimed as passed."
+    },
+    {
+      "id": "rot13-empty-and-repeat",
+      "purpose": "Check empty input, then distinct regular-file inputs on repeated calls in one shell against GNU tr.",
+      "kind": "parity",
+      "script": "printf '' > empty; printf 'Hello' > first; printf 'World\\n' > second; if [[ $(type -t bsdgames) == builtin ]]; then bsdgames rot13 < empty; bsdgames rot13 < first; bsdgames rot13 < second; else tr 'A-Za-z' 'N-ZA-Mn-za-m' < empty; tr 'A-Za-z' 'N-ZA-Mn-za-m' < first; tr 'A-Za-z' 'N-ZA-Mn-za-m' < second; fi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    }
+  ]
+}

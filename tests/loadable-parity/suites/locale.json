@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "loadable": "locale",
+  "reference": "There is no equivalent GNU CLI for this shell builtin's set/current/validate verbs: GNU locale reports process locale information through a different interface. Contract expectations below use the builtin's help text and documented accepted names, Bash type/help behavior, and POSIX locale environment precedence (LC_ALL, then LC_<category>, then LANG; default C). No expectation is derived from the candidate's output.",
+  "coverage": [
+    "Bash builtin availability and documented help metadata",
+    "validate accepts the documented C, POSIX, and C.UTF-8 names and rejects an unsupported locale",
+    "required-argument and unknown-verb/category error statuses",
+    "current output for all named categories under the C fallback",
+    "current resolution of LC_ALL, a category variable, and LANG fallback",
+    "set updates a category and set ALL takes precedence over individual categories"
+  ],
+  "exclusions": [
+    "GNU locale is not a matching oracle for this custom shell API, so there are no parity cases.",
+    "Only C, POSIX, and C.UTF-8 contract values are exercised; locale database behavior beyond those names is not qualified.",
+    "End-to-end effects on a locale-sensitive child process are deferred because this fixture environment fixes the inherited locale to C and provides no dedicated independent libc probe."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Bash type/help metadata must identify locale as a builtin and advertise the documented verbs and supported locale names.",
+      "script": "[[ $(type -t locale) == builtin ]] || exit 1\nhelp_text=$(help locale)\n[[ $help_text == *\"Minimal LC_* environment plumbing for bash-os.\"* ]] || exit 1\n[[ $help_text == *\"locale set CATEGORY VALUE\"* ]] || exit 1\n[[ $help_text == *\"locale current\"* ]] || exit 1\n[[ $help_text == *\"locale validate VALUE\"* ]] || exit 1\n[[ $help_text == *\"Recognized locale values: C, POSIX, C.UTF-8.\"* ]] || exit 1\nprintf 'builtin\\nhelp-contract-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp-contract-ok\n"
+    },
+    {
+      "id": "validate-documented-values",
+      "kind": "contract",
+      "purpose": "The documented locale names C, POSIX, and C.UTF-8 are accepted by validate.",
+      "script": "locale validate C\nlocale validate POSIX\nlocale validate C.UTF-8\nprintf 'accepted=3\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "accepted=3\n"
+    },
+    {
+      "id": "validate-rejects-other-name",
+      "kind": "contract",
+      "purpose": "The builtin help says names other than C, POSIX, and C.UTF-8 are rejected.",
+      "script": "locale validate en_US.UTF-8",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "validate-requires-value",
+      "kind": "contract",
+      "purpose": "validate without its required VALUE operand is a usage error.",
+      "script": "locale validate",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "current-c-fallback-all",
+      "kind": "contract",
+      "purpose": "With LC_ALL unset and LANG=C, current reports the effective C locale for each advertised category and LANG.",
+      "script": "unset LC_ALL\nexport LANG=C\nlocale current",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "LC_ALL=C\nLC_CTYPE=C\nLC_NUMERIC=C\nLC_TIME=C\nLC_COLLATE=C\nLC_MONETARY=C\nLC_MESSAGES=C\nLC_PAPER=C\nLC_NAME=C\nLC_ADDRESS=C\nLC_TELEPHONE=C\nLC_MEASUREMENT=C\nLC_IDENTIFICATION=C\nLANG=C\n"
+    },
+    {
+      "id": "current-category-and-lang-fallback",
+      "kind": "contract",
+      "purpose": "Without LC_ALL, a set LC_NUMERIC wins for that category while other categories and LANG fall back to LANG.",
+      "script": "unset LC_ALL\nexport LANG=POSIX LC_NUMERIC=C\nlocale current NUMERIC\nlocale current CTYPE\nlocale current LANG",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "LC_NUMERIC=C\nLC_CTYPE=POSIX\nLANG=POSIX\n"
+    },
+    {
+      "id": "current-lc-all-precedence",
+      "kind": "contract",
+      "purpose": "LC_ALL overrides both a category-specific variable and LANG when current resolves an effective category or LANG.",
+      "script": "export LC_ALL=C.UTF-8 LC_NUMERIC=C LANG=POSIX\nlocale current LC_NUMERIC\nlocale current LANG",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "LC_NUMERIC=C.UTF-8\nLANG=C.UTF-8\n"
+    },
+    {
+      "id": "set-category-visible-to-current",
+      "kind": "contract",
+      "purpose": "set accepts a documented category/value pair, updates the shell variable, and current reports the new category value.",
+      "script": "unset LC_ALL LC_CTYPE\nexport LANG=POSIX\nlocale set LC_CTYPE C.UTF-8\n[[ ${LC_CTYPE-} == C.UTF-8 ]] || exit 1\nlocale current LC_CTYPE",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "LC_CTYPE=C.UTF-8\n"
+    },
+    {
+      "id": "set-all-precedence",
+      "kind": "contract",
+      "purpose": "set ALL updates LC_ALL while preserving category variables; current resolves the selected category through LC_ALL.",
+      "script": "unset LC_ALL\nexport LANG=POSIX LC_CTYPE=C.UTF-8 LC_NUMERIC=C\nlocale set ALL POSIX\n[[ ${LC_ALL-} == POSIX ]] || exit 1\n[[ ${LC_CTYPE-} == C.UTF-8 && ${LC_NUMERIC-} == C ]] || exit 1\nlocale current LC_NUMERIC",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "LC_NUMERIC=POSIX\n"
+    },
+    {
+      "id": "set-unknown-category",
+      "kind": "contract",
+      "purpose": "set rejects an unrecognized LC category with a usage status and diagnostic.",
+      "script": "locale set LC_FIXTURE C",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-verb",
+      "kind": "contract",
+      "purpose": "An unrecognized verb is reported as a usage error.",
+      "script": "locale unknown",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "child-libc-locale-integration",
+      "kind": "deferred",
+      "purpose": "Verify that variables set by the builtin produce the intended behavior in a locale-sensitive child process, separately from this builtin's environment-plumbing contract.",
+      "reason": "Requires a disposable VM or controlled fixture with known C and C.UTF-8 locale data plus an independently reviewed child probe that calls setlocale(LC_ALL, \"\") and checks a stable libc property such as MB_CUR_MAX. The current harness fixes the inherited locale to C and supplies no such probe. This operation was not executed and is not counted as passed."
+    }
+  ]
+}

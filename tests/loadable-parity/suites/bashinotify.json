@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "loadable": "bashinotify",
+  "reference": "Documented Linux inotify event semantics and the Bash watch API. Synchronous small private file operations generate fixed create/modify/ignored records. Contract assertions compare event names and the descriptor returned by add, not metadata alone; no GNU CLI parity is claimed.",
+  "coverage": [
+    "Bash identifies bashinotify as a builtin.",
+    "Bash help exposes the documented subcommands and persistent-fd description.",
+    "Bash help exposes the documented mask names.",
+    "Bash help exposes wait timeout, count, and output-line contract details.",
+    "Private add/WDVAR/mask parsing, synchronous create/modify events, empty polling, bounded waits, event count, rm/ignored and close/reinitialization."
+  ],
+  "exclusions": [
+    "Rename cookies, coalescing, unmount/overflow and fault injection are unqualified; no system setting or host watch is used."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Use Bash's type -t builtin to verify that the loadable is registered as a Bash builtin, without invoking an inotify operation.",
+      "script": "type -t bashinotify",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-commands-and-state",
+      "kind": "contract",
+      "purpose": "Check that Bash help includes the documented add, rm, wait, and close subcommands and states that the inotify fd is retained across calls.",
+      "script": "doc=$(help bashinotify)\nif [[ $doc == *\"Filesystem watch via inotify(7).\"* && $doc == *\"bashinotify add PATH MASK\"* && $doc == *\"bashinotify rm WD\"* && $doc == *\"bashinotify wait [-t MS] [-n N]\"* && $doc == *\"bashinotify close\"* && $doc == *\"Single inotify fd held in loadable state across calls.\"* ]]; then\n  printf 'help:commands-and-state-present\\n'\nelse\n  printf 'help:commands-or-state-missing\\n'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "help:commands-and-state-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-mask-vocabulary",
+      "kind": "contract",
+      "purpose": "Check the advertised comma-separated add mask vocabulary against the embedded bashinotify help contract.",
+      "script": "doc=$(help bashinotify)\nif [[ $doc == *\"MASK is comma-separated:\"* && $doc == *modify* && $doc == *create* && $doc == *delete* && $doc == *attrib* && $doc == *\"move move-from\"* && $doc == *move-to* && $doc == *open* && $doc == *access* && $doc == *close-write* && $doc == *close-nowrite* && $doc == *delete-self* && $doc == *move-self* && $doc == *unmount* && $doc == *all* ]]; then\n  printf 'help:documented-mask-vocabulary-present\\n'\nelse\n  printf 'help:documented-mask-vocabulary-missing\\n'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "help:documented-mask-vocabulary-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-wait-contract",
+      "kind": "contract",
+      "purpose": "Check that help documents the wait output shape and both timeout and event-count options, including the nonblocking zero-timeout meaning.",
+      "script": "doc=$(help bashinotify)\nif [[ $doc == *\"bashinotify wait [-t MS] [-n N]\"* && $doc == *\"read pending events; one line\"* && $doc == *\"WD EVENT_NAMES NAME\"* && $doc == *\"-t MS: timeout (0=no wait, default=block)\"* && $doc == *\"-n N:\"* && $doc == *\"max events to emit per call\"* ]]; then\n  printf 'help:wait-contract-present\\n'\nelse\n  printf 'help:wait-contract-missing\\n'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "help:wait-contract-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "add-mask-and-wdvar",
+      "kind": "contract",
+      "purpose": "Watch a private directory, bind the descriptor in the current shell and observe a synchronous create event. No timing-based producer is used.",
+      "script": "mkdir watched\nbashinotify add watched ' create , modify ' wd\n[[ $wd =~ ^[0-9]+$ ]]\nprintf 'small\\n' > watched/child\nbashinotify wait -t 0 > events\nmapfile -t rows < events\n[[ ${#rows[@]} == 2 && ${rows[0]} == \"$wd create child\" && ${rows[1]} == \"$wd modify child\" ]]\nbashinotify close\nprintf 'create and modify; bound descriptor\\n'",
+      "expected_status": 0,
+      "stdout": "create and modify; bound descriptor\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wait-events-and-limits",
+      "kind": "contract",
+      "purpose": "A bounded wait emits at most one event and a zero-timeout wait emits nothing when the watched directory has no pending events.",
+      "script": "mkdir watched\nbashinotify add watched create wd\nbashinotify wait -t 0 > empty-events\n[[ ! -s empty-events ]]\n: > watched/child\nbashinotify wait -t 50 -n 1 > events\nmapfile -t rows < events\n[[ ${#rows[@]} == 1 && ${rows[0]} == \"$wd create child\" ]]\nbashinotify close\nprintf 'empty poll and one event\\n'",
+      "expected_status": 0,
+      "stdout": "empty poll and one event\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "rm-close-and-reinitialize",
+      "kind": "contract",
+      "purpose": "Removing a private watch emits ignored, close is idempotent, and a new add works after close.",
+      "script": "mkdir watched\nbashinotify add watched create wd\nbashinotify rm \"$wd\"\nbashinotify wait -t 0 > events\nmapfile -t rows < events\n[[ ${#rows[@]} == 1 && ${rows[0]} == \"$wd ignored\" ]]\nbashinotify close\nbashinotify close\nbashinotify add watched create next\n[[ $next =~ ^[0-9]+$ ]]\nbashinotify close\nprintf 'removed, closed, reinitialized\\n'",
+      "expected_status": 0,
+      "stdout": "removed, closed, reinitialized\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "event-limit-retains-pending",
+      "kind": "contract",
+      "purpose": "Two distinct synchronous file creations must remain observable across two -n 1 calls, one event per call.",
+      "script": "mkdir watched\nbashinotify add watched create wd\n: > watched/first\n: > watched/second\nbashinotify wait -t 0 -n 1 > first-events\nbashinotify wait -t 0 -n 1 > second-events\nmapfile -t first < first-events\nmapfile -t second < second-events\n[[ ${#first[@]} == 1 && ${first[0]} == \"$wd create first\" ]]\n[[ ${#second[@]} == 1 && ${second[0]} == \"$wd create second\" ]]\nbashinotify close\nprintf 'both events retained\\n'",
+      "expected_status": 0,
+      "stdout": "both events retained\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-limit-retains-events",
+      "kind": "contract",
+      "purpose": "A zero event limit consumes nothing; two bounded subsequent waits still receive the synchronous private creations in order.",
+      "script": "mkdir watched\nbashinotify add watched create wd\n: > watched/first\n: > watched/second\nbashinotify wait -t 0 -n 0 > zero\n[[ ! -s zero ]]\nbashinotify wait -t 0 -n 1 > first\nbashinotify wait -t 20 -n 1 > second\n[[ $(<first) == \"$wd create first\" && $(<second) == \"$wd create second\" ]]\nbashinotify close\nprintf \"zero and timed waits retain events\\n\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "zero and timed waits retain events\n"
+    },
+    {
+      "id": "close-discards-buffered-events",
+      "kind": "contract",
+      "purpose": "Closing a private watch discards its buffered remainder before a new instance receives a different private creation.",
+      "script": "mkdir watched\nbashinotify add watched create wd\n: > watched/old1\n: > watched/old2\nbashinotify wait -t 0 -n 1 > old\nbashinotify close\nbashinotify add watched create wd\n: > watched/new\nbashinotify wait -t 0 > current\n[[ $(<current) == \"$wd create new\" ]]\nbashinotify close\nprintf \"reopened watch has only new events\\n\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "reopened watch has only new events\n"
+    }
+  ]
+}

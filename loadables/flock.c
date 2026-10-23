@@ -54,6 +54,10 @@
 
 extern char *flock_doc[];
 
+/* util-linux uses sysexits values, distinct from Bash's EX_USAGE (2). */
+enum { FLOCK_USAGE = 64, FLOCK_DATAERR = 65, FLOCK_NOINPUT = 66,
+       FLOCK_OSERR = 71 };
+
 static int
 flock_contended_errno (int e)
 {
@@ -161,6 +165,7 @@ flock_builtin (WORD_LIST *list)
     int close_before_exec = 0;
     int no_fork = 0;
     int conflict_exit = 1;
+    int timeout_given = 0;
     double timeout = -1.0;           /* <0 = block forever */
     char *shell_cmd = NULL;
 
@@ -184,27 +189,28 @@ flock_builtin (WORD_LIST *list)
         if (!strcmp (w, "--close"))     { close_before_exec = 1; list = list->next; continue; }
         if (!strcmp (w, "--no-fork"))   { no_fork = 1;        list = list->next; continue; }
         if (!strcmp (w, "--wait") || !strcmp (w, "--timeout")) {
-            if (!list->next) { builtin_error ("option '%s' requires an argument", w); return EX_USAGE; }
+            if (!list->next) { builtin_error ("option '%s' requires an argument", w); return FLOCK_USAGE; }
             list = list->next;
             char *end = NULL; errno = 0;
             timeout = strtod (list->word->word, &end);
-            if (errno || end == list->word->word || *end || timeout < 0 || !isfinite (timeout)) {
+            if (errno || end == list->word->word || *end || !isfinite (timeout)) {
                 builtin_error ("invalid timeout value: %s", list->word->word);
-                return EX_USAGE;
+                return FLOCK_USAGE;
             }
+            timeout_given = 1;
             list = list->next; continue;
         }
         if (!strcmp (w, "--command")) {
-            if (!list->next) { builtin_error ("option '--command' requires an argument"); return EX_USAGE; }
+            if (!list->next) { builtin_error ("option '--command' requires an argument"); return FLOCK_USAGE; }
             list = list->next; shell_cmd = list->word->word; list = list->next; continue;
         }
         if (!strcmp (w, "--conflict-exit-code")) {
-            if (!list->next) { builtin_error ("option '--conflict-exit-code' requires an argument"); return EX_USAGE; }
+            if (!list->next) { builtin_error ("option '--conflict-exit-code' requires an argument"); return FLOCK_USAGE; }
             list = list->next;
-            if (flock_parse_exit (list->word->word, &conflict_exit) < 0) return EX_USAGE;
+            if (flock_parse_exit (list->word->word, &conflict_exit) < 0) return FLOCK_USAGE;
             list = list->next; continue;
         }
-        if (w[1] == '-') { builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE; }
+        if (w[1] == '-') { builtin_error ("unknown option: %s", w); builtin_usage (); return FLOCK_USAGE; }
 
         /* Bundled single-char flags: -s -x -e -u -n -o -F, plus -w/-E/-c which
            take an argument (the rest of this token or the next token). */
@@ -225,19 +231,20 @@ flock_builtin (WORD_LIST *list)
                     char optc = *c;
                     const char *val = c + 1;
                     if (!*val) {
-                        if (!list->next) { builtin_error ("option '-%c' requires an argument", optc); return EX_USAGE; }
+                        if (!list->next) { builtin_error ("option '-%c' requires an argument", optc); return FLOCK_USAGE; }
                         list = list->next;
                         val = list->word->word;
                     }
                     if (optc == 'w') {
                         char *end = NULL; errno = 0;
                         timeout = strtod (val, &end);
-                        if (errno || end == val || *end || timeout < 0 || !isfinite (timeout)) {
+                        if (errno || end == val || *end || !isfinite (timeout)) {
                             builtin_error ("invalid timeout value: %s", val);
-                            return EX_USAGE;
+                            return FLOCK_USAGE;
                         }
+                        timeout_given = 1;
                     } else if (optc == 'E') {
-                        if (flock_parse_exit (val, &conflict_exit) < 0) return EX_USAGE;
+                        if (flock_parse_exit (val, &conflict_exit) < 0) return FLOCK_USAGE;
                     } else { /* 'c' */
                         shell_cmd = (char *) val;
                     }
@@ -247,7 +254,7 @@ flock_builtin (WORD_LIST *list)
                 default:
                     builtin_error ("unknown option: -%c", *c);
                     builtin_usage ();
-                    return EX_USAGE;
+                    return FLOCK_USAGE;
             }
         }
         list = list->next;
@@ -256,11 +263,11 @@ flock_builtin (WORD_LIST *list)
     if (!list) {
         builtin_error ("requires a file name or descriptor");
         builtin_usage ();
-        return EX_USAGE;
+        return FLOCK_USAGE;
     }
     if (no_fork && close_before_exec) {
         builtin_error ("--no-fork and --close are incompatible");
-        return EX_USAGE;
+        return FLOCK_USAGE;
     }
 
     char *operand = list->word->word;
@@ -269,14 +276,28 @@ flock_builtin (WORD_LIST *list)
     /* util-linux flock permutes options past the file, so the canonical
        `flock FILE -c "cmd"` puts -c after the operand. Honour that here. */
     if (list && (!strcmp (list->word->word, "-c") || !strcmp (list->word->word, "--command"))) {
-        if (!list->next) { builtin_error ("option '-c' requires an argument"); return EX_USAGE; }
+        if (!list->next || list->next->next) {
+            builtin_error ("-c requires exactly one command argument");
+            return FLOCK_USAGE;
+        }
         shell_cmd = list->next->word->word;
         list = NULL;                  /* -c supplies the command; no argv */
     }
 
+    if (shell_cmd && list) {
+        builtin_error ("-c requires exactly one command argument");
+        return FLOCK_USAGE;
+    }
+
     int operation = (do_unlock ? LOCK_UN : locktype) | (nonblock ? LOCK_NB : 0);
 
-    int is_fd = flock_all_digits (operand);
+    /* A single operand is a descriptor; with a command it is a pathname,
+       including when the pathname consists only of digits. */
+    int is_fd = !list && !shell_cmd;
+    if (is_fd && !flock_all_digits (operand)) {
+        builtin_error ("invalid file descriptor: %s", operand);
+        return FLOCK_USAGE;
+    }
     int fd, opened = 0;
 
     if (is_fd) {
@@ -284,32 +305,31 @@ flock_builtin (WORD_LIST *list)
         long number = strtol (operand, NULL, 10);
         if (errno || number > INT_MAX) {
             builtin_error ("invalid file descriptor: %s", operand);
-            return EX_USAGE;
+            return FLOCK_USAGE;
         }
         fd = (int) number;
-        if (fcntl (fd, F_GETFD) == -1) {
-            builtin_error ("%s: bad file descriptor", operand);
-            return EXECUTION_FAILURE;
-        }
-        if (list || shell_cmd) {
-            builtin_error ("cannot run a command on a file-descriptor argument");
-            builtin_usage ();
-            return EX_USAGE;
-        }
     } else {
         fd = open (operand, O_RDWR | O_CREAT, 0666);
         if (fd < 0 && (errno == EACCES || errno == EROFS))
             fd = open (operand, O_RDONLY);
         if (fd < 0) {
             builtin_error ("%s: %s", operand, strerror (errno));
-            return EXECUTION_FAILURE;
+            return FLOCK_NOINPUT;
         }
         opened = 1;
-        if (!do_unlock && !list && !shell_cmd) {
-            builtin_error ("%s: file form requires a command (or -c)", operand);
-            close (fd);
-            return EX_USAGE;
-        }
+    }
+
+    /* Match util-linux's timer-setup failure for a finite negative wait.
+       Do this after pathname opening and before descriptor locking, without
+       installing a process-wide timer or signal handler in the shell. */
+    if (timeout_given && timeout < 0.0) {
+        builtin_error ("cannot set up timer: %s", strerror (EINVAL));
+        if (opened) close (fd);
+        return FLOCK_OSERR;
+    }
+    if (is_fd && fcntl (fd, F_GETFD) == -1) {
+        builtin_error ("%s: bad file descriptor", operand);
+        return FLOCK_DATAERR;
     }
 
     /* Apply the lock (or unlock). */

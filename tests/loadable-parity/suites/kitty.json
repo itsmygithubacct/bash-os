@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "loadable": "kitty",
+  "reference": "No matching GNU kitty CLI is available; kitten icat is a different application and is not treated as a parity oracle. Runnable cases are independent contract checks: tiny PNG fixtures are generated from specified RGB samples using the PNG/zlib/CRC format, expected Kitty direct-RGB APC framing is assembled from the protocol contract, and payload Base64 is computed independently with Python standard-library encoding. Expected resize RGB values are explicit floor averages of input channels. No expected operation bytes come from the candidate. Chunk continuation control uses m=0 for the final payload and q=2 quiet mode on each APC.",
+  "coverage": [
+    "Bash type/help builtin metadata and documented version response.",
+    "Direct RGB APC payload and controls for explicit geometry, image ID, placement ID, z-index, and static cursor.",
+    "Base64-encoded image from stdin and default newline behavior.",
+    "Automatic tmux passthrough framing from TMUX.",
+    "max-pixels downscaling with a deterministic 2x1 RGB fixture.",
+    "Raw RGB chunking across the 3072-byte payload boundary.",
+    "Invalid image diagnostic/status and invalid image-ID boundary."
+  ],
+  "exclusions": [
+    "No GNU-compatible kitty CLI exists, so these are contract cases rather than GNU parity cases.",
+    "Actual rendering, terminal cursor effects, terminal geometry ioctl behavior, and terminal-specific Kitty/tmux integration are not exercised; see the deferred PTY consumer case.",
+    "Only deterministic PNG RGB inputs are covered; JPEG/GIF/BMP/TGA decoding, transparency handling, all numeric boundaries, large-input policy, and every option combination remain outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Use Bash type/help metadata to confirm kitty is a registered builtin and that help exposes documented invocation and option text; no image operation is counted here.",
+      "script": "[[ $(type -t kitty) == builtin ]] || exit 1\ndoc=$(help kitty)\n[[ $doc == *'Display an image using Kitty graphics direct RGB APC output.'* ]] || exit 1\n[[ $doc == *'kitty [OPTION]... FILE'* && $doc == *'--max-pixels N'* ]] || exit 1\nprintf 'builtin\\nhelp-contract=ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp-contract=ok\n"
+    },
+    {
+      "id": "version-contract",
+      "kind": "contract",
+      "purpose": "Check the documented fixed version response without invoking image decoding.",
+      "script": "kitty --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "kitty 1.0 (bash-os Kitty graphics direct RGB emitter)\n"
+    },
+    {
+      "id": "direct-rgb-options",
+      "kind": "contract",
+      "purpose": "Decode a generated 1x1 RGB PNG and compare every APC byte against the Kitty direct-RGB protocol encoding, including image/placement IDs, z-index, static cursor, raw mode, and explicit cell geometry.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x02\\x00\\x00\\x00\\x90\\x77\\x53\\xde\\x00\\x00\\x00\\x0c\\x49\\x44\\x41\\x54\\x78\\xda\\x63\\xf8\\xcf\\xc0\\x00\\x00\\x03\\x01\\x01\\x00\\xf7\\x03\\x41\\x43\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > red.png\nkitty --raw-apc --no-tmux -w 2 -H 3 --id 17 --placement 0 --z-index -2 --static-cursor red.png",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G19HYT1ULGY9MjQsdD1kLHM9MSx2PTEsYz0yLHI9MyxxPTIsaT0xNyxwPTAsej0tMixDPTE7L3dBQRtc"
+    },
+    {
+      "id": "base64-stdin-newline",
+      "kind": "contract",
+      "purpose": "Exercise documented --base64 stdin input and default newline termination; expected APC payload is independently encoded from the known red RGB pixel.",
+      "script": "printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQD3A0FDAAAAAElFTkSuQmCC' | kitty --base64 --no-tmux --width 1 --height 1",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G19HYT1ULGY9MjQsdD1kLHM9MSx2PTEsYz0xLHI9MSxxPTI7L3dBQRtcCg=="
+    },
+    {
+      "id": "tmux-auto-framing",
+      "kind": "contract",
+      "purpose": "Check automatic tmux passthrough framing when TMUX is set, using the documented DCS wrapper and doubled inner ESC terminator around one direct-RGB APC.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x02\\x00\\x00\\x00\\x90\\x77\\x53\\xde\\x00\\x00\\x00\\x0c\\x49\\x44\\x41\\x54\\x78\\xda\\x63\\xf8\\xcf\\xc0\\x00\\x00\\x03\\x01\\x01\\x00\\xf7\\x03\\x41\\x43\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > red.png\nexport TMUX=fixture\nkitty --raw-apc -w 2 -H 1 red.png",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G1B0bXV4OxsbX0dhPVQsZj0yNCx0PWQscz0xLHY9MSxjPTIscj0xLHE9Mjsvd0FBGxtcG1w="
+    },
+    {
+      "id": "max-pixels-downscale",
+      "kind": "contract",
+      "purpose": "Downscale a 2x1 image to one pixel and check the independently calculated integer channel average (127,0,127), plus emitted dimensions and cell geometry.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\x01\\x08\\x02\\x00\\x00\\x00\\x7b\\x40\\xe8\\xdd\\x00\\x00\\x00\\x0d\\x49\\x44\\x41\\x54\\x78\\xda\\x63\\xf8\\xcf\\x00\\x04\\xff\\x01\\x07\\x00\\x01\\xff\\x3d\\x7d\\x8c\\x49\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > pair.png\nkitty --raw-apc --no-tmux -w 4 -H 2 --max-pixels 1 pair.png",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G19HYT1ULGY9MjQsdD1kLHM9MSx2PTEsYz00LHI9MixxPTI7ZndCLxtc"
+    },
+    {
+      "id": "raw-chunk-boundary",
+      "kind": "contract",
+      "purpose": "Cross the 3072-byte raw RGB payload boundary with 1025 black pixels; independently check first/follow-up APC headers, m continuation values, payload split, and final terminators.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x04\\x01\\x00\\x00\\x00\\x01\\x08\\x02\\x00\\x00\\x00\\x20\\xae\\x20\\x5c\\x00\\x00\\x00\\x19\\x49\\x44\\x41\\x54\\x78\\xda\\xed\\xc1\\x01\\x01\\x00\\x00\\x00\\x82\\x20\\xff\\xaf\\x6e\\x48\\x40\\x01\\x00\\x00\\x4f\\x06\\x0c\\x04\\x00\\x01\\xfb\\x52\\xa5\\xbf\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > black.png\nkitty --raw-apc --no-tmux -w 10 -H 1 black.png",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "G19HYT1ULGY9MjQsdD1kLHM9MTAyNSx2PTEsYz0xMCxyPTEscT0yLG09MTtBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBG1wbX0dtPTAscT0yO0FBQUEbXA=="
+    },
+    {
+      "id": "invalid-image-diagnostic",
+      "kind": "contract",
+      "purpose": "A small non-image fixture must be rejected with status 1 and a diagnostic; the script explicitly captures and checks the builtin failure before returning its own success marker.",
+      "script": "printf 'not an image\\n' > bad.img\nif kitty --raw-apc --no-tmux bad.img; then\n  exit 1\nelse\n  rc=$?\nfi\n[[ $rc -eq 1 ]] || exit 1\nprintf 'invalid-image-rejected\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "invalid-image-rejected\n"
+    },
+    {
+      "id": "invalid-id-boundary",
+      "kind": "contract",
+      "purpose": "Image IDs are positive 32-bit Kitty keys; reject zero with usage status 2 and a diagnostic before reading the otherwise valid image.",
+      "script": "printf '%b' '\\x89\\x50\\x4e\\x47\\x0d\\x0a\\x1a\\x0a\\x00\\x00\\x00\\x0d\\x49\\x48\\x44\\x52\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x08\\x02\\x00\\x00\\x00\\x90\\x77\\x53\\xde\\x00\\x00\\x00\\x0c\\x49\\x44\\x41\\x54\\x78\\xda\\x63\\xf8\\xcf\\xc0\\x00\\x00\\x03\\x01\\x01\\x00\\xf7\\x03\\x41\\x43\\x00\\x00\\x00\\x00\\x49\\x45\\x4e\\x44\\xae\\x42\\x60\\x82' > red.png\nif kitty --raw-apc --no-tmux --id 0 red.png; then\n  exit 1\nelse\n  rc=$?\nfi\n[[ $rc -eq 2 ]] || exit 1\nprintf 'zero-id-rejected\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "zero-id-rejected\n"
+    },
+    {
+      "id": "terminal-rendering-deferred",
+      "kind": "deferred",
+      "purpose": "End-to-end verification that a Kitty-compatible terminal consumes the generated APC and renders the expected cell/pixel result.",
+      "reason": "Requires a disposable VM with a bounded Kitty graphics protocol PTY peer or terminal emulator that can accept APC input and report rendered pixels and cursor position. The supplied runner captures output bytes but has no terminal protocol consumer; this case is not executed or counted as a pass."
+    }
+  ]
+}

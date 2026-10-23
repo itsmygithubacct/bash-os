@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "loadable": "bashdhcp",
+  "reference": "No matching GNU DHCP client/parser CLI is available for bashdhcp parse-message, so runnable operation cases are honest contract checks, not GNU parity. Their packets are encoded independently from the BOOTP fixed-header layout and RFC 2131/2132 DHCP option codes; expected values are derived from the encoded fields. The metadata case uses the builtin help text documented by the bashdhcp registration. Network operations are deferred to explicit isolated-peer fixtures.",
+  "coverage": [
+    "Bash builtin type/help metadata and documented request/renew/release/parse-message forms.",
+    "DHCP OFFER parsing: yiaddr, siaddr, subnet mask, first router, complete DNS/NTP lists, domain, server ID, lease/renew times, option-66 TFTP server, and option-67 bootfile overriding the BOOTP file field.",
+    "Documented -V associative-array binding for ip, netmask, gateway, dns, domain, server_id, lease_time, and renew_time.",
+    "Short packet, truncated DHCP option, and invalid hexadecimal rejection.",
+    "Deferred request, renew, release, and inform exchange behavior requiring an isolated mock peer."
+  ],
+  "exclusions": [
+    "No GNU parity is claimed because there is no matching GNU CLI for the parser API.",
+    "No DHCP packet is sent on the host or test runner; request/renew/release/inform require future disposable VM and isolated mock fixtures.",
+    "No interface discovery, socket binding, or privilege behavior is asserted by the parser contracts.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports the statically available builtin and exposes the documented DHCPv4 usage text through help.",
+      "script": "printf 'type=%s\\n' \"$(type -t bashdhcp)\"\nhelp bashdhcp",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "type=builtin\nbashdhcp: DHCPv4 client (RFC2131 DISCOVER/OFFER/REQUEST/ACK + parse-message)\n    DHCPv4 client and message parser.\n    \n        bashdhcp request -i IFACE [-h LEASE_VAR] [-t TIMEOUT_MS]\n        bashdhcp renew   -i IFACE [-h LEASE_VAR]\n        bashdhcp release -i IFACE LEASE\n        bashdhcp parse-message HEX [-V VAR]\n    \n    LEASE_VAR is an associative array with ip/netmask/gateway/dns/domain/server_id/lease_time/renew_time.\n"
+    },
+    {
+      "id": "parse-offer-fields",
+      "kind": "contract",
+      "purpose": "Decode a fixed BOOTP/DHCP OFFER encoded independently from RFC 2131/2132 fields; check addresses, multi-address lists, timers, PXE server and option-67 bootfile precedence.",
+      "script": "bashdhcp parse-message 02010600010203040000000000000000c633642cc00002090000000002000000ab0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007078656c696e75782e3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000638253633501023604c00002010104ffffff000308c0000201c00002020608c6336401c63364020f0c666978747572652e74657374330400000e103a04000007083b0400000a8c1a0205dc1c04c63364ff2a04c63364034209746674702e74657374430b6e6574626f6f742e696d67c803deadbeff",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ip=198.51.100.44\nnetmask=255.255.255.0\ngateway=192.0.2.1\ndns=198.51.100.1 198.51.100.2\nntp=198.51.100.3\ndomain=fixture.test\nserver_id=192.0.2.1\nlease_time=3600\nrenew_time=1800\nnext_server=192.0.2.9\ntftp_server=tftp.test\nbootfile=netboot.img\n"
+    },
+    {
+      "id": "parse-documented-assoc-fields",
+      "kind": "contract",
+      "purpose": "Exercise the documented -V associative-array result with independently encoded explicit values for every key listed in bashdhcp help.",
+      "script": "declare -A lease\nbashdhcp parse-message 02010600010203040000000000000000c633642cc00002090000000002000000ab0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007078656c696e75782e3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000638253633501023604c00002010104ffffff000308c0000201c00002020608c6336401c63364020f0c666978747572652e74657374330400000e103a04000007083b0400000a8c1a0205dc1c04c63364ff2a04c63364034209746674702e74657374430b6e6574626f6f742e696d67c803deadbeff -V lease\nprintf 'ip=%s\\nnetmask=%s\\ngateway=%s\\ndns=%s\\ndomain=%s\\nserver_id=%s\\nlease_time=%s\\nrenew_time=%s\\n' \\\n  \"${lease[ip]}\" \"${lease[netmask]}\" \"${lease[gateway]}\" \\\n  \"${lease[dns]}\" \"${lease[domain]}\" \"${lease[server_id]}\" \\\n  \"${lease[lease_time]}\" \"${lease[renew_time]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ip=198.51.100.44\nnetmask=255.255.255.0\ngateway=192.0.2.1\ndns=198.51.100.1 198.51.100.2\ndomain=fixture.test\nserver_id=192.0.2.1\nlease_time=3600\nrenew_time=1800\n"
+    },
+    {
+      "id": "reject-short-packet",
+      "kind": "contract",
+      "purpose": "Check that a decoded packet shorter than the fixed BOOTP header is rejected with command failure and no parsed output.",
+      "script": "if bashdhcp parse-message 00; then rc=0; else rc=$?; fi\nprintf 'status=%d\\n' \"$rc\"\n[[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "status=1\n"
+    },
+    {
+      "id": "reject-truncated-option",
+      "kind": "contract",
+      "purpose": "Check the option-length boundary: encode a 236-byte BOOTP header and valid cookie followed by an option declaring one missing value byte.",
+      "script": "packet=\nfor ((i=0; i<236; i++)); do packet+=00; done\npacket+=638253633501\nif bashdhcp parse-message \"$packet\"; then rc=0; else rc=$?; fi\nprintf 'status=%d\\n' \"$rc\"\n[[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "status=1\n"
+    },
+    {
+      "id": "reject-nonhex-input",
+      "kind": "contract",
+      "purpose": "Check that non-hexadecimal input is rejected as a usage error and produces no parsed output.",
+      "script": "if bashdhcp parse-message 12xz; then rc=0; else rc=$?; fi\nprintf 'status=%d\\n' \"$rc\"\n[[ $rc -eq 2 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "status=2\n"
+    },
+    {
+      "id": "defer-discover-offer-request-ack",
+      "kind": "deferred",
+      "purpose": "Validate the complete DHCP client acquisition exchange and returned lease against a private peer.",
+      "reason": "Requires a future disposable Linux VM with an isolated IPv4 interface and a DHCP server mock that captures DISCOVER and REQUEST, returns OFFER and ACK using the observed xid/chaddr, and records the resulting lease output. No host interface or network activity is permitted here."
+    },
+    {
+      "id": "defer-renew-ack",
+      "kind": "deferred",
+      "purpose": "Validate DHCP renewal packet fields and ACK handling using an isolated configured interface.",
+      "reason": "Requires a future disposable VM plus a unicast DHCP server mock bound to an isolated link; the mock must capture the renewal DHCPREQUEST (ciaddr/server identifier), return a matching ACK, and check the decoded lease. No real network target is permitted here."
+    },
+    {
+      "id": "defer-release",
+      "kind": "deferred",
+      "purpose": "Validate that release emits a DHCPRELEASE with the lease address and server identifier to the intended isolated peer.",
+      "reason": "Requires a future disposable VM with an isolated IPv4 interface and a local UDP DHCP server mock that captures the datagram and verifies BOOTP/DHCPRELEASE fields without forwarding it. No host interface or network activity is permitted here."
+    },
+    {
+      "id": "defer-inform-ack",
+      "kind": "deferred",
+      "purpose": "Validate DHCPINFORM construction and option-bearing ACK decoding on a private link.",
+      "reason": "Requires a future disposable VM and isolated DHCP mock that captures DHCPINFORM, returns a matching ACK, and checks the decoded configuration. This runner does not provide a network peer and no host network activity is permitted."
+    },
+    {
+      "id": "parse-padding-and-ack",
+      "purpose": "Decode RFC DHCP padding and an independently encoded ACK with explicit mask, lease and renewal values; omitted optional text fields stay empty.",
+      "kind": "contract",
+      "script": "bashdhcp parse-message 02010600010203040000000000000000c633642cc00002090000000002000000ab010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000063825363003501050104ffff000033040000000a003a0400000004ff",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ip=198.51.100.44\nnetmask=255.255.0.0\ngateway=\ndns=\nntp=\ndomain=\nserver_id=\nlease_time=10\nrenew_time=4\nnext_server=192.0.2.9\n"
+    }
+  ]
+}

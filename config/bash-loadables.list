@@ -25,7 +25,7 @@ pathchk|pathchk [-p] pathname ...
 printenv|printenv [-0|--null] [--] [VARIABLE...]
 realpath|realpath [-a varname] [-ceqsv] pathname [pathname...]
 rm|rm
-rmdir|rmdir [-p] DIRECTORY...
+rmdir|rmdir [-p] [--ignore-fail-on-non-empty] DIRECTORY...
 seq|seq [-w] [-s STRING] [-f FORMAT] [FIRST [INCREMENT]] LAST
 sleep|sleep NUMBER[SUFFIX]...
 stat|stat
@@ -125,7 +125,7 @@ ipcmk|Create System V IPC resources
 ipcctl|Run gated System V IPC control operations
 chattr|chattr [-R] [+-=]MODE file...
 lsattr|List file attributes on a Linux filesystem
-mkswap|Set up a Linux swap area
+mkswap|mkswap [-L label] [-U uuid] [-p pagesize] [-f] device|file [size]
 swapon|Enable a swap area, or list the active ones
 swapoff|swapoff [-a] [device...]
 wipefs|wipefs [-a] [-n] device...
@@ -171,7 +171,7 @@ who|who [-abdHlmpqrstTu] [--help|--version] [FILE]
 w|w [-h|-H|--no-header] [--file FILE] [USER]
 uptime|uptime
 lsof|lsof
-timeout|timeout
+timeout|timeout [--help|--version] [--preserve-status] [--foreground] [-v|--verbose] [-s SIG] [-k DUR] DURATION CMD [ARG...]
 signal|signal
 hostid|hostid
 sysctl|sysctl
@@ -265,7 +265,7 @@ netids|netids
 more|more [-d] [-n LINES] [FILE...]
 less|less
 top|top
-slabtop|slabtop
+slabtop|slabtop [-d SEC] [-o] [-s CHAR] [-h|-V]
 ncdu|ncdu [-axpt] [PATH]
 tui|tui
 vmstat|vmstat [-afstnw] [-S UNIT] [-d|-D|-p DEV|-m] [DELAY [COUNT]]
@@ -299,13 +299,13 @@ git|git plumbing: objects, refs, config
 ssh|ssh
 pkg|pkg
 ntp|ntp
-mail|mail
+mail|mail submit|serve|queue-list|queue-show|queue-delete [OPTIONS]
 rsync|rsync [-a] [-v] [-n] [-e RSH] SRC [SRC...] [HOST]:DEST
 wg|wg
 acme|acme
 uuidgen|uuidgen
 screen|screen <verb> [args...] [--help|--version]
-sshd|sshd
+sshd|sshd <verb> [args...]
 tiv|tiv
 kitty|kitty
 sixel|sixel [-w N] [-H N] [--base64] FILE

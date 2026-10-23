@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "swapoff",
+  "reference": "Runnable expectations are Bash's documented type/help metadata contract and the swapoff builtin synopsis/documentation in loadables/swapoff.c and docs/sol-swapoff.md. There are no operation parity cases: invoking swapoff is expressly out of scope, and a denied syscall would not establish operational parity.",
+  "coverage": [
+    "Bash identifies swapoff as a builtin with an empty candidate PATH.",
+    "Bash help exposes the builtin synopsis, short description, and documented behavior.",
+    "Deferred operation scopes identify the independent mock or disposable-VM requirements for named operands, -a table handling, and real kernel removal."
+  ],
+  "exclusions": [
+    "No runnable case invokes the swapoff builtin or GNU util-linux swapoff; kernel swap changes are prohibited for this task.",
+    "The deferred operation cases are not passes and establish no swapoff syscall, /proc/swaps parsing, privilege, or kernel behavior."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves the statically loaded swapoff command as a builtin while candidate PATH is empty.",
+      "script": "type -t swapoff",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Verify Bash's documented -s mode prints the builtin usage synopsis supplied by the swapoff metadata.",
+      "script": "help -s swapoff",
+      "expected_status": 0,
+      "stdout": "swapoff: swapoff [-a] [device...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "Verify Bash help reports the documented short description for swapoff.",
+      "script": "help -d swapoff",
+      "expected_status": 0,
+      "stdout": "swapoff - Disable a swap area.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract-details",
+      "kind": "contract",
+      "purpose": "Check the built-in help includes the documented named-path, -a, malformed-row, usage-combination, and privilege contract without calling swapoff.",
+      "script": "doc=$(help swapoff)\n[[ $doc == *\"Named operands are literal paths; use -- before a name beginning with '-'.\"* ]] || exit 1\n[[ $doc == *\"-a/--all reads /proc/swaps, decodes pathnames and skips duplicates.\"* ]] || exit 1\n[[ $doc == *\"Malformed rows are reported and skipped; valid entries are still attempted.\"* ]] || exit 1\n[[ $doc == *\"-a cannot be combined with device operands.\"* ]] || exit 1\n[[ $doc == *\"Requires root.\"* ]] || exit 1\nprintf 'documented help fields present\\n'",
+      "expected_status": 0,
+      "stdout": "documented help fields present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-named-operands",
+      "kind": "deferred",
+      "purpose": "Exercise literal named operands, -- for a leading dash, repeated explicit operands, and continuation/status behavior when a request fails.",
+      "reason": "Requires a disposable VM with owned swap areas or an independently reviewed libc swapoff mock that records operand order, injects selected errno results, and never forwards requests; add a seccomp denial for raw swapoff as a backstop. No operation is run in this suite."
+    },
+    {
+      "id": "deferred-all-table",
+      "kind": "deferred",
+      "purpose": "Exercise -a/--all against controlled /proc/swaps data, including header validation, escaped path decoding, duplicate suppression, malformed rows, and valid-row continuation.",
+      "reason": "Requires a disposable VM or private /proc/swaps reader mock plus a libc swapoff mock with an independently specified ordered pathname oracle; both must prevent real swapoff requests, with seccomp denying the syscall. Validate empty, valid, duplicate, malformed, and invalid-header tables. No operation is run in this suite."
+    },
+    {
+      "id": "deferred-kernel-removal",
+      "kind": "deferred",
+      "purpose": "Establish end-to-end behavior when the kernel actually disables swap and removes that area from the active table.",
+      "reason": "Requires a disposable VM with sufficient privilege and a swapfile or device created solely for this test, plus before/after verification that only that owned area changed. It must never target host swap or any shared machine. No operation is run in this suite."
+    }
+  ]
+}

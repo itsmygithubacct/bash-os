@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "integrity",
+  "reference": "No GNU/POSIX command implements this project-specific bl-integrity manifest-v2 API. Contract expectations use the builtin's documented interface and row layout, plus independent Python hashlib SHA-256 and BLAKE2b-512 digests for fixed byte strings. Bash type/help metadata is checked through Bash builtins.",
+  "coverage": [
+    "Bash builtin availability and short help metadata",
+    "Version string",
+    "Manifest-v2 file row fields and independent SHA-256/BLAKE2b digests",
+    "Empty-file digests and default header",
+    "Lexical row ordering, root selection, and fnmatch exclusion",
+    "Symlink row records the target text without following it",
+    "Verify success plus changed and added path reports/statuses",
+    "Malformed manifest row report/status",
+    "Traversal-shaped logical path rejection/status"
+  ],
+  "exclusions": [
+    "No matching GNU CLI exists, so there are no parity cases; contract cases are not represented as GNU parity.",
+    "The signed/configured shell wrapper is outside this builtin's documented scope.",
+    "Default system roots are deferred because fixtures must remain relative and cannot inspect system paths.",
+    "Concurrent filesystem mutation and descriptor-pinning behavior are not exercised by fixed, data-only fixtures.",
+    "Slash-prefixed logical manifest selectors identify paths under the explicitly supplied relative --root; they are not host filesystem paths. Traversal-shaped spelling is a parser rejection contract, with no out-of-root read."
+  ],
+  "cases": [
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Bash type and help builtins expose this enabled builtin and its documented short description.",
+      "script": "type -t integrity\nhelp -d integrity",
+      "expected_status": 0,
+      "stdout": "builtin\nintegrity - Emit and verify bl-integrity manifest rows.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version",
+      "kind": "contract",
+      "purpose": "The documented --version option emits the stable loadable version line.",
+      "script": "integrity --version",
+      "expected_status": 0,
+      "stdout": "integrity 1.0 (bash-loadable)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "file-row-hashes",
+      "kind": "contract",
+      "purpose": "A fixed 15-byte file produces a manifest row with the independently encoded SHA-256 and BLAKE2b-512 digests, expected mode/size/path, and numeric metadata fields.",
+      "script": "umask 022\nprintf 'integrity test\\n' > data\nrow=$(integrity emit-manifest --no-header --root . -- /data)\nIFS=$'\\t' read -r type mode size sha256 blake2b uid gid mtime ctime target path <<< \"$row\"\n[[ $type == file && $mode == 644 && $size == 15 ]]\n[[ $sha256 == c062a8490d838c777e9151bcbfdd5879e5118f99adf3ef4c5fa773455326bf1e ]]\n[[ $blake2b == 4df7e29880c29c436537a89fdd37573fee8f5ffec7b1799c85b7fe048a5b2624aafd47ec151aab20695a54dc2506106811e4c976022e804f39a6449c9d901ae9 ]]\n[[ $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && $mtime =~ ^[0-9]+$ && $ctime =~ ^[0-9]+$ ]]\n[[ $target == - && $path == /data ]]\nprintf 'file row hashes and fields verified\\n'",
+      "expected_status": 0,
+      "stdout": "file row hashes and fields verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-file-header",
+      "kind": "contract",
+      "purpose": "The default header and the standard SHA-256/BLAKE2b-512 encodings for an empty file match the manifest-v2 contract.",
+      "script": ": > empty\nout=$(integrity emit-manifest --root . -- /empty)\nmapfile -t rows <<< \"$out\"\n[[ ${#rows[@]} -eq 4 ]]\n[[ ${rows[0]} == '# bl-integrity manifest v2' ]]\n[[ ${rows[1]} == '# columns: type mode size sha256 blake2b uid gid mtime ctime target rel' ]]\n[[ ${rows[2]} == '# root=.' ]]\nIFS=$'\\t' read -r type mode size sha256 blake2b uid gid mtime ctime target path <<< \"${rows[3]}\"\n[[ $type == file && $mode == 644 && $size == 0 ]]\n[[ $sha256 == e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ]]\n[[ $blake2b == 786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce ]]\n[[ $target == - && $path == /empty ]]\nprintf 'header and empty-file digests verified\\n'",
+      "expected_status": 0,
+      "stdout": "header and empty-file digests verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sorted-exclusion",
+      "kind": "contract",
+      "purpose": "Selecting the root emits regular files in bytewise lexical order, while --exclude applies its documented fnmatch pattern to relative paths.",
+      "script": "printf 'A\\n' > alpha\nprintf 'B\\n' > beta\nprintf 'G\\n' > gamma\nout=$(integrity emit-manifest --no-header --root . --exclude 'b*' -- /)\nmapfile -t rows <<< \"$out\"\n[[ ${#rows[@]} -eq 2 ]]\nIFS=$'\\t' read -r -a first <<< \"${rows[0]}\"\nIFS=$'\\t' read -r -a second <<< \"${rows[1]}\"\n[[ ${first[0]} == file && ${first[10]} == /alpha ]]\n[[ ${second[0]} == file && ${second[10]} == /gamma ]]\nprintf 'selection, exclusion, and ordering verified\\n'",
+      "expected_status": 0,
+      "stdout": "selection, exclusion, and ordering verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-not-followed",
+      "kind": "contract",
+      "purpose": "A symlink to an in-root regular file is represented by its literal target and placeholder metadata; the target is separately represented as a regular file.",
+      "script": "printf 'payload\\n' > target\nln -s target link\nout=$(integrity emit-manifest --no-header --root . -- /link /target)\nmapfile -t rows <<< \"$out\"\n[[ ${#rows[@]} -eq 2 ]]\nIFS=$'\\t' read -r -a link_row <<< \"${rows[0]}\"\nIFS=$'\\t' read -r -a file_row <<< \"${rows[1]}\"\n[[ ${link_row[0]} == symlink && ${link_row[9]} == target && ${link_row[10]} == /link ]]\n[[ ${link_row[2]} == - && ${link_row[3]} == - && ${link_row[4]} == - && ${link_row[5]} == - && ${link_row[6]} == - && ${link_row[7]} == - && ${link_row[8]} == - ]]\n[[ ${file_row[0]} == file && ${file_row[10]} == /target ]]\nprintf 'symlink recorded without following verified\\n'",
+      "expected_status": 0,
+      "stdout": "symlink recorded without following verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verify-diff-reports",
+      "kind": "contract",
+      "purpose": "A generated manifest verifies cleanly, then reports a changed file and an added file with status 1 and documented path labels.",
+      "script": "printf 'initial\\n' > original\nintegrity emit-manifest --no-header --root . /original > saved.manifest\nif out=$(integrity verify saved.manifest --root . /original); then rc=0; else rc=$?; fi\n[[ $rc -eq 0 && -z $out ]]\nprintf 'changed\\n' > original\nprintf 'new\\n' > new\nif out=$(integrity verify saved.manifest --root . /original /new); then rc=0; else rc=$?; fi\n[[ $rc -eq 1 && $out == $'changed\\t/original\\nadded\\t/new' ]]\nprintf 'verify success and changed/added reports verified\\n'",
+      "expected_status": 0,
+      "stdout": "verify success and changed/added reports verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "malformed-manifest",
+      "kind": "contract",
+      "purpose": "A manifest data line without the required row fields is reported as malformed, and verification returns failure without stderr diagnostics.",
+      "script": "printf 'not-a-row\\n' > bad.manifest\nif out=$(integrity verify bad.manifest --root . /path-that-does-not-exist); then rc=0; else rc=$?; fi\n[[ $rc -eq 1 && $out == $'malformed\\tnot-a-row' ]]\nprintf 'malformed row rejection verified\\n'",
+      "expected_status": 0,
+      "stdout": "malformed row rejection verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reject-traversal-path",
+      "kind": "contract",
+      "purpose": "The logical path parser rejects a component-traversal spelling before walking it and returns the documented general failure status.",
+      "script": "if integrity emit-manifest --no-header --root . -- /segment/../outside > metadata.out; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]]\nprintf 'traversal-shaped path rejected\\n'",
+      "expected_status": 0,
+      "stdout": "traversal-shaped path rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "default-system-roots",
+      "kind": "deferred",
+      "purpose": "Exercise the implicit /bin, /bash-os, and /etc/bash-os roots against a controlled installed-system image.",
+      "reason": "Requires a disposable VM image containing a deliberately small fixture tree at those absolute system paths and an independently prepared manifest with controlled metadata. The current fixture runner permits only relative fixture paths and must not inspect host/system paths."
+    },
+    {
+      "id": "verify-independent-manifest",
+      "kind": "contract",
+      "purpose": "Verify an independently constructed manifest with Python hashlib/stat fields, then identify a removed entry without using candidate emission as the expected manifest.",
+      "script": "printf 'independent\\n' > item\nPATH=/usr/bin:/bin python3 - <<'PY'\nimport hashlib, os\nfrom pathlib import Path\np=Path('item'); s=p.stat(); data=p.read_bytes()\nfields=['file',format(s.st_mode & 0o7777,'o'),str(s.st_size),hashlib.sha256(data).hexdigest(),hashlib.blake2b(data).hexdigest(),str(s.st_uid),str(s.st_gid),str(int(s.st_mtime)),str(int(s.st_ctime)),'-','/item']\nPath('expected.manifest').write_text('\\t'.join(fields)+'\\n')\nPY\nintegrity verify expected.manifest --root . /item\nrm item\nif integrity verify expected.manifest --root . /item; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "missing\t/item\nstatus=1\n",
+      "stderr": "empty"
+    }
+  ]
+}

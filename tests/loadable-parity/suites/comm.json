@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "loadable": "comm",
+  "reference": "GNU coreutils comm is run on the same small, sorted relative fixture files inside the mandatory isolated runner. The metadata contract uses Bash's documented type -t builtin result.",
+  "coverage": [
+    "Three-column merge with duplicate records and records unique to each input.",
+    "Combined column suppression, including the no-prefix rule when earlier columns are suppressed.",
+    "Custom output delimiters and the GNU --total summary counts.",
+    "NUL-delimited records, unterminated final records, and stdin as the first input.",
+    "Explicit sorted-order failure and --nocheck-order behavior on unsorted fixture data.",
+    "Missing operand and missing relative input-file errors.",
+    "Bash metadata: comm is available as a builtin with an empty candidate PATH.",
+    "Empty streams, NUL output delimiter, all-column suppression with totals, and unknown-option rejection."
+  ],
+  "exclusions": [
+    "Write-failure behavior against device-backed sinks is omitted; all fixture paths remain relative and regular-file based.",
+    "Exact diagnostic wording is not asserted where GNU and Bash loadable prefixes may differ; error presence, status, output, and fixture tree are compared."
+  ],
+  "cases": [
+    {
+      "id": "three_columns_duplicates",
+      "kind": "parity",
+      "purpose": "Compare sorted inputs with a duplicate on each side; verify pairwise duplicate matching and the three output columns.",
+      "script": "printf 'a\\na\\nb\\nc\\n' > left\nprintf 'a\\nb\\nb\\nd\\n' > right\ncomm left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "suppress_columns_and_prefix",
+      "kind": "parity",
+      "purpose": "Suppress columns one and three together; the remaining column-two record must not retain a leading column separator.",
+      "script": "printf 'a\\nb\\n' > left\nprintf 'b\\nc\\n' > right\ncomm -13 left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "common_column_only",
+      "kind": "parity",
+      "purpose": "Exercise the common-record-only -12 selection with a sorted pair of inputs.",
+      "script": "printf 'a\\nb\\n' > left\nprintf 'b\\nc\\n' > right\ncomm -12 left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "custom_delimiter_total",
+      "kind": "parity",
+      "purpose": "Check a multi-byte output delimiter across column prefixes and the --total count summary, including duplicate accounting.",
+      "script": "printf 'a\\nb\\nb\\n' > left\nprintf 'b\\nc\\n' > right\ncomm --total --output-delimiter='::' left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero_terminated_records",
+      "kind": "parity",
+      "purpose": "Compare NUL-delimited records with -z while retaining tab-based column prefixes.",
+      "script": "printf 'a\\0b\\0c\\0' > left\nprintf 'b\\0c\\0d\\0' > right\ncomm -z left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "check_order_failure",
+      "kind": "parity",
+      "purpose": "Require --check-order to report a descending record after a merge has begun and return failure with matching partial output.",
+      "script": "printf 'b\\na\\n' > left\nprintf 'c\\n' > right\ncomm --check-order left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "nocheck_order_continues",
+      "kind": "parity",
+      "purpose": "Verify --nocheck-order suppresses disorder diagnostics and continues the same deterministic merge over unsorted input.",
+      "script": "printf 'b\\na\\n' > left\nprintf 'c\\n' > right\ncomm --nocheck-order left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin_first_input",
+      "kind": "parity",
+      "purpose": "Read the first sorted input from stdin while the second comes from a relative fixture file.",
+      "script": "printf 'b\\nd\\n' > right\nprintf 'a\\nb\\nc\\n' | comm - right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unterminated_final_records",
+      "kind": "parity",
+      "purpose": "Compare final records lacking newline terminators and verify output records are still delimited correctly.",
+      "script": "printf 'a\\nb' > left\nprintf 'b\\nc' > right\ncomm left right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_operand",
+      "kind": "parity",
+      "purpose": "Check GNU comm's missing-operand status and that the builtin emits a diagnostic without producing records.",
+      "script": "printf 'a\\n' > left\ncomm left",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_relative_input",
+      "kind": "parity",
+      "purpose": "Check failure when one relative input file does not exist while the other input is a valid fixture.",
+      "script": "printf 'a\\n' > right\ncomm absent right",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin_type_metadata",
+      "kind": "contract",
+      "purpose": "Bash type -t reports a loadable command installed as a builtin; this checks availability metadata, not comm operation behavior.",
+      "script": "type -t comm",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "empty-files",
+      "kind": "parity",
+      "purpose": "Empty files produce no records and zero total counts.",
+      "script": ": > left\n: > right\ncomm --total left right",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "comm"
+      ]
+    },
+    {
+      "id": "empty-output-delimiter",
+      "kind": "parity",
+      "purpose": "An empty output delimiter is the GNU NUL separator, compared as raw bytes.",
+      "script": "printf 'a\\nb\\n' > left\nprintf 'b\\nc\\n' > right\ncomm --output-delimiter='' left right",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "comm"
+      ]
+    },
+    {
+      "id": "suppress-all-total",
+      "kind": "parity",
+      "purpose": "Suppressed columns still contribute to total counts.",
+      "script": "printf 'a\\nb\\n' > left\nprintf 'b\\nc\\n' > right\ncomm -123 --total left right",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "comm"
+      ]
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "Unknown options fail before input access.",
+      "script": "comm --unknown",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "comm"
+      ]
+    }
+  ]
+}

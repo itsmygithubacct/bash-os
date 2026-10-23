@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "loadable": "rev",
+  "reference": "Parity cases run unchanged under reference Bash with the host rev(1) CLI on PATH; the runner also runs them under bash-os with an empty PATH so rev resolves to the loadable. The independent parity oracle is the external rev command, listed in each parity case. Two documented behaviors use contract cases because this host CLI does not match them: in LC_ALL=C it rejects the invalid high byte in the byte-reversal input, and it treats - as a filename. Those outputs are specified independently from the source contract and byte encoding.",
+  "coverage": [
+    "Blank lines, multiple records, newline termination, and an unterminated final record from stdin.",
+    "A contract case checks embedded NUL and high-bit byte reversal against independently encoded bytes; ordinary stdin records use GNU parity.",
+    "Regular files, stdin selected by - (documented contract), multiple-file argument order, and same-shell repeated redirected stdin.",
+    "A deterministic regular-file record exactly 65,536 bytes including LF, at the implementation's output-batch boundary.",
+    "Empty stdin and empty files.",
+    "Missing-file diagnostics and continuation to a later readable file.",
+    "Unknown-option status and end-of-options handling."
+  ],
+  "exclusions": [
+    "No interactive or live-producer latency/backpressure case; fixtures run with closed outer stdin and captured regular-file stdout.",
+    "No output-failure device case because fixtures may not use device paths.",
+    "No locale-dependent multibyte-character behavior; the harness fixes LC_ALL=C, and the byte contract case covers arbitrary bytes independently."
+  ],
+  "cases": [
+    {
+      "id": "stdin-records",
+      "kind": "parity",
+      "purpose": "Check stdin processing across blank records, ordinary records, and a final record without LF.",
+      "script": "printf '\\nalpha\\n\\n12345\\nlast' | rev\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "binary-byte-contract",
+      "kind": "contract",
+      "purpose": "Check the documented byte-reversal contract with embedded NUL and 0xff; the C-locale reference CLI rejects this byte sequence, so stdout is checked against an independent byte encoding.",
+      "script": "printf '\\000A\\377\\nx\\000y\\n' | rev\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "/0EACnkAeAo="
+    },
+    {
+      "id": "multiple-files-order",
+      "kind": "parity",
+      "purpose": "Check two regular files are processed in argument order, including a final record without LF.",
+      "script": "printf 'first\\n' > first\nprintf 'third' > third\nrev first third\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "dash-stdin-contract",
+      "kind": "contract",
+      "purpose": "Check the documented behavior that a - operand reads stdin between named files; the host rev CLI treats - as a filename, so the result is checked against the documented contract.",
+      "script": "printf 'first\\n' > first\nprintf 'third' > third\nprintf 'middle\\n' | rev first - third\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "tsrif\nelddim\ndriht"
+    },
+    {
+      "id": "repeated-redirected-stdin",
+      "kind": "parity",
+      "purpose": "Check that direct calls in one shell reset stream state and process different redirected files on successive invocations.",
+      "script": "printf 'first\\n' > first\nprintf 'second' > second\nrev < first\nrev < second\nrev < first\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "batch-boundary",
+      "kind": "parity",
+      "purpose": "Exercise a regular-file record exactly 65,536 bytes including its newline, where the implementation's output batch is exactly full.",
+      "script": "s=x\nfor ((i=0; i<16; i++)); do s=$s$s; done\ns=${s:0:65527}\nprintf 'BEGIN%sEND\\n' \"$s\" > edge\nrev edge\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "empty-input",
+      "kind": "parity",
+      "purpose": "Check empty stdin and an empty named file produce no bytes and succeed.",
+      "script": "printf '' | rev\n: > empty\nrev empty\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "missing-then-readable",
+      "kind": "parity",
+      "purpose": "Check a missing input is diagnosed while later readable files are still processed, and compare the captured command status.",
+      "script": "printf 'survives\\n' > good\nif rev missing good; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Check rejection of an unknown option and expose its utility exit status without requiring identical diagnostic wording.",
+      "script": "if rev --not-an-option > invalid.out; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "end-of-options",
+      "kind": "parity",
+      "purpose": "Check the reference CLI's end-of-options handling for a relative filename beginning with a hyphen.",
+      "script": "printf 'payload\\n' > ./-payload\nrev -- -payload\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "end-options-stdin",
+      "kind": "parity",
+      "purpose": "Verify that the option terminator selects stdin when alone and preserves subsequent literal filenames.",
+      "script": "printf 'abc\\n' | rev --\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    },
+    {
+      "id": "end-options-literal-flags",
+      "kind": "parity",
+      "purpose": "Verify that the option terminator selects stdin when alone and preserves subsequent literal filenames.",
+      "script": "printf 'first\\n' > ./--help; printf 'second\\n' > ./--; rev -- --help --\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rev"
+      ]
+    }
+  ]
+}

@@ -133,7 +133,7 @@ def sandbox_argv(tree, binary, metadata, mode, script):
              "--bind", str(tree), "/work", "--chdir", "/work"]
     for key, value in {"LC_ALL": "C", "LANG": "C", "TZ": "UTC",
                        "TERM": "xterm-256color", "HOME": "/tmp",
-                       "PATH": "/usr/bin:/bin" if mode == "reference" else "/empty",
+                       "PATH": "/usr/bin:/bin:/usr/sbin:/sbin" if mode == "reference" else "/empty",
                        "BASH_ENV": "", "ENV": ""}.items():
         args += ["--setenv", key, value]
     shell = "/bin/bash" if mode == "reference" else "/runtime/bash-os"
@@ -222,7 +222,7 @@ def run_suite(suite, binary, output):
                                   reason="loadable is not present in the candidate binary")
                 else:
                     missing = [x for x in case.get("requires", [])
-                               if not shutil.which(x, path="/usr/bin:/bin")]
+                               if not shutil.which(x, path="/usr/bin:/bin:/usr/sbin:/sbin")]
                     if case["kind"] == "parity" and missing:
                         record.update(status="SKIP", reason="missing oracle: " + ", ".join(missing))
                     else:

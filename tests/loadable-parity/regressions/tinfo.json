@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "loadable": "tinfo",
+  "reference": "Ncurses tput for standard and independently tic-compiled extended capabilities, with explicit boolean-status/ESC representation adapters. Legacy and wide-number records and directory precedence use independent term(5) contracts; no expected values are sampled from candidate output.",
+  "coverage": [
+    "Bash type/help metadata availability.",
+    "Standard xterm-256color numeric short and canonical names against tput.",
+    "True and false standard boolean capabilities against tput status.",
+    "A standard clear-screen string against tput bytes with ESC escaping.",
+    "Direct BASHTINFO_PATH file loading for legacy, 32-bit numeric, and extended capability records.",
+    "Missing capability and missing terminal error behavior.",
+    "Private directory lookup and environment precedence over distinct independently packed entries.",
+    "Named extended capabilities are compiled by independent ncurses tic -x, rather than a malformed hand-packed trailer.",
+    "Multiple tic-compiled extended names, empty and cancelled strings, extended 32-bit numbers, no-value-string entries, and absent-name contracts."
+  ],
+  "exclusions": [
+    "Database versions beyond legacy, wide-number and extended fixtures are not exhaustively covered; no terminal driver or key-decoding behavior is inferred."
+  ],
+  "cases": [
+    {
+      "id": "num_columns",
+      "kind": "parity",
+      "purpose": "Compare the standard numeric columns capability with ncurses tput using the same xterm-256color entry.",
+      "requires": [
+        "tput"
+      ],
+      "script": "TERM=xterm-256color; export TERM; unset COLUMNS LINES\nif [[ $(type -t tinfo) == builtin ]]; then\n  tinfo getnum cols\nelse\n  tput cols\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "num_max_colors_alias",
+      "kind": "parity",
+      "purpose": "Compare the long numeric capability name with ncurses tput colors; this also exercises the canonical-name lookup.",
+      "requires": [
+        "tput"
+      ],
+      "script": "TERM=xterm-256color; export TERM; unset COLUMNS LINES\nif [[ $(type -t tinfo) == builtin ]]; then\n  tinfo getnum max_colors\nelse\n  tput colors\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "flag_auto_margin_true",
+      "kind": "parity",
+      "purpose": "Compare the true auto-margin boolean; tput reports booleans through status, so the reference adapter emits the documented 0/1 line.",
+      "requires": [
+        "tput"
+      ],
+      "script": "TERM=xterm-256color; export TERM\nif [[ $(type -t tinfo) == builtin ]]; then\n  tinfo getflag am\nelse\n  if tput am; then\n    printf '1\\n'\n  else\n    rc=$?\n    if [[ $rc -eq 1 ]]; then printf '0\\n'; else exit $rc; fi\n  fi\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "flag_hardcopy_false",
+      "kind": "parity",
+      "purpose": "Compare a false boolean capability to cover the absent/false distinction in the terminfo boolean table.",
+      "requires": [
+        "tput"
+      ],
+      "script": "TERM=xterm-256color; export TERM\nif [[ $(type -t tinfo) == builtin ]]; then\n  tinfo getflag hc\nelse\n  if tput hc; then\n    printf '1\\n'\n  else\n    rc=$?\n    if [[ $rc -eq 1 ]]; then printf '0\\n'; else exit $rc; fi\n  fi\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "str_clear_screen",
+      "kind": "parity",
+      "purpose": "Compare clear_screen with ncurses tput -x clear, which suppresses the optional clear-scrollback extension, after translating raw ESC bytes to tinfo\u2019s documented escaped representation.",
+      "requires": [
+        "tput"
+      ],
+      "script": "TERM=xterm-256color; export TERM\nif [[ $(type -t tinfo) == builtin ]]; then\n  tinfo getstr clear_screen\nelse\n  raw=$(tput -x clear)\n  raw=${raw//$'\\033'/$'\\\\E'}\n  printf '%s\\n' \"$raw\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_type_and_help",
+      "kind": "contract",
+      "purpose": "Check the Bash builtin type/help metadata contract without invoking a terminal operation.",
+      "script": "type -t tinfo\nhelp tinfo >metadata-output\nprintf 'help-available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "legacy_direct_file",
+      "kind": "contract",
+      "purpose": "Parse an independently packed legacy 0x011A entry through BASHTINFO_PATH as a file; check a number, false/true booleans, a string offset, and ESC escaping.",
+      "script": "printf '%b' '\\032\\001\\021\\000\\002\\000\\001\\000\\006\\000\\004\\000\\160\\174\\146\\151\\170\\164\\165\\162\\145\\040\\145\\156\\164\\162\\171\\174\\000\\000\\001\\000\\052\\000\\377\\377\\377\\377\\377\\377\\377\\377\\377\\377\\000\\000\\033\\133\\110\\000' > legacy.ti\nexport BASHTINFO_PATH=legacy.ti TERM=fixture\ntinfo getnum columns\ntinfo getflag bw\ntinfo getflag am\ntinfo getstr clear",
+      "expected_status": 0,
+      "stdout": "42\n0\n1\n\\E[H\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wide_number_32bit",
+      "kind": "contract",
+      "purpose": "Parse an independently packed ncurses 0x021E entry and verify a 32-bit columns value above the legacy signed-16-bit range.",
+      "script": "printf '%b' '\\036\\002\\021\\000\\000\\000\\001\\000\\000\\000\\000\\000\\170\\174\\063\\062\\142\\151\\164\\040\\146\\151\\170\\164\\165\\162\\145\\174\\000\\000\\160\\021\\001\\000' > wide.ti\nBASHTINFO_PATH=wide.ti TERM=fixture32 tinfo getnum cols",
+      "expected_status": 0,
+      "stdout": "70000\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_named_caps",
+      "kind": "parity",
+      "requires": [
+        "tic",
+        "tput",
+        "mkdir"
+      ],
+      "purpose": "Compile a valid extended terminfo entry with independent ncurses tic -x; compare named boolean, numeric and escaped string queries with ncurses tput. Boolean status and ESC escaping adapt only the documented output representation.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-ext|private fixture,' '  am, cols#42,' '  userbool, usernum#73, userstr=\\EZ,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-ext\nif [[ $(type -t tinfo) == builtin ]]; then\n tinfo getflag userbool\n tinfo getnum usernum\n tinfo getstr userstr\nelse\n if tput -x userbool; then printf '1\\n'; else rc=$?; [[ $rc == 1 ]]; printf '0\\n'; fi\n tput -x usernum\n raw=$(tput -x userstr)\n raw=${raw//$'\\033'/$'\\\\E'}\n printf '%s\\n' \"$raw\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_capability",
+      "kind": "contract",
+      "purpose": "Verify that a capability absent from a valid standard entry produces no value and a failing tinfo status.",
+      "script": "TERM=xterm-256color; export TERM\nif tinfo getnum bashos_missing_capability; then\n  exit 91\nelse\n  rc=$?\nfi\nprintf '%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_terminal_entry",
+      "kind": "contract",
+      "purpose": "Check the documented failed lookup path for a nonexistent terminal name, including a diagnostic and failure status.",
+      "script": "if tinfo getnum cols bashos_no_such_terminal; then\n  exit 91\nelse\n  rc=$?\nfi\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "directory_search_precedence",
+      "kind": "contract",
+      "purpose": "Independent term(5) records in private character and hexadecimal directories verify BASHTINFO_PATH before TERMINFO before TERMINFO_DIRS, ordered fallback, and hex-directory lookup.",
+      "script": "mkdir -p high/f low/f dirs/66\nprintf '%b' '\\032\\001\\023\\000\\000\\000\\001\\000\\000\\000\\000\\000\\146\\151\\170\\164\\165\\162\\145\\174\\164\\145\\163\\164\\040\\145\\156\\164\\162\\171\\000\\000\\051\\000' > high/f/fixture\nprintf '%b' '\\032\\001\\023\\000\\000\\000\\001\\000\\000\\000\\000\\000\\146\\151\\170\\164\\165\\162\\145\\174\\164\\145\\163\\164\\040\\145\\156\\164\\162\\171\\000\\000\\064\\000' > low/f/fixture\nprintf '%b' '\\032\\001\\023\\000\\000\\000\\001\\000\\000\\000\\000\\000\\146\\151\\170\\164\\165\\162\\145\\174\\164\\145\\163\\164\\040\\145\\156\\164\\162\\171\\000\\000\\077\\000' > dirs/66/fixture\nexport TERM=fixture BASHTINFO_PATH=high TERMINFO=low TERMINFO_DIRS=dirs\ntinfo getnum cols\nunset BASHTINFO_PATH\ntinfo getnum cols\nunset TERMINFO\ntinfo getnum cols\nexport BASHTINFO_PATH=missing TERMINFO_DIRS=absent:dirs\ntinfo getnum cols",
+      "stdout": "41\n52\n63\n63\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_multiple_types_empty_and_wide",
+      "kind": "parity",
+      "requires": [
+        "tic",
+        "tput",
+        "mkdir"
+      ],
+      "purpose": "Valid tic -x output with a wide standard number selects the 32-bit number format and exercises multiple named capabilities of every type, an empty string, and a wide extended number; tput supplies independent values.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-many|private extended fixture,' '  am, cols#70000,' '  zflag, aflag, znum#70000, anum#19,' '  ztext=last, atext=first, emptytext=, middlestr=\\EZ,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-many\nif [[ $(type -t tinfo) == builtin ]]; then\n tinfo getflag aflag; tinfo getflag zflag\n tinfo getnum anum; tinfo getnum znum\n for cap in atext emptytext middlestr ztext; do tinfo getstr \"$cap\" || exit; done\nelse\n for cap in aflag zflag; do if tput -x \"$cap\"; then printf '1\\n'; else exit 91; fi; done\n tput -x anum; tput -x znum\n for cap in atext emptytext middlestr ztext; do raw=$(tput -x \"$cap\") || exit; raw=${raw//$'\\033'/$'\\\\E'}; printf '%s\\n' \"$raw\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_cancelled_string_offsets",
+      "kind": "parity",
+      "requires": [
+        "tic",
+        "tput",
+        "mkdir"
+      ],
+      "purpose": "A normal inherited string cancellation must not consume bytes in the extended value table or displace later capability names; compare surviving values and cancelled-string failure status with tput.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-parent|private parent,' '  aflag, anum#17, astr=first, dropstr=old, zstr=last,' 'fixture-child|private child,' '  dropstr@, use=fixture-parent,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-child\nif [[ $(type -t tinfo) == builtin ]]; then\n tinfo getflag aflag; tinfo getnum anum\n tinfo getstr astr; tinfo getstr zstr\n if tinfo getstr dropstr; then exit 91; else printf 'cancelled=%s\\n' \"$?\"; fi\nelse\n if tput -x aflag; then printf '1\\n'; else exit 91; fi\n tput -x anum\n for cap in astr zstr; do raw=$(tput -x \"$cap\") || exit; printf '%s\\n' \"$raw\"; done\n if tput -x dropstr; then exit 91; else printf 'cancelled=%s\\n' \"$?\"; fi\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_without_string_values",
+      "kind": "parity",
+      "requires": [
+        "tic",
+        "tput",
+        "mkdir"
+      ],
+      "purpose": "Names begin at offset zero when a valid extended entry has booleans and numbers but no string values.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-nostr|private no strings,' '  loneflag, lonenum#51,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-nostr\nif [[ $(type -t tinfo) == builtin ]]; then tinfo getflag loneflag; tinfo getnum lonenum; else if tput -x loneflag; then printf '1\\n'; else exit 91; fi; tput -x lonenum; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_absent_name_contract",
+      "kind": "contract",
+      "requires": [
+        "tic",
+        "mkdir"
+      ],
+      "purpose": "A name absent from a valid independently compiled extended entry retains the documented tinfo no-value/status1 contract; no tput status-equivalence claim is made for unknown names.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-parent|private parent,' '  aflag, anum#17, astr=first, dropstr=old, zstr=last,' 'fixture-child|private child,' '  dropstr@, use=fixture-parent,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-child\nfor kind in getflag getnum getstr; do if tinfo \"$kind\" no_such_private_capability; then exit 91; else printf '%s=%s\\n' \"$kind\" \"$?\"; fi; done",
+      "expected_status": 0,
+      "stdout": "getflag=1\ngetnum=1\ngetstr=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_only_cancelled_string_values",
+      "kind": "parity",
+      "requires": [
+        "tic",
+        "tput",
+        "mkdir"
+      ],
+      "purpose": "A valid inherited cancellation leaves no string-value bytes; capability names must still be read from offset zero.",
+      "script": "mkdir database\nprintf '%s\\n' 'fixture-parent|private parent,' '  loneflag, lonenum#29, dropstr=old,' 'fixture-cancel|private cancelled child,' '  dropstr@, use=fixture-parent,' > entry.src\ncommand -p tic -x -o database entry.src\nexport BASHTINFO_PATH=database TERMINFO=database TERM=fixture-cancel\nif [[ $(type -t tinfo) == builtin ]]; then\n tinfo getflag loneflag; tinfo getnum lonenum\n if tinfo getstr dropstr; then exit 91; else printf 'cancelled=%s\\n' \"$?\"; fi\nelse\n if tput -x loneflag; then printf '1\\n'; else exit 91; fi\n tput -x lonenum\n if tput -x dropstr; then exit 91; else printf 'cancelled=%s\\n' \"$?\"; fi\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "loadable": "vt",
+  "reference": "No matching GNU/POSIX CLI implements this in-memory terminal-model API. Contract outputs are independently derived from the documented Bash builtin interface, ECMA-48/DEC cursor and DSR behavior, OSC 0/2 title behavior, and xterm 256-color/truecolor SGR encodings. No expected output is taken from the candidate.",
+  "coverage": [
+    "Bash type/help metadata reports vt as a builtin and exposes its help.",
+    "Grid dimensions, initial cursor coordinates, cursor addressing, text rendering, and resize clamping.",
+    "OSC 0/2 window-title storage and the DSR cursor-position reply buffer.",
+    "DEC private-mode enable/disable reporting and indexed, grayscale, truecolor, and reset SGR helpers."
+  ],
+  "exclusions": [
+    "No matching standalone GNU command exists, so runnable cases are honest API contract checks rather than GNU parity comparisons.",
+    "Full xterm/VT100 parser conformance needs a separately pinned terminal reference transcript corpus.",
+    "PTY client integration and terminal resize/input behavior need an isolated PTY driver and disposable VM; they are deferred below."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies vt as a loadable builtin through the type metadata interface.",
+      "script": "type -t vt",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Confirm Bash help can resolve the documented vt command surface without invoking a terminal operation.",
+      "script": "help vt > metadata.out\nprintf 'vt help available\\n'",
+      "expected_status": 0,
+      "stdout": "vt help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "grid-size-cursor",
+      "kind": "contract",
+      "purpose": "Check the documented ROWS COLS size output and 1-indexed initial cursor on a small grid.",
+      "script": "vt new -h v -W 4 -H 2\nvt size \"$v\"\nvt cursor \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout": "2 4\n1 1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "cup-render",
+      "kind": "contract",
+      "purpose": "Verify printable characters and ECMA-48 CUP addressing, then check the documented text rendering of the occupied cells.",
+      "script": "vt new -h v -W 6 -H 2\nvt feed \"$v\" $'A\\e[2;3HZ'\nvt cursor \"$v\"\nvt render \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout": "2 4\nA\n  Z\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "resize-clamps-cursor",
+      "kind": "contract",
+      "purpose": "Check the documented resize behavior: dimensions change and a cursor outside the new grid is clamped to its final row and column.",
+      "script": "vt new -h v -W 8 -H 4\nvt feed \"$v\" $'\\e[4;8H'\nvt resize \"$v\" -W 5 -H 2\nvt size \"$v\"\nvt cursor \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout": "2 5\n2 5\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "osc-window-title",
+      "kind": "contract",
+      "purpose": "Check that the documented OSC 0 and OSC 2 title sequences can set and retrieve the window title.",
+      "script": "vt new -h v -W 8 -H 2\nvt feed \"$v\" $'\\e]2;fixture title\\a'\nvt title \"$v\"\nvt feed \"$v\" $'\\e]0;second title\\e\\\\'\nvt title \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout": "fixture title\nsecond title\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "dsr-cursor-reply",
+      "kind": "contract",
+      "purpose": "Verify ECMA-48 DSR 6 returns the 1-indexed current cursor position through the documented response-drain API.",
+      "script": "vt new -h v -W 6 -H 2\nvt feed \"$v\" $'\\e[6n'\nvt response \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout_base64": "G1sxOzFS",
+      "stderr": "empty"
+    },
+    {
+      "id": "dec-mode-reporting",
+      "kind": "contract",
+      "purpose": "Check DECSET/DECRST state for SGR mouse and bracketed paste, including the VT default autowrap mode documented by the API.",
+      "script": "vt new -h v -W 8 -H 2\nvt feed \"$v\" $'\\e[?1006h\\e[?2004h'\nactive=$(vt mode \"$v\")\n[[ $active == *mouse-sgr* && $active == *bracketed-paste* && $active == *autowrap* ]]\nvt feed \"$v\" $'\\e[?1006l\\e[?2004l'\n[[ $(vt mode \"$v\") == autowrap ]]\nprintf 'DEC modes enabled and cleared\\n'\nvt free \"$v\"",
+      "expected_status": 0,
+      "stdout": "DEC modes enabled and cleared\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sgr-color-encodings",
+      "kind": "contract",
+      "purpose": "Check documented color helpers against independently computed xterm 256-color cube/grayscale indices, truecolor SGR, and SGR reset bytes.",
+      "script": "vt color-cube 5 0 0 -V fg\nvt color-bg-cube 0 5 5 -V bg\nvt color-grayscale 0 -V gray0\nvt color-bg-grayscale 23 -V gray23\nvt color-rgb 1 2 255 -V rgb\nvt color-reset -V reset\n[[ $fg == $'\\e[38;5;196m' && $bg == $'\\e[48;5;51m' && $gray0 == $'\\e[38;5;232m' && $gray23 == $'\\e[48;5;255m' && $rgb == $'\\e[38;2;1;2;255m' && $reset == $'\\e[0m' ]]\nprintf 'SGR encodings match\\n'",
+      "expected_status": 0,
+      "stdout": "SGR encodings match\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-client-integration",
+      "kind": "deferred",
+      "purpose": "Exercise vt with a client connected to a pseudo-terminal, including terminal input forwarding and resize events.",
+      "reason": "Requires a future disposable VM fixture with a private PTY driver and a client transcript that controls terminal size, sends input, and captures replies. The current bounded contract cases exercise only vt's in-memory feed/model interface."
+    },
+    {
+      "id": "external-terminal-conformance",
+      "kind": "deferred",
+      "purpose": "Compare broader parser behavior across VT100/xterm control-sequence classes against an independent terminal implementation.",
+      "reason": "No matching GNU CLI or independently pinned xterm/VT100 transcript oracle is available here. A future disposable VM should supply a reviewed reference transcript corpus (or pinned independent emulator) and compare bounded parser outputs; candidate output must not seed those expectations."
+    },
+    {
+      "id": "split-csi-feed",
+      "kind": "contract",
+      "purpose": "A cursor-addressing sequence split across feed calls retains parser state and places a single printable cell.",
+      "script": "vt new -h v -W 6 -H 3\nvt feed \"$v\" $'\\e[2;'\nvt feed \"$v\" '3HZ'\nvt cursor \"$v\"\nvt render \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "2 4\n\n  Z\n\n"
+    },
+    {
+      "id": "response-is-drained",
+      "kind": "contract",
+      "purpose": "DSR reflects the addressed cursor and the second response call emits no stale reply.",
+      "script": "vt new -h v -W 6 -H 2\nvt feed \"$v\" $'\\e[2;3H\\e[6n'\nvt response \"$v\"\nvt response \"$v\"\nvt free \"$v\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "\u001b[2;3R"
+    }
+  ]
+}

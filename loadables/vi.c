@@ -15,7 +15,7 @@
  *
  * Commands shipped at v1:
  *   Motions:        h j k l, w, b, 0, $, G, [N]G
- *   Edits:          i, a, o, O, x, dd, yy, p, P, .  (repeat last edit)
+ *   Edits:          i, a, A, o, O, x, dd, yy, p, P, .  (repeat last edit)
  *   Counts:         [N]h/j/k/l, [N]x, [N]dd, d[N]d, [N]yy, [N]p/P,
  *                   [N]u, [N]Ctrl-R, [N].
  *   Search:         /pattern (forward), n, N
@@ -1262,7 +1262,8 @@ bv_enter_insert (int after_cursor)
     bv_history_mark (&bv_st);
     if (after_cursor && bv_st.cur < bv_st.pt.total_len &&
         bv_byte_at (&bv_st.pt, bv_st.cur) != '\n')
-        bv_st.cur++;
+        bv_st.cur = bv_char_next (&bv_st.pt, bv_st.cur,
+                                  bv_line_end (&bv_st.pt, bv_st.cur));
     bv_st.mode = BV_MODE_INSERT;
     bv_st.last_insert_len = 0;
     return 0;
@@ -1702,6 +1703,17 @@ bv_repeat (size_t count)
         return bv_open_line (1);
     case 'O':
         return bv_open_line (0);
+    case 'A':
+        if (bv_st.last_insert_len > 0) {
+            bv_history_mark (&bv_st);
+            bv_st.cur = bv_line_end (&bv_st.pt, bv_st.cur);
+            if (bv_insert_at (bv_st.cur, bv_st.last_insert_text,
+                              bv_st.last_insert_len) < 0) return -1;
+            bv_st.cur += bv_st.last_insert_len;
+            bv_st.cur = bv_motion_left (bv_st.cur);
+            bv_cursor_normalize ();
+        }
+        return 0;
     case 'i':
     case 'a':
         if (bv_st.last_insert_len > 0) {
@@ -1946,6 +1958,9 @@ bv_normal_key (int fd, int key)
     case 'O': bv_open_line (0); bv_st.last_op_cmd = 'O'; bv_pend.insert_len = 0; break;
     case 'i': bv_enter_insert (0); bv_st.last_op_cmd = 'i'; bv_pend.insert_len = 0; break;
     case 'a': bv_enter_insert (1); bv_st.last_op_cmd = 'a'; bv_pend.insert_len = 0; break;
+    case 'A':
+        bv_st.cur = bv_line_end (&bv_st.pt, bv_st.cur);
+        bv_enter_insert (0); bv_st.last_op_cmd = 'A'; bv_pend.insert_len = 0; break;
     case 'v': bv_st.mode = BV_MODE_VISUAL; bv_st.visual_anchor = bv_st.cur; break;
     case 'u':
         for (size_t i = 0; i < count; i++)
@@ -2754,9 +2769,9 @@ char *vi_doc[] = {
     "    -b, --binary  Bypass the binary-content tripwire and open files",
     "                  that contain NUL bytes (refused by default).",
     "",
-    "Modes: NORMAL (default), INSERT (i/a/o/O), COMMAND (:), VISUAL (v).",
+    "Modes: NORMAL (default), INSERT (i/a/A/o/O), COMMAND (:), VISUAL (v).",
     "Commands: h j k l, w, b, 0, $, G, [N]G,",
-    "          i a o O x dd yy p P, /pattern, n N,",
+    "          i a A o O x dd yy p P, /pattern, n N,",
     "          u (undo), Ctrl-R (redo), . (repeat),",
     "          counts on h j k l x dd yy p P u Ctrl-R . (3dd, d3d),",
     "          :w :q :wq :q! :w PATH, :e :r :file,",

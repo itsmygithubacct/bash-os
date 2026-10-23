@@ -3,7 +3,7 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
-## 0.1.1 — 2026-10-22
+## 0.1.1 — 2026-10-23
 
 A completion and hardening release, adding `bashclear` and conventional `clear`.
 Existing loadables were brought up to documented contracts, with regression,
@@ -17,6 +17,14 @@ coverage; none is left at build/help only.
   gzip cross-reader checks, and tar interoperability fixtures.
 - A scratch Docker image and `scripts/bash-os-docker` working-directory launcher.
 - A visible Bash/GNU parity suite comparing stdout, status, files, modes and links.
+- 289 reviewed loadable suites with 3,806 cases, run through mandatory private
+  namespaces and a restricted syscall filter. The static and dynamic builds
+  each record 3,155 passes, 28 retained compatibility failures, 23 optional-module
+  skips and 600 deferred cases after matching ACL reference checks. The
+  overlapping focused regressions pass 2,076 checks; Docker passes 131/131.
+  See [the validation record](docs/data/loadable-parity-validation-5.json).
+- Published Linux x86-64 static and dynamic binaries with SHA-256 checksums,
+  resolved builtin lists and build manifests.
 
 ### Compatibility fixes
 
@@ -24,6 +32,13 @@ coverage; none is left at build/help only.
   with `-f`; the last `-i` or `-n` controls prompting versus skipping.
 - `touch -d @SECONDS` accepts signed epoch times and nanosecond fractions.
 - `cat --` ends option parsing, with common GNU line/display options supported.
+- Archive hardlinks and FIFO metadata, gzip link handling, base64 final groups,
+  Unicode slicing, editor append behavior, terminfo extended names, and queued
+  inotify events have focused corrections and regression coverage.
+- File modes, ACL masks, formatting, option errors, exit statuses and selected
+  ordinary-file disk-image operations more closely match their reference tools.
+  Remaining strict differences are listed in the validation record; this is
+  not a claim of complete GNU command compatibility.
 
 ### Terminal commands
 

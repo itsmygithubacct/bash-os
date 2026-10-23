@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "loadable": "escdelay",
+  "reference": "Bash metadata and documented escdelay default, inclusive range, independent fixed state-transition and environment-precedence contracts. No matching GNU CLI exists.",
+  "coverage": [
+    "Bash reports escdelay as a loadable builtin.",
+    "The help metadata advertises the documented get/set forms, 50 ms default, and inclusive 0..5000 ms range.",
+    "The help metadata documents per-screen and global lookup precedence.",
+    "Deferred operation scope: global and per-screen state, environment overrides, argument validation, and actual decoder timing integration.",
+    "Operation contracts: global/default state, inclusive bounds, per-screen/environment precedence, rejected arguments, updates at the documented 16-screen capacity."
+  ],
+  "exclusions": [
+    "Only actual ESC/CSI timing integration requires a disposable PTY/input decoder and controllable clock; state operations use no terminal."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Check Bash type metadata identifies the registered escdelay command as a builtin.",
+      "script": "[[ $(type -t escdelay) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-usage-range",
+      "kind": "contract",
+      "purpose": "Check the help metadata publishes the get/set syntax, default, and supported inclusive millisecond range.",
+      "script": "doc=$(help escdelay)\n[[ $doc == *\"escdelay set [--screen NAME] MS\"* ]]\n[[ $doc == *\"escdelay get [--screen NAME]\"* ]]\n[[ $doc == *\"escdelay --help | --version\"* ]]\n[[ $doc == *\"Default: 50 ms\"* ]]\n[[ $doc == *\"Bounds:  0..5000 ms inclusive\"* ]]\nprintf 'usage-range\\n'",
+      "expected_status": 0,
+      "stdout": "usage-range\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-precedence",
+      "kind": "contract",
+      "purpose": "Check help documents the per-screen environment/state and global environment/state lookup order.",
+      "script": "doc=$(help escdelay)\n[[ $doc == *\"Precedence (highest wins):\"* ]]\n[[ $doc == *\"BASHESCDELAY_SCREEN_<NAME> env (per-screen GET only)\"* ]]\n[[ $doc == *\"builtin per-screen state\"* ]]\n[[ $doc == *\"BASHESCDELAY env\"* ]]\n[[ $doc == *\"builtin global state\"* ]]\n[[ $doc == *\"Default: 50\"* ]]\nprintf 'precedence\\n'",
+      "expected_status": 0,
+      "stdout": "precedence\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decoder-timing-integration",
+      "kind": "deferred",
+      "purpose": "Specify future integration coverage that demonstrates the configured grace interval changes bare-ESC versus CSI decoding.",
+      "reason": "This requires a disposable VM with a private PTY or mocked input stream, an isolated decoder consumer, and a controllable mock clock. Feed deterministic bare ESC and CSI sequences at times on either side of configured delays (including 0 and the upper bound), then assert the decoded key events. No terminal driver or clock mock is provided here, and this operation is not claimed as passed."
+    },
+    {
+      "id": "global-state-validation",
+      "kind": "contract",
+      "purpose": "Default and successive global updates cover both inclusive bounds and persistence in the calling shell.",
+      "script": "unset BASHESCDELAY\nescdelay get\nescdelay set 0\nescdelay get\nescdelay set 5000\nescdelay get\nescdelay set 73\nescdelay get",
+      "expected_status": 0,
+      "stdout": "50\n0\n5000\n73\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "screen-state-precedence",
+      "kind": "contract",
+      "purpose": "Per-screen env, per-screen state, global env, global state and invalid-env fallthrough follow the published precedence.",
+      "script": "unset BASHESCDELAY BASHESCDELAY_SCREEN_main\nescdelay set 80\nescdelay get --screen main\nexport BASHESCDELAY=90\nescdelay get --screen main\nescdelay set --screen main 120\nescdelay get --screen main\nexport BASHESCDELAY_SCREEN_main=140\nescdelay get --screen main\nescdelay get\nexport BASHESCDELAY_SCREEN_main=invalid\nescdelay get --screen main\nunset BASHESCDELAY_SCREEN_main\nexport BASHESCDELAY=5001\nescdelay get\nescdelay get --screen other",
+      "expected_status": 0,
+      "stdout": "80\n90\n120\n140\n90\n120\n80\n80\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-values-preserve-state",
+      "kind": "contract",
+      "purpose": "Rejected ordinary out-of-range and malformed values return usage status and preserve existing state.",
+      "script": "escdelay set 42\nfor value in -1 5001 nope 1.5 ''; do\n if escdelay set \"$value\"; then rc=0; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n [[ $rc == 2 ]]\ndone\nescdelay get",
+      "expected_status": 0,
+      "stdout": "2\n2\n2\n2\n2\n42\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-and-name-errors",
+      "kind": "contract",
+      "purpose": "Missing or extra arguments and invalid screen names reject with diagnostics.",
+      "script": "for args in 'set' 'get extra' 'get --screen' 'set --screen bad-name 4' 'get --screen bad/name' 'set 1 extra' 'unknown'; do\n read -r -a words <<< \"$args\"\n if escdelay \"${words[@]}\"; then rc=0; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n [[ $rc == 2 ]]\ndone",
+      "expected_status": 0,
+      "stdout": "2\n2\n2\n2\n2\n2\n2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "screen-update-and-capacity",
+      "kind": "contract",
+      "purpose": "Sixteen documented screen slots accept updates and reject a seventeenth distinct screen without changing existing values.",
+      "script": "for ((i=0;i<16;i++)); do escdelay set --screen \"screen_$i\" \"$i\"; done\nescdelay set --screen screen_0 88\nescdelay get --screen screen_0\nif escdelay set --screen overflow 2; then rc=0; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\n[[ $rc == 1 ]]\nescdelay get --screen screen_15",
+      "expected_status": 0,
+      "stdout": "88\n1\n15\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

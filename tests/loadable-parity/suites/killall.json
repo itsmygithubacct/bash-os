@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "loadable": "killall",
+  "reference": "Bash type/help and the published killall interface define metadata expectations. All selection/delivery operations remain deferred to a disposable VM or reviewed non-forwarding proc/signal adapter; no psmisc GNU parity result is claimed.",
+  "coverage": [
+    "Bash recognizes killall as a builtin when PATH is empty.",
+    "Bash help metadata advertises exact comm matching, supported selectors, and the default TERM signal.",
+    "Deferred operation requirements cover exact matching, full command lines, real UID filtering, option and signal parsing, errors and proc races, and controlled delivery."
+  ],
+  "exclusions": [
+    "No parity case invokes GNU psmisc killall or the candidate because either may signal a process.",
+    "No operation is claimed to pass; all process selection and delivery behavior is deferred pending a disposable VM or non-forwarding syscall/proc mock.",
+    "killall5, pkill, and other loadables are outside this suite."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type-metadata",
+      "purpose": "Bash type metadata must identify the injected killall command as a builtin; the harness runs with an empty candidate PATH.",
+      "kind": "contract",
+      "script": "type -t killall",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-help-contract",
+      "purpose": "Bash help metadata must describe the documented exact-name behavior, command-line and UID modes, and default signal without invoking killall.",
+      "kind": "contract",
+      "script": "help_text=$(help killall)\n[[ $help_text == *\"Signal every process with comm exactly equal to any NAME.\"* ]] || exit 21\n[[ $help_text == *\"-e, --exact\"* ]] || exit 22\n[[ $help_text == *\"-f         match against /proc/PID/cmdline\"* ]] || exit 23\n[[ $help_text == *\"-u USER    only signal processes whose real uid is USER\"* ]] || exit 24\n[[ $help_text == *\"Default: TERM\"* ]] || exit 25\nprintf 'exact-comm\\nfull-command-line\\nreal-uid\\nterm-default\\n'",
+      "expected_status": 0,
+      "stdout": "exact-comm\nfull-command-line\nreal-uid\nterm-default\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "exact-comm-and-name-list",
+      "purpose": "Check the core matching contract, including exact comm equality, similar-name exclusion, multiple names, duplicate names, the 15-byte comm boundary, self-exclusion, and default SIGTERM.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with fixed synthetic /proc comm records and a reviewed signal adapter that logs each kill(2) tuple but never forwards it. Compare the recorded PID/signal set with independently written expectations based on GNU psmisc killall's exact-name semantics and the documented self-exclusion/default TERM contract. Include prefix/suffix lookalikes, repeated and multiple NAME operands, and 15-byte comm boundaries. This runner has no such adapter, and invoking killall is prohibited here."
+    },
+    {
+      "id": "full-command-line-exact-mode",
+      "purpose": "Exercise -f exact joined-command-line selection, including NUL-separated arguments, empty arguments, long records, and substring nonmatches.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed proc mock that supplies controlled /proc/PID/cmdline bytes and records, without forwarding, all attempted signals. Build independent cases for NUL-separated arguments joined by spaces, empty arguments, a long exact line, empty command lines, and substring rejection. The source documents -f as exact joined-line matching; no operation is executed in this suite."
+    },
+    {
+      "id": "real-uid-filter",
+      "purpose": "Check -u numeric and account-name filters against real UID records, including a nonmatching UID and filter interaction with name selection.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM/mock with synthetic complete /proc/PID/status Uid records and a private passwd fixture for name resolution, plus a non-forwarding signal recorder. Expected selections must come from those fixture records and the documented real-UID contract; do not consult or modify host accounts."
+    },
+    {
+      "id": "signal-and-option-parsing",
+      "purpose": "Check default TERM, signal names with optional SIG prefix and case variation, numeric signals, -e/--exact compatibility, and usage errors such as zero or unknown signals/options.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed signal syscall mock that records but never forwards requests. Derive expected signal numbers and option acceptance from GNU psmisc killall documentation plus the loadable's published option contract. Include valid aliases and invalid/overflowing signal values, and capture exit status and diagnostics without targeting a real process."
+    },
+    {
+      "id": "status-and-proc-failure-paths",
+      "purpose": "Check no-match, usage, and fatal-proc status classes along with malformed or missing proc records, bounded PID parsing, delivery ESRCH/EPERM, and partial success.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed proc/signal adapter that serves hand-built records and injects ESRCH/EPERM while never forwarding kill(2). Independently assert the documented statuses (1 for no match or unsuccessful delivery, 2 for usage, 3 for fatal proc errors), stderr policy, fail-closed malformed PID/UID/comm handling, and partial success. No such adapter is supplied to the runner."
+    },
+    {
+      "id": "controlled-child-delivery",
+      "purpose": "Qualify real signal delivery and cleanup only against a uniquely named direct child whose PID, parent, UID, and comm are independently verified immediately before delivery.",
+      "kind": "deferred",
+      "reason": "Requires a separately authorized disposable VM test with a dedicated owned child and an independently reviewed delivery guard that rejects every PID except that child, verifies PID/PPid/UID/comm immediately before each syscall, logs every request, and guarantees cleanup. This test must never use broad names or host processes. The current task forbids running killall or signals, so no live delivery is attempted."
+    }
+  ]
+}

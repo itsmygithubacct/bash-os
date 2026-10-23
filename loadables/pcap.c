@@ -108,6 +108,7 @@ struct builtin;
 #define PCAP_MAGIC_USEC    0xa1b2c3d4u   /* microsecond resolution */
 #define PCAP_MAGIC_NSEC    0xa1b23c4du   /* nanosecond resolution */
 #define PCAP_MAGIC_SWAPPED 0xd4c3b2a1u   /* opposite-endian usec */
+#define PCAP_MAGIC_NSEC_SWAPPED 0x4d3cb2a1u /* opposite-endian nsec */
 #define PCAP_VERSION_MAJ   2
 #define PCAP_VERSION_MIN   4
 
@@ -265,7 +266,8 @@ bpc_info_file (const char *path)
     int swapped = 0;
     if (h.magic_number != PCAP_MAGIC_USEC &&
         h.magic_number != PCAP_MAGIC_NSEC) {
-        if (h.magic_number == PCAP_MAGIC_SWAPPED) {
+        if (h.magic_number == PCAP_MAGIC_SWAPPED ||
+            h.magic_number == PCAP_MAGIC_NSEC_SWAPPED) {
             swapped = 1;
         } else {
             builtin_error ("info: %s: bad magic 0x%08x", path,

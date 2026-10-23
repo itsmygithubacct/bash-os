@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "loadable": "column",
+  "reference": "Bash type/help builtin contracts and util-linux column for runnable parity. Parity cases run the same deterministic script on both shells with private relative fixture files; expected behavior is not derived from bash-os output.",
+  "coverage": [
+    "Bash metadata: column is registered as a builtin and help -s advertises its documented synopsis.",
+    "util-linux table output with default whitespace separators, ragged rows, explicit field separators, empty fields, and a custom output separator.",
+    "util-linux non-table layout with explicit output width, column-first versus row-first filling, and explicit space padding.",
+    "Named relative file operands, an unterminated final input record, repeated redirected stdin in one shell, and invalid output-width handling.",
+    "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner."
+  ],
+  "exclusions": [
+    "Only the column command is covered; the sibling col and colrm builtins are outside this suite.",
+    "Terminal-derived default width, wide-character display alignment, and util-linux options outside the implemented column subset are not covered.",
+    "No privileged, host-system, hardware, or network operation is part of column's selected behavior, so no operation case is deferred."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "purpose": "Use Bash's type -t contract to confirm that the statically registered column command is recognized as a builtin with an empty candidate PATH.",
+      "kind": "contract",
+      "script": "type -t column",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "metadata-help-synopsis",
+      "purpose": "Check that Bash help exposes the registered column synopsis and includes its documented table and row-fill options.",
+      "kind": "contract",
+      "script": "synopsis=$(help -s column)\nif [[ $synopsis == *column* && $synopsis == *-x* && $synopsis == *-t* ]]; then\n  printf '%s\\n' 'column synopsis advertised'\nelse\n  printf '%s\\n' 'column synopsis missing' >&2\n  exit 1\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "column synopsis advertised\n"
+    },
+    {
+      "id": "table-whitespace-ragged",
+      "purpose": "Compare table mode's default whitespace splitting and column alignment across mixed spaces, tabs, leading whitespace, and a shorter final row.",
+      "kind": "parity",
+      "script": "printf '  NAME\\tAGE  CITY  \\nAl 8 NY\\nBeatrice\\t12\\tLos Angeles\\nCy 4\\n' > rows.txt\ncolumn -t < rows.txt",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "table-explicit-separator",
+      "purpose": "Compare colon-separated table parsing, preservation of empty fields between adjacent separators, and a multi-byte output separator.",
+      "kind": "parity",
+      "script": "printf 'name::id:path\\nx:long:7:/\\n' > rows.txt\ncolumn -t -s ':' -o ' | ' < rows.txt",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "non-table-column-fill",
+      "purpose": "Compare non-table vertical filling at an explicit width with deterministic short items and a final incomplete row.",
+      "kind": "parity",
+      "script": "printf 'red\\nblue\\ngreen\\nblack\\nwhite\\n' | column -c 18",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "non-table-row-fill",
+      "purpose": "Compare -x row-first item ordering against the same explicit-width non-table fixture.",
+      "kind": "parity",
+      "script": "printf 'red\\nblue\\ngreen\\nblack\\nwhite\\n' | column -x -c 18",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "non-table-space-padding",
+      "purpose": "Compare the implemented --use-spaces padding mode at a fixed output width instead of tab-separated columns.",
+      "kind": "parity",
+      "script": "printf 'oak\\npine\\nash\\nelm\\n' | column --use-spaces=2 -c 17",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "file-operands-unterminated",
+      "purpose": "Compare table input from two private relative file operands, including a final record without a newline.",
+      "kind": "parity",
+      "script": "printf 'key value\\nshort 1' > first.txt\nprintf 'longer 22\\n' > second.txt\ncolumn -t first.txt second.txt",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-stdin-redirection",
+      "purpose": "Run column repeatedly in one shell with fresh redirections to the same relative file; each invocation must independently process all rows.",
+      "kind": "parity",
+      "script": "printf 'alpha\\nbeta\\n' > repeated.txt\nfor pass in 1 2 3; do column -t < repeated.txt; done",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-output-width",
+      "purpose": "Zero width is accepted with empty stdin; the separate nonempty case determines its formatting behavior.",
+      "kind": "parity",
+      "script": "column -c 0",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-width-nonempty",
+      "kind": "parity",
+      "purpose": "Exercise zero width with nonempty list and table input; raw formatting is compared.",
+      "requires": [
+        "column"
+      ],
+      "script": "printf 'one\\ntwo\\nthree\\n' > items\ncolumn -c 0 items\ncolumn -x --output-width=0 items\ncolumn -t --output-width 0 items",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ragged-explicit-tail",
+      "kind": "parity",
+      "purpose": "Missing cells must retain padding and separators through the final table column.",
+      "requires": [
+        "column"
+      ],
+      "script": "printf 'a:b:c:d\\nlong:z\\nx::\\n' | column -ts: -o ' | '",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "implementation-version-contract",
+      "kind": "contract",
+      "purpose": "Keep the existing bash-loadable identity banner as a custom contract, separate from external version output.",
+      "script": "column --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "column 1.0 (bash-loadable)\n"
+    },
+    {
+      "id": "repeated-dash-stream-contract",
+      "kind": "contract",
+      "purpose": "Repeated dash operands share stdin once per invocation; each fresh redirection reads the complete stream. Expected bytes follow the documented logical-stream extension.",
+      "script": "printf 'A' > input\ncolumn -t - - < input\ncolumn -t - - < input",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "A\nA\n"
+    },
+    {
+      "id": "blank-records-and-ragged-rows",
+      "kind": "parity",
+      "purpose": "Whitespace-only records are ignored (column manual); actual ragged records retain their missing-cell padding. Compare default and explicit separators plus list mode without trimming output.",
+      "script": "printf 'a:b:c\\n\\n   \\nlong:z\\n:\\n' > input\ncolumn -ts: input\nprintf 'a b c\\n\\n\\t\\nlong z\\n' | column -t\nprintf 'one\\n\\n   \\ntwo\\n' | column -c 0",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-and-width-error",
+      "kind": "parity",
+      "purpose": "Empty input is empty; negative output width is rejected diagnostically.",
+      "script": ": > empty; column -t empty; column -c -1 empty",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "column"
+      ]
+    },
+    {
+      "id": "negative-width-spellings-and-recovery",
+      "kind": "parity",
+      "purpose": "Ordinary negative widths fail with util-linux status 1 across short, attached and both long spellings, even for empty input; a later zero-width invocation remains valid.",
+      "requires": [
+        "column"
+      ],
+      "script": ": > empty\nfor form in split attached long-split long-equals; do\n rc=0\n case $form in\n  split) column -c -1 empty || rc=$? ;;\n  attached) column -c-1 empty || rc=$? ;;\n  long-split) column --output-width -1 empty || rc=$? ;;\n  long-equals) column --output-width=-1 empty || rc=$? ;;\n esac\n printf 'negative-status=%s\\n' \"$rc\"\n [[ $rc == 1 ]]\ndone\nprintf 'one\\n' > data\ncolumn -c 0 data",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

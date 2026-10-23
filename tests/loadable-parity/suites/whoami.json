@@ -1,0 +1,259 @@
+{
+  "version": 1,
+  "loadable": "whoami",
+  "reference": "GNU coreutils whoami (independent executable found on the reference PATH); metadata contracts use Bash type/help builtins and the descriptions in the stock Bash whoami loadable source.",
+  "coverage": [
+    "Default current-user output, end-of-options handling, and repeated calls in one Bash process.",
+    "GNU option behavior for operands, invalid options, --help, and --version; disagreements remain visible as FAIL.",
+    "Bash loadable metadata: type identifies whoami as a builtin and help exposes the source-documented description.",
+    "GNU long-option prefixes, option ordering and invalid operands; help/version bytes compared directly."
+  ],
+  "exclusions": [
+    "The runner supplies one passwd entry for its isolated identity, so an effective UID without an NSS/passwd name is deferred.",
+    "Only the documented stock Bash loadable contract and GNU coreutils option surface are covered."
+  ],
+  "cases": [
+    {
+      "id": "default-identity",
+      "kind": "parity",
+      "purpose": "The no-operand invocation prints the name associated with the isolated current effective user.",
+      "script": "whoami",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "end-of-options",
+      "kind": "parity",
+      "purpose": "A standalone -- ends option parsing and leaves no operand, so the identity is still printed.",
+      "script": "whoami --",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-invocation",
+      "kind": "parity",
+      "purpose": "Two calls in one shell each print one identity line, exercising repeated lookup and cached shell identity state.",
+      "script": "whoami; whoami",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extra-operand",
+      "kind": "parity",
+      "purpose": "GNU whoami rejects an operand; keep any status, diagnostic, or output difference from the loadable visible.",
+      "script": "whoami unexpected",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option",
+      "kind": "parity",
+      "purpose": "An unsupported short option must fail according to the GNU CLI oracle; preserve Bash loadable option-parser differences.",
+      "script": "whoami -x",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-help-option",
+      "kind": "parity",
+      "purpose": "Compare --help handling against GNU coreutils, including complete output bytes.",
+      "script": "whoami --help",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-version-option",
+      "kind": "parity",
+      "purpose": "Compare --version handling against GNU coreutils, including output and status.",
+      "script": "whoami --version",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-type-metadata",
+      "kind": "contract",
+      "purpose": "The statically compiled loadable is available as a Bash builtin even when candidate PATH is empty.",
+      "script": "[[ $(type -t whoami) == builtin ]] && printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Bash help resolves the loadable and includes the independently documented stock-source summary and description.",
+      "script": "help_text=$(help whoami); [[ $help_text == *'Print user name'* && $help_text == *'Display name of current user.'* ]] && printf 'documented help available\\n'",
+      "expected_status": 0,
+      "stdout": "documented help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unmapped-effective-uid",
+      "kind": "deferred",
+      "purpose": "Compare behavior when the effective UID has no passwd/NSS name, including GNU's diagnostic and the loadable's fallback behavior.",
+      "reason": "The harness provides a passwd entry for its sole isolated identity and does not let a fixture alter the read-only NSS files or select an unmapped effective UID. A future disposable VM or controlled identity/NSS mock must run GNU whoami and the candidate with the same unmapped UID and verify stdout, stderr, and status."
+    },
+    {
+      "id": "operand-after-end",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "whoami -- extra",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "option-after-operand",
+      "kind": "parity",
+      "purpose": "Compare this help/version invocation directly with GNU, including complete banner bytes and status. Implementation identity differences remain visible.",
+      "script": "whoami extra --help",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-extra",
+      "kind": "parity",
+      "purpose": "Compare this help/version invocation directly with GNU, including complete banner bytes and status. Implementation identity differences remain visible.",
+      "script": "whoami --help extra",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "abbreviated-help",
+      "kind": "parity",
+      "purpose": "Compare this help/version invocation directly with GNU, including complete banner bytes and status. Implementation identity differences remain visible.",
+      "script": "whoami --he",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "version-extra",
+      "kind": "parity",
+      "purpose": "Compare this help/version invocation directly with GNU, including complete banner bytes and status. Implementation identity differences remain visible.",
+      "script": "whoami --version extra",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-long",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "whoami --unknown",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bad-long-argument",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "whoami --help=x",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "short-help-rejected",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "whoami -h",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-operand",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "whoami ''",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "version-prefix",
+      "kind": "parity",
+      "purpose": "Compare this help/version invocation directly with GNU, including complete banner bytes and status. Implementation identity differences remain visible.",
+      "script": "whoami --v",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-after-end",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "whoami -- --help",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "updated-short-help",
+      "kind": "contract",
+      "purpose": "Verify the synopsis required in the generated short-help catalog.",
+      "script": "help -s whoami",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "whoami: whoami [--help] [--version]\n"
+    },
+    {
+      "id": "posix-option-order",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "POSIXLY_CORRECT=1 whoami operand --help",
+      "requires": [
+        "whoami"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

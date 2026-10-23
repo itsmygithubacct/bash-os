@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "loadable": "mkfs",
+  "reference": "Contract expectations use Bash's documented type/help builtins and the pinned mkfs help text. There is no GNU formatter with matching behavior; e2fsprogs mke2fs is an independent ext2 implementation but has different defaults and on-disk output, so it is not used as a byte-for-byte parity oracle.",
+  "coverage": [
+    "Bash reports mkfs as an available builtin.",
+    "The builtin's concise help description and synopsis match its documented interface.",
+    "Deferred regular-image cases specify ext2 layout, options, dry-run, and input-validation checks for a future authorized fixture run.",
+    "A deferred block-device case specifies the mock or disposable-VM requirement for BLKGETSIZE64 and I/O error behavior."
+  ],
+  "exclusions": [
+    "No formatter operation was invoked, per the instruction not to run dangerous loadables.",
+    "No real block device, loop device, mount, mounted filesystem, power-loss test, or maximum-capacity image is in scope.",
+    "No mke2fs comparison is labeled GNU parity; it is a different implementation with non-identical defaults and artifacts."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the registered mkfs loadable as a builtin.",
+      "script": "type -t mkfs",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-description",
+      "kind": "contract",
+      "purpose": "Bash type must describe the registered command as a shell builtin.",
+      "script": "type mkfs",
+      "expected_status": 0,
+      "stdout": "mkfs is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "The short help description must match the first line of the builtin's documented help text.",
+      "script": "help -d mkfs",
+      "expected_status": 0,
+      "stdout": "mkfs - Create a minimal ext2 filesystem on IMAGE.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "The concise help synopsis must expose the documented operand and supported options.",
+      "script": "help -s mkfs",
+      "expected_status": 0,
+      "stdout": "mkfs: mkfs IMAGE [-L LABEL] [-b BLOCKSIZE] [-m PCT] [-F] [-n]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "regular-image-layout",
+      "kind": "deferred",
+      "purpose": "Verify successful formatting of a small relative regular-file image with default options and each supported block size, including filesystem geometry and the root/lost+found directories.",
+      "reason": "Requires explicit authorization to invoke the destructive formatter on per-case fixture images in a disposable VM with all writes confined by a reviewed syscall mock. A future run must use only small relative images, independently decode ext2 fields and directory records, and check the results with available read-only tools such as e2fsck -fn, dumpe2fs, debugfs, and blkid."
+    },
+    {
+      "id": "options-label-reserved",
+      "kind": "deferred",
+      "purpose": "Check -L truncation at 16 bytes, -m boundaries, -F compatibility, -- option termination, and preservation of the regular image's length across supported block sizes.",
+      "reason": "Requires a future disposable VM providing the following prerequisite: Requires the same explicit authorization and disposable fixture environment as regular-image formatting. The expected label, reserved-block count, block size, image length, and ext2 features must be derived from the documented contract and an independent ext2 decoder, not from candidate output."
+    },
+    {
+      "id": "dry-run-and-invalid-inputs",
+      "kind": "deferred",
+      "purpose": "Check that -n leaves a prefilled relative image byte-for-byte unchanged and that malformed options, undersized images, and layouts too small for metadata fail without changing image contents.",
+      "reason": "The loadable must not be invoked under the current safety instruction. A future disposable VM with a reviewed formatter syscall mock should hash the small image before and after, cover documented status classes and representative numeric boundaries, and keep all paths relative to the private fixture directory."
+    },
+    {
+      "id": "block-device-and-io-errors",
+      "kind": "deferred",
+      "purpose": "Exercise BLKGETSIZE64 sizing and bounded write, sync, and close failures without touching a host device.",
+      "reason": "Requires a future disposable VM with a dedicated disposable block device or a separately reviewed syscall mock that redirects every write to a test-owned regular image. The mock must inject ioctl and I/O failures and verify recovery and descriptor cleanup; no physical or host block device may be used."
+    }
+  ]
+}

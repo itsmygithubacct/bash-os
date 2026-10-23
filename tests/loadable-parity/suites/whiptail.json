@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "loadable": "whiptail",
+  "reference": "Documented contract oracle: the published implementation documentation documents the non-interactive stdin/result behavior, result channels, checklist output modes, mixedform field types, gauge input, and zero-second pause. Its whiptail_doc supplies the help text; Bash's builtin metadata table declares the short_doc as whiptail, and Bash help formats that short_doc followed by the indented long doc. Expected bytes and statuses below are taken from those source contracts plus Bash type/help builtin behavior, not from candidate output. No GNU/POSIX-standardized whiptail command is used as a fake oracle, and no PTY rendering parity is claimed.",
+  "coverage": [
+    "Bash builtin type and help metadata for whiptail.",
+    "Non-interactive yes/no status mapping for Y and a non-yes response.",
+    "Inputbox result routing to default stderr and an explicit output file descriptor.",
+    "Menu tag output and --notags item-text output.",
+    "Checklist selected-tag output with --separate-output.",
+    "Mixedform editable, password-type, and readonly fields in pipe mode.",
+    "Gauge input lines and the documented immediate zero-second pause."
+  ],
+  "exclusions": [
+    "There are no parity cases: the Bash builtin metadata and documented pipe-mode extension have no matching GNU/POSIX-standardized CLI oracle; the external whiptail UI is not treated as an equivalent oracle.",
+    "PTY key handling, terminal drawing, resizing, and scrolling are deferred because the provided fixture runner starts fixtures without a controlling terminal.",
+    "The untested pipe-mode widget families include radiolist, treeview, inputmenu, form, textbox, and tailbox; the tested subset is not a complete whiptail compatibility claim."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm whiptail is registered as a Bash builtin, as required by the loadable contract.",
+      "script": "type -t whiptail",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash help exposes the documented whiptail alias note.",
+      "script": "help whiptail",
+      "expected_status": 0,
+      "stdout": "whiptail: whiptail\n    whiptail-compatible alias for dialog. See `help dialog`.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "yesno-pipe-results",
+      "kind": "contract",
+      "purpose": "Check the documented non-interactive rule that Y selects Yes with status 0 and a non-yes response selects No with status 1.",
+      "script": "if printf 'Y\\n' | whiptail --yesno 'Continue?' 8 30; then yes_rc=0; else yes_rc=$?; fi\nif printf 'n\\n' | whiptail --yesno 'Continue?' 8 30; then no_rc=0; else no_rc=$?; fi\nprintf '%s/%s\\n' \"$yes_rc\" \"$no_rc\"",
+      "expected_status": 0,
+      "stdout": "0/1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "inputbox-result-channels",
+      "kind": "contract",
+      "purpose": "Check that inputbox emits its entered line to the default result channel and that --output-fd selects another open descriptor.",
+      "script": "printf 'default value\\n' | whiptail --inputbox Value 8 30 2>default.txt\nprintf 'fd value\\n' | whiptail --output-fd 3 --inputbox Value 8 30 3>fd.txt\nprintf 'default value\\n' > expected-default\nprintf 'fd value\\n' > expected-fd\ncmp default.txt expected-default\ncmp fd.txt expected-fd\nprintf 'default value|fd value\\n'\n",
+      "expected_status": 0,
+      "stdout": "default value|fd value\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "menu-tag-and-notags",
+      "kind": "contract",
+      "purpose": "Check menu selection returns the chosen tag by default and the item's text under --notags.",
+      "script": "printf 'second\\n' | whiptail --stdout --menu 'Pick one' 10 40 2 first 'First item' second 'Second item' >tag.txt\nIFS= read -r tag <tag.txt\nprintf 'second\\n' | whiptail --stdout --notags --menu 'Pick one' 10 40 2 first 'First item' second 'Second item' >item.txt\nIFS= read -r item <item.txt\nprintf '%s|%s\\n' \"$tag\" \"$item\"\nprintf 'second\\n' > expected-tag\nprintf 'Second item\\n' > expected-item\ncmp tag.txt expected-tag\ncmp item.txt expected-item\n",
+      "expected_status": 0,
+      "stdout": "second|Second item\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "checklist-separate-output",
+      "kind": "contract",
+      "purpose": "Check selected checklist tags are emitted one per line when --separate-output is requested.",
+      "script": "printf 'alpha\\nbeta\\n' | whiptail --stdout --separate-output --checklist 'Pick items' 12 40 4 alpha 'Alpha item' off beta 'Beta item' off gamma 'Gamma item' off",
+      "expected_status": 0,
+      "stdout": "alpha\nbeta\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "mixedform-pipe-fields",
+      "kind": "contract",
+      "purpose": "Check pipe mode reads one line for each editable mixedform field, skips input for a readonly field, and emits final values in field order.",
+      "script": "printf 'new-name\\nnew-secret\\n' | whiptail --stdout --mixedform 'Account' 12 60 4 'Name' 1 1 'old' 1 10 12 12 0 'Password' 2 1 'oldpw' 2 10 12 12 1 'ID' 3 1 '42' 3 10 12 12 2",
+      "expected_status": 0,
+      "stdout": "new-name\nnew-secret\n42\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gauge-pipe-input",
+      "kind": "contract",
+      "purpose": "Check the documented gauge pipe input accepts both percent-suffixed and bare integer lines and produces no result text.",
+      "script": "printf '%s\\n' '20%' '100' | whiptail --gauge 'Progress' 8 30 0",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "pause-zero-seconds",
+      "kind": "contract",
+      "purpose": "Check the documented non-interactive zero-second pause returns immediately without output.",
+      "script": "whiptail --pause 'Wait' 8 30 0",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-keyed-input-widgets",
+      "kind": "deferred",
+      "purpose": "Exercise terminal keyboard behavior and result/cancel handling for yesno, inputbox, and passwordbox.",
+      "reason": "Requires a disposable VM or reviewed PTY mock with a controlling terminal, fixed TERM and dimensions, and scripted key bytes to cover Tab/Enter/Esc, cursor editing, and password masking. The current fixture runner has no PTY input or terminal transcript facility."
+    },
+    {
+      "id": "deferred-keyed-list-widgets",
+      "kind": "deferred",
+      "purpose": "Exercise terminal navigation, toggling, defaults, and selection output for menu, checklist, radiolist, treeview, and inputmenu.",
+      "reason": "Requires a disposable VM or reviewed PTY mock with fixed TERM/terminfo and scripted arrow/space/Enter/Esc input, plus a pinned external whiptail release for the terminal transcript oracle. No PTY is provided by this fixture runner."
+    },
+    {
+      "id": "deferred-terminal-rendering",
+      "kind": "deferred",
+      "purpose": "Exercise box layout and redraw behavior for message/progress widgets and file-backed textbox/tailbox scrolling.",
+      "reason": "Requires a disposable VM or reviewed PTY mock with fixed terminal dimensions, a bounded keyboard stream, and a pinned external whiptail transcript oracle; file-backed textbox/tailbox fixtures must remain relative and private. The current runner cannot provide a controlling terminal."
+    }
+  ]
+}

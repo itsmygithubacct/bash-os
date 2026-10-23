@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "loadable": "sv",
+  "reference": "GNU Bash runs GNU coreutils tail on the same relative fixture bytes; GNU mkdir -p independently mirrors the nested private runtime-directory creation performed by sv. Metadata is checked as a Bash builtin contract against the documented sv help text.",
+  "coverage": [
+    "Bash type/help metadata identifies sv as a builtin and exposes documented command entries.",
+    "sv log matches GNU tail for NUL-containing data, a 4096-byte line, multiple records, and an unterminated final record.",
+    "sv log matches GNU tail for -n 0, counts below and above the number of records, empty files, and blank records.",
+    "The parity fixtures compare the nested relative BASHSV_RUNDIR tree, created by sv and independently by GNU mkdir -p in the reference run."
+  ],
+  "exclusions": [
+    "Service execution and process-control verbs are deferred because this task forbids running service managers or signalling processes; they require an isolated disposable VM with an owned service tree and child-process containment.",
+    "Privilege and namespace directives, activation protocols, timers, and readiness/dependency behavior are deferred because they require disposable privilege, process, socket, event, or cron-spool fixtures described with each deferred case.",
+    "No absolute service paths, host services, real network peers, user credentials, privileged operations, or system-wide process controls are used."
+  ],
+  "cases": [
+    {
+      "id": "type-help-metadata",
+      "kind": "contract",
+      "purpose": "Use only Bash's type and help builtins to check the registered builtin kind and documented sv synopsis entries.",
+      "script": "kind=$(type -t sv)\n[[ $kind == builtin ]] || exit 41\ndoc=$(help sv)\n[[ $doc == *\"Service supervisor for bash-os.\"* ]] || exit 42\n[[ $doc == *\"sv log NAME [-n N]\"* ]] || exit 43\n[[ $doc == *\"sv shutdown\"* ]] || exit 44\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "log-binary-long-unterminated",
+      "kind": "parity",
+      "purpose": "Compare sv log's last-four-record output byte-for-byte with GNU tail, including an embedded NUL, a long record, and a final record without LF. GNU mkdir -p mirrors sv's nested private runtime directory so filesystem effects are compared too.",
+      "requires": [
+        "tail",
+        "mkdir"
+      ],
+      "script": "printf 'binary\\000record\\n' > fixture\nline=\nprintf -v line '%*s' 4096 ''\nline=${line// /x}\nprintf '%s\\nmiddle\\nlast-without-newline' \"$line\" >> fixture\nexport BASHSV_DIR=services BASHSV_RUNDIR=state/deep/run BASHSV_LOGDIR=.\nif [[ $(type -t sv) == builtin ]]; then\n  sv log fixture -n 4\nelse\n  mkdir -p state/deep/run\n  tail -n 4 fixture\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "log-line-count-boundaries",
+      "kind": "parity",
+      "purpose": "Compare several valid line counts, including zero, one, more than the available records, and a count far above the file length, against GNU tail.",
+      "requires": [
+        "tail",
+        "mkdir"
+      ],
+      "script": "printf 'alpha\\nbeta\\ngamma\\n' > fixture\ncounts=(0 1 2 4 20)\nexport BASHSV_DIR=services BASHSV_RUNDIR=state/deep/run BASHSV_LOGDIR=.\nif [[ $(type -t sv) == builtin ]]; then\n  for n in \"${counts[@]}\"; do sv log fixture -n \"$n\"; done\nelse\n  mkdir -p state/deep/run\n  for n in \"${counts[@]}\"; do tail -n \"$n\" fixture; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "log-empty-and-blank-records",
+      "kind": "parity",
+      "purpose": "Check empty-file behavior and preservation of blank LF records at zero, one, two, and excess line counts against GNU tail.",
+      "requires": [
+        "tail",
+        "mkdir"
+      ],
+      "script": ": > empty\nprintf '\\n\\n' > blank\ncounts=(0 1 2 3)\nexport BASHSV_DIR=services BASHSV_RUNDIR=state/deep/run BASHSV_LOGDIR=.\nif [[ $(type -t sv) == builtin ]]; then\n  for n in \"${counts[@]}\"; do sv log empty -n \"$n\"; done\n  for n in \"${counts[@]}\"; do sv log blank -n \"$n\"; done\nelse\n  mkdir -p state/deep/run\n  for n in \"${counts[@]}\"; do tail -n \"$n\" empty; done\n  for n in \"${counts[@]}\"; do tail -n \"$n\" blank; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-service-lifecycle",
+      "kind": "deferred",
+      "purpose": "Qualify once/up/down/restart/signal/status/run and shutdown semantics with services confined to an owned fixture process tree.",
+      "reason": "Requires a disposable VM or reviewed supervisor mock that redirects every BASHSV_* directory to a private fixture, launches only a known child, proves process-tree ownership, and reaps only that child's descendants. This environment's instructions prohibit running service managers and process-control operations."
+    },
+    {
+      "id": "deferred-readiness-and-ordering",
+      "kind": "deferred",
+      "purpose": "Qualify restart policies, finish hooks, readiness checks, oneshot behavior, and dependency-ordered boot and shutdown.",
+      "reason": "Requires a disposable VM with a synthetic service tree, bounded owned child processes, private run/log state, and synchronization fixtures for readiness and finish ordering. These operations execute and signal services, which are outside the permitted runtime checks."
+    },
+    {
+      "id": "deferred-activation-protocols",
+      "kind": "deferred",
+      "purpose": "Qualify socket and path activation, notify readiness, and timer scheduling without contacting host services or peers.",
+      "reason": "Requires an isolated disposable VM or reviewed mocks: a private inherited-FD/Unix-socket fixture, synthetic inotify events, a private cron-spool tree, and bounded notification peers. Network and service activation operations are prohibited in this run."
+    },
+    {
+      "id": "deferred-privilege-and-namespaces",
+      "kind": "deferred",
+      "purpose": "Qualify service user drops, capability drops, and namespace directives.",
+      "reason": "Requires a dedicated disposable VM or syscall/credential mock with controlled UID/GID mappings and capabilities, plus an independently verified namespace boundary. This runner has no capabilities and the instructions prohibit user/account and kernel namespace changes."
+    }
+  ]
+}

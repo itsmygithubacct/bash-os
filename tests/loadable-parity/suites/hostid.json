@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "loadable": "hostid",
+  "reference": "GNU coreutils hostid(1) in the same isolated namespace provides the independent gethostid(3) oracle. The documented BASHHOSTID_MACHINE_ID_PATH extension is checked against fixed hexadecimal conversion results rather than candidate output.",
+  "coverage": [
+    "Bash builtin availability and help metadata",
+    "Default gethostid output against GNU hostid",
+    "Valid fixture override formatting, including zero padding and uppercase digits",
+    "Fallback to gethostid for non-hex, short, empty, and missing override files",
+    "Extra-operand status and diagnostic behavior against GNU hostid",
+    "Unsupported-option rejection against GNU hostid; custom implementation identity checked separately from GNU parity."
+  ],
+  "exclusions": [
+    "A controlled /etc/hostid cannot be installed through the relative private fixture directory; see the deferred case.",
+    "No network configuration, host paths, or machine identity settings are changed."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash reports hostid as a builtin and its help entry is available without invoking the host ID operation.",
+      "script": "[[ $(type -t hostid) == builtin ]] || exit 1\nhelp hostid >metadata-output\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default-gnu-hostid",
+      "kind": "parity",
+      "purpose": "Compare the loadable's default gethostid value and output bytes with GNU hostid in the same isolated environment.",
+      "script": "hostid",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "override-zero-padded",
+      "kind": "contract",
+      "purpose": "Check the documented eight-hex-digit fixture override and eight-character lowercase output, including leading zeroes.",
+      "script": "printf '0000000a\\n' > id\nBASHHOSTID_MACHINE_ID_PATH=id hostid",
+      "expected_status": 0,
+      "stdout": "0000000a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "override-uppercase",
+      "kind": "contract",
+      "purpose": "Check uppercase hexadecimal fixture digits are emitted as canonical lowercase hexadecimal.",
+      "script": "printf 'ABCDef01\\n' > id\nBASHHOSTID_MACHINE_ID_PATH=id hostid",
+      "expected_status": 0,
+      "stdout": "abcdef01\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-override-fallback",
+      "kind": "parity",
+      "purpose": "A non-hex fixture is invalid; verify fallback output matches GNU hostid's gethostid result.",
+      "script": "printf 'xyz\\n' > id\nBASHHOSTID_MACHINE_ID_PATH=id hostid",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-override-fallback",
+      "kind": "parity",
+      "purpose": "A fixture shorter than eight hexadecimal digits is invalid; verify it falls back to GNU hostid's result.",
+      "script": "printf '1234abc\\n' > id\nBASHHOSTID_MACHINE_ID_PATH=id hostid",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-override-fallback",
+      "kind": "parity",
+      "purpose": "An empty override file cannot provide an eight-digit identifier and must fall back to gethostid.",
+      "script": ": > id\nBASHHOSTID_MACHINE_ID_PATH=id hostid",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-override-fallback",
+      "kind": "parity",
+      "purpose": "A nonexistent relative override file must fall back to gethostid and match GNU hostid.",
+      "script": "BASHHOSTID_MACHINE_ID_PATH=missing-id hostid",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extra-operand",
+      "kind": "parity",
+      "purpose": "GNU hostid rejects operands; compare its exit status, stdout, and diagnostic presence with the loadable.",
+      "script": "hostid extra",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "purpose": "Reject an unsupported option before gethostid or fixture reads; GNU hostid supplies failure status 1.",
+      "script": "hostid -Z",
+      "requires": [
+        "hostid"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "custom-version",
+      "kind": "contract",
+      "purpose": "The documented project implementation identity is a custom contract; GNU banner bytes are not an oracle.",
+      "script": "hostid --version",
+      "stdout": "hostid 1.0 (bash-loadable)\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "controlled-etc-hostid",
+      "kind": "deferred",
+      "purpose": "Verify precedence and byte interpretation when a system /etc/hostid is present.",
+      "reason": "Requires a disposable VM or reviewed privileged mock that starts with /etc/hostid set to a known 32-bit fixture, then runs both GNU hostid and the loadable against that same system configuration. The current runner exposes no writable system path, and the suite must not alter machine identity."
+    }
+  ]
+}

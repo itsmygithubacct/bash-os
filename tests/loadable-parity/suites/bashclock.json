@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "loadable": "bashclock",
+  "reference": "GNU sleep independently checks successful finite-duration request status/output, not elapsed precision. Argument-error contracts follow the public clock API. Independent Python clock_gettime_ns samples bracket read-only clock reads and since arithmetic. Deterministic injected values, exact nanosecond precision and syscall failures still require mocks.",
+  "coverage": [
+    "Bash builtin availability and help documentation for the five advertised subcommands",
+    "GNU sleep parity for zero duration, fractional scaling, and a one-nanosecond decimal input",
+    "Deferred controlled-clock verification for clock domains, since arithmetic, and interrupted syscall paths",
+    "Argument rejection and read-only monotonic formatting/order invariants; no elapsed-time accuracy claim.",
+    "Independent Python bounds for now/mono/boot reads and since subtraction."
+  ],
+  "exclusions": [
+    "Injected clock-domain sentinels and forced nanosecond-borrow/zero boundaries require fixed mock samples; live independent bracket coverage executes separately.",
+    "Sleep precision, interruptions and injected syscall errors remain unverified."
+  ],
+  "cases": [
+    {
+      "id": "type_metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash classifies bashclock as an enabled builtin.",
+      "script": "[[ $(type -t bashclock) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help_subcommands",
+      "kind": "contract",
+      "purpose": "Verify help exposes each subcommand and its documented clock or sleep role without invoking a clock operation.",
+      "script": "h=$(help bashclock)\n[[ $h == *'CLOCK_REALTIME'* ]]\n[[ $h == *'CLOCK_MONOTONIC'* ]]\n[[ $h == *'CLOCK_BOOTTIME'* ]]\n[[ $h == *'since T0'* ]]\n[[ $h == *'clock_nanosleep'* ]]\nprintf 'help covers now mono boot since sleep\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help covers now mono boot since sleep\n"
+    },
+    {
+      "id": "sleep_zero",
+      "kind": "parity",
+      "purpose": "Compare a zero-length request with GNU sleep; this exercises successful parsing and the zero-duration syscall path without relying on elapsed-time measurements.",
+      "script": "if [[ $(type -t bashclock) == builtin ]]; then\n  bashclock sleep 0.000000000\nelse\n  sleep 0.000000000\nfi",
+      "requires": [
+        "sleep"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "sleep_scaled_fraction",
+      "kind": "parity",
+      "purpose": "Compare a fractional duration with GNU sleep, covering a fraction shorter than nine digits that must be scaled to nanoseconds.",
+      "script": "if [[ $(type -t bashclock) == builtin ]]; then\n  bashclock sleep 0.0025\nelse\n  sleep 0.0025\nfi",
+      "requires": [
+        "sleep"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "sleep_one_nanosecond",
+      "kind": "parity",
+      "purpose": "Compare the smallest positive decimal duration supported by the documented nanosecond format with GNU sleep.",
+      "script": "if [[ $(type -t bashclock) == builtin ]]; then\n  bashclock sleep 0.000000001\nelse\n  sleep 0.000000001\nfi",
+      "requires": [
+        "sleep"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "clock_domain_reads",
+      "kind": "deferred",
+      "purpose": "Verify deterministic clock-domain sentinels and special timestamp boundaries using injected readings.",
+      "reason": "Requires a disposable VM or reviewed clock_gettime mock returning distinct fixed REALTIME/MONOTONIC/BOOTTIME sentinels and boundary nanoseconds. Live domain reads execute with independent Python bounds separately; injected-sample results remain deferred."
+    },
+    {
+      "id": "since_arithmetic",
+      "kind": "deferred",
+      "purpose": "Force since subtraction boundary values and nanosecond borrow using injected monotonic samples; live independent bounds and ordinary argument errors execute separately.",
+      "reason": "Requires a disposable VM or reviewed non-forwarding clock_gettime mock supplying fixed monotonic samples to force borrow, exact zero and clock-read errors. Live since arithmetic has separate independent bracket coverage; no injected-boundary result is claimed."
+    },
+    {
+      "id": "sleep_interruption_errors",
+      "kind": "deferred",
+      "purpose": "Check clock_nanosleep EINTR handling and non-EINTR syscall error diagnostics.",
+      "reason": "Requires a disposable VM with a deterministic signal/timer driver or reviewed clock_nanosleep mock to inject EINTR and a distinct syscall failure. The successful GNU-parity cases do not cover these error paths, and this suite does not execute or claim them passed."
+    },
+    {
+      "id": "since-missing",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock since",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "since-malformed",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock since not-a-time",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "sleep-missing",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock sleep",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "sleep-malformed",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock sleep not-a-time",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "unknown-subcommand",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock unknown",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "extra-now-operand",
+      "purpose": "Reject missing, malformed or extra arguments through the documented clock interface without changing system clocks.",
+      "kind": "contract",
+      "script": "bashclock now extra",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "monotonic-format-order",
+      "purpose": "Read-only monotonic samples have nine fractional digits and do not decrease. This invariant does not prove clock-domain identity or precision.",
+      "kind": "contract",
+      "script": "a=$(bashclock mono); b=$(bashclock mono); [[ $a =~ ^[0-9]+\\.[0-9]{9}$ && $b =~ ^[0-9]+\\.[0-9]{9}$ ]]; as=${a%.*}; an=${a#*.}; bs=${b%.*}; bn=${b#*.}; (( 10#$bs > 10#$as || (10#$bs == 10#$as && 10#$bn >= 10#$an) )); printf 'monotonic format and order ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "monotonic format and order ok\n"
+    },
+    {
+      "id": "read-only-clock-brackets",
+      "purpose": "Bracket read-only now/mono/boot and since results between independent Python clock_gettime_ns samples of the documented clock domain. Validate fixed-width formatting and elapsed subtraction without a frozen clock or timing-precision claim.",
+      "kind": "contract",
+      "script": "cat > clock_observer.py <<'PY'\nimport re, sys, time\ndomain = getattr(time, 'CLOCK_' + sys.argv[1])\nif len(sys.argv) == 2:\n    print(time.clock_gettime_ns(domain))\nelse:\n    before, rendered, after, origin = sys.argv[2:]\n    assert re.fullmatch(r'-?[0-9]+\\.[0-9]{9}', rendered), rendered\n    seconds, nanos = rendered.split('.')\n    value = int(seconds) * 10**9 + int(nanos)\n    assert int(before) - int(origin) <= value <= int(after) - int(origin), (before, rendered, after, origin)\nPY\nfor mode in now mono boot since; do\n  case $mode in now) clock=REALTIME;; boot) clock=BOOTTIME;; *) clock=MONOTONIC;; esac\n  before=$(/usr/bin/python3 clock_observer.py \"$clock\")\n  origin=0\n  if [[ $mode == since ]]; then\n    origin=987654321\n    value=$(bashclock since 0.987654321)\n  else\n    value=$(bashclock \"$mode\")\n  fi\n  after=$(/usr/bin/python3 clock_observer.py \"$clock\")\n  /usr/bin/python3 clock_observer.py \"$clock\" \"$before\" \"$value\" \"$after\" \"$origin\"\ndone\nprintf 'read-only clock bounds verified\\n' ",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "read-only clock bounds verified\n"
+    }
+  ]
+}

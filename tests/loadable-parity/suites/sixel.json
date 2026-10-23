@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "sixel",
+  "reference": "Bash help/type metadata plus independently encoded TGA/base64 image inputs and an independent DEC SIXEL protocol decoder. Fixed red/blue endpoint pixels give exact percentage colors without a quantization oracle. No GNU CLI or img2sixel equivalence is claimed.",
+  "coverage": [
+    "Bash recognizes sixel as a builtin and reports only its builtin definition.",
+    "Bash path-only command lookup does not mistake the builtin for an executable.",
+    "Bash help exposes the documented synopsis, short description, and full loadable help text.",
+    "Actual image emission, independent SIXEL decoding, raster/palette/RLE/band pixels, file and stdin base64, explicit resize and ordinary error contracts."
+  ],
+  "exclusions": [
+    "JPEG/PNG/GIF decoding, intermediate-color quantization, general area-average resize and terminal-derived defaults remain unqualified; the PTY/ioctl prerequisite is explicit."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "purpose": "Bash type -t must identify the registered sixel entry as a builtin.",
+      "kind": "contract",
+      "script": "type -t sixel",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-all-definitions",
+      "purpose": "Bash type -a must report the shell builtin definition and no second definition.",
+      "kind": "contract",
+      "script": "type -a sixel",
+      "expected_status": 0,
+      "stdout": "sixel is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "path-only-lookup",
+      "purpose": "Bash type -P searches for an executable without treating a loadable builtin as a PATH executable; the candidate PATH is empty.",
+      "kind": "contract",
+      "script": "if type -P sixel; then printf 'found\\n'; else rc=$?; printf 'not-found:%d\\n' \"$rc\"; fi",
+      "expected_status": 0,
+      "stdout": "not-found:1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "purpose": "Bash help -s must expose the loadable's registered usage synopsis.",
+      "kind": "contract",
+      "script": "help -s sixel",
+      "expected_status": 0,
+      "stdout": "sixel: sixel [-w N] [-H N] [--base64] FILE\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-description",
+      "purpose": "Bash help -d must expose the first documented sixel description line.",
+      "kind": "contract",
+      "script": "help -d sixel",
+      "expected_status": 0,
+      "stdout": "sixel - Display an image as SIXEL graphics (true per-pixel).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documentation",
+      "purpose": "Bash help must expose the full published usage, format, options, and terminal support documentation.",
+      "kind": "contract",
+      "script": "help sixel",
+      "expected_status": 0,
+      "stdout": "sixel: sixel [-w N] [-H N] [--base64] FILE\n    Display an image as SIXEL graphics (true per-pixel).\n    \n        sixel [OPTION]... FILE\n    \n    Decodes FILE (PNG/JPEG/GIF/BMP/TGA; - = stdin), scales to the target pixel\n    size, quantizes to a 6x6x6 (216) color cube, and emits DEC SIXEL. Works in\n    sixel-capable terminals (xterm -ti vt340, foot, mlterm, wezterm, recent VTE)\n    and passes through tmux >= 3.4. For Kitty-protocol terminals use kitty;\n    for any terminal use tiv (cell glyphs).\n    \n    Options:\n        -w, --width N    output width in pixels (default: terminal px, else 800)\n        -H, --height N   output height in pixels (default: keep aspect)\n            --base64     FILE / stdin holds base64-encoded image data\n        -h, --help       show this help\n        -V, --version    show version\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "emit-fixed-pixels",
+      "kind": "contract",
+      "purpose": "Decode an independently encoded 4x7 true-color TGA, then independently parse SIXEL framing, raster dimensions, palette, RLE and both six-row bands. The emitted artifact is retained.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PY'\nimport struct,base64\nfrom pathlib import Path\nw,h=(4, 7)\n# Uncompressed true-color TGA, top-left origin; BGR red/blue rows.\nheader=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,w,h,24,32)\npixels=b''.join((b'\\0\\0\\xff' if y<6 else b'\\xff\\0\\0')*w for y in range(h))\ndata=header+pixels\nPath('image.tga').write_bytes(data)\nPath('image.b64').write_bytes(base64.b64encode(data))\nPY\nsixel -w 4 -H 7 image.tga > image.six\nPATH=/usr/bin:/bin python3 - <<'PY'\nCHECKS=[('image.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(0, 0, 100), (0, 0, 100), (0, 0, 100), (0, 0, 100)]])]\nfrom pathlib import Path\nimport re, sys\ndef decode(path):\n    data=Path(path).read_bytes()\n    assert data.startswith(b'\\x1bPq') and data.endswith(b'\\x1b\\\\'), 'DCS/ST framing'\n    s=data[3:-2].decode('ascii'); m=re.match(r'\"(\\d+);(\\d+);(\\d+);(\\d+)',s)\n    assert m and m.group(1,2)==('1','1'), 'raster attributes'\n    w,h=map(int,m.group(3,4)); assert 0<w<=32 and 0<h<=32\n    pixels=[[None]*w for _ in range(h)]; palette={}; color=None; x=y=0; i=m.end()\n    def paint(ch,count):\n        nonlocal x\n        assert color in palette and x+count<=w, 'palette/width'\n        bits=ord(ch)-63\n        for col in range(x,x+count):\n            for bit in range(6):\n                if bits & (1<<bit):\n                    assert y+bit<h, 'paint beyond declared height'\n                    pixels[y+bit][col]=palette[color]\n        x+=count\n    while i<len(s):\n        ch=s[i]\n        if ch=='#':\n            m=re.match(r'#(\\d+)(?:;2;(\\d+);(\\d+);(\\d+))?',s[i:]); assert m\n            color=int(m[1]);\n            if m[2] is not None:\n                rgb=tuple(int(m[k]) for k in (2,3,4)); assert all(0<=v<=100 for v in rgb)\n                palette[color]=rgb\n            i+=m.end()\n        elif ch=='!':\n            m=re.match(r'!(\\d+)([?-~])',s[i:]); assert m\n            count=int(m[1]); assert 1<=count<=32\n            paint(m[2],count); i+=m.end()\n        elif ch=='$': x=0; i+=1\n        elif ch=='-': x=0; y+=6; i+=1\n        elif '?'<=ch<='~': paint(ch,1); i+=1\n        else: raise AssertionError(('unexpected SIXEL byte',ch))\n    assert all(p is not None for row in pixels for p in row), 'all pixels painted'\n    return w,h,pixels\nfor filename,w,h,expected in CHECKS:\n    got=decode(filename)\n    assert got==(w,h,expected), (filename,got)\nprint('independent SIXEL pixels verified')\nPY",
+      "expected_status": 0,
+      "stdout": "independent SIXEL pixels verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "resize-and-terminal-defaults",
+      "purpose": "Qualify terminal-derived dimensions and aspect defaults with a real terminal fixture; explicit resizing is covered separately.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a private PTY/ioctl mock returning fixed TIOCGWINSZ pixel dimensions and an independent expected raster. Explicit width/height, RLE and short bands already execute without a terminal; terminal-derived defaults remain unqualified."
+    },
+    {
+      "id": "base64-image-input",
+      "kind": "contract",
+      "purpose": "Independently base64-encoded TGA is consumed from file and stdin; an independent SIXEL decoder checks both emitted artifacts against fixed pixels.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PY'\nimport struct,base64\nfrom pathlib import Path\nw,h=(4, 7)\n# Uncompressed true-color TGA, top-left origin; BGR red/blue rows.\nheader=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,w,h,24,32)\npixels=b''.join((b'\\0\\0\\xff' if y<6 else b'\\xff\\0\\0')*w for y in range(h))\ndata=header+pixels\nPath('image.tga').write_bytes(data)\nPath('image.b64').write_bytes(base64.b64encode(data))\nPY\nsixel -w 4 -H 7 --base64 image.b64 > file.six\nsixel -w 4 -H 7 --base64 < image.b64 > stdin.six\nPATH=/usr/bin:/bin python3 - <<'PY'\nCHECKS=[('file.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(0, 0, 100), (0, 0, 100), (0, 0, 100), (0, 0, 100)]]), ('stdin.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(0, 0, 100), (0, 0, 100), (0, 0, 100), (0, 0, 100)]])]\nfrom pathlib import Path\nimport re, sys\ndef decode(path):\n    data=Path(path).read_bytes()\n    assert data.startswith(b'\\x1bPq') and data.endswith(b'\\x1b\\\\'), 'DCS/ST framing'\n    s=data[3:-2].decode('ascii'); m=re.match(r'\"(\\d+);(\\d+);(\\d+);(\\d+)',s)\n    assert m and m.group(1,2)==('1','1'), 'raster attributes'\n    w,h=map(int,m.group(3,4)); assert 0<w<=32 and 0<h<=32\n    pixels=[[None]*w for _ in range(h)]; palette={}; color=None; x=y=0; i=m.end()\n    def paint(ch,count):\n        nonlocal x\n        assert color in palette and x+count<=w, 'palette/width'\n        bits=ord(ch)-63\n        for col in range(x,x+count):\n            for bit in range(6):\n                if bits & (1<<bit):\n                    assert y+bit<h, 'paint beyond declared height'\n                    pixels[y+bit][col]=palette[color]\n        x+=count\n    while i<len(s):\n        ch=s[i]\n        if ch=='#':\n            m=re.match(r'#(\\d+)(?:;2;(\\d+);(\\d+);(\\d+))?',s[i:]); assert m\n            color=int(m[1]);\n            if m[2] is not None:\n                rgb=tuple(int(m[k]) for k in (2,3,4)); assert all(0<=v<=100 for v in rgb)\n                palette[color]=rgb\n            i+=m.end()\n        elif ch=='!':\n            m=re.match(r'!(\\d+)([?-~])',s[i:]); assert m\n            count=int(m[1]); assert 1<=count<=32\n            paint(m[2],count); i+=m.end()\n        elif ch=='$': x=0; i+=1\n        elif ch=='-': x=0; y+=6; i+=1\n        elif '?'<=ch<='~': paint(ch,1); i+=1\n        else: raise AssertionError(('unexpected SIXEL byte',ch))\n    assert all(p is not None for row in pixels for p in row), 'all pixels painted'\n    return w,h,pixels\nfor filename,w,h,expected in CHECKS:\n    got=decode(filename)\n    assert got==(w,h,expected), (filename,got)\nprint('independent SIXEL pixels verified')\nPY",
+      "expected_status": 0,
+      "stdout": "independent SIXEL pixels verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-input-and-options",
+      "kind": "contract",
+      "purpose": "Ordinary invalid image text, a missing relative file and a missing width argument fail with visible diagnostics and no emitted image stream.",
+      "script": "printf 'ordinary text' > text\nif sixel text > text.six; then a=0; else a=$?; fi\nif sixel missing > missing.six; then b=0; else b=$?; fi\nif sixel -w > option.six; then c=0; else c=$?; fi\n[[ ! -s text.six && ! -s missing.six && ! -s option.six ]]\nprintf '%s %s %s\\n' \"$a\" \"$b\" \"$c\"",
+      "expected_status": 0,
+      "stdout": "1 1 2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "explicit-resize",
+      "kind": "contract",
+      "purpose": "Upscale a one-pixel independently encoded red TGA to 4x7; independently decode emitted SIXEL to assert explicit width/height and short final band.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PY'\nimport struct,base64\nfrom pathlib import Path\nw,h=(1, 1)\n# Uncompressed true-color TGA, top-left origin; BGR red/blue rows.\nheader=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,w,h,24,32)\npixels=b''.join((b'\\0\\0\\xff' if y<6 else b'\\xff\\0\\0')*w for y in range(h))\ndata=header+pixels\nPath('image.tga').write_bytes(data)\nPath('image.b64').write_bytes(base64.b64encode(data))\nPY\nsixel --width 4 --height 7 image.tga > resized.six\nPATH=/usr/bin:/bin python3 - <<'PY'\nCHECKS=[('resized.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)]])]\nfrom pathlib import Path\nimport re, sys\ndef decode(path):\n    data=Path(path).read_bytes()\n    assert data.startswith(b'\\x1bPq') and data.endswith(b'\\x1b\\\\'), 'DCS/ST framing'\n    s=data[3:-2].decode('ascii'); m=re.match(r'\"(\\d+);(\\d+);(\\d+);(\\d+)',s)\n    assert m and m.group(1,2)==('1','1'), 'raster attributes'\n    w,h=map(int,m.group(3,4)); assert 0<w<=32 and 0<h<=32\n    pixels=[[None]*w for _ in range(h)]; palette={}; color=None; x=y=0; i=m.end()\n    def paint(ch,count):\n        nonlocal x\n        assert color in palette and x+count<=w, 'palette/width'\n        bits=ord(ch)-63\n        for col in range(x,x+count):\n            for bit in range(6):\n                if bits & (1<<bit):\n                    assert y+bit<h, 'paint beyond declared height'\n                    pixels[y+bit][col]=palette[color]\n        x+=count\n    while i<len(s):\n        ch=s[i]\n        if ch=='#':\n            m=re.match(r'#(\\d+)(?:;2;(\\d+);(\\d+);(\\d+))?',s[i:]); assert m\n            color=int(m[1]);\n            if m[2] is not None:\n                rgb=tuple(int(m[k]) for k in (2,3,4)); assert all(0<=v<=100 for v in rgb)\n                palette[color]=rgb\n            i+=m.end()\n        elif ch=='!':\n            m=re.match(r'!(\\d+)([?-~])',s[i:]); assert m\n            count=int(m[1]); assert 1<=count<=32\n            paint(m[2],count); i+=m.end()\n        elif ch=='$': x=0; i+=1\n        elif ch=='-': x=0; y+=6; i+=1\n        elif '?'<=ch<='~': paint(ch,1); i+=1\n        else: raise AssertionError(('unexpected SIXEL byte',ch))\n    assert all(p is not None for row in pixels for p in row), 'all pixels painted'\n    return w,h,pixels\nfor filename,w,h,expected in CHECKS:\n    got=decode(filename)\n    assert got==(w,h,expected), (filename,got)\nprint('independent SIXEL pixels verified')\nPY",
+      "expected_status": 0,
+      "stdout": "independent SIXEL pixels verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-raw-stdin",
+      "kind": "contract",
+      "purpose": "Two raw TGA stdin redirections in one shell must each decode the full image. A separate SIXEL decoder checks both retained output artifacts.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PY'\nimport struct,base64\nfrom pathlib import Path\nw,h=(4, 7)\n# Uncompressed true-color TGA, top-left origin; BGR red/blue rows.\nheader=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,w,h,24,32)\npixels=b''.join((b'\\0\\0\\xff' if y<6 else b'\\xff\\0\\0')*w for y in range(h))\ndata=header+pixels\nPath('image.tga').write_bytes(data)\nPath('image.b64').write_bytes(base64.b64encode(data))\nPY\nsixel -w 4 -H 7 - < image.tga > first.six\nsixel -w 4 -H 7 - < image.tga > second.six\nPATH=/usr/bin:/bin python3 - <<'PY'\nCHECKS=[('first.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(0, 0, 100), (0, 0, 100), (0, 0, 100), (0, 0, 100)]]), ('second.six', 4, 7, [[(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(100, 0, 0), (100, 0, 0), (100, 0, 0), (100, 0, 0)], [(0, 0, 100), (0, 0, 100), (0, 0, 100), (0, 0, 100)]])]\nfrom pathlib import Path\nimport re, sys\ndef decode(path):\n    data=Path(path).read_bytes()\n    assert data.startswith(b'\\x1bPq') and data.endswith(b'\\x1b\\\\'), 'DCS/ST framing'\n    s=data[3:-2].decode('ascii'); m=re.match(r'\"(\\d+);(\\d+);(\\d+);(\\d+)',s)\n    assert m and m.group(1,2)==('1','1'), 'raster attributes'\n    w,h=map(int,m.group(3,4)); assert 0<w<=32 and 0<h<=32\n    pixels=[[None]*w for _ in range(h)]; palette={}; color=None; x=y=0; i=m.end()\n    def paint(ch,count):\n        nonlocal x\n        assert color in palette and x+count<=w, 'palette/width'\n        bits=ord(ch)-63\n        for col in range(x,x+count):\n            for bit in range(6):\n                if bits & (1<<bit):\n                    assert y+bit<h, 'paint beyond declared height'\n                    pixels[y+bit][col]=palette[color]\n        x+=count\n    while i<len(s):\n        ch=s[i]\n        if ch=='#':\n            m=re.match(r'#(\\d+)(?:;2;(\\d+);(\\d+);(\\d+))?',s[i:]); assert m\n            color=int(m[1]);\n            if m[2] is not None:\n                rgb=tuple(int(m[k]) for k in (2,3,4)); assert all(0<=v<=100 for v in rgb)\n                palette[color]=rgb\n            i+=m.end()\n        elif ch=='!':\n            m=re.match(r'!(\\d+)([?-~])',s[i:]); assert m\n            count=int(m[1]); assert 1<=count<=32\n            paint(m[2],count); i+=m.end()\n        elif ch=='$': x=0; i+=1\n        elif ch=='-': x=0; y+=6; i+=1\n        elif '?'<=ch<='~': paint(ch,1); i+=1\n        else: raise AssertionError(('unexpected SIXEL byte',ch))\n    assert all(p is not None for row in pixels for p in row), 'all pixels painted'\n    return w,h,pixels\nfor filename,w,h,expected in CHECKS:\n    got=decode(filename)\n    assert got==(w,h,expected), (filename,got)\nprint('independent SIXEL pixels verified')\nPY",
+      "expected_status": 0,
+      "stdout": "independent SIXEL pixels verified\n",
+      "stderr": "empty"
+    }
+  ]
+}

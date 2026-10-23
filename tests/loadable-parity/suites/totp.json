@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "loadable": "totp",
+  "reference": "No matching GNU CLI is available (the pinned loadables catalog records oathtool as missing), so these are contract cases rather than GNU parity cases. Fixed code values come from RFC 6238 Appendix B; fixed counter-zero HOTP comes from RFC 4226 Appendix D. RFC key bytes are encoded independently with RFC 4648 base32 (Python standard-library base64.b32encode). Base32 canonical trailing-bit rejection follows RFC 4648 section 6. URI encoding, parse fields, and CLI options follow the pinned totp.c documentation; percent-encoding uses RFC 3986 unreserved characters.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "Keygen output shape for a 20-byte key encoded as unpadded RFC 4648 base32",
+    "RFC 6238 Appendix B SHA-1, SHA-256, and SHA-512 codes at timestamp 59",
+    "Default six-digit output and a custom 60-second step at the RFC 4226 counter-zero boundary",
+    "Verification of a code one step away, rejection outside the window, and malformed code rejection",
+    "Rejection of base32 data with nonzero unused trailing bits",
+    "otpauth URI percent encoding, parse defaults/overrides, percent-decoding, and fragment rejection"
+  ],
+  "exclusions": [
+    "No oathtool executable is available, so no GNU parity cases are claimed.",
+    "Random keygen bytes are checked for their documented encoded shape, not compared byte-for-byte.",
+    "No secret provisioning, live clock, network authenticator, or account integration is exercised."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "purpose": "Confirm Bash resolves totp as a builtin; this is availability metadata, not operation coverage.",
+      "kind": "contract",
+      "script": "type -t totp",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "purpose": "Confirm the Bash help text exposes the documented RFC 6238 usage and parse-uri entry point without relying on exact formatter whitespace.",
+      "kind": "contract",
+      "script": "help_text=$(help totp)\n[[ $help_text == *\"RFC 6238 TOTP generate/verify helpers.\"* ]]\n[[ $help_text == *\"totp generate -k SECRET_B32 [-t TIME] [-d DIGITS] [-s STEP] [-a sha1|sha256|sha512]\"* ]]\n[[ $help_text == *\"totp parse-uri <otpauth://totp/...>\"* ]]\nprintf 'totp-help-doc-ok\\n'",
+      "expected_status": 0,
+      "stdout": "totp-help-doc-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "keygen-shape",
+      "purpose": "Check that keygen returns an unpadded 32-symbol base32 encoding, the length and alphabet implied by 20 random bytes and RFC 4648; random bytes are not captured in fixture output.",
+      "kind": "contract",
+      "script": "generated=$(totp keygen)\n[[ ${#generated} -eq 32 ]]\n[[ $generated =~ ^[A-Z2-7]{32}$ ]]\nprintf 'keygen-base32-shape-ok\\n'",
+      "expected_status": 0,
+      "stdout": "keygen-base32-shape-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "rfc6238-hash-vectors",
+      "purpose": "Check the RFC 6238 Appendix B 8-digit TOTP values at timestamp 59 for SHA-1, SHA-256, and SHA-512, using the RFC ASCII keys encoded independently as base32.",
+      "kind": "contract",
+      "script": "totp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 59 -d 8 -a sha1\ntotp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA==== -t 59 -d 8 -a sha256\ntotp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA= -t 59 -d 8 -a sha512",
+      "expected_status": 0,
+      "stdout": "94287082\n46119246\n90693936\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defaults-and-counter-boundary",
+      "purpose": "Check the default six-digit SHA-1/30-second settings at timestamp 59 and a 60-second step that maps timestamp 59 to counter zero; expected values follow RFC 6238 Appendix B and RFC 4226 Appendix D.",
+      "kind": "contract",
+      "script": "totp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 59\ntotp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 59 -d 6 -s 60",
+      "expected_status": 0,
+      "stdout": "287082\n755224\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verify-window-accept",
+      "purpose": "At time 89, accept the RFC 6238 timestamp-59 six-digit code from the preceding 30-second counter when the documented verification window is one step.",
+      "kind": "contract",
+      "script": "totp verify -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 89 -c 287082 -w 1\nprintf 'previous-step-accepted\\n'",
+      "expected_status": 0,
+      "stdout": "previous-step-accepted\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verify-rejections",
+      "purpose": "Reject a valid previous-step RFC code with a zero-step window and reject a code with the wrong digit count; both expected rejections are silent status 1 per the CLI behavior.",
+      "kind": "contract",
+      "script": "check_status_one() {\n  local rc=0\n  \"$@\" || rc=$?\n  [[ $rc -eq 1 ]]\n}\ncheck_status_one totp verify -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 89 -c 287082 -w 0\ncheck_status_one totp verify -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 89 -c 28708 -w 1\nprintf 'window-and-format-rejections-ok\\n'",
+      "expected_status": 0,
+      "stdout": "window-and-format-rejections-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "base32-trailing-bits-rejected",
+      "purpose": "Confirm RFC 4648 section 6 canonicality: MZ has nonzero unused trailing bits and must be rejected rather than decoding as the same byte as a canonical spelling.",
+      "kind": "contract",
+      "script": "totp generate -k MZ====== -t 0",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "uri-encoding",
+      "purpose": "Check the documented otpauth URI format and RFC 3986 percent-encoding of spaces and @ in issuer and label components, including algorithm and option fields.",
+      "kind": "contract",
+      "script": "totp uri -k JBSWY3DPEHPK3PXP -l 'alice@example.com' -i 'Acme Corp' -a sha256 -d 8 -s 60",
+      "expected_status": 0,
+      "stdout": "otpauth://totp/Acme%20Corp:alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Acme%20Corp&algorithm=SHA256&digits=8&period=60\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-uri-fields",
+      "purpose": "Check lower-case secret canonicalization, percent-decoding of a reserved colon and @ in the label, query issuer precedence, and parsed algorithm/digit/period fields.",
+      "kind": "contract",
+      "script": "totp parse-uri 'otpauth://totp/Path%20Issuer:alice%3Aadmin%40example.test?secret=jbswy3dpehpk3pxp&issuer=Query%20Issuer&algorithm=hmac-sha256&digits=8&period=60'",
+      "expected_status": 0,
+      "stdout": "secret=JBSWY3DPEHPK3PXP\nissuer=Query Issuer\nlabel=alice:admin@example.test\nalgorithm=sha256\ndigits=8\nperiod=60\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-uri-fragment-rejected",
+      "purpose": "Confirm parse-uri rejects a literal URI fragment delimiter instead of treating fragment text as part of a query value, matching the documented parser rule.",
+      "kind": "contract",
+      "script": "totp parse-uri 'otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP#frag'",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "rfc-long-time-vectors",
+      "kind": "contract",
+      "purpose": "RFC 6238 Appendix B SHA1 vectors at later timestamps, including beyond 32-bit Unix time; public synthetic RFC key.",
+      "script": "totp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 1111111109 -d 8\ntotp generate -k GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ -t 20000000000 -d 8",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "07081804\n65353130\n"
+    }
+  ]
+}

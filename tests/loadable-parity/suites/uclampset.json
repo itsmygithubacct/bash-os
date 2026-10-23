@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "loadable": "uclampset",
+  "reference": "Parser contracts use the documented decimal value/PID grammar and preflight min<=max rule. Three reference adapters reject fixed malformed tokens independently, then retain original GNU file-operation/tree comparisons as auxiliary fixture coverage. Scheduler operations remain deferred. The redirected regular-file system model has independent fixed contents and is a custom contract, not util-linux system-sysctl parity.",
+  "coverage": [
+    "Parser rejection for malformed clamp/PID, out-of-range value and reversed min/max before scheduler access.",
+    "Bash metadata; auxiliary ordinary file operations compared with GNU without counting them as scheduler coverage.",
+    "Actual private regular-file system-mode model: query, paired update, -1 keep-current and exact resulting file bytes."
+  ],
+  "exclusions": [
+    "Live scheduler queries/changes, all-task execution, live system sysctls and child command mode remain deferred. Parser rejection and the documented private regular-file root seam are exercised without scheduler syscalls or live sysctl access.",
+    "No live procfs sysctl, scheduler attribute, host task, privilege, hardware, or network behavior is exercised.",
+    "No GNU uclampset CLI exists; the util-linux command is not presented as GNU parity."
+  ],
+  "cases": [
+    {
+      "id": "fixture_create_modes",
+      "kind": "parity",
+      "purpose": "Compare assigned uclampset parser rejection before any scheduler access via a documented-grammar reference adapter, followed by the original private GNU file-operation comparison.",
+      "requires": [
+        "mkdir",
+        "touch",
+        "chmod"
+      ],
+      "script": "if [[ $(type -t uclampset) == builtin ]]; then\n if uclampset -m bad; then rc=0; else rc=$?; fi\nelse\n # Independent documented decimal grammar rejects this input before scheduler access.\n printf 'invalid clamp or PID argument\\n' >&2\n rc=1\nfi\n[[ $rc == 1 ]]\nprintf 'parser-status=%s\\n' \"$rc\"\nmkdir -p 'fixture dir/sub'\ntouch 'fixture dir/sub/empty file'\nchmod 640 'fixture dir/sub/empty file'\nprintf '%s\\n' 'fixture ready'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "fixture_links_copy_move",
+      "kind": "parity",
+      "purpose": "Compare assigned uclampset parser rejection before any scheduler access via a documented-grammar reference adapter, followed by the original private GNU file-operation comparison.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cp",
+        "mv"
+      ],
+      "script": "if [[ $(type -t uclampset) == builtin ]]; then\n if uclampset -p bad; then rc=0; else rc=$?; fi\nelse\n # Independent documented decimal grammar rejects this input before scheduler access.\n printf 'invalid clamp or PID argument\\n' >&2\n rc=1\nfi\n[[ $rc == 1 ]]\nprintf 'parser-status=%s\\n' \"$rc\"\nmkdir links\nprintf '%s\\n' 'payload' > 'links/source file'\nln 'links/source file' 'links/hard link'\nln -s 'source file' 'links/symbolic link'\ncp 'links/source file' 'links/copied file'\nmv 'links/copied file' 'links/moved file'\nprintf '%s\\n' 'links ready'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "fixture_remove_tree",
+      "kind": "parity",
+      "purpose": "Compare assigned uclampset parser rejection before any scheduler access via a documented-grammar reference adapter, followed by the original private GNU file-operation comparison.",
+      "requires": [
+        "mkdir",
+        "rm",
+        "rmdir"
+      ],
+      "script": "if [[ $(type -t uclampset) == builtin ]]; then\n if uclampset -m 1025; then rc=0; else rc=$?; fi\nelse\n # Independent documented decimal grammar rejects this input before scheduler access.\n printf 'invalid clamp or PID argument\\n' >&2\n rc=1\nfi\n[[ $rc == 1 ]]\nprintf 'parser-status=%s\\n' \"$rc\"\nmkdir -p 'cleanup dir/inner/deep'\nprintf '%s\\n' 'remove me' > 'cleanup dir/inner/deep/file'\nprintf '%s\\n' 'also remove me' > 'cleanup dir/root file'\nrm -f 'cleanup dir/inner/deep/file'\nrmdir 'cleanup dir/inner/deep'\nrm -r 'cleanup dir'\nprintf '%s\\n' 'cleanup complete'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "metadata_type",
+      "kind": "contract",
+      "purpose": "Check the Bash type builtin's documented -t result for a registered builtin without invoking uclampset.",
+      "script": "[[ $(type -t uclampset) == builtin ]] && printf '%s\\n' builtin",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_help",
+      "kind": "contract",
+      "purpose": "Check that Bash help finds the uclampset documentation registered in the pinned source and emits nonempty metadata, without invoking the loadable operation.",
+      "script": "help uclampset > help.txt && [[ -s help.txt ]] && printf '%s\\n' 'help available'",
+      "expected_status": 0,
+      "stdout": "help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer_cli_validation",
+      "kind": "contract",
+      "purpose": "Reject an explicit reversed clamp pair before any target read or mutation.",
+      "script": "uclampset -m 900 -M 100 -p 0",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "defer_pid_query",
+      "kind": "deferred",
+      "purpose": "Check query formatting for one task and task enumeration with -a, without changing scheduler state.",
+      "reason": "Future run needs a disposable Linux VM with a controlled owned process and known thread set, plus an independent sched_getattr oracle for each TID. Verify PID 0 handling, comm fallback, output values, and that querying makes no scheduler writes. Do not use a host task."
+    },
+    {
+      "id": "defer_pid_setter",
+      "kind": "deferred",
+      "purpose": "Check one-sided and paired clamp updates, reset values, -R, and preservation of unrelated scheduler attributes.",
+      "reason": "Future run needs a disposable VM with CONFIG_UCLAMP_TASK or a reviewed sched_getattr/sched_setattr mock that records request bytes and can inject kernel errors. Use an owned test process and an independent syscall oracle; assert policy, nice, priority, and deadline parameters are preserved and rejected requests do not mutate the task."
+    },
+    {
+      "id": "defer_all_tasks_preflight",
+      "kind": "deferred",
+      "purpose": "Check that -a reads and validates every thread before setting any thread, including a later-thread failure.",
+      "reason": "Future run needs a disposable VM or controlled syscall mock with multiple owned threads whose current clamps differ, per-TID get/set logging, and injectable later-thread read/validation failures. Require all gets before the first set and no partial mutation when preflight fails."
+    },
+    {
+      "id": "defer_system_files",
+      "kind": "deferred",
+      "purpose": "Qualify live system sysctl semantics and injected write/open failures, ordering and rollback beyond the private regular-file model.",
+      "reason": "Requires a disposable VM for real scheduler sysctls or a reviewed open/write syscall mock recording order and injecting partial-write/open failures. The runnable private regular-file seam covers normal query/update and -1 keep-current, but cannot establish kernel validation, write ordering or rollback after injected failures."
+    },
+    {
+      "id": "defer_command_mode",
+      "kind": "deferred",
+      "purpose": "Check that command mode applies clamps only in a child, preserves literal argv, and propagates exit and lookup status.",
+      "reason": "Future run needs a disposable VM with a reviewed scheduler syscall mock or supported uclamp kernel and a private fixture executable. Verify child-only changes, parent state preservation, literal arguments (including spaces and empty strings), builtin/external dispatch, normal exit status, and command-not-found behavior."
+    },
+    {
+      "id": "private-system-file-model",
+      "kind": "contract",
+      "purpose": "Use the documented relative proc-root seam to read/write only private regular files, checking paired updates and -1 keep-current. This is a file-model contract, not a live scheduler/sysctl test.",
+      "script": "export BASHOS_PROC_ROOT=private-proc\nmkdir -p private-proc/sys/kernel\nprintf '32\\n' > private-proc/sys/kernel/sched_util_clamp_min\nprintf '512\\n' > private-proc/sys/kernel/sched_util_clamp_max\nuclampset --system\nuclampset -m 64 -M 768 --system\nuclampset --system\nuclampset -m -1 -M 900 --system\nuclampset --system\nprintf '64\\n' > expected-min\nprintf '900\\n' > expected-max\ncmp private-proc/sys/kernel/sched_util_clamp_min expected-min\ncmp private-proc/sys/kernel/sched_util_clamp_max expected-max\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "system util_clamp: min: 32 max: 512\nsystem util_clamp: min: 64 max: 768\nsystem util_clamp: min: 64 max: 900\n"
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 {
   "version": 1,
   "loadable": "bashkmod",
-  "reference": "System Bash type/help builtins for metadata contracts; an independent Bash glob matcher for the simple shell patterns in a private modules.alias fixture; an independent Bash DFS over the documented modules.dep format; and GNU find/sort/mkdir/ln to encode the documented weak-updates symlink behavior. Synthetic info expectations follow the documented sysfs field/parameter contract. No reference expectation is copied from bashkmod output. The depmod output_deps implementation serializes all sorted transitive dependencies: https://github.com/kmod-project/kmod/blob/master/tools/depmod.c .",
+  "reference": "System Bash type/help builtins for metadata contracts; an independent Bash glob matcher for the simple shell patterns in a private modules.alias fixture; an independent Bash DFS over the documented modules.dep format; and GNU find/sort/mkdir/ln to encode the documented weak-updates symlink behavior. Synthetic info expectations follow the documented sysfs field/parameter contract. No reference expectation is copied from bashkmod output. The depmod output_deps implementation serializes all sorted transitive dependencies: https://github.com/kmod-project/kmod/blob/master/tools/depmod.c . Relative weak-updates links are independently constructed with GNU ln -sr and checked by dereferencing their fixture contents.",
   "coverage": [
     "Bash builtin availability and public help metadata without invoking a module operation.",
     "Fixture-only aliases wildcard matching and file-order output.",
     "Fixture-only modules.dep dependency order, including compressed suffixes and nested dependencies, checked with an independent Bash DFS encoder.",
     "weak-modules materialization of relative symlinks inside the private fixture tree.",
-    "info and --params against a synthetic BASHKMOD_SYS_MODULE_DIR tree."
+    "info and --params against a synthetic BASHKMOD_SYS_MODULE_DIR tree.",
+    "Usable relative weak-updates targets with spaces, nested directories, dry-run preservation and repeated matching links."
   ],
   "exclusions": [
     "No real finit_module or delete_module calls, and no non-dry-run modprobe.",
@@ -75,14 +76,14 @@
     {
       "id": "weak-modules-fixture-links",
       "kind": "parity",
-      "purpose": "Create only relative weak-updates symlinks under a private fixture root; GNU find/sort/mkdir/ln independently encode the documented file selection and tree effects.",
+      "purpose": "Materialize weak-updates links from a relative private module root. GNU find/sort/mkdir and ln -sr independently build usable links into the source tree; compare target strings as well as contents and modes.",
       "requires": [
         "find",
         "sort",
         "mkdir",
         "ln"
       ],
-      "script": "root=fixture/modules\nmkdir -p \"$root/src/nested\"\nprintf '%s\\n' 'one' > \"$root/src/z.ko\"\nprintf '%s\\n' 'two' > \"$root/src/nested/a.ko.xz\"\nprintf '%s\\n' 'skip' > \"$root/src/readme.txt\"\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_ROOT=\"$root\" bashkmod weak-modules src dst\nelse\n  srcdir=\"$root/src\"\n  dstdir=\"$root/dst/weak-updates\"\n  mkdir -p \"$dstdir\"\n  while IFS= read -r srcpath; do\n    rel=${srcpath#\"$srcdir\"/}\n    dest=\"$dstdir/$rel\"\n    mkdir -p \"${dest%/*}\"\n    printf 'ln -s %s %s\\n' \"$srcpath\" \"$dest\"\n    ln -s \"$srcpath\" \"$dest\"\n  done < <(find \"$srcdir\" -type f \\( -name '*.ko' -o -name '*.ko.xz' -o -name '*.ko.gz' -o -name '*.ko.zst' \\) -print | sort)\nfi",
+      "script": "root=fixture/modules\nmkdir -p \"$root/src/nested\"\nprintf '%s\\n' 'one' > \"$root/src/z.ko\"\nprintf '%s\\n' 'two' > \"$root/src/nested/a.ko.xz\"\nprintf '%s\\n' 'skip' > \"$root/src/readme.txt\"\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_ROOT=\"$root\" bashkmod weak-modules src dst\nelse\n  srcdir=\"$root/src\"\n  dstdir=\"$root/dst/weak-updates\"\n  mkdir -p \"$dstdir\"\n  while IFS= read -r srcpath; do\n    rel=${srcpath#\"$srcdir\"/}\n    dest=\"$dstdir/$rel\"\n    mkdir -p \"${dest%/*}\"\n    printf 'ln -s %s %s\\n' \"$srcpath\" \"$dest\"\n    ln -sr \"$srcpath\" \"$dest\"\n  done < <(find \"$srcdir\" -type f \\( -name '*.ko' -o -name '*.ko.xz' -o -name '*.ko.gz' -o -name '*.ko.zst' \\) -print | sort)\nfi",
       "expected_status": 0,
       "stderr": "empty",
       "compare_tree": true
@@ -122,6 +123,41 @@
       "kind": "deferred",
       "purpose": "modprobe policy can select soft dependencies and may execute configured install/remove argv while applying module actions.",
       "reason": "Use a future isolated modules tree plus a reviewed execve and module-syscall mock that records helper argv, dependency order, blacklist decisions, and load/unload requests. Compare planning with kmod modprobe --dry-run/--show-depends. Do not run against host modprobe.d files or a live kernel."
+    },
+    {
+      "id": "weak-modules-usable-relative-links",
+      "kind": "parity",
+      "purpose": "Weak-updates links created from a relative private module root must resolve to the original file bytes. GNU ln -sr independently builds usable relative links; compare raw action rows, link targets and dereferenced bytes.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cat"
+      ],
+      "script": "mkdir -p modules/src\nprintf 'module fixture bytes\\n' > modules/src/a.ko\nif [[ $(type -t bashkmod) == builtin ]]; then\n BASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst\nelse\n mkdir -p modules/dst/weak-updates\n printf 'ln -s %s %s\\n' modules/src/a.ko modules/dst/weak-updates/a.ko\n ln -sr modules/src/a.ko modules/dst/weak-updates/a.ko\nfi\ncat modules/dst/weak-updates/a.ko",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "weak-modules-relative-root-spaces",
+      "kind": "parity",
+      "purpose": "Relative module roots containing spaces and a dot component still produce usable nested links with the same target bytes as independent GNU ln -sr. Only synthetic ordinary dummy module files are used.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cat"
+      ],
+      "script": "root='module root/./parts'\nmkdir -p \"$root/src/nested\"\nprintf 'dummy nested bytes\\n' > \"$root/src/nested/a.ko\"\nif [[ $(type -t bashkmod) == builtin ]]; then\n BASHKMOD_MODULES_ROOT=\"$root\" bashkmod weak-modules src dst\nelse\n mkdir -p \"$root/dst/weak-updates/nested\"\n printf 'ln -s %s %s\\n' \"$root/src/nested/a.ko\" \"$root/dst/weak-updates/nested/a.ko\"\n ln -sr \"$root/src/nested/a.ko\" \"$root/dst/weak-updates/nested/a.ko\"\nfi\ncat \"$root/dst/weak-updates/nested/a.ko\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "weak-modules-dry-run-and-matching-link",
+      "kind": "contract",
+      "purpose": "The authorized branch dry run prints an action without creating destination paths; normal runs produce a usable relative link and accept that same matching link on a repeated call.",
+      "script": "mkdir -p modules/src\nprintf 'dummy bytes\\n' > modules/src/a.ko\nactions=$(BASHKMOD_MODULES_ROOT=modules bashkmod weak-modules -n src dst)\n[[ $actions == 'ln -s modules/src/a.ko modules/dst/weak-updates/a.ko' && ! -e modules/dst ]]\nBASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst > first-actions\nBASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst > second-actions\n[[ -L modules/dst/weak-updates/a.ko ]]\nIFS= read -r payload < modules/dst/weak-updates/a.ko\n[[ $payload == 'dummy bytes' ]]\nprintf 'dry run and repeated relative link matched\\n'",
+      "expected_status": 0,
+      "stdout": "dry run and repeated relative link matched\n",
+      "stderr": "empty"
     }
   ]
 }

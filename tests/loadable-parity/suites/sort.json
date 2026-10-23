@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "loadable": "sort",
+  "reference": "GNU coreutils sort from the harness read-only /usr tree, run by system Bash against the same deterministic script with LC_ALL=C and TZ=UTC. GNU/POSIX sort behavior is the independent oracle; no expected parity output is derived from bash-os.",
+  "coverage": [
+    "Bash type metadata confirms sort is registered as a builtin (contract only; not operation coverage).",
+    "Default C-locale order with a blank record and an input record lacking a final newline.",
+    "GNU numeric ordering for decimal prefixes, non-numeric text, and adjacent integers beyond machine precision.",
+    "Colon-delimited numeric and secondary text keys, plus key-scoped ordering overriding global reverse.",
+    "Unique output for equal numeric keys, NUL-terminated records, and merging sorted files with duplicates.",
+    "In-place -o behavior and filesystem result comparison.",
+    "-c and -C disorder status and diagnostic policy; malformed key status."
+  ],
+  "exclusions": [
+    "No random-sort case: default -R is intentionally nondeterministic, and seeded random-source compatibility is outside this compact suite.",
+    "Non-C locale and very large input behavior are not covered.",
+    "Write-failure behavior is not exercised; fixtures use only relative paths in the private tree. Exact diagnostic wording is not asserted."
+  ],
+  "cases": [
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves the registered sort loadable as a builtin with the candidate's executable search path empty. This checks availability metadata only, not sort operation behavior.",
+      "script": "type -t sort",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_text_framing",
+      "kind": "parity",
+      "purpose": "Compare default whole-record ordering in the C locale, including an empty record and a final input record without a newline; GNU sort supplies the expected output bytes and status.",
+      "script": "printf 'pear\\n\\napple\\nplum' > rows\nsort rows",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "numeric_decimal_prefixes",
+      "kind": "parity",
+      "purpose": "Exercise GNU -n parsing of signed decimal prefixes, non-numeric inputs, exponent-like text, and two adjacent 20-digit integers that must remain distinct; GNU sort is the independent oracle.",
+      "script": "printf '1e5\\n+5\\nabc\\n12345678901234567890\\n12345678901234567891\\n-3.25\\n.5\\n' > nums\nsort -n nums",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "field_numeric_and_secondary_keys",
+      "kind": "parity",
+      "purpose": "Sort colon-separated records by a numeric second field, then the first and third text fields, covering multiple key definitions and equal numeric values with leading zeroes.",
+      "script": "printf 'blue:10:z\\nred:2:b\\nred:02:a\\nblue:-1:y\\nred:2:a\\n' > fields\nsort -t: -k2,2n -k1,1 -k3,3 fields",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "key_ordering_overrides_global_reverse",
+      "kind": "parity",
+      "purpose": "Check GNU key-option inheritance: the numeric modifier on -k2n gives that key its own ordering options, so global -r does not reverse its ascending numeric order.",
+      "script": "printf 'c 1\\na 3\\nb 2\\n' > rows\nsort -r -k2n rows",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "unique_equal_numeric_keys",
+      "kind": "parity",
+      "purpose": "Verify -u treats numerically equal whole-line keys as duplicates and retains the first input record from the equal-key run, as GNU sort specifies.",
+      "script": "printf '3 first\\n02 padded\\n2 second\\n1 one\\n' > nums\nsort -n -u nums",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "zero_terminated_unique",
+      "kind": "parity",
+      "purpose": "Compare byte output for NUL-delimited records with -z and duplicate removal; GNU sort provides the binary stdout oracle.",
+      "script": "printf 'b\\000a\\000b\\000' | sort -z -u",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "merge_sorted_unique_files",
+      "kind": "parity",
+      "purpose": "Merge two independently prepared sorted inputs with duplicates both within and across files, and suppress duplicate records with -u.",
+      "script": "printf 'a\\nc\\nc\\ne\\n' > left\nprintf 'b\\nc\\nd\\n' > right\nsort -m -u left right",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "in_place_output",
+      "kind": "parity",
+      "purpose": "Sort a file back onto itself with -o, then emit its contents; the harness also compares the resulting file bytes and mode against GNU sort.",
+      "script": "printf 'pear\\napple\\nplum\\n' > rows\nsort -o rows rows\nsort rows",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "check_disorder_diagnostic",
+      "kind": "parity",
+      "purpose": "Check that -c exits 1 on the first out-of-order record and emits a diagnostic; diagnostic wording may vary, so only nonempty stderr is required.",
+      "script": "printf 'a\\nc\\nb\\n' > rows\nsort -c rows",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "quiet_check_disorder",
+      "kind": "parity",
+      "purpose": "Check that -C returns the disorder status while suppressing the diagnostic.",
+      "script": "printf 'a\\nc\\nb\\n' > rows\nsort -C rows",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "invalid_key_status",
+      "kind": "parity",
+      "purpose": "Compare GNU's invalid zero-field key rejection, including the command status; diagnostic text is intentionally not treated as byte-identical API.",
+      "script": "printf 'a\\n' > rows\nsort -k0,1 rows",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "stable-key-ties",
+      "kind": "parity",
+      "purpose": "Stable ordering retains input order for equal numeric keys.",
+      "script": "printf 'b 2\\na 1\\nz 2\\nc 1\\n' | sort -s -k2,2n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "version-and-human-numeric",
+      "kind": "parity",
+      "purpose": "Small deterministic version and human-numeric sorting examples.",
+      "script": "printf 'v10\\nv2\\nv1\\n' | sort -V\nprintf '2K\\n1M\\n900\\n' | sort -h",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "general-numeric-and-month",
+      "kind": "parity",
+      "purpose": "Scientific numeric ordering and month ordering under the fixed C locale.",
+      "script": "printf '1e2\\n-2.5\\n3e-1\\n' | sort -g\nprintf 'Dec\\nJan\\nFeb\\n' | sort -M",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    }
+  ]
+}

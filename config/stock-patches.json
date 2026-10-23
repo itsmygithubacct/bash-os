@@ -25,5 +25,7 @@
   "tty": "tty-gnu.patch",
   "unlink": "unlink-gnu.patch",
   "strptime": "strptime-gnu.patch",
-  "asort": "asort-status.patch"
+  "asort": "asort-status.patch",
+  "ln": "ln-gnu.patch",
+  "sync": "sync-status.patch"
 }

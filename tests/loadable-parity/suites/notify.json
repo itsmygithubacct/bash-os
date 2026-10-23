@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "loadable": "notify",
+  "reference": "Contract expectations use Bash's documented `type` and `help` builtin behavior plus the checked-in notify builtin documentation and its explicit --help output. The builtin documentation records the supported send syntax and socket forms. No result is copied from the candidate. `systemd-notify` is not a same-interface oracle for `notify send SOCKET PAYLOAD`, so runnable operation parity is unavailable.",
+  "coverage": [
+    "Bash reports notify as a builtin through both type -t and type.",
+    "Bash help exposes the documented notify purpose, syntax, and division of responsibility.",
+    "The documented long and short help switches return their usage text."
+  ],
+  "exclusions": [
+    "AF_UNIX datagram sends, filesystem and abstract address encoding, and syscall failure paths are DEFERRED under the task's operation-safety requirement; no notify send operation is run here.",
+    "There is no matching GNU CLI for this builtin's send subcommand. systemd-notify has a different interface and is not treated as direct parity.",
+    "The --version string is not independently specified in the reviewed docs, so it is not asserted."
+  ],
+  "cases": [
+    {
+      "id": "notify-type-kind",
+      "purpose": "Check Bash's type -t contract for a compiled-in notify builtin.",
+      "kind": "contract",
+      "script": "type -t notify",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "notify-type-description",
+      "purpose": "Check Bash's user-facing type description for notify.",
+      "kind": "contract",
+      "script": "type notify",
+      "expected_status": 0,
+      "stdout": "notify is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "notify-help-documentation",
+      "purpose": "Check that help notify includes the documented purpose, syntax, and parser ownership without depending on Bash's help layout.",
+      "kind": "contract",
+      "script": "doc=$(help notify)\n[[ $doc == *\"Send sd_notify-style AF_UNIX datagrams.\"* ]]\n[[ $doc == *\"notify send SOCKET PAYLOAD\"* ]]\n[[ $doc == *\"systemd-notify.sh owns CLI parsing;\"* ]]",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "notify-long-help",
+      "purpose": "Check the documented --help usage lines as stable public help output.",
+      "kind": "contract",
+      "script": "notify --help",
+      "expected_status": 0,
+      "stdout": "notify send SOCKET PAYLOAD\nnotify --help | --version\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "notify-short-help",
+      "purpose": "Check that the documented -h alias emits the same usage text as --help.",
+      "kind": "contract",
+      "script": "notify -h",
+      "expected_status": 0,
+      "stdout": "notify send SOCKET PAYLOAD\nnotify --help | --version\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "notify-filesystem-datagram",
+      "purpose": "Verify a successful filesystem-path AF_UNIX datagram send and byte-exact payload delivery, including an embedded newline.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM or reviewed private socket fixture that owns a filesystem AF_UNIX SOCK_DGRAM receiver and independently checks exactly one byte-exact datagram. This task requires notify send operations to remain deferred."
+    },
+    {
+      "id": "notify-abstract-datagram",
+      "purpose": "Verify systemd's @name spelling maps to the expected Linux abstract AF_UNIX address and delivers one exact datagram.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable Linux VM or reviewed private abstract-namespace receiver fixture. The fixture must bind only its own abstract name and check exact datagram bytes; no system service or ambient socket may be contacted. This task requires notify send operations to remain deferred."
+    },
+    {
+      "id": "notify-address-and-send-errors",
+      "purpose": "Qualify empty and overlong socket names, an unavailable destination, and descriptor/error handling on send failure.",
+      "kind": "deferred",
+      "reason": "Requires a future reviewed syscall mock or disposable Linux VM with deterministic socket/sendto failures. It must verify invalid names fail before socket creation, failed sends return nonzero with a diagnostic, and descriptors are closed; no real endpoint may be used. This task requires notify send operations to remain deferred."
+    }
+  ]
+}

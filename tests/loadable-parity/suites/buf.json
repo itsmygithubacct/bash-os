@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "loadable": "buf",
+  "reference": "There is no GNU buf CLI. Parity cases use GNU cat as the byte-exact load/text oracle and GNU awk plus GNU file utilities as the line-insertion/save and ordinary-file-operation oracle. Private API behaviors without a matching CLI are contract cases with fixed outputs derived from the documented API and independent byte encodings. Parity cases compare stdout and the full fixture tree, including modes and hardlink relationships.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "Byte-exact load/text behavior with NUL, CRLF, high bytes, and an unterminated final line",
+    "Line count, byte length, empty and clipped ranges, blank lines, UTF-8 byte length, and trailing-newline policy",
+    "Binary line and byte edits, dirty/clean state, and resulting text",
+    "set-name/save behavior, saved-clean state, destination mode preservation, and hardlink replacement effects",
+    "Failed reload preserving edited contents, dirty state, and the retained save name",
+    "Malformed index and out-of-range byte column rejection without partial mutation",
+    "Byte-exact I/A/R/D journal records and matching mutation effects."
+  ],
+  "exclusions": [
+    "No direct GNU command-line equivalent exists for the private line/edit/state verbs; those are explicit contract cases rather than command-line parity claims.",
+    "Deterministic write, fdatasync, close, and rename failure injection is deferred to a future syscall mock or disposable VM.",
+    "Physical power-loss durability and concurrent external modification of mapped files are not qualified.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check the Bash metadata contract: buf is a builtin and help exposes its documented new, save, and free verbs. This is metadata coverage, not operation coverage.",
+      "script": "kind=$(type -t buf)\n[[ $kind == builtin ]]\ndoc=$(help buf)\n[[ $doc == *\"buf new\"* && $doc == *\"buf save\"* && $doc == *\"buf free\"* ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "binary-roundtrip",
+      "kind": "parity",
+      "purpose": "Load a small binary fixture containing NUL, CRLF, 0xff, and an unterminated last line. Compare buf's raw text output with GNU cat byte-for-byte.",
+      "requires": [
+        "cat",
+        "rm"
+      ],
+      "script": "printf 'A\\000B\\r\\n\\377\\nlast' > sample.bin\nif type -t buf >metadata-sink 2>&1; then\n  buf new -h h\n  buf load \"$h\" sample.bin\n  buf text \"$h\" -F 1\n  buf free \"$h\"\nelse\n  cat sample.bin\nfi\nif [[ -e metadata-sink ]]; then rm metadata-sink; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "line-range-policy",
+      "kind": "contract",
+      "purpose": "Check blank-line counting, UTF-8 byte length, a zero-length range, a clipped range, and whether the final newline is preserved. The fixed expected output follows the documented LF splitting, byte-length, and range-joining contract.",
+      "script": "printf 'red\\n\\n\\360\\237\\230\\200\\nlast\\n' > sample.txt\nbuf new -h h\nbuf load \"$h\" sample.txt\nprintf 'lines='; buf lines \"$h\"\nprintf 'len-emoji='; buf len \"$h\" 2\nprintf 'emoji='; buf line \"$h\" 2 -X\nprintf 'empty='; buf text \"$h\" 4 0 -X\nprintf 'clipped='; buf text \"$h\" 2 99 -X\nprintf 'middle='; buf text \"$h\" 1 2 -X\nbuf free \"$h\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "lines=4\nlen-emoji=4\nemoji=f09f9880\nempty=\nclipped=f09f98800a6c6173740a\nmiddle=0af09f9880\n"
+    },
+    {
+      "id": "binary-edits-dirty",
+      "kind": "contract",
+      "purpose": "Exercise insert-line, insert-at, delete-at, and delete-line with NUL/high-byte data, then check byte lengths, final text, and dirty-to-clean transitions against fixed outputs derived from the documented byte-oriented edit contract.",
+      "script": "printf 'a\\000b\\nlast' > sample.bin\nbuf new -h h\nbuf load \"$h\" sample.bin\nbuf insert-line \"$h\" 1 800051 -X\nbuf insert-at \"$h\" 0 1 fe -X\nbuf delete-at \"$h\" 1 1 1\nbuf delete-line \"$h\" 2\nif buf dirty \"$h\"; then printf 'dirty\\n'; else exit 70; fi\nbuf clean \"$h\"\nif buf dirty \"$h\"; then exit 71; else printf 'clean\\n'; fi\nprintf 'lines='; buf lines \"$h\"\nprintf 'len0='; buf len \"$h\" 0\nprintf 'line0='; buf line \"$h\" 0 -X\nprintf 'text='; buf text \"$h\" -X\nbuf free \"$h\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dirty\nclean\nlines=2\nlen0=4\nline0=61fe0062\ntext=61fe00620a8051\n"
+    },
+    {
+      "id": "save-and-fixture-files",
+      "kind": "parity",
+      "purpose": "Compare buf set-name and atomic save against an independent awk/mv adapter: edited bytes, preserved 0640 destination mode and old hardlink contents. Ordinary private file utilities prepare and inspect the fixture; they are not separate buf operations.",
+      "requires": [
+        "awk",
+        "mkdir",
+        "ln",
+        "cp",
+        "touch",
+        "chmod",
+        "mv",
+        "rm"
+      ],
+      "script": "mkdir fixture\nprintf 'alpha\\nomega\\n' > fixture/source\nprintf 'stale\\n' > fixture/dest\nchmod 0640 fixture/dest\nln fixture/dest fixture/old\ncp fixture/source fixture/copy\ntouch fixture/marker\nif type -t buf >metadata-sink 2>&1; then\n  buf new -h h\n  buf load \"$h\" fixture/source\n  buf save \"$h\" fixture/copybuf\n  if buf dirty \"$h\"; then exit 72; else printf 'roundtrip-clean\\n'; fi\n  buf insert-line \"$h\" 1 middle\n  buf set-name \"$h\" fixture/dest\n  buf save \"$h\"\n  if buf dirty \"$h\"; then exit 73; else printf 'saved-clean\\n'; fi\n  buf free \"$h\"\nelse\n  cp fixture/source fixture/copybuf\n  printf 'roundtrip-clean\\n'\n  awk 'NR == 1 { print; print \"middle\"; next } { print }' fixture/source > fixture/replacement\n  chmod 0640 fixture/replacement\n  mv -f fixture/replacement fixture/dest\n  printf 'saved-clean\\n'\nfi\nmv fixture/dest fixture/final\nchmod 0600 fixture/copy\nrm fixture/marker\nif [[ -e metadata-sink ]]; then rm metadata-sink; fi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "failed-reload-retains-state",
+      "kind": "contract",
+      "purpose": "A missing-file reload must leave the current edited buffer, dirty flag, and saved filename intact. Save afterward and check the saved bytes against the documented reload/save contract.",
+      "script": "printf 'alpha\\nbeta\\n' > current\nbuf new -h h\nbuf load \"$h\" current\nbuf insert-line \"$h\" 1 inserted\nif buf load \"$h\" missing; then printf 'missing reload unexpectedly succeeded\\n' >&2; exit 73; else printf 'reload-rejected\\n'; fi\nif buf dirty \"$h\"; then :; else exit 74; fi\nbuf save \"$h\"\nif buf dirty \"$h\"; then exit 75; else printf 'saved-clean\\n'; fi\nbuf new -h check\nbuf load \"$check\" current\nprintf 'saved='; buf text \"$check\" -X\nbuf free \"$check\"\nbuf free \"$h\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "reload-rejected\nsaved-clean\nsaved=616c7068610a696e7365727465640a626574610a\n"
+    },
+    {
+      "id": "invalid-ranges-no-mutation",
+      "kind": "contract",
+      "purpose": "Reject a trailing-junk line index and a byte column beyond the line, then verify the original line is unchanged. The fixed expected hex is an independent encoding of the original ASCII bytes; stderr wording may differ.",
+      "script": "buf new -h h\nbuf insert-line \"$h\" 0 keep\nif buf delete-line \"$h\" 0junk; then exit 76; else printf 'bad-index-rejected\\n'; fi\nif buf insert-at \"$h\" 0 5 x; then exit 77; else printf 'bad-column-rejected\\n'; fi\nprintf 'state='; buf text \"$h\" -X\nbuf free \"$h\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "bad-index-rejected\nbad-column-rejected\nstate=6b656570\n"
+    },
+    {
+      "id": "save-faults-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify rollback when save encounters data-write, data-sync, close, or rename failures.",
+      "reason": "Requires an independently reviewed syscall fault-injection mock or a disposable VM that can deterministically fail write, fdatasync, close, and rename while checking the destination, temporary files, retained filename, and dirty state. The supplied runner provides no syscall shim, so ordinary save success must not be counted as coverage of these failure paths."
+    },
+    {
+      "id": "journal-mutation-records",
+      "kind": "contract",
+      "purpose": "All four documented journal tuple forms carry exact independent byte payloads and indices while the corresponding edits produce the expected buffer.",
+      "script": "buf new -h h\nbuf insert-line \"$h\" 0 ab\nexec 3>journal\nbuf mutate -j 3 -h \"$h\" -- insert-line 1 00ff -X\nbuf mutate -j 3 -h \"$h\" -- insert-at 0 1 58 -X\nbuf mutate -j 3 -h \"$h\" -- delete-at 0 1 1\nbuf mutate -j 3 -h \"$h\" -- delete-line 1\nexec 3>&-\nbuf text \"$h\" -X\nbuf free \"$h\"\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nimport sys\nb=Path('journal').read_bytes()\nassert b==b'I 1 00ff -X\\nA 0 1 58 -X\\nR 0 1 58 -X\\nD 1 00ff -X\\n'\nsys.stdout.buffer.write(b)\nPY\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "6162\nI 1 00ff -X\nA 0 1 58 -X\nR 0 1 58 -X\nD 1 00ff -X\n"
+    }
+  ]
+}

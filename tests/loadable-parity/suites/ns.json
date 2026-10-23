@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "loadable": "ns",
+  "reference": "The runnable contract case uses GNU Bash's documented type -t and help builtins: a compiled-in ns command is reported as a builtin, and help lookup succeeds. Its expected marker is fixed in the suite. Namespace, mount, ID-map, seccomp, LSM-transition, and cgroup operations are DEFERRED; each names an independent GNU/kernel oracle or a disposable VM/mock requirement. No candidate operation output is used as an oracle.",
+  "coverage": [
+    "Static builtin registration and help availability through Bash metadata builtins.",
+    "Deferred namespace creation and child execution semantics, including child exit propagation.",
+    "Deferred namespace-FD entry and user/group mapping behavior.",
+    "Deferred mount, pivot-root, and seccomp kernel effects in isolated disposable environments.",
+    "Deferred LSM transitions and cgroup v2 updates against controlled fixtures."
+  ],
+  "exclusions": [
+    "No ns operation verb is invoked in this suite; namespace, mount, identity-map, security-policy, cgroup, and pivot-root effects need a purpose-built disposable VM or reviewed mock.",
+    "No live kernel, mount, LSM, cgroup, network, privilege, or host process behavior is claimed."
+  ],
+  "cases": [
+    {
+      "id": "ns-builtin-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash reports ns as a statically available builtin and its documented help entry can be looked up. The marker is independent of the help text contents.",
+      "script": "[[ $(type -t ns) == builtin ]]\nhelp_text=$(help ns)\nprintf 'ns builtin; help available\\n'",
+      "expected_status": 0,
+      "stdout": "ns builtin; help available\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "ns-unshare-namespaces",
+      "kind": "deferred",
+      "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
+      "reason": "Requires a disposable Linux VM with namespace creation enabled. A future case should compare util-linux unshare against ns unshare for user, mount, net, ipc, uts, cgroup, pid, and time where supported; inspect namespace IDs from a child and confirm pid/time requests affect future children while the caller stays in its original namespace. Record kernel-dependent EINVAL/EPERM behavior from both sides. No namespace creation was attempted here."
+    },
+    {
+      "id": "ns-spawn-child-exec",
+      "kind": "deferred",
+      "purpose": "Check clone-based namespace setup, argv/environment forwarding, PID namespace child semantics, --no-new-privs, and propagation of the child exit status.",
+      "reason": "Requires a disposable Linux VM with user and PID namespaces available and a harmless fixture executable. Compare ns spawn with an independently invoked util-linux unshare child; capture exact argv/environment and exit codes, verify the child PID-1 behavior for pid, and inspect no_new_privs in the disposable child. Never run this operation on the host."
+    },
+    {
+      "id": "ns-enter-namespace-fd",
+      "kind": "deferred",
+      "purpose": "Check setns using a descriptor for a controlled namespace, including ownership, invalid-descriptor, and permission behavior.",
+      "reason": "Requires two controlled processes and namespace descriptors created inside a disposable Linux VM, with the required capability held only in that VM. Compare ns enter FD with util-linux nsenter on the same descriptor and verify the entered namespace from a child; include an invalid FD and a denied-permission case. No namespace descriptor was opened or entered here."
+    },
+    {
+      "id": "ns-id-mapping",
+      "kind": "deferred",
+      "purpose": "Check deny-setgroups ordering and uid_map/gid_map writes for a fresh user namespace.",
+      "reason": "Requires a disposable VM and a fresh user namespace mapped only to synthetic test IDs. Independently inspect the kernel's uid_map, gid_map, and setgroups interfaces after valid writes, then compare invalid ranges and ordering failures. Do not change host identity mappings or accounts."
+    },
+    {
+      "id": "ns-mount-operations",
+      "kind": "deferred",
+      "purpose": "Check private propagation, bind mounts, read-only bind remounts, and remount-readonly effects on fixture paths.",
+      "reason": "Requires CAP_SYS_ADMIN only inside a disposable mount namespace and a temporary filesystem created for that VM. Compare with util-linux mount behavior using relative fixture files/directories; verify propagation isolation, read/write bind behavior, and that a read-only bind rejects a fixture write. No mount operation was invoked here."
+    },
+    {
+      "id": "ns-pivot-root",
+      "kind": "deferred",
+      "purpose": "Check the pivot-root syscall wrapper and resulting old-root placement using a disposable root tree.",
+      "reason": "Requires a disposable Linux VM, a private mount namespace, and separately mounted new-root/put-old fixture directories satisfying the kernel's pivot_root requirements. Use an independently reviewed syscall helper as the oracle, verify cwd/root and old-root visibility from a child, and include a kernel-rejected layout. No root switch was attempted here."
+    },
+    {
+      "id": "ns-seccomp-filter",
+      "kind": "deferred",
+      "purpose": "Check loading and applying a binary sock_filter profile, including valid, malformed, and kernel-rejected profiles.",
+      "reason": "Requires a future disposable Linux VM with a dedicated child process and a profile generated independently from the documented Linux struct sock_filter encoding. Apply an allow profile and a narrowly denying profile only to that child, compare observable return/errno behavior with an independent seccomp helper, and test empty, mis-sized, and over-limit profiles. The irreversible filter must never be installed on the test controller."
+    },
+    {
+      "id": "ns-lsm-transition",
+      "kind": "deferred",
+      "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
+      "reason": "Actual transition behavior requires a disposable VM booted with the relevant LSM and a dedicated test policy that affects only a fixture executable. Independently verify the transition at exec, compare the proc/securityfs requests, and cover absent-LSM and invalid-profile errors. A future filesystem-only mock may separately test the documented root overrides; no LSM interface was read or written here."
+    },
+    {
+      "id": "ns-cgroup-v2-helpers",
+      "kind": "deferred",
+      "purpose": "Check cgroup v2 create, controller value, process membership, controller-enable, and remove behavior.",
+      "reason": "Requires a disposable VM with a dedicated writable cgroup v2 subtree owned by the test, plus a harmless child process. Compare file updates with the documented cgroup v2 interface, verify relative-path validation and cleanup, and never write to the controller's cgroup hierarchy. No cgroup operation was invoked here."
+    },
+    {
+      "id": "help-verbs-contract",
+      "kind": "contract",
+      "purpose": "Bash help names the core namespace verbs; metadata only, with no syscall operation.",
+      "script": "doc=$(help ns)\n[[ $doc == *'ns unshare'* && $doc == *'ns spawn'* && $doc == *'ns enter'* ]]\nprintf 'namespace-verbs-documented\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "namespace-verbs-documented\n"
+    }
+  ]
+}

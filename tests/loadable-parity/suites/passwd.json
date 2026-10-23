@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "loadable": "passwd",
+  "reference": "Runnable contract expectations use Bash's documented type/help builtin behavior. The help markers are literal public documentation strings registered in passwd_doc in passwd.c. GNU shadow-utils passwd is not an oracle for this loadable's subcommands or PHCLIB_PASSWD/PHCLIB_SHADOW fixture contract, so this suite does not mislabel it as parity. Account, credential, and terminal operations are deferred under the task's safety boundary.",
+  "coverage": [
+    "Bash identifies passwd as a builtin.",
+    "Bash help exposes the documented list and verify-fd forms and the password-buffer handling note.",
+    "Deferred account database mutation coverage for add, add-fd, delete, lock, unlock, and expire.",
+    "Deferred password hashing and verification coverage for set, set-fd, change, verify, and verify-fd.",
+    "Deferred controlled-terminal behavior for password prompts and confirmation.",
+    "Metadata results are not operation coverage; deferred operations are not passes."
+  ],
+  "exclusions": [
+    "No passwd operation is invoked in this suite; no account, group, or shadow data is read or changed.",
+    "Read-only list and info behavior is not qualified here because the task directs passwd operation coverage to DEFERRED cases and GNU passwd cannot use this builtin's fixture-file interface.",
+    "No real or installed credentials, kernel authentication device, or interactive terminal is used."
+  ],
+  "cases": [
+    {
+      "id": "bash_type_builtin",
+      "purpose": "Check Bash type metadata recognizes the loadable as a builtin without invoking a passwd subcommand.",
+      "kind": "contract",
+      "script": "[[ $(type -t passwd) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash_help_contract",
+      "purpose": "Check Bash help metadata includes the documented list and fd-verification forms and the password handling note.",
+      "kind": "contract",
+      "script": "doc=$(help passwd)\n[[ $doc == *'Password and account management for bash-os.'* ]]\n[[ $doc == *'passwd list [-l]'* ]]\n[[ $doc == *'passwd verify-fd USER FD'* ]]\n[[ $doc == *'Password bytes are handled in C-owned buffers and wiped after use.'* ]]\nprintf 'passwd help metadata contains list, fd verification, and secret handling\\n'",
+      "expected_status": 0,
+      "stdout": "passwd help metadata contains list, fd verification, and secret handling\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "account_file_mutations",
+      "purpose": "Future coverage for account database updates, deletion, lock state, and shadow aging without touching any host account files.",
+      "kind": "deferred",
+      "reason": "The task forbids user/account changes. A future run needs a disposable VM or isolated syscall/filesystem mock with only private relative PHCLIB_PASSWD, PHCLIB_GROUP, and PHCLIB_SHADOW fixtures. Check add/delete/lock/unlock/expire record effects, file modes, atomic replacement, and rollback after injected write/rename failures against independently authored expected records; never bind host account paths."
+    },
+    {
+      "id": "password_hash_updates",
+      "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
+      "kind": "deferred",
+      "reason": "These verbs consume password bytes and write credential records, which this task prohibits. A future disposable VM/mock must use synthetic secrets and private account files, independently generated Argon2id PHC vectors, a test double for /dev/bashos-auth secret-slot ioctls, and fault injection to verify secret cleanup, file permissions, and account rollback. No installed or real credential may be used."
+    },
+    {
+      "id": "password_verification_lockout",
+      "purpose": "Future coverage for correct/wrong password results, locked/malformed shadow rows, and failure lockout state.",
+      "kind": "deferred",
+      "reason": "verify and verify-fd process password material and update lockout state, so they are not invoked here. A future disposable VM/mock must provide independently generated synthetic PHC vectors, private shadow and lock files, a deterministic clock or lockout-time mock, and an authentication-device test double for the kernel-secret path; assert success, rejection, status codes, and lockout cleanup without real credentials."
+    },
+    {
+      "id": "interactive_password_prompts",
+      "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
+      "kind": "deferred",
+      "reason": "Interactive password commands need terminal input and can read or change credentials. A future disposable VM/mock must supply an owned PTY driver, synthetic input only, a fake authentication device, and assertions that echo is disabled during reads and restored after success, mismatch, read failure, and signal interruption."
+    },
+    {
+      "id": "readonly_database_queries",
+      "purpose": "Future fixture-only coverage for list, list -l, and info parsing of empty fields, malformed rows, and numeric identifier boundaries.",
+      "kind": "deferred",
+      "reason": "Account database operations require an explicitly authorized disposable VM or reviewed filesystem/authentication mock. A future runner case should use relative private PHCLIB_PASSWD and PHCLIB_SHADOW files and an independent POSIX-field encoder (such as a small awk reference), with empty-field, malformed-row, missing-user, and uid/gid boundary fixtures. It must not read /etc/passwd or installed credentials."
+    }
+  ]
+}

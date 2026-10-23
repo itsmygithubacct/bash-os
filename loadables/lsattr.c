@@ -146,7 +146,7 @@ lsattr_builtin (WORD_LIST *list)
             }
             if (!ok) break;
         }
-        if (!ok) { builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE; }
+        if (!ok) { builtin_error ("unknown option: %s", w); builtin_usage (); return EXECUTION_FAILURE; }
         list = list->next;
     }
 

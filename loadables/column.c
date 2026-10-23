@@ -280,7 +280,7 @@ column_builtin (WORD_LIST *list)
             {
               builtin_error ("column: bad output width: %s", p->next->word->word);
               builtin_usage ();
-              return EX_USAGE;
+              return EXECUTION_FAILURE;
             }
           p = p->next;
           continue;
@@ -294,7 +294,7 @@ column_builtin (WORD_LIST *list)
             {
               builtin_error ("column: bad output width: %s", w + 15);
               builtin_usage ();
-              return EX_USAGE;
+              return EXECUTION_FAILURE;
             }
           continue;
         }
@@ -390,7 +390,7 @@ column_builtin (WORD_LIST *list)
                     {
                       builtin_error ("column: bad output width: %s", arg);
                       builtin_usage ();
-                      return EX_USAGE;
+                      return EXECUTION_FAILURE;
                     }
                   break;
                 }

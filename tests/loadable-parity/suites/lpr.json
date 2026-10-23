@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "loadable": "lpr",
+  "reference": "Published private-spool API contracts for list and pre-delivery backend rejection; Bash metadata contracts. No GNU printer-client equivalence is claimed. Fixtures contain only synthetic local data and never launch a printer backend.",
+  "coverage": [
+    "Contract: Bash reports lpr as a builtin with type -t.",
+    "Contract: Bash short help exposes the documented submit, list and cancel forms.",
+    "Contract: Bash help exposes the documented lpr summary and backend/spool/timeout settings.",
+    "Contract: lpr --help exposes its documented help text without submitting a job.",
+    "Deferred: submit from a file or stdin to a fixture backend, including acceptance and cleanup.",
+    "Contract: synthetic private-spool legacy/stale listing; live active-job listing remains part of the deferred backend fixture.",
+    "Deferred: cancel through a fixture control FIFO and verify that only the submitting shell's own backend child is signalled.",
+    "Executed missing-spool, legacy/stale list, insecure-spool rejection and missing-backend rejection."
+  ],
+  "exclusions": [
+    "Successful delivery needs a future disposable VM allowing a private absolute backend path or a reviewed exec mock; this suite permits relative fixture paths only. Cancellation and owned-child signals remain deferred.",
+    "No real printer, backend outside a disposable fixture, network target, system spool, external process or signal is used.",
+    "No GNU printer-client parity is claimed; runtime list/rejection cases are documented custom contracts. Bash help and command help are metadata only."
+  ],
+  "cases": [
+    {
+      "id": "type_builtin_metadata",
+      "kind": "contract",
+      "purpose": "Check through Bash's documented type -t interface that the available lpr command is a shell builtin, without invoking an lpr subcommand.",
+      "script": "[[ $(type -t lpr) == builtin ]] || exit 1\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_subcommands",
+      "kind": "contract",
+      "purpose": "Check that Bash short help advertises the documented submit, list and cancel command forms. The expected synopsis follows the published command contract; this invokes help metadata only.",
+      "script": "[[ $(type -t lpr) == builtin ]] || exit 1\nhelp -s lpr",
+      "expected_status": 0,
+      "stdout": "lpr: lpr {submit FILE|- | list [-l] | cancel ID}\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_documented_settings",
+      "kind": "contract",
+      "purpose": "Check that Bash help contains the documented lpr description and the BASHLPR backend, spool and timeout settings. The script emits a fixed marker only after those independent documentation terms are present.",
+      "script": "doc=$(help lpr) || exit 1\n[[ $doc == *'Spool a file and deliver it to a configured backend executable.'* ]] || exit 2\n[[ $doc == *BASHLPR_BACKEND* && $doc == *BASHLPR_SPOOL* && $doc == *BASHLPR_TIMEOUT* ]] || exit 3\nprintf 'documented lpr settings present\\n'",
+      "expected_status": 0,
+      "stdout": "documented lpr settings present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command_help_metadata",
+      "kind": "contract",
+      "purpose": "Check the command's documented --help path for the backend setting, matching the existing lpr delivery test's metadata contract. This path prints help only and does not submit or spool a job.",
+      "script": "doc=$(lpr --help) || exit 1\n[[ $doc == *BASHLPR_BACKEND* && $doc == *BASHLPR_SPOOL* && $doc == *BASHLPR_TIMEOUT* ]] || exit 2\nprintf 'lpr command help metadata present\\n'",
+      "expected_status": 0,
+      "stdout": "lpr command help metadata present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "submit_fixture_backend",
+      "kind": "deferred",
+      "purpose": "Exercise deterministic file and stdin submissions, literal backend argv, complete-byte acceptance, and spool cleanup without delivering a real print job.",
+      "reason": "Requires a future disposable VM allowing a private absolute-path fixture backend, or a reviewed exec mock; this suite permits only relative fixture paths. The backend must record argv/input bytes without printer or network activity, covering full/partial acceptance and cleanup. No successful backend-delivery submit operation is run here."
+    },
+    {
+      "id": "list-private-spool",
+      "kind": "contract",
+      "purpose": "A missing spool is empty; a single synthetic local job has the documented legacy and stale long formats.",
+      "script": "export BASHLPR_SPOOL=spool\nlpr list\n[[ ! -e spool ]]\nmkdir -m 700 spool\nprintf abc > spool/0123456789abcdef.lpr\nprintf ignored > spool/unrelated\nlpr list\nlpr list -l",
+      "expected_status": 0,
+      "stdout": "spool/0123456789abcdef.lpr\n0123456789abcdef stale 3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "cancel_owned_child",
+      "kind": "deferred",
+      "purpose": "Exercise stale-job cleanup and live cancellation through the control FIFO while proving cancellation affects only the submitter's fixture backend child.",
+      "reason": "Requires a future disposable VM or reviewed process/FIFO mock with a private scratch spool, a fixture-owned submitter, and a fixture backend child. Verify stale metadata does not direct signals, the live control FIFO is used, only the owned child can receive termination, and spool entries are removed. Do not signal any host or unrelated process. No cancel operation is run in this suite."
+    },
+    {
+      "id": "submit-without-backend",
+      "kind": "contract",
+      "purpose": "A missing configured backend is rejected before creating a spool or delivering bytes.",
+      "script": "export BASHLPR_SPOOL=spool\nunset BASHLPR_BACKEND\nprintf input > input\nif lpr submit input; then rc=0; else rc=$?; fi\n[[ ! -e spool ]]\nprintf '%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "list-nonprivate-spool",
+      "kind": "contract",
+      "purpose": "Reject a group/other-writable private spool and preserve its job bytes.",
+      "script": "mkdir -m 777 spool\nprintf abc > spool/0123456789abcdef.lpr\nBASHLPR_SPOOL=spool lpr list",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    }
+  ]
+}

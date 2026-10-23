@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "loadable": "getconf",
+  "reference": "The isolated reference runs the system Bash with GNU getconf from /usr/bin:/bin; parity expectations are its byte-for-byte stdout, status, stderr policy, and fixture tree. Query categories and the metadata contract follow POSIX getconf/sysconf/pathconf/confstr behavior and the documented Bash loadable interface in the pinned stock source.",
+  "coverage": [
+    "Bash type/help metadata registration",
+    "sysconf values: PAGE_SIZE, CHAR_BIT, and _POSIX_VERSION",
+    "GNU-compatible elision of the _POSIX_ prefix (VERSION alias)",
+    "confstr standard utility PATH",
+    "pathconf on a relative file path containing spaces and a created directory",
+    "getconf -a with an explicit relative path",
+    "pathconf failure for a missing relative path",
+    "argument-count error for a sysconf variable"
+  ],
+  "exclusions": [
+    "The -v programming-environment option is excluded because the Bash loadable requests disk fallback for it; this suite targets the builtin query interface.",
+    "Diagnostic wording is checked only for presence on error cases; successful output and statuses are compared byte-for-byte against GNU getconf.",
+    "No dangerous or privileged operation is part of getconf's interface, so there are no deferred operation cases.",
+    "The free-memory count changes between observations; only that single value is validated as positive instead of byte-equal. All listing names, order, constants, spacing and stable values remain compared.",
+    "The unchanged complete GNU -a comparison remains active and exposes additive integer constants and ordering differences; a separate extension contract does not establish full listing parity."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Bash's type builtin must identify getconf as a builtin and help must expose its documented loadable entry.",
+      "script": "printf '%s\\n' \"$(type -t getconf)\"\nhelp getconf >metadata.txt",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sysconf-page-size",
+      "kind": "parity",
+      "purpose": "Query the system page size through sysconf and compare the numeric value and status with GNU getconf.",
+      "script": "getconf PAGE_SIZE",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "sysconf-char-bit",
+      "kind": "parity",
+      "purpose": "Exercise a C implementation limit that may be compiled as a constant or returned through sysconf.",
+      "script": "getconf CHAR_BIT",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "posix-version",
+      "kind": "parity",
+      "purpose": "Query the POSIX version feature value through sysconf.",
+      "script": "getconf _POSIX_VERSION",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "posix-prefix-alias",
+      "kind": "parity",
+      "purpose": "Check GNU getconf's accepted shortened name for the _POSIX_VERSION variable.",
+      "script": "getconf VERSION",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "confstr-standard-path",
+      "kind": "parity",
+      "purpose": "Query the implementation's standard utility search path with the PATH confstr variable.",
+      "script": "getconf PATH",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "pathconf-spaced-file",
+      "kind": "parity",
+      "purpose": "Run NAME_MAX pathconf against a relative fixture filename containing spaces; compare both the value and created fixture contents/mode.",
+      "script": "printf 'fixture\\n' > 'name limit fixture'\ngetconf NAME_MAX 'name limit fixture'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "pathconf-created-directory",
+      "kind": "parity",
+      "purpose": "Create a small relative directory in the private fixture tree and query LINK_MAX against it.",
+      "script": "mkdir fixture-dir\ngetconf LINK_MAX fixture-dir",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "all-variables-relative-path",
+      "kind": "parity",
+      "purpose": "Compare complete -a ordering, names, additional constants and column bytes. Only the inherently varying _AVPHYS_PAGES value is independently checked positive and represented by a marker; no stable value, row or ordering difference is removed. The complete raw listing is retained in the private raw-listing artifact; compare_tree is false only because that artifact contains an inherently varying free-memory observation.",
+      "script": "getconf -a . > raw-listing\n/usr/bin/python3 -c 'import sys,re\nfrom pathlib import Path\nfor line in Path(\"raw-listing\").read_text().splitlines(keepends=True):\n    if line.startswith(\"_AVPHYS_PAGES \"):\n        m=re.fullmatch(r\"(_AVPHYS_PAGES +)([0-9]+)\\n\",line)\n        assert m and int(m[2])>0, line\n        sys.stdout.write(m[1]+\"<positive live page count>\\n\")\n    else: sys.stdout.write(line)'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10,
+      "requires": [
+        "getconf",
+        "python3"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "pathconf-missing-path",
+      "kind": "parity",
+      "purpose": "Check pathconf behavior for a nonexistent relative path, including its undefined result, failure status, and diagnostic presence.",
+      "script": "getconf NAME_MAX missing-entry",
+      "expected_status": 3,
+      "stderr": "nonempty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "sysconf-extra-argument",
+      "kind": "parity",
+      "purpose": "Reject a pathname supplied to a sysconf variable and compare usage status and output behavior with GNU getconf.",
+      "script": "getconf PAGE_SIZE surplus",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "getconf"
+      ]
+    },
+    {
+      "id": "gnu-libc-names",
+      "kind": "parity",
+      "script": "getconf GNU_LIBC_VERSION; getconf GNU_LIBPTHREAD_VERSION",
+      "purpose": "GNU libc version names are available through confstr.",
+      "requires": [
+        "getconf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "processor-aliases",
+      "kind": "parity",
+      "script": "getconf NPROCESSORS_CONF; getconf NPROCESSORS_ONLN",
+      "purpose": "GNU processor-count names are aliases of their underscore forms.",
+      "requires": [
+        "getconf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unsigned-long-limit",
+      "kind": "parity",
+      "script": "getconf ULONG_MAX",
+      "purpose": "Unsigned long limits are not mistaken for the signed -1 undefined marker.",
+      "requires": [
+        "getconf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unsupported-single-variable",
+      "kind": "parity",
+      "script": "getconf AIO_MAX",
+      "purpose": "A supported name with no configured limit succeeds with an undefined value.",
+      "requires": [
+        "getconf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "published-additive-listing-constants",
+      "kind": "contract",
+      "purpose": "Independently verify seven published stock-list extensions using native integer widths. This contract does not hide the separate raw GNU listing inventory/order incompatibility.",
+      "script": "getconf -a . > raw-extension-listing\n/usr/bin/python3 - <<'PYCODE'\nfrom pathlib import Path\nimport ctypes\nrows = {}\nfor line in Path('raw-extension-listing').read_text().splitlines():\n    parts = line.split(None, 1)\n    assert parts and parts[0] not in rows\n    rows[parts[0]] = parts[1] if len(parts) > 1 else ''\nint_bits = ctypes.sizeof(ctypes.c_int) * 8\nlong_bits = ctypes.sizeof(ctypes.c_long) * 8\nll_bits = ctypes.sizeof(ctypes.c_longlong) * 8\nsize_bits = ctypes.sizeof(ctypes.c_size_t) * 8\nexpected = {'INT_BIT': int_bits, 'LONG_MIN': -(1 << (long_bits - 1)),\n            'LONG_MAX': (1 << (long_bits - 1)) - 1,\n            'LLONG_MIN': -(1 << (ll_bits - 1)), 'LLONG_MAX': (1 << (ll_bits - 1)) - 1,\n            'ULLONG_MAX': (1 << ll_bits) - 1, 'SIZE_MAX': (1 << size_bits) - 1}\nfor name, value in expected.items():\n    assert rows[name] == str(value), (name, rows.get(name), value)\nprint('published additive constants verified')\nPYCODE",
+      "expected_status": 0,
+      "stdout": "published additive constants verified\n",
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "loadable": "grep",
+  "reference": "GNU grep from the harness reference environment, invoked by system Bash with PATH=/usr/bin:/bin. Every parity case uses the same relative fixture script on both sides and compares GNU-produced stdout/status and resulting tree to the bash-os builtin.",
+  "coverage": [
+    "Bash builtin type/help registration metadata",
+    "BRE alternation, ERE quantifiers, and fixed-string matching",
+    "case-insensitive whole-word and whole-line selection, line numbers, inversion",
+    "before/after context and max-count with count output",
+    "pattern files across multiple input files",
+    "PCRE lookahead with only-matching output",
+    "NUL-delimited records, ordinary no-match status, and invalid-pattern error status"
+  ],
+  "exclusions": [
+    "GNU grep parity is representative rather than exhaustive; other locale encodings, binary-file heuristics, large block boundaries, stdin repositioning, output failures, and PCRE match-limit behavior are not covered.",
+    "No operation requires privileged, hardware, network, or terminal access, so no case is deferred."
+  ],
+  "cases": [
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify grep as a builtin, and the Bash help builtin must expose the registered summary and exit-status contract from grep_doc. The script prints a marker only after checking both documented help fragments.",
+      "script": "type -t grep; metadata=$(help grep); [[ $metadata == *'Search FILEs (or standard input) for lines matching PATTERNS.'* ]]; [[ $metadata == *'Exit: 0 if a line is selected, 1 if none, 2 on an error.'* ]]; printf 'help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bre_alternation",
+      "kind": "parity",
+      "purpose": "Checks GNU basic-regex alternation and line-number output against a small deterministic text fixture.",
+      "script": "printf 'foo\\nbar\\nfood\\nnone\\n' > records; grep -n 'foo\\|bar' records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "ere_only_matching",
+      "kind": "parity",
+      "purpose": "Checks ERE alternation and repetition together with -o output of the matching spans.",
+      "script": "printf 'abbb acd ab bc\\n' > records; grep -E -o 'ab+|ac.' records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "fixed_case_word",
+      "kind": "parity",
+      "purpose": "Checks fixed strings, case folding, whole-word selection, multiple -e patterns, and line prefixes.",
+      "script": "printf 'Alpha beta\\nalphabet soup\\nALPHA BETA!\\nalpha-beta\\n' > records; grep -F -i -w -n -e 'alpha beta' -e alphabet records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "whole_line_invert",
+      "kind": "parity",
+      "purpose": "Checks -x whole-line matching combined with -v inversion and line numbering at both matching and nonmatching boundaries.",
+      "script": "printf 'ok\\nnot ok\\nok extra\\n' > records; grep -x -v -n ok records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "context_lines",
+      "kind": "parity",
+      "purpose": "Checks combined leading and trailing context around two nearby selected records, including context de-duplication.",
+      "script": "printf 'head\\nhit one\\nbetween\\nhit two\\ntail\\n' > records; grep -n -C 1 hit records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "max_count_count",
+      "kind": "parity",
+      "purpose": "Checks that -m limits selected records before -c reports the count independently for multiple files.",
+      "script": "printf 'hit\\nmiss\\nhit\\nhit\\n' > first; printf 'hit\\nhit\\n' > second; grep -m 2 -c hit first second",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "pattern_file",
+      "kind": "parity",
+      "purpose": "Checks that -f reads multiple patterns from a relative fixture file and reports matching lines from multiple input files.",
+      "script": "printf 'red\\nblue\\n' > patterns; printf 'red\\ngreen\\n' > first; printf 'blue\\nyellow\\n' > second; grep -n -f patterns first second",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "pcre_lookahead",
+      "kind": "parity",
+      "purpose": "Checks PCRE-specific lookahead and -o output against GNU grep's Perl-regexp mode.",
+      "script": "printf 'key=value key=two bare\\n' > records; grep -P -o 'key=(?=[a-z]+)' records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "nul_records",
+      "kind": "parity",
+      "purpose": "Checks -z NUL-delimited records, line numbering, and preservation of an embedded newline within a record.",
+      "script": "printf 'first\\0needle\\ninside\\0last\\0' > records; grep -z -n needle records",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "no_match_status",
+      "kind": "parity",
+      "purpose": "Checks GNU grep's ordinary no-selection result: status 1 with no output or diagnostic.",
+      "script": "printf 'alpha\\nbeta\\n' > records; grep -F missing records",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "invalid_pattern_status",
+      "kind": "parity",
+      "purpose": "Checks malformed ERE error status and presence of a diagnostic without overfitting implementation-specific wording.",
+      "script": "printf 'alpha\\n' > records; grep -E '[' records",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "empty-pattern-file",
+      "kind": "parity",
+      "purpose": "An empty pattern file selects no records and returns 1.",
+      "script": ": > patterns\nprintf 'alpha\\nbeta\\n' > input\ngrep -f patterns input",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "stdin-and-missing-file",
+      "kind": "parity",
+      "purpose": "Continue after a missing file and preserve filename/line prefixes including stdin.",
+      "script": "printf 'match\\n' > first\nprintf 'match stdin\\n' > input\ngrep -n match first missing - < input",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "grep"
+      ]
+    },
+    {
+      "id": "recursive-relative-tree",
+      "kind": "parity",
+      "purpose": "Recursive search of a small private tree with one matching file.",
+      "script": "mkdir -p tree/sub\nprintf 'hit\\n' > tree/sub/item\nprintf 'miss\\n' > tree/other\ngrep -r -n hit tree",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "grep",
+        "mkdir"
+      ]
+    }
+  ]
+}

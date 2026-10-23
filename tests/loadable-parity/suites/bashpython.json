@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "loadable": "bashpython",
+  "optional": true,
+  "reference": "The standalone system CPython CLI (python3) is the independent oracle for the documented python3-compatible command line. Each parity script selects the bashpython builtin when present and python3 otherwise. Assertions avoid version strings and version-specific diagnostics.",
+  "coverage": [
+    "Bash type and help metadata contracts",
+    "-c code, argument forwarding, script files, standard input, and -m json.tool",
+    "Python exit status and exception diagnostics",
+    "Exported, unexported, and temporary environment values; child environment changes stay isolated",
+    "Child working-directory and umask changes stay isolated from Bash",
+    "Deterministic relative file output from a Python script, compared by the runner's tree snapshot",
+    "The -I command-line option"
+  ],
+  "exclusions": [
+    "Metadata checks are not counted as operation coverage.",
+    "Interactive prompt behavior is deferred because the fixture runner has no PTY.",
+    "SIGINT behavior is deferred because the fixture runner cannot inject a signal into only the fixture process group.",
+    "No networking, subprocess launching, external credentials, package loading, or optional native-module availability is exercised."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata must expose bashpython as a builtin, as required for a loadable builtin.",
+      "script": "type -t bashpython",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "The Bash help text must include the registered command description and key documented behavior.",
+      "script": "help_text=$(help bashpython)\n[[ $help_text == *\"Run real Python in a child of the current shell.\"* &&\n   $help_text == *\"Accepts python3 options\"* &&\n   $help_text == *\"The shell's exported variables form Python's environment.\"* &&\n   $help_text == *\"an unhandled KeyboardInterrupt also interrupts the shell.\"* ]] || exit 1\nprintf '%s\\n' 'documented help present'",
+      "expected_status": 0,
+      "stdout": "documented help present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "c-option-argv",
+      "kind": "parity",
+      "purpose": "Compare -c execution, basic computation, and preservation of separate arguments including whitespace.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\n\"$py\" -c 'import sys; print(6 * 7); print(repr(sys.argv))' one 'two words'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "script-file-status-and-output",
+      "kind": "parity",
+      "purpose": "Compare script-file argv forwarding, a nonzero SystemExit status, and deterministic writes to a relative fixture file.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\nprintf '%s\\n' 'import pathlib, sys' 'pathlib.Path(\"result.bin\").write_bytes(bytes.fromhex(\"0041ff\"))' 'print(repr(sys.argv[1:]))' 'raise SystemExit(4)' > args.py\n\"$py\" args.py 'two words' 'semi;colon'",
+      "expected_status": 4,
+      "stderr": "empty"
+    },
+    {
+      "id": "standard-input-dash",
+      "kind": "parity",
+      "purpose": "Execute a fixed program supplied on stdin and verify nonempty computation output through the python3-compatible dash mode.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\n\"$py\" - <<'PY'\nimport sys\nprint(\"stdin program\", 7 * 6, repr(sys.argv[1:]))\nPY",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "module-json-tool",
+      "kind": "parity",
+      "purpose": "Compare -m module dispatch and the standard-library json.tool formatter on deterministic stdin.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\nprintf '%s\\n' '{\"z\": null, \"y\": [true]}' | \"$py\" -m json.tool",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "environment-isolation",
+      "kind": "parity",
+      "purpose": "Compare visibility of exported and temporary assignments, hiding of an unexported shell variable, and isolation of Python's environment updates.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\nBPY_LOCAL=hidden\nexport BPY_SHARED=before\nBPY_TEMP=temporary \"$py\" -c 'import os; print(os.getenv(\"BPY_LOCAL\", \"absent\"), os.getenv(\"BPY_SHARED\"), os.getenv(\"BPY_TEMP\")); os.environ[\"BPY_SHARED\"] = \"child\"; os.environ[\"BPY_NEW\"] = \"child\"; print(os.getenv(\"BPY_NEW\"))'\nprintf '%s %s\\n' \"$BPY_SHARED\" \"${BPY_NEW-unset}\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cwd-umask-isolation",
+      "kind": "parity",
+      "purpose": "Compare a Python child changing its working directory and umask while Bash retains its original directory and umask.",
+      "requires": [
+        "python3",
+        "mkdir"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\nmkdir child\nbefore=$PWD\numask 0022\n\"$py\" -c 'import os; before = os.getcwd(); os.chdir(\"child\"); print(before != os.getcwd()); os.umask(0o077)'\nif [[ $PWD == \"$before\" && $(umask) == 0022 ]]; then\n  printf '%s\\n' 'shell state unchanged'\nelse\n  printf '%s\\n' 'shell state changed'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "isolated-option",
+      "kind": "parity",
+      "purpose": "Compare Python's documented -I isolated mode flags while an environment path setting is present.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\nPYTHONPATH=. \"$py\" -I -c 'import sys; print(int(sys.flags.isolated), int(sys.flags.ignore_environment))'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "exception-status",
+      "kind": "parity",
+      "purpose": "Compare Python's nonzero status and presence of a diagnostic for an unhandled ordinary exception without depending on traceback wording.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t bashpython) == builtin ]]; then\n  py=bashpython\nelse\n  py=python3\nfi\n\"$py\" -c 'raise ValueError(\"fixture failure\")'",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-prompt",
+      "kind": "deferred",
+      "purpose": "Check prompt input, output, and EOF behavior for the documented interactive invocation.",
+      "reason": "Requires a bounded PTY driver to provide terminal input and observe the prompt; the fixture runner supplies no PTY. A future disposable VM test should use only a private PTY, fixed input lines, and a bounded EOF sequence."
+    },
+    {
+      "id": "keyboard-interrupt",
+      "kind": "deferred",
+      "purpose": "Compare caught and unhandled KeyboardInterrupt behavior between the builtin and standalone Python.",
+      "reason": "Requires controlled SIGINT injection while a bounded Python child is waiting. The current runner has no fixture-scoped signal controller. A future disposable VM test should target only the fixture's own process group and capture child and shell status."
+    }
+  ]
+}

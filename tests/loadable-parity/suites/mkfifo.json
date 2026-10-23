@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "loadable": "mkfifo",
+  "reference": "GNU coreutils mkfifo compares statuses, stdout, FIFO type and permission bits, and complete fixture trees. Bash type/help cases are metadata contracts.",
+  "coverage": [
+    "The candidate exposes mkfifo as a Bash builtin while candidate PATH is empty.",
+    "The short help synopsis matches the documented public synopsis.",
+    "The full builtin help includes the FIFO description, default-mode and umask behavior, -m behavior, and symbolic-mode description.",
+    "Private FIFO fixtures check default permissions, octal and symbolic modes, multi-operand creation and partial failure, invalid modes, and argument errors."
+  ],
+  "exclusions": [
+    "FIFOs are created only in the disposable fixture directory and are never connected to host IPC. Concurrent writer/reader behavior is outside this permission and creation suite."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves mkfifo as a builtin with no executable search path. The expected token follows Bash type -t metadata semantics.",
+      "script": "kind=$(type -t mkfifo)\n[[ $kind == builtin ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin-help",
+      "kind": "contract",
+      "purpose": "Check documented builtin help metadata without creating a FIFO. Bash help output must include the FIFO description and the documented default-mode, -m, and symbolic-mode details.",
+      "script": "help_text=$(help mkfifo)\n[[ $help_text == *\"Create FIFOs (named pipes).\"* ]]\n[[ $help_text == *\"using mode a=rw as modified by the current\"* ]]\n[[ $help_text == *umask* ]]\n[[ $help_text == *\"The -m option causes the file permission\"* ]]\n[[ $help_text == *\"octal number or a symbolic mode\"* ]]\nprintf 'builtin help contract present\\n'",
+      "expected_status": 0,
+      "stdout": "builtin help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-usage-synopsis",
+      "kind": "contract",
+      "purpose": "Require help -s to print the builtin's declared usage synopsis. The expected synopsis comes from mkfifo_struct.short_doc in the pinned Bash source and Bash help -s semantics.",
+      "script": "usage_text=$(help -s mkfifo)\n[[ $usage_text == *\"mkfifo [-m mode] fifo_name [fifo_name ...]\"* ]]\nprintf 'short usage synopsis present\\n'",
+      "expected_status": 0,
+      "stdout": "short usage synopsis present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default-mode-umask",
+      "kind": "parity",
+      "script": "umask 027; mkfifo pipe",
+      "purpose": "Default FIFO permissions honor the creation mask.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "octal-mode-umask",
+      "kind": "parity",
+      "script": "umask 077; mkfifo -m 0644 pipe",
+      "purpose": "An explicit mode overrides the creation mask.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "symbolic-mode",
+      "kind": "parity",
+      "script": "umask 077; mkfifo -m u=rw,go=r pipe",
+      "purpose": "Explicit symbolic permission classes override the creation mask.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "multiple-operands",
+      "kind": "parity",
+      "script": "mkfifo -m 0600 a b c",
+      "purpose": "Create every named private FIFO.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "continue-after-collision",
+      "kind": "parity",
+      "script": "printf existing > middle; mkfifo before middle after",
+      "purpose": "Create valid operands on either side of an existing file and preserve that file.",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "invalid-mode",
+      "kind": "parity",
+      "script": "mkfifo -m 08 absent",
+      "purpose": "An invalid octal mode fails without creating a FIFO.",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "missing-operands",
+      "kind": "parity",
+      "script": "mkfifo",
+      "purpose": "Missing operands return GNU failure status.",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "executable-mode",
+      "kind": "parity",
+      "script": "umask 077; mkfifo -m 0755 pipe",
+      "purpose": "An explicit mode may include execute bits.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    },
+    {
+      "id": "dash-name-and-mask-restoration",
+      "kind": "parity",
+      "purpose": "The option terminator accepts a dash-leading name; explicit mode creation preserves the calling shell umask.",
+      "script": "umask 027\nmkfifo -m 0600 -- -pipe\nprintf '%s\\n' \"$(umask)\"\nmkfifo next",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkfifo"
+      ]
+    }
+  ]
+}

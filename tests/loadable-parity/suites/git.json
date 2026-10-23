@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "loadable": "git",
+  "reference": "Independent system Git CLI (`git`, required per parity case) running from the reference Bash PATH. The reference side validates each expected status and is compared byte-for-byte on stdout; cases with deterministic repository metadata also compare the full fixture tree. Git configuration is isolated from host configuration, and a relative private template contains only the matching default description and exclude files, avoiding installed sample hooks.",
+  "coverage": [
+    "Bash type/help metadata contract; this checks loadable discovery only and is not operation coverage.",
+    "Nested init and repository discovery, config round trips, binary loose-object hash/read and refs, index staging/status/diff, deterministic commits and history, fixture-local git mv/rm/clean, local clone, and a missing-object error.",
+    "Complete tree comparison for init, config, and the error case. Index/object/history/local-clone cases compare Git's observable output and statuses while documenting variable index stat data, reflog timestamps, compression streams, or local-clone storage strategy."
+  ],
+  "exclusions": [
+    "Remote clone/fetch/push require a disposable in-namespace protocol mock and are deferred; no real network target is used.",
+    "Signing and interactive editor behavior require a fake signing helper and bounded PTY fixture and are deferred.",
+    "This focused suite does not establish full Git command or option compatibility."
+  ],
+  "cases": [
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Check Bash reports git as a builtin and exposes the documented one-line help description; metadata only, not Git operation coverage.",
+      "script": "type -t git\nhelp -d git",
+      "expected_status": 0,
+      "stdout": "builtin\ngit - Run a git command, in a forked child.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "init_nested_discovery",
+      "kind": "parity",
+      "purpose": "Initialize a repository in a nested fixture path and compare repository discovery, work-tree state, bare state, and initial branch. A relative private template contains only the documented default metadata plus an empty hooks directory, avoiding installed sample hooks.",
+      "requires": [
+        "git"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\nmkdir -p nested/repo\ncd nested/repo\nexport GIT_TEMPLATE_DIR=../../fixture-template\ngit init -q -b topic .\ngit rev-parse --git-dir\ngit rev-parse --is-inside-work-tree\ngit rev-parse --is-bare-repository\ngit symbolic-ref --short HEAD",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "config_round_trip",
+      "kind": "parity",
+      "purpose": "Compare repeated config values, case-insensitive key lookup, a command-line override, boolean conversion, and the resulting deterministic config file bytes.",
+      "requires": [
+        "git"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\ngit config user.name 'Config Fixture'\ngit config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'\ngit config --add remote.origin.fetch '+refs/tags/*:refs/tags/*'\ngit config --get-all remote.origin.fetch\ngit -c user.name=Override config --get USER.NAME\ngit config --get user.name\ngit config --bool core.bare\ngit config --get-regexp '^remote\\.'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary_object_and_refs",
+      "kind": "parity",
+      "purpose": "Hash, read, type-check, and size-check a binary blob, then add/list/delete a lightweight tag ref. compare_tree is false because independently generated loose objects use zlib byte streams and reflogs include wall-clock timestamps; output includes the object ID, type, size, raw payload, and ref listing.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nprintf 'alpha\\000beta\\n' > payload.bin\nobject=$(git hash-object -w payload.bin)\nprintf 'object=%s\\n' \"$object\"\ngit cat-file -t \"$object\"\ngit cat-file -s \"$object\"\nprintf 'payload-start:'\ngit cat-file blob \"$object\"\nprintf ':payload-end\\n'\nprintf '%s\\n' \"$object\" | git cat-file --batch-check\ngit update-ref refs/tags/blob-fixture \"$object\"\ngit show-ref --tags\ngit for-each-ref --format='%(refname) %(objecttype) %(objectname)' refs/tags\ngit update-ref -d refs/tags/blob-fixture\nif git show-ref --tags; then rc=0; else rc=$?; fi\nprintf 'empty-tag-list-status=%d\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "index_status_diff",
+      "kind": "parity",
+      "purpose": "Stage paths including a space, inspect index entries and porcelain status, then compare a tracked edit and an untracked file with numstat. compare_tree is false because Git index entries store device, inode, and timestamp stat-cache values that differ between the independently created fixture trees.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nprintf 'one\\n' > 'a file.txt'\nprintf 'two\\n' > second.txt\ngit add -- 'a file.txt' second.txt\ngit ls-files --stage\ngit status --porcelain=v2 --untracked-files=all\nprintf 'edited\\n' >> second.txt\nprintf 'new\\n' > new.txt\ngit status --short --untracked-files=all\ngit diff --numstat\nprintf 'worktree bytes:\\n'\nwhile IFS= read -r row; do printf '%s\\n' \"$row\"; done < 'a file.txt'\nwhile IFS= read -r row; do printf '%s\\n' \"$row\"; done < second.txt\nwhile IFS= read -r row; do printf '%s\\n' \"$row\"; done < new.txt",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fixed_history_diff",
+      "kind": "parity",
+      "purpose": "Create two commits with fixed identities and dates, then compare full commit/tree/parent IDs, a commit-to-commit numstat, and clean branch status. compare_tree is false because index stat-cache fields, compressed object bytes, and reflog timestamps vary across isolated repositories; full object IDs in stdout verify the Git content independently.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nexport GIT_AUTHOR_NAME='Parity Author' GIT_AUTHOR_EMAIL='author@example.invalid'\nexport GIT_COMMITTER_NAME='Parity Committer' GIT_COMMITTER_EMAIL='committer@example.invalid'\nexport GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000100 +0000'\nprintf 'first\\n' > tracked.txt\ngit add tracked.txt\ngit commit -q -m first\nexport GIT_AUTHOR_DATE='1750000200 +0000' GIT_COMMITTER_DATE='1750000300 +0000'\nprintf 'second\\n' >> tracked.txt\ngit add tracked.txt\ngit commit -q -m second\ngit log --format='%H %T %P %an <%ae> %at %s' -2\ngit diff --numstat HEAD~1 HEAD\ngit status --short --branch",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "move_remove_tracked_paths",
+      "kind": "parity",
+      "purpose": "Exercise fixture-local git mv and git rm on committed paths, then check staged status, index names, source/destination existence, and moved content. compare_tree is false because the committed index stat cache, compressed objects, and reflog timestamps are not byte-stable between isolated Git runs; file effects are also asserted in the script.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nexport GIT_AUTHOR_NAME='Parity Author' GIT_AUTHOR_EMAIL='author@example.invalid'\nexport GIT_COMMITTER_NAME='Parity Committer' GIT_COMMITTER_EMAIL='committer@example.invalid'\nexport GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000100 +0000'\nprintf 'move me\\n' > 'old name.txt'\nprintf 'remove me\\n' > remove.txt\ngit add -- 'old name.txt' remove.txt\ngit commit -q -m base\ngit mv -- 'old name.txt' moved.txt\ngit rm -q -- remove.txt\ngit status --short --no-renames\ngit diff --cached --name-status --no-renames\ngit ls-files\ntest ! -e 'old name.txt'\ntest -f moved.txt\ntest ! -e remove.txt\nIFS= read -r moved_content < moved.txt\nprintf 'moved-content=%s\\n' \"$moved_content\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "clean_untracked_file",
+      "kind": "parity",
+      "purpose": "Preview and remove one untracked file inside the private fixture repository while retaining an ignored file; assertions check both resulting file states. compare_tree is false because the setup commit leaves an index stat cache, compressed objects, and timestamped reflog entries whose raw bytes differ across independent runs.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nexport GIT_AUTHOR_NAME='Parity Author' GIT_AUTHOR_EMAIL='author@example.invalid'\nexport GIT_COMMITTER_NAME='Parity Committer' GIT_COMMITTER_EMAIL='committer@example.invalid'\nexport GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000100 +0000'\nprintf '*.log\\n' > .gitignore\ngit add .gitignore\ngit commit -q -m ignore-logs\nprintf 'fixture junk\\n' > junk.txt\nprintf 'ignored fixture\\n' > keep.log\ngit clean -n -- junk.txt\ngit clean -fq -- junk.txt\ntest ! -e junk.txt\ntest -f keep.log\nprintf 'junk-removed; ignored-retained\\n'\ngit status --short --ignored\nIFS= read -r row < keep.log\n[[ $row == 'ignored fixture' ]]\nprintf '%s\\n' \"$row\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "local_clone",
+      "kind": "parity",
+      "purpose": "Clone a committed relative-path repository locally, then verify the cloned commit, checked-out blob bytes, branch status, and source/clone path effects without using network transport. compare_tree is false because independent Git implementations may choose different local object-copy or hardlink strategies, and the repositories contain stat-cache and compressed-object bytes.",
+      "requires": [
+        "git"
+      ],
+      "compare_tree": false,
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\nmkdir source\n(cd source; GIT_TEMPLATE_DIR=../fixture-template git init -q -b main .)\nexport GIT_AUTHOR_NAME='Clone Author' GIT_AUTHOR_EMAIL='clone@example.invalid'\nexport GIT_COMMITTER_NAME='Clone Committer' GIT_COMMITTER_EMAIL='clone-committer@example.invalid'\nexport GIT_AUTHOR_DATE='1750000000 +0000' GIT_COMMITTER_DATE='1750000100 +0000'\nprintf 'clone payload\\n' > source/file.txt\ngit -C source add file.txt\ngit -C source commit -q -m source-commit\ngit clone -q source copy\ngit -C copy log --format='%H %T %s' -1\ngit -C copy status --short --branch\nprintf 'cloned-content:'\ngit -C copy cat-file blob HEAD:file.txt\ntest -d copy/.git\ntest -f copy/file.txt\nIFS= read -r row < copy/file.txt\n[[ $row == 'clone payload' ]]\nprintf '%s\\n' \"$row\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_object_error",
+      "kind": "parity",
+      "purpose": "Check the fatal status for a missing object while preserving the command's diagnostic byte-for-byte with exact stderr; the script captures and prints the status so the fixture itself exits successfully. Init metadata and the remaining tree are compared in full.",
+      "requires": [
+        "git"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nif git cat-file -t 0000000000000000000000000000000000000000; then rc=0; else rc=$?; fi\nprintf 'missing-object-status=%d\\n' \"$rc\"\ntest \"$rc\" -eq 128",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "remote_protocol_mock",
+      "kind": "deferred",
+      "purpose": "Remote protocol behavior for clone, fetch, and push.",
+      "reason": "Requires a future disposable in-namespace upload-pack/receive-pack mock with injected SSH or HTTP transport and deterministic protocol responses. The current fixture runner has no local peer injection; do not substitute a real network target."
+    },
+    {
+      "id": "signing_and_editor",
+      "kind": "deferred",
+      "purpose": "Signed commits and interactive editor-driven operations.",
+      "reason": "Requires a future disposable PTY plus a fake signing helper and test-only key material created inside that fixture. This suite has no terminal or signing-service mock and must not read installed credentials."
+    }
+  ]
+}

@@ -305,7 +305,7 @@ expand_builtin (WORD_LIST *list)
     if (parsed) {
         free (o.stops);
         free (files);
-        if (parsed < 0) { builtin_usage (); return EX_USAGE; }
+        if (parsed < 0) { builtin_usage (); return EXECUTION_FAILURE; }
         return fflush (stdout) == EOF || ferror (stdout) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     }
 

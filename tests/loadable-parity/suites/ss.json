@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "loadable": "ss",
+  "reference": "Bash type/help and the documented ss synopsis define metadata expectations. Socket operations remain deferred to a disposable VM or reviewed sock_diag/proc mock; no iproute2 parity result is claimed.",
+  "coverage": [
+    "Registered as a Bash builtin with the candidate executable search path empty.",
+    "Short help exposes the configured ss synopsis.",
+    "Extended Bash help exposes the documented subset and process annotation option.",
+    "Deferred: numeric TCP/UDP/Unix snapshots and state/family selectors.",
+    "Deferred: /proc fallback, process ownership mapping, netlink robustness, and output error handling."
+  ],
+  "exclusions": [
+    "No ss operational invocation is made in this environment. Socket queries, --version's sock_diag probe, /proc reads, and error/recovery behavior require the explicitly requested future disposable VM or controlled syscall mock.",
+    "No ambient socket table, host /proc path, or real network peer is used."
+  ],
+  "cases": [
+    {
+      "id": "metadata_builtin_type",
+      "purpose": "Bash type metadata must identify ss as a builtin even with the candidate PATH empty, so lookup cannot fall through to an external ss executable.",
+      "kind": "contract",
+      "script": "type -t ss",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_short_help",
+      "purpose": "Bash short help must expose the configured public synopsis for this loadable; the expected line comes from the ss entry in the loadable catalog.",
+      "kind": "contract",
+      "script": "help -s ss",
+      "expected_status": 0,
+      "stdout": "ss: ss [-tuln]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_extended_help",
+      "purpose": "Bash help must include the documented ss subset and -p annotation option from the loadable's long help, not merely register a name.",
+      "kind": "contract",
+      "script": "doc=$(help ss); [[ $doc == *\"ss(8) subset over NETLINK_SOCK_DIAG.\"* && $doc == *\"-p\"* && $doc == *\"annotate rows with the holding process\"* ]] && printf 'documented-help\\n'",
+      "expected_status": 0,
+      "stdout": "documented-help\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred_owned_socket_selectors",
+      "purpose": "Future operation comparison should cover default TCP selection, TCP/UDP/Unix family flags, listen versus all states, numeric endpoints, and IPv4/IPv6 rows using only sockets owned by the fixture.",
+      "kind": "deferred",
+      "reason": "Requires a disposable Linux VM with a private network namespace, loopback enabled, fixture-owned IPv4/IPv6 TCP and UDP sockets plus private Unix sockets, and GNU iproute2 ss as the independent oracle. This environment's explicit safety scope requires operation cases to remain deferred."
+    },
+    {
+      "id": "deferred_proc_fallback",
+      "purpose": "Future operation comparison should force sock_diag unavailable and verify deterministic TCP/UDP/Unix proc-table fallback, empty snapshots, queue limitations, and no partial netlink rows after fallback.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed syscall mock that forces the fallback route and maps /proc/net tables to small synthetic fixtures, plus an independently encoded expected renderer. The current suite must not execute ss or access a host proc path."
+    },
+    {
+      "id": "deferred_process_annotation",
+      "purpose": "Future operation comparison should verify -p associates fixture-owned socket inodes with the correct process and file descriptor, while tolerating denied process directories and descriptors that disappear during scanning.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with dedicated fixture processes and sockets or a reviewed /proc and readlink syscall mock, with GNU ss -p or an independently encoded inode-to-PID/FD oracle. No process annotation operation is run here."
+    },
+    {
+      "id": "deferred_netlink_protocol_errors",
+      "purpose": "Future operation comparison should cover multipart sock_diag replies, ACK/EINTR/unmatched sequences, malformed and truncated messages, interrupted dumps, and atomic fallback after an invalid family dump.",
+      "kind": "deferred",
+      "reason": "Requires a reviewed NETLINK_SOCK_DIAG syscall mock supplying deterministic binary replies and a controlled proc fallback fixture in a disposable VM. There is no safe external CLI oracle for malformed synthetic kernel replies, and this environment must not invoke ss operations."
+    },
+    {
+      "id": "deferred_output_and_repeat_calls",
+      "purpose": "Future operation comparison should check buffered output failures, recovery on a later call in the same shell, repeated invocations with different selectors, and --version status when its sock_diag probe or output fails.",
+      "kind": "deferred",
+      "reason": "Requires a disposable shell fixture with a controlled failing output sink and a sock_diag mock for deterministic --version behavior. --version itself opens the diagnostic socket, so it is not invoked under the current safety scope."
+    }
+  ]
+}

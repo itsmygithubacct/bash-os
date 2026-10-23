@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "loadable": "getfacl",
+  "reference": "Independent getfacl CLI compares byte output, statuses and private file trees. Additional fixed POSIX mode-to-entry contracts and Bash metadata remain explicit contracts. Extended/default ACL fixtures are encoded independently from Linux POSIX ACL xattr version 2, using Python only for setup on relative paths.",
+  "coverage": [
+    "Bash recognizes getfacl as a builtin and help exposes the documented synopsis and purpose.",
+    "Base access ACL entries are synthesized from two distinct ordinary file modes, including multiple path output.",
+    "Default header and --omit-header output using the runner-controlled relative filename and owner/group metadata.",
+    "--access and --omit-header aliases, plus -- termination for a relative filename beginning with a dash.",
+    "A missing operand among valid paths reports an error, preserves valid output, continues to later operands, and returns failure.",
+    "Missing operands and unknown options return usage errors.",
+    "Real GNU base/multiple/error comparisons plus independently seeded named access/default ACLs and effective-mask comments.",
+    "Default-only versus ordinary output from the same independently specified directory ACL."
+  ],
+  "exclusions": [
+    "No real account or authentication configuration is changed; named ACL IDs are fixture-mapped and occur only in test-owned private file xattrs.",
+    "The harness tree snapshot does not record xattrs; getfacl output compares the decoded ACL text directly. Recursive traversal, broader NSS resolution and unrelated GNU flags remain outside this suite.",
+    "Arbitrary unmapped numeric ACL IDs need a disposable VM with the required ID mappings; the present user namespace accepts only mapped fixture IDs.",
+    "The case count exceeds the preferred range to retain original coverage and isolate independent additional edge cases."
+  ],
+  "cases": [
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash exposes the command as a builtin and that its help contains the documented synopsis and description.",
+      "script": "help_text=$(help getfacl)\nif [[ $(type -t getfacl) == builtin && $help_text == *'getfacl [-a] [-d] [--omit-header] file...'* && $help_text == *'Display POSIX.1e file access control lists.'* ]]; then\n  printf 'builtin synopsis and help present\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "builtin synopsis and help present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "mode-derived-multiple-files",
+      "kind": "contract",
+      "purpose": "Check the documented base ACL synthesis for ordinary files with modes 0640 and 0600, and that multiple operands produce one separated ACL block each.",
+      "script": "umask 027\n: > readable\numask 077\n: > private\ngetfacl -c readable private",
+      "expected_status": 0,
+      "stdout": "user::rw-\ngroup::r--\nother::---\n\nuser::rw-\ngroup::---\nother::---\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "header-and-omit-header",
+      "kind": "contract",
+      "purpose": "Check the documented default file/owner/group header and its suppression with --omit-header. The harness maps the fixture's UID and GID to runner in its isolated passwd/group files.",
+      "script": "umask 077\n: > record\ngetfacl record\ngetfacl --omit-header record",
+      "expected_status": 0,
+      "stdout": "# file: record\n# owner: runner\n# group: runner\nuser::rw-\ngroup::---\nother::---\n\nuser::rw-\ngroup::---\nother::---\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "access-alias-dash-path",
+      "kind": "contract",
+      "purpose": "Check the documented --access and --omit-header aliases and the -- option terminator with a relative operand whose name starts with a dash.",
+      "script": "umask 077\n: > -entry\ngetfacl --access --omit-header -- -entry",
+      "expected_status": 0,
+      "stdout": "user::rw-\ngroup::---\nother::---\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-path-continues",
+      "kind": "contract",
+      "purpose": "Check multi-path error handling: a missing middle path emits a diagnostic while valid paths before and after it still produce their ACL blocks, and the overall status is failure.",
+      "script": "umask 027\n: > before\numask 077\n: > after\ngetfacl -c before absent after",
+      "expected_status": 1,
+      "stdout": "user::rw-\ngroup::r--\nother::---\n\nuser::rw-\ngroup::---\nother::---\n\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no-operands",
+      "kind": "contract",
+      "purpose": "Check that invoking getfacl without any file operands is rejected as a usage error.",
+      "script": "getfacl",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "contract",
+      "purpose": "Check that an unrecognized option is rejected with a usage error and diagnostic.",
+      "script": "getfacl --not-a-getfacl-option",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "extended-access-acl",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "python3"
+      ],
+      "purpose": "Independently encode named access entries using the fixture-mapped UID/GID and a non-restrictive mask on a private file; compare GNU labels, ordering and mask output.",
+      "script": ": > item\ncommand -p python3 - <<'PYACL'\nimport os,struct\nentries=[(1, 6, 4294967295), (2, 4, os.getuid()), (4, 4, 4294967295), (8, 4, os.getgid()), (16, 4, 4294967295), (32, 0, 4294967295)]\nvalue=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)\nos.setxattr('item','system.posix_acl_access',value)\nPYACL\ngetfacl -c item",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "directory-default-acl",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "python3",
+        "mkdir"
+      ],
+      "purpose": "Independently seed a private directory default ACL and compare GNU default-only output, labels and ordering. GNU -d suppresses default: prefixes in this mode.",
+      "script": "mkdir directory\ncommand -p python3 - <<'PYACL'\nimport os,struct\nentries=[(1, 6, 4294967295), (2, 4, os.getuid()), (4, 4, 4294967295), (8, 4, os.getgid()), (16, 4, 4294967295), (32, 0, 4294967295)]\nvalue=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)\nos.setxattr('directory','system.posix_acl_default',value)\nPYACL\ngetfacl -d directory",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "directory-and-zero-mode",
+      "kind": "contract",
+      "script": "mkdir directory\nchmod 751 directory\n: > zero\nchmod 000 zero\ngetfacl -c directory zero\nchmod 600 zero",
+      "stdout": "user::rwx\ngroup::r-x\nother::--x\n\nuser::---\ngroup::---\nother::---\n\n",
+      "purpose": "Base ACL mode conversion includes execute-only other permissions and mode zero; restore readability for tree snapshots.",
+      "stderr": "empty",
+      "expected_status": 0
+    },
+    {
+      "id": "base-acl-gnu-parity",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "chmod"
+      ],
+      "purpose": "Compare ordinary private-file base ACL text and mode effects with the independent getfacl CLI when available; absence is SKIP.",
+      "script": "printf data > item\nchmod 640 item\ngetfacl -c item",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mode-derived-multiple-files-gnu",
+      "kind": "parity",
+      "purpose": "Check the documented base ACL synthesis for ordinary files with modes 0640 and 0600, and that multiple operands produce one separated ACL block each. Compare with the independent CLI without changing output bytes.",
+      "script": "umask 027\n: > readable\numask 077\n: > private\ngetfacl -c readable private",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getfacl"
+      ]
+    },
+    {
+      "id": "header-and-omit-header-gnu",
+      "kind": "parity",
+      "purpose": "Check the documented default file/owner/group header and its suppression with --omit-header. The harness maps the fixture's UID and GID to runner in its isolated passwd/group files. Compare with the independent CLI without changing output bytes.",
+      "script": "umask 077\n: > record\ngetfacl record\ngetfacl --omit-header record",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getfacl"
+      ]
+    },
+    {
+      "id": "access-alias-dash-path-gnu",
+      "kind": "parity",
+      "purpose": "Check the documented --access and --omit-header aliases and the -- option terminator with a relative operand whose name starts with a dash. Compare with the independent CLI without changing output bytes.",
+      "script": "umask 077\n: > -entry\ngetfacl --access --omit-header -- -entry",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getfacl"
+      ]
+    },
+    {
+      "id": "missing-path-continues-gnu",
+      "kind": "parity",
+      "purpose": "Check multi-path error handling: a missing middle path emits a diagnostic while valid paths before and after it still produce their ACL blocks, and the overall status is failure. Compare with the independent CLI without changing output bytes.",
+      "script": "umask 027\n: > before\numask 077\n: > after\ngetfacl -c before absent after",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "getfacl"
+      ]
+    },
+    {
+      "id": "effective-mask-comments",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "python3"
+      ],
+      "purpose": "A private restrictive access mask requires GNU effective-permission comments; keep formatting and permission differences visible.",
+      "script": ": > item\ncommand -p python3 - <<'PYACL'\nimport os,struct\nentries=[(1, 6, 4294967295), (2, 4, os.getuid()), (4, 4, 4294967295), (8, 4, os.getgid()), (16, 2, 4294967295), (32, 0, 4294967295)]\nvalue=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)\nos.setxattr('item','system.posix_acl_access',value)\nPYACL\ngetfacl -c item",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-acl-in-ordinary-output",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "python3",
+        "mkdir"
+      ],
+      "purpose": "Ordinary GNU getfacl shows both access and default ACLs with default: prefixes on a seeded private directory. Preserve any candidate omission as a byte-output difference.",
+      "script": "mkdir directory\ncommand -p python3 - <<'PYACL'\nimport os,struct\nentries=[(1, 6, 4294967295), (2, 4, os.getuid()), (4, 4, 4294967295), (8, 4, os.getgid()), (16, 4, 4294967295), (32, 0, 4294967295)]\nvalue=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)\nos.setxattr('directory','system.posix_acl_default',value)\nPYACL\ngetfacl directory",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "combined-acl-selection",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "python3",
+        "mkdir"
+      ],
+      "purpose": "Explicit access and default selections together show both ACLs with the same default prefixes as GNU.",
+      "script": "mkdir directory\ncommand -p python3 - <<'PYACL'\nimport os,struct\nentries=[(1, 6, 4294967295), (2, 4, os.getuid()), (4, 4, 4294967295), (8, 4, os.getgid()), (16, 4, 4294967295), (32, 0, 4294967295)]\nvalue=struct.pack('<I',2)+b''.join(struct.pack('<HHI',*entry) for entry in entries)\nos.setxattr('directory','system.posix_acl_default',value)\nPYACL\ngetfacl -a -d directory",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-mode-follows-target",
+      "kind": "parity",
+      "purpose": "A private symlink without an extended ACL reports its target mode rather than the link mode.",
+      "script": "umask 077\n: > target\nln -s target alias\ngetfacl -c alias",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "getfacl",
+        "ln"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "loadable": "dhcpd",
+  "reference": "Runnable metadata contracts use Bash's documented type/help builtins and the registered dhcpd synopsis/help strings in loadables/dhcpd.c. Offline operation contracts use a fixed BOOTP/DHCP request encoded from the RFC 2131 header/cookie/options layout, RFC 2131 response fields and option codes, and the documented lease-file format; all files are relative to the runner's private fixture directory. There is no matching GNU DHCP server or packet-parser CLI for byte-for-byte parity. Network exchanges and hook execution remain deferred.",
+  "coverage": [
+    "Bash reports dhcpd as an enabled shell builtin.",
+    "Short and long help metadata expose the registered synopsis and documented interfaces.",
+    "Offline parse-req decodes a fixed DHCPDISCOVER transaction ID, client address and hostname option.",
+    "Offline respond builds an OFFER with independently specified BOOTP fields and DHCP options from a relative fixture config.",
+    "Lease add/list/remove cover the documented lease record format, TTL range, replacement for one MAC and missing-record status using a relative file.",
+    "Deferred operation coverage identifies requirements for DHCP exchange, relay/PXE behavior, DECLINE/RELEASE and hooks.",
+    "Complete independently encoded OFFER bytes and parser associative-array replacement."
+  ],
+  "exclusions": [
+    "There is no matching GNU DHCP CLI for these custom subcommands, so offline operations are honest contract tests rather than GNU parity.",
+    "No server socket, real network target, host path, service, installed credentials or external lease-exec command is used.",
+    "The deferred server and hook cases are not executed and do not count as passes."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves dhcpd as a builtin without invoking any dhcpd subcommand.",
+      "script": "[[ $(type -t dhcpd) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help-synopsis",
+      "kind": "contract",
+      "purpose": "Check the registered short synopsis through Bash help metadata; the expected fragment comes from dhcpd_struct.short_doc in the published source.",
+      "script": "help -s dhcpd",
+      "expected_status": 0,
+      "stdout": "dhcpd: dhcpd serve|run|respond|lease-list|lease-add|lease-remove ARGS...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "long-help-contract",
+      "kind": "contract",
+      "purpose": "Check representative long-help text against the independent dhcpd_doc strings in the published source, including parser, lease, and PXE usage.",
+      "script": "doc=$(help dhcpd)\n[[ $doc == *'Minimal DHCPv4 server (RFC 2131): one pool, single subnet.'* ]]\n[[ $doc == *'dhcpd parse-req HEX [-V VAR]'* ]]\n[[ $doc == *'dhcpd lease-add MAC IP [-l LEASEDB] [-t TTL]'* ]]\n[[ $doc == *'proxy-dhcp on|off.'* ]]\nprintf 'long-help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "long-help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-discover-contract",
+      "kind": "contract",
+      "purpose": "Decode a fixed RFC 2131 BOOTREQUEST with DHCPDISCOVER, transaction ID 0x1234abcd, a six-byte client address and hostname option 12.",
+      "script": "headzeros=\ntailzeros=\nfor ((i=0; i<20; i++)); do headzeros+=00; done\nfor ((i=0; i<202; i++)); do tailzeros+=00; done\npacket=\"010106001234abcd${headzeros}020000000001${tailzeros}638253633501010c06636c69656e74ff\"\ndhcpd parse-req \"$packet\"",
+      "expected_status": 0,
+      "stdout": "msg_type=DISCOVER  xid=0x1234abcd  chaddr=02:00:00:00:00:01  hostname=client\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "respond-offer-contract",
+      "kind": "contract",
+      "purpose": "Build an offline OFFER for one pool address; compare the complete RFC header, address fields, options, zero padding and length against an independent packet encoding.",
+      "script": "printf '%s\\n' 'pool 192.0.2.100 192.0.2.100' 'netmask 255.255.255.0' 'server_id 192.0.2.1' 'lease 3600' > dhcpd.conf\nheadzeros=\ntailzeros=\nfor ((i=0; i<20; i++)); do headzeros+=00; done\nfor ((i=0; i<202; i++)); do tailzeros+=00; done\npacket=\"010106001234abcd${headzeros}020000000001${tailzeros}638253633501010c06636c69656e74ff\"\nreply=$(dhcpd respond \"$packet\" -c dhcpd.conf -l leases)\nprintf \"%s\\n\" \"$reply\"\n[[ ${#reply} == 1096 ]]\n[[ ${reply:0:16} == 020106001234abcd ]]\n[[ ${reply:20:4} == 8000 ]]\n[[ ${reply:32:8} == c0000264 ]]\n[[ ${reply:40:8} == c0000201 ]]\n[[ ${reply:56:12} == 020000000001 ]]\n[[ ${reply:472:8} == 63825363 ]]\n[[ ${reply:480:68} == 3501023604c0000201330400000e103a04000007083b0400000c4e0104ffffff00ff ]]\nprintf 'offer-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "020106001234abcd0000800000000000c0000264c00002010000000002000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000638253633501023604c0000201330400000e103a04000007083b0400000c4e0104ffffff00ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\noffer-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "lease-db-relative-crud",
+      "kind": "contract",
+      "purpose": "Exercise lease-add/list/remove on the relative private fixture file, checking record fields, numeric TTL output, same-MAC replacement and missing-MAC failure.",
+      "script": "dhcpd lease-add 02:00:00:00:00:01 192.0.2.100 -l leases -t 600\nlisting=$(dhcpd lease-list -l leases)\nIFS=' ' read -r mac ip expiry_field remaining_field hostname <<< \"$listing\"\n[[ $mac == 02:00:00:00:00:01 && $ip == 192.0.2.100 && $hostname == hostname=- ]]\nexpiry=${expiry_field#expiry=}\nremaining=${remaining_field#remaining=}\n[[ $expiry =~ ^[0-9]+$ && $remaining =~ ^[0-9]+$ ]]\nprintf -v observed_now '%(%s)T' -1\n(( expiry >= observed_now + 590 && expiry <= observed_now + 600 && remaining >= 590 && remaining <= 600 ))\ndhcpd lease-add 02:00:00:00:00:01 192.0.2.101 -l leases -t 600\nlisting=$(dhcpd lease-list -l leases)\n[[ $listing == '02:00:00:00:00:01 192.0.2.101 '* ]]\n[[ $listing != *192.0.2.100* && $listing != *$'\\n'* ]]\ndhcpd lease-remove 02:00:00:00:00:01 -l leases\n[[ -z $(dhcpd lease-list -l leases) ]]\nif dhcpd lease-remove 02:00:00:00:00:01 -l leases; then rc=0; else rc=$?; fi\n[[ $rc == 1 ]]\nprintf 'lease-crud-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "lease-crud-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "serve-and-run-exchange",
+      "kind": "deferred",
+      "purpose": "Cover the serve/run path through bounded DHCPDISCOVER/OFFER and DHCPREQUEST/ACK exchanges, pool allocation, lease persistence and wrapper state-directory handling.",
+      "reason": "Requires a future disposable VM or reviewed private DHCP socket mock with an isolated client, deterministic packet capture and temporary config/lease paths. Current instructions prohibit network activity and server invocation; UDP/67 behavior is not exercised."
+    },
+    {
+      "id": "relay-proxy-pxe",
+      "kind": "deferred",
+      "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
+      "reason": "Requires a future disposable DHCP relay/client fixture or reviewed socket mock that can independently inspect giaddr, option 82, proxy replies and PXE option 43/66/67. Network activity is prohibited in this run, so these server paths are not invoked."
+    },
+    {
+      "id": "decline-release-and-hook",
+      "kind": "deferred",
+      "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
+      "reason": "Requires a future disposable VM or reviewed packet/clock and child-process mock. The fixture must inject DECLINE and RELEASE packets, observe the quarantine interval deterministically, and replace lease-exec with a bounded recording stub; no packets or hook commands are run here."
+    },
+    {
+      "id": "parse-discover-array",
+      "kind": "contract",
+      "purpose": "Offline associative-array output contains exactly the four request fields and replaces prior bindings.",
+      "script": "headzeros=\ntailzeros=\nfor ((i=0; i<20; i++)); do headzeros+=00; done\nfor ((i=0; i<202; i++)); do tailzeros+=00; done\npacket=\"010106001234abcd${headzeros}020000000001${tailzeros}638253633501010c06636c69656e74ff\"\ndeclare -A request=([stale]=value)\ndhcpd parse-req \"$packet\" -V request\nprintf '%s|%s|%s|%s|%s\\n' \"${request[msg_type]}\" \"${request[xid]}\" \"${request[chaddr]}\" \"${request[hostname]}\" \"${#request[@]}\"\n[[ ! -v request[stale] ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1|0x1234abcd|02:00:00:00:00:01|client|4\n"
+    }
+  ]
+}

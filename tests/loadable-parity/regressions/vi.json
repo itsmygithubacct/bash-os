@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "loadable": "vi",
+  "reference": "Bash metadata and documented vi subset contracts, with separately labeled selected-edit comparisons against independent Nvim in silent headless mode. Fixed expected bytes cover the documented $, a and A operations and ordinary private file edits. This does not establish GNU or complete POSIX vi conformance.",
+  "coverage": [
+    "Bash type -t identifies vi as a builtin.",
+    "Bash help exposes the vi usage and documented no-TTY key driver.",
+    "Ex line deletion and writing the resulting buffer to a relative fixture file.",
+    "No-TTY key driver insertion, Escape, and :wq save behavior, including lowercase a and end-of-line A.",
+    "Counted G plus dd, including preservation of a missing final newline.",
+    "Visual character deletion followed by undo and redo.",
+    "Default refusal of a NUL-containing input file."
+  ],
+  "exclusions": [
+    "No GNU vi executable is assumed. The named Nvim reference covers only the selected ordinary Unicode a/$a/A edits; all other editor expectations remain explicit contracts.",
+    "Interactive screen rendering, terminal input decoding, and terminal resize need a PTY driver and are deferred.",
+    "Macros, marks, named registers, substitute regex, syntax highlighting, plugins, and complex motions are documented as outside the shipped subset."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "purpose": "Bash type -t must identify an enabled loadable as a builtin; this is the documented Bash type contract.",
+      "kind": "contract",
+      "script": "type -t vi",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "purpose": "Bash help must expose the documented vi synopsis, POSIX-subset description, and no-TTY --keys form.",
+      "kind": "contract",
+      "script": "doc=$(help vi)\n[[ $(type -t vi) == builtin ]] || exit 1\n[[ $doc == *'Minimal modal vi editor (POSIX subset) for bash-os.'* ]] || exit 1\n[[ $doc == *'vi [-b] --keys KEYFILE [PATH]'* ]] || exit 1\nprintf 'vi help metadata present\\n'",
+      "expected_status": 0,
+      "stdout": "vi help metadata present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ex-delete-save",
+      "purpose": "The documented ex address 2d deletes the second line; w saves exactly the remaining bytes to a relative path.",
+      "kind": "contract",
+      "script": "printf 'red\\ngreen\\nblue\\n' > input\nrc=0\nvi -c '2d' -c 'w result' -c 'q!' input || rc=$?\n[[ $rc -eq 0 ]] || exit 1\nrc=0\nIFS= read -r -N 10 saved < result || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf '%s' \"$saved\"",
+      "expected_status": 0,
+      "stdout": "red\nblue\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "key-driver-append-wq",
+      "purpose": "Use documented $ motion followed by a to append at line end, then Escape and :wq to save the exact expected bytes.",
+      "kind": "contract",
+      "script": "printf 'Hello\\n' > input\nprintf '$a, world!\\033:wq\\r' > keys\nrc=0\nvi --keys keys input || rc=$?\n[[ $rc -eq 0 ]] || exit 1\nrc=0\nIFS= read -r -N 15 saved < input || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf '%s' \"$saved\"",
+      "expected_status": 0,
+      "stdout": "Hello, world!\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "counted-delete-noeol",
+      "purpose": "The documented [N]G motion and dd line delete remove line three while preserving the input's missing final newline in the saved result.",
+      "kind": "contract",
+      "script": "printf 'north\\nsouth\\nwest\\neast' > input\nprintf '3Gdd:w result\\r:q!\\r' > keys\nrc=0\nvi --keys keys input || rc=$?\n[[ $rc -eq 0 ]] || exit 1\nrc=0\nIFS= read -r -N 17 saved < result || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf '%s' \"$saved\"",
+      "expected_status": 0,
+      "stdout": "north\nsouth\neast",
+      "stderr": "empty"
+    },
+    {
+      "id": "visual-undo-redo",
+      "purpose": "The documented visual x delete and u/Ctrl-R history commands must restore then reapply a characterwise selection before save.",
+      "kind": "contract",
+      "script": "printf 'alpha beta\\n' > input\nprintf 'vllxu\\022:w result\\r:q!\\r' > keys\nrc=0\nvi --keys keys input || rc=$?\n[[ $rc -eq 0 ]] || exit 1\nrc=0\nIFS= read -r -N 9 saved < result || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf '%s' \"$saved\"",
+      "expected_status": 0,
+      "stdout": "ha beta\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-refusal",
+      "purpose": "Without -b, the documented binary-content tripwire must reject a relative input containing NUL with failure and a diagnostic.",
+      "kind": "contract",
+      "script": "printf 'a\\0b\\n' > input\n: > keys\nrc=0\nvi --keys keys input || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf 'NUL input refused\\n'",
+      "expected_status": 0,
+      "stdout": "NUL input refused\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-pty-edit",
+      "purpose": "Track interactive normal/insert/command-mode screen behavior and saves when the editor owns a real terminal.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with a controlled PTY and terminal settings plus an independent POSIX vi reference. The supplied runner starts fixtures with stdin disconnected to /dev/null and has no PTY facility, so no interactive operation was executed. A future test must use only relative fixture files and compare final bytes and bounded screen behavior inside that VM."
+    },
+    {
+      "id": "terminal-keys-resize",
+      "purpose": "Track terminal arrow-key decoding and viewport behavior after a deterministic window resize.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM PTY driver that can set TERM/terminfo and resize the terminal to fixed dimensions, along with an independent vi reference. The current runner cannot allocate or resize a PTY. Future fixtures must use scripted key bytes and relative files only; this behavior was not run or claimed as passed."
+    },
+    {
+      "id": "key-driver-append-after-unicode",
+      "kind": "contract",
+      "purpose": "Documented a appends after the complete current UTF-8 character, preserving the following character and newline. Inserting ASCII after e-acute must not split its two-byte encoding.",
+      "script": "printf '\u00e9Z\\n' > input\nprintf 'a!\\033:wq\\r' > keys\nvi --keys keys input\nIFS= read -r line < input\nprintf '%s\\n' \"$line\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "\u00e9!Z\n"
+    },
+    {
+      "id": "key-driver-unicode-line-end-undo-redo",
+      "kind": "contract",
+      "purpose": "Documented $a appends after a final multibyte character, and ordinary undo/redo preserves the complete edited Unicode bytes before :wq.",
+      "script": "printf 'caf\u00e9\\n' > input\nprintf '$a!\\033u\\022:wq\\r' > keys\nvi --keys keys input\nIFS= read -r line < input\nprintf '%s\\n' \"$line\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "caf\u00e9!\n"
+    },
+    {
+      "id": "unicode-append-nvim-reference",
+      "kind": "parity",
+      "purpose": "Compare the documented a and $a edits on valid UTF-8 with independent Nvim in silent headless mode, using private 0600 files and no terminal. This is selected Nvim editing parity, not GNU/full vi conformance.",
+      "requires": [
+        "nvim",
+        "chmod"
+      ],
+      "script": "printf '\u00e9Z\\n' > middle\nprintf 'caf\u00e9\\n' > ending\nchmod 600 middle ending\nprintf 'a!\\033:wq\\r' > middle.keys\nprintf '$a!\\033:wq\\r' > ending.keys\nif [[ $(type -t vi) == builtin ]]; then\n vi --keys middle.keys middle\n vi --keys ending.keys ending\nelse\n nvim --headless -u NONE -i NONE -n -es middle -c $'normal! a!\\033' -c wq\n nvim --headless -u NONE -i NONE -n -es ending -c $'normal! $a!\\033' -c wq\nfi\nIFS= read -r first < middle\nIFS= read -r second < ending\nprintf '%s\\n%s\\n' \"$first\" \"$second\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uppercase-append-wq",
+      "purpose": "POSIX vi defines A to append after the current line's last character; the no-TTY key driver must process A, Escape, and :wq and save the exact edited line.",
+      "kind": "contract",
+      "script": "printf 'Hello\\n' > input\nprintf 'A, world!\\033:wq\\r' > keys\nrc=0\nvi --keys keys input || rc=$?\n[[ $rc -eq 0 ]] || exit 1\n/usr/bin/python3 -c 'from pathlib import Path; import sys; sys.stdout.buffer.write(Path('\"'\"'input'\"'\"').read_bytes())'",
+      "expected_status": 0,
+      "stdout": "Hello, world!\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "uppercase-append-nvim-reference",
+      "kind": "parity",
+      "purpose": "Compare end-of-line A on ASCII, Unicode and an empty line, and repeating the append on a second line with dot, against independent headless Nvim using private files. Counted A and interactive rendering remain outside this case. Both drivers explicitly start at the first line because silent Nvim otherwise starts at the last line.",
+      "requires": [
+        "nvim",
+        "chmod"
+      ],
+      "script": "printf '\u00e9Z\\nlast\\n' > lines\nprintf '\\n' > empty\nchmod 600 lines empty\nprintf '1G0A!\\033j0.\\033:wq\\r' > lines.keys\nprintf 'Aword\\033:wq\\r' > empty.keys\nif [[ $(type -t vi) == builtin ]]; then\n vi --keys lines.keys lines\n vi --keys empty.keys empty\nelse\n nvim --headless -u NONE -i NONE -n -es lines -c $'normal! 1G0A!\\033j0.' -c wq\n nvim --headless -u NONE -i NONE -n -es empty -c $'normal! Aword\\033' -c wq\nfi\ncat lines empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "loadable": "pcre",
+  "reference": "GNU grep -P is the oracle for portable PCRE line selection and extraction, and GNU sed -E is the oracle for the shared capture and global-substitution subset. PCRE-only capture-array, zero-width iteration, metadata, and binary -X expectations are explicit contracts derived from the loadable documentation, PCRE2 syntax, and manually encoded byte strings; no expectation is taken from candidate output.",
+  "coverage": [
+    "Bash builtin/help metadata",
+    "Unicode named and numbered captures with an unset optional group",
+    "match failure clears previous BPCRE_MATCH captures",
+    "global substitution and per-line global capture substitution",
+    "find-all digit extraction and zero-width match advancement",
+    "grep across multiple fixture files, including filename prefixes and no-match status",
+    "binary NUL substitution through documented hex transport",
+    "malformed-pattern failure status and diagnostic presence"
+  ],
+  "exclusions": [
+    "The bounded cases do not qualify every PCRE flag, cache eviction, configurable match/depth limits, invalid UTF handling, or large-output behavior.",
+    "A live producer-open grep flush check is deferred because this runner has no producer-open FIFO or PTY observation hook; ordinary closed-input grep behavior is covered by parity cases."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check Bash reports pcre as a builtin and help -d exposes the documented short description; this is availability metadata, not operation coverage.",
+      "script": "type -t pcre\nhelp -d pcre",
+      "expected_status": 0,
+      "stdout": "builtin\npcre - Perl-compatible regex via libpcre2-8 (no JIT).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "match-unicode-sparse-captures",
+      "kind": "contract",
+      "purpose": "Verify documented UTF/UCP text mode, named and numbered capture indexing, and an absent optional capture using a fixed PCRE2 pattern and subject.",
+      "script": "pcre match '(?<name>\\p{L}+)-([0-9]+)(?:-([a-z]+))?' 'caf\u00e9-42'\nprintf '%s|%s|%s|%s\\n' \"${BPCRE_MATCH[0]}\" \"${BPCRE_MATCH[1]}\" \"${BPCRE_MATCH[2]}\" \"${BPCRE_MATCH[3]-UNSET}\"",
+      "expected_status": 0,
+      "stdout": "caf\u00e9-42|caf\u00e9|42|UNSET\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "match-miss-clears-captures",
+      "kind": "contract",
+      "purpose": "Check the documented state transition that a validated non-match clears captures from an earlier successful match and returns failure for that match.",
+      "script": "pcre match '(old)' old\nif pcre match '(new)' old; then\n  printf 'unexpected-match\\n'\n  exit 9\nelse\n  rc=$?\nfi\n[[ $rc -eq 1 ]]\nprintf '%s\\n' \"${#BPCRE_MATCH[@]}\"",
+      "expected_status": 0,
+      "stdout": "0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "subst-global-digit-runs",
+      "kind": "parity",
+      "purpose": "Compare global digit capture replacement on a single deterministic subject with GNU sed extended regular expressions.",
+      "requires": [
+        "sed"
+      ],
+      "script": "if [[ $(type -t pcre) == builtin ]]; then\n  pcre subst '([0-9]+)' '<$1>' 'id=12;id=34' -g\nelse\n  printf '%s\\n' 'id=12;id=34' | sed -E 's/([0-9]+)/<\\1>/g'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "sed-global-captures-per-line",
+      "kind": "parity",
+      "purpose": "Compare pcre sed's documented per-line global capture substitution with GNU sed -E on matching and unchanged fixture lines.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'item-12 item-7\\nkeep\\n' > rows.txt\nif [[ $(type -t pcre) == builtin ]]; then\n  pcre sed '([a-z]+)-([0-9]+)' '<\\1:\\2>' rows.txt\nelse\n  sed -E 's/([a-z]+)-([0-9]+)/<\\1:\\2>/g' rows.txt\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "find-all-digit-runs",
+      "kind": "parity",
+      "purpose": "Compare successive non-overlapping digit matches with GNU grep -oP over the same one-line subject.",
+      "requires": [
+        "grep"
+      ],
+      "script": "if [[ $(type -t pcre) == builtin ]]; then\n  pcre find-all '[0-9]+' 'rev2=8 rev19=204'\nelse\n  printf '%s\\n' 'rev2=8 rev19=204' | grep -oP '[0-9]+'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "find-all-empty-match-advance",
+      "kind": "contract",
+      "purpose": "Pin the documented find-all iteration behavior for an empty alternative that can also consume a character: empty at offset zero, the non-empty retry, then empty at the end.",
+      "script": "pcre find-all '(?:|a)' 'a'",
+      "expected_status": 0,
+      "stdout": "\na\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "grep-multiple-files-prefixes",
+      "kind": "parity",
+      "purpose": "Compare PCRE alternation and digit matching across two fixture files, including GNU-compatible filename prefixes when multiple files are named.",
+      "requires": [
+        "grep"
+      ],
+      "script": "printf 'ERR-12\\nignore\\n' > first.txt\nprintf 'WARN-7\\nerr-8\\n' > second.txt\nif [[ $(type -t pcre) == builtin ]]; then\n  pcre grep '^(?:ERR|WARN)-[0-9]+$' first.txt second.txt\nelse\n  grep -P '^(?:ERR|WARN)-[0-9]+$' first.txt second.txt\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "grep-no-match-status",
+      "kind": "parity",
+      "purpose": "Verify both line selectors return status 1 with no output and no diagnostic when a readable fixture file has no matching line.",
+      "requires": [
+        "grep"
+      ],
+      "script": "printf 'one\\ntwo\\n' > lines.txt\nif [[ $(type -t pcre) == builtin ]]; then\n  pcre grep '^missing$' lines.txt\nelse\n  grep -P '^missing$' lines.txt\nfi",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "subst-binary-nul-hex",
+      "kind": "contract",
+      "purpose": "Check documented -X byte transport and global substitution of a NUL byte: hex 610062 decodes to a NUL-delimited subject, 00 is replaced by ff, and output is lower-case hex.",
+      "script": "pcre subst 00 ff 610062 -X -g",
+      "expected_status": 0,
+      "stdout": "61ff62\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "match-invalid-pattern",
+      "kind": "contract",
+      "purpose": "Check malformed PCRE syntax fails with the documented command failure status and emits a diagnostic; diagnostic wording is implementation and PCRE2-version dependent.",
+      "script": "pcre match '[' subject",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "grep-live-producer-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify immediate delivery of a matching line before the input producer closes.",
+      "reason": "The supplied runner starts each fixture with stdin connected to /dev/null and provides no producer-open FIFO or PTY observation hook. A future test requires a disposable VM or runner-provided private FIFO/PTY producer that writes one matching line, stays open, and lets the test assert that pcre grep emits the line before EOF. No operation is executed here."
+    }
+  ]
+}

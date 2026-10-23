@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "loadable": "nice",
+  "reference": "GNU nice for read-only current-priority output and pre-syscall parser errors. Bash type/help are metadata contracts. Priority-changing command execution remains deferred.",
+  "coverage": [
+    "Verify Bash resolves nice as a builtin and reports its builtin type.",
+    "Verify help -s advertises the pinned public synopsis: nice [-n N] CMD.",
+    "Verify help -d returns the description documented by the pinned nice source.",
+    "Record bounded future process-priority, child-dispatch, and denied-priority cases as deferred.",
+    "Read-only current-priority output and pre-syscall parser errors compared with GNU nice."
+  ],
+  "exclusions": [
+    "No priority adjustment or child-command execution is invoked. Current-priority queries and parser-only errors are exercised safely.",
+    "Runnable GNU comparisons cover current-priority queries and parser errors; priority-changing execution remains unverified."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Check that the public command name is registered as a Bash builtin, using Bash type metadata without invoking nice.",
+      "script": "type -t nice; type nice",
+      "expected_status": 0,
+      "stdout": "builtin\nnice is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Check the short help synopsis against the pinned catalog entry nice [-n N] CMD.",
+      "script": "help -s nice",
+      "expected_status": 0,
+      "stdout": "nice: nice [-n N] CMD\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "Check the one-line help description against the first line of nice_doc in the pinned implementation source.",
+      "script": "help -d nice",
+      "expected_status": 0,
+      "stdout": "nice - Run CMD with adjusted scheduling niceness (POSIX nice).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "child-priority-and-status",
+      "kind": "deferred",
+      "purpose": "Future operation comparison for priority adjustment on a child and isolation of the calling shell.",
+      "reason": "Requires a disposable Linux VM with an independent getpriority observer for the exact child PID. Compare GNU nice(1) and bash-os for the default +10 adjustment, positive -n/--adjustment values, the documented -N form, saturation at the ordinary upper niceness bound, literal arguments and child exit status; verify the parent priority is unchanged. No fork or setpriority call is run here."
+    },
+    {
+      "id": "denied-priority-adjustment",
+      "kind": "deferred",
+      "purpose": "Future check of negative adjustments and the documented nonfatal handling of setpriority failure.",
+      "reason": "Requires an isolated disposable VM with CAP_SYS_NICE for any successful negative adjustment, plus an independently reviewed syscall mock that can force child setpriority to fail with EPERM. Check the warning, unchanged child priority, continued command execution, and status propagation. No privileged adjustment or syscall mock is attempted here."
+    },
+    {
+      "id": "command-dispatch-and-errors",
+      "kind": "deferred",
+      "purpose": "Future operation comparison for child command lookup, builtin dispatch, execution errors, and parent-shell state.",
+      "reason": "Requires a disposable VM and private relative executable fixtures. Compare GNU and candidate behavior for builtin versus explicit-path dispatch, missing and non-executable commands (127/126), literal argv/environment propagation, and child exit/signal status while confirming the parent shell remains usable. These checks invoke nice and are not run under the current safety boundary."
+    },
+    {
+      "id": "missing-adjustment",
+      "kind": "parity",
+      "purpose": "Compare a parser rejection that occurs before scheduling syscalls or child creation.",
+      "script": "nice -n",
+      "expected_status": 125,
+      "stderr": "nonempty",
+      "requires": [
+        "nice"
+      ]
+    },
+    {
+      "id": "invalid-adjustment",
+      "kind": "parity",
+      "purpose": "Compare a parser rejection that occurs before scheduling syscalls or child creation.",
+      "script": "nice --adjustment=bad",
+      "expected_status": 125,
+      "stderr": "nonempty",
+      "requires": [
+        "nice"
+      ]
+    },
+    {
+      "id": "adjustment-without-command",
+      "kind": "parity",
+      "purpose": "Compare a parser rejection that occurs before scheduling syscalls or child creation.",
+      "script": "nice -n 1",
+      "expected_status": 125,
+      "stderr": "nonempty",
+      "requires": [
+        "nice"
+      ]
+    },
+    {
+      "id": "query-current-priority",
+      "kind": "parity",
+      "purpose": "Read current niceness without adjusting priority or starting a command, compared directly with GNU nice.",
+      "script": "nice\nnice --",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "nice"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "loadable": "cmp",
+  "reference": "GNU diffutils cmp independently checks status, stdout bytes, diagnostic presence and relative fixture trees. Bash type/help metadata follow the published byte-comparison interface.",
+  "coverage": [
+    "Identical binary files containing NUL and high-bit bytes",
+    "Default first-difference byte and line diagnostic",
+    "Silent equal and different results with status capture",
+    "-l listing of multiple differing octets",
+    "Two positional skip counts and silent comparison after skipping",
+    "One stdin operand through a bounded shell pipeline",
+    "Unequal lengths and EOF diagnostic behavior",
+    "Missing input and invalid skip count errors",
+    "Bash builtin type and help metadata contract"
+  ],
+  "exclusions": [
+    "No deferred cases: all selected operations use small private fixture files or bounded shell pipelines and require no privilege, hardware, network, terminal driver, or external mock.",
+    "Timed fragmented-pipe schedules, injected I/O faults and very large streams remain outside this bounded suite; no external project test results are claimed here."
+  ],
+  "cases": [
+    {
+      "id": "identical-binary",
+      "kind": "parity",
+      "purpose": "Confirm byte equality for a small binary fixture containing NUL, newline, DEL, and high-bit bytes.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf '\\000A\\n\\177\\200\\377' > left; printf '\\000A\\n\\177\\200\\377' > right; cmp left right",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "first-difference",
+      "kind": "parity",
+      "purpose": "Compare the default diagnostic and status for the first differing byte on the second line.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'head\\nleft\\n' > left; printf 'head\\nright\\n' > right; cmp left right",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "silent-statuses",
+      "kind": "parity",
+      "purpose": "Check that -s emits nothing while equal and differing comparisons return 0 and 1 respectively.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'same' > equal_a; printf 'same' > equal_b; printf 'diff' > other; if cmp -s equal_a equal_b; then same=0; else same=$?; fi; if cmp -s equal_a other; then different=0; else different=$?; fi; printf 'same=%s different=%s\\n' \"$same\" \"$different\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-differences",
+      "kind": "parity",
+      "purpose": "Compare every -l record for several differences, including a zero and high-bit octet; exact stdout checks formatting and values.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf '\\001A\\377' > left; printf '\\002B\\000' > right; cmp -l left right",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip-counts",
+      "kind": "parity",
+      "purpose": "Exercise POSIX positional skip counts with equal suffixes and a later silent comparison that still differs.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'abTAIL\\n' > left; printf 'zzTAIL\\n' > right; if cmp left right 2 2; then equal=0; else equal=$?; fi; if cmp -s left right 1 1; then different=0; else different=$?; fi; if cmp -s left right 8192 8192; then past_eof=0; else past_eof=$?; fi; printf 'skip_equal=%s skip_diff=%s past_eof=%s\\n' \"$equal\" \"$different\" \"$past_eof\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-operand",
+      "kind": "parity",
+      "purpose": "Compare one stdin operand against a fixture file for both equality and difference without relying on harness stdin contents.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'same\\n' > right; if printf 'same\\n' | cmp -s - right; then equal=0; else equal=$?; fi; if printf 'diff\\n' | cmp -s - right; then different=0; else different=$?; fi; printf 'stdin_equal=%s stdin_diff=%s\\n' \"$equal\" \"$different\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-file-eof",
+      "kind": "parity",
+      "purpose": "Check the unequal-length result and EOF diagnostic when the shorter file ends after matching bytes.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'ABC\\n' > longer; printf 'ABC' > shorter; cmp longer shorter",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-file-error",
+      "kind": "parity",
+      "purpose": "Check GNU-compatible error status for an unreadable named operand while allowing implementation-specific diagnostic wording.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'data' > present; cmp absent present",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-skip-error",
+      "kind": "parity",
+      "purpose": "Check the error status for a nonnumeric positional skip count.",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf 'a' > left; printf 'a' > right; cmp left right nope",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-type-help",
+      "kind": "contract",
+      "purpose": "Use Bash builtins to confirm cmp is registered as a builtin and its documented byte-comparison and single-stdin contract appears in help.",
+      "script": "kind=$(type -t cmp); doc=$(help cmp); [[ $kind == builtin ]] || exit 1; [[ $doc == *\"Byte-compare two files.\"* ]] || exit 1; [[ $doc == *\"Either file may be '-' to read stdin (but only one).\"* ]] || exit 1; printf 'builtin; byte-compare help; one stdin operand documented\\n'",
+      "expected_status": 0,
+      "stdout": "builtin; byte-compare help; one stdin operand documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "list-width-ten",
+      "kind": "parity",
+      "purpose": "Compare column alignment and octal byte values for multi-digit positions and different input lengths.",
+      "script": "printf '%s' '0123456789AB' > left\nprintf '%s' 'x123456789Ax' > right\ncmp -l left right",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-width-unequal",
+      "kind": "parity",
+      "purpose": "Compare column alignment and octal byte values for multi-digit positions and different input lengths.",
+      "script": "printf '%s' '0123456789AB' > left\nprintf '%s' 'x123456789A' > right\ncmp -l left right",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "list-width-long",
+      "kind": "parity",
+      "purpose": "Compare column alignment and octal byte values for multi-digit positions and different input lengths.",
+      "script": "printf '%s' 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA' > left\nprintf '%s' 'yxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB' > right\ncmp -l left right",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-width-skips",
+      "kind": "parity",
+      "purpose": "GNU list-column widths account for initial skips and available regular-file bounds; streaming comparisons retain exact byte values and statuses.",
+      "script": "printf '0123456789AB' > left\nprintf '0123456789Ax' > right\ncmp -l left right 10 10",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-width-one-stream",
+      "kind": "parity",
+      "purpose": "GNU list-column widths account for initial skips and available regular-file bounds; streaming comparisons retain exact byte values and statuses.",
+      "script": "printf '0123456789AB' > right\nprintf 'x123456789Ax' | cmp -l - right",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-width-two-streams",
+      "kind": "parity",
+      "purpose": "GNU list-column widths account for initial skips and available regular-file bounds; streaming comparisons retain exact byte values and statuses.",
+      "script": "cmp -l <(printf '0123456789AB') <(printf 'x123456789Ax')",
+      "requires": [
+        "cmp"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-and-one-empty",
+      "purpose": "Compare two empty files and an empty/nonempty pair, retaining the EOF diagnostic.",
+      "kind": "parity",
+      "script": ": > left; : > right; cmp left right; printf x > right; cmp left right",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "cmp"
+      ]
+    }
+  ]
+}

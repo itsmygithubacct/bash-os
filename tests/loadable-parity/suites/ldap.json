@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "ldap",
+  "reference": "Bash type/help metadata contract and independent LDAPv3 BER/filter wire-format vectors from RFC 4511. Encoder expectations below were hand-encoded from the protocol tags, lengths, and request fields; no candidate output is used. No matching ldapsearch reference CLI is available for this suite.",
+  "coverage": [
+    "Bash builtin discovery and the loadable's documented help text",
+    "Simple-bind request BER with nonempty DN and password",
+    "Equality filter encoding",
+    "AND filter encoding with a hex-escaped literal asterisk and a presence assertion",
+    "Substring filter encoding with initial and final components",
+    "Search request BER with base DN, default subtree scope, equality filter, and two requested attributes",
+    "Malformed unterminated filter rejection",
+    "Offline OR/NOT encoding and valid multi-value search-entry/result decoding from independently encoded RFC 4511 vectors."
+  ],
+  "exclusions": [
+    "No ldapsearch executable or equivalent GNU CLI is available, so runnable cases are documented-contract checks rather than GNU parity comparisons.",
+    "Network search, bind, WhoAmI, LDAPS, and StartTLS need a controlled disposable LDAP/TLS peer; those operations are explicitly deferred below.",
+    "Interactive password prompting with -W needs a disposable PTY and is not exercised."
+  ],
+  "cases": [
+    {
+      "id": "bash-metadata",
+      "purpose": "Confirm ldap is registered as a Bash builtin and help exposes the documented LDAPv3 client and supported operation/filter summary.",
+      "kind": "contract",
+      "script": "[[ $(type -t ldap) == builtin ]]\nhelp_text=$(help ldap)\n[[ $help_text == *'Small LDAPv3 BER client for bash-os NSS and userdb providers.'* ]]\n[[ $help_text == *'Supported filters: equality, present, and/or/not, and substring.'* ]]\n[[ $help_text == *'Supported operations: simple bind, search, StartTLS, and WhoAmI.'* ]]\nprintf 'builtin\\nhelp documented\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bind-ber-vector",
+      "purpose": "Check the simple-bind LDAPMessage against an independent BER encoding: message ID 1, LDAP version 3, the supplied DN, and simple authentication bytes.",
+      "kind": "contract",
+      "script": "ldap encode-test bind 'cn=alice,dc=example' 's3cret'",
+      "expected_status": 0,
+      "stdout": "302502010160200201030413636e3d616c6963652c64633d6578616d706c658006733363726574\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "equality-filter-vector",
+      "purpose": "Check the RFC 4511 equalityMatch filter TLV for attribute uid and assertion value fixture.",
+      "kind": "contract",
+      "script": "ldap filter-test '(uid=fixture)'",
+      "expected_status": 0,
+      "stdout": "a30e0403756964040766697874757265\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "compound-escaped-filter-vector",
+      "purpose": "Check an AND filter containing an equality assertion whose escaped \\2a decodes to a literal asterisk, plus a present assertion; expected bytes follow the RFC 4511 filter alternatives.",
+      "kind": "contract",
+      "script": "ldap filter-test '(&(uid=ann\\2ab)(objectClass=*))'",
+      "expected_status": 0,
+      "stdout": "a01ba30c04037569640405616e6e2a62870b6f626a656374436c617373\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "substring-filter-vector",
+      "purpose": "Check a substring filter with initial component al and final component ce, encoded using the RFC 4511 initial and final substring tags.",
+      "kind": "contract",
+      "script": "ldap filter-test '(cn=al*ce)'",
+      "expected_status": 0,
+      "stdout": "a40e0402636e30088002616c82026365\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "search-request-ber-vector",
+      "purpose": "Check the independently encoded LDAP SearchRequest envelope, including subtree scope, zero limits, false typesOnly, equality filter, and ordered attribute selection.",
+      "kind": "contract",
+      "script": "ldap encode-test search 'dc=ex' '(cn=x)' cn mail",
+      "expected_status": 0,
+      "stdout": "3030020102632b040564633d65780a01020a0100020100020100010100a3070402636e040178300a0402636e04046d61696c\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unterminated-filter-rejected",
+      "purpose": "Check that a filter missing its closing parenthesis is rejected with failure and a diagnostic, as required by the filter grammar.",
+      "kind": "contract",
+      "script": "ldap filter-test '(uid=fixture'",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "deferred-plain-search",
+      "purpose": "Exercise an LDAPv3 search round trip, entry decoding, and SearchResultDone status against a deterministic server response.",
+      "kind": "deferred",
+      "reason": "Requires a disposable LDAPv3 peer in a future isolated VM or reviewed local mock that accepts one bounded search request and returns fixed SearchResultEntry and SearchResultDone BER. No network fixture was run here."
+    },
+    {
+      "id": "deferred-bind-whoami",
+      "purpose": "Exercise simple bind sequencing and the WhoAmI extended request/response using fixture-only credentials.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM providing the following prerequisite: Requires a disposable LDAP peer that records bind and WhoAmI request BER and returns fixed result messages, plus credentials created only for that fixture. No authentication or network operation was run here."
+    },
+    {
+      "id": "deferred-tls-starttls",
+      "purpose": "Exercise implicit LDAPS and both optional and required StartTLS paths, certificate verification, and SNI behavior.",
+      "kind": "deferred",
+      "reason": "Requires a disposable LDAP/TLS peer, fixture CA and server certificate, and a reviewed TLS handshake mock or isolated VM. No TLS, certificate, or network operation was run here."
+    },
+    {
+      "id": "or-and-not-filter-vectors",
+      "kind": "contract",
+      "script": "ldap filter-test '(|(cn=*)(mail=*))'\nldap filter-test '(!(uid=x))'",
+      "stdout": "a10a8702636e87046d61696c\na20aa3080403756964040178\n",
+      "purpose": "RFC 4511 OR and NOT filter alternatives are independently TLV-encoded from two presence assertions and one equality assertion.",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "offline-search-result-decoding",
+      "kind": "contract",
+      "script": "ldap decode-test 301f020103641a040564633d65783011300f0402636e310904034164610402426f\nldap decode-test 300c02010365070a010004000400",
+      "stdout": "dn: dc=ex\ncn: Ada\ncn: Bo\nresultCode: 0\n",
+      "purpose": "Valid RFC 4511 SearchResultEntry and SearchResultDone vectors check DN, multiple attribute values, and success decoding without any session or authentication.",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

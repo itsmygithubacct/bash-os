@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "loadable": "tail",
+  "reference": "GNU coreutils tail is run independently by the harness in a reference Bash with its normal PATH. Expected byte output and statuses follow GNU/POSIX tail behavior; no candidate output is used to form expectations.",
+  "coverage": [
+    "Default last-ten-line behavior on a regular file.",
+    "Line counts on a file whose final line lacks a newline.",
+    "Positive line counts on a pipe, using the streaming path.",
+    "Binary byte-tail output and positive byte offsets from stdin.",
+    "NUL-delimited records with -z.",
+    "Multi-file headers and -q suppression.",
+    "Repeated redirected stdin calls and use after a partial shell read.",
+    "Missing-file and malformed-count errors.",
+    "Bash type/help metadata contract.",
+    "GNU argument-error statuses for missing values, invalid values and unknown options.",
+    "Additional bounded edge cases and file effects are specified by the added parity cases."
+  ],
+  "exclusions": [
+    "Follow append, truncation, retry, and rotation behavior is deferred because it needs a controlled asynchronous writer and bounded stop mechanism.",
+    "Locale-specific diagnostics, very large counts, and follow output ordering are not covered."
+  ],
+  "cases": [
+    {
+      "id": "default-last-ten",
+      "kind": "parity",
+      "purpose": "Check GNU tail's default of the final ten lines on a seekable file containing twelve newline-terminated lines.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf '01\\n02\\n03\\n04\\n05\\n06\\n07\\n08\\n09\\n10\\n11\\n12\\n' > data\ntail data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "line-tail-partial-final-line",
+      "kind": "parity",
+      "purpose": "Check -n 2 when a regular file ends in a nonempty partial line without a final newline.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'alpha\\nbeta\\ngamma\\npartial' > data\ntail -n 2 data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "positive-lines-on-pipe",
+      "kind": "parity",
+      "purpose": "Check -n +2 on a pipe, which emits from the second line and exercises the non-seekable streaming path.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'discard\\nkeep-1\\nkeep-2\\nkeep-3\\n' | tail -n +2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-byte-count-and-offset",
+      "kind": "parity",
+      "purpose": "Check byte-exact handling of NUL and 0xff, for both the last four bytes and a positive byte offset on stdin.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf '\\000A\\nB\\377Z' > data\ntail -c 4 data\ntail -c +3 < data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-delimited-tail",
+      "kind": "parity",
+      "purpose": "Check -z counts NUL-delimited records and preserves a final partial record without adding a delimiter.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'red\\000green\\000blue' > records\ntail -z -n 2 records",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-files-header-and-quiet",
+      "kind": "parity",
+      "purpose": "Check default headers for multiple files and -q suppression across two invocations.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'A\\n' > first\nprintf 'B\\n' > second\ntail -n 1 first second\ntail -q -n 1 first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-reuse-and-current-offset",
+      "kind": "parity",
+      "purpose": "Check that separate redirected stdin calls each read their input and that tail honors stdin's current offset after Bash read consumes one line.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\n' > data\n{ read -r first; tail -n 2; } < data\ntail -n 1 < data\ntail -n 1 < data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-error",
+      "kind": "parity",
+      "purpose": "Check GNU tail's nonzero status, empty stdout, and diagnostic presence for a missing relative fixture path.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail absent",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-line-count-error",
+      "kind": "parity",
+      "purpose": "Check status and diagnostic behavior for a malformed -n count; GNU coreutils tail reports an error with status 1.",
+      "requires": [
+        "tail"
+      ],
+      "script": "printf 'one\\ntwo\\n' > data\ntail -n nope data",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-type-help-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash metadata identifies tail as a builtin and that its registered help documentation is available, without invoking an operational mode.",
+      "script": "type -t tail\ndoc=$(help tail)\n[[ -n $doc ]]",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "follow-append-and-rotation",
+      "kind": "deferred",
+      "purpose": "Exercise -f append delivery and -F pathname retry/rotation behavior under a controlled writer.",
+      "reason": "Requires a future disposable VM fixture with a supervised asynchronous writer that appends to a relative file, renames and recreates it for -F, and stops the tail process through a private bounded supervisor. The one-shot comparison fixture cannot reliably schedule inotify events or verify follow lifecycle and clean shutdown."
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail -n",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail -c",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail --lines",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-3",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail --bytes",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-4",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail --unknown",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-5",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail --lines=oops",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-6",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail --bytes=oops",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-7",
+      "kind": "parity",
+      "purpose": "GNU argument errors return status 1 with a diagnostic and leave fixtures unchanged.",
+      "requires": [
+        "tail"
+      ],
+      "script": "tail -c nope",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-zero-and-excess-counts",
+      "kind": "parity",
+      "purpose": "Empty input, zero counts and counts exceeding a small file retain exact byte semantics.",
+      "script": ": > empty\nprintf 'one\\ntwo' > data\ntail empty\ntail -n 0 data\ntail -c 0 data\ntail -n 8 data\ntail -c +1 data",
+      "requires": [
+        "tail"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

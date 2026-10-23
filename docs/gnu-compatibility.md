@@ -66,7 +66,7 @@ the GNU output format, including comparisons involving standard input.
 arguments. Its quoting, trailing-blank continuation, `-n`/`-L`/`-I` precedence,
 size limits and child-status diagnostics have focused GNU comparisons.
 The `lsattr` interface matches e2fsprogs' short flag columns, symlink errors,
-dot entries and recursive headings on ordinary private files. Attribute-setting
+dot entries, recursive headings and invalid-option status on ordinary private files. Attribute-setting
 operations and enabled rendering of unobserved flag bits remain unqualified.
 `zstdcat` now follows the zstd alias's forced pass-through and default-stdin
 behavior within the [supported decoder subset](zstd.md).
@@ -213,13 +213,102 @@ and strict parsing rejects duplicate keys. A successful `cut -a ARRAY` writes
 the current shell's array: use input redirection, or Bash's `lastpipe` setting,
 when the caller needs the assignments after the command.
 
+`gzip` follows an input symlink only in filter mode or with `-f`; an unforced
+named symlink returns status 1, including under `-q`. A multiply linked regular
+input returns warning status 2 unless `-f` is used. Forced symlink compression
+removes the link entry after successful publication and retains its target.
+These checks cover stable private paths, without a concurrent replacement claim.
+
+`nano -h` and `--help` print the builtin's own documentation. Invalid options
+and fill arguments return failure status 1. Without terminal input and output,
+the editor fails before loading a file or drawing a screen; its help and
+nonterminal output have explicit contracts rather than GNU screen-output parity.
+`slabtop` also returns failure for invalid options and missing option arguments.
+It fails if its selected slabinfo input is unavailable. Its focused fixtures
+use synthetic proc data and do not qualify live counters.
+
+`utf8` normalization, case folding and codepoint counting replace each maximal
+subpart of an ill-formed UTF-8 sequence once. The focused tests do not qualify
+every Unicode operation or table. In `vi` scripted editing, `a` advances past
+the complete UTF-8 character before inserting. Uppercase `A` appends at the
+end of the current line and can be repeated with `.`.
+
+`wg` rejects IPv4 prefixes above 32 and IPv6 prefixes above 128, along with
+nondecimal prefix text. These checks exercise its offline dry-run parser;
+network interfaces and kernel communication remain unqualified. `pcap info`
+accepts classic microsecond and nanosecond files in either byte order, with
+independent fixture headers and records. Live packet capture remains deferred.
+
+`pathchk` rejects an empty pathname in both default and `-p` modes. `column`
+returns failure status 1 for invalid output widths. Repeated `man` renders read
+fresh redirected input even after a previous call reached EOF. `bashbase64`
+emits the final bytes of unpadded groups and rejects a one-character tail;
+its whitespace, leading-tag and URL-alphabet extensions remain documented.
+
+`mkswap` checks requested size against the available file size unless `-f` is
+used, validates complete canonical UUIDs, truncates labels to 15 bytes with a
+warning, and reports usable bytes excluding the header page. Its selected
+util-linux comparisons use small zero-filled regular images and fixed UUIDs.
+Page sizes are restricted to powers of two from 2048 through 65536 bytes;
+only 4096-byte pages were exercised. Raw devices, swap activation, random UUID
+generation and I/O failure recovery remain unqualified.
+
+`ln` accepts `-n`/`-h` when replacing a symlink to a directory and returns a
+single failure status across multiple failed operands. `chgrp`, `setsid` and
+`expand` return the reference utility's status for their selected argument errors.
+`rmdir --ignore-fail-on-non-empty` suppresses nonempty-directory errors while
+preserving missing-path and wrong-type errors. `rm -i` reads confirmations from
+standard input; the last `-f` or `-i` wins. Its bounded fixtures cover ordinary
+files and small recursive trees, without terminal or localized-prompt coverage.
+
+`zstd --no-content-size` omits the original size field in compressed frames.
+Its options must precede file operands. `utf8 slice` returns an empty string
+when a codepoint or grapheme start is at or beyond the end. `whatis` keeps its
+documented exact-name lookup; the installed man-db backend also matches prefixes,
+so that behavior remains an explicit compatibility difference.
+
+`bashkmod weak-modules` creates usable relative links inside an explicitly
+selected module tree. Its tests use synthetic files and do not load modules.
+`bashmount --mountpoint` returns status 32 for an existing non-mountpoint;
+the fixtures only query private files and directories. `fdisk` preserves the
+documented default type 05 for an extended partition and 83 for a logical
+partition when the type field is omitted or empty. Its custom-interface checks
+decode small private regular images; real devices and kernel updates are excluded.
+
+`bashinotify wait -n` retains unreported events for the next call; closing the
+watch clears that queue. `setfacl` uses a symlink target's mode when creating its
+base ACL and returns status 2 for invalid ACL text. `coreutils shred -x` and
+`--exact` accept exact-size operation, which is also this implementation's
+default. The tests compare small private files after a zero pass and establish
+no physical-erasure guarantee.
+
+`stat` applies byte precision to strings and minimum digit precision to
+integers, including width and zero-padding interactions. Its selected `%N`
+cases match GNU quoting for ordinary apostrophes; fractional timestamp
+precision and control-character quoting remain outside this coverage.
+`flock` uses util-linux's usage, descriptor, open and timer-error statuses,
+checks command arity before opening files, and treats a numeric operand as a
+filename when followed by a command. Tests use private locks and bounded children.
+`pgrep` accepts a trailing selector comma, and `sync` rejects unknown options
+with status 1 before attempting synchronization.
+
+`getfacl` includes effective-permission comments for restrictive masks and
+shows access and default ACLs together unless a selection flag is supplied.
+Its mode fallback follows symlink targets. `tinfo` reads the separate name-offset
+table in the [ncurses extended terminfo format](https://www.invisible-island.net/ncurses/man/term.5.html),
+including ordinary cancelled-string records. Independent `tic`/`tput` fixtures
+cover those records; this does not qualify every database or terminal operation.
+
 These are bounded interfaces, not complete implementations of every GNU option.
 `gzip` does not implement recursive traversal, listing statistics, `-N` filename
 restoration, or legacy compress formats; trailing non-gzip data is an error.
 Compressed bytes need not match GNU gzip's compression choices.
 `tar` uses the existing pax engine: it reads GNU long-name and PAX headers,
-regular files, directories, symlinks, and hard links. Creation stores hard-linked
-files as separate regular members. Device entries, sparse formats, append/update,
+regular files, directories, symlinks, hard links and FIFO metadata. Creation
+preserves regular hardlinks across recursion and `-C` operands when member names
+do not conflict. Conflicting names can make a later hardlink bind to replacement
+data, matching GNU tar; source topology across such collisions is not preserved.
+Device entries, sparse formats, append/update,
 absolute member names, and unsafe link targets are unsupported. Its verbose
 listing uses the pax format. Use `-z` to read gzip archives. Gzip tar operations
 use a temporary archive file, so temporary storage must be available.
@@ -267,3 +356,25 @@ records 1,712 passing checks across 143 suites in each canonical build:
 It includes 83 sanitizer checks, 16 package loading gates and 131 passing
 Docker comparisons. These results cover the same fixtures in both builds;
 the two pass totals are not independent coverage or performance measurements.
+
+The [fifth validation checkpoint](data/loadable-parity-validation-5.json)
+integrates all 289 reviewed suites with 3,806 cases. Each canonical build has
+3,155 passing checks, 28 failing comparisons, 23 optional-module skips and
+600 deferred cases. These totals incorporate 19 ACL comparisons run in a second
+reference environment with identical binary and fixture hashes; existing
+metadata passes are counted once. The 167 focused regression suites separately
+pass 2,076 checks with 260 deferred, and overlap the full reviewed set.
+
+Strict differences remain for `apropos`, `bc`, `binhex`, `getconf`, `git`,
+`logname`, `nano`, `sftp`, `strings`, `whatis` and `whoami`. They include custom
+interfaces, diagnostics, help/version text and configuration inventory output;
+the record lists each failing case. The reviewed fixtures retain these
+comparisons. Corrections to stale contracts and fixture setup are recorded
+separately from production fixes.
+
+The same static binary passed all 131 Docker comparisons. Separately loaded
+Perl and Python modules and uv metadata passed 23 checks against the canonical
+dynamic shell, with eight deferred operations. Those module checks do not
+make the optional modules available in the bare binaries or Docker image.
+Selected sanitizer and package evidence includes explicit source, fixture and
+dependency-provenance limits. No new performance measurements are recorded.

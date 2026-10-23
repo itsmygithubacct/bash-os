@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "loadable": "utmp",
+  "reference": "No GNU CLI is a one-to-one oracle for this Bash loadable's login/logout/boot/shutdown/btmp API. Runnable cases are documented-contract checks: Bash type/help metadata plus fixed-width Linux utmp records emitted by an independent Bash encoder at the glibc 384-byte record layout. Writer cases verify documented fields through readback and independent Python struct decoding of record types, sizes and representative fields. Host-default accounting paths are deferred. Writer record types and sizes are also decoded independently with Python struct for the Linux/glibc little-endian 384-byte layout.",
+  "coverage": [
+    "Bash builtin availability metadata and help text for documented subcommands",
+    "Unknown subcommand rejection",
+    "dump formatting and USER_PROCESS filtering from independently encoded records",
+    "btmp latest-N selection and recovery of complete records before a torn tail",
+    "btmp record creation through an explicit relative path and readback",
+    "login/logout lifecycle through explicit relative utmp, wtmp, and lastlog paths",
+    "boot and shutdown wtmp records through an explicit relative path",
+    "lastlog dump formatting for the fixture login record"
+  ],
+  "exclusions": [
+    "No matching GNU command exposes the same subcommand API, so these are contract cases rather than fabricated parity comparisons.",
+    "Default /var/run and /var/log accounting paths are not touched; disposable-VM integration is deferred.",
+    "Cross-checking records with system who/last/lastlog consumers is outside this loadable-only suite.",
+    "Binary layout checks target the pinned Linux/glibc little-endian ABI; they do not claim cross-platform utmp layout portability."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports utmp as an enabled loadable builtin without invoking an accounting operation.",
+      "script": "type -t utmp",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_lists_subcommands",
+      "kind": "contract",
+      "purpose": "Check the documented help exposes the login/logout, wtmp, dump, lastlog, and btmp forms advertised by utmp_doc.",
+      "script": "doc=$(help utmp)\n[[ $doc == *\"utmp login\"* && $doc == *\"utmp logout\"* && $doc == *\"utmp boot\"* && $doc == *\"utmp shutdown\"* && $doc == *\"utmp dump\"* && $doc == *\"utmp lastlog dump\"* && $doc == *\"utmp btmp read\"* ]]\nprintf 'documented-subcommands-present\\n'",
+      "expected_status": 0,
+      "stdout": "documented-subcommands-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_subcommand_rejected",
+      "kind": "contract",
+      "purpose": "Verify an unrecognized verb fails with a diagnostic while leaving the fixture clean.",
+      "script": "utmp not_a_real_subcommand",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dump_independent_fixed_width_records",
+      "kind": "contract",
+      "purpose": "Read independently encoded 384-byte Linux utmp records, format the USER_PROCESS entry, and omit a LOGIN_PROCESS entry.",
+      "script": "put_le16() { local v=$1 i b; for ((i=0; i<2; i++)); do printf -v b '\\\\%03o' \"$((v & 255))\"; printf '%b' \"$b\"; v=$((v >> 8)); done; }\nput_le32() { local v=$1 i b; for ((i=0; i<4; i++)); do printf -v b '\\\\%03o' \"$((v & 255))\"; printf '%b' \"$b\"; v=$((v >> 8)); done; }\nzeros() { local n=$1; while ((n > 0)); do printf '\\000'; n=$((n - 1)); done; }\nemit() { local type=$1 pid=$2 sec=$3 usec=$4 line=$5 ident=$6 user=$7 host=$8; { put_le16 \"$type\"; zeros 2; put_le32 \"$pid\"; printf '%-32s%-4s%-32s%-256s' \"$line\" \"$ident\" \"$user\" \"$host\"; zeros 8; put_le32 \"$sec\"; put_le32 \"$usec\"; zeros 36; } >> records; }\n: > records\nemit 7 4242 1700000000 123000 pts/7 s7 alice fixture.example\nemit 6 777 1700000000 0 tty8 ty ignored should-not-appear\nutmp dump records",
+      "expected_status": 0,
+      "stdout": "alice                            pts/7                            fixture.example                                                                                                                                                                                                                                                  2023-11-14 22:13:20 pid=4242\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "btmp_limit_and_torn_tail",
+      "kind": "contract",
+      "purpose": "Check btmp read selects the newest requested whole record and reports a one-byte torn tail while still displaying that record.",
+      "script": "put_le16() { local v=$1 i b; for ((i=0; i<2; i++)); do printf -v b '\\\\%03o' \"$((v & 255))\"; printf '%b' \"$b\"; v=$((v >> 8)); done; }\nput_le32() { local v=$1 i b; for ((i=0; i<4; i++)); do printf -v b '\\\\%03o' \"$((v & 255))\"; printf '%b' \"$b\"; v=$((v >> 8)); done; }\nzeros() { local n=$1; while ((n > 0)); do printf '\\000'; n=$((n - 1)); done; }\nemit() { local pid=$1 sec=$2 line=$3 ident=$4 user=$5 host=$6; { put_le16 7; zeros 2; put_le32 \"$pid\"; printf '%-32s%-4s%-32s%-256s' \"$line\" \"$ident\" \"$user\" \"$host\"; zeros 8; put_le32 \"$sec\"; put_le32 0; zeros 36; } >> failures; }\n: > failures\nemit 101 1700000000 pts/1 p1 earlier host-one\nemit 102 1700000600 pts/2 p2 latestuser host-two\nprintf x >> failures\nrows=$(utmp btmp read -f failures -n 1)\n[[ -n $rows && $rows != *$'\\n'* ]]\n[[ $rows != *earlier* && $rows == *latestuser*pts/2*host-two*\"2023-11-14 22:23:20\"* ]]\nprintf 'latest-record-recovered-before-torn-tail\\n'",
+      "expected_status": 0,
+      "stdout": "latest-record-recovered-before-torn-tail\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "btmp_record_relative_path_roundtrip",
+      "kind": "contract",
+      "purpose": "Exercise the documented btmp record form using a relative fixture path, then check its user, line, host, and timestamp through btmp read.",
+      "script": "utmp btmp record -f failures alice pts/8 edge-host\n[[ -s failures ]]\nrow=$(utmp btmp read -f failures -n 1)\n[[ -n $row && $row != *$'\\n'* && $row == *alice*pts/8*edge-host* ]]\n[[ $row =~ [0-9]{4}-[0-9]{2}-[0-9]{2}\\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]\nprintf 'relative-btmp-record-roundtrip\\n'\n/usr/bin/python3 - <<'PYRECORDS'\nimport struct\nfrom pathlib import Path\nraw=Path('failures').read_bytes()\nassert len(raw)==384*1\nassert [struct.unpack_from('<h',raw,p)[0] for p in range(0,len(raw),384)]==[7]\nassert raw[8:40].split(b'\\0')[0]==b'pts/8'\nassert raw[44:76].split(b'\\0')[0]==b'alice'\nassert raw[76:332].split(b'\\0')[0]==b'edge-host'\nassert Path('failures').stat().st_mode & 0o777==0o600\nprint('independent record types verified')\nPYRECORDS\n",
+      "expected_status": 0,
+      "stdout": "relative-btmp-record-roundtrip\nindependent record types verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "login_logout_relative_path_lifecycle",
+      "kind": "contract",
+      "purpose": "Check login creates an active fixture record and logout clears it and appends a dead marker to the fixture wtmp, using only relative paths.",
+      "script": "utmp login -u active.utmp -w history.wtmp -l lastlog.fixture runner pts/demo host-a\n[[ -s active.utmp && -s history.wtmp ]]\nlive=$(utmp dump active.utmp)\n[[ -n $live && $live != *$'\\n'* && $live == *runner*pts/demo*host-a*pid=* ]]\nlastlog=$(utmp lastlog dump lastlog.fixture)\n[[ $lastlog == uid=*' line=pts/demo host=host-a time='* && $lastlog != *$'\\n'* ]]\n[[ $lastlog =~ time=[0-9]+$ ]]\nutmp logout -u active.utmp -w history.wtmp pts/demo\n[[ -z $(utmp dump active.utmp) ]]\nhistory=$(utmp dump history.wtmp)\n[[ -n $history && $history != *$'\\n'* && $history == *runner*pts/demo*host-a* ]]\ntail=$(utmp btmp read -f history.wtmp -n 1)\n[[ -n $tail && $tail != *$'\\n'* && $tail == *pts/demo* && $tail != *runner* && $tail != *host-a* ]]\nprintf 'private-login-logout-transition\\n'\n/usr/bin/python3 - <<'PYRECORDS'\nimport struct\nfrom pathlib import Path\nraw=Path('active.utmp').read_bytes()\nassert len(raw)==384*1\nassert [struct.unpack_from('<h',raw,p)[0] for p in range(0,len(raw),384)]==[8]\nraw=Path('history.wtmp').read_bytes()\nassert len(raw)==384*2\nassert [struct.unpack_from('<h',raw,p)[0] for p in range(0,len(raw),384)]==[7, 8]\nprint('independent record types verified')\nPYRECORDS\n",
+      "expected_status": 0,
+      "stdout": "private-login-logout-transition\nindependent record types verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "boot_shutdown_relative_wtmp",
+      "kind": "contract",
+      "purpose": "Verify the documented boot and shutdown entries append to an explicit relative wtmp and are readable as the expected reboot/shutdown records.",
+      "script": "utmp boot lifecycle.wtmp\nutmp shutdown lifecycle.wtmp\n[[ -s lifecycle.wtmp ]]\nrows=$(utmp btmp read -f lifecycle.wtmp)\n[[ $rows == *reboot*~*shutdown*~* && $rows == *$'\\n'* ]]\nprintf 'boot-and-shutdown-appended\\n'\n/usr/bin/python3 - <<'PYRECORDS'\nimport struct\nfrom pathlib import Path\nraw=Path('lifecycle.wtmp').read_bytes()\nassert len(raw)==384*2\nassert [struct.unpack_from('<h',raw,p)[0] for p in range(0,len(raw),384)]==[2, 1]\nprint('independent record types verified')\nPYRECORDS\n",
+      "expected_status": 0,
+      "stdout": "boot-and-shutdown-appended\nindependent record types verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_accounting_paths_deferred",
+      "kind": "deferred",
+      "purpose": "Exercise login/logout and boot/shutdown against the loadable's default accounting locations and validate effects on the operating-system session databases.",
+      "reason": "Requires a disposable VM with private /var/run/utmp, /var/log/wtmp, and /var/log/lastlog files, plus a controlled passwd entry and an independent utmpdump/who/last reader. Default paths are intentionally not opened in this suite."
+    }
+  ]
+}

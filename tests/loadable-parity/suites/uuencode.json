@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "loadable": "uuencode",
+  "reference": "No GNU uuencode executable is installed in the host reference PATH. Contract outputs were generated independently: Python 3 binascii.b2a_uu(..., backtick=True) for classic uu lines, RFC 4648 base64 via Python base64.b64encode for -m lines, with independently specified 45-byte chunks and format headers/trailers. Metadata help expectation uses Bash help formatting: the registered usage string followed by each public documentation string; type output uses Bash builtin metadata.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "classic uu encoding of binary and empty stdin",
+    "classic and base64 45-byte line boundaries",
+    "base64 padding and terminator",
+    "named-file and stdin permission headers under a nondefault umask",
+    "explicit '-' stdin operand and repeated stdin redirections in one Bash process",
+    "missing-operand and missing-source failure behavior"
+  ],
+  "exclusions": [
+    "GNU byte-for-byte parity is unavailable because no uuencode CLI is installed; all runnable cases are explicitly contract cases, not claimed GNU parity.",
+    "No deferred operation case is needed: this encoder uses ordinary fixture data and does not require privilege, hardware, a terminal driver, or a network peer."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash reports the registered loadable as a builtin; metadata only, not operation coverage.",
+      "script": "type -t uuencode",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "The Bash help text matches the loadable's documented command summary and synopsis.",
+      "script": "help uuencode",
+      "expected_status": 0,
+      "stdout": "uuencode: uuencode [-m] [FILE] NAME\n    Encode FILE or stdin in uuencode format (classic uu, or base64 with -m).\n        uuencode [-m] [FILE] NAME\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "classic-binary-stdin",
+      "kind": "contract",
+      "purpose": "Classic uu encoding preserves NUL, control, high-bit, and ordinary bytes in one short stdin payload.",
+      "script": "printf '\\000\\001\\002\\177\\200\\377A' | uuencode binary.dat",
+      "expected_status": 0,
+      "stdout": "begin 644 binary.dat\n'``$\"?X#_00``\n`\nend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "classic-empty",
+      "kind": "contract",
+      "purpose": "An empty classic input still emits the length-zero terminator and end marker.",
+      "script": ": | uuencode empty.dat",
+      "expected_status": 0,
+      "stdout": "begin 644 empty.dat\n`\nend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "classic-45-byte-wrap",
+      "kind": "contract",
+      "purpose": "A 46-byte classic input produces a full 45-byte line followed by a one-byte line.",
+      "script": "for ((i=0; i<46; i++)); do printf '%d' \"$((i % 10))\"; done | uuencode wrap.dat",
+      "expected_status": 0,
+      "stdout": "begin 644 wrap.dat\nM,#$R,S0U-C<X.3`Q,C,T-38W.#DP,3(S-#4V-S@Y,#$R,S0U-C<X.3`Q,C,T\n!-0``\n`\nend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "base64-padding",
+      "kind": "contract",
+      "purpose": "The -m mode uses RFC 4648 base64 padding for a two-byte input and emits its format trailer.",
+      "script": "printf 'A\\000' | uuencode -m encoded.dat",
+      "expected_status": 0,
+      "stdout": "begin-base64 644 encoded.dat\nQQA=\n====\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "base64-45-byte-wrap",
+      "kind": "contract",
+      "purpose": "The -m mode wraps after 45 input bytes and puts the final byte in a padded second line.",
+      "script": "for ((i=0; i<46; i++)); do printf '%d' \"$((i % 10))\"; done | uuencode -m wrapped.dat",
+      "expected_status": 0,
+      "stdout": "begin-base64 644 wrapped.dat\nMDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0\nNQ==\n====\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "file-and-stdin-modes",
+      "kind": "contract",
+      "purpose": "A named input reports its created 0640 mode; stdin uses 0666 masked by umask 027 in classic and base64 headers.",
+      "script": "umask 027; printf 'source-content\\n' > input.dat; uuencode input.dat 'remote/path with spaces'; printf 'stdin-content\\n' | uuencode -m base64-name",
+      "expected_status": 0,
+      "stdout": "begin 640 remote/path with spaces\n/<V]U<F-E+6-O;G1E;G0*\n`\nend\nbegin-base64 640 base64-name\nc3RkaW4tY29udGVudAo=\n====\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "dash-stdin-operand",
+      "kind": "contract",
+      "purpose": "An explicit FILE operand of - reads stdin and uses the default masked stdin mode.",
+      "script": "printf 'dash' | uuencode - dash.name",
+      "expected_status": 0,
+      "stdout": "begin 644 dash.name\n$9&%S:```\n`\nend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-stdin-input",
+      "kind": "contract",
+      "purpose": "Two stdin redirections in one Bash process encode both distinct files, guarding against a stale EOF indicator.",
+      "script": "printf 'first\\n' > first.dat; printf 'second\\n' > second.dat; uuencode first.out < first.dat; uuencode second.out < second.dat",
+      "expected_status": 0,
+      "stdout": "begin 644 first.out\n&9FER<W0*\n`\nend\nbegin 644 second.out\n'<V5C;VYD\"@``\n`\nend\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-operand",
+      "kind": "contract",
+      "purpose": "The documented synopsis requires a decode name; omitting all operands reports usage and exits with EX_USAGE.",
+      "script": "uuencode",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-input-file",
+      "kind": "contract",
+      "purpose": "A missing named source fails before producing an encoded header and emits a diagnostic.",
+      "script": "uuencode absent.dat destination",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "base64-empty",
+      "kind": "contract",
+      "purpose": "Empty RFC 4648 payload emits framing and trailer only.",
+      "script": "printf '' | uuencode -m empty.dat",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "begin-base64 644 empty.dat\n====\n"
+    }
+  ]
+}

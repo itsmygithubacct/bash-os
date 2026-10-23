@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "loadable": "asort",
+  "reference": "No matching GNU CLI exists for Bash's array builtin. Operation expectations are fixed independently from the stock Bash asort help contract and documented semantics; C-locale lexical order and distinct numeric values give explicit expected arrays. These are contract checks, not GNU parity comparisons.",
+  "coverage": [
+    "Bash type/help metadata and documented option synopsis",
+    "In-place lexical sorting, including sparse-index compaction",
+    "Reverse sorting across multiple indexed arrays",
+    "Numeric ascending and descending order",
+    "Indexed destination mode with sparse source indexes, including numeric mode",
+    "Associative source keys ordered by their values",
+    "Empty arrays and documented error/usage statuses",
+    "Failures remain nonzero while later valid arrays are sorted and rejected variables stay unchanged.",
+    "Empty/space-bearing strings and flag reset across repeated calls."
+  ],
+  "exclusions": [
+    "No GNU CLI exposes this Bash array API, so no parity cases are claimed.",
+    "Equal-key stability is not documented and is intentionally not asserted.",
+    "Locale-sensitive non-ASCII collation, malformed numeric strings, and large-array performance are outside this small deterministic suite.",
+    "Error wording is allowed to vary; error cases assert status and nonempty stderr.",
+    "In-place sorting of associative arrays is excluded because the documented contract forbids it and this suite does not probe that unsupported operation."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check Bash reports asort as a builtin and help exposes its summary, numeric option, index-mode description, and associative-array restriction.",
+      "script": "[[ $(type -t asort) == builtin ]]\nhelp_text=$(help asort)\n[[ $help_text == *\"Sort arrays in-place.\"* ]]\n[[ $help_text == *\"-n  compare according to string numerical value\"* ]]\n[[ $help_text == *\"SOURCE is not sorted in-place\"* ]]\n[[ $help_text == *\"Associative arrays may not be sorted in-place.\"* ]]\nprintf '%s\\n' 'builtin-help-ok'",
+      "expected_status": 0,
+      "stdout": "builtin-help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "inplace-lexical-sparse",
+      "kind": "contract",
+      "purpose": "Sort sparse indexed values by C-locale lexical order and verify in-place sorting renumbers elements densely from zero.",
+      "script": "words=([7]=pear [2]=apple [12]=fig)\nasort words\nprintf 'indices=%s\\nvalues=%s\\n' \"${!words[*]}\" \"${words[*]}\"",
+      "expected_status": 0,
+      "stdout": "indices=0 1 2\nvalues=apple fig pear\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reverse-multiple-arrays",
+      "kind": "contract",
+      "purpose": "Check -r reverses lexical order and applies to every indexed array named in one invocation.",
+      "script": "left=(pear apple fig)\nright=(delta beta gamma)\nasort -r left right\nprintf 'left=%s\\nright=%s\\n' \"${left[*]}\" \"${right[*]}\"",
+      "expected_status": 0,
+      "stdout": "left=pear fig apple\nright=gamma delta beta\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "numeric-ascending",
+      "kind": "contract",
+      "purpose": "Sort distinct negative, fractional, and integral numeric strings in ascending numeric order with -n.",
+      "script": "values=(10 -2 3 0.5)\nasort -n values\nprintf '%s\\n' \"${values[@]}\"",
+      "expected_status": 0,
+      "stdout": "-2\n0.5\n3\n10\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "numeric-reverse",
+      "kind": "contract",
+      "purpose": "Check combined -nr options produce descending numeric order for distinct values.",
+      "script": "values=(0.5 10 -2 3)\nasort -nr values\nprintf '%s\\n' \"${values[@]}\"",
+      "expected_status": 0,
+      "stdout": "10\n3\n0.5\n-2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "index-mode-sparse-source",
+      "kind": "contract",
+      "purpose": "Sort an indexed source by its values, place original sparse indexes in a dense destination, and leave source values unchanged.",
+      "script": "src=([8]=bravo [2]=alpha [20]=charlie)\nasort -i order src\nprintf 'order=%s\\nsrc=%s\\n' \"${order[*]}\" \"${src[*]}\"",
+      "expected_status": 0,
+      "stdout": "order=2 8 20\nsrc=alpha bravo charlie\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "index-mode-associative-source",
+      "kind": "contract",
+      "purpose": "For an associative source, sort by values and emit the corresponding keys in an indexed destination without modifying the source.",
+      "script": "declare -A colors=([violet]=plum [green]=leaf [red]=apple)\nasort -i keys colors\nprintf 'keys=%s\\nsource=%s %s %s\\n' \"${keys[*]}\" \"${colors[red]}\" \"${colors[green]}\" \"${colors[violet]}\"",
+      "expected_status": 0,
+      "stdout": "keys=red green violet\nsource=apple leaf plum\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "index-mode-numeric-sparse-source",
+      "kind": "contract",
+      "purpose": "Combine -n and -i to emit sparse indexed keys in the order of their distinct numeric source values.",
+      "script": "src=([9]=3 [1]=100 [5]=20)\nasort -n -i order src\nprintf 'order=%s\\nsrc=%s\\n' \"${order[*]}\" \"${src[*]}\"",
+      "expected_status": 0,
+      "stdout": "order=9 5 1\nsrc=100 20 3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-array",
+      "kind": "contract",
+      "purpose": "Verify an empty indexed array is a successful no-op and remains empty.",
+      "script": "values=()\nasort values\nprintf 'count=%s\\n' \"${#values[@]}\"",
+      "expected_status": 0,
+      "stdout": "count=0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-error-statuses",
+      "kind": "contract",
+      "purpose": "Assert documented failure statuses for a scalar and a readonly indexed array. Diagnostics may vary; unsupported in-place associative sorting is excluded.",
+      "script": "scalar=value\ndeclare -ar locked=(z a)\nset +e\nasort scalar; scalar_rc=$?\nasort locked; readonly_rc=$?\nset -e\nprintf 'scalar=%s readonly=%s\\n' \"$scalar_rc\" \"$readonly_rc\"",
+      "expected_status": 0,
+      "stdout": "scalar=1 readonly=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "usage-error-statuses",
+      "kind": "contract",
+      "purpose": "Check usage errors for a missing operand, an unknown option, and incorrect -i arity return the documented usage status.",
+      "script": "values=(b a)\nif asort; then missing_rc=0; else missing_rc=$?; fi\nif asort -z values; then option_rc=0; else option_rc=$?; fi\nif asort -i only_destination; then index_rc=0; else index_rc=$?; fi\nprintf 'missing=%s option=%s index-arity=%s\\n' \"$missing_rc\" \"$option_rc\" \"$index_rc\"",
+      "expected_status": 0,
+      "stdout": "missing=2 option=2 index-arity=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "mixed-operands-preserve-failure",
+      "kind": "contract",
+      "purpose": "An earlier rejected scalar or readonly array must keep the command status nonzero even when later valid arrays sort successfully; rejected values stay intact.",
+      "script": "declare -a left=(z a) right=(d b)\nscalar=value\ndeclare -ar locked=(y x)\nrc=0\nasort left scalar locked right || rc=$?\n[[ $rc == 1 ]]\nprintf \"status=%s left=%s,%s right=%s,%s scalar=%s locked=%s,%s\\n\" \"$rc\" \"${left[0]}\" \"${left[1]}\" \"${right[0]}\" \"${right[1]}\" \"$scalar\" \"${locked[0]}\" \"${locked[1]}\"",
+      "expected_status": 0,
+      "stdout": "status=1 left=a,z right=b,d scalar=value locked=y,x\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "strings-with-empty-and-spaces",
+      "kind": "contract",
+      "purpose": "Sort empty and whitespace-bearing strings without splitting or dropping values.",
+      "script": "values=('z z' '' 'a b' a)\nasort values\nprintf '<%s>\\n' \"${values[@]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "<>\n<a>\n<a b>\n<z z>\n"
+    },
+    {
+      "id": "repeated-option-reset",
+      "kind": "contract",
+      "purpose": "Numeric/reverse flags must reset before a later default lexical invocation.",
+      "script": "first=(2 10 1); second=(2 10 1)\nasort -nr first\nasort second\nprintf '%s\\n' \"${first[*]}\" \"${second[*]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "10 2 1\n1 10 2\n"
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "loadable": "ts",
+  "reference": "The ts contracts are handwritten from docs/opus-ts.md, the Tree-sitter JSON grammar and byte-position rules, and the fixed expectations in tests/opus-ts-highlight.py (which docs/opus-ts.md identifies as handwritten); UTF-8 byte positions are counted from the literal input. No expected output was read from the pinned review candidate. A broader differential is deferred because the runner has no matching upstream tree-sitter CLI/grammar reference.",
+  "coverage": [
+    "Bash type/help metadata for the ts loadable",
+    "JSON parse root shape and query byte offsets/columns with a multibyte character before a capture",
+    "JSON highlight winning spans and ANSI rendering for an object key and number",
+    "Tree handle child-path lookup, node type/range/text, and invalidation after free",
+    "Incremental edit generation invalidation and correct highlighted spans",
+    "Rejected edit range preserves the old source; unknown-language status"
+  ],
+  "exclusions": [
+    "No testing or changes to hl, nano, or other loadables.",
+    "No full upstream Tree-sitter differential across all bundled grammars or arbitrary query syntax; see the deferred case."
+  ],
+  "cases": [
+    {
+      "id": "bash_metadata",
+      "kind": "contract",
+      "purpose": "Check the Bash metadata contract: ts is a builtin and Bash can retrieve its short help synopsis.",
+      "script": "[[ $(type -t ts) == builtin ]]; help -s ts > metadata.out; printf 'builtin\\nhelp available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "json_parse_root",
+      "kind": "contract",
+      "purpose": "Parse the valid JSON scalar null and check the documented root S-expression shape. The invisible JSON value supertype is omitted from Tree-sitter's printed tree.",
+      "script": "printf '%s' 'null' | ts parse -L json",
+      "expected_status": 0,
+      "stdout": "(document (null))\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query_utf8_byte_offsets",
+      "kind": "contract",
+      "purpose": "Check that query positions and byte ranges count UTF-8 bytes: the two-byte \u00e9 precedes the number capture on the same line.",
+      "script": "printf '%s' '[\"\u00e9\",2]' | ts query -L json -q '(number) @n'",
+      "expected_status": 0,
+      "stdout": "n 1:7-1:8 6-7 2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "json_highlight_spans_and_render",
+      "kind": "contract",
+      "purpose": "Check the documented non-overlapping winner for a JSON key, the number span, and SGR rendering transitions for the fixed source bytes.",
+      "script": "printf '%s' '{\"k\":1}' | ts highlight -L json -S; printf '%s' '{\"k\":1}' | ts highlight -L json",
+      "expected_status": 0,
+      "stdout": "1-4 1;36 string.special.key\n5-6 33 number\n{\u001b[1;36m\"k\"\u001b[0m:\u001b[33m1\u001b[0m}",
+      "stderr": "empty"
+    },
+    {
+      "id": "node_path_range_text_and_free",
+      "kind": "contract",
+      "purpose": "Resolve a node through absolute child indices including anonymous punctuation, then verify its documented byte range and exact source text; freeing the tree invalidates its handle. Preserve failure diagnostics in harness stderr.",
+      "script": "ts parse-tree -L json -t T < <(printf '%s' '{\"a\":[1]}')\nts node-type \"$T:0,1,2,1\"\nts node-range \"$T:0,1,2,1\"\nts node-text \"$T:0,1,2,1\"\nprintf '\\n'\nts free \"$T\"\nif ts node-type \"$T\"; then printf 'stale=0\\n'; else rc=$?; printf 'stale=%s\\n' \"$rc\"; fi",
+      "expected_status": 0,
+      "stdout": "number\n1 7 1 8 6 7\n1\nstale=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "incremental_edit",
+      "kind": "contract",
+      "purpose": "Replace the whole five-byte JSON array with a seven-byte object, check that the old generation stops resolving, and check the documented key/number spans on the edited tree. Preserve failure diagnostics in harness stderr.",
+      "script": "ts parse-tree -L json -t T < <(printf '%s' '[\"k\"]')\nold=$T\nts edit \"$T\" 0 5 7 -t T < <(printf '%s' '{\"k\":1}')\nif ts node-type \"$old\"; then printf 'stale=0\\n'; else rc=$?; printf 'stale=%s\\n' \"$rc\"; fi\nts highlight -t \"$T\" -S\nts free \"$T\"",
+      "expected_status": 0,
+      "stdout": "stale=2\n1-4 1;36 string.special.key\n5-6 33 number\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "rejected_edit_preserves_source",
+      "kind": "contract",
+      "purpose": "Supply a range whose prefix/suffix do not describe the actual source change; the documented rejection must leave the original tree source usable. Preserve failure diagnostics in harness stderr.",
+      "script": "ts parse-tree -L json -t T < <(printf '%s' '{\"a\":1}')\nif ts edit \"$T\" 1 2 2 -t T < <(printf '%s' '{\"b\":1}'); then rc=0; else rc=$?; fi\nprintf 'edit status=%s\\n' \"$rc\"\nts node-text \"$T\"\nprintf '\\n'\nts free \"$T\"",
+      "expected_status": 0,
+      "stdout": "edit status=2\n{\"a\":1}\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown_language_status",
+      "kind": "contract",
+      "purpose": "Check the documented usage status for an unknown grammar name without depending on diagnostic wording. Preserve failure diagnostics in harness stderr.",
+      "script": ": > empty\nif ts parse -L absent < empty; then rc=0; else rc=$?; fi; printf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stdout": "status=2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "upstream_tree_sitter_differential",
+      "kind": "deferred",
+      "purpose": "A full parser/query differential across all five bundled grammars would validate broad compatibility beyond the small documented contracts.",
+      "reason": "The runner exposes GNU reference tools but no upstream tree-sitter CLI with the exact bundled grammar revisions. A future comparison needs a disposable VM with a pinned tree-sitter CLI and matching JSON, TOML, Bash, Markdown block, and Markdown inline grammar/query sources; this case executes no operation and is not a pass."
+    },
+    {
+      "id": "fixture_file_ops",
+      "kind": "parity",
+      "purpose": "Create, copy, link, rename and remove ordinary relative fixtures, then query the surviving JSON file through ts. The reference adapter uses jq to select the numeric value and independently counted byte coordinates for this fixed document. Compare output plus full file modes, bytes, hardlinks and symlink targets.",
+      "requires": [
+        "chmod",
+        "cp",
+        "ln",
+        "mkdir",
+        "mv",
+        "rm",
+        "rmdir",
+        "touch",
+        "unlink",
+        "jq"
+      ],
+      "script": "mkdir -p fixture/sub\ntouch fixture/sub/input\nprintf '%s\\n' '{\"k\":[1,true]}' > fixture/sub/input\ncp fixture/sub/input fixture/copy\nln fixture/copy fixture/hard\nln -s final fixture/sym\nchmod 640 fixture/copy\nmv fixture/copy fixture/final\nln fixture/final fixture/remove-me\nunlink fixture/remove-me\nrm fixture/sub/input\nrmdir fixture/sub\nprintf 'fixture file operations completed\\n'\nif [[ $(type -t ts) == builtin ]]; then\n ts query -L json -q '(number) @n' < fixture/final\nelse\n value=$(jq -r '.k[0]' fixture/final)\n [[ $value == 1 ]]\n printf 'n 1:7-1:8 6-7 %s\\n' \"$value\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

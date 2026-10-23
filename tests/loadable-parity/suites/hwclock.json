@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "loadable": "hwclock",
+  "reference": "The runnable contract expectations use documented Bash builtin behavior: `type -t` identifies a registered builtin, and `help`/`help -s` expose its registered help topic. Required help terms are cross-checked against the documented hwclock subset in sol-hwclock.md and the loadable's public synopsis. Deferred operation expectations are specified against Gregorian calendar conversion (an independent `calendar.timegm`/POSIX UTC encoder), controlled zoneinfo/POSIX local-time conversion, the documented three-line adjtime format and drift correction formula, and observable RTC/time syscall traces. No expected value is taken from candidate output. There are no runnable GNU hwclock parity cases: the shared operations require RTC access or clock mutation, while util-linux `--predict` has no corresponding candidate operation.",
+  "coverage": [
+    "Bash reports hwclock as a registered builtin with an empty executable search path.",
+    "Bash full and short help metadata contain the documented action and adjustment-file options.",
+    "DEFERRED: deterministic raw RTC show formatting through a synthetic RTC read.",
+    "DEFERRED: UTC and local RTC-to-system-time conversions, including DST gap and fold behavior, with clock_settime intercepted.",
+    "DEFERRED: system-time-to-RTC conversion and adjtime reset through clock_gettime and RTC_SET_TIME mocks.",
+    "DEFERRED: positive, negative, fractional and zero-effective drift adjustment with private adjtime files.",
+    "DEFERRED: malformed adjtime rejection before RTC access and documented missing-file/default behavior.",
+    "DEFERRED: RTC and adjtime write failures, cleanup, and preservation of prior calibration files.",
+    "Metadata results are not operation coverage; deferred operations are not passes."
+  ],
+  "exclusions": [
+    "No hwclock operation was invoked. The current runner has no RTC/time syscall shim, and direct show or setter calls would access hardware or risk changing host-visible clock state.",
+    "No GNU hwclock parity case is run. The safe util-linux --predict mode has no equivalent in this implementation, and the common operations are not safe to invoke without an isolated RTC/time mock.",
+    "Physical RTC accuracy, kernel/NTP coordination, driver-specific behavior, and actual system-clock mutation are outside this suite; deferred cases require a disposable VM or a syscall-intercepting mock."
+  ],
+  "cases": [
+    {
+      "id": "builtin-kind",
+      "kind": "contract",
+      "purpose": "Check the Bash command-resolution contract for the loadable while the candidate executable search path is empty; the result must identify hwclock as a builtin.",
+      "script": "[[ $(type -t hwclock) == builtin ]]\nprintf '%s\\n' builtin",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-help-metadata",
+      "kind": "contract",
+      "purpose": "Resolve both Bash help forms and ensure the registered help topic advertises the documented hctosys, systohc, adjust, and adjfile-disable options without invoking hwclock.",
+      "script": "doc=$(help hwclock)\n[[ $doc == *'--hctosys'* ]]\n[[ $doc == *'--systohc'* ]]\n[[ $doc == *'--adjust'* ]]\n[[ $doc == *'--noadjfile'* ]]\nhelp -s hwclock > metadata-output\nprintf '%s\\n' documented-help-entries-present",
+      "expected_status": 0,
+      "stdout": "documented-help-entries-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "show-raw-rtc-calendar",
+      "kind": "deferred",
+      "purpose": "Exercise --show and -r against fixed ordinary and leap-day RTC calendars, checking the raw YYYY-MM-DDTHH:MM:SS format and that UTC/local flags do not alter the raw display.",
+      "reason": "Requires a disposable VM with a synthetic RTC device or an RTC_RD_TIME ioctl mock returning deterministic calendars. The fixture must not open a host RTC; the oracle is the documented raw calendar format."
+    },
+    {
+      "id": "hctosys-utc-epoch",
+      "kind": "deferred",
+      "purpose": "Convert fixed RTC calendars in UTC to exact seconds with zero nanoseconds, including pre-epoch, leap-century, and 2038 boundary values, while checking syscall order and no setter call for invalid calendars.",
+      "reason": "Requires a disposable VM or syscall mock that intercepts RTC_RD_TIME and clock_settime and records requested timespecs. A future fixture must independently compute expected epochs with Gregorian/POSIX UTC conversion and must never set the host system clock."
+    },
+    {
+      "id": "hctosys-local-dst",
+      "kind": "deferred",
+      "purpose": "Check local RTC conversion in a controlled timezone, including a DST gap rejection and both valid epochs for a repeated local hour.",
+      "reason": "Requires an isolated clock_settime mock, fixed RTC reads, and controlled zoneinfo/TZ data in a disposable VM. Expected epochs must come from independent local-time conversion; the gap case must prove no clock_settime request occurred."
+    },
+    {
+      "id": "systohc-and-adjtime-reset",
+      "kind": "deferred",
+      "purpose": "Convert fixed UTC/local system timestamps to RTC fields and check that successful systohc resets adjtime timestamps, remainder, and mode; also cover --noadjfile.",
+      "reason": "Requires a fixed clock_gettime mock, intercepted RTC_SET_TIME, and private relative adjtime paths in an isolated fixture. Expected calendar fields come from an independent Gregorian/timezone encoder; no physical RTC may be written."
+    },
+    {
+      "id": "adjust-fractional-drift",
+      "kind": "deferred",
+      "purpose": "Apply positive and negative drift with fractional remainder, verify truncation toward zero and updated calibration, and check that a correction rounding to zero causes no RTC write.",
+      "reason": "Requires an intercepted RTC read/write device and private fixture adjtime files in a disposable VM or mock. A separate arithmetic oracle must compute whole-second correction and retained fractional remainder; no host RTC may be changed."
+    },
+    {
+      "id": "adjtime-validation-before-rtc",
+      "kind": "deferred",
+      "purpose": "Check the documented three-line adjtime format, accepted whitespace and missing-file defaults, and rejection of malformed, nonfinite, overflowing, NUL-containing, or trailing data before RTC access.",
+      "reason": "Requires private relative adjtime fixtures plus an RTC open/ioctl mock with call counters, so the test can verify invalid files are rejected before device access without opening a real RTC."
+    },
+    {
+      "id": "rtc-and-adjfile-failure-cleanup",
+      "kind": "deferred",
+      "purpose": "Inject RTC open/read/write/close and adjtime temporary-file write/close/rename failures; verify failure statuses, no leaked descriptors or temporary files, and preservation of the prior calibration.",
+      "reason": "Requires syscall and stdio/rename fault injection around a private fixture filesystem in a disposable VM. The fixture must intercept all RTC/time operations and independently inspect file bytes, modes, links, and cleanup."
+    }
+  ]
+}

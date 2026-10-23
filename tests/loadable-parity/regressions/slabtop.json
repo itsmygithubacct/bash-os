@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "slabtop",
+  "reference": "Installed procps-ng slabtop 4.0.4 for safe help, version and option-error statuses with exact stdout. Diagnostic presence is required for option errors; option-specific wording is not claimed identical. Private synthetic slabinfo arithmetic is independently calculated as a contract, not GNU operation parity. Registered synopsis qualification assumes the catalog correction recorded in review.json.",
+  "coverage": [
+    "Bash builtin registration and help synopsis/documentation",
+    "GNU parity for --version, --help, invalid option, and missing delay argument without reading procfs",
+    "Private fixture batch summary, percentages, sizes, default object ordering, name ordering, active-object ordering, and name tie-breaks"
+  ],
+  "exclusions": [
+    "GNU batch parity against the private slabinfo fixture: GNU slabtop has no BASHOS_PROC_ROOT equivalent and the harness provides no shared procfs injection mechanism",
+    "Interactive redraw, key handling, resize, and terminal restoration require a PTY driver and an independent procfs mock",
+    "No live or host procfs data is read",
+    "Option-error wording is not byte-for-byte parity: GNU identifies a missing long --delay argument while the builtin names short d. Delay numeric validation and interactive timing ranges are outside this focused status repair."
+  ],
+  "cases": [
+    {
+      "id": "type-builtin",
+      "kind": "contract",
+      "purpose": "Bash type -t must expose slabtop as a loadable builtin.",
+      "script": "kind=$(type -t slabtop)\n[[ $kind == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s must render the registered short_doc synopsis, including slabtop option arguments.",
+      "script": "help -s slabtop",
+      "expected_status": 0,
+      "stdout": "slabtop: slabtop [-d SEC] [-o] [-s CHAR] [-h|-V]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-details",
+      "kind": "contract",
+      "purpose": "Bash help must include the documented source, once/sort options, and representative sort criteria.",
+      "script": "doc=$(help slabtop)\n[[ $doc == *'Display kernel slab cache information from /proc/slabinfo.'* ]]\n[[ $doc == *'-d, --delay <secs>'* && $doc == *'-o, --once'* && $doc == *'-s, --sort <char>'* ]]\n[[ $doc == *'-h, --help'* && $doc == *'-V, --version'* && $doc == *'sort by a/b/c/l/v/n/o/p/s/u'* ]]\nprintf 'slabtop help details present\\n'",
+      "expected_status": 0,
+      "stdout": "slabtop help details present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-version",
+      "kind": "parity",
+      "purpose": "The option-only long version query must match the independent GNU procps CLI without reading procfs.",
+      "script": "slabtop --version",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-help",
+      "kind": "parity",
+      "purpose": "The long help option must match GNU procps output and exit behavior before any procfs access.",
+      "script": "slabtop --help",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-invalid-option",
+      "kind": "parity",
+      "purpose": "An unknown option must retain GNU procps error status and diagnostics without entering batch or interactive mode.",
+      "script": "slabtop --invalid-parity-option",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-missing-delay",
+      "kind": "parity",
+      "purpose": "A missing delay operand must match procps-ng failure status and produce a diagnostic before any procfs access. Long-option wording differs from the builtin short-option-style diagnostic and is not compared byte for byte.",
+      "script": "slabtop --delay",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "batch-independent-summary",
+      "kind": "contract",
+      "purpose": "A private slabinfo fixture checks parsed rows, empty/malformed line skipping, aggregate percentages and sizes, row formatting, and default descending-object ordering against a separate calculation.",
+      "script": "printf '%s\\n' \\\n  'slabinfo - version: 2.1' \\\n  '# name active_objs num_objs objsize objperslab pagesperslab' \\\n  'ignored malformed fixture row' \\\n  'alpha 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0' \\\n  'beta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0' \\\n  'gamma 2 2 256 2 1 : tunables 0 0 0 : slabdata 1 1 0' \\\n  'zero 0 0 64 1 1 : tunables 0 0 0 : slabdata 0 0 0' > slabinfo\nactual=$(BASHOS_PROC_ROOT=. slabtop --once)\nexpected=$'Active / Total Objects (% used)    : 5 / 14 (35.7%)\\nActive / Total Slabs (% used)      : 3 / 6 (50.0%)\\nActive / Total Caches (% used)     : 3 / 4 (75.0%)\\nActive / Total Size (% used)       : 2.50K / 24.00K (10.4%)\\nMinimum / Average / Maximum Object : 64 / 464 / 1024\\n\\n  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME\\n     8      1  12.5%    1.00K      4        2     16.00K beta\\n     4      2  50.0%    0.50K      1        4      4.00K alpha\\n     2      2 100.0%    0.25K      1        2      4.00K gamma\\n     0      0   0.0%    0.06K      0        1      0.00K zero'\n[[ $actual == \"$expected\" ]]\nprintf 'independent batch fixture matched\\n'",
+      "expected_status": 0,
+      "stdout": "independent batch fixture matched\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sort-fixture-orders",
+      "kind": "contract",
+      "purpose": "The same deterministic slabinfo rows must sort by name, by active objects, and alphabetically within an active-object tie.",
+      "script": "printf '%s\\n' \\\n  'slabinfo - version: 2.1' \\\n  '# fixture rows' \\\n  'alpha 2 4 512 4 1 : tunables 0 0 0 : slabdata 1 1 0' \\\n  'beta 1 8 1024 2 1 : tunables 0 0 0 : slabdata 1 4 0' \\\n  'gamma 2 2 256 2 1 : tunables 0 0 0 : slabdata 1 1 0' \\\n  'zero 0 0 64 1 1 : tunables 0 0 0 : slabdata 0 0 0' > slabinfo\nnamed=$(BASHOS_PROC_ROOT=. slabtop --once --sort=n)\nmapfile -t named_lines <<<\"$named\"\n[[ ${named_lines[7]} == *' alpha' && ${named_lines[8]} == *' beta' && ${named_lines[9]} == *' gamma' && ${named_lines[10]} == *' zero' ]]\nactive=$(BASHOS_PROC_ROOT=. slabtop --once -s a)\nmapfile -t active_lines <<<\"$active\"\n[[ ${active_lines[7]} == *' alpha' && ${active_lines[8]} == *' gamma' && ${active_lines[9]} == *' beta' && ${active_lines[10]} == *' zero' ]]\nprintf 'name and active sort orders matched independent keys\\n'",
+      "expected_status": 0,
+      "stdout": "name and active sort orders matched independent keys\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-gnu-batch-parity",
+      "kind": "deferred",
+      "purpose": "Full GNU comparison of batch arithmetic, ordering, and malformed-row handling against the same controlled slabinfo data.",
+      "reason": "Requires a disposable VM or reviewed syscall/file-open mock that redirects both candidate and GNU procps slabtop reads of /proc/slabinfo to the same private fixture. GNU slabtop does not honor BASHOS_PROC_ROOT, while the provided runner cannot mount or interpose a shared mock. Future fixture should include ordinary rows, zero objects, equal sort keys, malformed lines, and rows whose slab/object rounding differs; compare full output and status. No operation parity is claimed here."
+    },
+    {
+      "id": "deferred-interactive-pty",
+      "kind": "deferred",
+      "purpose": "Interactive screen behavior and terminal cleanup need a bounded PTY driver and independently controlled slab data.",
+      "reason": "Requires a disposable VM/mock for /proc/slabinfo plus a PTY driver. A future case should check the initial table, s sort cycling and tie ordering, q/ESC exit, timeout/redraw behavior, resize handling, and terminal/cursor restoration against a documented screen oracle. The provided runner has no PTY setup interface, and interactive operation is not reported as passed."
+    },
+    {
+      "id": "option-error-status-and-recovery",
+      "kind": "parity",
+      "purpose": "Unknown short options and missing short delay/sort or long sort arguments must fail before loading counters; a later version call confirms same-shell recovery. Compare statuses/stdout and require diagnostics, without promising diagnostic wording.",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "for option in '-!' -d -s --sort; do\n rc=0; slabtop \"$option\" || rc=$?\n printf 'status=%s\\n' \"$rc\"\ndone\nslabtop --version"
+    },
+    {
+      "id": "missing-private-slabinfo",
+      "kind": "contract",
+      "purpose": "A missing private slabinfo file fails with a diagnostic and no live-proc fallback.",
+      "script": "BASHOS_PROC_ROOT=missing slabtop --once",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "long-missing-delay",
+      "kind": "parity",
+      "purpose": "The long --delay option retains its name in the missing-argument diagnostic before any proc access.",
+      "script": "slabtop --delay",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "long-missing-sort",
+      "kind": "parity",
+      "purpose": "The long --sort option retains its name in the missing-argument diagnostic before any proc access.",
+      "script": "slabtop --sort",
+      "requires": [
+        "slabtop"
+      ],
+      "expected_status": 1,
+      "stderr": "exact"
+    }
+  ]
+}

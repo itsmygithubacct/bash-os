@@ -11,11 +11,12 @@
     "Missing operand status and continuing through mixed successful and missing operands.",
     "Failure to remove a directory without recursive mode, with contents preserved.",
     "Invalid-option status and preservation of the named file.",
-    "Bash type/help metadata contract for builtin registration and documentation."
+    "Bash type/help metadata contract for builtin registration and documentation.",
+    "Explicit native -i with finite stdin answers: regular files, EOF refusal, multiple operands, last -f/-i precedence, state reset and tiny recursive trees; no PTY."
   ],
   "exclusions": [
-    "Interactive -i confirmation is deferred because the runner does not provide a PTY. Its deferred case specifies private files and affirmative/negative responses for a future PTY-capable runner.",
-    "Permission-denied, immutable-file, filesystem-race, and privileged filesystem behavior are not covered."
+    "Implicit prompting dependent on a controlling terminal, permission denial, immutable files and filesystem races are not qualified by these bounded private-file cases.",
+    "Interactive prompts are qualified only under LC_ALL=C with ordinary private files/directories and finite answers. Localized affirmative expressions, write-protection auto-prompts, races, permission/IO faults and signal-driven cleanup are unqualified."
   ],
   "cases": [
     {
@@ -95,7 +96,7 @@
       "requires": [
         "rm"
       ],
-      "script": "printf 'remove me\\n' > present; if rm present absent; then rc=0; else rc=$?; fi; [[ ! -e present && $rc -eq 1 ]]; exit \"$rc\"",
+      "script": "printf 'remove me\\n' > present; if rm present absent; then rc=0; else rc=$?; fi; [[ ! -e present && $rc -eq 1 ]] || exit 90; exit \"$rc\"",
       "expected_status": 1,
       "stderr": "nonempty"
     },
@@ -107,7 +108,7 @@
         "rm",
         "mkdir"
       ],
-      "script": "mkdir protected-dir; printf 'keep me\\n' > protected-dir/item; if rm protected-dir; then rc=0; else rc=$?; fi; [[ -d protected-dir && -f protected-dir/item && $rc -eq 1 ]]; exit \"$rc\"",
+      "script": "mkdir protected-dir; printf 'keep me\\n' > protected-dir/item; if rm protected-dir; then rc=0; else rc=$?; fi; [[ -d protected-dir && -f protected-dir/item && $rc -eq 1 ]] || exit 90; exit \"$rc\"",
       "expected_status": 1,
       "stderr": "nonempty"
     },
@@ -118,7 +119,7 @@
       "requires": [
         "rm"
       ],
-      "script": "printf 'keep me\\n' > protected; if rm -z protected; then exit 92; else rc=$?; fi; [[ -f protected ]]; exit \"$rc\"",
+      "script": "printf 'keep me\\n' > protected; if rm -z protected; then exit 92; else rc=$?; fi; [[ -f protected ]] || exit 90; exit \"$rc\"",
       "expected_status": 1,
       "stderr": "nonempty"
     },
@@ -133,9 +134,71 @@
     },
     {
       "id": "interactive_confirmation_pty",
-      "kind": "deferred",
-      "purpose": "Exercise rm -i confirmation and refusal behavior on private regular files.",
-      "reason": "The provided runner connects stdin to /dev/null and supplies no PTY. A future disposable PTY fixture should create only private files, send a negative response and verify the file remains, then send an affirmative response and verify the file is removed; compare prompts, statuses, and resulting trees with GNU rm."
+      "kind": "parity",
+      "purpose": "Compare explicit rm -i refusal and acceptance using bounded redirected stdin, with private files only; a PTY is unnecessary for explicit -i.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf keep > refused\nprintf remove > accepted\nprintf 'n\\n' > no\nprintf 'y\\n' > yes\nrm -i refused < no\n[[ -f refused ]]\nrm -i accepted < yes\n[[ ! -e accepted ]]\nprintf 'refused remains; accepted removed\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dangling-symlink-unlink",
+      "kind": "parity",
+      "purpose": "Unlink a private dangling symlink without requiring its target to exist.",
+      "script": "ln -s missing-target link\nrm link\n[[ ! -L link ]]\nprintf 'link removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "ln"
+      ]
+    },
+    {
+      "id": "continue-after-missing-first",
+      "kind": "parity",
+      "purpose": "A missing first operand still allows a later ordinary file to be removed.",
+      "script": "printf 'keep' > survivor\nprintf 'remove' > last\nif rm missing last; then rc=0; else rc=$?; fi\n[[ ! -e last && -f survivor ]] || exit 90\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "rm"
+      ]
+    },
+    {
+      "id": "interactive-precedence-eof-and-reset",
+      "kind": "parity",
+      "purpose": "Explicit -i declines at EOF, -f/-i obey last-option precedence, and later same-shell calls reset confirmation state; all operands are ordinary private files.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf a > eof\nprintf b > forced\nprintf c > refused\nprintf d > reset\nprintf 'n\\n' > no\nrm -i eof < /dev/null\nrm -if forced < /dev/null\nrm -fi refused < no\nrm reset < /dev/null\n[[ -f eof && ! -e forced && -f refused && ! -e reset ]]\nprintf 'confirmation precedence and reset matched\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-recursive-small-tree",
+      "kind": "parity",
+      "purpose": "Finite redirected answers cover refusing descent, accepting all removals in a one-file tree, and declining a file followed by accepting the nonempty directory removal attempt. No terminal or host path is used.",
+      "requires": [
+        "rm",
+        "mkdir"
+      ],
+      "script": "mkdir refused accepted partial\nprintf a > refused/file\nprintf b > accepted/file\nprintf c > partial/file\nprintf 'n\\n' > no\nprintf 'y\\ny\\ny\\n' > all-yes\nprintf 'y\\nn\\ny\\n' > mixed\nrm -ri refused < no\nrm -ri accepted < all-yes\nrc=0; rm -ri partial < mixed || rc=$?\n[[ -d refused && -f refused/file && ! -e accepted && -f partial/file && $rc == 1 ]]\nprintf 'recursive-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-multiple-file-answers",
+      "kind": "parity",
+      "purpose": "Read one complete finite response per private operand without consuming the next answer: yes removes the first file, n preserves the second and EOF preserves the third.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf a > first\nprintf b > second\nprintf c > third\nprintf 'yes\\nn\\n' > answers\nrm -i first second third < answers\n[[ ! -e first && -f second && -f third ]]\nprintf 'one response per operand matched\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

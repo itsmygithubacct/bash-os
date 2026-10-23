@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "loadable": "tz",
+  "reference": "GNU coreutils date (required command: date), using explicit GNU timestamp parsing and POSIX TZ strings. The reference branch runs under system Bash when type -t cannot find the tz builtin; the candidate branch invokes tz. Fixed UTC epochs make the comparisons deterministic.",
+  "coverage": [
+    "Bash builtin registration and documented help metadata",
+    "UTC default, negative UNIX timestamps, and UTC/GMT aliases",
+    "TZ environment lookup and explicit -z precedence",
+    "Built-in US, EU, and Australian daylight-saving transition boundaries",
+    "Parsing valid numeric-offset dates with and without seconds",
+    "-V variable assignment from convert",
+    "Operator sidecar files through BASHTZ_ZONE_FILE and BASHTZ_ZONE_DIR",
+    "Fixed UTC info, parse -V binding, and malformed date rejection."
+  ],
+  "exclusions": [
+    "DST-sensitive live now/info comparison needs a fixed clock; fixed UTC info executes as an independent contract.",
+    "The suite does not establish historical IANA timezone fidelity, leap seconds, or full malformed-calendar validation."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves tz as a loadable builtin without invoking a timezone operation.",
+      "script": "[[ $(type -t tz) == builtin ]]\nprintf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Check help exposes the documented verbs, conversion syntax, and both operator sidecar variables.",
+      "script": "help tz > tz-help.txt\nhelp_text=$(< tz-help.txt)\n[[ $help_text == *\"tz now [-z ZONE] [-V VAR]\"* ]]\n[[ $help_text == *\"tz parse 'YYYY-MM-DD HH:MM[:SS] +/-HHMM' [-V VAR]\"* ]]\n[[ $help_text == *\"BASHTZ_ZONE_FILE\"* ]]\n[[ $help_text == *\"BASHTZ_ZONE_DIR\"* ]]\nprintf 'tz-help-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "tz-help-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "utc-default-aliases",
+      "kind": "parity",
+      "purpose": "Compare the UTC default for a pre-epoch timestamp and the explicit Etc/UTC and GMT abbreviations.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nif [[ $(type -t tz) == builtin ]]; then\n  unset TZ\n  tz convert -1\n  tz convert 0 -z Etc/UTC\n  tz convert 0 -z GMT\nelse\n  TZ=UTC date -d '@-1' \"$fmt\"\n  TZ=Etc/UTC date -d '@0' \"$fmt\"\n  TZ=GMT date -d '@0' \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "environment-zone-precedence",
+      "kind": "parity",
+      "purpose": "Compare implicit TZ selection and confirm an explicit -z zone overrides the environment.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nif [[ $(type -t tz) == builtin ]]; then\n  TZ=Asia/Tokyo tz convert 0\n  TZ=Asia/Tokyo tz convert 0 -z UTC\nelse\n  TZ=Asia/Tokyo date -d '@0' \"$fmt\"\n  TZ=UTC date -d '@0' \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "new-york-dst-edges",
+      "kind": "parity",
+      "purpose": "Compare the built-in US rule immediately before and at the 2024 spring-forward and fall-back instants.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nepochs=(1710053999 1710054000 1730613599 1730613600)\nif [[ $(type -t tz) == builtin ]]; then\n  for ts in \"${epochs[@]}\"; do tz convert \"$ts\" -z America/New_York; done\nelse\n  for ts in \"${epochs[@]}\"; do TZ=America/New_York date -d \"@$ts\" \"$fmt\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "berlin-dst-edges",
+      "kind": "parity",
+      "purpose": "Compare the built-in European rule at the 2024 Berlin spring-forward and fall-back instants.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nepochs=(1711846799 1711846800 1729990799 1729990800)\nif [[ $(type -t tz) == builtin ]]; then\n  for ts in \"${epochs[@]}\"; do tz convert \"$ts\" -z Europe/Berlin; done\nelse\n  for ts in \"${epochs[@]}\"; do TZ=Europe/Berlin date -d \"@$ts\" \"$fmt\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "sydney-dst-edges",
+      "kind": "parity",
+      "purpose": "Compare the built-in Australian rule at the 2024 Sydney end and start of daylight time.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nepochs=(1712419199 1712419200 1728143999 1728144000)\nif [[ $(type -t tz) == builtin ]]; then\n  for ts in \"${epochs[@]}\"; do tz convert \"$ts\" -z Australia/Sydney; done\nelse\n  for ts in \"${epochs[@]}\"; do TZ=Australia/Sydney date -d \"@$ts\" \"$fmt\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-numeric-offsets",
+      "kind": "parity",
+      "purpose": "Compare parse results for a leap-day timestamp with a positive offset and a pre-epoch timestamp with a negative offset and omitted seconds.",
+      "requires": [
+        "date"
+      ],
+      "script": "if [[ $(type -t tz) == builtin ]]; then\n  tz parse '2024-02-29 12:34:56 +0530'\n  tz parse '1969-12-31 16:00 -0800'\nelse\n  date -u -d '2024-02-29 12:34:56 +0530' '+%s'\n  date -u -d '1969-12-31 16:00 -0800' '+%s'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "convert-variable-assignment",
+      "kind": "parity",
+      "purpose": "Compare -V assignment with GNU date output while confirming the conversion result is available in the current shell variable.",
+      "requires": [
+        "date"
+      ],
+      "script": "fmt='+%Y-%m-%d %H:%M:%S %Z %z'\nif [[ $(type -t tz) == builtin ]]; then\n  tz convert 1700000000 -z Asia/Tokyo -V rendered\nelse\n  rendered=$(TZ=Asia/Tokyo date -d '@1700000000' \"$fmt\")\nfi\nprintf '%s\\n' \"$rendered\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zone-file-us-rule",
+      "kind": "parity",
+      "purpose": "Compare an operator supplied relative zone file, whitespace/comment parsing, custom names, and its US DST rule with an equivalent POSIX TZ rule.",
+      "requires": [
+        "date"
+      ],
+      "script": "printf '%s\\n' '# operator-provided rule' 'name = Fixture/Eastern' 'std_off = -18000' 'dst_off = -14400' 'std_abbr = EST' 'dst_abbr = EDT' 'rule = us' > fixture-zone\nfmt='+%Y-%m-%d %H:%M:%S %Z %z'\nepochs=(1710053999 1710054000 1730613599 1730613600)\nif [[ $(type -t tz) == builtin ]]; then\n  unset TZ\n  export BASHTZ_ZONE_FILE=fixture-zone\n  for ts in \"${epochs[@]}\"; do tz convert \"$ts\"; done\nelse\n  for ts in \"${epochs[@]}\"; do TZ='EST5EDT,M3.2.0/2,M11.1.0/2' date -d \"@$ts\" \"$fmt\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zone-dir-named-fallback",
+      "kind": "parity",
+      "purpose": "Compare a named operator zone loaded through the slash-to-underscore filename rule, including omitted dst_off and fixed-rule defaults.",
+      "requires": [
+        "date"
+      ],
+      "script": "mkdir -p zones\nprintf '%s\\n' 'name = Fixture/PlusFive30' 'std_off = 19800' 'std_abbr = FCT' 'rule = fixed' > zones/Fixture_PlusFive30\nfmt='+%Y-%m-%d %H:%M:%S %Z %z'\nif [[ $(type -t tz) == builtin ]]; then\n  BASHTZ_ZONE_DIR=zones tz convert 0 -z Fixture/PlusFive30\nelse\n  TZ='FCT-5:30' date -d '@0' \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "live-clock-now-info",
+      "kind": "deferred",
+      "purpose": "Compare tz now and DST-sensitive info against GNU date at a controlled current instant.",
+      "reason": "Requires a disposable VM with a frozen wall clock, or a reviewed clock shim that holds CLOCK_REALTIME constant across the reference and candidate runs. Validate tz now -z America/New_York and tz info Europe/Berlin at fixed UTC instants on both sides of their DST transitions; the current runner provides no clock control, so no operation result is claimed."
+    },
+    {
+      "id": "fixed-zone-info",
+      "purpose": "A fixed UTC zone has time-independent offset, abbreviation and rule; exercise info without freezing the clock.",
+      "kind": "contract",
+      "script": "tz info UTC",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "name=UTC\noffset=+0000\nabbr=UTC\nrule=fixed\n"
+    },
+    {
+      "id": "parse-variable-binding",
+      "purpose": "Parse a numeric offset directly into a shell variable, compared with independent GNU date arithmetic.",
+      "kind": "parity",
+      "script": "if [[ $(type -t tz) == builtin ]]; then tz parse '2000-01-01 01:00:00 +0100' -V epoch; else epoch=$(date -u -d '2000-01-01 01:00:00 +0100' +%s); fi; printf '%s\\n' \"$epoch\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "date"
+      ]
+    },
+    {
+      "id": "malformed-date",
+      "purpose": "Reject an ordinary malformed date string with the documented usage-error status.",
+      "kind": "contract",
+      "script": "tz parse not-a-date",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

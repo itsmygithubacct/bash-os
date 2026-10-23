@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "loadable": "rmdir",
+  "reference": "GNU coreutils rmdir(1) from the runner's reference PATH, with GNU mkdir and ln used only to create private fixtures. Each parity script runs unchanged under system Bash and bash-os with candidate PATH empty; failures are captured where effects must still be inspected. The metadata contract uses the stock Bash rmdir documentation and builtin type metadata.",
+  "coverage": [
+    "Remove one empty directory and verify the tree is empty.",
+    "Remove nested directories with separate child-then-parent operands.",
+    "GNU -p parent removal, including partial removal and final error status.",
+    "Handle a spaced path and a dash-prefixed basename through a ./ path.",
+    "Accept a trailing slash on an empty directory operand.",
+    "Reject a nonempty directory and preserve its contents.",
+    "Report a missing operand path and retain the expected filesystem state.",
+    "Continue across operands after a nonempty-directory error and remove a later empty directory.",
+    "Reject a symlink to a directory without removing either link or target.",
+    "Compare the no-operand error status and verify builtin/help registration.",
+    "Additional bounded edge cases and file effects are specified by the added parity cases."
+  ],
+  "exclusions": [
+    "Permission-denied and read-only-filesystem cases are omitted because this fixture does not set up independent privilege or mount conditions.",
+    "Exact diagnostic wording is not asserted; stderr presence or absence and resulting tree are checked.",
+    "No host, device, network, privileged, stress, or destructive system operations are involved.",
+    "GNU --ignore-fail-on-non-empty is explicitly compared; --verbose and long-option combinations are not exhaustive."
+  ],
+  "cases": [
+    {
+      "id": "empty-directory",
+      "kind": "parity",
+      "purpose": "Remove one empty relative directory and verify successful status, no output, and removal.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir target; rmdir target; [[ ! -e target ]]; printf 'removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nested-operands",
+      "kind": "parity",
+      "purpose": "Remove an empty child and then its parent as two ordered operands.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir top; mkdir top/inner; rmdir top/inner top; [[ ! -e top ]]; printf 'removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parent-option",
+      "kind": "parity",
+      "purpose": "Check GNU rmdir -p semantics, capturing command status so the parent-removal effect is compared even if the candidate rejects the option.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir chain; mkdir chain/leaf; set +e; rmdir -p chain/leaf; rc=$?; set -e; if [[ -e chain ]]; then parent=retained; else parent=removed; fi; printf 'status=%s parent=%s\\n' \"$rc\" \"$parent\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quoted-and-dash-paths",
+      "kind": "parity",
+      "purpose": "Remove a path containing spaces and a dash-prefixed directory addressed through ./.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir 'two words'; mkdir ./-odd; rmdir 'two words' ./-odd; [[ ! -e 'two words' && ! -e ./-odd ]]; printf 'removed 2\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "trailing-slash",
+      "kind": "parity",
+      "purpose": "Accept a trailing slash on an empty directory operand.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir trailing; rmdir trailing/; [[ ! -e trailing ]]; printf 'removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nonempty-directory",
+      "kind": "parity",
+      "purpose": "Return failure for a nonempty directory while preserving the directory and its file.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir nonempty; printf 'payload\\n' > nonempty/file; set +e; rmdir nonempty; rc=$?; set -e; if [[ -e nonempty/file ]]; then state=retained; else state=missing; fi; printf 'status=%s file=%s\\n' \"$rc\" \"$state\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-path",
+      "kind": "parity",
+      "purpose": "Report a nonexistent directory operand, capture its status, and leave the fixture tree unchanged.",
+      "requires": [
+        "rmdir"
+      ],
+      "script": "set +e; rmdir missing; rc=$?; set -e; printf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "continue-after-error",
+      "kind": "parity",
+      "purpose": "Verify that a nonempty first operand does not prevent removal of a later empty operand; also include a missing operand in the aggregate failure.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir blocked; printf 'keep\\n' > blocked/file; mkdir later; set +e; rmdir blocked later absent; rc=$?; set -e; if [[ -e blocked/file ]]; then blocked_state=retained; else blocked_state=missing; fi; if [[ -e later ]]; then later_state=retained; else later_state=removed; fi; printf 'status=%s blocked=%s later=%s\\n' \"$rc\" \"$blocked_state\" \"$later_state\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "symlink-operand",
+      "kind": "parity",
+      "purpose": "Reject a symlink operand and leave both the symlink and its empty target directory intact.",
+      "requires": [
+        "ln",
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir target; ln -s target link; set +e; rmdir link; rc=$?; set -e; if [[ -L link && -d target ]]; then state=retained; else state=changed; fi; printf 'status=%s state=%s\\n' \"$rc\" \"$state\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no-operands",
+      "kind": "parity",
+      "purpose": "Compare the utility-level failure status for a no-operand invocation while capturing it to keep the fixture script successful.",
+      "requires": [
+        "rmdir"
+      ],
+      "script": "set +e; rmdir; rc=$?; set -e; printf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Assert Bash reports rmdir as a builtin and that its documented help entry exists, without treating metadata as operation coverage.",
+      "script": "type -t rmdir; help rmdir >metadata.discard",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "terminator-dash-operand",
+      "kind": "parity",
+      "purpose": "The -- terminator allows a dash-leading directory.",
+      "script": "mkdir ./-target; rmdir -- -target",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ]
+    },
+    {
+      "id": "parents-repeated-separators",
+      "kind": "parity",
+      "purpose": "Parent removal handles repeated and trailing separators.",
+      "script": "mkdir -p chain/a/b; rmdir -p chain//a//b///",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ]
+    },
+    {
+      "id": "parents-stop-at-nonempty",
+      "kind": "parity",
+      "purpose": "Parent removal stops with failure at a nonempty ancestor, retaining its other contents.",
+      "script": "mkdir -p tree/a/b; printf keep > tree/retained; rmdir -p tree/a/b",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ]
+    },
+    {
+      "id": "parents-explicit-dot",
+      "kind": "parity",
+      "purpose": "An explicit dot ancestor is attempted and diagnosed after its empty children are removed.",
+      "script": "mkdir -p tree/leaf; rmdir -p ./tree/leaf",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ]
+    },
+    {
+      "id": "parent-partial-error",
+      "kind": "parity",
+      "purpose": "Parent removal stops at a nonempty ancestor after removing its empty child; later operands are processed.",
+      "script": "mkdir -p top/child later\nprintf keep > top/file\nrc=0; rmdir -p top/child later || rc=$?\nprintf 'status=%s\\n' \"$rc\"",
+      "requires": [
+        "rmdir",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-ignore-nonempty",
+      "kind": "parity",
+      "purpose": "Compare GNU ignore-nonempty option on a private nonempty directory, retaining an unsupported-option difference.",
+      "script": "mkdir box\nprintf keep > box/file\nrmdir --ignore-fail-on-non-empty box",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-nonempty-parents-options",
+      "kind": "parity",
+      "purpose": "Combine -p and the ignore option before operands: remove the empty leaf, ignore a nonempty ancestor, and process a later empty directory.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir -p parent/leaf empty\nprintf keep > parent/keep\nrmdir -p --ignore-fail-on-non-empty parent/leaf empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-nonempty-keeps-real-errors",
+      "kind": "parity",
+      "purpose": "Missing and regular-file operands still fail under ignore-nonempty, while later empty directories are removed.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir box empty\nprintf keep > box/file\nprintf regular > plain\nrmdir --ignore-fail-on-non-empty box absent plain empty",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "ignore-option-terminator",
+      "kind": "parity",
+      "purpose": "The terminator permits a directory whose name is the ignore option without enabling the option.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir -- --ignore-fail-on-non-empty\nrmdir -- --ignore-fail-on-non-empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

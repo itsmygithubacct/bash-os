@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "loadable": "flock",
+  "reference": "util-linux flock is the independent CLI oracle for private regular-file locks, bounded conflicts, child status and file effects. Bash type/help and documented version text are separate metadata contracts.",
+  "coverage": [
+    "Bash reports flock as a builtin with type -t.",
+    "Bash help contains the documented FD and file command forms and principal options.",
+    "Bash short help exposes the registered synopsis.",
+    "The loadable's documented version metadata is stable.",
+    "Private-file FD lifetime/unlock, shared and exclusive conflicts, bounded waits, file command effects/status, close/no-fork modes and parser/open errors."
+  ],
+  "exclusions": [
+    "Release-before-deadline synchronization and inherited-descriptor observations require an additional bounded process fixture; no stress timing or host lock files are used."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "purpose": "Verify Bash registers flock as a builtin using the Bash type -t contract.",
+      "kind": "contract",
+      "script": "type -t flock",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_documented_interface",
+      "purpose": "Check the full Bash help text against the pinned documented forms, option spellings, and conflict behavior without invoking a lock operation.",
+      "kind": "contract",
+      "script": "h=$(help flock) || exit 1\n[[ $h == *\"Manage advisory file locks via flock(2).\"* ]] || exit 1\n[[ $h == *\"flock [-sxun] [-w SECONDS] FD\"* ]] || exit 1\n[[ $h == *\"flock [-sxun] [-w SECONDS] FILE command [args...]\"* ]] || exit 1\n[[ $h == *'flock [-sxun] [-w SECONDS] FILE -c \"shell command\"'* ]] || exit 1\n[[ $h == *\"--shared\"* && $h == *\"--exclusive\"* && $h == *\"--unlock\"* ]] || exit 1\n[[ $h == *\"--nonblock\"* && $h == *\"--wait\"* && $h == *\"--conflict-exit-code\"* ]] || exit 1\n[[ $h == *\"--close\"* && $h == *\"--no-fork\"* && $h == *\"--command\"* ]] || exit 1\nprintf 'documented-help-ok\\n'",
+      "expected_status": 0,
+      "stdout": "documented-help-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_short_synopsis",
+      "purpose": "Check Bash help -s output against the synopsis registered in flock_struct.short_doc and Bash help builtin formatting.",
+      "kind": "contract",
+      "script": "help -s flock",
+      "expected_status": 0,
+      "stdout": "flock: flock [-sxun] [-w SECONDS] [-E N] FD | FILE [command [args] | -c CMD]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version_metadata",
+      "purpose": "Check the loadable's documented version response; --version exits before opening an operand or acquiring a lock.",
+      "kind": "contract",
+      "script": "flock --version",
+      "expected_status": 0,
+      "stdout": "flock 1.0 (bash-loadable, util-linux compatible subset)\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fd_lock_lifetime",
+      "kind": "parity",
+      "purpose": "Compare FD lock lifetime, independent-open conflict and explicit unlock using a private file.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -xn 8\nif flock -xn 9; then rc=0; else rc=$?; fi\nprintf 'held=%s\n' \"$rc\"\nflock -u 8\nflock -xn 9\nflock -u 9\nprintf 'released\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "lock_mode_contention",
+      "kind": "parity",
+      "purpose": "Compare compatible shared locks and configured exclusive conflict status on separate private open descriptions.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -sn 8\nflock -sn 9\nif flock -xn -E 23 9; then rc=0; else rc=$?; fi\nprintf 'exclusive=%s\n' \"$rc\"\nflock -u 8\nflock -xn 9\nflock -u 9\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "timed_wait_behavior",
+      "kind": "parity",
+      "purpose": "A small bounded timed conflict returns the configured status, then acquisition succeeds after release.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -xn 8\nif flock -x -w 0.02 -E 24 9; then rc=0; else rc=$?; fi\nprintf 'timeout=%s\n' \"$rc\"\nflock -u 8\nflock -x -w 0.02 9\nflock -u 9\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "file_form_command_status",
+      "kind": "parity",
+      "purpose": "Compare private lock-file creation, shell command effects, exit status and release after child completion.",
+      "script": "if flock lock -c 'printf \"payload\\n\" > result; exit 7'; then rc=0; else rc=$?; fi\nprintf 'child=%s\\n' \"$rc\"\nflock -n lock -c 'printf \"released\\n\"'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "close_and_no_fork",
+      "kind": "parity",
+      "purpose": "Compare close/no-fork command modes and incompatible options on private files; no-fork runs in a disposable subshell.",
+      "script": "flock -o lock -c 'printf close > closed'\nif (flock -F lock -c 'printf nofork > direct; exit 9'); then rc=0; else rc=$?; fi\nprintf 'nofork=%s\\n' \"$rc\"\nif flock -Fo lock -c 'printf forbidden > unexpected'; then rc=0; else rc=$?; fi\nprintf 'incompatible=%s\\n' \"$rc\"\n[[ ! -e unexpected ]]\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "argument_and_open_errors",
+      "kind": "parity",
+      "purpose": "Compare malformed-option and missing-parent open errors, retaining diagnostics and creation effects.",
+      "script": "for arg in bad ''; do\n if flock -w \"$arg\" lock; then rc=0; else rc=$?; fi\n printf 'timeout=%s\\n' \"$rc\"\ndone\nif flock -E 256 lock; then rc=0; else rc=$?; fi\nprintf 'exit-code=%s\\n' \"$rc\"\nif flock missing/lock -c 'printf unexpected'; then rc=0; else rc=$?; fi\nprintf 'open=%s\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "negative-wait-uncontended",
+      "kind": "parity",
+      "purpose": "Compare the actual negative-timeout error status on an uncontended private descriptor, including reference timer setup errors, without assuming parser behavior.",
+      "script": "exec 9>lock\nif flock -w -1 9; then rc=0; else rc=$?; fi\nprintf \"negative-wait=%s\\n\" \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "usage-no-operand",
+      "kind": "parity",
+      "purpose": "Reject missing operands with explicit util-linux usage status.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "closed-descriptor-status",
+      "kind": "parity",
+      "purpose": "A closed private descriptor reports data-error65.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>&-\nflock 8",
+      "expected_status": 65,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "descriptor-range-status",
+      "kind": "parity",
+      "purpose": "A nonnegative descriptor outside the int range is a usage failure before any lock attempt.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock 2147483648",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-command-no-create",
+      "kind": "parity",
+      "purpose": "A lone nonnumeric operand is an invalid descriptor and must not create a file.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock untouched",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "command-extra-no-effects",
+      "kind": "parity",
+      "purpose": "Reject extra arguments after FILE -c CMD before file creation or child execution.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock target -c 'printf forbidden > marker' extra",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "command-prefix-extra-no-effects",
+      "kind": "parity",
+      "purpose": "Reject extra operands with prefix -c without creating or executing anything.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -c 'printf forbidden > marker' target extra",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "numeric-filename-command",
+      "kind": "parity",
+      "purpose": "With a command, an all-digit operand names a private file rather than a descriptor.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock 12 -c 'printf numeric > marker'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "negative-wait-nonblock-status",
+      "kind": "parity",
+      "purpose": "Finite negative wait reports timer-error71 even when -n is also specified.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 9>lock\nflock -n -w -1 9",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-open-precedence",
+      "kind": "parity",
+      "purpose": "A missing-parent open error66 precedes negative-wait timer setup.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -w -1 missing/lock -c 'printf forbidden > marker'",
+      "expected_status": 66,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-closed-precedence",
+      "kind": "parity",
+      "purpose": "Negative-wait timer setup precedes closed-descriptor locking, without installing any timer in the embedding shell.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>&-\nflock -w -1 8",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-file-create",
+      "kind": "parity",
+      "purpose": "A valid file form opens its private file before negative-wait timer failure and never runs the child.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -w -1 lock -c 'printf forbidden > marker'",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "error-continuation-state",
+      "kind": "parity",
+      "purpose": "After caught negative-wait and incompatible-mode errors, preserve descriptor ownership, leave no lock/child effects, and execute a later valid file command in the same shell.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>lock\nexec 9>lock\nif flock -w -1 -E 23 8; then rc=0; else rc=$?; fi\n[[ $rc == 71 ]]\nflock -xn 9\nflock -u 9\nif flock -Fo untouched -c 'printf forbidden > marker'; then rc=0; else rc=$?; fi\n[[ $rc == 64 && ! -e untouched && ! -e marker ]]\nflock -n -w 0 lock -c 'printf recovered > result'\nprintf 'recovered\\n'\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

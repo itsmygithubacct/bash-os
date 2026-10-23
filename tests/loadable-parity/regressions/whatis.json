@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "whatis",
-  "reference": "The independent man-db whatis CLI reads private legacy text indexes using an empty private -C configuration. The installed legacy backend matches prefixes even with -w; Bash-os retains its documented exact-name lookup, checked separately as a contract. Help, implementation version identity and no-name diagnostic text are custom contracts. Successful lookups and no-result/invalid-option statuses retain independent parity cases.",
+  "reference": "The independent man-db whatis CLI reads private legacy text indexes using an empty private -C configuration for the compatible cases. The installed legacy backend matches prefixes even with -w, whereas Bash-os deliberately uses exact-name lookup. Exact-name boundaries are therefore custom API contracts, not GNU parity. The separate original prefix comparison and raw divergent evidence are retained as a documented compatibility limit. Help, implementation version identity and no-name diagnostic text are custom contracts.",
   "coverage": [
     "single exact-name lookup from a whatis index",
     "Hyphenated names and explicit whole-name matching against a longer name",
@@ -13,7 +13,7 @@
   "exclusions": [
     "No generated man-db binary index or mandb database lifecycle is exercised; fixtures use the documented legacy MANPATH/whatis text index.",
     "No deferred operation case is applicable: this loadable performs read-only lookup against a private relative fixture and requires no privileged or hardware-backed operation.",
-    "Bash-os retains exact-name matching. The installed man-db legacy text backend matches a name prefix both by default and with -w; this observed difference remains outside the parity claim. The exact boundary case is an explicit custom contract, not a passing GNU comparison."
+    "Bash-os retains exact-name matching. The installed man-db legacy text backend matches a name prefix both by default and with -w; the exact boundary is checked as a custom contract. The incompatible original GNU prefix comparison is retained separately as evidence and is not counted as a runnable parity failure."
   ],
   "cases": [
     {

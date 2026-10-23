@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "loadable": "join",
+  "reference": "GNU coreutils join invoked by the harness with Bash as the reference shell, LC_ALL=C, and matching fixture files. For runnable parity cases, GNU join status, stdout bytes, stderr policy, and resulting fixture trees are compared with the candidate. Bash type/help checks use documented builtin metadata contracts.",
+  "coverage": [
+    "Bash builtin availability through type -t",
+    "Bash help metadata and documented join options",
+    "Default inner join output and duplicate-key Cartesian products",
+    "Selected key columns and a single-byte field separator",
+    "Unmatched rows, formatted output, and empty or missing field replacement",
+    "Unmatched-only modes for both input files",
+    "Case-insensitive key matching",
+    "Header passthrough",
+    "Automatic output layout from first records",
+    "Both stdin operand positions",
+    "Explicit sorted-input validation and failure status"
+  ],
+  "exclusions": [
+    "Locale-specific collation outside C, resource scaling, and interactive shell behavior are not covered.",
+    "Held-producer/FIFO blocking behavior and exact output-failure diagnostic wording are not covered."
+  ],
+  "cases": [
+    {
+      "id": "metadata_type",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves join as a loadable builtin even though candidate execution has an empty PATH.",
+      "script": "type -t join",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_help",
+      "kind": "contract",
+      "purpose": "Verify Bash help exposes a nonempty join synopsis and the documented header and order-check options; stdout is a fixed summary of those independently documented metadata checks.",
+      "script": "help_text=$(help join) || exit 1\n[[ -n $help_text ]] || exit 2\n[[ $help_text == *\"join [-i] [-1 N]\"* ]] || exit 3\n[[ $help_text == *--header* && $help_text == *--check-order* ]] || exit 4\nprintf 'join help contract available\\n'",
+      "expected_status": 0,
+      "stdout": "join help contract available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "duplicate_cartesian_inner",
+      "kind": "parity",
+      "purpose": "Compare the default inner join across two sorted keys, including the GNU-required Cartesian product for duplicate keys.",
+      "script": "printf 'a L1\\na L2\\nb L3\\n' > left\nprintf 'a R1\\na R2\\nb R3\\nc R4\\n' > right\njoin left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "selected_fields_separator",
+      "kind": "parity",
+      "purpose": "Compare -1/-2 key selection with colon-separated fields and verify default output retains non-key fields in file order.",
+      "script": "printf 'L0:a:x\\nL1:b:y\\nL2:c:z\\n' > left\nprintf 'R0:a:p\\nR1:c:q\\nR2:d:r\\n' > right\njoin -t : -1 2 -2 2 left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unmatched_formatted_fields",
+      "kind": "parity",
+      "purpose": "Compare both-side unmatched output with an explicit field list, checking replacement of empty and absent output fields using -e.",
+      "script": "printf 'a:L:\\nb:B:left\\n' > left\nprintf 'a:R:right\\nc:C:\\n' > right\njoin -t : -a 1 -a 2 -e _ -o 0,1.2,2.2,1.3,2.3 left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unmatched_only_modes",
+      "kind": "parity",
+      "purpose": "Compare -v1 and -v2 output for records that occur in only one input while common keys are omitted.",
+      "script": "printf 'a A\\nb B\\nd D\\n' > left\nprintf 'a X\\nc C\\nd Y\\n' > right\njoin -v 1 left right\njoin -v 2 left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore_case",
+      "kind": "parity",
+      "purpose": "Compare GNU ignore-case key matching for sorted ASCII keys with different capitalization.",
+      "script": "printf 'A left-one\\nb left-two\\n' > left\nprintf 'a right-one\\nB right-two\\n' > right\njoin -i left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "header_passthrough",
+      "kind": "parity",
+      "purpose": "Compare GNU header handling: first records are emitted as labels even when their key fields differ, then ordinary records are joined.",
+      "script": "printf 'key left-label\\na L\\n' > left\nprintf 'other right-label\\na R\\n' > right\njoin --header left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "auto_format_ragged_rows",
+      "kind": "parity",
+      "purpose": "Compare -o auto layout inferred from each first record, including later short rows and unmatched rows padded with -e.",
+      "script": "printf 'a L1 x\\na L2\\nz L3 q\\n' > left\nprintf 'a R1 y\\nm R2\\nz R3 w\\n' > right\njoin -o auto -a 1 -a 2 -e _ left right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin_operand_positions",
+      "kind": "parity",
+      "purpose": "Compare reading standard input as the first and second file operand using only relative fixture files and shell redirection.",
+      "script": "printf 'a L\\nb M\\n' > left\nprintf 'a R\\nb S\\n' > right\njoin - right < left\njoin left - < right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "closed_stdout_failure",
+      "kind": "parity",
+      "purpose": "A closed stdout is an output failure with status 1; stderr remains open and diagnostics remain in the raw evidence.",
+      "script": "printf 'a L\\n' > left\nprintf 'a R\\n' > right\njoin left right >&-",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "check_order_failure",
+      "kind": "parity",
+      "purpose": "Compare explicit GNU sorted-input checking on a disorder reached while both inputs remain; the join invocation must emit its matched prefix and exit with status 1.",
+      "script": "printf 'a A\\nc C\\nb B\\n' > left\nprintf 'a X\\nc Y\\nz Z\\n' > right\nset +e\njoin --check-order left right\nrc=$?\nset -e\n[[ $rc -eq 1 ]] || exit 99\nexit \"$rc\"",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "binary-fields-and-stdin-reuse",
+      "kind": "parity",
+      "purpose": "NUL bytes and trailing CR remain field bytes; each invocation starts with fresh stdin state in both positions.",
+      "script": "printf 'a L\\000x\\r\\nb M\\n' > left\nprintf 'a R\\000y\\r\\nb N\\n' > right\njoin - right < left\njoin - right < left\njoin left - < right",
+      "requires": [
+        "join"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

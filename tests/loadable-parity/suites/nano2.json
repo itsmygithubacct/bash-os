@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "loadable": "nano2",
+  "reference": "There is no GNU CLI for nano2's internal piece-table engine; GNU nano is a separate interactive editor. Runnable contract cases use the documented Bash type/help builtin behavior and nano2's registered help text. No engine result is presented as GNU parity.",
+  "coverage": [
+    "Bash identifies nano2 as a builtin and does not resolve it as an executable through the candidate's empty PATH.",
+    "Bash help synopsis and full help text are checked against the registered nano2 documentation.",
+    "An unsupported nano2 argument returns the documented usage status and emits a diagnostic.",
+    "The internal editor engine and save operations are explicitly deferred pending an independent operation harness."
+  ],
+  "exclusions": [
+    "No corresponding GNU command exposes nano2's piece-table operations; the separate GNU nano editor is not a reference for this non-interactive engine.",
+    "No selftest or edit/save operation is counted as passed: the only operation is an internal selftest without an independently callable operation interface or external oracle."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Bash type -t reports the registered loadable as a builtin.",
+      "script": "type -t nano2",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-all",
+      "kind": "contract",
+      "purpose": "Bash type -a includes nano2 as a shell builtin; the candidate runs with an empty executable PATH.",
+      "script": "type -a nano2",
+      "expected_status": 0,
+      "stdout": "nano2 is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "path-only-lookup",
+      "kind": "contract",
+      "purpose": "Bash type -P searches for an executable and must not mistake the loadable builtin for a path command.",
+      "script": "type -P nano2",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s exposes the registered nano2 selftest synopsis.",
+      "script": "help -s nano2",
+      "expected_status": 0,
+      "stdout": "nano2: nano2 selftest\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documentation",
+      "kind": "contract",
+      "purpose": "Bash help prints the complete registered nano2 documentation, including the stated scope and selftest coverage.",
+      "script": "help nano2",
+      "expected_status": 0,
+      "stdout": "nano2: nano2 selftest\n    Stage 16 piece-table buffer engine for nano.\n    \n    Usage: nano2 selftest\n    \n    nano2 is a forked, non-interactive Stage 16 engine while the\n    existing nano editor remains the registered interactive editor.\n    The selftest covers byte-preserving save, large inserts, binary\n    NUL handling, and 100-step undo/redo history.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bad-argument-usage",
+      "kind": "contract",
+      "purpose": "An unsupported argument is rejected with the documented usage status and a diagnostic without entering the engine selftest.",
+      "script": "nano2 unsupported",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "piece-table-operations",
+      "kind": "deferred",
+      "purpose": "Exercise load, insert, delete, line/column mapping, range flattening, binary NUL handling, and multi-step undo/redo against an independent reference model.",
+      "reason": "Deferred: nano2 exposes no operation arguments or fixture input beyond its built-in selftest, and GNU nano does not expose the same piece-table API. A future disposable VM needs a test-only adapter for deterministic operation sequences plus an independent byte-array reference model; compare return status and flattened bytes for each sequence. The selftest's internal assertions are not independent parity evidence."
+    },
+    {
+      "id": "piece-table-file-save",
+      "kind": "deferred",
+      "purpose": "Exercise file load/save byte preservation, relative-path save, replacement, and temporary-file cleanup through the actual nano2 engine.",
+      "reason": "Deferred: the only public operation is a fixed selftest that creates its own /tmp paths and cannot accept relative fixture paths; the save API is internal and has no matching GNU command. A future disposable VM needs an adapter that routes the real engine through relative files in a private fixture tree, a file/error-injection mock for atomic-save failure paths, and an independent byte/mode/tree oracle."
+    }
+  ]
+}

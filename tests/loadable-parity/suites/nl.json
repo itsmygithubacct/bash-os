@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "loadable": "nl",
+  "reference": "GNU coreutils nl selected from the harness reference PATH. Each parity fixture runs as the same Bash script against GNU nl and the compiled-in nl builtin; byte output, exit status and resulting fixture tree are compared under the harness C locale and UTC.",
+  "coverage": [
+    "Default nonempty-line numbering, blank lines, and an unterminated final record.",
+    "All-line numbering with starting value, increment, zero-padded field, width, and custom separator.",
+    "Blank-line groups with left-aligned numbering.",
+    "Default logical-page sections with section-specific styles and reset, plus a custom delimiter with no-reset numbering.",
+    "BRE-based body selection using anchors and an interval.",
+    "Documented long aliases after an operand.",
+    "Numbering carried across named files and stdin selected by the '-' operand.",
+    "BRE matching over a record containing NUL.",
+    "Missing-file diagnostics while later operands continue, and invalid BRE failure.",
+    "Bash builtin type and help metadata contract."
+  ],
+  "exclusions": [
+    "PTY streaming before stdin reaches EOF is deferred because this fixture runner has no PTY driver.",
+    "No privileged, hardware, network, or host-system operation is part of nl's text-numbering contract.",
+    "Broad libc regex locale behavior, extreme line sizes, write failures, and exhaustive option/error matrices remain outside this compact suite.",
+    "The case count exceeds the preferred range to preserve existing cases and isolate additional boundaries and regressions."
+  ],
+  "cases": [
+    {
+      "id": "default-and-final-record",
+      "kind": "parity",
+      "purpose": "Check default nonempty-line numbering, preserved blank records, and GNU nl's newline on an unterminated final record.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'oak\\n\\nbirch\\nlast' > input\nnl input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "number-formats",
+      "kind": "parity",
+      "purpose": "Check numbering every record with a nondefault start and increment, zero padding, field width, and a literal separator.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'red\\n\\nblue\\n' > input\nnl -ba -v 3 -i 2 -n rz -w 3 -s ':' input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "blank-line-groups",
+      "kind": "parity",
+      "purpose": "Check -l grouping over multiple blank runs, including a trailing single blank, with left alignment.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'A\\n\\n\\n\\nB\\n\\n' > input\nnl -ba -l 2 -n ln -w 2 -s '|' input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "logical-pages-and-reset",
+      "kind": "parity",
+      "purpose": "Check default page delimiters, distinct header/body/footer styles, reset numbering, a multi-character custom delimiter, and -p continuation.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf '%s\\n' '\\:\\:\\:' 'H1' 'H2' '\\:\\:' 'B1' '' 'B2' '\\:' 'F1' 'F2' > pages\nnl -h a -b t -f a -v 4 -i 2 -w 2 pages\nprintf '%s\\n' '@@@@@@' 'head' '@@@@' 'body' '@@' 'tail' > custom\nnl -ba -d '@@' -v 8 -p -w 2 custom",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "body-bre",
+      "kind": "parity",
+      "purpose": "Check POSIX basic regular-expression selection with anchors and an escaped interval; unmatched lines retain the number field.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf '%s\\n' 'item-01' 'item-7' 'item-99' 'item-100' '' > input\nnl -bp'^item-[0-9]\\{2\\}$' input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-options-after-operand",
+      "kind": "parity",
+      "purpose": "Check documented long aliases, equals-form arguments, and option permutation after a file operand.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf '%s\\n' 'a' '' 'b' > input\nnl input --body-numbering=a --starting-line-number=5 --line-increment=3 --number-format=rz --number-width=2 --number-separator=:",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-files-and-stdin",
+      "kind": "parity",
+      "purpose": "Check that a single invocation carries its line counter from a named file through stdin via '-' and into a later named file.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'left\\n' > first\nprintf 'right\\n' > last\nprintf 'middle\\n' | nl -ba first - last",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-bre-match",
+      "kind": "parity",
+      "purpose": "Check GNU BRE matching after an embedded NUL while preserving the record bytes in output.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'pre\\000TAIL\\nno\\000match\\n' > input\nnl -bpTAIL input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-continues",
+      "kind": "parity",
+      "purpose": "Check the GNU error status and diagnostic for a missing operand while valid files on either side are still processed.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'before\\n' > before\nprintf 'after\\n' > after\nnl -ba before absent after",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-bre",
+      "kind": "parity",
+      "purpose": "Check failure on a malformed basic regular expression.",
+      "requires": [
+        "nl"
+      ],
+      "script": "printf 'x\\n' > input\nnl -bp'[' input",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash's builtin type and documented help topic against the nl source documentation.",
+      "script": "type -t nl\ndoc=$(help nl)\n[[ $doc == *\"Number lines (POSIX nl).\"* ]]\n[[ $doc == *\"--body-numbering\"* ]]\nprintf 'help-topic-present\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp-topic-present\n"
+    },
+    {
+      "id": "pty-streaming",
+      "kind": "deferred",
+      "purpose": "Verify that a numbered line reaches a terminal while the input side remains open.",
+      "reason": "Requires a future disposable VM providing the following prerequisite: The current data-only runner has no PTY orchestration. A future isolated PTY driver should start nl in a disposable pseudo-terminal, write one short newline-terminated record while keeping the writer open, require the numbered record to arrive before EOF, then close the writer and verify clean exit. It must use only the disposable PTY and bounded input/output."
+    },
+    {
+      "id": "fresh-stdin-and-state",
+      "kind": "parity",
+      "purpose": "Repeated invocations reset numbering and stdin state; calls sharing an exhausted descriptor do not reread data.",
+      "script": "printf 'a\\nb\\n' > input\nnl -ba -v 7 < input\nnl -ba < input\n{ nl -ba; nl -ba; } < input",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "nl"
+      ]
+    },
+    {
+      "id": "empty-and-negative-numbers",
+      "kind": "parity",
+      "purpose": "Empty input emits nothing; zero-padding places the sign before negative line numbers.",
+      "script": " : > empty\nnl empty\nprintf 'a\\nb\\n' | nl -ba -v -2 -i 1 -n rz -w 4 -s ':'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "nl"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "loadable": "sha256sum",
+  "reference": "GNU Coreutils sha256sum, invoked by the reference Bash with PATH=/usr/bin:/bin. Checksum fixtures use the independently published FIPS 180-4 SHA-256 digest of the bytes 'abc' (ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad).",
+  "coverage": [
+    "SHA-256 of stdin and relative files, including text, binary, BSD-tagged, and NUL-terminated output",
+    "GNU filename escaping for newline, carriage return, and backslash names; option termination for a leading-dash path",
+    "GNU and BSD checksum verification, checksum input from stdin, quiet/status modes, and ignore-missing",
+    "Mismatch status, malformed-line warning and strict behavior, a missing input alongside a readable file, and incompatible options",
+    "Bash type/help metadata contract against the sha256sum builtin documentation"
+  ],
+  "exclusions": [
+    "This is a bounded common-interface suite, not complete GNU option conformance; diagnostics are checked for presence where useful, not exact wording.",
+    "A read(2) failure after a successful open requires deterministic syscall fault injection and is deferred below.",
+    "Large-file performance, stress, and fault or exploit reproduction are out of scope."
+  ],
+  "cases": [
+    {
+      "id": "stdin-published-vector",
+      "kind": "parity",
+      "purpose": "Hash stdin and compare the exact GNU record for the published FIPS 180-4 abc vector.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "printf abc | sha256sum",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "file-markers-and-tag",
+      "kind": "parity",
+      "purpose": "Compare text, binary, and BSD-tagged records for two files, including a leading-dash filename passed after --.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "printf abc > data\nprintf abc > ./-dash\nsha256sum -- data -dash\nsha256sum -b -- data -dash\nsha256sum -t -- data -dash\nsha256sum --tag -- data -dash",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "escaped-and-zero-names",
+      "kind": "parity",
+      "purpose": "Exercise GNU escaping of newline, carriage return, and backslash in filenames, then verify that -z writes raw names with NUL record terminators.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "printf abc > $'line\\nname'\nprintf abc > 'back\\slash'\nprintf abc > $'carriage\\rname'\nsha256sum -- $'line\\nname' 'back\\slash' $'carriage\\rname'\nsha256sum -z -- $'line\\nname' 'back\\slash' $'carriage\\rname'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-bsd-and-stdin-checks",
+      "kind": "parity",
+      "purpose": "Verify independently constructed GNU and BSD checksum records and a GNU record read from stdin.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "digest=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nprintf abc > data\nprintf '%s  data\\n' \"$digest\" > gnu.sums\nsha256sum -c gnu.sums\nprintf 'SHA256 (data) = %s\\n' \"$digest\" > bsd.sums\nsha256sum -c bsd.sums\nprintf '%s  data\\n' \"$digest\" | sha256sum -c -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quiet-status-ignore-missing",
+      "kind": "parity",
+      "purpose": "Check that ignore-missing skips an absent listed file when another verifies, while quiet and status modes suppress successful records.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "digest=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nprintf abc > present\nprintf '%s  present\\n%s  absent\\n' \"$digest\" \"$digest\" > sums\nsha256sum -c --ignore-missing sums\nsha256sum -c --quiet --ignore-missing sums\nsha256sum -c --status --ignore-missing sums\nprintf 'quiet and status complete\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mismatch-status",
+      "kind": "parity",
+      "purpose": "Verify that a checksum mismatch is reported through status 1 with --status suppressing check output and diagnostics.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "digest=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nprintf changed > data\nprintf '%s  data\\n' \"$digest\" > sums\nif sha256sum --status -c sums; then exit 99; else result=$?; fi\nprintf 'mismatch-status=%s\\n' \"$result\"\nexit \"$result\"",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "malformed-warning-strict",
+      "kind": "parity",
+      "purpose": "Check a valid record beside a malformed line: --warn reports the malformed line, and --strict makes that input fail.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "digest=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nprintf abc > data\nprintf '%s  data\\nnot a checksum\\n' \"$digest\" > sums\nsha256sum -c --warn sums\nif sha256sum -c --warn --strict sums; then exit 99; else result=$?; fi\nprintf 'strict-status=%s\\n' \"$result\"\nexit \"$result\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-input-continues",
+      "kind": "parity",
+      "purpose": "Check that a missing file makes the command fail while a later readable file still produces its checksum.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "printf abc > data\nsha256sum missing data",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "incompatible-check-options",
+      "kind": "parity",
+      "purpose": "Check that --status without --check is rejected with a failing status and a diagnostic.",
+      "requires": [
+        "sha256sum"
+      ],
+      "script": "sha256sum --status",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Use Bash's type and help builtins to check that sha256sum is registered as a builtin and exposes the documented purpose and synopsis.",
+      "script": "kind=$(type -t sha256sum) || exit 1\nhelp_text=$(help sha256sum) || exit 1\n[[ $kind == builtin ]] || exit 1\n[[ $help_text == *'Print SHA-256 checksums or verify GNU/BSD checksum files with -c.'* ]] || exit 1\n[[ $help_text == *'sha256sum [-bctwz] [--tag] [FILE...]'* ]] || exit 1\nprintf 'builtin help metadata OK\\n'",
+      "expected_status": 0,
+      "stdout": "builtin help metadata OK\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "read-error-after-open",
+      "kind": "deferred",
+      "purpose": "Check the checksum command's read-error path after a file has opened and yielded data, including failure status, no checksum record for incomplete input, and later command usability.",
+      "reason": "Requires a disposable VM or reviewed syscall-fault mock that makes read(2) return EIO after one bounded successful read for a relative fixture file, for both GNU and candidate runs. A regular fixture file cannot induce this deterministically. A future test should assert nonzero status, no digest record for the incomplete file, and successful hashing of a fresh file afterward."
+    },
+    {
+      "id": "empty-and-binary-boundaries",
+      "kind": "parity",
+      "purpose": "Compare empty-input and small NUL/high-byte payload digests, covering both published empty hash and binary input.",
+      "script": ": > empty\nprintf '\\000A\\377B' > binary\nsha256sum empty binary",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sha256sum"
+      ]
+    },
+    {
+      "id": "escaped-manifest-check",
+      "kind": "parity",
+      "purpose": "Verify a checksum manifest with an independently escaped backslash filename, beyond output-only escaping.",
+      "script": "printf abc > 'back\\slash'\nprintf '%s  %s\\n' '\\ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' 'back\\\\slash' > sums\nsha256sum -c sums",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sha256sum"
+      ]
+    }
+  ]
+}

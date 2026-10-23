@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "index",
+  "reference": "Git's documented index behavior: git update-index --index-info creates and updates entries, git ls-files --stage lists them, and git update-index --add/--force-remove/--refresh provide the operation counterparts. The metadata contract uses Bash type/help builtins and the documented index help text.",
+  "coverage": [
+    "Bash builtin availability and help metadata",
+    "write: canonical modes, sorting, conflict stages, and whitespace in names",
+    "read/list and -V array output against git ls-files --stage",
+    "text --index-info: mode-zero removal, conflict-stage replacement, and addition",
+    "NUL --index-info: NUL-delimited records and a newline in a path",
+    "add/remove against Git working-tree operations",
+    "update-stat against git update-index --refresh",
+    "Independent v2 reader input and exact per-side stat/checksum/cleanup validation, including fields that vary between namespaces."
+  ],
+  "exclusions": [
+    "Atomic write, short-write, fdatasync, close, and rename failure rollback is deferred because it requires an independently reviewed syscall fault-injection mock.",
+    "Split and sparse index expansion, version 4, optional extensions, corrupt-index refusal, and unusual path compatibility are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Bash must register index as a builtin and expose its documented help, including the atomic-write and update-stat verbs.",
+      "script": "kind=$(type -t index)\n[[ $kind == builtin ]] || exit 1\ndoc=$(help index)\n[[ -n $doc && $doc == *\"Atomic write\"* && $doc == *\"update-stat\"* ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "write-v2-modes-stages",
+      "kind": "parity",
+      "purpose": "Write an unsorted set of regular, executable, symlink, and conflict-stage records. The shared relative repository skeleton keeps the complete generated index files comparable byte for byte.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\nif [[ $(type -t index) == builtin ]]; then\n  printf '100755 2222222222222222222222222222222222222222 0\\trun.sh\\n100644 1111111111111111111111111111111111111111 0\\tplain\\n100644 4444444444444444444444444444444444444444 2\\tmerge file\\n100644 3333333333333333333333333333333333333333 1\\tmerge file\\n120000 5555555555555555555555555555555555555555 0\\tlink name\\n' | index write .git/index\nelse\n  git update-index --index-info <<'RECORDS'\n100755 2222222222222222222222222222222222222222 0\trun.sh\n100644 1111111111111111111111111111111111111111 0\tplain\n100644 4444444444444444444444444444444444444444 2\tmerge file\n100644 3333333333333333333333333333333333333333 1\tmerge file\n120000 5555555555555555555555555555555555555555 0\tlink name\nRECORDS\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "read-list-array",
+      "kind": "parity",
+      "purpose": "Check read output, the list synonym, and -V array contents against Git's staged listing for entries in path and stage order.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\nprintf '100644 1111111111111111111111111111111111111111 0\\talpha\\n100644 2222222222222222222222222222222222222222 2\\tmerge\\n100644 3333333333333333333333333333333333333333 1\\tmerge\\n100755 4444444444444444444444444444444444444444 0\\trun\\n' > entries\nif [[ $(type -t index) == builtin ]]; then\n  index write .git/index < entries\n  index read .git/index\n  index list .git/index\n  index read .git/index -V rows\n  printf '%s\\n' \"${rows[@]}\"\nelse\n  git update-index --index-info < entries\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "index-info-text",
+      "kind": "parity",
+      "purpose": "Apply textual index-info records that remove a path, add a conflict stage, replace all conflict stages with stage zero, and add another path; compare both the listing and resulting index file.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\nif [[ $(type -t index) == builtin ]]; then\n  printf '100644 1111111111111111111111111111111111111111 0\\tgone\\n100644 2222222222222222222222222222222222222222 0\\tstay\\n100644 3333333333333333333333333333333333333333 1\\tconflict\\n100644 4444444444444444444444444444444444444444 2\\tconflict\\n' | index write .git/index\n  printf '0 0000000000000000000000000000000000000000\\tgone\\n100644 5555555555555555555555555555555555555555 3\\tconflict\\n100755 6666666666666666666666666666666666666666\\tconflict\\n100644 7777777777777777777777777777777777777777\\tnew-file\\n' | index --index-info .git/index\n  index read .git/index\nelse\n  git update-index --index-info <<'INITIAL'\n100644 1111111111111111111111111111111111111111\tgone\n100644 2222222222222222222222222222222222222222\tstay\n100644 3333333333333333333333333333333333333333 1\tconflict\n100644 4444444444444444444444444444444444444444 2\tconflict\nINITIAL\n  git update-index --index-info <<'UPDATE'\n0 0000000000000000000000000000000000000000\tgone\n100644 5555555555555555555555555555555555555555 3\tconflict\n100755 6666666666666666666666666666666666666666\tconflict\n100644 7777777777777777777777777777777777777777\tnew-file\nUPDATE\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "index-info-nul-path",
+      "kind": "parity",
+      "purpose": "Exercise -z record framing and preserve an embedded newline in a path. The index files must match Git's update-index result exactly.",
+      "requires": [
+        "git"
+      ],
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\nif [[ $(type -t index) == builtin ]]; then\n  printf '100644 1111111111111111111111111111111111111111 0\\tkeep\\n100644 2222222222222222222222222222222222222222 0\\tremove\\n' | index write .git/index\n  printf '0 0000000000000000000000000000000000000000\\tremove\\0' | index --index-info -z .git/index\n  printf '100644 3333333333333333333333333333333333333333\\tline\\nbreak\\0' | index --index-info -z .git/index\nelse\n  git update-index --index-info <<'INITIAL'\n100644 1111111111111111111111111111111111111111\tkeep\n100644 2222222222222222222222222222222222222222\tremove\nINITIAL\n  printf '0 0000000000000000000000000000000000000000\\tremove\\0' | git update-index -z --index-info\n  printf '100644 3333333333333333333333333333333333333333\\tline\\nbreak\\0' | git update-index -z --index-info\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "add-remove-working-entry",
+      "kind": "parity",
+      "purpose": "Add an empty working file from its known Git blob ID, list it, remove it, and list again. compare_tree is disabled because Git stores the empty blob object and both indexes record sandbox-specific inode and timestamp fields while the builtin receives the blob ID from its caller. Before removal, an independent Python decoder verifies all stored stat fields, object ID, checksum and lock/temp cleanup against the private working file on both sides.",
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "compare_tree": false,
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\n: > fresh\nif [[ $(type -t index) == builtin ]]; then\n  index add .git/index e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 fresh\n  PATH=/usr/bin:/bin python3 - <<'STATCHECK'\nimport pathlib,struct,os,hashlib\np=pathlib.Path('.git/index');data=p.read_bytes()\nassert data[:4]==b'DIRC'\nversion,count=struct.unpack_from('>II',data,4)\nassert version in (2,3) and count==1\nassert hashlib.sha1(data[:-20]).digest()==data[-20:]\nfields=struct.unpack_from('>10I',data,12)\nst=os.stat('fresh')\nwanted=(st.st_ctime_ns//10**9,st.st_ctime_ns%10**9,st.st_mtime_ns//10**9,st.st_mtime_ns%10**9,st.st_dev,st.st_ino,0o100644,st.st_uid,st.st_gid,st.st_size)\nwanted=tuple(v&0xffffffff for v in wanted)\nassert fields==wanted,(fields,wanted)\nassert data[52:72].hex()=='e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'\nflags=struct.unpack_from('>H',data,72)[0]\nassert flags==5 and data[74:80]==b'fresh\\0'\nassert st.st_size==0 and not pathlib.Path('.git/index.lock').exists()\nassert sorted(x.name for x in pathlib.Path('.git').iterdir())==['HEAD','config','index','info','objects','refs']\nprint('index-stat-fields-and-checksum-verified')\nSTATCHECK\n  printf 'after-add\\n'\n  index read .git/index\n  index remove .git/index fresh\n  printf 'after-remove\\n'\n  index read .git/index\nelse\n  git update-index --add -- fresh\n  PATH=/usr/bin:/bin python3 - <<'STATCHECK'\nimport pathlib,struct,os,hashlib\np=pathlib.Path('.git/index');data=p.read_bytes()\nassert data[:4]==b'DIRC'\nversion,count=struct.unpack_from('>II',data,4)\nassert version in (2,3) and count==1\nassert hashlib.sha1(data[:-20]).digest()==data[-20:]\nfields=struct.unpack_from('>10I',data,12)\nst=os.stat('fresh')\nwanted=(st.st_ctime_ns//10**9,st.st_ctime_ns%10**9,st.st_mtime_ns//10**9,st.st_mtime_ns%10**9,st.st_dev,st.st_ino,0o100644,st.st_uid,st.st_gid,st.st_size)\nwanted=tuple(v&0xffffffff for v in wanted)\nassert fields==wanted,(fields,wanted)\nassert data[52:72].hex()=='e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'\nflags=struct.unpack_from('>H',data,72)[0]\nassert flags==5 and data[74:80]==b'fresh\\0'\nassert st.st_size==0 and not pathlib.Path('.git/index.lock').exists()\nassert sorted(x.name for x in pathlib.Path('.git').iterdir())==['HEAD','config','index','info','objects','refs']\nprint('index-stat-fields-and-checksum-verified')\nSTATCHECK\n  printf 'after-add\\n'\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\n  git update-index --force-remove -- fresh\n  printf 'after-remove\\n'\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "update-stat-refresh",
+      "kind": "parity",
+      "purpose": "Refresh an unchanged entry and compare mode/blob/stage/path with Git. Independently decode every stored stat field, verify it against os.stat of the private working file, verify SHA-1 trailer and lock/temp cleanup. compare_tree is disabled because raw inode, timestamps and Git object storage differ inherently; those stat fields are explicitly checked against each side's independent filesystem observations.",
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "compare_tree": false,
+      "script": "mkdir -p .git/objects .git/refs/heads .git/info\nprintf 'ref: refs/heads/main\\n' > .git/HEAD\nprintf '[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n' > .git/config\n: > fresh\nif [[ $(type -t index) == builtin ]]; then\n  printf '100644 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 0\\tfresh\\n' | index write .git/index\n  index update-stat .git/index fresh\n  index read .git/index\nelse\n  printf '100644 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\\tfresh\\n' | git update-index --index-info\n  blob=$(printf '' | git hash-object -w --stdin)\n  [[ $blob == e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 ]]\n  git update-index --refresh\n  git ls-files --stage | while IFS= read -r line; do printf '%s\\n' \"${line/$'\\t'/ }\"; done\nfi\nPATH=/usr/bin:/bin python3 - <<'STATCHECK'\nimport pathlib,struct,os,hashlib\np=pathlib.Path('.git/index');data=p.read_bytes()\nassert data[:4]==b'DIRC'\nversion,count=struct.unpack_from('>II',data,4)\nassert version in (2,3) and count==1\nassert hashlib.sha1(data[:-20]).digest()==data[-20:]\nfields=struct.unpack_from('>10I',data,12)\nst=os.stat('fresh')\nwanted=(st.st_ctime_ns//10**9,st.st_ctime_ns%10**9,st.st_mtime_ns//10**9,st.st_mtime_ns%10**9,st.st_dev,st.st_ino,0o100644,st.st_uid,st.st_gid,st.st_size)\nwanted=tuple(v&0xffffffff for v in wanted)\nassert fields==wanted,(fields,wanted)\nassert data[52:72].hex()=='e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'\nflags=struct.unpack_from('>H',data,72)[0]\nassert flags==5 and data[74:80]==b'fresh\\0'\nassert st.st_size==0 and not pathlib.Path('.git/index.lock').exists()\nassert sorted(x.name for x in pathlib.Path('.git').iterdir())==['HEAD','config','index','info','objects','refs']\nprint('index-stat-fields-and-checksum-verified')\nSTATCHECK\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-atomic-faults",
+      "kind": "deferred",
+      "purpose": "Validate rollback and lock/temp cleanup when an atomic index replacement fails at different I/O stages.",
+      "reason": "Requires a separately reviewed disposable syscall fault-injection mock for write, short write, fdatasync, close, and rename failures. The isolated data-only fixture runner does not inject these syscall failures."
+    },
+    {
+      "id": "empty-index",
+      "kind": "contract",
+      "purpose": "Write the canonical empty v2 index and read it back; compare the complete binary header/count/SHA-1 trailer with an independently encoded Git-format contract, including no lock/temp residue.",
+      "script": "printf '' | index write empty.index\nindex read empty.index\nPATH=/usr/bin:/bin python3 - <<'EMPTY'\nimport pathlib,sys\nassert sorted(p.name for p in pathlib.Path('.').iterdir()) == ['empty.index']\nsys.stdout.buffer.write(pathlib.Path('empty.index').read_bytes())\nEMPTY",
+      "expected_status": 0,
+      "stdout_base64": "RElSQwAAAAIAAAAAOdiQE57lNWx+9XIhbOvNJ6pB+d8=",
+      "stderr": "empty"
+    },
+    {
+      "id": "independent-v2-reader",
+      "kind": "contract",
+      "purpose": "Read a valid Git v2 index constructed independently from the published binary format, covering stdout/list/array APIs without candidate writer dependence.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'ENCODE'\nimport struct,hashlib,pathlib\nentry=struct.pack('>10I',0,0,0,0,0,0,0o100644,0,0,0)+bytes.fromhex('11'*20)+struct.pack('>H',5)+b'alpha\\0'\nentry+=b'\\0'*((-len(entry))%8)\ndata=b'DIRC'+struct.pack('>II',2,1)+entry\npathlib.Path('sample.index').write_bytes(data+hashlib.sha1(data).digest())\nENCODE\nindex read sample.index\nindex list sample.index\nindex read sample.index -V rows\nprintf '%s\\n' \"${rows[@]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "100644 1111111111111111111111111111111111111111 0 alpha\n100644 1111111111111111111111111111111111111111 0 alpha\n100644 1111111111111111111111111111111111111111 0 alpha\n"
+    }
+  ]
+}

@@ -26,6 +26,7 @@ int tar_builtin(WORD_LIST *list)
     int saved = -1, rc = 0;
     const char *archive = "-";
     FILE *stream = NULL, *temporary = NULL;
+    struct bashos_pax_write_context writer = {0};
     struct bashos_pax_read_options read_options = { .tar_mode = 1 };
     for (; list; list = list->next) {
         const char *w = list->word->word, *opts = NULL, *value = NULL;
@@ -103,13 +104,14 @@ int tar_builtin(WORD_LIST *list)
         }
     }
     if (mode == 'c') {
+        writer.no_recurse = no_recurse;
         for (size_t i = 0; i < used; i++) {
             if (args[i].directory) {
                 if (chdir(args[i].text)) { builtin_error("%s: %s", args[i].text, strerror(errno)); rc = 2; break; }
             } else {
                 if (args[i].text[0] == '/') { builtin_error("use -C with relative archive members"); rc = 2; break; }
                 if (verbose) fprintf(!strcmp(archive, "-") ? stderr : stdout, "%s\n", args[i].text);
-                if (bashos_pax_write_member(payload, args[i].text, no_recurse)) rc = 2;
+                if (bashos_pax_write_member_context(payload, args[i].text, &writer)) rc = 2;
             }
         }
         unsigned char zero[1024] = {0};
@@ -129,6 +131,7 @@ int tar_builtin(WORD_LIST *list)
 invalid:
     builtin_error("unsupported option, missing argument, or conflicting operation; try tar --help"); rc = 2;
 done:
+    bashos_pax_write_clear(&writer);
     if (temporary && fclose(temporary)) rc = 2;
     if (stream && fclose(stream)) rc = 2;
     if (saved >= 0) {
@@ -144,6 +147,7 @@ char *tar_doc[] = {
     "Create (-c), list (-t), or extract (-x) ustar/PAX archives; -f selects the archive.",
     "Supports -C directory, -z gzip, -v, -O stdout, -p permissions, --strip-components.",
     "Uses the pax engine. Unsupported options fail instead of being ignored.",
+    "Preserves regular-file hardlinks with nonconflicting member names; supports FIFOs.",
     "No append/update, sparse/device entries, absolute member names or automatic compression detection.", NULL
 };
 struct builtin tar_struct = {

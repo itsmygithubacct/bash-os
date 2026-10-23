@@ -1,0 +1,318 @@
+{
+  "version": 1,
+  "loadable": "uname",
+  "reference": "GNU coreutils uname in the isolated reference lane, run with system Bash and the same fixture script. The candidate lane runs the pinned review candidate with PATH=an empty search directory, so uname resolves to the Bash loadable. GNU and candidate calls share the runner's private kernel/hostname setup; dynamic kernel strings are compared directly between those two independent executions.",
+  "coverage": [
+    "Default invocation and each documented short field selector (-s, -n, -r, -v, -m).",
+    "Combined selectors, fixed output order, duplicate selectors, and the -- option terminator.",
+    "GNU all-fields output, processor selector behavior, and a GNU long option.",
+    "Invalid option and extra-operand status/diagnostic behavior.",
+    "Bash builtin availability and the short help synopsis as independent metadata contracts.",
+    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
+  ],
+  "exclusions": [
+    "The uname(2) failure path is deferred because the runner provides no syscall fault-injection mock; a future disposable VM or reviewed mock is required.",
+    "Kernel field values are environment-specific; successful parity cases compare the GNU and candidate outputs from the same isolated runner setup rather than hard-coding one host's identifiers."
+  ],
+  "cases": [
+    {
+      "id": "uname-default",
+      "purpose": "Compare the default invocation, which selects the system name, with GNU uname.",
+      "kind": "parity",
+      "script": "uname",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-fields",
+      "purpose": "Compare each documented short selector for system name, nodename, release, version, and machine.",
+      "kind": "parity",
+      "script": "uname -s\nuname -n\nuname -r\nuname -v\nuname -m",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-combined",
+      "purpose": "Check that combined selectors print in uname's fixed field order and repeated selectors do not duplicate a field.",
+      "kind": "parity",
+      "script": "uname -rns\nuname -snrr",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-double-dash",
+      "purpose": "Check the standard end-of-options marker with no following operands.",
+      "kind": "parity",
+      "script": "uname --",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-all",
+      "purpose": "Compare -a against GNU's all-fields output, including GNU's processor, hardware-platform, and operating-system fields when available.",
+      "kind": "parity",
+      "script": "uname -a",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-processor",
+      "purpose": "Compare -p with GNU's processor-type field; this detects the source implementation's mapping of -p to the machine field.",
+      "kind": "parity",
+      "script": "uname -p",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-long-option",
+      "purpose": "Compare GNU's documented --kernel-name selector with the loadable's option interface.",
+      "kind": "parity",
+      "script": "uname --kernel-name",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uname-invalid-option",
+      "purpose": "Compare rejection of an unknown short option, including command status and the presence of a diagnostic.",
+      "kind": "parity",
+      "script": "uname -q",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "uname-extra-operand",
+      "purpose": "Compare rejection of an unexpected operand, including command status and the presence of a diagnostic.",
+      "kind": "parity",
+      "script": "uname extra",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "metadata-type",
+      "purpose": "Verify through Bash's type builtin that uname is installed as a builtin in the candidate binary.",
+      "kind": "contract",
+      "script": "type -t uname",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "purpose": "Check the synopsis required in the generated short-help catalog after adding GNU field selectors.",
+      "kind": "contract",
+      "script": "help -s uname",
+      "expected_status": 0,
+      "stdout": "uname: uname [-amnrsvpio]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-syscall-error",
+      "purpose": "Exercise the uname(2) error path and verify its failure status and diagnostic without changing host state.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM or independently reviewed syscall mock that makes uname(2) fail for this process. The current isolated runner does not provide syscall fault injection, so this case must not be run against the host kernel."
+    },
+    {
+      "id": "gnu-help-option",
+      "kind": "parity",
+      "purpose": "Banner branding is excluded; compare success, nonempty content and command identity.",
+      "script": "text=$(uname --help); [[ -n $text && $text == *uname* ]]; printf '%s\\n' 'uname --help succeeds with identified nonempty output'",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-version-option",
+      "kind": "parity",
+      "purpose": "Banner branding is excluded; compare success, nonempty content and command identity.",
+      "script": "text=$(uname --version); [[ -n $text && $text == *uname* ]]; printf '%s\\n' 'uname --version succeeds with identified nonempty output'",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "other-fields",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname -i; uname -o; uname -pimso",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-options",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname --all; uname --kernel-name --nodename --kernel-release --kernel-version --machine --processor --hardware-platform --operating-system",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-abbreviations",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname --kerne-nam",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unique-prefix",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname --oper; uname --hard; uname --kerneln",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "option-after-operand",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname extra -s",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "ambiguous-long",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname --kernel",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "operand-after-end",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname -- extra",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-operand",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "uname ''",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "valid-prefixes",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "uname --oper; uname --hard; uname --kernel-n; uname --kernel-r; uname --kernel-v; uname --p",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "all-with-explicit-unknown",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "uname -api; uname -apio",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-invocations",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "uname -a; uname -p; uname -o; uname; uname -in",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bad-long-argument",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "uname --machine=x",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-with-operand",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "text=$(uname extra --he); [[ -n $text && $text == *uname* ]]; printf '%s\\n' 'uname banner accepted'",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix-option-order",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "POSIXLY_CORRECT=1 uname operand --help",
+      "requires": [
+        "uname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

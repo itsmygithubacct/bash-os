@@ -8,11 +8,12 @@
     "-p rejects a nonportable character.",
     "A regular file used as a leading path component is rejected as not a directory.",
     "Missing operands produce an error status.",
-    "Bash type metadata reports pathchk as a builtin."
+    "Bash type metadata reports pathchk as a builtin.",
+    "Search-denied directory, symlink directory prefix, empty pathname, and repeated-call option state.",
+    "Empty pathnames are rejected in default and portability modes."
   ],
   "exclusions": [
-    "No deferred cases: the selected pathchk behavior is bounded pathname validation and has a GNU CLI oracle; it needs no privileged, hardware, network, or service setup.",
-    "Search-permission denial on an existing directory is not covered because constructing a matching permission-controlled directory would require invoking other loadables, outside this single-loadable suite."
+    "Filesystem-specific 255/4096 default limits are Linux fixture assumptions, checked against the reference before candidate classification. Exact diagnostic wording is not compared."
   ],
   "cases": [
     {
@@ -151,6 +152,54 @@
       "purpose": "Repeated builtin calls keep the -p flag local to each invocation.",
       "script": "pathchk -p 'portable'; pathchk 'name with spaces'; if pathchk -p 'name with spaces'; then exit 1; fi; pathchk 'name with spaces'",
       "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "pathchk"
+      ]
+    },
+    {
+      "id": "search-permission-denied",
+      "purpose": "Reject an existing directory without search permission; capture the failure and restore fixture permissions before tree inspection.",
+      "kind": "parity",
+      "script": "mkdir locked; chmod 600 locked; if pathchk locked/child; then rc=0; else rc=$?; fi; chmod 700 locked; exit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "pathchk",
+        "mkdir",
+        "chmod"
+      ]
+    },
+    {
+      "id": "symlink-directory-prefix",
+      "purpose": "Follow an ordinary relative symlink to a searchable directory while validating its child pathname.",
+      "kind": "parity",
+      "script": "mkdir real; ln -s real alias; pathchk alias/child",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "pathchk",
+        "mkdir",
+        "ln"
+      ]
+    },
+    {
+      "id": "empty-pathname",
+      "purpose": "Reject an empty pathname in default mode with GNU status 1 and a diagnostic.",
+      "kind": "parity",
+      "script": "pathchk ''",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "pathchk"
+      ]
+    },
+    {
+      "id": "portable-empty-pathname",
+      "kind": "parity",
+      "purpose": "Reject an empty pathname under -p with GNU status 1 and a diagnostic.",
+      "script": "pathchk -p ''",
+      "expected_status": 1,
       "stderr": "nonempty",
       "requires": [
         "pathchk"

@@ -23,7 +23,7 @@
       "id": "metadata-type-help",
       "kind": "contract",
       "purpose": "Bash metadata must identify coreutils as a builtin and resolve its attached help text without invoking a dispatcher verb.",
-      "script": "[[ $(type -t coreutils) == builtin ]] || exit 1; help coreutils >/dev/null; printf 'metadata ok\\n'",
+      "script": "[[ $(type -t coreutils) == builtin ]] || exit 1; help coreutils > metadata.out; printf 'metadata ok\\n'",
       "expected_status": 0,
       "stdout": "metadata ok\n",
       "stderr": "empty"
@@ -165,6 +165,39 @@
       ],
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "tac-repeated-stdin",
+      "kind": "parity",
+      "purpose": "The dispatcher rereads a fresh redirected stream in the same shell on each call, preserving binary record tails.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'one\\ntwo\\000tail' > input\ncu tac < input\ncu tac < input\ncu tac < input",
+      "requires": [
+        "tac"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "shred-zero-result",
+      "kind": "parity",
+      "purpose": "Compare GNU shred -x exact-size zero overwrite and retain any unsupported-option difference. This compatibility check is separate from supported -s size behavior and does not establish physical erasure.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'private-data' > data\ncu shred -n 0 -z -x data",
+      "requires": [
+        "shred"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "shred-fixed-size-zero-bytes",
+      "kind": "parity",
+      "purpose": "A supported explicit size overwrites twelve bytes of a small private file with zeros; retain and compare the complete resulting artifact.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'private-data' > data\ncu shred -n 0 -z -s 12 data",
+      "requires": [
+        "shred"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

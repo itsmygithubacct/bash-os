@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "loadable": "mkdir",
+  "reference": "Parity cases run the same bounded shell fixture with system Bash resolving GNU Coreutils mkdir from /usr/bin and with bash-os resolving its mkdir builtin on an empty PATH. GNU exit behavior is checked by explicit per-command status capture in the script; the harness compares script status, stdout bytes, and resulting fixture tree including modes. The metadata contract uses Bash's documented type and help builtins and has no GNU CLI oracle.",
+  "coverage": [
+    "multiple ordinary operands, a spaced name, and a trailing slash",
+    "nested -p creation and idempotent repetition of existing directories",
+    "default modes under a fixed umask for direct and intermediate directories",
+    "explicit modes with -m and preservation of an existing parent during mkdir -p",
+    "-- option termination for a directory name beginning with a dash",
+    "missing operand and existing-directory errors with captured statuses",
+    "failure at a non-directory path component while independent operands are still created",
+    "Bash builtin type and short-help metadata contract"
+  ],
+  "exclusions": [
+    "symbolic mode edge cases, unusual filesystem errors, and concurrent creation races are not covered"
+  ],
+  "cases": [
+    {
+      "id": "create-multiple-paths",
+      "kind": "parity",
+      "purpose": "Create multiple ordinary operands, including a name containing spaces and a valid trailing slash, then compare the resulting entries.",
+      "script": "mkdir alpha 'two words' trailing/",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents-idempotent",
+      "kind": "parity",
+      "purpose": "Create nested parents with -p, then repeat existing targets and add a sibling beneath an existing parent.",
+      "script": "mkdir -p branch/one/two branch/one/two\nmkdir -p branch/one/three",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-mode-umask",
+      "kind": "parity",
+      "purpose": "Check that ordinary and recursively created directory permissions reflect the fixed umask.",
+      "script": "umask 027\nmkdir ordinary\nmkdir -p nested/one/two",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit-mode-preserves-parent",
+      "kind": "parity",
+      "purpose": "Apply explicit modes to a direct target and the final -p target while preserving the mode of a pre-existing ancestor.",
+      "script": "umask 077\nmkdir -p protected\numask 022\nmkdir -p -m 0711 protected/branch/leaf\nmkdir -m 0640 explicit",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "double-dash-name",
+      "kind": "parity",
+      "purpose": "Use -- to create a relative directory whose name begins with a dash.",
+      "script": "mkdir -- -dash",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-operand",
+      "kind": "parity",
+      "purpose": "Check the nonzero status and diagnostic for a call with no directory operand. Diagnostic prefixes and help hints are implementation-specific; status and presence of the error are the contract.",
+      "script": "if mkdir; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "existing-without-p",
+      "kind": "parity",
+      "purpose": "Check that creating an existing directory without -p fails and leaves it present.",
+      "script": "mkdir target\nif mkdir target; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]] || exit 70\n[[ -d target ]] || exit 71\nexit \"$rc\"",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "non-directory-component-and-continuation",
+      "kind": "parity",
+      "purpose": "A regular file blocks one operand; check its failure status and that mkdir still creates the independent operands before and after it.",
+      "script": "printf x > blocker\nif mkdir before blocker/child after; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]] || exit 70\n[[ -d before && -d after && ! -e blocker/child ]] || exit 71\nexit \"$rc\"",
+      "requires": [
+        "mkdir"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Verify through Bash builtins that mkdir resolves as a builtin and has short help metadata; no external command is used and this is not GNU CLI parity.",
+      "script": "[[ $(type -t mkdir) == builtin ]]\n[[ -n $(help -s mkdir) ]]",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit-mode-umask",
+      "kind": "parity",
+      "purpose": "Explicit directory modes and existing directory preservation match GNU mkdir.",
+      "script": "umask 077; mkdir -m 755 fresh; stat -c %a fresh",
+      "requires": [
+        "mkdir",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents-preserve-existing-mode",
+      "kind": "parity",
+      "purpose": "Explicit directory modes and existing directory preservation match GNU mkdir.",
+      "script": "mkdir -m 700 existing; mkdir -p -m 755 existing; stat -c %a existing",
+      "requires": [
+        "mkdir",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parent-and-final-modes",
+      "kind": "parity",
+      "purpose": "Explicit directory modes and existing directory preservation match GNU mkdir.",
+      "script": "umask 077; mkdir -p -m 755 parent/final; stat -c %a parent parent/final",
+      "requires": [
+        "mkdir",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symbolic-mode",
+      "kind": "parity",
+      "purpose": "Compare symbolic final modes and intermediate permissions under a restrictive umask.",
+      "script": "umask 077\nmkdir -m u=rwx,g=rx,o= symbolic\nmkdir -p -m a=rx deep/leaf",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir"
+      ]
+    },
+    {
+      "id": "symlink-parent",
+      "kind": "parity",
+      "purpose": "Follow an existing relative symlink parent and preserve its target and idempotent child.",
+      "script": "mkdir real\nln -s real alias\nmkdir -p alias/child\nmkdir -p alias/child",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "ln"
+      ]
+    },
+    {
+      "id": "invalid-mode",
+      "kind": "parity",
+      "purpose": "Reject an invalid symbolic mode without creating the target.",
+      "script": "mkdir -m bad-mode target",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mkdir"
+      ]
+    }
+  ]
+}

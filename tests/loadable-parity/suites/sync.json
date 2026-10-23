@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "loadable": "sync",
+  "reference": "GNU coreutils sync for named private regular files only; Bash metadata contracts. Global sync, syncfs, and injected I/O failures remain deferred.",
+  "coverage": [
+    "Bash resolves sync as a builtin with an empty candidate PATH.",
+    "Bash type metadata exposes only the sync builtin in the fixture environment.",
+    "The configured short help synopsis and long sync documentation match the pinned stock loadable contract.",
+    "Deferred operation requirements cover global sync, named-file fsync, per-file failures, and option parsing behind a closed disposable-VM syscall mock.",
+    "Named-file synchronization, multiple operands, read-only files, missing-path continuation, and -- on a dash-leading file; no global flush."
+  ],
+  "exclusions": [
+    "Global sync and syncfs are deferred: they can flush filesystems beyond private operands. Durability and injected I/O failures require a disposable VM/syscall mock."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies the loaded sync command as a builtin; the expected type label is Bash builtin metadata.",
+      "script": "type -t sync",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-resolution",
+      "kind": "contract",
+      "purpose": "Confirm type reports the builtin resolution when candidate PATH is empty, as configured by the harness.",
+      "script": "type -a sync",
+      "expected_status": 0,
+      "stdout": "sync is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Check the short help synopsis against the configured short-help text for sync in the pinned Bash-OS loadable list.",
+      "script": "help -s sync",
+      "expected_status": 0,
+      "stdout": "sync: sync\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documentation",
+      "kind": "contract",
+      "purpose": "Check the complete long help text against the pinned GNU Bash loadable's documented summary, named-file behavior, no-operand behavior, and exit status.",
+      "script": "help sync",
+      "expected_status": 0,
+      "stdout": "sync: sync\n    Sync disks or specified files.\n    \n    If one or more FILEs is supplied, force completion of pending writes\n    to those files. Otherwise, force completion of any pending disk\n    writes.\n    \n    Exit Status: zero unless any FILE could not be synced.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "global-sync-call",
+      "kind": "deferred",
+      "purpose": "Verify the no-operand form's global synchronization call and status behavior without flushing the host filesystem.",
+      "reason": "Requires a future disposable VM with a closed sync(2) syscall interposer. Verify the no-operand command calls the void global sync interface exactly once and returns success, while the mock prevents a real global filesystem flush. sync(2) provides no failure return to propagate."
+    },
+    {
+      "id": "named-file-sync",
+      "kind": "deferred",
+      "purpose": "Fault-injected open fallback and descriptor lifetime beyond successful named-file comparisons.",
+      "reason": "Requires a disposable VM/private test filesystem and closed open/fsync/close interposition. Verify each relative fixture path is opened O_WRONLY, retries O_RDONLY when required, calls fsync on the opened descriptor, and closes it. Keep the test tree private and make no claim about host storage durability."
+    },
+    {
+      "id": "per-file-failures",
+      "kind": "deferred",
+      "purpose": "Verify file-specific diagnostics, continuation across multiple operands, and aggregate failure status under injected I/O errors.",
+      "reason": "Requires a disposable VM with closed open/fsync/close fault injection. Include an early valid relative fixture, an injected open or fsync failure, and a later valid fixture; verify diagnostics identify the failed file, processing continues, descriptors close, and final status is nonzero. All injected failures must stay inside the mock boundary."
+    },
+    {
+      "id": "option-and-dash-path",
+      "kind": "parity",
+      "requires": [
+        "sync"
+      ],
+      "script": "sync --fixture-invalid-option",
+      "purpose": "Both parsers reject an unknown option before any sync/open/fsync call. The -- dash-leading named-file operation is covered separately by dash-private-file.",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "named-private-files",
+      "kind": "parity",
+      "purpose": "Synchronize two relative regular files and compare bytes, status and tree.",
+      "script": "printf one > one\nprintf two > two\nsync one two\nprintf 'named sync complete\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync"
+      ]
+    },
+    {
+      "id": "readonly-private-file",
+      "kind": "parity",
+      "purpose": "A file with read-only permissions may still be synchronized.",
+      "script": "printf data > item\nchmod 400 item\nsync item",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync",
+        "chmod"
+      ]
+    },
+    {
+      "id": "missing-path-continuation",
+      "kind": "parity",
+      "purpose": "A missing middle operand fails with a diagnostic while private files are preserved.",
+      "script": "printf first > first\nprintf last > last\nsync first absent last",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sync"
+      ]
+    },
+    {
+      "id": "dash-private-file",
+      "kind": "parity",
+      "purpose": "The option terminator permits a private dash-leading filename.",
+      "script": "printf data > ./-item\nsync -- -item",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync"
+      ]
+    }
+  ]
+}

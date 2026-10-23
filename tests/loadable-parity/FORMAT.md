@@ -17,10 +17,27 @@ pass. These fixtures cover the behavior listed in each file, not complete GNU
 command conformance. `test_runner.py` checks the runner's isolation and result
 classification using the binary named by `BASHOS_TEST_BINARY`.
 
+The full reviewed set has 289 suites and 3,806 cases, including documented
+contracts and deferred operations. Run it explicitly in a separate output
+directory:
+
+```sh
+systemd-run --user --scope -p CPUQuota=75% -p MemoryMax=1G -p TasksMax=64 \
+  python3 tests/loadable-parity/run.py --binary out/bash-static \
+  --output /tmp/bash-os-reviewed-results tests/loadable-parity/suites
+```
+
+This set retains known GNU compatibility failures, including exact diagnostic
+and help/version comparisons. The focused regressions overlap these suites;
+do not add their pass totals as independent coverage. Optional modules require
+separate loading and runtime-data qualification; their absence is a skip.
+
 `runner.py SUITE.json --binary /absolute/bash-os --output NEW-DIRECTORY`
 runs each fixture in a fresh bubblewrap namespace. Bubblewrap is mandatory;
 there is no fallback to executing test commands on the host. Python, Bash, and
-GNU reference tools are used from the host's read-only `/usr` tree. Tests have
+GNU reference tools are used from the host's read-only `/usr` tree. The reference
+search path includes the standard `bin` and `sbin` directories; the candidate
+search path remains empty. Tests have
 private process, network, IPC, mount and user namespaces; no capabilities; no
 host home, devices or service sockets; private temporary storage; and CPU,
 memory, file size and wall-clock limits. A mandatory libseccomp filter also denies

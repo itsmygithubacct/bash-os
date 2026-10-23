@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "loadable": "lsblk",
+  "reference": "Independent contract rows derive from synthetic sysfs attributes, documented 512-byte sectors, and encoded ext2 magic. GNU util-linux lsblk cannot consume this private sysfs tree without a reviewed path adapter; no GNU enumeration parity is claimed.",
+  "coverage": [
+    "Bash type/help metadata",
+    "Synthetic disk/partition NAME, MAJ:MIN, RM, SIZE, RO, and TYPE output",
+    "Pairs output, ASCII tree shape, flat nodeps listing, and disk operand filtering",
+    "Independent ext2 superblock FSTYPE detection",
+    "Documented missing-device and usage-error statuses"
+  ],
+  "exclusions": [
+    "No live /sys or /dev inventory is read; real-device enumeration is deferred.",
+    "GNU lsblk could not serve as a sysfs oracle in this sandbox because its --sysroot option did not redirect /sys access.",
+    "GPT labels, mountpoint lookup, statvfs-derived usage, and live filesystem probing are not covered.",
+    "No actual device is created, attached, opened for mutation, or otherwise changed."
+  ],
+  "cases": [
+    {
+      "id": "metadata-contract",
+      "purpose": "Bash reports lsblk as a builtin, and its help contains the documented sysfs scope and exit-code section.",
+      "kind": "contract",
+      "script": "type_text=$(type -t lsblk)\nhelp_text=$(help lsblk)\n[[ $type_text == builtin ]]\n[[ $help_text == *\"Walks /sys/class/block.\"* ]]\n[[ $help_text == *\"Exit codes:\"* ]]\nprintf '%s\\n' \"$type_text\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "pairs-attributes",
+      "purpose": "A fixture with one disk and two partitions has independently encoded pairs rows for major:minor, removable/read-only flags, 512-byte-sector size, and type.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nrun_lsblk --pairs --noheadings --output NAME,MAJ:MIN,RM,SIZE,RO,TYPE",
+      "expected_status": 0,
+      "stdout": "NAME=\"vda\" MAJ:MIN=\"8:0\" RM=\"1\" SIZE=\"512B\" RO=\"0\" TYPE=\"disk\"\nNAME=\"vda1\" MAJ:MIN=\"8:1\" RM=\"0\" SIZE=\"512B\" RO=\"1\" TYPE=\"part\"\nNAME=\"vda2\" MAJ:MIN=\"8:2\" RM=\"0\" SIZE=\"512B\" RO=\"0\" TYPE=\"part\"\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "tree-branches",
+      "purpose": "The documented default tree prints the disk before its two partition children and uses the ASCII middle/final branch markers.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nrun_lsblk --output NAME",
+      "expected_status": 0,
+      "stdout": "NAME\nvda\n|-vda1\n`-vda2\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "nodeps-list",
+      "purpose": "The long list, nodeps, noheadings, and pairs options produce a flat headerless listing with the partition rows suppressed.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nrun_lsblk --list --nodeps --noheadings --pairs --output NAME,TYPE",
+      "expected_status": 0,
+      "stdout": "NAME=\"vda\" TYPE=\"disk\"\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "disk-operand",
+      "purpose": "Selecting the fixture disk by name retains that disk and all of its partition children, as documented for operands.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nrun_lsblk --pairs --noheadings --output NAME,TYPE vda",
+      "expected_status": 0,
+      "stdout": "NAME=\"vda\" TYPE=\"disk\"\nNAME=\"vda1\" TYPE=\"part\"\nNAME=\"vda2\" TYPE=\"part\"\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "ext-superblock-probe",
+      "purpose": "A minimal independently encoded ext superblock at byte offset 1024 plus 0x38 is recognized as ext2; partition image paths remain absent and therefore have empty FSTYPE.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nbefore=\nafter=\nfor ((i=0; i<1080; i++)); do before+='\\0'; done\nfor ((i=0; i<200; i++)); do after+='\\0'; done\nprintf \"${before}\\x53\\xef${after}\" > \"$root/dev/vda\"\nrun_lsblk --pairs --noheadings --output NAME,FSTYPE vda",
+      "expected_status": 0,
+      "stdout": "NAME=\"vda\" FSTYPE=\"ext2\"\nNAME=\"vda1\" FSTYPE=\"\"\nNAME=\"vda2\" FSTYPE=\"\"\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "missing-operand-status",
+      "purpose": "A nonexistent operand returns the documented lsblk status 32, produces no stdout, and writes a diagnostic.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nset +e\nrun_lsblk --pairs --noheadings --output NAME absent-device\nrc=$?\nset -e\nexit \"$rc\"",
+      "expected_status": 32,
+      "stdout": "",
+      "stderr": "nonempty",
+      "timeout": 5
+    },
+    {
+      "id": "unknown-column-status",
+      "purpose": "An unsupported output column is a usage error under the documented builtin exit-code contract.",
+      "kind": "contract",
+      "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nset +e\nrun_lsblk --pairs --noheadings --output NAME,NOT_A_COLUMN\nrc=$?\nset -e\nexit \"$rc\"",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty",
+      "timeout": 5
+    },
+    {
+      "id": "live-device-inventory-deferred",
+      "purpose": "Check enumeration and topology for actual kernel block devices, including loop or device-mapper nodes, without touching or changing them.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with explicitly provisioned virtual block devices and a known sysfs inventory, or a separately reviewed sysfs/device mock. The shared host inventory and real device nodes are out of scope."
+    },
+    {
+      "id": "gnu-sysfs-parity-deferred",
+      "purpose": "Compare the synthetic block tree directly against GNU util-linux lsblk once the reference can consume the same sysfs fixture.",
+      "kind": "deferred",
+      "reason": "The mandatory controller sandbox has no /sys/dev/block, and GNU lsblk --sysroot does not redirect that sysfs lookup. Requires a future isolated reference mode with a disposable /sys mock or an independently validated GNU lsblk build that accepts a sysfs root."
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "loadable": "wg",
+  "reference": "No matching GNU wg CLI is assumed. Contracts use the loadable's Bash type/help interface, RFC 7748 X25519 test-vector bytes encoded with standard base64, the documented key-format/clamping rules, and an independently assembled Linux WireGuard generic-netlink message. In the dry-run case only the per-call sequence field is variable; the remaining message bytes and length are fixed by the independent encoder. Python standard base64 independently verifies all scalar clamp bits in a generated test value.",
+  "coverage": [
+    "Bash loadable availability metadata and help text",
+    "RFC 7748 private-to-public X25519 vector",
+    "wg genkey output length, standard base64 alphabet, padding and Curve25519 clamp bits",
+    "pubkey invalid-input status and show missing-interface usage status",
+    "setconf dry-run parsing and encoded generic-netlink attributes for a small Interface plus one IPv4/IPv6 peer",
+    "rejection of an IPv4 AllowedIPs prefix longer than 32 bits"
+  ],
+  "exclusions": [
+    "No matching GNU CLI is available as an independent command oracle, so no case is labeled GNU parity.",
+    "Actual set, show, and setconf netlink operations require a disposable WireGuard-enabled VM and are deferred. Dry-run checks stop before opening a netlink socket.",
+    "No live network traffic, interface creation, route changes, kernel changes, credentials, or host paths are used."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check the Bash builtin type contract and that help exposes the documented WireGuard summary, setconf verb, and dry-run note.",
+      "script": "[[ $(type -t wg) == builtin ]] || exit 1\ndoc=$(help wg) || exit 1\ncase \"$doc\" in\n  *\"WireGuard control plane via generic netlink.\"*\"wg setconf IFACE CONF.conf\"*\"BASHWG_DRY=1\"*) printf 'wg-metadata-ok\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "wg-metadata-ok\n"
+    },
+    {
+      "id": "pubkey-rfc7748-vector",
+      "kind": "contract",
+      "purpose": "Check pubkey against RFC 7748 Alice's fixed X25519 scalar/public-key vector; the base64 strings are independently encoded from the RFC hex bytes.",
+      "script": "wg pubkey <<'KEY'\ndwdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LCo=\nKEY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "hSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo=\n"
+    },
+    {
+      "id": "genkey-format-and-clamp",
+      "kind": "contract",
+      "purpose": "Independently decode one generated key with Python standard base64 and check all three X25519 clamp bits, exact 32-byte length and canonical encoding. This uses no installed or operational credential; random contents and entropy quality are not asserted.",
+      "script": "key=$(wg genkey)\n/usr/bin/python3 - \"$key\" <<'PYKEY'\nimport base64,sys\nkey=sys.argv[1]\nassert len(key)==44 and key.endswith('=')\nraw=base64.b64decode(key,validate=True)\nassert len(raw)==32 and base64.b64encode(raw).decode()==key\nassert raw[0]&7==0 and raw[31]&128==0 and raw[31]&64==64\nprint('valid-clamped-key')\nPYKEY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "valid-clamped-key\n"
+    },
+    {
+      "id": "pubkey-rejects-invalid-input",
+      "kind": "contract",
+      "purpose": "Check that pubkey rejects input that is not a 32-byte standard-base64 key and emits no public-key bytes.",
+      "script": "printf '%s\\n' 'not-a-wireguard-key' | wg pubkey",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "show-requires-interface",
+      "kind": "contract",
+      "purpose": "Check the documented slice-A usage contract that show requires one explicit interface; the missing-argument path returns before netlink access.",
+      "script": "wg show",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "setconf-dryrun-encoded-peer",
+      "kind": "contract",
+      "purpose": "Exercise a bounded setconf parser fixture in BASHWG_DRY mode and compare every fixed netlink byte against an independent Linux UAPI encoder. The time/PID-derived 32-bit nlmsg sequence at byte offsets 8..11 is the sole omitted field; output length, framing, header prefix, and all other bytes are checked.",
+      "script": "printf '%s\\n' '[Interface]' 'PrivateKey = dwdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LCo=' 'ListenPort = 51820' 'FwMark = 0x1234' '[Peer]' 'PublicKey = hSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo=' 'Endpoint = 192.0.2.1:51820' 'AllowedIPs = 10.0.0.0/24, 2001:db8::/32' 'PersistentKeepalive = 25' > wg.conf\nout=$(BASHWG_DRY=1 wg setconf wg0 wg.conf)\nsummary=${out%%$'\\n'*}\n[[ $summary == 'BASHWG_DRY: WG_CMD_SET_DEVICE (setconf) iface=wg0 peers=1 msg-len=240' ]] || exit 1\nwire=${out#*$'\\n'}\n[[ $wire != \"$out\" ]] || exit 1\nhex=${wire//$'\\n'/}\nhex=${hex// /}\n[[ ${#hex} -eq 480 ]] || exit 1\ncase \"$hex\" in *[!0123456789abcdef]*) exit 1 ;; esac\n[[ ${hex:0:16} == f000000000000500 ]] || exit 1\n[[ ${hex:24} == '0000000001010000080002007767300008000500010000002400030077076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a060006006cca000008000700341200009800088094000080240001008520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a0800030002000000140004000200ca6cc000020100000000000000000600050019000000480009801c0000800600010002000000080002000a000000050003001800000028000080060001000a0000001400020020010db80000000000000000000000000500030020000000' ]] || exit 1\nline_count=0\nwhile IFS= read -r line; do\n  ((line_count+=1))\n  [[ ${#line} -eq 39 ]] || exit 1\ndone <<< \"$wire\"\n[[ $line_count -eq 15 ]] || exit 1\nprintf 'independent-netlink-encoding-ok\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "independent-netlink-encoding-ok\n"
+    },
+    {
+      "id": "setconf-rejects-ipv4-prefix-33",
+      "kind": "contract",
+      "purpose": "Require standard IPv4 CIDR validation to reject /33. BASHWG_DRY prevents kernel access, so only config parsing is exercised; this assertion is independent of the candidate's current mask handling.",
+      "script": "printf '%s\\n' '[Peer]' 'PublicKey = hSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo=' 'AllowedIPs = 192.0.2.0/33' > wg.conf\nBASHWG_DRY=1 wg setconf wg0 wg.conf",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "deferred-set-kernel-apply",
+      "kind": "deferred",
+      "purpose": "Validate actual device mutation and kernel acknowledgement for wg set.",
+      "reason": "Requires a disposable WireGuard-enabled Linux VM with an isolated test interface, generic-netlink family support, and CAP_NET_ADMIN. The harness intentionally has no capabilities and cannot safely apply kernel device state."
+    },
+    {
+      "id": "deferred-show-device-state",
+      "kind": "deferred",
+      "purpose": "Validate decoding and formatting of real device and peer state returned by the kernel for wg show IFACE.",
+      "reason": "Requires a disposable WireGuard-enabled Linux VM with a preconfigured test interface and peer state so the GET_DEVICE reply can be checked against the independent wg(8) contract. No live kernel query is attempted here."
+    },
+    {
+      "id": "deferred-setconf-kernel-apply",
+      "kind": "deferred",
+      "purpose": "Validate that a valid configuration is applied to a WireGuard device and can be read back from kernel state.",
+      "reason": "Requires a disposable WireGuard-enabled Linux VM, an isolated test interface, and CAP_NET_ADMIN for setconf plus a read-back query. The local dry-run contract only validates parsing and encoded bytes, not application."
+    },
+    {
+      "id": "set-dryrun-rejects-ipv4-prefix-33",
+      "kind": "contract",
+      "purpose": "The CLI and config file share CIDR validation: an ordinary IPv4 /33 is rejected with CLI usage status 2, under explicit dry-run mode before netlink access.",
+      "script": "export BASHWG_DRY=1\nwg set wg0 peer hSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo= allowed-ips 192.0.2.0/33",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "setconf-dryrun-valid-cidr-boundaries",
+      "kind": "contract",
+      "purpose": "Preserve valid family-specific CIDR boundaries and host defaults, including IPv6 /33. Check independent address-attribute and mask-attribute byte encodings while ignoring only unrelated message fields; all calls explicitly stop in dry-run mode.",
+      "script": "export BASHWG_DRY=1\nfor cidr in 192.0.2.1/0 192.0.2.1/32 192.0.2.1 2001:db8::1/0 2001:db8::1/33 2001:db8::1/128 2001:db8::1; do\n case $cidr in\n  192.0.2.1/0) expected=08000200c00002010500030000000000 ;;\n  192.0.2.1/32|192.0.2.1) expected=08000200c00002010500030020000000 ;;\n  2001:db8::1/0) expected=1400020020010db80000000000000000000000010500030000000000 ;;\n  2001:db8::1/33) expected=1400020020010db80000000000000000000000010500030021000000 ;;\n  *) expected=1400020020010db80000000000000000000000010500030080000000 ;;\n esac\n printf '%s\\n' '[Peer]' 'PublicKey = hSDwCYkwp1R0i33ctD73Wg2/Og0mOBr066SpjqqbTmo=' \"AllowedIPs = $cidr\" > wg.conf\n out=$(BASHWG_DRY=1 wg setconf wg0 wg.conf)\n [[ $out == 'BASHWG_DRY: WG_CMD_SET_DEVICE (setconf) iface=wg0 peers=1 msg-len='* ]]\n wire=${out#*$'\\n'}\n hex=${wire//$'\\n'/}; hex=${hex// /}\n [[ $hex == *\"$expected\"* ]]\ndone\nprintf 'CIDR boundaries preserved\\n'",
+      "expected_status": 0,
+      "stdout": "CIDR boundaries preserved\n",
+      "stderr": "empty"
+    }
+  ]
+}

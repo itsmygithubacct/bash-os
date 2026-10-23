@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "loadable": "ln",
+  "reference": "GNU coreutils ln, with exact stdout/status and private filesystem bytes, modes, hardlink relationships and symlink targets. Bash type/help checks are metadata contracts.",
+  "coverage": [
+    "Hard links, relative and dangling symlinks, multiple operands, collisions, force replacement, spaced names and missing operands.",
+    "Single-operand destination, -- and dash names, symlink replacement, partial failure and repeated calls.",
+    "Bash registration and help metadata; separately identified from operations."
+  ],
+  "exclusions": [
+    "Interactive prompting and filesystem fault injection are outside this bounded suite; no privileged operation is needed for ordinary links."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves ln as a builtin with the executable search path empty, using the documented type -t classification.",
+      "script": "PATH=; type -t ln",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-short-help",
+      "kind": "contract",
+      "purpose": "Confirm help exposes the documented short usage string registered for ln without invoking the loadable operation.",
+      "script": "PATH=; help -s ln",
+      "expected_status": 0,
+      "stdout": "ln: ln\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hardlink-create",
+      "kind": "parity",
+      "purpose": "Create a hard link; compare bytes, modes, link count and inode relationship.",
+      "script": "printf 'link bytes\\n' > source\nln source destination\n[[ source -ef destination ]]\nstat -c '%h' source",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "stat"
+      ]
+    },
+    {
+      "id": "symlink-relative-target",
+      "kind": "parity",
+      "purpose": "Preserve the relative symlink target and read through it from its parent directory.",
+      "script": "mkdir data links\nprintf 'relative bytes\\n' > data/item\nln -s ../data/item links/current\nreadlink links/current\ncat links/current",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "mkdir",
+        "readlink",
+        "cat"
+      ]
+    },
+    {
+      "id": "symlink-dangling-target",
+      "kind": "parity",
+      "purpose": "A dangling symbolic link succeeds and preserves its literal target.",
+      "script": "ln -s future-name dangling\n[[ -L dangling && ! -e dangling ]]\nreadlink dangling",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "readlink"
+      ]
+    },
+    {
+      "id": "multiple-operands-directory",
+      "kind": "parity",
+      "purpose": "Create multiple relative symlinks into an existing directory and compare followed bytes and stored targets.",
+      "script": "mkdir output\nprintf one > one\nprintf two > two\n(cd output; ln -s ../one ../two .)\ncat output/one output/two",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "mkdir",
+        "cat"
+      ]
+    },
+    {
+      "id": "destination-collision",
+      "kind": "parity",
+      "purpose": "An existing destination is preserved on failure, including both original file payloads.",
+      "script": "printf original > source\nprintf keep > destination\nln source destination",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "ln"
+      ]
+    },
+    {
+      "id": "force-hardlink-replacement",
+      "kind": "parity",
+      "purpose": "Replace only the private destination with a hard link and compare its resulting tree.",
+      "script": "printf original > source\nprintf replace > destination\nln -f source destination\n[[ source -ef destination ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln"
+      ]
+    },
+    {
+      "id": "operand-path-spaces",
+      "kind": "parity",
+      "purpose": "Quoted operand boundaries survive hard-link creation.",
+      "script": "printf bytes > 'source with space'\nln 'source with space' 'destination with space'\n[[ 'source with space' -ef 'destination with space' ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln"
+      ]
+    },
+    {
+      "id": "operand-error",
+      "kind": "parity",
+      "purpose": "Compare missing-operand status and diagnostic presence without mutating the fixture.",
+      "script": "ln",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "ln"
+      ]
+    },
+    {
+      "id": "single-operand",
+      "kind": "parity",
+      "purpose": "A single source operand creates its basename in the current private directory.",
+      "script": "mkdir origin dest\nprintf item > origin/item\n(cd dest; ln ../origin/item)\n[[ origin/item -ef dest/item ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "dash-and-force-symlink",
+      "kind": "parity",
+      "purpose": "Use -- with a dash-leading source and replace a private dangling symlink with -sf.",
+      "script": "printf x > -source\nln -- -source hard\nln -s stale symbolic\nln -sf -- -source symbolic\nreadlink symbolic",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "readlink"
+      ]
+    },
+    {
+      "id": "partial-multiple-errors",
+      "kind": "parity",
+      "purpose": "Compare aggregate failure status and successful middle link amid two missing sources.",
+      "script": "mkdir dest\nprintf x > good\nln absent good missing dest",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "ln",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "fsfreeze-relative-file-operation-parity",
+      "kind": "parity",
+      "purpose": "Compare ln hardlink/symlink effects within a private tree assembled with ordinary GNU file operations; also preserve bytes and modes through the surrounding copy/move/removal steps.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cp",
+        "mv",
+        "chmod",
+        "touch",
+        "rm"
+      ],
+      "script": "mkdir -p -- alpha/sub\nprintf 'fixture data\\n' > alpha/sub/source\nln -- alpha/sub/source alpha/hard\nln -s -- sub/source alpha/symbolic\ncp -- alpha/sub/source alpha/copy\nchmod 640 alpha/copy\nmv -- alpha/copy alpha/moved\ntouch -- alpha/stamp\ntouch -- alpha/remove-me\nrm -- alpha/remove-me\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fw-fixture_file_ops_links_modes",
+      "kind": "parity",
+      "purpose": "Compare ln hardlink/symlink effects within a private tree assembled with ordinary GNU file operations; also preserve bytes and modes through the surrounding copy/move/removal steps.",
+      "requires": [
+        "mkdir",
+        "touch",
+        "chmod",
+        "cp",
+        "ln",
+        "mv",
+        "rm"
+      ],
+      "script": "mkdir -p tree/src tree/dst\ntouch tree/src/original tree/to-remove\nprintf 'payload\\n' > tree/src/original\nchmod 640 tree/src/original\ncp -p tree/src/original tree/copied\nln tree/src/original tree/hard\nln -s src/original tree/symbolic\nmv tree/copied tree/dst/copied\nrm tree/to-remove\ntouch tree/dst/touched\nchmod 600 tree/dst/touched\nprintf 'fixture-ready\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fw-fixture_recursive_copy_move_remove",
+      "kind": "parity",
+      "purpose": "Compare ln hardlink/symlink effects within a private tree assembled with ordinary GNU file operations; also preserve bytes and modes through the surrounding copy/move/removal steps.",
+      "requires": [
+        "mkdir",
+        "cp",
+        "mv",
+        "chmod",
+        "rm",
+        "ln"
+      ],
+      "script": "mkdir -p source/nested\nprintf 'one\\n' > source/nested/item\ncp -R source copied\nmv copied moved\nchmod 700 moved\nrm -r source\nprintf 'recursive-fixture-ready\\n'\nln moved/nested/item linked-item\n[[ moved/nested/item -ef linked-item ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "force-no-dereference-directory-symlink",
+      "kind": "parity",
+      "purpose": "The documented -n option replaces a symlink to a directory instead of following it when combined with -f.",
+      "script": "mkdir target\nprintf data > source\nln -s target destination\nln -fn source destination\n[[ source -ef destination && ! -L destination ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "ln",
+        "mkdir"
+      ]
+    }
+  ]
+}

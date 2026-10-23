@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "loadable": "strftime",
+  "reference": "For parity cases, the reference branch uses GNU coreutils date with UTC epoch input (-d @SECONDS) and the same strftime format. This is independent of the builtin command path and gives GNU/POSIX conversion behavior under the runner's fixed C locale and UTC timezone. Contract cases use the stock loadable's published Bash help and usage synopsis.",
+  "coverage": [
+    "Bash registration and published help text through type and help builtins",
+    "Known epoch timestamps with standard date, time, weekday, month, ordinal-day, and week-number conversions",
+    "ISO week-year boundary, leap day, 12-hour clock, GNU padding flags, literal percent, UTC zone, and epoch extension",
+    "Empty format and invalid timestamp diagnostics/status",
+    "Negative seconds since the epoch"
+  ],
+  "exclusions": [
+    "Current-clock numeric fields are not compared across separate executions; the omitted timestamp is covered with a literal format.",
+    "Non-C locales and timezone-database/DST transitions are outside scope; UTC and a POSIX fixed offset are covered.",
+    "Platform-specific strftime conversions beyond the selected GNU/glibc behavior and extreme timestamp limits are not covered."
+  ],
+  "cases": [
+    {
+      "id": "type-registration",
+      "purpose": "Verify Bash reports the compiled-in strftime command as a builtin, using Bash's type metadata contract.",
+      "kind": "contract",
+      "script": "type -t strftime",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description-contract",
+      "purpose": "Check that help exposes the long description documented by the stock builtin, including the optional epoch-seconds argument and current-time default.",
+      "kind": "contract",
+      "script": "h=$(help strftime)\nif [[ $h == *\"Display formatted time.\"* && $h == *\"number of seconds since the epoch\"* && $h == *\"current time is used.\"* ]]; then\n  printf 'documented help description present\\n'\nelse\n  printf 'documented help description missing\\n'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "documented help description present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis-contract",
+      "purpose": "Check that Bash help displays the builtin synopsis declared by the stock struct as 'strftime format [seconds]'.",
+      "kind": "contract",
+      "script": "h=$(help strftime)\nif [[ $h == *\"strftime: strftime format [seconds]\"* ]]; then\n  printf 'documented help synopsis present\\n'\nelse\n  printf 'documented help synopsis missing\\n'\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "documented help synopsis present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "epoch-calendar-fields",
+      "purpose": "Compare standard calendar fields, names, ordinal day, weekday numbers, and Sunday/Monday week numbers for the Unix epoch.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '%F %T | %a %A %b %B | %j %w %u %U %W' 0",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "iso-week-year-boundary",
+      "purpose": "Check that January 1, 2021 is formatted with the ISO week-year and week number that belong to the prior calendar year.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '%F %G-W%V-%u' 1609459200",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "leap-day-clock-fields",
+      "purpose": "Exercise the final second of leap day 2024, including ordinal day, ISO weekday, and 12-hour AM/PM conversions.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '%F %T %j %u %I:%M:%S %p' 1709251199",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "padding-and-literal-percent",
+      "purpose": "Compare space padding, no padding, explicit zero padding, and a literal percent at a date with a single-digit day and month.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '%e|%-d|%_m|%0H|%%|%F' 1706918400",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "utc-zone-and-epoch-extension",
+      "purpose": "Check the UTC timezone name and offset together with the GNU epoch-seconds conversion.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '%F %T %z %Z %s' 0",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-format",
+      "purpose": "Verify an empty format succeeds and emits one newline, matching GNU date's empty output format.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "format_at() {\n  if [[ $(type -t strftime) == builtin ]]; then\n    strftime -- \"$1\" \"$2\"\n  else\n    date -u -d \"@$2\" \"+$1\"\n  fi\n}\nformat_at '' 0",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-timestamp",
+      "purpose": "Check that a nonnumeric seconds operand fails with a diagnostic and no formatted output, as GNU date does for an invalid @ timestamp.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "if [[ $(type -t strftime) == builtin ]]; then\n  strftime -- '%F' not-a-number\nelse\n  date -u -d '@not-a-number' '+%F'\nfi",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "pre-epoch-timestamp",
+      "purpose": "Check the documented seconds-since-epoch interface for timestamp -1, which GNU date formats as the second before the Unix epoch.",
+      "kind": "parity",
+      "requires": [
+        "date"
+      ],
+      "script": "if [[ $(type -t strftime) == builtin ]]; then\n  strftime -- '%F %T' -1\nelse\n  date -u -d '@-1' '+%F %T'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-format-usage",
+      "purpose": "Check the documented required format operand: an invocation without it returns the conventional EX_USAGE status and emits usage diagnostics.",
+      "kind": "contract",
+      "script": "strftime",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-days",
+      "kind": "parity",
+      "purpose": "Signed timestamps can cross a full day before the epoch.",
+      "script": "if [[ $(type -t strftime) == builtin ]]; then strftime '%F %T' -86401; else date -u -d '@-86401' '+%F %T'; fi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "date"
+      ]
+    },
+    {
+      "id": "current-default-literal",
+      "kind": "contract",
+      "purpose": "Exercise the omitted-timestamp path with a format independent of the wall clock.",
+      "script": "strftime 'literal %% done'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "literal % done\n"
+    },
+    {
+      "id": "fixed-offset-zone",
+      "kind": "parity",
+      "purpose": "Compare an explicit POSIX fixed-offset timezone at epoch zero without timezone-database dependencies.",
+      "script": "export TZ=UTC-5\nif [[ $(type -t strftime) == builtin ]]; then strftime '%F %T %z' 0; else date -d '@0' '+%F %T %z'; fi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "date"
+      ]
+    }
+  ]
+}

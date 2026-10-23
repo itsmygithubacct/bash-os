@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "loadable": "su",
+  "reference": "Metadata expectations use GNU Bash's documented type/help builtins and the published su usage/help contract. The util-linux su executable is not a safe or equivalent oracle for this builtin: its operations authenticate against host account services and change process identity, while bash-os su uses a kernel auth token. No operation parity is claimed.",
+  "coverage": [
+    "Bash reports su as a registered builtin.",
+    "Bash help exposes the documented su invocation, password model, and kernel-token description.",
+    "Deferred operation coverage identifies parser, account-file, authentication, token, privilege-transition, child-execution, and terminal requirements for a disposable VM or injected mock."
+  ],
+  "exclusions": [
+    "No su operation invocation is run. Authentication, token authorization, credential changes, target-shell execution, and PTY behavior require controlled private fixtures or a disposable VM.",
+    "No host account, password, shadow file, authorization device, or installed credential is accessed.",
+    "No GNU/util-linux su comparison is run because it would use host authentication and identity-changing behavior and does not implement the bash-os token contract."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type-metadata",
+      "kind": "contract",
+      "purpose": "Verify that Bash resolves su as a builtin using the documented type -t metadata contract, without invoking su.",
+      "script": "PATH=\ntype -t su",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract-metadata",
+      "kind": "contract",
+      "purpose": "Check that the registered help text contains the declared invocation form and documented password and auth-token descriptions. The fixed marker is emitted only when all documented anchors are present.",
+      "script": "PATH=\nhelp su >help.txt\nwant_usage='su [--login|--no-login] [--keep-env] [-c CMD] [USER]'\nusage=0\ndescription=0\npassword=0\ntoken=0\nwhile IFS= read -r line; do\n  case $line in\n    *\"$want_usage\"*) usage=1 ;;\n    *'Switch user with C-owned password verification.'*) description=1 ;;\n    *'Argon2id PHC shadow format used by passwd.'*) password=1 ;;\n    *'short-lived kernel auth token is minted and consumed internally'*) token=1 ;;\n  esac\ndone <help.txt\n[[ $usage == 1 && $description == 1 && $password == 1 && $token == 1 ]]\nprintf 'help contract anchors present\\n'",
+      "expected_status": 0,
+      "stdout": "help contract anchors present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argument-and-usage-behavior",
+      "kind": "deferred",
+      "purpose": "Exercise option parsing, default target selection, --, -c forms, extra arguments, invalid names, and exit/diagnostic behavior.",
+      "reason": "Requires a disposable VM or parser-focused injected harness with a private synthetic passwd database. Normal valid invocation forks into authentication and privilege-transition paths, so no operation command is run here."
+    },
+    {
+      "id": "private-account-lookup",
+      "kind": "deferred",
+      "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
+      "reason": "Requires a future disposable VM or reviewed account-file syscall mock with private passwd data and injected file-open errors. It must not consult installed accounts or change account state."
+    },
+    {
+      "id": "password-and-lockout-flow",
+      "kind": "deferred",
+      "purpose": "Check correct and incorrect passwords, locked or malformed shadow entries, bounded password input, failure lockout, and success cleanup.",
+      "reason": "Requires a future disposable VM with a private PTY, synthetic PHC shadow records, an independent Argon2id oracle, private lock files and injected password-read outcomes. No installed credentials or host shadow data may be used."
+    },
+    {
+      "id": "kernel-token-protocol",
+      "kind": "deferred",
+      "purpose": "Check token mint/consume request fields, expiry, failure handling, and request cleanup before any credential transition.",
+      "reason": "Requires an independently reviewed mock for /dev/bashos-auth in a disposable VM or syscall fixture. The live authority device and kernel authorization are not exercised."
+    },
+    {
+      "id": "credential-transition",
+      "kind": "deferred",
+      "purpose": "Check supplementary groups and ordered setgroups/setresgid/setresuid transitions, saved-ID verification, and denial on each injected failure.",
+      "reason": "Requires a disposable VM or syscall mock that records and injects credential syscalls. This suite must not attempt a real user or group change."
+    },
+    {
+      "id": "target-shell-environment-and-fds",
+      "kind": "deferred",
+      "purpose": "Check login and no-login argv, working directory, filtered and retained environment, descriptor closure, and exec errors using a controlled target shell.",
+      "reason": "Requires a future disposable VM or reviewed credential/token syscall mock with a private synthetic account and a fixture shell executable that records argv, environment, cwd and inherited descriptors. No installed shell is launched through su in this suite."
+    },
+    {
+      "id": "owned-child-status-and-signals",
+      "kind": "deferred",
+      "purpose": "Check child exit and signal status propagation, fork/wait errors, parent-shell state preservation, and repeated invocation behavior.",
+      "reason": "Requires a bounded disposable child-process fixture with mocked authentication and credential operations. Any signals must target only owned fixture children; this suite sends none."
+    },
+    {
+      "id": "pty-echo-and-cancellation",
+      "kind": "deferred",
+      "purpose": "Check tty password echo suppression and terminal restoration after success, read failure, and cancellation.",
+      "reason": "Requires a private PTY driver, deterministic password input, and a mockable child/auth path in a disposable VM. No interactive su session is started here."
+    }
+  ]
+}

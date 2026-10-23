@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "loadable": "truncate",
+  "reference": "For parity cases, the isolated system Bash resolves truncate to the external GNU coreutils truncate executable (required by name in each case). GNU behavior independently determines status, stdout, and resulting file bytes. Metadata contract expectations come from Bash type/help behavior and the documented truncate_doc text in loadables/truncate.c.",
+  "coverage": [
+    "Bash builtin availability and nonempty help documentation",
+    "Absolute shrinking, extending, creation, and dash-leading file operands",
+    "Relative extension/shrinkage including clamping below zero",
+    "At-most, at-least, round-down, and round-up size modifiers",
+    "GNU decimal/binary suffixes and I/O block sizing",
+    "Reference-file sizing, no-create behavior, overflow preservation, invalid-size status, and multi-operand error continuation",
+    "Additional bounded edge cases and file effects are specified by the added parity cases."
+  ],
+  "exclusions": [
+    "Block-special-file behavior is deferred because it requires a disposable VM with a safely created loop-backed device; no host device path is used.",
+    "bash-os documents c as a one-byte size suffix extension; it is excluded from GNU parity because GNU coreutils does not document that extension.",
+    "Large files, permission-dependent host paths, and filesystem-specific sparse allocation accounting are excluded; tree comparisons cover logical bytes and modes on small regular fixture files."
+  ],
+  "cases": [
+    {
+      "id": "availability_type",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the installed truncate command as a builtin, matching the loadable availability contract.",
+      "script": "type -t truncate",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_documentation",
+      "kind": "contract",
+      "purpose": "Bash help must find nonempty truncate documentation; the loadable publishes its documented usage through the builtin metadata.",
+      "script": "help_text=$(help truncate); [[ -n $help_text ]]; printf 'help documentation available\\n'",
+      "expected_status": 0,
+      "stdout": "help documentation available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "absolute_resize_and_dash_operand",
+      "kind": "parity",
+      "purpose": "Check absolute shrink and growth, creation of a missing file, and -- protection for a filename beginning with a dash.",
+      "script": "printf 'abcdef' > shrink; truncate -s 2 shrink; printf 'xy' > grow; truncate --size=5 grow; truncate -s 3 created; printf '12345' > ./-leading; truncate -s 2 -- -leading",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "relative_sizes_and_clamp",
+      "kind": "parity",
+      "purpose": "Check relative extension followed by shrinkage, and GNU's rule that shrinking below zero yields an empty file.",
+      "script": "printf 'abcde' > relative; truncate -s +2 relative; truncate -s -1 relative; printf 'abc' > clamp; truncate -s -99 clamp",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "relational_and_rounding_modes",
+      "kind": "parity",
+      "purpose": "Check at-most and at-least sizes, plus round-down and round-up to a multiple, from a 13-byte starting file.",
+      "script": "printf 'abcdefghijklm' > atmost; printf 'abcdefghijklm' > atleast; printf 'abcdefghijklm' > down; printf 'abcdefghijklm' > up; truncate -s '<5' atmost; truncate -s '>17' atleast; truncate -s '/5' down; truncate -s '%5' up",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "suffixes_and_io_blocks",
+      "kind": "parity",
+      "purpose": "Check GNU decimal and binary size suffixes and the --io-blocks option using the same filesystem's reported block size on both sides.",
+      "script": "truncate -s 1kB decimal; truncate -s 1K binary; truncate --size=2KB decimal2; truncate --io-blocks --size=1 blocks",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reference_sizes",
+      "kind": "parity",
+      "purpose": "Check that --reference alone copies the reference length and that a relative --size with --reference uses the reference length as its base.",
+      "script": "printf '123456' > ref; printf 'xy' > absolute; truncate --reference=ref absolute; printf 'z' > relative; truncate -r ref -s +2 relative",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no_create",
+      "kind": "parity",
+      "purpose": "Check that --no-create changes an existing file but leaves a missing operand absent without failing.",
+      "script": "printf 'abcdef' > existing; truncate --no-create --size=2 existing absent",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "overflow_preserves_data",
+      "kind": "parity",
+      "purpose": "Check GNU overflow rejection for a relative extension and verify the existing bytes remain unchanged.",
+      "script": "printf 'abc' > keep; truncate -s +9223372036854775807 keep",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid_size_status",
+      "kind": "parity",
+      "purpose": "Check rejection of an unrecognized size suffix and preservation of the target; keep the GNU exit status comparison exact.",
+      "script": "printf 'abc' > keep; truncate -s 2q keep",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "multiple_operand_error_continuation",
+      "kind": "parity",
+      "purpose": "Check that a missing-parent operand reports failure while later valid operands are still processed.",
+      "script": "printf 'xyz' > good; if truncate -s 1 missing/child good; then rc=0; else rc=$?; fi; printf 'batch-status=%s\\n' \"$rc\"",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "block_special_file_behavior",
+      "kind": "deferred",
+      "purpose": "Exercise behavior when truncate is given a block-special-file operand.",
+      "reason": "Requires a disposable VM with a safely created loop-backed block device and an isolated disposable filesystem. The namespace fixture runner exposes no such fixture, and host devices are outside scope."
+    },
+    {
+      "id": "links-and-private-modes",
+      "kind": "parity",
+      "purpose": "Follow a private symlink and update its hardlinked target in place while preserving topology and permissions.",
+      "script": "printf abcdef > data\nchmod 640 data\nln data hard\nln -s data sym\ntruncate -s 3 sym\ntruncate -s +2 hard",
+      "requires": [
+        "truncate",
+        "ln",
+        "chmod"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-rounding-and-missing-reference",
+      "kind": "parity",
+      "purpose": "Reject division by zero and a missing reference without modifying the existing file; print each exact utility status.",
+      "script": "printf abc > keep\nfor size in /0 %0; do rc=0; truncate -s \"$size\" keep || rc=$?; printf \"%s\\n\" \"$rc\"; done\nrc=0; truncate -r absent keep || rc=$?; printf \"%s\\n\" \"$rc\"",
+      "requires": [
+        "truncate"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

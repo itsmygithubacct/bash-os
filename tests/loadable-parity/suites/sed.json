@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "loadable": "sed",
+  "reference": "The harness GNU sed executable is the independent oracle for runnable cases. Expected status, stdout bytes, and in-place filesystem results are taken from its isolated run under LC_ALL=C and TZ=UTC; the selected scripts use GNU/POSIX sed behavior described in the pinned sed documentation. No expected result is derived from the candidate.",
+  "coverage": [
+    "BRE global substitutions, bracket classes, captures and replacement backreferences",
+    "ERE alternation with GNU case-insensitive and global substitution flags",
+    "quiet mode, line-address ranges, line-number output and explicit printing",
+    "multiline pattern space with N, embedded-newline substitution, and an unterminated final input record",
+    "labels and t branching while a line contains several substitutions",
+    "ordered composition of -e and -f scripts",
+    "default cross-file line numbering versus -s separate-file numbering",
+    "-i backup creation, edited contents and backup contents",
+    "-z NUL-separated records",
+    "malformed regular-expression status and diagnostic presence",
+    "Bash builtin type/help metadata"
+  ],
+  "exclusions": [
+    "A PTY case for canonical EOF followed by already queued bytes is deferred because the supplied runner provides no PTY fixture driver; pinned documentation records this as a known limitation.",
+    "This focused suite does not claim complete GNU sed command-line, locale-collation, non-Linux, or terminal equivalence."
+  ],
+  "cases": [
+    {
+      "id": "bre-captures-global",
+      "kind": "parity",
+      "purpose": "Check BRE bracket classes, two capture groups, backreference replacement, global replacement, and unchanged nonmatching input.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'alice:7;bob:42\\nunchanged\\n' | sed 's/\\([[:alpha:]][[:alpha:]]*\\):\\([0-9][0-9]*\\)/\\2=\\1/g'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ere-casefold-global",
+      "kind": "parity",
+      "purpose": "Check ERE alternation, GNU's I case-insensitive flag, and global substitution across upper- and lower-case matches.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'Cat cat DOG dog\\n' | sed -E 's/(cat|dog)/pet/Ig'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "address-range-number-print",
+      "kind": "parity",
+      "purpose": "Check -n, an inclusive numeric address range, and the = and p commands in a block.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'zero\\nstart\\nmid\\nend\\nafter\\n' | sed -n '2,4{=;p}'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiline-unterminated-record",
+      "kind": "parity",
+      "purpose": "Check N appending an unterminated final record to pattern space and substitution of the embedded newline.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'north\\nsouth' | sed -n 'N;s/\\n/ -> /;p'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "conditional-branch-loop",
+      "kind": "parity",
+      "purpose": "Check label resolution and t branching after each successful substitution, then printing when no further match succeeds.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'id 12-3\\nplain\\n' | sed -n ':again;s/[0-9]/X/;t again;p'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ordered-expression-and-file-script",
+      "kind": "parity",
+      "purpose": "Check that a command from -e runs before a command read from -f: red becomes blue, then blue becomes green. Also checks relative script files in the fixture directory.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 's/blue/green/g\\n' > changes.sed\nprintf 'red red\\n' | sed -e 's/red/blue/g' -f changes.sed",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multifile-separate-numbering",
+      "kind": "parity",
+      "purpose": "Check GNU's default stream-wide line numbering across operands and the per-file numbering enabled by -s.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'a1\\na2\\n' > first.txt\nprintf 'b1\\nb2\\n' > second.txt\nsed -n '2p' first.txt second.txt\nsed -s -n '2p' first.txt second.txt",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "inplace-backup-effects",
+      "kind": "parity",
+      "purpose": "Check -i with a backup suffix. Stdout exposes both resulting files, while tree comparison also checks file bytes, modes, and the backup entry.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'old old\\nkeep\\n' > doc.txt\nsed -i.bak 's/old/new/g' doc.txt\nsed -n '1,2p' doc.txt\nsed -n '1,2p' doc.txt.bak",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-separated-records",
+      "kind": "parity",
+      "purpose": "Check -z record framing and substitution while preserving NUL separators in the byte output.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'a\\0b\\0' | sed -z 's/b/B/'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-regex-error",
+      "kind": "parity",
+      "purpose": "Check that an unmatched BRE opening group fails regex compilation with GNU's status and emits a diagnostic instead of silently passing input through.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'x\\n' | sed 's/\\(/y/'",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-type-and-help",
+      "kind": "contract",
+      "purpose": "Check the documented Bash-facing contract that sed is installed as a builtin with a help topic; this is metadata coverage, not sed operation coverage.",
+      "script": "printf '%s\\n' \"$(type -t sed)\"\nhelp sed > metadata-output",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-canonical-eof-ordering",
+      "kind": "deferred",
+      "purpose": "Compare GNU and candidate last-line handling when a canonical terminal EOF marker precedes already queued bytes.",
+      "reason": "Requires a bounded PTY fixture that can queue a canonical EOF marker followed by data while keeping the terminal open. The supplied runner launches fixtures with stdin connected to /dev/null and has no PTY driver. A future disposable Linux VM/PTY harness should retain the strict GNU comparison; pinned sed documentation records this ordering as a current limitation, but this case was not executed here."
+    },
+    {
+      "id": "hold-space-and-transliteration",
+      "kind": "parity",
+      "purpose": "Hold-space append and transliteration preserve exact newlines.",
+      "script": "printf 'ab\\ncd\\n' | sed -n '1h;2{G;y/abcd/ABCD/;p}'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sed"
+      ]
+    },
+    {
+      "id": "empty-and-file-error-continuation",
+      "kind": "parity",
+      "purpose": "Empty input is empty; missing file returns 2 while later operands are processed.",
+      "script": ": > empty; sed 's/a/b/' empty; printf 'a\\n' > good; sed 's/a/b/' absent good",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "sed"
+      ]
+    }
+  ]
+}

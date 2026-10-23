@@ -1,17 +1,20 @@
 {
   "version": 1,
   "loadable": "flock",
-  "reference": "Runnable expectations are Bash builtin metadata and the pinned flock loadable's documented interface in /source/loadables/flock.c (flock_doc, flock_struct.short_doc, and its --version string); no expectation was copied from candidate output. Operation semantics for deferred cases are referenced to GNU util-linux flock(1) and Linux flock(2), but those cases are intentionally not executed under the explicit safety instruction.",
+  "reference": "util-linux flock is the independent oracle for private regular-file operations, explicit sysexits statuses, bounded child commands and all file effects. Metadata contracts use the documented Bash builtin interface. Installed manual specifies sysexits; isolated reference discoveries preserve error precedence.",
   "coverage": [
     "Bash reports flock as a builtin with type -t.",
     "Bash help contains the documented FD and file command forms and principal options.",
     "Bash short help exposes the registered synopsis.",
-    "The loadable's documented version metadata is stable."
+    "The loadable's documented version metadata is stable.",
+    "Private-file FD lifetime/unlock, shared and exclusive conflicts, bounded waits, file command effects/status, close/no-fork modes and parser/open errors.",
+    "Explicit usage64, bad-descriptor65, open66 and negative-wait71 statuses, with parser/open/timer precedence.",
+    "Command arity, numeric filename versus lone descriptor selection, and no unintended creation or child effects after argument errors.",
+    "Same-shell recovery after negative waits and invalid command modes."
   ],
   "exclusions": [
-    "No lock, unlock, wait, contention, or child-command operation is executed; these remain DEFERRED as explicitly required.",
-    "No host paths, external lock peers, real network targets, privileged resources, or stress timing are used.",
-    "Operation comparisons require a future disposable Linux VM with GNU util-linux flock and synchronized private fixture processes."
+    "Only ordinary private regular files, private inherited descriptors, bounded conflicts and short /bin/sh children are qualified. No cross-host locking, host lock files, filesystem stress, process signaling or nonlocal filesystem behavior.",
+    "Release-before-deadline synchronization, arbitrary inherited-descriptor observations, terminal/native process effects and fault injection remain unqualified."
   ],
   "cases": [
     {
@@ -52,39 +55,212 @@
     },
     {
       "id": "fd_lock_lifetime",
-      "purpose": "Future comparison of FD form default exclusive locking, caller-shell lock lifetime, and explicit unlock on one open file description.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM with a private relative lock file, GNU util-linux flock(1) as the independent oracle, and two synchronized child processes. Verify that a lock taken on an FD remains held after the builtin returns, that a competing nonblocking attempt fails while held, and that explicit unlock releases it. Use bounded synchronization and never a host lock path."
+      "kind": "parity",
+      "purpose": "Compare FD lock lifetime, independent-open conflict and explicit unlock using a private file.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -xn 8\nif flock -xn 9; then rc=0; else rc=$?; fi\nprintf 'held=%s\n' \"$rc\"\nflock -u 8\nflock -xn 9\nflock -u 9\nprintf 'released\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
     },
     {
       "id": "lock_mode_contention",
-      "purpose": "Future comparison of shared/shared compatibility, exclusive conflicts, nonblocking failure status, and the configured conflict exit code.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM, GNU util-linux flock(1), and independently synchronized processes using only a relative fixture file. Exercise shared locks, then exclusive contention with -n and -E; compare statuses and child markers. All waits must be bounded, and the fixture must be private to the VM."
+      "kind": "parity",
+      "purpose": "Compare compatible shared locks and configured exclusive conflict status on separate private open descriptions.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -sn 8\nflock -sn 9\nif flock -xn -E 23 9; then rc=0; else rc=$?; fi\nprintf 'exclusive=%s\n' \"$rc\"\nflock -u 8\nflock -xn 9\nflock -u 9\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
     },
     {
       "id": "timed_wait_behavior",
-      "purpose": "Future comparison of -w timeout failure and successful acquisition after a competing process releases the lock.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1), a private fixture file, and a synchronized holder process. Check both a held-past-deadline timeout and release-before-deadline acquisition with a small fractional timeout and generous bounded scheduling margins; do not use unbounded waits or stress timing."
+      "kind": "parity",
+      "purpose": "A small bounded timed conflict returns the configured status, then acquisition succeeds after release.",
+      "script": "exec 8>lock\nexec 9>lock\nflock -xn 8\nif flock -x -w 0.02 -E 24 9; then rc=0; else rc=$?; fi\nprintf 'timeout=%s\n' \"$rc\"\nflock -u 8\nflock -x -w 0.02 9\nflock -u 9\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
     },
     {
       "id": "file_form_command_status",
-      "purpose": "Future comparison of file-form lock-file creation, argv and -c command execution, child status propagation, and lock release after the command exits.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1), /bin/sh, and a temporary relative fixture directory. Compare stdout, exit status, lock-file contents/mode, command argument handling, and whether a second process can acquire after the child exits. Keep all command side effects inside that private directory."
+      "kind": "parity",
+      "purpose": "Compare private lock-file creation, shell command effects, exit status and release after child completion.",
+      "script": "if flock lock -c 'printf \"payload\\n\" > result; exit 7'; then rc=0; else rc=$?; fi\nprintf 'child=%s\\n' \"$rc\"\nflock -n lock -c 'printf \"released\\n\"'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "flock"
+      ]
     },
     {
       "id": "close_and_no_fork",
-      "purpose": "Future comparison of -o descriptor closure before child execution and -F no-fork exec/status behavior, including the incompatible -Fo combination.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM, GNU util-linux flock(1), private fixture files, and bounded child commands that inspect only their own inherited descriptors and write only relative markers. Compare descriptor visibility, exec failure statuses, parent-shell survival where applicable, and lock release. No process-wide signals or host process inspection are needed."
+      "kind": "parity",
+      "purpose": "Compare close/no-fork command modes and incompatible options on private files; no-fork runs in a disposable subshell.",
+      "script": "flock -o lock -c 'printf close > closed'\nif (flock -F lock -c 'printf nofork > direct; exit 9'); then rc=0; else rc=$?; fi\nprintf 'nofork=%s\\n' \"$rc\"\nif flock -Fo lock -c 'printf forbidden > unexpected'; then rc=0; else rc=$?; fi\nprintf 'incompatible=%s\\n' \"$rc\"\n[[ ! -e unexpected ]]\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
     },
     {
       "id": "argument_and_open_errors",
-      "purpose": "Future comparison of invalid FD, malformed timeout/conflict-exit values, missing operands, and file-open error behavior without unintended lock side effects.",
-      "kind": "deferred",
-      "reason": "Requires a future disposable Linux VM with GNU util-linux flock(1) and a private relative fixture directory so parser and open-error cases can be compared for status, diagnostics, and whether a target file was created. Use only deliberately missing relative names and invalid numeric arguments; do not reference host paths."
+      "kind": "parity",
+      "purpose": "Compare malformed-option and missing-parent open errors, retaining diagnostics and creation effects.",
+      "script": "for arg in bad ''; do\n if flock -w \"$arg\" lock; then rc=0; else rc=$?; fi\n printf 'timeout=%s\\n' \"$rc\"\ndone\nif flock -E 256 lock; then rc=0; else rc=$?; fi\nprintf 'exit-code=%s\\n' \"$rc\"\nif flock missing/lock -c 'printf unexpected'; then rc=0; else rc=$?; fi\nprintf 'open=%s\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "negative-wait-uncontended",
+      "kind": "parity",
+      "purpose": "Compare the actual negative-timeout error status on an uncontended private descriptor, including reference timer setup errors, without assuming parser behavior.",
+      "script": "exec 9>lock\nif flock -w -1 9; then rc=0; else rc=$?; fi\nprintf \"negative-wait=%s\\n\" \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "flock"
+      ]
+    },
+    {
+      "id": "usage-no-operand",
+      "kind": "parity",
+      "purpose": "Reject missing operands with explicit util-linux usage status.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "closed-descriptor-status",
+      "kind": "parity",
+      "purpose": "A closed private descriptor reports data-error65.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>&-\nflock 8",
+      "expected_status": 65,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "descriptor-range-status",
+      "kind": "parity",
+      "purpose": "A nonnegative descriptor outside the int range is a usage failure before any lock attempt.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock 2147483648",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-command-no-create",
+      "kind": "parity",
+      "purpose": "A lone nonnumeric operand is an invalid descriptor and must not create a file.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock untouched",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "command-extra-no-effects",
+      "kind": "parity",
+      "purpose": "Reject extra arguments after FILE -c CMD before file creation or child execution.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock target -c 'printf forbidden > marker' extra",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "command-prefix-extra-no-effects",
+      "kind": "parity",
+      "purpose": "Reject extra operands with prefix -c without creating or executing anything.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -c 'printf forbidden > marker' target extra",
+      "expected_status": 64,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "numeric-filename-command",
+      "kind": "parity",
+      "purpose": "With a command, an all-digit operand names a private file rather than a descriptor.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock 12 -c 'printf numeric > marker'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "negative-wait-nonblock-status",
+      "kind": "parity",
+      "purpose": "Finite negative wait reports timer-error71 even when -n is also specified.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 9>lock\nflock -n -w -1 9",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-open-precedence",
+      "kind": "parity",
+      "purpose": "A missing-parent open error66 precedes negative-wait timer setup.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -w -1 missing/lock -c 'printf forbidden > marker'",
+      "expected_status": 66,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-closed-precedence",
+      "kind": "parity",
+      "purpose": "Negative-wait timer setup precedes closed-descriptor locking, without installing any timer in the embedding shell.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>&-\nflock -w -1 8",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-wait-file-create",
+      "kind": "parity",
+      "purpose": "A valid file form opens its private file before negative-wait timer failure and never runs the child.",
+      "requires": [
+        "flock"
+      ],
+      "script": "flock -w -1 lock -c 'printf forbidden > marker'",
+      "expected_status": 71,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "error-continuation-state",
+      "kind": "parity",
+      "purpose": "After caught negative-wait and incompatible-mode errors, preserve descriptor ownership, leave no lock/child effects, and execute a later valid file command in the same shell.",
+      "requires": [
+        "flock"
+      ],
+      "script": "exec 8>lock\nexec 9>lock\nif flock -w -1 -E 23 8; then rc=0; else rc=$?; fi\n[[ $rc == 71 ]]\nflock -xn 9\nflock -u 9\nif flock -Fo untouched -c 'printf forbidden > marker'; then rc=0; else rc=$?; fi\n[[ $rc == 64 && ! -e untouched && ! -e marker ]]\nflock -n -w 0 lock -c 'printf recovered > result'\nprintf 'recovered\\n'\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

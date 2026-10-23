@@ -14,12 +14,15 @@
     "Independent atomic-publication contract (stronger than CLI parity): a recognized but truncated frame must fail with --rm and force, preserving the previous destination and source and cleaning temporary files.",
     "Documented override contract: an unavailable relative library fails without affecting the shell; unset and empty overrides use the linked decoder successfully. Fresh process avoids caching a prior library.",
     "Decode supported empty, skippable, unknown-size and ordinary frames in a single bounded stream.",
-    "A missing operand and a recognized incomplete frame both fail; continue to decode the subsequent valid input, returning aggregate failure."
+    "A missing operand and a recognized incomplete frame both fail; continue to decode the subsequent valid input, returning aggregate failure.",
+    "Restored all original encoding, binary/empty stdin, named multi-input, source retention/removal, force/no-clobber, option-gap and unavailable encoder-library cases; independent CLI decoding checks format interoperability.",
+    "--no-content-size acceptance, independent frame-header flag inspection and decoded bytes for named, stdin and empty inputs."
   ],
   "exclusions": [
-    "Full zstd CLI conformance is not claimed: other formats, legacy Zstandard frame versions, dictionaries, decoder windows above 128 MiB and options beyond the documented subset are excluded.",
+    "Full zstd CLI conformance is not claimed: other formats, legacy frames, dictionaries, decoder windows above 128 MiB and options beyond the explicitly compared subset remain unqualified. --no-content-size is explicitly compared.",
     "Encoder bytes differ from the CLI; interoperability checks compare decoded bytes.",
-    "No large allocations, stress/crash cases, terminal interaction, injected I/O failures or dynamic override library ABI fixtures."
+    "No large allocations, stress/crash cases, terminal interaction, injected I/O failures or dynamic override library ABI fixtures.",
+    "The compared subset places options before file operands. GNU option permutation after operands remains unqualified; the first private header-check fixture attempt used that unsupported ordering and is retained as evidence."
   ],
   "cases": [
     {
@@ -154,6 +157,157 @@
       "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06' > broken.zst\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a' > good.zst\nzstd -dc absent.zst broken.zst good.zst\n",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "stdin-binary-and-empty",
+      "kind": "parity",
+      "purpose": "Round-trip NUL and 0xff bytes through level 3 stdin/stdout streams, then round-trip an empty stream at level 19. This checks byte preservation and valid empty frames without comparing encoded bytes.",
+      "requires": [
+        "zstd"
+      ],
+      "script": "printf '\\000A\\377\\n' | zstd -q -3 -c - | /usr/bin/zstd -q -d -c -\nprintf '' | zstd -q -19 -c - | /usr/bin/zstd -q -d -c -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "level-endpoints",
+      "kind": "parity",
+      "purpose": "Exercise the documented supported compression endpoints, levels 1 and 19, with named input and stdout output; each generated stream must decode to the original bytes.",
+      "requires": [
+        "zstd"
+      ],
+      "script": "printf 'endpoint payload\\n' > input\nzstd -q -1 -c input | /usr/bin/zstd -q -d -c -\nzstd -q -19 -c input | /usr/bin/zstd -q -d -c -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "independent-raw-frame",
+      "kind": "parity",
+      "purpose": "Decode a static one-byte raw-block Zstandard frame encoded from the published frame format, rather than from either implementation under test. GNU zstd independently validates the frame and both sides must emit exactly A.",
+      "requires": [
+        "zstd"
+      ],
+      "script": "printf '\\050\\265\\057\\375\\000\\210\\011\\000\\000A' > raw.zst\nzstd -q -d -c raw.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-named-output-keeps-source",
+      "kind": "parity",
+      "purpose": "Check default named output keeps source. Independently decode each compressed artifact and compare decoded bytes, source effects and target modes. Remove only the verified encoded artifacts because valid encoders may produce different frame bytes; compare the entire remaining tree.",
+      "requires": [
+        "zstd",
+        "stat",
+        "rm"
+      ],
+      "script": "printf 'named payload\\n' > data\nzstd -q data\n[[ -f data && -f data.zst ]] || exit 11\n/usr/bin/zstd -q -d -c data.zst\n/usr/bin/stat -c \"%a\" data.zst\nrm data.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-named-inputs",
+      "kind": "parity",
+      "purpose": "Check multiple named inputs. Independently decode each compressed artifact and compare decoded bytes, source effects and target modes. Remove only the verified encoded artifacts because valid encoders may produce different frame bytes; compare the entire remaining tree.",
+      "requires": [
+        "zstd",
+        "stat",
+        "rm"
+      ],
+      "script": "printf 'first\\n' > first\nprintf 'second\\000record\\n' > second\nzstd -q first second\n[[ -f first && -f first.zst && -f second && -f second.zst ]] || exit 12\n/usr/bin/zstd -q -d -c first.zst\n/usr/bin/zstd -q -d -c second.zst\n/usr/bin/stat -c \"%a\" first.zst second.zst\nrm first.zst second.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-to-named-output",
+      "kind": "parity",
+      "purpose": "Check stdin to named output. Independently decode each compressed artifact and compare decoded bytes, source effects and target modes. Remove only the verified encoded artifacts because valid encoders may produce different frame bytes; compare the entire remaining tree.",
+      "requires": [
+        "zstd",
+        "stat",
+        "rm"
+      ],
+      "script": "printf 'stdin named target\\n' | zstd -q -o result.zst -\n[[ -f result.zst ]] || exit 13\n/usr/bin/zstd -q -d -c result.zst\n/usr/bin/stat -c \"%a\" result.zst\nrm result.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "remove-source-after-success",
+      "kind": "parity",
+      "purpose": "Check remove source after success. Independently decode each compressed artifact and compare decoded bytes, source effects and target modes. Remove only the verified encoded artifacts because valid encoders may produce different frame bytes; compare the entire remaining tree.",
+      "requires": [
+        "zstd",
+        "stat",
+        "rm"
+      ],
+      "script": "printf 'remove only after success\\n' > cleanup\nzstd -q --rm cleanup\n[[ ! -e cleanup && -f cleanup.zst ]] || exit 14\n/usr/bin/zstd -q -d -c cleanup.zst\n/usr/bin/stat -c \"%a\" cleanup.zst\nrm cleanup.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-clobber-and-force",
+      "kind": "parity",
+      "purpose": "Check no clobber and force. Independently decode each compressed artifact and compare decoded bytes, source effects and target modes. Remove only the verified encoded artifacts because valid encoders may produce different frame bytes; compare the entire remaining tree.",
+      "requires": [
+        "zstd",
+        "stat",
+        "rm"
+      ],
+      "script": "printf 'new contents\\n' > source\nprintf 'keep destination\\n' > source.zst\nif zstd -q source; then rc=0; else rc=$?; fi\n[[ $rc == 1 && $(<source.zst) == 'keep destination' ]] || exit 15\nprintf 'no-clobber preserved\\n'\nzstd -q -f source\n[[ -f source && -f source.zst ]] || exit 16\n/usr/bin/zstd -q -d -c source.zst\n/usr/bin/stat -c \"%a\" source.zst\nrm source.zst",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bad-frame-and-missing-input",
+      "kind": "parity",
+      "purpose": "Check the documented failure status for bad magic and a missing named input, while ensuring both errors produce no decoded bytes. Diagnostics are compared only as nonempty because wording varies by zstd version.",
+      "requires": [
+        "zstd"
+      ],
+      "script": "printf 'not a zstd frame\\n' > bad.zst\nif zstd -q -d -c bad.zst > bad.out; then badrc=0; else badrc=$?; fi\nif zstd -q -d -c absent.zst > absent.out; then missingrc=0; else missingrc=$?; fi\n[[ $badrc == 1 && $missingrc == 1 && ! -s bad.out && ! -s absent.out ]] || exit 17\nprintf 'bad=%d missing=%d\\n' \"$badrc\" \"$missingrc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-no-content-size-stdin",
+      "kind": "parity",
+      "purpose": "Compare --no-content-size acceptance and interoperability on ordinary stdin using the independent installed decoder.",
+      "requires": [
+        "zstd"
+      ],
+      "script": "printf 'unknown-size payload\\n' | zstd -q --no-content-size -c - | /usr/bin/zstd -q -d -c -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-type-and-help-metadata",
+      "kind": "contract",
+      "purpose": "Check builtin registration and availability of the documented compression synopsis; metadata only.",
+      "script": "type -t zstd; synopsis=$(help -s zstd); [[ $synopsis == zstd:* ]]; printf \"help available\\n\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp available\n"
+    },
+    {
+      "id": "unavailable-library-override",
+      "kind": "contract",
+      "purpose": "The documented BASHOS_ZSTD_LIB override must fail cleanly if its relative fixture library is absent, leave output empty, and return control to the calling shell. This checks a candidate-specific documented contract, not GNU CLI parity.",
+      "script": "printf 'payload' > input\nif BASHOS_ZSTD_LIB=./absent-libzstd.so zstd -q -c input > output; then rc=0; else rc=$?; fi\n[[ $rc == 1 && ! -s output ]] || exit 18\nprintf 'override=%d shell-continues\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "override=1 shell-continues\n"
+    },
+    {
+      "id": "no-content-size-header-and-empty",
+      "kind": "parity",
+      "purpose": "Independently inspect the published frame descriptor to require no content-size field for named and empty inputs, then decode with the installed CLI and compare decoded bytes. Encoded artifacts are removed only after checks.",
+      "requires": [
+        "zstd",
+        "python3",
+        "rm"
+      ],
+      "script": "printf 'named payload\\n' > source\nzstd -q --no-content-size -o named.zst source\nprintf '' | zstd -q --no-content-size -c - > empty.zst\n/usr/bin/python3 - <<'PYCODE'\nfrom pathlib import Path\nfor name in ('named.zst', 'empty.zst'):\n    data = Path(name).read_bytes()\n    assert data[:4] == bytes.fromhex('28b52ffd')\n    assert data[4] & 0xe0 == 0, 'frame descriptor contains a content-size field'\n    print('frame content size absent')\nPYCODE\n/usr/bin/zstd -q -d -c named.zst > decoded\n/usr/bin/zstd -q -d -c empty.zst > decoded-empty\nrm named.zst empty.zst",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -184,6 +184,15 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "published-additive-listing-constants",
+      "kind": "contract",
+      "purpose": "Independently verify seven published stock-list extensions using native integer widths. This contract does not hide the separate raw GNU listing inventory/order incompatibility.",
+      "script": "getconf -a . > raw-extension-listing\n/usr/bin/python3 - <<'PYCODE'\nfrom pathlib import Path\nimport ctypes\nrows = {}\nfor line in Path('raw-extension-listing').read_text().splitlines():\n    parts = line.split(None, 1)\n    assert parts and parts[0] not in rows\n    rows[parts[0]] = parts[1] if len(parts) > 1 else ''\nint_bits = ctypes.sizeof(ctypes.c_int) * 8\nlong_bits = ctypes.sizeof(ctypes.c_long) * 8\nll_bits = ctypes.sizeof(ctypes.c_longlong) * 8\nsize_bits = ctypes.sizeof(ctypes.c_size_t) * 8\nexpected = {'INT_BIT': int_bits, 'LONG_MIN': -(1 << (long_bits - 1)),\n            'LONG_MAX': (1 << (long_bits - 1)) - 1,\n            'LLONG_MIN': -(1 << (ll_bits - 1)), 'LLONG_MAX': (1 << (ll_bits - 1)) - 1,\n            'ULLONG_MAX': (1 << ll_bits) - 1, 'SIZE_MAX': (1 << size_bits) - 1}\nfor name, value in expected.items():\n    assert rows[name] == str(value), (name, rows.get(name), value)\nprint('published additive constants verified')\nPYCODE",
+      "expected_status": 0,
+      "stdout": "published additive constants verified\n",
+      "stderr": "empty"
     }
   ]
 }

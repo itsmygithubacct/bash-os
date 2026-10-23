@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "loadable": "mail",
+  "reference": "The contract cases use GNU Bash's documented type/help builtins and the mail builtin's published short synopsis/help text. The multi-subcommand bash-os mail API has no matching GNU CLI with equivalent queue, alias, framing, or SMTP semantics, so no operation parity oracle is claimed; those operations are listed as deferred and require independent protocol or format models.",
+  "coverage": [
+    "Bash reports mail as a builtin.",
+    "Bash exposes the documented short synopsis and selected full-help entries.",
+    "Deferred operation areas: direct enqueue and queue files; queue listing/show/delete; aliases and local recipient expansion; AF_UNIX submission protocol; SMTP outbound and inbound; DKIM; queue runner wakeup."
+  ],
+  "exclusions": [
+    "No standalone GNU sendmail, mailq, alias compiler, or SMTP server provides an equivalent oracle for this loadable's private subcommands.",
+    "No mail operation was executed: current task restrictions prohibit network activity and require metadata-only contracts plus deferred operation cases.",
+    "No live service, host spool, account database, installed credential, TLS deployment, or external peer is in scope."
+  ],
+  "cases": [
+    {
+      "id": "builtin_identity",
+      "kind": "contract",
+      "purpose": "Check through Bash's type builtin that mail is registered as a shell builtin, and emit a fixed contract marker only after the check succeeds.",
+      "script": "[[ $(type -t mail) == builtin ]]\nprintf '%s\\n' 'mail is registered as a Bash builtin'",
+      "expected_status": 0,
+      "stdout": "mail is registered as a Bash builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_contract",
+      "kind": "contract",
+      "purpose": "Check Bash's short-help output against the published mail builtin synopsis. The expected synopsis is fixed from the builtin's documented short-help contract.",
+      "script": "help -s mail",
+      "expected_status": 0,
+      "stdout": "mail: mail submit|serve|queue-list|queue-show|queue-delete [OPTIONS]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "full_help_contract",
+      "kind": "contract",
+      "purpose": "Check that Bash help exposes the documented mail purpose, queue-list entry, and DKIM verification entry, then print a fixed marker.",
+      "script": "doc=$(help mail)\n[[ $doc == *'Local mail queue + UNIX-socket submission daemon (MTA 6.1).'* ]]\n[[ $doc == *'mail queue-list [--queue DIR]'* ]]\n[[ $doc == *'mail dkim-verify'* ]]\nprintf '%s\\n' 'mail help contains documented queue and verification entries'",
+      "expected_status": 0,
+      "stdout": "mail help contains documented queue and verification entries\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "direct_queue_submission",
+      "kind": "deferred",
+      "purpose": "Exercise mail submit --direct against a private queue, including deterministic message bytes, recipient envelope, queue ID, permissions, and atomic staging behavior.",
+      "reason": "There is no equivalent GNU sendmail/mailq operation oracle, and this suite is restricted to Bash metadata contracts for runnable cases. A future disposable VM fixture must use a relative user-owned queue and a separately implemented queue-format oracle; cover empty and small LF/CRLF/NUL-containing messages, documented exit classes, exact member bytes/modes, queue ID shape, and absence of leftover staging directories. It must not use a host spool or contact a daemon."
+    },
+    {
+      "id": "queue_inspection_mutation",
+      "kind": "deferred",
+      "purpose": "Compare queue-list, queue-show, and queue-delete against a controlled queue model, including resulting files and observable output.",
+      "reason": "No GNU mailq or sendmail command has matching semantics for this private queue layout. A future disposable VM or filesystem mock must seed a relative queue from an independent fixture model, pin or inject arrival time for deterministic listing output, verify queue-show byte-for-byte, and verify deletion effects without touching any host path."
+    },
+    {
+      "id": "aliases_and_expansion",
+      "kind": "deferred",
+      "purpose": "Check alias database compilation and recipient expansion through aliases, synthetic forward files, invalid entries, cycles, and bounded depth.",
+      "reason": "There is no matching GNU alias compiler or recipient-expansion CLI. A future disposable VM fixture must keep aliases and the forward root under the private fixture directory and compare database bytes and expansion results with an independent parser/encoder for the documented format. Use synthetic local names only; do not consult or modify system aliases or account data."
+    },
+    {
+      "id": "unix_submission_protocol",
+      "kind": "deferred",
+      "purpose": "Exercise mail serve and client submission framing, including fragmented valid frames, malformed/truncated fields, and queue persistence.",
+      "reason": "The operation requires socket I/O, which this task forbids. A future disposable VM or socket mock must provide only a private AF_UNIX endpoint beneath the fixture directory and an independently implemented bounded BASHMAIL1 peer; verify framing and queue contents against that model, with no host socket path, external network, or system service."
+    },
+    {
+      "id": "smtp_outbound_delivery",
+      "kind": "deferred",
+      "purpose": "Check deliver-fd's SMTP command sequence, message line-ending conversion, dot stuffing, recipient response handling, and preservation of queued data after failures.",
+      "reason": "No matching GNU SMTP-delivery CLI provides an equivalent oracle, and the current task forbids network activity. A future disposable VM or transport mock must connect only to a private socketpair or isolated loopback stub, use deterministic SMTP replies, and independently validate wire bytes, status mapping, and unchanged queue contents after temporary/permanent failures. Do not use DNS, MX lookup, TLS deployment credentials, or external peers."
+    },
+    {
+      "id": "smtp_inbound_server",
+      "kind": "deferred",
+      "purpose": "Check smtpd command parsing and bounded inbound SMTP message acceptance into a private incoming queue.",
+      "reason": "The operation requires a listening socket and has no equivalent GNU CLI. A future disposable VM or reviewed socket mock must bind only an isolated fixture endpoint, use a synthetic client, and compare accepted message bytes and metadata to an independent SMTP/queue model. It must not alter users, accounts, host services, or external network state."
+    },
+    {
+      "id": "dkim_contract_vectors",
+      "kind": "deferred",
+      "purpose": "Verify DKIM valid, invalid, and usage outcomes using fixed messages and independently generated public test vectors; optionally cover signing output with a fixture-only key.",
+      "reason": "There is no matching GNU DKIM verification command suitable as a reference. A future disposable VM fixture needs an independent RFC 6376 implementation or published deterministic vectors, fixed fixture keys only, and byte-exact canonicalization/signature checks. No installed credentials or live mail path may be used."
+    },
+    {
+      "id": "queue_runner_wakeup",
+      "kind": "deferred",
+      "purpose": "Check queue-flush PID parsing and the documented runner wakeup request without signaling an unrelated process.",
+      "reason": "Queue flush sends a process signal and has no GNU parity command. A future syscall mock or dedicated disposable VM must intercept the signal request and verify that only the fixture runner identity and documented wakeup signal are selected; do not signal any host or unrelated process."
+    }
+  ]
+}

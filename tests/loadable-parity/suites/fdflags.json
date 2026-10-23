@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "loadable": "fdflags",
+  "reference": "Bash metadata and the documented fdflags syntax; POSIX open/fcntl/exec semantics supply independent fixed state contracts. Python fcntl independently observes inherited open-file status flags; actual writes and exec inheritance check append and FD_CLOEXEC effects. No GNU CLI parity is claimed.",
+  "coverage": [
+    "Metadata only: registration and full help.",
+    "Operation contracts: compact/verbose readback, append/nonblock set/clear observed by Python fcntl, append writes, close-on-exec inheritance, multiple operands, invalid numeric/closed descriptors and unknown flags."
+  ],
+  "exclusions": [
+    "Platform-specific flags beyond append/nonblock/cloexec, exhaustive descriptor listing, and injected fcntl failures are not qualified. No privileged descriptor or device is used."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Confirm fdflags is registered as a Bash builtin, as required by the loadable interface.",
+      "script": "type -t fdflags",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "documented-help",
+      "kind": "contract",
+      "purpose": "Pin the public synopsis and documented display/set semantics, including +/- flag syntax and default descriptor listing.",
+      "script": "help fdflags",
+      "expected_status": 0,
+      "stdout": "fdflags: fdflags\n    Display and modify file descriptor flags.\n    \n    Display or, if the -s option is supplied, set flags for each file\n    descriptor supplied as an argument.  If the -v option is supplied,\n    the display is verbose, including each settable option name in the\n    form of a string such as that accepted by the -s option.\n    \n    The -s option accepts a string with a list of flag names, each preceded\n    by a `+' (set) or `-' (unset).  Those changes are applied to each file\n    descriptor supplied as an argument.\n    \n    If no file descriptor arguments are supplied, the displayed information\n    consists of the status of flags for each of the shell's open files.\n",
+      "stderr": "empty",
+      "timeout": 5
+    },
+    {
+      "id": "read-descriptor-state",
+      "kind": "contract",
+      "purpose": "Read compact state for a newly opened private regular file descriptor; POSIX open supplies no append/nonblock/cloexec flags.",
+      "script": "exec 9>fixture\nfdflags 9\nexec 9>&-",
+      "stdout": "9:\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "set-clear-status-flags",
+      "kind": "contract",
+      "purpose": "Set and clear append/nonblock, checking independent Python fcntl observations on the inherited open-file description.",
+      "script": "exec 9>fixture\nfdflags -s +append,+nonblock 9\n/usr/bin/python3 -c 'import fcntl,os; f=fcntl.fcntl(9,fcntl.F_GETFL); print(bool(f & os.O_APPEND), bool(f & os.O_NONBLOCK))'\nfdflags 9\nfdflags -s -append,-nonblock 9\n/usr/bin/python3 -c 'import fcntl,os; f=fcntl.fcntl(9,fcntl.F_GETFL); print(bool(f & os.O_APPEND), bool(f & os.O_NONBLOCK))'\nfdflags 9\nexec 9>&-",
+      "stdout": "True True\n9:append,nonblock\nFalse False\n9:\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "append-write-effect",
+      "kind": "contract",
+      "purpose": "Observe O_APPEND through actual writes after rewinding an open private file; clearing append permits replacement at the current offset.",
+      "script": "printf abc > fixture\nexec 9<>fixture\nfdflags -s +append 9\nprintf X >&9\nfdflags -s -append 9\n/usr/bin/python3 -c 'import os; os.lseek(9,0,0)'\nprintf Y >&9\nexec 9>&-\n/usr/bin/cat fixture",
+      "stdout": "YbcX",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "set-clear-cloexec",
+      "kind": "contract",
+      "purpose": "Check FD_CLOEXEC against the POSIX exec inheritance boundary: a child sees descriptor 9 only after close-on-exec is cleared.",
+      "script": "exec 9>fixture\nfdflags -s +cloexec 9\nfdflags 9\n/usr/bin/python3 -c 'import errno,os\ntry:\n os.fstat(9)\nexcept OSError as e:\n assert e.errno == errno.EBADF\n print(False)\nelse:\n print(True)'\nfdflags -s -cloexec 9\nfdflags 9\n/usr/bin/python3 -c 'import os; os.fstat(9); print(\"inherited\")'\nexec 9>&-",
+      "stdout": "9:cloexec\nFalse\n9:\ninherited\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "verbose-selected-flags",
+      "kind": "contract",
+      "purpose": "Verbose syntax must explicitly report the three documented portable flag states after setting and clearing them.",
+      "script": "exec 9>fixture\nfdflags -s +append,+nonblock,+cloexec 9\nreport=$(fdflags -v 9)\n[[ $report == 9:* && ,${report#9:}, == *,+append,* && ,${report#9:}, == *,+nonblock,* && ,${report#9:}, == *,+cloexec,* ]]\nfdflags -s -append,-nonblock,-cloexec 9\nreport=$(fdflags -v 9)\n[[ ,${report#9:}, == *,-append,* && ,${report#9:}, == *,-nonblock,* && ,${report#9:}, == *,-cloexec,* ]]\nexec 9>&-\nprintf 'verbose flag states verified\\n' ",
+      "stdout": "verbose flag states verified\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-numeric-descriptor",
+      "kind": "contract",
+      "purpose": "Nonnumeric descriptor operands fail with a diagnostic while a later valid operand is still reported.",
+      "script": "exec 9>fixture\nfdflags nope 9",
+      "stdout": "9:\n",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "closed-descriptor-diagnostic",
+      "kind": "contract",
+      "purpose": "Reading a deliberately closed shell descriptor must report the OS error; this custom API currently documents no nonzero status guarantee for per-descriptor syscall errors.",
+      "script": "exec 9>&-\nfdflags 9",
+      "stdout": "",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-flag-diagnostic",
+      "kind": "contract",
+      "purpose": "An unknown flag emits a diagnostic and does not set any flag on the private descriptor; compare the independently specified unchanged compact state.",
+      "script": "exec 9>fixture\nfdflags -s +unknown 9\nfdflags 9\nexec 9>&-",
+      "stdout": "9:\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

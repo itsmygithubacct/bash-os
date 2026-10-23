@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "loadable": "crypto",
+  "reference": "Parity scripts use OpenSSL dgst/kdf and GNU coreutils base64 as independent byte-level oracles. Contract expectations use Bash type/help behavior and published NIST SP 800-38D AES-GCM, RFC 7748 X25519, and RFC 8032 Ed25519 known-answer vectors. No expected value is derived from candidate output.",
+  "coverage": [
+    "Bash loadable type/help metadata contract",
+    "SHA-256 over empty stdin and a binary relative file, compared as raw digest bytes",
+    "SHAKE-256 with a non-default output length, compared with OpenSSL",
+    "HMAC-SHA-256 and HMAC-SHA-512 with a 257-byte key, compared with OpenSSL",
+    "RFC 5869 HKDF-SHA-256 and RFC 6070 PBKDF2-SHA-1 vectors, compared with OpenSSL KDF",
+    "Base64url unpadded encoding and padded decoding compared with GNU coreutils base64",
+    "NIST AES-GCM encryption known-answer vector and authenticated-decryption rejection",
+    "RFC 7748 X25519 public-key known-answer vector",
+    "RFC 8032 Ed25519 public-key, empty-message signature, and verification vectors"
+  ],
+  "exclusions": [
+    "TLS connect and NTS-KE require a controlled disposable loopback TLS/ALPN peer; no network target is used.",
+    "secret-read terminal echo and prompt behavior requires a bounded disposable PTY driver.",
+    "Random key generation, Argon2id, secret-handle lifecycle, certificate parsing/signing, and other subcommands are outside this compact suite.",
+    "This suite checks bounded functional parity and published vectors; it is not cryptographic certification or security qualification."
+  ],
+  "cases": [
+    {
+      "id": "type-help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports crypto as a builtin and the documented help text is available without invoking a crypto operation.",
+      "script": "kind=$(type -t crypto)\nhelp_text=$(help crypto)\n[[ $kind == builtin && -n $help_text ]]\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sha256-empty-binary-file",
+      "kind": "parity",
+      "purpose": "Compare raw SHA-256 output for empty input and a deterministic binary file containing NUL and high-bit bytes; also exercise the documented file operand.",
+      "requires": [
+        "openssl"
+      ],
+      "script": ": > empty.bin\nprintf '\\000A\\377\\n' > message.bin\nif [[ $(type -t crypto) == builtin ]]; then\n  crypto sha256 < empty.bin\n  crypto sha256 message.bin\nelse\n  openssl dgst -sha256 -binary < empty.bin\n  openssl dgst -sha256 -binary < message.bin\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "shake256-output-length",
+      "kind": "parity",
+      "purpose": "Compare 42 raw SHAKE-256 output bytes for binary stdin, exercising a non-default XOF length.",
+      "requires": [
+        "openssl"
+      ],
+      "script": "printf '\\000shake\\377fixture' > message.bin\nif [[ $(type -t crypto) == builtin ]]; then\n  crypto shake256 -n 42 < message.bin\nelse\n  openssl dgst -shake256 -xoflen 42 -binary < message.bin\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hmac-long-key",
+      "kind": "parity",
+      "purpose": "Compare HMAC-SHA-256 and HMAC-SHA-512 on binary input with a deterministic 257-byte key, crossing the implementation's short-key allocation boundary.",
+      "requires": [
+        "openssl"
+      ],
+      "script": "printf '\\000HMAC fixture\\377' > message.bin\nprintf -v key '%0514d' 0\nif [[ $(type -t crypto) == builtin ]]; then\n  crypto hmac-sha256 -k \"$key\" < message.bin\n  crypto hmac-sha512 -k \"$key\" < message.bin\nelse\n  openssl dgst -sha256 -mac HMAC -macopt \"hexkey:$key\" -binary < message.bin\n  openssl dgst -sha512 -mac HMAC -macopt \"hexkey:$key\" -binary < message.bin\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hkdf-pbkdf2-vectors",
+      "kind": "parity",
+      "purpose": "Compare RFC 5869 test case 1 HKDF-SHA-256 and RFC 6070 PBKDF2-HMAC-SHA-1 outputs byte-for-byte with OpenSSL KDF.",
+      "requires": [
+        "openssl"
+      ],
+      "script": "if [[ $(type -t crypto) == builtin ]]; then\n  crypto hkdf -a sha256 -s 000102030405060708090a0b0c -k 0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b -i f0f1f2f3f4f5f6f7f8f9 -L 42\n  crypto pbkdf2 -a sha1 -s 73616c74 -p password -i 1 -L 20\nelse\n  openssl kdf -binary -keylen 42 -kdfopt digest:SHA256 -kdfopt hexkey:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b -kdfopt hexsalt:000102030405060708090a0b0c -kdfopt hexinfo:f0f1f2f3f4f5f6f7f8f9 -kdfopt mode:EXTRACT_AND_EXPAND HKDF\n  openssl kdf -binary -keylen 20 -kdfopt digest:SHA1 -kdfopt pass:password -kdfopt hexsalt:73616c74 -kdfopt iter:1 PBKDF2\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "base64url-encode-decode",
+      "kind": "parity",
+      "purpose": "Compare URL-safe unpadded encoding with GNU base64; independently supplied fixed padded text checks decoding, without feeding candidate encoding to candidate decoding.",
+      "requires": [
+        "base64",
+        "tr"
+      ],
+      "script": "printf '\\373\\377' > bytes.bin\nif [[ $(type -t crypto) == builtin ]]; then\n  encoded=$(crypto base64url -e < bytes.bin)\n  printf '%s\\n' \"$encoded\"\n  printf '%s' '-_8=' | crypto base64url -d\nelse\n  standard=$(base64 -w 0 < bytes.bin)\n  url=$(printf '%s' \"$standard\" | tr '+/' '-_')\n  url=${url%%=*}\n  printf '%s\\n' \"$url\"\n  padded=$(printf '%s' \"$url\" | tr '_-' '/+')\n  while (( ${#padded} % 4 )); do padded=\"${padded}=\"; done\n  printf '%s' \"$padded\" | base64 --decode\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aes-gcm-nist-vector",
+      "kind": "contract",
+      "purpose": "Check AES-128-GCM encryption against the NIST SP 800-38D all-zero key, nonce, and one-block plaintext known-answer vector.",
+      "script": "printf '\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000' | crypto aes-gcm -e -k 00000000000000000000000000000000 -n 000000000000000000000000",
+      "expected_status": 0,
+      "stdout_base64": "A4jazmC2o5LzKMK5cbL+eKtuR9Qs7BO99TpnshJXvd8=",
+      "stderr": "empty"
+    },
+    {
+      "id": "aes-gcm-rejects-bad-tag",
+      "kind": "contract",
+      "purpose": "Corrupt one tag byte from the same NIST AES-GCM vector and require failure with no plaintext emitted.",
+      "script": "printf '\\x03\\x88\\xda\\xce\\x60\\xb6\\xa3\\x92\\xf3\\x28\\xc2\\xb9\\x71\\xb2\\xfe\\x78\\xab\\x6e\\x47\\xd4\\x2c\\xec\\x13\\xbd\\xf5\\x3a\\x67\\xb2\\x12\\x57\\xbd\\xde' > cipher.bin\nrc=0\ncrypto aes-gcm -d -k 00000000000000000000000000000000 -n 000000000000000000000000 < cipher.bin > clear.bin || rc=$?\n[[ $rc == 1 && ! -s clear.bin ]]\nprintf 'bad-tag-rejected-without-plaintext\\n'",
+      "expected_status": 0,
+      "stdout": "bad-tag-rejected-without-plaintext\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "x25519-rfc7748-public-key",
+      "kind": "contract",
+      "purpose": "Check X25519 public-key derivation against Alice's RFC 7748 scalar/public-key vector.",
+      "script": "crypto x25519-pub -k 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a -x",
+      "expected_status": 0,
+      "stdout": "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ed25519-rfc8032-empty-message",
+      "kind": "contract",
+      "purpose": "Check the RFC 8032 empty-message seed/public-key/signature vector and successful signature verification.",
+      "script": ": > empty.bin\nseed=9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60\npk=d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\nsig=e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b\ncrypto ed25519-pub -k \"$seed\" -x\ncrypto ed25519-sign -k \"$seed\" -x < empty.bin\ncrypto ed25519-verify -k \"$pk\" -s \"$sig\" < empty.bin\nprintf 'verified\\n'",
+      "expected_status": 0,
+      "stdout": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\ne5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b\nverified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "tls-and-ntske-loopback",
+      "kind": "deferred",
+      "purpose": "TLS and NTS-KE require protocol-level integration coverage.",
+      "reason": "Requires a disposable VM or reviewed local socket mock with an ephemeral test CA, a loopback TLS 1.2/1.3 peer, controlled SNI/ALPN, and a bounded NTS-KE response transcript. The present fixture scope forbids network activity and has no peer fixture; no external service should be contacted."
+    },
+    {
+      "id": "secret-read-terminal",
+      "kind": "deferred",
+      "purpose": "Terminal secret input requires an interactive no-echo check.",
+      "reason": "Requires a future disposable VM with a private PTY and bounded terminal driver. Requires a disposable PTY driver to provide synthetic non-credential input and verify prompt/no-echo behavior. A pipe-only fixture cannot exercise the terminal branch, so this case awaits a bounded PTY fixture."
+    },
+    {
+      "id": "aes-gcm-decrypt-known-vector",
+      "kind": "contract",
+      "purpose": "Decrypt the independently supplied NIST SP 800-38D ciphertext and tag to sixteen zero bytes.",
+      "script": "printf '\\x03\\x88\\xda\\xce\\x60\\xb6\\xa3\\x92\\xf3\\x28\\xc2\\xb9\\x71\\xb2\\xfe\\x78\\xab\\x6e\\x47\\xd4\\x2c\\xec\\x13\\xbd\\xf5\\x3a\\x67\\xb2\\x12\\x57\\xbd\\xdf' | crypto aes-gcm -d -k 00000000000000000000000000000000 -n 000000000000000000000000",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AAAAAAAAAAAAAAAAAAAAAA=="
+    }
+  ]
+}

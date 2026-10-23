@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "loadable": "wgetch",
+  "reference": "Bash's built-in type/help metadata behavior plus the documented wgetch API and timing contract in the published wgetch interface and the existing API smoke contract in the terminal API contract. There is no matching GNU CLI for this loadable, so no operation parity is claimed.",
+  "coverage": [
+    "Bash type/help metadata only.",
+    "Private regular-file descriptor decoding of bytes, control aliases, complete ANSI sequences and EOF.",
+    "Parent-shell screen lifecycle, pushback ordering, repeated peek, empty/full queues and missing operands.",
+    "Timed ESC delivery remains deferred to a deterministic PTY or clock/poll mock."
+  ],
+  "exclusions": [
+    "No matching GNU CLI; records use fixed documented key codes and ncurses-style pushback contracts.",
+    "Delayed-byte timing, all 16 simultaneous screen slots and every ANSI sequence are not established by the bounded cases. Timed ESC behavior requires the deferred PTY/mock fixture."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "purpose": "Check Bash's documented type -t result for a loadable builtin without invoking wgetch operations.",
+      "kind": "contract",
+      "script": "[[ $(type -t wgetch) == builtin ]] && printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-surface",
+      "purpose": "Check the Bash help metadata against wgetch's documented command forms and advertised ESC timing contract.",
+      "kind": "contract",
+      "script": "h=$(help wgetch); [[ $h == *'wgetch open [FD] [NAME]'* && $h == *'wgetch read HANDLE|FD'* && $h == *'wgetch unget HANDLE CODE'* && $h == *'wgetch peek HANDLE'* && $h == *'wgetch close HANDLE'* && $h == *'wgetch list'* && $h == *'50 ms ESC grace'* && $h == *'ESCDELAY'* && $h == *'max(400 ms'* ]] && printf 'documented help surface\\n'",
+      "expected_status": 0,
+      "stdout": "documented help surface\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "byte-decoding",
+      "kind": "contract",
+      "purpose": "Decode printable, DEL/BS, CR/LF, TAB and EOF from a private regular-file descriptor. Expected records use the documented key-code contract; no terminal is needed.",
+      "script": "printf 'A\\177\\010\\015\\012\\011' > keys\nexec 3< keys\nfor item in 1 2 3 4 5 6 7; do wgetch read 3; done\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "char 65\nbackspace 263\nbackspace 263\nenter 264\nenter 264\ntab 269\nnone 0\n"
+    },
+    {
+      "id": "ansi-key-decoding",
+      "kind": "contract",
+      "purpose": "Decode complete ANSI CSI/SS3 arrow, function, shifted arrow and paste delimiter sequences from a private descriptor against fixed key-code mappings. Timed delivery is separate.",
+      "script": "printf '\\033[A\\033OP\\033[1;2D\\033[200~\\033[201~' > keys\nexec 3< keys\nfor item in 1 2 3 4 5 6; do wgetch read 3; done\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "key_up 257\nkey_f1 272\nkey_s_left 306\npaste_start 288\npaste_end 289\nnone 0\n"
+    },
+    {
+      "id": "escape-timing",
+      "purpose": "Deferred check of lone ESC grace, delayed continuation, ambiguous exact-prefix sequences, and the max(400 ms, ESCDELAY*8) total cap.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with a timed private PTY or poll/clock mock that can schedule bytes reproducibly, set BASHESCDELAY, and compare ESC/key outcomes against an independent timing model."
+    },
+    {
+      "id": "screen-queue",
+      "kind": "contract",
+      "purpose": "Check persistent open/list/close state, pushback stack order, nondestructive peek, empty-queue status and EOF on a private descriptor. Keep open in the parent shell so the handle survives.",
+      "script": ": > keys\nexec 3< keys\nwgetch open 3 fixture > handle\nh=$(<handle)\n[[ $h == 1 ]]\nwgetch list\nwgetch unget \"$h\" 65\nwgetch unget \"$h\" 66\nwgetch peek \"$h\"\nwgetch peek \"$h\"\nwgetch read \"$h\"\nwgetch read \"$h\"\nif wgetch peek \"$h\"; then exit 90; else rc=$?; fi\n[[ $rc -eq 1 ]]\nwgetch read \"$h\"\nwgetch close \"$h\"\nwgetch list\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1 3 fixture depth=0\nchar 66\nchar 66\nchar 66\nchar 65\nnone 0\n"
+    },
+    {
+      "id": "argument-and-handle-boundaries",
+      "kind": "contract",
+      "purpose": "Missing required operands are usage errors, and closing an unknown handle fails. These pure argument/state checks do not read any input descriptor.",
+      "script": "for verb in 'close' 'unget' 'peek' 'read'; do\n if wgetch \"$verb\"; then exit 90; else rc=$?; fi\n printf '%s:%s\\n' \"$verb\" \"$rc\"\n [[ $rc -eq 2 ]]\ndone\nif wgetch close 999; then exit 91; else rc=$?; fi\nprintf 'unknown-close:%s\\n' \"$rc\"\n[[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "close:2\nunget:2\npeek:2\nread:2\nunknown-close:1\n"
+    },
+    {
+      "id": "queue-capacity",
+      "kind": "contract",
+      "purpose": "The documented 64-entry pushback boundary rejects one extra item without disturbing the retained queue.",
+      "script": ": > keys\nexec 3< keys\nwgetch open 3 fixture > handle\nh=$(<handle)\nfor ((i=0;i<64;i++)); do wgetch unget \"$h\" 65; done\nif wgetch unget \"$h\" 66; then exit 90; else rc=$?; fi\n[[ $rc -eq 1 ]]\nwgetch list\nwgetch read \"$h\"\nwgetch close \"$h\"\nexec 3<&-",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1 3 fixture depth=64\nchar 65\n"
+    }
+  ]
+}

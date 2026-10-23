@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "loadable": "dns",
+  "reference": "Bash type/help verify metadata. Offline operation contracts use hand-encoded RFC 1035 zone/message fixtures and the documented chain/checkzone/doh-codec output API. No network or GNU dig/drill equivalence is claimed.",
+  "coverage": [
+    "Bash builtin classification for the statically installed dns loadable.",
+    "Short description, synopsis, and documented command-family metadata exposed by Bash help.",
+    "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges.",
+    "Offline parent-chain calculation, valid/inherited-owner and invalid-address master-file parsing, and a fixed in-memory DoH POST decoder contract."
+  ],
+  "exclusions": [
+    "All network exchanges, listener/service operations, transfers and polling remain deferred; offline parser/codec cases do not establish network parity.",
+    "Signing, credentials and trust-anchor management are unexecuted. Broader offline parser/codec conformance remains a gap."
+  ],
+  "cases": [
+    {
+      "id": "dns-type-kind",
+      "kind": "contract",
+      "purpose": "GNU Bash type -t reports a loaded Bash builtin as builtin. This confirms availability metadata without invoking dns.",
+      "script": "test \"$(type -t dns)\" = builtin\nprintf 'builtin\\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "dns-help-description",
+      "kind": "contract",
+      "purpose": "Bash help -d exposes the documented DNS command description; metadata only.",
+      "script": "doc=$(help -d dns)\ncase \"$doc\" in\n  *\"DNS over UDP via hand-rolled RFC 1035.\"*) printf 'dns description documented\\n' ;;\n  *) exit 1 ;;\nesac\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dns description documented\n"
+    },
+    {
+      "id": "dns-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s exposes the documented public query synopsis; metadata only.",
+      "script": "help -s dns\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dns: dns A|AAAA|MX|TXT|... HOST [-s SERVER] [-t TIMEOUT_MS] [-d] [--validate] [--skew SEC]\n"
+    },
+    {
+      "id": "dns-help-command-families",
+      "kind": "contract",
+      "purpose": "The complete help text retains stable documentation for the master-file checker, authoritative server, and DNSSEC features; checks only Bash metadata and does not run those commands.",
+      "script": "doc=$(help dns)\ncase \"$doc\" in\n  *\"validate an RFC 1035 master file\"*\"Authoritative DNS daemon\"*\"DNSSEC v2:\"*) printf 'documented command families present\\n' ;;\n  *) exit 1 ;;\nesac\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "documented command families present\n"
+    },
+    {
+      "id": "dns-query-udp-tcp",
+      "kind": "deferred",
+      "purpose": "Exercise DNS query construction, response parsing, common RR presentation, error responses, resolver search order, and TC-triggered TCP fallback.",
+      "reason": "Requires a controlled UDP DNS responder and TCP fallback peer to exchange packets. Network activity is outside this task's allowed execution. A future disposable VM must bind only private loopback fixtures, record request bytes, and compare response parsing against RFC 1035 encodings and normalized dig/drill output; include A, AAAA, MX, TXT, PTR, NXDOMAIN, malformed response, and truncation cases."
+    },
+    {
+      "id": "dns-dot-doh",
+      "kind": "deferred",
+      "purpose": "Exercise DNS-over-TLS and DNS-over-HTTPS framing, certificate validation, and DNS message handling through each transport.",
+      "reason": "Requires TLS and HTTPS peers plus certificate fixtures or the documented BASHDNS_DOT_CMD/BASHDNS_DOH_CMD transport seams. This task forbids network activity. A future disposable VM must use loopback-only mock peers, a private test CA, fixed DNS wire replies, and byte-level TLS/HTTP framing assertions."
+    },
+    {
+      "id": "dns-update-notify",
+      "kind": "deferred",
+      "purpose": "Exercise RFC 2136 update and RFC 1996 notify requests, prerequisite encodings, TSIG signing, and peer response validation.",
+      "reason": "These client operations send DNS packets and need a controlled authoritative peer. A future disposable VM must provide loopback UDP/TCP responders and compare the requests with independently encoded RFC 2136/RFC 1996 messages and HMAC-SHA256 TSIG calculations. No packets are sent in this suite."
+    },
+    {
+      "id": "dns-authoritative-service",
+      "kind": "deferred",
+      "purpose": "Exercise authoritative UDP/TCP answers, zone selection, transfer/update policy, TSIG, and opt-in service features against clients.",
+      "reason": "The auth-serve subcommand opens a network listener and requires client exchanges. A future disposable VM must isolate the listener to loopback, provide deterministic zone fixtures and independent DNS packet encoders, and verify answers, denied/allowed transfer behavior, and permitted update behavior without contacting any external peer."
+    },
+    {
+      "id": "dns-recursive-service",
+      "kind": "deferred",
+      "purpose": "Exercise resolver forwarding/cache behavior and the documented recursive, DNSSEC, DNS64, and policy paths against controlled peers.",
+      "reason": "The resolver service exchanges DNS packets with clients and upstreams. A future disposable VM must use a loopback client and scripted upstream server, fixed time and zone data, and independent DNSSEC/DNS64 expectations. This suite performs no network activity."
+    },
+    {
+      "id": "dns-slave-transfer-poll",
+      "kind": "deferred",
+      "purpose": "Exercise slave IXFR/AXFR transfer verification and DNSKEY polling used by trust-anchor rollover.",
+      "reason": "Transfer and polling paths require a controlled DNS primary and response stream. A future disposable VM must expose only a loopback primary with fixed signed zone/DNSKEY fixtures, injected timestamps, and independently computed TSIG/signature expectations. No transfer or poll is run here."
+    },
+    {
+      "id": "offline-chain",
+      "purpose": "Compute the documented parent-domain chain as a pure text operation without DNS resolution.",
+      "kind": "contract",
+      "script": "dns chain 'www.example.test'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "www.example.test\nexample.test\ntest\n.\n"
+    },
+    {
+      "id": "offline-checkzone-valid",
+      "purpose": "Validate a small RFC 1035 zone including an inherited owner and documented serial reporting; addresses are text only.",
+      "kind": "contract",
+      "script": "cat > zone <<'ZONE'\n$ORIGIN example.test.\n$TTL 300\n@ IN SOA ns.example.test. hostmaster.example.test. 2026010101 3600 600 86400 300\n@ IN NS ns.example.test.\nns IN A 192.0.2.1\nwww IN A 192.0.2.2\n    IN AAAA 2001:db8::2\nZONE\ndns checkzone -o example.test. zone",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "zone example.test.: loaded serial 2026010101\nOK\n"
+    },
+    {
+      "id": "offline-checkzone-invalid-address",
+      "purpose": "Reject an ordinary malformed address in a private master file without opening sockets.",
+      "kind": "contract",
+      "script": "cat > zone <<'ZONE'\n$ORIGIN example.test.\n$TTL 300\n@ IN SOA ns.example.test. hostmaster.example.test. 2026010101 3600 600 86400 300\n@ IN NS ns.example.test.\nns IN A 192.0.2.1\nwww IN A 192.0.2.999\n    IN AAAA 2001:db8::2\nZONE\ndns checkzone -o example.test. zone",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "offline-codec-post",
+      "purpose": "Decode an independently encoded twelve-byte DNS message from an HTTP POST body; the codec is a pure memory interface, with no peer or socket.",
+      "kind": "contract",
+      "script": "dns doh-codec decode POST /dns-query application/dns-message 123401000000000000000000",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "status=200\nlen=12\nhex=123401000000000000000000\n"
+    }
+  ]
+}

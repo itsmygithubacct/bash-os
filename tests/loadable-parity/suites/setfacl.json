@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "setfacl",
+  "reference": "GNU acl-utils setfacl in the reference Bash environment. Each parity case runs the same relative-path fixture script against GNU setfacl and the bash-os builtin; GNU status is checked before results are accepted, and stdout plus the fixture tree are compared. The tree snapshot records modes, contents, and links but not xattrs, so ACL effects are asserted where they change mode bits or affect a later operation.",
+  "coverage": [
+    "Bash type/help metadata contract for the enabled builtin",
+    "Modification of owner, group-object, and other base permissions",
+    "Complete base ACL replacement with --set",
+    "Long-form modification across multiple relative files",
+    "End-of-options handling for a dash-prefixed relative filename",
+    "Continuation across a missing path, malformed ACL rejection, and symlink target behavior",
+    "Deferred named-entry, mask, and extended-entry operations that the current isolated environment cannot validate"
+  ],
+  "exclusions": [
+    "The fixture tree comparator does not include ACL xattr bytes or entries; runnable cases assert mode-visible behavior, while extended named-entry checks are deferred because both sides returned EINVAL in this environment.",
+    "Default ACLs, recursive operations, ACL text files, and resolution of real host users/groups are outside the documented builtin surface or the isolated fixture contract."
+  ],
+  "cases": [
+    {
+      "id": "metadata_help",
+      "kind": "contract",
+      "purpose": "Confirm through Bash builtins that setfacl is registered as an enabled builtin and has help metadata, without claiming GNU operation parity.",
+      "script": "[[ $(type -t setfacl) == builtin ]] || exit 1\nhelp setfacl > metadata.out || exit 2\nprintf 'builtin\\nhelp-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "modify_base_permissions",
+      "kind": "parity",
+      "purpose": "Apply the three base ACL entries to a new relative file and compare the resulting 0740 mode with GNU setfacl.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > base\nsetfacl -m user::rwx,group::r--,other::--- base",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "set_base_acl",
+      "kind": "parity",
+      "purpose": "Set all three base ACL entries with --set and compare the resulting 0460 mode with GNU setfacl.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > acl\nsetfacl --set user::r--,group::rw-,other::--- acl",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "modify_multiple_files",
+      "kind": "parity",
+      "purpose": "Use the long --modify form on two relative files and compare both base permission modes with GNU setfacl.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > first\n: > second\nsetfacl --modify user::r--,group::r--,other::--- first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "end_options_dash_path",
+      "kind": "parity",
+      "purpose": "Apply a base permission change to a filename beginning with a dash after --, comparing GNU option termination behavior.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > ./-acl\nsetfacl -m user::r-- -- -acl",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_path_continues",
+      "kind": "parity",
+      "purpose": "Pass a missing path before a valid file; require a diagnostic and verify both the failure status and that processing continues to update the later file.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > acl\nif setfacl -m user::r-- missing acl; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\n[[ \"$rc\" -ne 0 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "symlink_follows_target",
+      "kind": "parity",
+      "purpose": "Create a relative symlink and change its target's owner permissions; compare GNU's default symlink dereference behavior and the target mode.",
+      "requires": [
+        "setfacl",
+        "ln"
+      ],
+      "script": "umask 077\n: > target\nln -s target alias\nsetfacl -m user::r-- alias",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_acl_rejected",
+      "kind": "parity",
+      "purpose": "Reject an invalid permission character, preserve the file, and compare the reported command status with GNU setfacl without pinning diagnostic wording.",
+      "requires": [
+        "setfacl"
+      ],
+      "script": "umask 077\n: > acl\nif setfacl -m user:0:rwq acl; then exit 90; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "extended_acl_semantics_deferred",
+      "kind": "deferred",
+      "purpose": "Validate named entry creation, automatic and explicit masks, named-entry modification/removal, and -b removal followed by a base edit.",
+      "reason": "The reference GNU CLI and candidate both returned EINVAL while creating a named ACL in this isolated fixture environment, including with namespace-local numeric ID 0. A future run needs a disposable Linux VM with POSIX ACL xattr support and a distinct mapped UID/GID; only then can these extended ACL operations be compared."
+    },
+    {
+      "id": "repeated-base-edits",
+      "kind": "parity",
+      "purpose": "Repeated base-only ACL edits in one shell preserve each file state without needing named UID mappings.",
+      "script": "umask 077\n: > first\n: > second\nsetfacl -m u::r-- first\nsetfacl --set u::rw-,g::---,o::--- second\nsetfacl -m g::r-- first",
+      "requires": [
+        "setfacl"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

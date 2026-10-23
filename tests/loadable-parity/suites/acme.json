@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "loadable": "acme",
+  "reference": "Documented RFC 7638/8555 contracts using published P-256 generator coordinates and independently encoded JWK/SHA-256/base64url values. JWS envelope segments are fixed expectations, and an independent Python integer implementation verifies each randomized ES256 signature against the known public point. These are contract cases, not external CLI parity.",
+  "coverage": [
+    "Bash builtin type/help metadata and the registered acme documentation",
+    "Canonical P-256 JWK output for private scalar one using the published P-256 generator point",
+    "RFC 7638 thumbprint and RFC 8555 keyAuthorization output, including the documented alias",
+    "Flattened JWS protected/payload encoding for jwk and kid headers, inline JSON, binary file payloads, and POST-as-GET empty payloads",
+    "Usage rejection for malformed key length and mutually exclusive JWS identity options",
+    "Independent ES256 signature verification for every tested JWS payload/header form, including binary and empty payloads."
+  ],
+  "exclusions": [
+    "There is no GNU acme CLI, so no parity cases are claimed.",
+    "The loadable implements local JWK/JWS primitives only; a full ACME directory/account/order/challenge/finalize/issuance exchange needs a disposable ACME peer and is deferred.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "purpose": "Check Bash reports acme as a builtin and help exposes its documented contract; the expected marker is emitted only after all documentation checks pass.",
+      "kind": "contract",
+      "script": "kind=$(type -t acme)\nhelp_text=$(help acme)\n[[ $kind == builtin ]]\n[[ $help_text == *\"JOSE/JWS + JWK primitives for ACME (RFC 8555).\"* ]]\n[[ $help_text == *\"acme jwk-public\"* ]]\n[[ $help_text == *\"rootfs/bash-os/acme.sh\"* ]]\nprintf '%s\\n' \"$kind\" help-doc-present",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-doc-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jwk-public-p256-scalar-one",
+      "purpose": "Check scalar one maps to the published P-256 generator point and that the canonical JWK uses RFC 7638 member names and unpadded base64url coordinates.",
+      "kind": "contract",
+      "script": "acme jwk-public -k 0000000000000000000000000000000000000000000000000000000000000001",
+      "expected_status": 0,
+      "stdout": "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY\",\"y\":\"T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU\"}\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jwk-thumbprint-rfc7638",
+      "purpose": "Check the RFC 7638 thumbprint for scalar one, independently computed as base64url(SHA-256(canonical JWK JSON)).",
+      "kind": "contract",
+      "script": "acme jwk-thumbprint -k 0000000000000000000000000000000000000000000000000000000000000001",
+      "expected_status": 0,
+      "stdout": "xx0BcA-wMohw8atYDJOe6peGModklG2wRHBlXHMvl0M\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "key-authorization-rfc8555",
+      "purpose": "Check RFC 8555 keyAuthorization concatenates the supplied challenge token, one period, and the independently calculated JWK thumbprint.",
+      "kind": "contract",
+      "script": "acme key-authorization fixture-token -k 0000000000000000000000000000000000000000000000000000000000000001",
+      "expected_status": 0,
+      "stdout": "fixture-token.xx0BcA-wMohw8atYDJOe6peGModklG2wRHBlXHMvl0M\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "key-authorization-alias",
+      "purpose": "Check the documented jws-extract-key-authorization alias returns the same RFC 8555 value for a distinct token.",
+      "kind": "contract",
+      "script": "acme jws-extract-key-authorization dns-token -k 0000000000000000000000000000000000000000000000000000000000000001",
+      "expected_status": 0,
+      "stdout": "dns-token.xx0BcA-wMohw8atYDJOe6peGModklG2wRHBlXHMvl0M\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jws-jwk-inline-payload",
+      "purpose": "Check flattened JWS framing for a new-account style jwk header and inline JSON payload. The fixed protected and payload segments are independently base64url encoded; the random signature must be 64-byte JOSE raw form encoded without padding. An independent Python integer implementation also verifies ES256 against the published P-256 generator point and checks canonical signature encoding.",
+      "kind": "contract",
+      "script": "jws=$(acme jws-sign -k 0000000000000000000000000000000000000000000000000000000000000001 --url https://example.invalid/acme --nonce fixture --jwk -d '{\"ok\":true}')\nprefix=$'\\173\\042protected\\042\\072\\042eyJhbGciOiJFUzI1NiIsImp3ayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImF4ZlI4dUVzUWtmNHZPYmxZNlJBOG5jRGZZRXQ2ek9nOUtFNVJkaVl3cFkiLCJ5IjoiVC1OQzR2NGFmNXVPNS10S2ZBLWVGaXZPTTFkck1WN095N1pBYURlX1VmVSJ9LCJub25jZSI6ImZpeHR1cmUiLCJ1cmwiOiJodHRwczovL2V4YW1wbGUuaW52YWxpZC9hY21lIn0\\042\\054\\042payload\\042\\072\\042eyJvayI6dHJ1ZX0\\042\\054\\042signature\\042\\072\\042'\n[[ $jws == \"$prefix\"* ]]\ntail=${jws#\"$prefix\"}\n[[ ${tail: -2} == $'\\042\\175' ]]\nsignature=${tail%??}\n[[ ${#signature} -eq 86 ]]\n[[ $signature =~ ^[A-Za-z0-9_-]+$ ]]\nprintf '%s\\n' \"$jws\" > signed-envelope.json\n/usr/bin/python3 - <<'PY'\nimport json, base64, hashlib\nfrom pathlib import Path\nj=json.loads(Path('signed-envelope.json').read_text())\nassert set(j)=={'protected','payload','signature'}\nsig=base64.urlsafe_b64decode(j['signature']+'==')\nassert len(sig)==64\nassert base64.urlsafe_b64encode(sig).rstrip(b'=').decode()==j['signature']\n# SEC 2 / FIPS P-256, public point for the fixture's scalar one.\np=0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff\nn=0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551\nG=(0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296,\n   0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5)\ndef point_add(a,b):\n    if a is None: return b\n    if b is None: return a\n    x,y=a; X,Y=b\n    if x==X and (y+Y)%p==0: return None\n    m=((3*x*x-3)*pow(2*y,-1,p) if a==b else (Y-y)*pow(X-x,-1,p))%p\n    u=(m*m-x-X)%p\n    return u,(m*(x-u)-y)%p\ndef multiply(k,a):\n    v=None\n    while k:\n        if k&1: v=point_add(v,a)\n        a=point_add(a,a); k>>=1\n    return v\nr=int.from_bytes(sig[:32],'big'); s=int.from_bytes(sig[32:],'big')\nassert 0<r<n and 0<s<n\nz=int.from_bytes(hashlib.sha256((j['protected']+'.'+j['payload']).encode('ascii')).digest(),'big')\nw=pow(s,-1,n)\npoint=point_add(multiply(z*w%n,G),multiply(r*w%n,G))\nassert point is not None and point[0]%n==r, 'independent ES256 verification failed'\nPY\nprintf '%s\\n' jwk-jws-envelope-ok",
+      "expected_status": 0,
+      "stdout": "jwk-jws-envelope-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jws-kid-binary-file-payload",
+      "purpose": "Check the account kid header and -f payload path preserve binary fixture bytes including NUL and 0xff. Header/payload encodings are independent RFC base64url values; signature shape is checked without claiming independent cryptographic verification. An independent Python integer implementation also verifies ES256 against the published P-256 generator point and checks canonical signature encoding.",
+      "kind": "contract",
+      "script": "printf 'fixture payload\\000\\377' > payload.bin\njws=$(acme jws-sign -k 0000000000000000000000000000000000000000000000000000000000000001 --url https://example.invalid/acme --nonce fixture --kid https://example.invalid/account/1 -f payload.bin)\nprefix=$'\\173\\042protected\\042\\072\\042eyJhbGciOiJFUzI1NiIsImtpZCI6Imh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL2FjY291bnQvMSIsIm5vbmNlIjoiZml4dHVyZSIsInVybCI6Imh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL2FjbWUifQ\\042\\054\\042payload\\042\\072\\042Zml4dHVyZSBwYXlsb2FkAP8\\042\\054\\042signature\\042\\072\\042'\n[[ $jws == \"$prefix\"* ]]\ntail=${jws#\"$prefix\"}\n[[ ${tail: -2} == $'\\042\\175' ]]\nsignature=${tail%??}\n[[ ${#signature} -eq 86 ]]\n[[ $signature =~ ^[A-Za-z0-9_-]+$ ]]\nprintf '%s\\n' \"$jws\" > signed-envelope.json\n/usr/bin/python3 - <<'PY'\nimport json, base64, hashlib\nfrom pathlib import Path\nj=json.loads(Path('signed-envelope.json').read_text())\nassert set(j)=={'protected','payload','signature'}\nsig=base64.urlsafe_b64decode(j['signature']+'==')\nassert len(sig)==64\nassert base64.urlsafe_b64encode(sig).rstrip(b'=').decode()==j['signature']\n# SEC 2 / FIPS P-256, public point for the fixture's scalar one.\np=0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff\nn=0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551\nG=(0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296,\n   0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5)\ndef point_add(a,b):\n    if a is None: return b\n    if b is None: return a\n    x,y=a; X,Y=b\n    if x==X and (y+Y)%p==0: return None\n    m=((3*x*x-3)*pow(2*y,-1,p) if a==b else (Y-y)*pow(X-x,-1,p))%p\n    u=(m*m-x-X)%p\n    return u,(m*(x-u)-y)%p\ndef multiply(k,a):\n    v=None\n    while k:\n        if k&1: v=point_add(v,a)\n        a=point_add(a,a); k>>=1\n    return v\nr=int.from_bytes(sig[:32],'big'); s=int.from_bytes(sig[32:],'big')\nassert 0<r<n and 0<s<n\nz=int.from_bytes(hashlib.sha256((j['protected']+'.'+j['payload']).encode('ascii')).digest(),'big')\nw=pow(s,-1,n)\npoint=point_add(multiply(z*w%n,G),multiply(r*w%n,G))\nassert point is not None and point[0]%n==r, 'independent ES256 verification failed'\nPY\nprintf '%s\\n' kid-jws-binary-payload-ok",
+      "expected_status": 0,
+      "stdout": "kid-jws-binary-payload-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jws-kid-post-as-get-empty-payload",
+      "purpose": "Check the documented POST-as-GET form uses the empty base64url payload segment when neither -d nor -f is supplied, with a kid header and valid JOSE raw-signature encoding. An independent Python integer implementation also verifies ES256 against the published P-256 generator point and checks canonical signature encoding.",
+      "kind": "contract",
+      "script": "jws=$(acme jws-sign -k 0000000000000000000000000000000000000000000000000000000000000001 --url https://example.invalid/acme --nonce fixture --kid https://example.invalid/account/1)\nprefix=$'\\173\\042protected\\042\\072\\042eyJhbGciOiJFUzI1NiIsImtpZCI6Imh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL2FjY291bnQvMSIsIm5vbmNlIjoiZml4dHVyZSIsInVybCI6Imh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL2FjbWUifQ\\042\\054\\042payload\\042\\072\\042\\042\\054\\042signature\\042\\072\\042'\n[[ $jws == \"$prefix\"* ]]\ntail=${jws#\"$prefix\"}\n[[ ${tail: -2} == $'\\042\\175' ]]\nsignature=${tail%??}\n[[ ${#signature} -eq 86 ]]\n[[ $signature =~ ^[A-Za-z0-9_-]+$ ]]\nprintf '%s\\n' \"$jws\" > signed-envelope.json\n/usr/bin/python3 - <<'PY'\nimport json, base64, hashlib\nfrom pathlib import Path\nj=json.loads(Path('signed-envelope.json').read_text())\nassert set(j)=={'protected','payload','signature'}\nsig=base64.urlsafe_b64decode(j['signature']+'==')\nassert len(sig)==64\nassert base64.urlsafe_b64encode(sig).rstrip(b'=').decode()==j['signature']\n# SEC 2 / FIPS P-256, public point for the fixture's scalar one.\np=0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff\nn=0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551\nG=(0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296,\n   0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5)\ndef point_add(a,b):\n    if a is None: return b\n    if b is None: return a\n    x,y=a; X,Y=b\n    if x==X and (y+Y)%p==0: return None\n    m=((3*x*x-3)*pow(2*y,-1,p) if a==b else (Y-y)*pow(X-x,-1,p))%p\n    u=(m*m-x-X)%p\n    return u,(m*(x-u)-y)%p\ndef multiply(k,a):\n    v=None\n    while k:\n        if k&1: v=point_add(v,a)\n        a=point_add(a,a); k>>=1\n    return v\nr=int.from_bytes(sig[:32],'big'); s=int.from_bytes(sig[32:],'big')\nassert 0<r<n and 0<s<n\nz=int.from_bytes(hashlib.sha256((j['protected']+'.'+j['payload']).encode('ascii')).digest(),'big')\nw=pow(s,-1,n)\npoint=point_add(multiply(z*w%n,G),multiply(r*w%n,G))\nassert point is not None and point[0]%n==r, 'independent ES256 verification failed'\nPY\nprintf '%s\\n' post-as-get-empty-payload-ok",
+      "expected_status": 0,
+      "stdout": "post-as-get-empty-payload-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "jwk-reject-short-private-key",
+      "purpose": "Check malformed private-key length is rejected with EX_USAGE (2), while keeping the test script itself successful after capturing the expected command failure.",
+      "kind": "contract",
+      "script": "if acme jwk-public -k 01; then rc=0; else rc=$?; fi\n[[ $rc -eq 2 ]]\nprintf '%s\\n' short-key-rejected",
+      "expected_status": 0,
+      "stdout": "short-key-rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "jws-reject-mutually-exclusive-identity",
+      "purpose": "Check the documented --jwk/--kid exclusion returns EX_USAGE (2) before attempting a network or ACME operation.",
+      "kind": "contract",
+      "script": "if acme jws-sign -k 0000000000000000000000000000000000000000000000000000000000000001 --url https://example.invalid/acme --nonce fixture --jwk --kid https://example.invalid/account/1; then rc=0; else rc=$?; fi\n[[ $rc -eq 2 ]]\nprintf '%s\\n' identity-options-rejected",
+      "expected_status": 0,
+      "stdout": "identity-options-rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "acme-protocol-lifecycle-deferred",
+      "purpose": "Full ACME directory, account, order, challenge, finalize, and certificate issuance behavior is outside this crypto-only loadable and cannot be exercised against a live service in this suite.",
+      "kind": "deferred",
+      "reason": "Requires a disposable local ACME mock or VM with deterministic directory/nonce/order/challenge responses and fixture-only test certificates. The current target exposes only local JWK/JWS primitives; a future protocol test must supply and isolate the ACME peer and must not use a real network target or installed credentials."
+    }
+  ]
+}

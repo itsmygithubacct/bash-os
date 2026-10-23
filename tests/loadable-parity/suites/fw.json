@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "fw",
+  "reference": "Documented fw dry-run contracts with independently encoded nftables/iptables argument text. No matching GNU fw CLI exists.",
+  "coverage": [
+    "Bash type/help metadata availability and the documented fw synopsis",
+    "nft dry-run filter rule construction with source, destination, interface, conntrack state, multiport, and rate match fields",
+    "iptables dry-run IPv6 deny rule construction with multiport and reject mode",
+    "nft dry-run DNAT and masquerade rule construction",
+    "relative-file restore and save dry-run output for nft and iptables backends",
+    "documented explicit missing-file restore failure",
+    "line-oriented batch parsing in nft dry-run mode",
+    "Pure backend private-store flush effects and absent-chain idempotence, independently checked without any kernel firewall backend."
+  ],
+  "exclusions": [
+    "No live nft, iptables, ip6tables, ipset, kernel ruleset, or network operation is run; those require a disposable VM or independently reviewed privileged mock.",
+    "The dry-run cases verify generated command text only and do not establish that a host firewall accepts or applies those commands.",
+    "The binary exposes no GNU-compatible fw reference command, so fw behavior is tested as a documented contract rather than falsely labeled GNU parity."
+  ],
+  "cases": [
+    {
+      "id": "metadata_type",
+      "kind": "contract",
+      "purpose": "Verify Bash registers fw as a loadable builtin through PATH-independent type metadata.",
+      "script": "type -t fw",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata_help",
+      "kind": "contract",
+      "purpose": "Verify the builtin help metadata is available to Bash help without depending on external programs.",
+      "script": "help fw >metadata.txt && printf 'help-available\\n'",
+      "expected_status": 0,
+      "stdout": "help-available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nft_filter_rule_text",
+      "kind": "contract",
+      "purpose": "Check documented nft dry-run argv construction and ordering for the common filter match fields; -n must print argv without running nft.",
+      "script": "fw -n -B nft allow 198.51.100.7 -D 203.0.113.4 -p tcp --multiport 80,443 -i eth0 --ct-state new,established --limit 10/minute",
+      "expected_status": 0,
+      "stdout": "nft add rule inet fw input ip saddr 198.51.100.7 ip daddr 203.0.113.4 iifname \"eth0\" ct state { new,established } tcp dport { 80,443 } limit rate 10/minute accept\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iptables_ipv6_reject_text",
+      "kind": "contract",
+      "purpose": "Check the documented iptables backend dispatches an IPv6 deny rule to ip6tables and preserves multiport and tcp-reset rejection arguments in dry-run output.",
+      "script": "fw -n -B iptables deny 2001:db8::7 -p tcp --multiport 22,2222 --reject=tcp-reset",
+      "expected_status": 0,
+      "stdout": "ip6tables -A BASHFW_IN -s 2001:db8::7 -p tcp -m multiport --dports 22,2222 -j REJECT --reject-with tcp-reset\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "nft_nat_rule_text",
+      "kind": "contract",
+      "purpose": "Check documented nft dry-run command construction places DNAT in prerouting and masquerade in postrouting with their address and interface matches.",
+      "script": "fw -n -B nft dnat 203.0.113.9:443 '->' 192.0.2.20:8443 -p tcp\nfw -n -B nft masquerade 192.0.2.0/24 -o eth0",
+      "expected_status": 0,
+      "stdout": "nft add rule inet fw prerouting ip daddr 203.0.113.9 tcp dport 443 dnat to 192.0.2.20:8443\nnft add rule inet fw postrouting ip saddr 192.0.2.0/24 oifname \"eth0\" masquerade\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "persistence_dry_run_argv",
+      "kind": "contract",
+      "purpose": "Check explicit relative-file restore/save dry-run forms for nft and iptables. The input file exists only in the private fixture directory; no backend executable runs.",
+      "script": "printf 'fixture rules\\n' > rules.conf\nfw -n -B nft restore rules.conf\nfw -n -B iptables restore rules.conf\nfw -n -B nft save saved-nft.conf\nfw -n -B iptables save saved-iptables.conf",
+      "expected_status": 0,
+      "stdout": "nft -f rules.conf\niptables-restore rules.conf\nsave saved-nft.conf\nsave saved-iptables.conf\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "restore_missing_explicit_file",
+      "kind": "contract",
+      "purpose": "Check the documented contract that an explicitly named missing restore file returns failure with a diagnostic; capture the builtin status before reporting it.",
+      "script": "if fw -n -B nft restore missing.rules; then printf 'fw-status=0\\n'; else rc=$?; printf 'fw-status=%s\\n' \"$rc\"; fi",
+      "expected_status": 0,
+      "stdout": "fw-status=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "batch_dry_run",
+      "kind": "contract",
+      "purpose": "Check documented line-oriented batch parsing, comment skipping, and sequential nft argv output in dry-run mode without applying firewall changes.",
+      "script": "printf '%s\\n' '# sample rules' 'allow 192.0.2.1 -p tcp -d 443' 'deny 198.51.100.2' > rules.batch\nfw -n -B nft batch rules.batch",
+      "expected_status": 0,
+      "stdout": "nft add rule inet fw input ip saddr 192.0.2.1 tcp dport 443 accept\nnft add rule inet fw input ip saddr 198.51.100.2 drop\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred_live_filter_state",
+      "kind": "deferred",
+      "purpose": "Live allow/deny, unban, flush, and reset behavior depends on a real kernel firewall ruleset and can change packet filtering.",
+      "reason": "Run only in a future disposable VM with CAP_NET_ADMIN, isolated network interfaces, nft or iptables installed, and a before/after ruleset oracle. Verify apply, list, deletion, flush, and reset against packet/ruleset state; this namespace fixture intentionally does not execute a live backend."
+    },
+    {
+      "id": "deferred_sets_persistence_roundtrip",
+      "kind": "deferred",
+      "purpose": "Set-backed rules and persistence require live nft/ipset backend state and a safe, independently verifiable restore target.",
+      "reason": "Run only in a future disposable VM or independently reviewed privileged backend mock with nft or iptables plus ipset available. Create and populate a temporary set, save it, reset/recreate isolated state, restore it, and compare set membership and rules before and after; no backend is invoked here."
+    },
+    {
+      "id": "pure-private-store-flush",
+      "kind": "contract",
+      "purpose": "Pure file-store flush removes only the selected relative private chain and is idempotent on an absent chain. This backend returns before nft/iptables/kernel operations.",
+      "script": "export BASHFW_DIR=store\nmkdir -p store/input store/output\nprintf remove > store/input/rule\nprintf preserve > store/output/rule\nfw -B pure flush input\n[[ ! -e store/input && -f store/output/rule ]]\nfw -B pure flush input\n/usr/bin/python3 -c 'from pathlib import Path; assert Path(\"store/output/rule\").read_bytes()==b\"preserve\"; print(\"private-store-preserved\")'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "private-store-preserved\n"
+    }
+  ]
+}

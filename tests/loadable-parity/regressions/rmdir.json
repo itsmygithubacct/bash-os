@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "rmdir",
-  "reference": "GNU coreutils rmdir(1) from the runner's reference PATH, with GNU mkdir and ln used only to create private fixtures. Each parity script runs unchanged under system Bash and bash-os with candidate PATH empty; failures are captured where effects must still be inspected. The metadata contract uses the pinned stock Bash rmdir documentation and builtin type metadata.",
+  "reference": "GNU coreutils rmdir(1) from the runner's reference PATH, with GNU mkdir and ln used only to create private fixtures. Each parity script runs unchanged under system Bash and bash-os with candidate PATH empty; failures are captured where effects must still be inspected. The metadata contract uses the stock Bash rmdir documentation and builtin type metadata.",
   "coverage": [
     "Remove one empty directory and verify the tree is empty.",
     "Remove nested directories with separate child-then-parent operands.",
@@ -12,13 +12,15 @@
     "Report a missing operand path and retain the expected filesystem state.",
     "Continue across operands after a nonempty-directory error and remove a later empty directory.",
     "Reject a symlink to a directory without removing either link or target.",
-    "Compare the no-operand error status and verify builtin/help registration."
+    "Compare the no-operand error status and verify builtin/help registration.",
+    "Additional bounded edge cases and file effects are specified by the added parity cases.",
+    "GNU --ignore-fail-on-non-empty with -p, continued operands, real errors and the option terminator."
   ],
   "exclusions": [
     "Permission-denied and read-only-filesystem cases are omitted because this fixture does not set up independent privilege or mount conditions.",
     "Exact diagnostic wording is not asserted; stderr presence or absence and resulting tree are checked.",
-    "GNU-only options beyond -p, such as --verbose and --ignore-fail-on-non-empty, are not covered.",
-    "No host, device, network, privileged, stress, or destructive system operations are involved."
+    "No host, device, network, privileged, stress, or destructive system operations are involved.",
+    "GNU --ignore-fail-on-non-empty is explicitly compared; --verbose and long-option combinations are not exhaustive."
   ],
   "cases": [
     {
@@ -144,7 +146,7 @@
       "id": "builtin-metadata",
       "kind": "contract",
       "purpose": "Assert Bash reports rmdir as a builtin and that its documented help entry exists, without treating metadata as operation coverage.",
-      "script": "type -t rmdir; help rmdir >/dev/null",
+      "script": "type -t rmdir; help rmdir >metadata.discard",
       "expected_status": 0,
       "stdout": "builtin\n",
       "stderr": "empty"
@@ -196,6 +198,66 @@
         "mkdir",
         "rmdir"
       ]
+    },
+    {
+      "id": "parent-partial-error",
+      "kind": "parity",
+      "purpose": "Parent removal stops at a nonempty ancestor after removing its empty child; later operands are processed.",
+      "script": "mkdir -p top/child later\nprintf keep > top/file\nrc=0; rmdir -p top/child later || rc=$?\nprintf 'status=%s\\n' \"$rc\"",
+      "requires": [
+        "rmdir",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-ignore-nonempty",
+      "kind": "parity",
+      "purpose": "GNU ignore-nonempty option suppresses only the nonempty-directory error and preserves the directory contents.",
+      "script": "mkdir box\nprintf keep > box/file\nrmdir --ignore-fail-on-non-empty box",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-nonempty-parents-options",
+      "kind": "parity",
+      "purpose": "Combine -p and the ignore option before operands: remove the empty leaf, ignore a nonempty ancestor, and process a later empty directory.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir -p parent/leaf empty\nprintf keep > parent/keep\nrmdir -p --ignore-fail-on-non-empty parent/leaf empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-nonempty-keeps-real-errors",
+      "kind": "parity",
+      "purpose": "Missing and regular-file operands still fail under ignore-nonempty, while later empty directories are removed.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir box empty\nprintf keep > box/file\nprintf regular > plain\nrmdir --ignore-fail-on-non-empty box absent plain empty",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "ignore-option-terminator",
+      "kind": "parity",
+      "purpose": "The terminator permits a directory whose name is the ignore option without enabling the option.",
+      "requires": [
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "mkdir -- --ignore-fail-on-non-empty\nrmdir -- --ignore-fail-on-non-empty",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "loadable": "bashsyslogd",
+  "reference": "Bash type/help metadata and the documented bashsyslogd interface. Daemon file effects and routing require a future private socket/clock fixture; generic coreutils setup is not daemon operation parity.",
+  "coverage": [
+    "Bash type metadata confirms bashsyslogd is registered as a builtin.",
+    "Bash help metadata contains documented run options and service behavior markers.",
+    "Deferred operational areas: local datagram routing and cleanup, configuration reload, UDP forwarding, bounded queue replay, and failure handling."
+  ],
+  "exclusions": [
+    "No bashsyslogd run invocation: the task excludes daemon operation in this environment.",
+    "No AF_UNIX or UDP traffic, signal delivery, host service interaction, privileged action, or failure-injection shim was executed.",
+    "There is no equivalent-output GNU syslogd oracle for this loadable; deferred cases require a disposable VM or reviewed private mocks."
+  ],
+  "cases": [
+    {
+      "id": "fixture_file_lifecycle",
+      "kind": "deferred",
+      "purpose": "Verify bashsyslogd appends records to pre-existing private log files and preserves their modes, then leaves fixture files available for copy/move/removal.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
+    },
+    {
+      "id": "fixture_links",
+      "kind": "deferred",
+      "purpose": "Verify bashsyslogd output routing through private hardlink aliases and relative symlinks, with exact record multiplicity and final link identity.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX sender/receiver or a reviewed socket/clock mock that invokes bashsyslogd and supplies deterministic log records. Ordinary relative file setup is authorized, but by itself does not exercise this daemon; no socket/network operation is authorized here."
+    },
+    {
+      "id": "builtin_type_metadata",
+      "kind": "contract",
+      "purpose": "Use Bash's type builtin to verify that the exact candidate registers bashsyslogd as a shell builtin, without invoking its service operation.",
+      "script": "type -t bashsyslogd",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "builtin_help_metadata",
+      "kind": "contract",
+      "purpose": "Check Bash help output against the pinned documented interface: forwarding target syntax, queue limit, --once, and the AF_UNIX datagram receiver description. The fixed marker is emitted only when all contract tokens are present.",
+      "script": "help_text=$(help bashsyslogd)\nif [[ $(type -t bashsyslogd) == builtin && $help_text == *\"--forward\"* && $help_text == *\"HOST:PORT\"* && $help_text == *\"--queue-max-bytes\"* && $help_text == *\"--once\"* && $help_text == *\"AF_UNIX\"* && $help_text == *\"SOCK_DGRAM\"* ]]; then\n  printf 'help-contract-ok\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "help-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "local_datagram_routing",
+      "kind": "deferred",
+      "purpose": "Exercise PRI facility routing, control-byte scrubbing, append behavior, --once consumption, socket mode, and owned socket cleanup.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX datagram socket and sender, an owned log tree, and controlled process cleanup. No equivalent-output GNU syslogd fixture is documented, and service operation is excluded in the current environment."
+    },
+    {
+      "id": "config_reload",
+      "kind": "deferred",
+      "purpose": "Check literal BASHSYSLOGD_FORWARD parsing, startup precedence, SIGHUP reload, invalid-config retention, and empty-value disable behavior.",
+      "reason": "Requires a future disposable VM with an owned daemon and signal control plus a private loopback UDP receiver; the current task prohibits signal and network operations. A deterministic local receiver is needed to observe destination changes."
+    },
+    {
+      "id": "forwarding_queue_replay",
+      "kind": "deferred",
+      "purpose": "Check sanitized UDP copies, lowercase-hex queue encoding, bounded admission, FIFO replay, malformed-record handling, and recovery after send failure.",
+      "reason": "Requires a future disposable VM with a private loopback receiver and reviewed deterministic send/clock failure shims to exercise queue admission and replay without relying on real network failures. No forwarding operation is run here."
+    },
+    {
+      "id": "socket_and_output_failures",
+      "kind": "deferred",
+      "purpose": "Check refusal of non-socket path collisions, stale-socket replacement, write-error exit status, inode-safe cleanup, signal restoration, and descriptor cleanup.",
+      "reason": "Requires a future disposable VM with private AF_UNIX paths and an owned child daemon, plus a reviewed output-write failure mock for deterministic error coverage. No daemon, signals, or special device paths are exercised here."
+    }
+  ]
+}

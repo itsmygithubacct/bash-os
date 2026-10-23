@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "loadable": "toml",
+  "reference": "TOML syntax and the documented shell binding/query API define literal contract expectations. The emission operation has an independent Python tomllib decoder on both arms and compares decoded values, not formatting; this is semantic adapter parity, not a GNU toml CLI.",
+  "coverage": [
+    "Bash builtin type/help metadata",
+    "TOML validation and scalar, boolean, indexed-array queries",
+    "TOML types, table keys, and empty-array count",
+    "parse variable bindings for nested tables, scalar arrays, and arrays of tables",
+    "associative-array parse bindings",
+    "escaped basic strings and UTC datetime decoding",
+    "invalid-document rejection",
+    "minimal canonical TOML emission",
+    "Independent tomllib decoding of emitted nested tables, arrays of tables, strings, booleans, floats and datetime values."
+  ],
+  "exclusions": [
+    "No GNU TOML CLI exists; query and binding cases use explicit contracts.",
+    "No full TOML conformance corpus or TOML 1.1-specific independent parser is provided. The independent tomllib emission fixture uses the common TOML 1.0 subset."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm Bash exposes toml as a builtin and that its registered help documents the parser and query interface.",
+      "script": "[[ $(type -t toml) == builtin ]]\nhelp_text=$(help toml)\n[[ $help_text == *'TOML v1.1.0 parser'* ]]\n[[ $help_text == *'toml parse FILE'* ]]\n[[ $help_text == *'toml get FILE KEY'* ]]\nprintf 'metadata-ok\\n'",
+      "expected_status": 0,
+      "stdout": "metadata-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "validate-and-basic-query",
+      "kind": "contract",
+      "purpose": "Check a valid document, a nested integer selected by array index, a boolean's documented 0/1 value, and array cardinality.",
+      "script": "printf '%s\\n' 'title = \"example\"' '[app]' 'ports = [80, 443]' 'enabled = true' > app.toml\ntoml validate app.toml\n[[ $(toml get app.toml title) == example ]]\n[[ $(toml get app.toml 'app.ports[1]') == 443 ]]\n[[ $(toml get app.toml app.enabled) == 1 ]]\n[[ $(toml type app.toml app.enabled) == bool ]]\n[[ $(toml count app.toml app.ports) == 2 ]]\nprintf 'query-ok\\n'",
+      "expected_status": 0,
+      "stdout": "query-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "types-keys-empty-array",
+      "kind": "contract",
+      "purpose": "Exercise TOML scalar/container type names, top-level and nested table-key enumeration without depending on key order, and the zero count for an empty array.",
+      "script": "printf '%s\\n' 'number = 7' 'ratio = 1.5' 'flag = false' 'event = 1979-05-27T07:32:00Z' 'labels = []' '[service]' 'port = 9' > types.toml\n[[ $(toml type types.toml number) == int ]]\n[[ $(toml type types.toml ratio) == float ]]\n[[ $(toml type types.toml flag) == bool ]]\n[[ $(toml type types.toml event) == datetime ]]\n[[ $(toml type types.toml labels) == array ]]\n[[ $(toml type types.toml service) == table ]]\n[[ $(toml count types.toml labels) == 0 ]]\nmapfile -t top_keys <<< \"$(toml keys types.toml)\"\n[[ ${#top_keys[@]} -eq 6 ]]\ncontains_key() {\n  local want got\n  want=$1\n  for got in \"${top_keys[@]}\"; do\n    [[ $got == \"$want\" ]] && return 0\n  done\n  return 1\n}\ncontains_key number\ncontains_key ratio\ncontains_key flag\ncontains_key event\ncontains_key labels\ncontains_key service\nmapfile -t nested_keys <<< \"$(toml keys types.toml service)\"\n[[ ${#nested_keys[@]} -eq 1 && ${nested_keys[0]} == port ]]\nprintf 'types-keys-ok\\n'",
+      "expected_status": 0,
+      "stdout": "types-keys-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-shell-bindings",
+      "kind": "contract",
+      "purpose": "Check the documented uppercase variable mapping for nested scalars, booleans, scalar arrays, and arrays of tables.",
+      "script": "printf '%s\\n' 'title = \"fixture\"' 'enabled = true' 'names = [\"red\", \"blue\"]' '[server]' 'port = 8080' '[[workers]]' 'name = \"one\"' '[[workers]]' 'name = \"two\"' > parsed.toml\ntoml parse -V CFG parsed.toml\n[[ $CFG_TITLE == fixture ]]\n[[ $CFG_ENABLED == 1 ]]\n[[ $CFG_SERVER_PORT == 8080 ]]\n[[ $CFG_NAMES_LEN == 2 && $CFG_NAMES_0 == red && $CFG_NAMES_1 == blue ]]\n[[ $CFG_WORKERS_LEN == 2 ]]\n[[ $CFG_WORKERS__0_NAME == one && $CFG_WORKERS__1_NAME == two ]]\nprintf 'parse-bindings-ok\\n'",
+      "expected_status": 0,
+      "stdout": "parse-bindings-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse-associative-bindings",
+      "kind": "contract",
+      "purpose": "Check the documented -A interface binds full dotted TOML paths and scalar-array length/index entries into a Bash associative array.",
+      "script": "printf '%s\\n' 'title = \"fixture\"' 'names = [\"red\", \"blue\"]' '[server]' 'port = 8080' > assoc.toml\ndeclare -A DOC=()\ntoml parse -A DOC assoc.toml\n[[ ${DOC[title]} == fixture ]]\n[[ ${DOC[\"server.port\"]} == 8080 ]]\n[[ ${DOC[\"names.len\"]} == 2 ]]\n[[ ${DOC[\"names[0]\"]} == red && ${DOC[\"names[1]\"]} == blue ]]\nprintf 'assoc-bindings-ok\\n'",
+      "expected_status": 0,
+      "stdout": "assoc-bindings-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "escaped-basic-string-get",
+      "kind": "contract",
+      "purpose": "Check that a TOML basic-string newline escape is decoded as a newline in the queried string value.",
+      "script": "printf '%s\\n' 'message = \"first\\nsecond\"' > values.toml\ntoml get values.toml message",
+      "expected_status": 0,
+      "stdout": "first\nsecond\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "datetime-get-variable-binding",
+      "kind": "contract",
+      "purpose": "Check the documented ISO 8601 rendering of a UTC TOML datetime and get -V binding without stdout output.",
+      "script": "printf '%s\\n' 'at = 1979-05-27T07:32:00Z' > values.toml\nvalue=$(toml get values.toml at)\n[[ $value == 1979-05-27T07:32:00Z ]]\ntoml get values.toml at -V WHEN\n[[ $WHEN == 1979-05-27T07:32:00Z ]]\nprintf 'datetime-binding-ok\\n'",
+      "expected_status": 0,
+      "stdout": "datetime-binding-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reject-invalid-document",
+      "kind": "contract",
+      "purpose": "Ensure validate rejects a syntactically incomplete TOML array with failure status and a diagnostic, as required by TOML syntax and the documented validate contract.",
+      "script": "printf '%s\\n' 'items = [1,' > invalid.toml\nif toml validate invalid.toml 2> diagnostic.txt; then\n  exit 1\nelse\n  rc=$?\nfi\n[[ $rc -eq 1 && -s diagnostic.txt ]]\nprintf 'invalid-rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid-rejected\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "emit-minimal-scalar",
+      "kind": "contract",
+      "purpose": "Check canonical emission for a one-key integer document against an independently hand-encoded TOML representation.",
+      "script": "printf '%s\\n' 'answer=42' > source.toml\ntoml emit source.toml > emitted.toml\n[[ -s emitted.toml && $(<emitted.toml) == 'answer = 42' ]]\nprintf 'emit-ok\\n'",
+      "expected_status": 0,
+      "stdout": "emit-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "emit-semantic-roundtrip-reference",
+      "kind": "parity",
+      "purpose": "Emit mixed TOML and independently decode every emitted value with Python tomllib on both arms. Formatting/tree comparison is disabled only because semantically equivalent TOML formatting varies; both original and emitted files remain available as evidence.",
+      "script": "cat > source.toml <<'TOML'\ntitle = \"first\\nsecond\"\nenabled = true\nratio = 1.5\nat = 1979-05-27T07:32:00Z\nnames = [\"red\", \"blue\"]\n[server]\nport = 8080\n[[workers]]\nname = \"one\"\n[[workers]]\nname = \"two\"\nTOML\nif [[ $(type -t toml) == builtin ]]; then\n  toml emit source.toml > emitted.toml\nelse\n  cp source.toml emitted.toml\nfi\n/usr/bin/python3 - <<'PY'\nimport tomllib\nfrom pathlib import Path\nsource = tomllib.loads(Path('source.toml').read_text())\nemitted = tomllib.loads(Path('emitted.toml').read_text())\ndef same(a, b):\n    assert type(a) is type(b), (type(a), type(b), a, b)\n    if isinstance(a, dict):\n        assert a.keys() == b.keys(), (a.keys(), b.keys())\n        for key in a:\n            same(a[key], b[key])\n    elif isinstance(a, list):\n        assert len(a) == len(b)\n        for left, right in zip(a, b):\n            same(left, right)\n    else:\n        assert a == b, (a, b)\nsame(source, emitted)\nprint('independent TOML semantics preserved')\nPY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "python3",
+        "cp"
+      ],
+      "compare_tree": false
+    }
+  ]
+}

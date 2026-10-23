@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "uniq",
+  "reference": "GNU coreutils uniq, invoked by system Bash with /usr/bin:/bin in PATH under C locale and UTC; the identical scripts run under bash-os with an empty PATH, so uniq resolves to the compiled builtin. Parity expectations come from the independent GNU execution, with each reference status checked against expected_status.",
+  "coverage": [
+    "Default adjacent-record filtering, blank records, nonadjacent repeats, and unterminated final input.",
+    "Count, repeated-only, and singleton-only output modes.",
+    "Field and character skips, including differing whitespace after a skipped field.",
+    "Bounded comparison lengths, including zero compared characters.",
+    "C-locale case-insensitive matching.",
+    "All-lines-from-duplicate-groups selection and its separator methods.",
+    "Group output with separate, prepend, append, and both separators.",
+    "NUL-delimited records containing embedded newlines and an unterminated final record.",
+    "Relative input and output operands, including replacement of an existing output file.",
+    "Invalid numeric option argument status and diagnostic presence.",
+    "Bash builtin type and help metadata contract."
+  ],
+  "exclusions": [
+    "Version text and exact diagnostic wording are not compared.",
+    "A PTY-driven check for record delivery before stdin reaches EOF is deferred because this runner only supplies captured streams.",
+    "Unlisted GNU options and extreme-size/resource behavior are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "adjacent-records",
+      "purpose": "Check default suppression of adjacent duplicates while retaining blank records, a later nonadjacent repeat, and a final record without an input newline.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf 'oak\\noak\\n\\ncedar\\noak\\nlast' | uniq",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "count-and-selection",
+      "purpose": "Compare count formatting and the -d/-u run selectors over mixed singleton and repeated groups.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "input=$'oak\\noak\\npine\\nfir\\nfir\\nfir\\n'; printf '%s' \"$input\" | uniq -c; printf '%s\\n' '-- repeated --'; printf '%s' \"$input\" | uniq -d; printf '%s\\n' '-- singletons --'; printf '%s' \"$input\" | uniq -u",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip-fields-and-chars",
+      "purpose": "Exercise -f and -s comparison offsets. The first input deliberately varies whitespace after the skipped field to expose field-boundary handling differences.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf 'x   key\\ny key\\nz other\\n' | uniq --skip-fields=1; printf '%s\\n' '-- skip characters --'; printf 'xapple\\nyapple\\nzberry\\nqberry\\n' | uniq -s 1",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "check-character-boundaries",
+      "purpose": "Check -w comparison prefixes and the zero-character boundary, where every record has an empty comparison key.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf 'ab-one\\nab-two\\nac-one\\nac-two\\n' | uniq --check-chars=2; printf '%s\\n' '-- zero compared characters --'; printf 'x\\ny\\nz\\n' | uniq -w 0",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-case",
+      "purpose": "Verify case-insensitive grouping in the runner's C locale and preservation of each group's first spelling.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf 'Alpha\\nalpha\\nALPHA\\nBeta\\nBETA\\n' | uniq --ignore-case",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "all-repeated-groups",
+      "purpose": "Compare duplicate-group selection without separators, with separate separators, and with a blank line prepended to every selected group.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "input=$'a\\na\\nb\\nc\\nc\\nc\\nd\\nd\\n'; printf '%s' \"$input\" | uniq -D; printf '%s\\n' '-- separate --'; printf '%s' \"$input\" | uniq --all-repeated=separate; printf '%s\\n' '-- prepend --'; printf '%s' \"$input\" | uniq --all-repeated=prepend",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "group-separator-modes",
+      "purpose": "Check that --group emits all groups and applies separate, prepend, append, and both separator policies at group boundaries.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "input=$'a\\na\\nb\\nc\\nc\\n'; printf '%s' \"$input\" | uniq --group=separate; printf '%s\\n' '-- prepend --'; printf '%s' \"$input\" | uniq --group=prepend; printf '%s\\n' '-- append --'; printf '%s' \"$input\" | uniq --group=append; printf '%s\\n' '-- both --'; printf '%s' \"$input\" | uniq --group=both",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-terminated-records",
+      "purpose": "Verify NUL record framing with embedded newlines and a final record missing its delimiter.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf '%s' $'left\\npart\\0left\\npart\\0right\\0tail' | uniq --zero-terminated",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "relative-file-operands",
+      "purpose": "Read and write only relative fixture files; verify that the output operand replaces stale contents with deduplicated records.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "printf 'pear\\npear\\nplum' > input.txt; printf 'stale output\\n' > output.txt; uniq input.txt output.txt",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-numeric-option",
+      "purpose": "Check GNU uniq's failure status for a negative skip-field count and require a diagnostic without pinning localized wording.",
+      "kind": "parity",
+      "requires": [
+        "uniq"
+      ],
+      "script": "uniq --skip-fields=-1",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-type-and-help",
+      "purpose": "Contract check that uniq is registered as a Bash builtin and its help entry is available; expected output is the documented Bash type classification.",
+      "kind": "contract",
+      "script": "trap 'rm -f discard.out' EXIT\n[[ $(type -t uniq) == builtin ]] || exit 44; help uniq >discard.out || exit 45; printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pty-streaming-before-eof",
+      "purpose": "Deferred check of stream delivery while input remains open after complete records.",
+      "kind": "deferred",
+      "reason": "Requires a disposable PTY driver that writes complete records to uniq, keeps stdin open, and observes stdout before EOF; the current runner captures streams but cannot coordinate a live terminal interaction. A future PTY fixture should compare GNU and candidate delivery timing and verify final status after closing input."
+    },
+    {
+      "id": "empty-and-missing-input",
+      "kind": "parity",
+      "purpose": "Empty input emits nothing; missing input returns failure and a diagnostic.",
+      "script": ": > empty\nuniq empty\nuniq missing",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "uniq"
+      ]
+    }
+  ]
+}

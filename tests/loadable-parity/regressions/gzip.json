@@ -1,0 +1,224 @@
+{
+  "version": 1,
+  "loadable": "gzip",
+  "reference": "GNU gzip invoked from a stock system Bash in the harness reference mode. Fixed RFC 1952 members embedded in fixtures were generated independently with Python's standard-library gzip encoder at mtime=0; compression bytes produced by gzip are not compared because the documented contract allows different compressor choices.",
+  "coverage": [
+    "Bash builtin type and help metadata contracts",
+    "stdin/stdout round trips for binary bytes at compression levels 1, 6, and 9 with -n",
+    "decoding and integrity testing of independently generated concatenated gzip members",
+    "named-file compression/decompression lifecycle, permissions, -k, custom -S suffix, and -f overwrite behavior",
+    "CRC corruption, truncation, unknown suffix, hard-link, and symbolic-link handling",
+    "Unforced named symlink errors have status 1 even with -q; quiet hard-link warnings retain status 2.",
+    "Explicit force follows source symlinks, preserves referent data, and removes only the symlink name unless -k is used.",
+    "Stdout/test filters follow ordinary symlinks, and mixed warning/error operands continue with failure precedence."
+  ],
+  "exclusions": [
+    "Compression byte identity is intentionally not asserted; the documented interface permits different valid compressed streams.",
+    "Recursive traversal, listing statistics, -N name restoration, legacy compress input, and trailing non-gzip data are outside the documented supported interface.",
+    "The runner compares file bytes, modes, links, and targets, but not file timestamps.",
+    "Link fixtures use stable, ordinary private relative files. Concurrent link/referent changes, unusual destination aliasing, permission changes and filesystem failures are not qualified."
+  ],
+  "cases": [
+    {
+      "id": "gzip_type_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves gzip as a builtin, which is the independent Bash type contract for this loadable.",
+      "script": "type -t gzip",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gzip_help_metadata",
+      "kind": "contract",
+      "purpose": "Confirm help exposes the documented gzip synopsis and core behavior text from the registered builtin metadata.",
+      "script": "help_text=$(help gzip) || exit 2; [[ $help_text == *'Compress/decompress gzip files or stdin, including concatenated members.'* ]] || exit 3; [[ $help_text == *'-c stdout, -d decompress'* ]] || exit 4; printf 'gzip help metadata present\\n'",
+      "expected_status": 0,
+      "stdout": "gzip help metadata present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin_binary_roundtrip_levels",
+      "kind": "parity",
+      "purpose": "Exercise filter mode, -n, clustered-compatible level selection, and binary input/output through GNU gzip and the candidate.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "for level in 1 6 9; do printf 'bytes:\\000\\377tail\\n' | gzip -n \"-$level\" -c | gzip -d -c; done",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "independent_concatenated_members",
+      "kind": "parity",
+      "purpose": "Decode and test two independently encoded gzip members concatenated in one named file, including a NUL byte in the second member.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\315\\317\\113\\345\\002\\000\\154\\067\\215\\207\\013\\000\\000\\000' > members.gz; printf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\055\\051\\317\\147\\050\\111\\314\\314\\341\\002\\000\\341\\112\\352\\303\\020\\000\\000\\000' >> members.gz; gzip -t members.gz; gzip -dc members.gz",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "named_file_lifecycle_permissions",
+      "kind": "parity",
+      "purpose": "Check default named-file compression removes its input, -t accepts the resulting stream, decompression restores the file, and mode bits survive the lifecycle.",
+      "requires": [
+        "gzip",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "mkdir area; printf 'permission payload\\n' > area/plain; chmod 640 area/plain; gzip area/plain; [[ -f area/plain.gz && ! -e area/plain ]] || exit 21; gzip -t area/plain.gz; gzip -d area/plain.gz; [[ -f area/plain && ! -e area/plain.gz ]] || exit 22; printf 'lifecycle=%s\\n' \"$(<area/plain)\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "keep_custom_suffix_file_decode",
+      "kind": "parity",
+      "purpose": "Exercise -k and -S during named-file compression, then use -d with the custom suffix to restore the original path and payload.",
+      "requires": [
+        "gzip",
+        "mkdir",
+        "chmod",
+        "rm"
+      ],
+      "script": "mkdir area; printf 'custom suffix payload\\n' > area/item; chmod 604 area/item; gzip -k -S .packed area/item; [[ -f area/item && -f area/item.packed ]] || exit 31; rm area/item; gzip -d -S .packed area/item.packed; [[ -f area/item && ! -e area/item.packed ]] || exit 32; printf 'custom=%s\\n' \"$(<area/item)\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no_clobber_then_force_overwrite",
+      "kind": "parity",
+      "purpose": "Verify an existing compressed destination is preserved without -f, compare that command's status, then force replacement and decode the fresh payload while keeping the source.",
+      "requires": [
+        "gzip",
+        "mkdir",
+        "rm"
+      ],
+      "script": "mkdir area; printf 'fresh payload\\n' > area/input; printf 'stale archive\\n' > area/input.gz; if gzip -k area/input; then rc=0; else rc=$?; fi; printf 'no-clobber-status=%s\\n' \"$rc\"; [[ $rc -ne 0 && $(<area/input.gz) == 'stale archive' ]] || exit 41; gzip -fk area/input; [[ -f area/input ]] || exit 42; gzip -dc area/input.gz; rm area/input.gz",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "crc_corruption_test_mode",
+      "kind": "parity",
+      "purpose": "Check -t rejects an independently generated member with a deliberately altered CRC trailer and leaves the named input intact; report the gzip command status in stdout for parity comparison.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\315\\317\\113\\345\\002\\000\\155\\067\\215\\207\\013\\000\\000\\000' > damaged.gz; if gzip -t damaged.gz; then rc=0; else rc=$?; fi; printf 'crc-status=%s\\n' \"$rc\"; [[ $rc -ne 0 && -f damaged.gz && ! -e damaged ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "truncated_decode_retains_input",
+      "kind": "parity",
+      "purpose": "Check named decompression of an independently encoded but truncated member fails, reports its command status, retains the archive, and does not publish a partial output.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\315\\317\\113\\345\\002\\000\\154\\067\\215\\207\\013' > truncated.gz; if gzip -d truncated.gz; then rc=0; else rc=$?; fi; printf 'truncated-status=%s\\n' \"$rc\"; [[ $rc -ne 0 && -f truncated.gz && ! -e truncated ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown_suffix_preserves_input",
+      "kind": "parity",
+      "purpose": "Check -d on a non-gzip-suffixed filename reports a nonzero GNU-compatible status and leaves the input unchanged.",
+      "requires": [
+        "gzip"
+      ],
+      "script": "printf 'plain input\\n' > sample.txt; if gzip -d sample.txt; then rc=0; else rc=$?; fi; printf 'suffix-status=%s\\n' \"$rc\"; [[ $rc -ne 0 && -f sample.txt && ! -e sample ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "hardlink_and_symlink_refusal",
+      "kind": "parity",
+      "purpose": "Use relative fixture links to confirm gzip refuses a multiply linked regular input and a symbolic-link input without creating compressed outputs or changing link relationships.",
+      "requires": [
+        "gzip",
+        "ln"
+      ],
+      "script": "printf 'hard linked data\\n' > hard; ln hard hard.peer; if gzip hard; then hard_rc=0; else hard_rc=$?; fi; printf 'symbolic target\\n' > target; ln -s target shortcut; if gzip shortcut; then sym_rc=0; else sym_rc=$?; fi; printf 'hard-status=%s symbolic-status=%s\\n' \"$hard_rc\" \"$sym_rc\"; [[ $hard_rc -ne 0 && $sym_rc -ne 0 && -f hard && -f hard.peer && -L shortcut && ! -e hard.gz && ! -e shortcut.gz ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "quiet_symlink_error_precedence",
+      "kind": "parity",
+      "purpose": "Under -q, ordinary symlink open errors remain status 1 before hard-link/directory classification. Hard-link-only warnings remain quiet with status 2; input links and bytes remain intact.",
+      "requires": [
+        "gzip",
+        "ln",
+        "mkdir",
+        "rm"
+      ],
+      "script": "printf 'payload\\n' > target; ln target peer; ln -s target shortcut\nmkdir folder; ln -s folder dirlink\nfor path in shortcut dirlink; do\n rc=0; gzip -q \"$path\" || rc=$?\n [[ $rc == 1 ]]\n printf '%s-status=%s\\n' \"$path\" \"$rc\"\ndone\nrc=0; gzip -q target 2> quiet-diagnostic || rc=$?\n[[ $rc == 2 && ! -s quiet-diagnostic && target -ef peer && -L shortcut && -L dirlink ]]\nprintf 'hard-status=%s\\n' \"$rc\"\nrm quiet-diagnostic",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "forced_symlink_keeps_input",
+      "kind": "parity",
+      "purpose": "GNU -fk follows a private input symlink and keeps both link and referent. Decode the resulting archive before removing only that varying encoded artifact; compare payload, paths and modes.",
+      "requires": [
+        "gzip",
+        "ln",
+        "rm"
+      ],
+      "script": "printf 'payload\\n' > target; ln -s target shortcut\ngzip -fk shortcut\n[[ -L shortcut && -f target && -f shortcut.gz ]]\ngzip -dc shortcut.gz > decoded\nrm shortcut.gz",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "forced_symlink_removes_link_name",
+      "kind": "parity",
+      "purpose": "GNU -f follows the source symlink, removes only that input link name, and keeps the referent. Decode and compare all payload/path effects independently of compression byte identity.",
+      "requires": [
+        "gzip",
+        "ln",
+        "rm"
+      ],
+      "script": "printf 'payload\\n' > target; ln -s target shortcut\ngzip -f shortcut\n[[ ! -e shortcut && ! -L shortcut && -f target && -f shortcut.gz ]]\ngzip -dc shortcut.gz > decoded\nrm shortcut.gz",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "forced_decompression_symlink",
+      "kind": "parity",
+      "purpose": "Forced named decompression follows an independently encoded archive symlink, removes that link name, preserves the referent archive, and publishes the expected decoded path and bytes.",
+      "requires": [
+        "gzip",
+        "ln"
+      ],
+      "script": "printf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\315\\317\\113\\345\\002\\000\\154\\067\\215\\207\\013\\000\\000\\000' > target.gz\nln -s target.gz shortcut.gz\ngzip -df shortcut.gz\n[[ ! -L shortcut.gz && ! -e shortcut.gz && -f shortcut && -f target.gz ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink_stdout_and_test_filters",
+      "kind": "parity",
+      "purpose": "Stdout compression and integrity-test filters follow private symlinks without removing either link or referent; compare visible payload and all fixture bytes/links.",
+      "requires": [
+        "gzip",
+        "ln"
+      ],
+      "script": "printf 'payload\\n' > target; ln -s target shortcut\ngzip -c shortcut | gzip -dc\nprintf '%b' '\\037\\213\\010\\000\\000\\000\\000\\000\\002\\377\\313\\115\\315\\115\\112\\055\\322\\315\\317\\113\\345\\002\\000\\154\\067\\215\\207\\013\\000\\000\\000' > target.gz\nln -s target.gz archive-link.gz\ngzip -t archive-link.gz\n[[ -L shortcut && -L archive-link.gz && -f target && -f target.gz ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mixed_link_status_and_continuation",
+      "kind": "parity",
+      "purpose": "A hard-link warning followed by a symlink error retains status 1 while a later valid file is compressed. Restore that final file and compare all earlier links and data unchanged.",
+      "requires": [
+        "gzip",
+        "ln"
+      ],
+      "script": "printf 'hard\\n' > hard; ln hard peer\nprintf 'target\\n' > target; ln -s target shortcut\nprintf 'last\\n' > plain\nrc=0; gzip hard shortcut plain || rc=$?\n[[ $rc == 1 && hard -ef peer && -L shortcut ]]\nprintf 'mixed-status=%s\\n' \"$rc\"\ngzip -d plain.gz",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

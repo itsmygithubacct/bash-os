@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "loadable": "dhcpd6",
+  "reference": "There is no matching GNU DHCPv6 server CLI in this environment; the source status documentation records Kea as missing, so this suite has no parity cases. Contract expectations use Bash's documented type/help behavior and the public version/help strings. Deterministic DHCPv6 packet expectations were assembled independently from RFC 8415 message and option codes, lengths, fixed fixture values, and IPv6 encodings; the RECONFIGURE digest was computed independently with Python's standard-library hmac/hashlib implementation. No expected bytes were copied from candidate output.",
+  "coverage": [
+    "Bash builtin type and help metadata, including the documented public verbs and configuration keys",
+    "Exact deterministic offline SOLICIT-to-ADVERTISE and INFORMATION-REQUEST-to-REPLY packets",
+    "RELEASE reply encoding and removal limited to the matching client DUID and IAID in the lease file",
+    "Deterministic authenticated RECONFIGURE encoding with fixed transaction ID and replay value",
+    "Malformed packet hex rejection and absence of lease-file mutation",
+    "Offline RELAY-FORW/RELAY-REPL envelope, interface ID echo and output-variable binding without sockets."
+  ],
+  "exclusions": [
+    "Live serve/run socket exchange is deferred because this task forbids network activity; the deferred case requires an isolated disposable network fixture and an independent DHCPv6 peer.",
+    "Live relay datagram transport remains part of the deferred server exchange; offline relay envelope processing is covered.",
+    "Successful leasequery lifetime fields are deferred until a frozen clock or clock mock and an independent RFC 5007 encoder are available."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "purpose": "Bash type metadata must identify dhcpd6 as a builtin without relying on an external executable.",
+      "kind": "contract",
+      "script": "type -t dhcpd6",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-summary",
+      "purpose": "The Bash help summary must expose the documented DHCPv6 server description.",
+      "kind": "contract",
+      "script": "help -d dhcpd6",
+      "expected_status": 0,
+      "stdout": "dhcpd6 - DHCPv6 (RFC 8415) server.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "purpose": "The full help text must advertise the documented server, host-testable seams, reconfigure operation, and configuration keys.",
+      "kind": "contract",
+      "script": "doc=$(help dhcpd6)\n[[ $doc == *'dhcpd6 serve [-c CONFIG] [-l LEASEDB] [-i IFACE] [--once]'* ]]\n[[ $doc == *'dhcpd6 respond HEX [-c CONFIG] [-l LEASEDB] [-V VAR]'* ]]\n[[ $doc == *'dhcpd6 leasequery HEX [-c CONFIG] [-l LEASEDB] [-V VAR]'* ]]\n[[ $doc == *'dhcpd6 reconfigure --client-duid HEX --server-duid HEX --key HEX'* ]]\n[[ $doc == *'Config keys: server-duid <hex>, pool-start <ipv6>, pool-size <n>,'* ]]\nprintf '%s\\n' 'documented help sections present'",
+      "expected_status": 0,
+      "stdout": "documented help sections present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version",
+      "purpose": "The no-side-effect version option must print the public version contract exactly.",
+      "kind": "contract",
+      "script": "dhcpd6 --version",
+      "expected_status": 0,
+      "stdout": "dhcpd6 (bash-os F03 DHCPv6) RFC 8415 server\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "solicit-advertise",
+      "purpose": "A fixed SOLICIT with CLIENTID and IA_NA must produce an RFC 8415 ADVERTISE with the first configured address, configured lifetimes, success status, and DNS option; an offer must leave the lease DB absent.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' 'dns 2001:db8::53' 'lease-pref 300' 'lease-valid 600' 't1 120' 't2 480' > dhcp.conf\npacket=011234560001000a000300010200000000010003000c0000000700000000000000000006000400170018\nexpected=021234560002000a000300010200000000020001000a000300010200000000010003002e0000000700000078000001e00005001820010db80000000000000000000000100000012c00000258000d000200000017001020010db8000000000000000000000053\nreply=$(dhcpd6 respond \"$packet\" -c dhcp.conf -l leases)\n[[ $reply == \"$expected\" && ! -e leases ]]\nprintf '%s\\n' \"$reply\"",
+      "expected_status": 0,
+      "stdout": "021234560002000a000300010200000000020001000a000300010200000000010003002e0000000700000078000001e00005001820010db80000000000000000000000100000012c00000258000d000200000017001020010db8000000000000000000000053\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "information-request",
+      "purpose": "A fixed INFORMATION-REQUEST must receive a stateless REPLY carrying server/client IDs and the configured DNS server, with no lease DB created.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' 'dns 2001:db8::53' 'lease-pref 300' 'lease-valid 600' 't1 120' 't2 480' > dhcp.conf\npacket=0babcdef0001000a00030001020000000001\nexpected=07abcdef0002000a000300010200000000020001000a000300010200000000010017001020010db8000000000000000000000053\nreply=$(dhcpd6 respond \"$packet\" -c dhcp.conf -l leases)\n[[ $reply == \"$expected\" && ! -e leases ]]\nprintf '%s\\n' \"$reply\"",
+      "expected_status": 0,
+      "stdout": "07abcdef0002000a000300010200000000020001000a000300010200000000010017001020010db8000000000000000000000053\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "release-matching-lease",
+      "purpose": "RELEASE must return a deterministic success REPLY and remove only the matching client's requested IAID while retaining its other IAID and another client's lease.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' 'dns 2001:db8::53' 'lease-pref 300' 'lease-valid 600' 't1 120' 't2 480' > dhcp.conf\nclient=00030001020000000001\nother=00030001020000000003\naddr7=20010db8000000000000000000000010\naddr8=20010db8000000000000000000000011\naddr9=20010db8000000000000000000000012\nprintf '%s\\n' \"$client 7 $addr7 2000000000\" \"$client 8 $addr8 2000000000\" \"$other 7 $addr9 2000000000\" > leases\npacket=080102030001000a000300010200000000010003000c000000070000000000000000\nexpected=070102030002000a000300010200000000020001000a00030001020000000001000300120000000700000078000001e0000d000200000017001020010db8000000000000000000000053\nreply=$(dhcpd6 respond \"$packet\" -c dhcp.conf -l leases)\n[[ $reply == \"$expected\" ]]\nrows=0\nfound8=0\nfound_other=0\nwhile read -r duid iaid addr expiry plen; do\n  rows=$((rows + 1))\n  case \"$duid:$iaid:$addr:$expiry:$plen\" in\n    \"$client:8:$addr8:2000000000:0\") found8=1 ;;\n    \"$other:7:$addr9:2000000000:0\") found_other=1 ;;\n    *) exit 1 ;;\n  esac\ndone < leases\n[[ $rows -eq 2 && $found8 -eq 1 && $found_other -eq 1 ]]\nprintf '%s\\n' \"$reply\"",
+      "expected_status": 0,
+      "stdout": "070102030002000a000300010200000000020001000a00030001020000000001000300120000000700000078000001e0000d000200000017001020010db8000000000000000000000053\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reconfigure-auth",
+      "purpose": "Fixed IDs, key, transaction ID, and replay value must produce the independently computed DHCPv6 RECONFIGURE HMAC-MD5 packet.",
+      "kind": "contract",
+      "script": "dhcpd6 reconfigure --client-duid 00030001020000000001 --server-duid 00030001020000000002 --key 0102030405060708090a0b0c0d0e0f10 --reconf renew --replay 0x0102030405060708 -x 123456",
+      "expected_status": 0,
+      "stdout": "0a1234560001000a000300010200000000010002000a00030001020000000002000b001c0301000102030405060708027929c4691196470b690380c2340f0c120013000105\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "malformed-hex",
+      "purpose": "Malformed request hex must be rejected with usage status and a diagnostic before changing the lease DB.",
+      "kind": "contract",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' > dhcp.conf\nif dhcpd6 respond 0112zz -c dhcp.conf -l leases; then\n  exit 1\nelse\n  rc=$?\nfi\n[[ $rc -eq 2 && ! -e leases ]]\nprintf '%s\\n' 'malformed hex rejected without lease mutation'",
+      "expected_status": 0,
+      "stdout": "malformed hex rejected without lease mutation\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "live-server-exchange",
+      "purpose": "Verify serve/run bind behavior and the full client-visible DHCPv6 exchange using an isolated peer, without treating offline seams as proof of socket behavior.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or isolated network mock with a controlled DHCPv6 client on UDP 546 and server endpoint on UDP 547, an independent RFC 8415 peer/oracle, packet capture, and lease-file checks. This suite's safety scope forbids network activity, so no live serve/run operation is executed or claimed passed."
+    },
+    {
+      "id": "relay-forwarding",
+      "kind": "contract",
+      "purpose": "Offline RFC 8415 RELAY-FORW to RELAY-REPL encoding echoes hop/link/peer and interface ID around a stateless INFORMATION-REQUEST. Inputs/expected envelope are independently packed; no socket is opened.",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' 'dns 2001:db8::53' > dhcp.conf\ndhcpd6 respond 0c0020010db8000000000000000000000001fe800000000000000000000000000002000900120babcdef0001000a00030001020000000001001200066c696e6b2d61 -c dhcp.conf -l leases\n[[ ! -e leases ]]",
+      "expected_status": 0,
+      "stdout": "0d0020010db8000000000000000000000001fe8000000000000000000000000000020009003407abcdef0002000a000300010200000000020001000a000300010200000000010017001020010db8000000000000000000000053001200066c696e6b2d61\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "leasequery-lifetimes",
+      "purpose": "Verify RFC 5007 queries by address and client ID, including active lease data, misses, and bounded preferred/valid remaining lifetime fields.",
+      "kind": "deferred",
+      "reason": "A meaningful success-path oracle needs a frozen clock or clock mock plus an independent RFC 5007 encoder to check IAADDR lifetimes and CLT_TIME across boundary values. No matching GNU/Kea reference is available, and this operation is not claimed passed; run it later with a disposable deterministic clock/reference fixture."
+    },
+    {
+      "id": "reply-variable-binding",
+      "kind": "contract",
+      "purpose": "Offline reply variable binding preserves the exact independent INFORMATION-REQUEST packet expectation.",
+      "script": "printf '%s\\n' 'server-duid 00030001020000000002' 'pool-start 2001:db8::10' 'pool-size 4' 'dns 2001:db8::53' 'lease-pref 300' 'lease-valid 600' 't1 120' 't2 480' > dhcp.conf\ndhcpd6 respond 0babcdef0001000a00030001020000000001 -c dhcp.conf -l leases -V reply\nprintf '%s\\n' \"$reply\"\n[[ ! -e leases ]]",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "07abcdef0002000a000300010200000000020001000a000300010200000000010017001020010db8000000000000000000000053\n"
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "loadable": "cat",
+  "reference": "GNU coreutils cat from the runner's reference PATH, with LC_ALL=C and TZ=UTC. Each parity case runs the identical Bash script first against GNU cat and then against the candidate with an empty PATH; the runner compares status, stdout bytes, stderr policy, and fixture tree. The separate metadata contract uses Bash's type/help builtins and the cat_doc text in the pinned implementation; it is not operation parity.",
+  "coverage": [
+    "Binary concatenation across files, including NUL and high bytes, with redirected output and resulting file contents.",
+    "Line numbering across operands, -b precedence over -n, and the documented --number-nonblank alias.",
+    "Blank-line squeezing across file boundaries and trailing partial lines.",
+    "-A visible rendering of control, tab, newline, DEL, and high-bit bytes in the C locale.",
+    "-- option termination, option-like filenames, and '-' reading redirected standard input between files.",
+    "Continuation after multiple ordinary missing-file errors, plus rejection of an invalid option.",
+    "Sequential invocations using distinct redirected stdin files in one shell.",
+    "Bash builtin type/help metadata contract."
+  ],
+  "exclusions": [
+    "This suite samples the documented common GNU interface and does not claim full GNU cat option parity.",
+    "Output write-error propagation and same-shell recovery are deferred because the safe runner does not expose a private failing output device; they require a disposable VM with a private failure sink or an independently reviewed write/close syscall mock.",
+    "No terminal-specific behavior or host device paths are exercised."
+  ],
+  "cases": [
+    {
+      "id": "binary-concat-output-file",
+      "kind": "parity",
+      "purpose": "Concatenate two small binary files without inserting separators, write the result to a relative output file, and emit that file; verify bytes and all file effects against GNU cat.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf 'A\\000B\\n' > left; printf '\\377tail' > right; cat left right > joined; cat joined",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numbering-precedence-and-alias",
+      "kind": "parity",
+      "purpose": "Check line numbering continues across operands, -b takes precedence when combined with -n, and --number-nonblank produces the documented nonblank numbering.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf '\\nalpha\\n\\n' > first; printf 'beta\\nlast' > second; cat -nb first second; cat --number-nonblank first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "squeeze-across-operands",
+      "kind": "parity",
+      "purpose": "Check --squeeze-blank collapses repeated blank lines even when the run crosses an operand boundary and preserves a final partial line.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf '\\n\\nfirst\\n\\n' > first; printf '\\n\\nsecond\\n\\n\\nlast' > second; cat --squeeze-blank first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "show-all-control-bytes",
+      "kind": "parity",
+      "purpose": "Compare -A rendering of control bytes, a tab, a newline, DEL, and high-bit bytes under the runner's C locale.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf '\\001\\011\\012\\015\\177\\200\\377' > bytes; cat -A bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-end-and-stdin-operand",
+      "kind": "parity",
+      "purpose": "Check that -- makes -n and -- literal filenames while '-' reads redirected stdin at its position between file operands.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf 'dash-n\\000\\n' > -n; printf 'dash-dash\\n' > --; printf 'stdin\\377' > input; cat -- -n - -- < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-files-continue",
+      "kind": "parity",
+      "purpose": "Check that ordinary open failures set a failing status and emit diagnostics while cat still copies a valid operand between them.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf 'survivor\\000\\n' > present; cat missing-first present missing-last",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option",
+      "kind": "parity",
+      "purpose": "Check rejection of an unsupported option with a nonzero status and diagnostic.",
+      "requires": [
+        "cat"
+      ],
+      "script": "cat --not-a-real-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "sequential-redirected-input",
+      "kind": "parity",
+      "purpose": "Check two cat invocations in one shell read distinct redirected files and concatenate their contents without stale or lost input.",
+      "requires": [
+        "cat"
+      ],
+      "script": "printf 'first\\n' > one; printf 'second\\000tail' > two; cat < one; cat < two",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash reports cat as a builtin and that help has an entry, without treating metadata as cat operation coverage.",
+      "script": "if [[ $(type -t cat) == builtin ]] && help cat > metadata.out; then printf 'builtin\\nhelp\\n'; else exit 1; fi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp\n"
+    },
+    {
+      "id": "write-error-recovery-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify cat's stdout write-error status and the shell's ability to continue after the error.",
+      "reason": "Requires a future disposable VM with a private sink that reliably fails a bounded write or an independently reviewed write/close syscall mock. The current suite must not access host devices or paths, so this operation is not executed here. The future case should assert cat's nonzero status, a diagnostic, and a subsequent same-shell marker."
+    },
+    {
+      "id": "input-is-output-file",
+      "kind": "parity",
+      "purpose": "Reject a regular input file that is also the append-mode output file; retain original bytes and compare the diagnostic/status with GNU cat.",
+      "script": "printf 'seed\\n' > data\ncat data >> data",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "cat"
+      ]
+    },
+    {
+      "id": "directory-read-continues",
+      "kind": "parity",
+      "purpose": "A directory read error must not prevent copying a later regular operand.",
+      "script": "mkdir folder\nprintf 'after\\n' > present\ncat folder present",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "cat",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "closed-output-and-recovery",
+      "kind": "parity",
+      "purpose": "An ordinary closed stdout redirection must fail and diagnose; the next invocation in the same shell must write normally.",
+      "script": "printf 'one\\n' > input\nif cat input >&-; then exit 90; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\ncat input",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "cat"
+      ]
+    }
+  ]
+}

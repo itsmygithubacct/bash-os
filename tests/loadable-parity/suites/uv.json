@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "uv",
+  "optional": true,
+  "reference": "Contract expectations are taken from Bash's documented type/help builtin behavior and uv's published synopsis in docs/packages.md and loadables/uv.c. There is no matching GNU CLI for this loadable: it is a frontend to a separately packaged upstream uv executable, which is not available as an isolated fixture dependency here. No operation result is represented as GNU parity.",
+  "coverage": [
+    "Bash reports uv as a builtin in the candidate.",
+    "Bash short help exposes the documented uv [UV-ARGS ...] synopsis.",
+    "Deferred: child argument, exported-environment, and exit-status forwarding with a deterministic local stand-in.",
+    "Deferred: helper resolution after changing directories following load-time resolution.",
+    "Deferred: documented missing-helper status and diagnostic with a controlled package tree.",
+    "Deferred: child signal handling and 128+N exit mapping in an isolated disposable VM.",
+    "Deferred: a bounded upstream uv project operation against an isolated local fixture/index."
+  ],
+  "exclusions": [
+    "No network access or real package repository is used.",
+    "The runner cannot install a uv stand-in at the loadable's fixed compiled-in /usr/lib/bash-os/libexec/uv/uv path or provide a disposable package root for the separately packaged executable.",
+    "Package installation and environment creation are not GNU/POSIX command-line behaviors; operational cases remain deferred until an isolated upstream executable and local-only fixture are available."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "purpose": "Check the Bash metadata contract that the optional uv loadable registers as a builtin.",
+      "kind": "contract",
+      "script": "type -t uv",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help-synopsis",
+      "purpose": "Check the documented short Bash help synopsis for the uv builtin.",
+      "kind": "contract",
+      "script": "help -s uv",
+      "expected_status": 0,
+      "stdout": "uv: uv [UV-ARGS ...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "forwarding-env-status",
+      "purpose": "Exercise argument forwarding (including empty and spaced words), exported-variable visibility, and child exit-status propagation without contacting a package index.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM/package tree with a deterministic local stand-in installed at the documented uv helper path; the harness cannot supply that sibling executable. The future fixture should record argv and exported variables and return a chosen nonzero status, with no network access."
+    },
+    {
+      "id": "helper-resolution-after-cd",
+      "purpose": "Verify that a uv.so loaded from a relative package path keeps resolving its sibling helper after the shell changes its working directory.",
+      "kind": "deferred",
+      "reason": "Requires a disposable package root containing both uv.so and a local stand-in under the documented sibling libexec/uv path, loaded before changing directories. The harness cannot mount or populate the compiled-in package path."
+    },
+    {
+      "id": "missing-helper-diagnostic",
+      "purpose": "Check the documented status 127 and install hint when the separately packaged uv executable is missing.",
+      "kind": "deferred",
+      "reason": "Requires a disposable package layout in which the builtin is present but its helper is deliberately absent; the harness has no isolated package-root injection for this compiled-in loadable, and the host /usr tree is read-only."
+    },
+    {
+      "id": "signal-status-mapping",
+      "purpose": "Check child signal defaults and the documented 128+N status mapping without signaling any host or unrelated process.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM with the sibling helper replaced by a reviewed stand-in that terminates only itself with a selected signal. No child signal behavior is exercised by this suite."
+    },
+    {
+      "id": "local-project-operation",
+      "purpose": "Exercise a useful upstream uv operation against a tiny local project and verify its resulting fixture tree without network access.",
+      "kind": "deferred",
+      "reason": "Requires the pinned upstream uv executable in a disposable package tree and an isolated local project fixture. The helper is not supplied to the runner; if dependency resolution is included, it must use a local-only mock index. This has no matching GNU CLI oracle."
+    }
+  ]
+}

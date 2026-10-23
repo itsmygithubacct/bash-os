@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "loadable": "halt",
+  "reference": "No safe matching GNU CLI is used: system halt commands may request shutdown, and GNU coreutils does not define this Bash-OS interface. Contract expectations come from Bash's documented type/help builtins and the halt contract in the published halt contract. The operation expectations are stated in that contract and are deferred until a closed reboot/sync mock is available.",
+  "coverage": [
+    "Executed coverage is Bash availability/help metadata only; no operational behavior is counted as a pass.",
+    "Bash reports halt as a builtin through type -t.",
+    "Bash help exposes the documented synopsis and description for halt.",
+    "The full help text documents the -f and -n meanings and the direct reboot/accounting boundary."
+  ],
+  "exclusions": [
+    "No halt operation is executed: the builtin can call reboot(RB_HALT_SYSTEM).",
+    "No GNU parity case is run because a matching safe GNU CLI is unavailable; existing system halt commands are unsafe to invoke and do not provide an independent equivalent interface.",
+    "The deferred operation cases do not count as passes and require a disposable Linux VM or a closed syscall mock that never forwards reboot requests."
+  ],
+  "cases": [
+    {
+      "id": "type_is_builtin",
+      "kind": "contract",
+      "purpose": "Check Bash type metadata identifies the loaded halt command as a builtin, not an external executable.",
+      "script": "kind=$(type -t halt); [[ $kind == builtin ]] || exit 1; printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_synopsis",
+      "kind": "contract",
+      "purpose": "Check Bash help's short synopsis includes the documented -f and -n options.",
+      "script": "if short=$(help -s halt); then [[ $short == *'halt [-f] [-n]'* ]] || exit 20; else status=$?; exit \"$status\"; fi; printf 'halt [-f] [-n]\\n'",
+      "expected_status": 0,
+      "stdout": "halt [-f] [-n]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_description",
+      "kind": "contract",
+      "purpose": "Check Bash's short description help includes the documented description for halt.",
+      "script": "description=$(help -d halt); [[ $description == *'Halt the system.'* ]] || exit 1; printf 'Halt the system.\\n'",
+      "expected_status": 0,
+      "stdout": "Halt the system.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_contract_details",
+      "kind": "contract",
+      "purpose": "Check help documents that -f skips sync, -n is a dry run, and halt calls reboot directly without runlevel or accounting updates.",
+      "script": "doc=$(help halt); [[ $doc == *'-f: skip sync'* ]] || exit 1; [[ $doc == *'-n: dry run (report, do not act)'* ]] || exit 1; [[ $doc == *'Calls reboot(2) directly'* ]] || exit 1; [[ $doc == *'does not change runlevel or write accounting records.'* ]] || exit 1; printf 'flags and direct reboot boundary documented\\n'",
+      "expected_status": 0,
+      "stdout": "flags and direct reboot boundary documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_dispatch",
+      "kind": "deferred",
+      "purpose": "Exercise the ordinary halt request and its sync-before-reboot ordering.",
+      "reason": "Requires a disposable Linux VM or, preferably, a closed syscall mock that replaces sync() and reboot(2) and never forwards either call. With the mock returning success, assert status 0, exactly one sync before exactly one reboot request using RB_HALT_SYSTEM, and no accounting or runlevel action. No live shutdown is permitted."
+    },
+    {
+      "id": "forced_dispatch",
+      "kind": "deferred",
+      "purpose": "Exercise -f and verify it skips sync while still requesting halt.",
+      "reason": "Requires the same closed sync/reboot mock, with reboot(2) guaranteed not to reach the kernel. Return success from the mock and assert status 0, zero sync calls, and exactly one RB_HALT_SYSTEM request. A real forced halt must never be issued."
+    },
+    {
+      "id": "dry_run_dispatch",
+      "kind": "deferred",
+      "purpose": "Exercise -n and combined -fn/-nf dry-run parsing while proving neither sync nor reboot is called.",
+      "reason": "Requires a closed syscall mock that records and refuses all sync/reboot calls. Assert status 0 and the documented dry-run message for -n, -fn, and -nf, with zero calls for every form."
+    },
+    {
+      "id": "reject_invalid_requests",
+      "kind": "deferred",
+      "purpose": "Exercise unsupported accounting flags, unknown options, and operands, verifying rejection precedes any shutdown mutation.",
+      "reason": "Requires a closed sync/reboot mock with call counters and no forwarding. Check representative -w, -d, unknown-option, and operand forms return usage status 2 and make zero sync/reboot calls."
+    },
+    {
+      "id": "kernel_error_handling",
+      "kind": "deferred",
+      "purpose": "Exercise reboot syscall failure handling for ordinary and forced requests.",
+      "reason": "Requires a closed reboot(2) mock that injects EPERM (and optionally other errno values) and never forwards. Assert status 1 and an errno diagnostic; ordinary mode must sync before the failed RB_HALT_SYSTEM request, while -f must skip sync and still make the request."
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "loadable": "clip",
+  "reference": "No GNU/POSIX clip command exists, and stock GNU Bash lacks the required buf API, so these are documented-contract cases rather than GNU parity cases. Fixed stdout expectations are derived from the clip/buf docs and independently encoded fixture bytes; no expected value comes from the candidate. The metadata case checks Bash type/help output. Allocation-failure atomicity is deferred because the static runner has no allocator fault hook.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "Half-open line ranges, empty line pieces, and line insertion",
+    "Cross-line byte cuts with UTF-8 and embedded NUL, then exact restoration",
+    "Byte-column behavior that splits a UTF-8 sequence",
+    "16-slot physical order, oldest-entry replacement after rotation, and wrap navigation",
+    "No-piece versus empty-piece behavior for line and column paste",
+    "Raw binary output through clip text -F",
+    "Out-of-range failures and preservation of prior ring/buffer state",
+    "Copied entry independence after source free, explicit clear, and empty-ring paste error."
+  ],
+  "exclusions": [
+    "No GNU CLI provides clip's in-memory ring and buf handle operations, so runnable operations are honest contract checks, not fake command parity.",
+    "Allocator failure rollback is deferred pending a disposable fault-injection build.",
+    "The suite does not cover readonly handle destinations, handle-table exhaustion/reuse, output-device failures, randomized model sequences, large paged buffers, or editor/terminal integration."
+  ],
+  "cases": [
+    {
+      "id": "clip-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash identifies clip as a loadable builtin and help exposes its documented ring description.",
+      "script": "type_name=$(type -t clip)\n[[ $type_name == builtin ]]\ndoc=$(help clip)\ncase $doc in\n  *'Cut/copy/paste with 16-slot yank ring'*) printf 'type=%s\\nhelp=clip-ring\\n' \"$type_name\" ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "type=builtin\nhelp=clip-ring\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "line-range-and-paste",
+      "kind": "contract",
+      "purpose": "Copy a half-open line range containing an empty line, print its pieces as hex, then paste the pieces at the buffer end.",
+      "script": "printf 'one\\n\\nthree\\nfour' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip copy-range \"$c\" \"$b\" 1 3\nprintf 'entry='\nclip text \"$c\" -X\nclip paste \"$c\" \"$b\" 4\nprintf 'buffer='\nbuf text \"$b\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "entry=0a7468726565\nbuffer=6f6e650a0a74687265650a666f75720a0a7468726565\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-cross-line-cut-restore",
+      "kind": "contract",
+      "purpose": "Cut a byte range across two lines containing UTF-8 and NUL bytes, inspect the pieces, and paste them back at the original byte column.",
+      "script": "printf 'A\\303\\251\\nB\\000C\\nD' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip cut-range \"$c\" \"$b\" 0 1 1 2\nprintf 'entry='\nclip text \"$c\" -X\nprintf 'cut='\nbuf text \"$b\" -X\nclip paste \"$c\" \"$b\" 0 1\nprintf 'restored='\nbuf text \"$b\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "entry=c3a90a4200\ncut=41430a44\nrestored=41c3a90a4200430a44\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "split-utf8-byte-restore",
+      "kind": "contract",
+      "purpose": "Confirm columns are byte offsets by cutting one byte from a two-byte UTF-8 character and restoring it exactly.",
+      "script": "printf '\\303\\251Z' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip cut-range \"$c\" \"$b\" 0 1 0 2\nprintf 'piece='\nclip text \"$c\" -X\nprintf 'cut='\nbuf text \"$b\" -X\nclip paste \"$c\" \"$b\" 0 1\nprintf 'restored='\nbuf text \"$b\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "piece=a9\ncut=c35a\nrestored=c3a95a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ring-wrap-after-rotation",
+      "kind": "contract",
+      "purpose": "Fill all 16 physical slots, rotate toward older entries, then push a new copy; verify the oldest slot is replaced and navigation wraps between newest and oldest.",
+      "script": "for ((i=0; i<17; i++)); do\n  if ((i > 0)); then printf '\\n'; fi\n  printf 'L%d' \"$i\"\ndone > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nfor i in {0..15}; do clip copy-line \"$c\" \"$b\" \"$i\"; done\nclip yank-prev \"$c\"\nclip yank-prev \"$c\"\nclip copy-line \"$c\" \"$b\" 16\nfor i in {0..15}; do\n  printf 'slot%s=' \"$i\"\n  clip text \"$c\" -N \"$i\" -X\ndone\nclip yank-prev \"$c\"\nprintf 'prev='\nclip text \"$c\" -X\nclip yank-next \"$c\"\nprintf 'next='\nclip text \"$c\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "slot0=4c3136\nslot1=4c31\nslot2=4c32\nslot3=4c33\nslot4=4c34\nslot5=4c35\nslot6=4c36\nslot7=4c37\nslot8=4c38\nslot9=4c39\nslot10=4c3130\nslot11=4c3131\nslot12=4c3132\nslot13=4c3133\nslot14=4c3134\nslot15=4c3135\nprev=4c3135\nnext=4c3136\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-region-distinction",
+      "kind": "contract",
+      "purpose": "Distinguish a line-range entry with no pieces from a zero-length byte range containing one empty piece: the former pastes nothing, while the latter inserts an empty line but is a column-paste no-op.",
+      "script": "printf 'x\\ny' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip copy-range \"$c\" \"$b\" 0 0\nclip paste \"$c\" \"$b\" 1\nprintf 'no-pieces='\nbuf text \"$b\" -X\nclip copy-range \"$c\" \"$b\" 0 0 0 0\nprintf 'empty-piece='\nclip text \"$c\" -X\nclip paste \"$c\" \"$b\" 1\nprintf 'line-paste='\nbuf text \"$b\" -X\nclip paste \"$c\" \"$b\" 0 1\nprintf 'column-paste='\nbuf text \"$b\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "no-pieces=780a79\nempty-piece=\nline-paste=780a0a79\ncolumn-paste=780a0a79\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "text-fd-binary-output",
+      "kind": "contract",
+      "purpose": "Write a multi-piece entry, including an embedded NUL, through clip text -F to a relative fixture file and reload it to verify exact raw bytes.",
+      "script": "printf 'ab\\nc\\000d' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip copy-range \"$c\" \"$b\" 0 2\nexec 3>dump\nclip text \"$c\" -F 3\nexec 3>&-\nbuf new -h d\nbuf load \"$d\" dump\nprintf 'dump='\nbuf text \"$d\" -X\nclip free \"$c\"\nbuf free \"$b\"\nbuf free \"$d\"",
+      "expected_status": 0,
+      "stdout": "dump=61620a6300640a\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "failed-copy-preserves-state",
+      "kind": "contract",
+      "purpose": "Capture the documented status for an out-of-range line and reversed range, then confirm both failures leave the previous ring entry and buffer bytes unchanged.",
+      "script": "printf 'a\\nb' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip copy-line \"$c\" \"$b\" 0\nif clip copy-line \"$c\" \"$b\" 9; then rc=0; else rc=$?; fi\nprintf 'bad-line=%s\\n' \"$rc\"\nif clip copy-range \"$c\" \"$b\" 1 0; then rc=0; else rc=$?; fi\nprintf 'bad-range=%s\\n' \"$rc\"\nprintf 'ring='\nclip text \"$c\" -X\nprintf 'buffer='\nbuf text \"$b\" -X\nclip free \"$c\"\nbuf free \"$b\"",
+      "expected_status": 0,
+      "stdout": "bad-line=1\nbad-range=2\nring=61\nbuffer=610a62\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "allocator-rollback-faults",
+      "kind": "deferred",
+      "purpose": "Validate the all-or-nothing buffer and ring guarantee when cut, copy, or paste allocation fails.",
+      "reason": "Requires a disposable build of buf and clip with a test-only allocator fault hook and an independent snapshot checker. The supplied static candidate runner exposes no allocation hook. In that environment, fail each allocation point for representative line/byte cuts, copies, and line/column pastes; verify buffer bytes, dirty state, every ring slot, and active position remain unchanged before confirming the next non-failing operation. No operation is executed in this deferred case."
+    },
+    {
+      "id": "copy-survives-source-free",
+      "kind": "contract",
+      "purpose": "Copied ring entries outlive their source buffer; clearing an entry empties its bytes without freeing the ring.",
+      "script": "printf 'retained bytes' > input\nbuf new -h b\nbuf load \"$b\" input\nclip new -h c\nclip copy-line \"$c\" \"$b\" 0\nbuf free \"$b\"\nclip text \"$c\" -X\nclip clear \"$c\"\nclip text \"$c\" -X\nclip free \"$c\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "72657461696e6564206279746573\n\n"
+    },
+    {
+      "id": "empty-ring-paste",
+      "kind": "contract",
+      "purpose": "An empty ring cannot be pasted and reports the documented ordinary failure.",
+      "script": "buf new -h b\nclip new -h c\nclip paste \"$c\" \"$b\" 0",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

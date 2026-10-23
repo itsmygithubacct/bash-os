@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "loadable": "batch",
+  "reference": "Documented private spool format, literal independent payload bytes, Bash decimal time/PID shape checks and independent stat/cmp observations. These are contract checks, not external batch parity; no consumer is started.",
+  "coverage": [
+    "Bash reports batch as an enabled builtin.",
+    "Bash help exposes the documented stdin form, immediate scheduling description, and job ID format.",
+    "Private spool bytes, mode, unique IDs, empty/terminated input boundaries and argument/spool/stdin failures."
+  ],
+  "exclusions": [
+    "Consumer execution, load scheduling and daemon integration require the future disposable VM or scheduler mock. Queue artifact tests do not execute jobs."
+  ],
+  "cases": [
+    {
+      "id": "builtin-registration",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify batch as a builtin in the exact candidate. This checks availability without invoking the scheduler operation.",
+      "script": "type -t batch",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Bash help metadata must contain the documented stdin usage, immediate-as-low-load description, and job ID shape. The checks use only help and shell pattern matching; batch is not called.",
+      "script": "doc=$(help batch)\n[[ $doc == *'batch < script'* && $doc == *'currently immediate'* && $doc == *'Jobid format is <seconds-since-epoch>.<pid>.<seq>'* ]]\nprintf '%s\\n' 'documented-interface-ok'",
+      "expected_status": 0,
+      "stdout": "documented-interface-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "queue-artifact",
+      "kind": "contract",
+      "purpose": "Queue two inert private spool artifacts; verify bytes, appended LF, 0600 mode and unique documented IDs without starting a consumer.",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nprintf 'printf should-never-run > executed' > input\nbatch < input > first-message\nbatch < input > second-message\nmapfile -t first < first-message\nmapfile -t second < second-message\nread -r word id1 scheduled forword time1 <<< \"${first[0]}\"\nread -r word2 id2 scheduled2 forword2 time2 <<< \"${second[0]}\"\n[[ $word == job && $word2 == job && $scheduled == scheduled && $forword == for ]]\n[[ $scheduled2 == scheduled && $forword2 == for && $id1 != \"$id2\" ]]\n[[ $id1 =~ ^[0-9]+\\.[0-9]+\\.[0-9]{6}$ && $id2 =~ ^[0-9]+\\.[0-9]+\\.[0-9]{6}$ ]]\n[[ ${id1%%.*} == \"$time1\" && ${id2%%.*} == \"$time2\" ]]\nfor item in \"$id1\" \"$id2\"; do\n printf '# run_at=%s\\nprintf should-never-run > executed\\n' \"${item%%.*}\" > expected\n cmp \"spool/atjobs/$item.job\" expected\n [[ $(stat -c %a \"spool/atjobs/$item.job\") == 600 ]]\ndone\n[[ ! -e executed ]]\nprintf 'private jobs preserved bytes, mode and unique IDs\\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "private jobs preserved bytes, mode and unique IDs\n"
+    },
+    {
+      "id": "argument-and-spool-errors",
+      "kind": "contract",
+      "purpose": "Reject operands, a regular-file spool parent and closed stdin; verify no partial job directory is created.",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nif batch unexpected; then rc=0; else rc=$?; fi\nprintf 'argument=%s\\n' \"$rc\"\n[[ ! -e spool ]]\nprintf obstacle > blocked\nexport BASHCRON_SPOOL_DIR=blocked/sub\nif batch <<< input; then rc=0; else rc=$?; fi\nprintf 'spool=%s\\n' \"$rc\"\nexport BASHCRON_SPOOL_DIR=spool\nif batch <&-; then rc=0; else rc=$?; fi\nprintf 'read=%s\\n' \"$rc\"\n[[ ! -e spool ]]\n",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "argument=2\nspool=1\nread=1\n"
+    },
+    {
+      "id": "cron-consumer-semantics",
+      "kind": "deferred",
+      "purpose": "Check that a separate cron consumer accepts queued jobs, executes them once in FIFO order, and applies the intended immediate/low-load policy.",
+      "reason": "Requires a disposable VM with a private cron/atd consumer or a reviewed scheduler mock, a controlled clock/load source, and an isolated output sink. No daemon or job was run by this suite."
+    },
+    {
+      "id": "empty-and-terminated-job",
+      "kind": "contract",
+      "purpose": "Empty stdin adds one script newline; terminated input retains exactly one terminator.",
+      "script": "export BASHCRON_SPOOL_DIR=spool\n: > empty\nprintf 'inert\\n' > input\nbatch < empty > message\nread -r word job rest < message\nprintf '# run_at=%s\\n\\n' \"${job%%.*}\" > expected\ncmp \"spool/atjobs/$job.job\" expected\nbatch < input > message\nread -r word job rest < message\nprintf '# run_at=%s\\ninert\\n' \"${job%%.*}\" > expected\ncmp \"spool/atjobs/$job.job\" expected\nprintf 'newline boundaries verified\\n'\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "newline boundaries verified\n"
+    }
+  ]
+}

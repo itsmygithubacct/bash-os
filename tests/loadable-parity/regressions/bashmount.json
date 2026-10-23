@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "bashmount",
-  "reference": "GNU Bash builtin metadata/help conventions; GNU util-linux findmnt reading the same synthetic mountinfo fixture with --tab-file --raw --noheadings and the ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE columns; GNU util-linux mountpoint for mountpoint state/device-number checks. The findmnt adapter maps its raw space-separated fields to the builtin's tab-separated table and decodes findmnt's raw \\x20 spelling to the literal spaces produced by decoding mountinfo's \\040 escape.",
+  "reference": "GNU Bash builtin metadata/help conventions; util-linux findmnt reading the same synthetic mountinfo fixture with --tab-file --raw --noheadings and the ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE columns; util-linux mountpoint for mountpoint state/device-number checks. The findmnt adapter maps its raw space-separated fields to the builtin's tab-separated table and decodes findmnt's raw \\x20 spelling to the literal spaces produced by decoding mountinfo's \\040 escape.",
   "coverage": [
     "Bash recognizes bashmount as an enabled builtin and exposes its long help text.",
     "Synthetic mountinfo parsing with and without optional fields before the separator, including VFS options and source fields.",
@@ -70,9 +70,9 @@
     {
       "id": "table_missing_path",
       "kind": "parity",
-      "purpose": "A missing relative table path must fail with a diagnostic and no table output; the script explicitly captures either CLI's nonzero result.",
-      "script": "if [[ $(type -t bashmount) == builtin ]]; then\n  if bashmount --findmnt-table absent; then exit 97; else rc=$?; fi\nelse\n  if findmnt --tab-file absent --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE; then exit 96; else rc=$?; fi\nfi\n[[ $rc -ne 0 ]]",
-      "expected_status": 0,
+      "purpose": "Compare the actual reference exit status, output and diagnostic policy for a missing table.",
+      "script": "if [[ $(type -t bashmount) == builtin ]]; then\n bashmount --findmnt-table absent\nelse\n findmnt --tab-file absent --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE\nfi",
+      "expected_status": 1,
       "stderr": "nonempty",
       "requires": [
         "findmnt"
@@ -92,9 +92,9 @@
     {
       "id": "mountpoint_quiet_regular_file",
       "kind": "parity",
-      "purpose": "Quiet mode classifies a regular fixture file as not being a mountpoint; the script captures and checks the CLI-specific nonzero status while emitting no output.",
-      "script": ": > regular\nif [[ $(type -t bashmount) == builtin ]]; then\n  if bashmount --mountpoint --quiet regular; then exit 97; else rc=$?; fi\n  [[ $rc -eq 1 ]]\nelse\n  if mountpoint --quiet regular; then exit 96; else rc=$?; fi\n  [[ $rc -ne 0 ]]\nfi",
-      "expected_status": 0,
+      "purpose": "Compare quiet non-mountpoint classification and its actual util-linux exit status on a private regular file.",
+      "script": ": > regular\nif [[ $(type -t bashmount) == builtin ]]; then\n bashmount --mountpoint --quiet regular\nelse\n mountpoint --quiet regular\nfi",
+      "expected_status": 32,
       "stderr": "empty",
       "requires": [
         "mountpoint"
@@ -117,6 +117,42 @@
       "kind": "deferred",
       "purpose": "Exercise ordinary, lazy, and force unmount flag mapping and observable cleanup.",
       "reason": "Requires a disposable VM with disposable private-namespace mounts, or a reviewed umount2(2) mock that records flags. Verify normal, -l/MNT_DETACH, and -f/MNT_FORCE calls and cleanup/error behavior; no unmount operation is run in this suite."
+    },
+    {
+      "id": "mountpoint-private-directory",
+      "kind": "parity",
+      "purpose": "Quietly classify a private subdirectory without mounting anything.",
+      "script": "mkdir sub\nif [[ $(type -t bashmount) == builtin ]]; then bashmount --mountpoint -q sub; else mountpoint -q sub; fi",
+      "expected_status": 32,
+      "stderr": "empty",
+      "requires": [
+        "mountpoint",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "nonmount-device-query",
+      "kind": "parity",
+      "purpose": "A device-number query on an ordinary private subdirectory returns the util-linux non-mountpoint status and stdout message; no mount operation occurs.",
+      "script": "mkdir sub\nif [[ $(type -t bashmount) == builtin ]]; then bashmount --mountpoint -d sub; else mountpoint -d sub; fi",
+      "expected_status": 32,
+      "stderr": "empty",
+      "requires": [
+        "mountpoint",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "relative-mountpoint-messages",
+      "kind": "parity",
+      "purpose": "Default classification messages retain the caller-supplied relative names for a private directory and the fixture mount; only queries run.",
+      "script": "mkdir sub\nif [[ $(type -t bashmount) == builtin ]]; then\n if bashmount --mountpoint sub; then exit 90; else [[ $? == 32 ]]; fi\n bashmount --mountpoint .\nelse\n if mountpoint sub; then exit 90; else [[ $? == 32 ]]; fi\n mountpoint .\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mountpoint",
+        "mkdir"
+      ]
     }
   ]
 }

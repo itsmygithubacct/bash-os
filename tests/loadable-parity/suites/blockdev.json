@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "loadable": "blockdev",
+  "reference": "Contract expectations come from Bash's documented type/help builtins and the exact blockdev builtin synopsis and help strings in the published source contract The source docs describe a syscall shim, and the published source contract is present, but this harness does not load that module; the documented sol-blockdev-check.py driver is absent from the documented source tree. No blockdev operation is run here: both the candidate and util-linux command issue kernel ioctls. Deferred operations specify an isolated syscall-mock requirement.",
+  "coverage": [
+    "The candidate registers blockdev as a Bash builtin.",
+    "Bash help exposes the blockdev synopsis and all ten documented action names.",
+    "Metadata only; operation coverage is zero. Deferred cases are future qualification requirements."
+  ],
+  "exclusions": [
+    "No blockdev action is executed, including query-only actions, because it reaches the kernel open/ioctl path and no reviewed mock is supplied to this runner.",
+    "Real block-device geometry, driver behavior, privilege checks, flush effects, and partition-table reread effects require separate disposable-VM or syscall-mock qualification."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Check through Bash type metadata that the candidate registered blockdev as a builtin, without invoking it.",
+      "script": "kind=$(type -t blockdev)\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Check that Bash help has a synopsis containing the documented command name and device operand.",
+      "script": "synopsis=$(help -s blockdev)\ncase \"$synopsis\" in\n  *blockdev*device*) printf 'synopsis-available\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "synopsis-available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-actions",
+      "kind": "contract",
+      "purpose": "Check that Bash help documents each of the ten blockdev action options listed by the implementation contract.",
+      "script": "doc=$(help blockdev)\nfor action in --getsz --getsize64 --getsize --getss --getbsz --getro --setro --setrw --flushbufs --rereadpt; do\n  case \"$doc\" in\n    *\"$action\"*) ;;\n    *) exit 1 ;;\n  esac\ndone\nprintf 'all-ten-actions-documented\\n'",
+      "expected_status": 0,
+      "stdout": "all-ten-actions-documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-actions-mock",
+      "kind": "deferred",
+      "purpose": "Exercise query ioctl dispatch and formatting for size in sectors, size in bytes, legacy size, logical sector size, block size, and normalized read-only state.",
+      "reason": "Requires a separately reviewed syscall-mock fixture that intercepts open/ioctl/close and never forwards them to the host. The mock must register only relative fixture names and return fixed values, including a byte size with a remainder beyond the 32-bit sector range, a size below one sector, and nonzero read-only metadata. Compare the emitted values with independent Linux ioctl definitions and arithmetic."
+    },
+    {
+      "id": "readonly-transitions-mock",
+      "kind": "deferred",
+      "purpose": "Exercise ordered --getro, --setro, --getro, --setrw, --getro sequences across fixture devices and invocations.",
+      "reason": "Requires a separately reviewed syscall mock with in-memory device metadata only. It must record BLKROGET and BLKROSET request order and setter values, model state per relative fixture name, and make no host device calls. Expected output and final state must be calculated from the documented 0/1 getter and setter contract."
+    },
+    {
+      "id": "maintenance-requests-mock",
+      "kind": "deferred",
+      "purpose": "Exercise --flushbufs and --rereadpt dispatch, zero-argument ioctl requests, device iteration, and continuation order.",
+      "reason": "Requires a separately reviewed syscall mock that records BLKFLSBUF and BLKRRPART without forwarding either request. Use only relative fixture names and assert the device-major/action-minor request trace. Real flush or partition reread effects require a disposable VM with an explicitly created throwaway block device and are outside this runner."
+    },
+    {
+      "id": "syscall-failures-mock",
+      "kind": "deferred",
+      "purpose": "Exercise missing/open-failing paths, EACCES read-write retry, ioctl failure continuation, descriptor close handling, and aggregate status.",
+      "reason": "Requires a separately reviewed syscall mock that can inject ENOENT, EACCES, EIO, ENOTTY, EPERM, and close errors while tracking every mock descriptor. It must reject unregistered relative names and must never call real open/ioctl/close on a device. Validate diagnostics policy, later-action/device continuation, descriptor cleanup, and final failure status against the documented source contract."
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "loadable": "apropos",
+  "reference": "man-db apropos is the independent CLI oracle for no-argument and version comparisons. Query parity requires man-db configuration unavailable in this runner. Private whatis searches use independently specified substring, anchored-name and AND contracts; these are not man-db query parity.",
+  "coverage": [
+    "Parity for GNU apropos no-argument and version invocations, both of which run without search-path initialization.",
+    "Documented literal substring search over a relative private whatis fixture.",
+    "Documented -w matching at the head of an entry name, including a comma-separated alias.",
+    "Documented AND behavior across multiple patterns.",
+    "Documented nonzero outcomes for no matches and a missing whatis index.",
+    "Bash type/help metadata contract, counted separately from operation coverage."
+  ],
+  "exclusions": [
+    "True GNU query comparisons are deferred because man-db exits with a configuration error in this runner before reading any query fixture.",
+    "Binary man-db index creation/refresh, other man-db options, locale-specific matching, and pager behavior are outside this suite."
+  ],
+  "cases": [
+    {
+      "id": "no-argument-cli",
+      "kind": "parity",
+      "purpose": "Compares no-argument invocation status and output. man-db documents status 1 for syntax errors; the candidate's usage path remains a parity comparison even if it differs.",
+      "requires": [
+        "apropos"
+      ],
+      "script": "apropos",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "version-cli",
+      "kind": "parity",
+      "purpose": "Compare version stdout bytes and status directly with man-db; implementation identity differences remain visible.",
+      "requires": [
+        "apropos"
+      ],
+      "script": "apropos --version",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "literal-substring-search",
+      "kind": "contract",
+      "purpose": "Checks the documented default substring search against hand-written index records; every printed line contains the literal term in its name or description.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - primary command' 'alphabet (1) - a longer name' 'beta (1) - mentions alpha in its summary' > whatis\napropos alpha",
+      "expected_status": 0,
+      "stdout": "alpha (1) - primary command\nalphabet (1) - a longer name\nbeta (1) - mentions alpha in its summary\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "word-exact-name",
+      "kind": "contract",
+      "purpose": "Checks the documented -w anchored name match: alpha matches exactly, while alpha-x is a near-prefix and beta is unrelated.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - base page' 'alpha-x (1) - derived page' 'beta (1) - unrelated helper' > whatis\napropos -w alpha",
+      "expected_status": 0,
+      "stdout": "alpha (1) - base page\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "word-alias-name",
+      "kind": "contract",
+      "purpose": "Checks that -w can select an exact alias name from the documented comma-separated whatis entry format.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - an alphabetic symbol' 'beta (1) - unrelated helper' > whatis\napropos -w aleph",
+      "expected_status": 0,
+      "stdout": "alpha, aleph (1) - an alphabetic symbol\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-patterns-and",
+      "kind": "contract",
+      "purpose": "Checks the documented AND contract across patterns: only the record containing both terms is printed.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - first entry' 'both (1) - alpha and beta together' 'beta (1) - second entry' > whatis\napropos alpha beta",
+      "expected_status": 0,
+      "stdout": "both (1) - alpha and beta together\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "no-match-nonzero",
+      "kind": "contract",
+      "purpose": "Checks the documented nonzero result for a valid query with no matches without assuming a GNU-specific numeric status.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - ordinary command' 'beta (1) - helper command' > whatis\nif apropos nofixturetoken; then exit 90; else rc=$?; [[ $rc -ne 0 ]]; fi\nprintf '%s\\n' 'no-match returns nonzero'",
+      "expected_status": 0,
+      "stdout": "no-match returns nonzero\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-index-nonzero",
+      "kind": "contract",
+      "purpose": "Checks the documented nonzero result and diagnostic when the MANPATH contains no whatis index.",
+      "script": "export MANPATH=missing BASHMAN_STALE_QUIET=1\nif apropos alpha; then exit 90; else rc=$?; [[ $rc -ne 0 ]]; fi\nprintf '%s\\n' 'missing-index returns nonzero'",
+      "expected_status": 0,
+      "stdout": "missing-index returns nonzero\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-help-metadata",
+      "kind": "contract",
+      "purpose": "Checks Bash builtin registration and help availability; this is metadata coverage, not apropos operation coverage.",
+      "script": "[[ $(type -t apropos) == builtin ]]\nhelp apropos > metadata.out\nprintf '%s\\n' 'apropos builtin help available'",
+      "expected_status": 0,
+      "stdout": "apropos builtin help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "man-db-query-reference-unavailable",
+      "kind": "deferred",
+      "purpose": "After the reference dependency is available, compare GNU default regular-expression and OR semantics, -w alias matching, no-match status, and leading-dash queries against the same private whatis fixtures.",
+      "reason": "Requires a future disposable man-db reference environment that supplies its required manpath configuration and a private whatis corpus. The present runner lacks /etc/manpath.config, so GNU query semantics cannot be validly compared here."
+    }
+  ]
+}

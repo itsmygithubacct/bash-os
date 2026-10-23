@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "loadable": "bashperl",
+  "optional": true,
+  "reference": "Standalone Perl CLI (`perl`) is the independent oracle. In each parity script, system Bash selects `perl`; the candidate shell selects its embedded `bashperl` builtin. The suite requires the host `perl` command.",
+  "coverage": [
+    "Perl expression evaluation and literal ARGV handling",
+    "-p record processing and substitution",
+    "-a/-F autosplitting with -n and -l",
+    "NUL-delimited input records",
+    "multiple input files and ARGV naming",
+    "in-place edits, backup contents, and resulting fixture files",
+    "END block output and Perl exit status",
+    "syntax error status and diagnostics presence",
+    "Bash builtin type/help metadata",
+    "fresh interpreter state and restoration of cwd, umask, and exported environment"
+  ],
+  "exclusions": [
+    "Perl system/exec and native XS behavior are deferred because they can affect process state beyond the fixture; no child process, signal, network, host path, credential, or privileged operation is exercised.",
+    "Interactive signal delivery and arbitrary file descriptor mutation require separately controlled process or syscall fixtures."
+  ],
+  "cases": [
+    {
+      "id": "expression-argv",
+      "kind": "parity",
+      "purpose": "Compare Perl expression evaluation and preservation of shell-significant argument bytes, including spaces, a literal command-substitution string, a glob, and an option-looking argument.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -e 'my @n=(1..6); print join(\"|\", @ARGV), \":\", join(\",\", map { $_*$_ } @n), \"\\n\"' -- 'a b' \"'quote\" '$(false)' '$HOME' '*' '-x'\nelse\n  perl -e 'my @n=(1..6); print join(\"|\", @ARGV), \":\", join(\",\", map { $_*$_ } @n), \"\\n\"' -- 'a b' \"'quote\" '$(false)' '$HOME' '*' '-x'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "print-substitution",
+      "kind": "parity",
+      "purpose": "Compare -p processing and a per-record substitution over newline-terminated and unterminated input records.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  printf 'alpha\\naardvark\\nlast' | bashperl -pe 's/^a/A/'\nelse\n  printf 'alpha\\naardvark\\nlast' | perl -pe 's/^a/A/'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "autosplit-fields",
+      "kind": "parity",
+      "purpose": "Compare -n, -l, -a, and -F field splitting across multiple input records.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  printf 'ada:42\\nbo:7\\n' | bashperl -F: -alne 'print \"$F[0]=$F[1]\"'\nelse\n  printf 'ada:42\\nbo:7\\n' | perl -F: -alne 'print \"$F[0]=$F[1]\"'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-records",
+      "kind": "parity",
+      "purpose": "Compare Perl's NUL input-record separator with small deterministic binary input containing two separators and a final unterminated record.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  printf 'a\\000b\\000tail' | bashperl -0ne 'print uc'\nelse\n  printf 'a\\000b\\000tail' | perl -0ne 'print uc'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-argv-files",
+      "kind": "parity",
+      "purpose": "Compare -n processing across two relative fixture files, including the current ARGV filename in output.",
+      "requires": [
+        "perl"
+      ],
+      "script": "printf 'one\\n1\\n' > first\nprintf 'two\\n2\\n' > second\nif [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -ne 'print \"$ARGV:$_\"' first second\nelse\n  perl -ne 'print \"$ARGV:$_\"' first second\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "inplace-backup",
+      "kind": "parity",
+      "purpose": "Compare -i.bak edits inside the private fixture tree, including backup bytes and the modified file; the runner also compares modes and links.",
+      "requires": [
+        "perl"
+      ],
+      "script": "printf 'one\\n1\\n' > file\nif [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -i.bak -pe 's/one/ONE/' file\nelse\n  perl -i.bak -pe 's/one/ONE/' file\nfi\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < file\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < file.bak",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "end-and-exit-status",
+      "kind": "parity",
+      "purpose": "Compare output from normal execution and an END block when the Perl program exits with a nonzero status.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -e 'print \"before\\n\"; END { print \"end\\n\" } exit 7'\nelse\n  perl -e 'print \"before\\n\"; END { print \"end\\n\" } exit 7'\nfi",
+      "expected_status": 7,
+      "stderr": "empty"
+    },
+    {
+      "id": "syntax-error-status",
+      "kind": "parity",
+      "purpose": "Compare compile-failure status and require a diagnostic without depending on Perl-version-specific wording.",
+      "requires": [
+        "perl"
+      ],
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -e 'my $x = ;'\nelse\n  perl -e 'my $x = ;'\nfi",
+      "expected_status": 255,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Check the documented Bash builtin type and help text without invoking Perl code.",
+      "script": "kind=$(type -t bashperl)\n[[ $kind == builtin ]] || exit 1\ndoc=$(help bashperl)\n[[ $doc == *'Run real Perl in the current shell process.'* ]] || exit 1\n[[ $doc == *'Each invocation has a fresh interpreter.'* ]] || exit 1\nprintf 'builtin\\nhelp describes the Perl CLI and fresh interpreter contract\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp describes the Perl CLI and fresh interpreter contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "fresh-interpreter",
+      "kind": "contract",
+      "purpose": "Check the documented fresh-interpreter guarantee across two builtin invocations in one Bash process.",
+      "script": "if [[ $(type -t bashperl) == builtin ]]; then\n  bashperl -e 'our $x=42; print \"$x\\n\"'\n  bashperl -e 'print defined $x ? \"leaked\\n\" : \"fresh\\n\"'\nelse\n  perl -e 'our $x=42; print \"$x\\n\"'\n  perl -e 'print defined $x ? \"leaked\\n\" : \"fresh\\n\"'\nfi",
+      "expected_status": 0,
+      "stdout": "42\nfresh\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "shell-state-restoration",
+      "kind": "contract",
+      "purpose": "Check documented cwd, umask, and exported-environment restoration after Perl changes those values and dies; the Perl-created directory remains a relative fixture artifact.",
+      "script": "export BP_KEEP=before\nbefore=$PWD\numask 022\nif [[ $(type -t bashperl) == builtin ]]; then\n  if bashperl -e 'mkdir \"sub\" or die $!; chdir \"sub\" or die $!; umask 0077; $ENV{BP_KEEP}=\"changed\"; $ENV{BP_NEW}=\"leak\"; die \"expected failure\\n\"'; then status=0; else status=$?; fi\nelse\n  if perl -e 'mkdir \"sub\" or die $!; chdir \"sub\" or die $!; umask 0077; $ENV{BP_KEEP}=\"changed\"; $ENV{BP_NEW}=\"leak\"; die \"expected failure\\n\"'; then status=0; else status=$?; fi\nfi\nmask=$(umask)\nif [[ $status == 255 && $PWD == \"$before\" && $mask == 0022 && $BP_KEEP == before && ! -v BP_NEW && -d sub ]]; then\n  printf 'cwd umask environment restored; fixture directory created\\n'\nelse\n  exit 1\nfi",
+      "expected_status": 0,
+      "stdout": "cwd umask environment restored; fixture directory created\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "process-and-native-effects",
+      "kind": "deferred",
+      "purpose": "Exercise Perl system/exec calls, signal handling, arbitrary descriptor changes, or native XS code that can affect the embedding Bash process.",
+      "reason": "A future disposable VM should provide a dedicated child-process fixture and syscall or XS mocks that record the requested process effects without launching host commands, signaling unrelated processes, changing host state, or loading an unreviewed extension."
+    }
+  ]
+}

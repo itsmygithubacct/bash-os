@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "loadable": "claude",
+  "reference": "Parity cases use Python 3's standard json module as an independent UTF-8 JSON string encoder/decoder and request serializer; the reference arm is selected because system Bash does not have this loadable builtin, while the candidate arm is selected by `type -t claude`. Contract cases use Bash's documented type/help metadata and the source-advertised offline parse-response, raw, and prompt --dump-request contracts. The source references docs/BASHCLAUDE.md, but that file is absent from the pinned tree; the available design comments and tests/final-smoke.py are used for scope only.",
+  "coverage": [
+    "Bash type -t and help metadata registration for claude.",
+    "JSON string escape and unescape for quote, backslash, short escapes, a control byte, BMP Unicode, and a UTF-16 surrogate pair, compared with Python's independent JSON implementation.",
+    "Unescape's documented unquoted pass-through behavior with leading whitespace.",
+    "Offline prompt --dump-request assembly for explicit model/token settings, system text, adaptive thinking, tools JSON, and a multiline UTF-8 message, compared with an independent Python object serializer.",
+    "Offline parse-response identity-framed SSE text extraction, including escaped newline decoding.",
+    "Chunked parse-response with an SSE data line split between HTTP chunks; raw chunk de-framing; and non-2xx status behavior.",
+    "Empty prompt input usage failure with --dump-request, captured and asserted without masking it."
+  ],
+  "exclusions": [
+    "Live prompt/api TLS transport, API-key handling, provider latency, and retry timing require a future disposable VM with an isolated TLS mock and synthetic CA; no network request is made here.",
+    "Self-update requires a disposable dynamic build and isolated package database/package-manager mock; no update operation is invoked.",
+    "Malformed JSON string behavior, model catalog freshness, and platform-specific TLS trust-store behavior are not qualified by these cases."
+  ],
+  "cases": [
+    {
+      "id": "bash_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash registers claude as a builtin and exposes the documented help entry through Bash's help builtin, without invoking an API operation.",
+      "script": "type -t claude\nhelp_text=$(help claude)\n[[ $help_text == *\"Claude API\"* && $help_text == *\"Subcommands:\"* ]] || exit 1\nprintf 'builtin and help entry available\\n'\n",
+      "expected_status": 0,
+      "stdout": "builtin\nbuiltin and help entry available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "escape_json_python_parity",
+      "kind": "parity",
+      "purpose": "Compare claude escape byte-for-byte with Python's independent JSON string encoder on quotes, backslash, all short control escapes, a remaining control byte, and UTF-8 text.",
+      "requires": [
+        "python3"
+      ],
+      "script": "payload=$'quote \" slash \\\\ tab\\t line\\nreturn\\r backspace\\b formfeed\\f control\\001 caf\u00e9'\nif [[ $(type -t claude) == builtin ]]; then\n  printf '%s' \"$payload\" | claude escape\nelse\n  printf '%s' \"$payload\" | python3 -c 'import json,sys; value=sys.stdin.buffer.read().decode(\"utf-8\"); sys.stdout.buffer.write(json.dumps(value, ensure_ascii=False).encode(\"utf-8\"))'\nfi\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unescape_json_python_parity",
+      "kind": "parity",
+      "purpose": "Compare claude unescape with Python's independent JSON parser for escaped newline/tab/quotes/backslash, BMP Unicode, a surrogate pair, and a decoded control byte.",
+      "requires": [
+        "python3"
+      ],
+      "script": "json_string='\"row1\\nrow2\\t\\\"quote\\\" \\\\path \\u263a \\ud83d\\ude03 \\u0001\"'\nif [[ $(type -t claude) == builtin ]]; then\n  printf '%s' \"$json_string\" | claude unescape\nelse\n  printf '%s' \"$json_string\" | python3 -c 'import json,sys; value=json.loads(sys.stdin.buffer.read().decode(\"utf-8\")); sys.stdout.buffer.write(value.encode(\"utf-8\"))'\nfi\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unescape_unquoted_passthrough",
+      "kind": "contract",
+      "purpose": "Check the documented unescape mode that accepts an unquoted string, discards leading JSON whitespace, and passes the remaining bytes through.",
+      "script": "printf ' \\tplain text\\n' | claude unescape\n",
+      "expected_status": 0,
+      "stdout": "plain text\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "dump_request_python_parity",
+      "kind": "parity",
+      "purpose": "Compare the offline prompt --dump-request body with an independently assembled Python JSON object, including options, tools passthrough, quotes, newline escaping, and UTF-8.",
+      "requires": [
+        "python3"
+      ],
+      "script": "model=fixture-model\nmax_tokens=17\nsystem=$'System \"rule\"\\nsecond line caf\u00e9'\ntools_json='[{\"name\":\"lookup\",\"input_schema\":{\"type\":\"object\"}}]'\nmessage=$'say \"hello\"\\nthen tab\\t caf\u00e9'\nexport model max_tokens system tools_json message\nif [[ $(type -t claude) == builtin ]]; then\n  claude prompt --dump-request --model \"$model\" --max-tokens \"$max_tokens\" --system \"$system\" --think --tools \"$tools_json\" \"$message\"\nelse\n  python3 -c 'import json,os,sys; request={\"model\":os.environ[\"model\"],\"max_tokens\":int(os.environ[\"max_tokens\"]),\"stream\":True,\"thinking\":{\"type\":\"adaptive\"},\"system\":os.environ[\"system\"],\"tools\":json.loads(os.environ[\"tools_json\"]),\"messages\":[{\"role\":\"user\",\"content\":os.environ[\"message\"]}]}; sys.stdout.buffer.write(json.dumps(request,ensure_ascii=False,separators=(\",\",\":\")).encode(\"utf-8\")+b\"\\n\")'\nfi\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "prompt_empty_usage_error",
+      "kind": "contract",
+      "purpose": "Check the documented missing-message error on the offline --dump-request path; capture and assert the builtin's usage status while preserving its diagnostic.",
+      "script": "set +e\nprintf '%s' $'\\n' | claude prompt --dump-request\nrc=$?\nset -e\n[[ $rc -eq 2 ]] || exit 1\nprintf 'no-message usage status %d\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "no-message usage status 2\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "parse_sse_identity",
+      "kind": "contract",
+      "purpose": "Check the offline parser's documented identity-framed SSE path, extracting a text_delta and decoding an escaped newline.",
+      "script": "response=$'HTTP/1.1 200 OK\\r\\nContent-Type: text/event-stream\\r\\n\\r\\nevent: content_block_delta\\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"first\\\\nsecond\"}}\\n\\n'\nprintf '%s' \"$response\" | claude parse-response\n",
+      "expected_status": 0,
+      "stdout": "first\nsecond\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse_sse_chunk_boundary",
+      "kind": "contract",
+      "purpose": "Check that an SSE data line and JSON string spanning two HTTP chunks are reassembled before text_delta parsing.",
+      "script": "emit_chunk() { printf '%x\\r\\n%s\\r\\n' \"${#1}\" \"$1\"; }\npart1='data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"fragment'\npart2=' continued\"}}'\npart3=$'\\n\\n'\n{\n  printf 'HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n'\n  emit_chunk \"$part1\"\n  emit_chunk \"$part2\"\n  emit_chunk \"$part3\"\n  printf '0\\r\\n\\r\\n'\n} | claude parse-response\n",
+      "expected_status": 0,
+      "stdout": "fragment continued\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse_raw_chunked_body",
+      "kind": "contract",
+      "purpose": "Check the documented --raw option de-chunks multiple HTTP body chunks and emits body bytes without adding a newline.",
+      "script": "response=$'HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n5\\r\\nhello\\r\\n6\\r\\n world\\r\\n0\\r\\n\\r\\n'\nprintf '%s' \"$response\" | claude parse-response --raw\n",
+      "expected_status": 0,
+      "stdout": "hello world",
+      "stderr": "empty"
+    },
+    {
+      "id": "parse_http_error_status",
+      "kind": "contract",
+      "purpose": "Check the documented non-2xx failure status on an offline HTTP 400 response while retaining the parser's diagnostic.",
+      "script": "response=$'HTTP/1.1 400 Bad Request\\r\\n\\r\\n{\"error\":{\"message\":\"fixture\"}}'\nset +e\nprintf '%s' \"$response\" | claude parse-response\nrc=$?\nset -e\n[[ $rc -eq 1 ]] || exit 1\nprintf 'HTTP error status %d\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stdout": "HTTP error status 1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "api_transport_mock",
+      "kind": "deferred",
+      "purpose": "Qualify prompt/api request headers and body, TLS verification, stream/raw responses, and retry behavior against deterministic local responses.",
+      "reason": "Requires a future disposable VM or independently reviewed private loopback TLS mock, with a generated synthetic CA, fake test key, no outside route, and deterministic success/SSE/HTTP-error/retry responses. The current runner has no service peer, and no network request or installed credential is used here."
+    },
+    {
+      "id": "update_package_mock",
+      "kind": "deferred",
+      "purpose": "Qualify signed-package selection, install/load sequencing, and dynamic builtin reload without touching a real package database.",
+      "reason": "Requires a future disposable dynamic build with a temporary package database, a deterministic signed fixture package, and an isolated mock package manager that records install/load calls. The current runner cannot safely qualify package installation or hot-reload effects."
+    }
+  ]
+}

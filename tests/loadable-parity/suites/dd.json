@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "loadable": "dd",
+  "reference": "Parity cases run the same Bash script against GNU coreutils dd from the reference PATH. Literal printf fixture bytes and GNU behavior provide the independent oracle; the harness checks the reference exit status, stdout bytes, stderr policy, and complete private fixture tree. The metadata contracts follow Bash type/help behavior and the documented dd builtin interface.",
+  "coverage": [
+    "Relative fixture-file copying with block-based skip/count and byte-based skip/count.",
+    "GNU swab behavior across odd input-block boundaries.",
+    "Record block/unblock conversion, including truncation, padding, and an unterminated final record.",
+    "Uppercase conversion with NUL padding of a partial input block.",
+    "Output seek with conv=notrunc, output append, and a nocreat open failure.",
+    "Bash type and help metadata contracts for the dd builtin."
+  ],
+  "exclusions": [
+    "Raw-device reads and writes are deferred; no device path is used by a runnable fixture.",
+    "Deterministic read-error recovery with conv=noerror is deferred because this runner has no reviewed I/O fault-injection mock.",
+    "Signal-triggered progress reporting and timing-dependent status text are not qualified."
+  ],
+  "cases": [
+    {
+      "id": "copy_skip_count_blocks",
+      "kind": "parity",
+      "purpose": "Copy two 2-byte blocks after skipping one input block, checking ordinary relative-file effects and block-based skip/count semantics.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'ABCDEFG' > source\ndd if=source of=copy bs=2 skip=1 count=2 status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "swab_odd_input_blocks",
+      "kind": "parity",
+      "purpose": "Swap byte pairs over a five-byte stream read in odd three-byte blocks, exercising the unpaired byte carried across an input-block boundary.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'abcde' > source\ndd if=source of=copy ibs=3 obs=2 conv=swab status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "block_unblock_records",
+      "kind": "parity",
+      "purpose": "Convert variable newline-delimited records to four-byte padded/truncated records and back, with small I/O blocks and a final record lacking a newline.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'A\\nABCDE\\nxyz' > records\ndd if=records of=fixed ibs=2 obs=3 cbs=4 conv=block status=none\ndd if=fixed of=roundtrip ibs=3 obs=2 cbs=4 conv=unblock status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ucase_sync_partial_block",
+      "kind": "parity",
+      "purpose": "Uppercase input bytes and NUL-pad the final partial two-byte input block, checking conversion order and binary file output.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'aZc' > source\ndd if=source of=copy ibs=2 obs=3 conv=ucase,sync status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip_count_bytes",
+      "kind": "parity",
+      "purpose": "Skip two input bytes and copy exactly three bytes despite different input and output block sizes.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf '0123456789' > source\ndd if=source of=copy ibs=4 obs=2 skip=2 count=3 iflag=skip_bytes,count_bytes status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "seek_notrunc_preserves_suffix",
+      "kind": "parity",
+      "purpose": "Write two bytes at output block offset three while conv=notrunc preserves the existing prefix and suffix of a relative fixture file.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'XY' > source\nprintf 'abcdefghij' > target\ndd if=source of=target bs=1 seek=3 conv=notrunc status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "append_to_existing_file",
+      "kind": "parity",
+      "purpose": "Preserve an existing relative fixture file with conv=notrunc and append input bytes at EOF with oflag=append, comparing the resulting contents and metadata with GNU dd.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'new' > source\nprintf 'old' > target\ndd if=source of=target conv=notrunc oflag=append status=none",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nocreat_missing_output",
+      "kind": "parity",
+      "purpose": "Request an output that does not exist with conv=nocreat; require GNU's failure status, a diagnostic, and no created output file.",
+      "requires": [
+        "dd"
+      ],
+      "script": "printf 'payload' > source\ndd if=source of=missing conv=nocreat status=none",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "type_metadata",
+      "kind": "contract",
+      "purpose": "Check Bash's documented type -t metadata identifies dd as a builtin.",
+      "script": "type -t dd",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help_metadata_available",
+      "kind": "contract",
+      "purpose": "Check Bash help resolves nonempty documentation for dd, as promised by the loadable's documented help interface.",
+      "script": "documentation=$(help dd)\n[[ -n $documentation ]]\nprintf 'help=available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help=available\n"
+    },
+    {
+      "id": "raw_device_copy",
+      "kind": "deferred",
+      "purpose": "Qualify dd's raw block-device read/write and seek boundaries without touching host hardware.",
+      "reason": "Requires a disposable VM with an exclusive loop device backed by a tiny seeded image and no host device passthrough. A future case must verify exact sectors written and unchanged bytes outside the requested range against an independent image reader. No device path is accessed here."
+    },
+    {
+      "id": "noerror_read_recovery",
+      "kind": "deferred",
+      "purpose": "Qualify conv=noerror,sync recovery after a deterministic input read error.",
+      "reason": "Requires a reviewed syscall or file-descriptor mock that injects one EIO into reads from a private fixture while allowing later reads. A future disposable test must compare recovery, padding, exit status, and output bytes with GNU dd under the same injected fault. This suite does not use devices or fault injection."
+    },
+    {
+      "id": "empty-and-zero-count",
+      "kind": "parity",
+      "purpose": "Empty input creates an empty output, and count=0 still opens and truncates an existing output.",
+      "script": "printf old > target\n: > empty\ndd if=empty of=empty-copy status=none\ndd if=empty of=target count=0 status=none",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "dd"
+      ]
+    },
+    {
+      "id": "exclusive-existing-output",
+      "kind": "parity",
+      "purpose": "Exclusive output creation fails and leaves all existing target bytes intact.",
+      "script": "printf input > source\nprintf preserved > target\nif dd if=source of=target conv=excl status=none; then rc=0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "dd"
+      ]
+    },
+    {
+      "id": "fullblock-pipe",
+      "kind": "parity",
+      "purpose": "Read two complete four-byte input blocks from a finite pipe and compare output bytes.",
+      "script": "printf 'abcdefghij' | dd of=copy ibs=4 obs=3 count=2 iflag=fullblock status=none",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "dd"
+      ]
+    }
+  ]
+}

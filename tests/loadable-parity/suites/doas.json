@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "loadable": "doas",
+  "reference": "No GNU doas CLI is available as an independent command oracle. Runnable expectations use Bash's documented type/help builtin behavior; the doas help bytes are transcribed from the static public builtin documentation in the implementation source, not sampled from the candidate. Privilege and delegation operations have no runnable oracle in this safe suite and are explicitly deferred.",
+  "coverage": [
+    "Bash identifies doas as a builtin through type -t.",
+    "Bash help can resolve the loadable's documentation entry.",
+    "The doas --help and -h metadata paths return the declared usage text and success status."
+  ],
+  "exclusions": [
+    "There is no matching GNU doas executable for command parity.",
+    "No doas operation is invoked: privilege transitions, authority ioctls, external command delegation, and command execution require a disposable VM or purpose-built mock.",
+    "This suite does not cover sudo, su, sudoedit, or any other loadable.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash's type -t builtin metadata reports the loaded doas command as a builtin.",
+      "script": "type -t doas",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash_help_entry",
+      "kind": "contract",
+      "purpose": "Confirm Bash help recognizes the doas builtin documentation entry; the marker is printed only after help succeeds.",
+      "script": "help doas >metadata-sink\nprintf 'help entry available\\n'",
+      "expected_status": 0,
+      "stdout": "help entry available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_spellings",
+      "kind": "contract",
+      "purpose": "Check both documented doas help spellings return success and print the declared builtin usage text byte-for-byte.",
+      "script": "doas --help\ndoas -h",
+      "expected_status": 0,
+      "stdout": "doas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\ndoas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "authority_policy_and_verification",
+      "kind": "deferred",
+      "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
+      "reason": "Requires a disposable VM with a purpose-built /dev/bashos-auth ioctl mock, deterministic private caller/target account rows, and a controlled verifier child. Capture the request fields and verify denied requests never start the command; no live authority device or password path is suitable here."
+    },
+    {
+      "id": "external_delegate_fallback",
+      "kind": "deferred",
+      "purpose": "Check the no-authority fallback's doas argv translation, status propagation, environment refresh, and descriptor cleanup.",
+      "reason": "Requires a disposable non-root VM and a harmless executable delegate created inside its private fixture directory. The delegate must record argv/environment/open descriptors and return selected statuses; no delegate or command is launched by this suite."
+    },
+    {
+      "id": "root_target_and_group_drop",
+      "kind": "deferred",
+      "purpose": "Verify root-route target uid/gid selection, explicit group membership handling, and the resulting child identity.",
+      "reason": "Requires a disposable VM or reviewed credential-syscall mock with private passwd/group rows and a non-root target account. Assertions must cover requested and effective uid/gid plus supplementary groups without changing host accounts or credentials."
+    },
+    {
+      "id": "child_argv_environment_status",
+      "kind": "deferred",
+      "purpose": "Verify command arguments remain literal and the child receives the documented scrubbed environment, closed inherited descriptors, and command status.",
+      "reason": "Requires the disposable credential-drop fixture above plus a harmless private command stub that reports argv/environment/fds and has controlled exit cases. Include empty, quoted, whitespace, and newline arguments; assert cleanup and status propagation in the VM only."
+    }
+  ]
+}

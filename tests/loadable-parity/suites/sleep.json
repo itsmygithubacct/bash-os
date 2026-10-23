@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "loadable": "sleep",
+  "reference": "GNU coreutils sleep from the runner's /usr PATH for parity cases. The elapsed-time fixture measures with Bash EPOCHREALTIME, independently of the sleep implementation. Metadata contracts use Bash type/help builtins and the documented sleep help text.",
+  "coverage": [
+    "Bash reports sleep as a builtin and exposes its documented help.",
+    "Zero and short fractional intervals, seconds suffix, and end-of-options handling.",
+    "The requested fractional delay reaches a conservative 10 ms lower bound using EPOCHREALTIME.",
+    "GNU's multiple-operand interval behavior and negative, malformed, and missing operand errors."
+  ],
+  "exclusions": [
+    "Exact diagnostic wording is not asserted; error cases require nonempty stderr and the GNU exit status.",
+    "Only short durations are run. Long intervals, sub-microsecond timing precision, and scheduling accuracy beyond the 10 ms lower bound are not claimed.",
+    "Signal interruption is deferred because it needs a separately reviewed child-only signal driver and explicit proof of process isolation."
+  ],
+  "cases": [
+    {
+      "id": "sleep_type_builtin",
+      "kind": "contract",
+      "purpose": "Verify Bash type metadata identifies the statically enabled sleep command as a builtin.",
+      "script": "type -t sleep",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sleep_help_contract",
+      "kind": "contract",
+      "purpose": "Verify help exposes the documented minimum-delay and GNU-style interval contract.",
+      "script": "doc=$(help sleep)\ncase $doc in\n  *\"Suspend execution for specified period.\"*\"GNU-style time intervals\"*) printf 'sleep help contract ok\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "sleep help contract ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sleep_zero",
+      "kind": "parity",
+      "purpose": "Check that a zero-second interval succeeds immediately.",
+      "script": "sleep 0\nprintf 'zero accepted\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_fractional_minimum",
+      "kind": "parity",
+      "purpose": "Check a fractional interval and independently confirm that at least 10 ms elapsed for a 20 ms request.",
+      "script": "start=$EPOCHREALTIME\nsleep 0.02\nend=$EPOCHREALTIME\nstart_s=${start%%.*}\nstart_f=${start#*.}\nend_s=${end%%.*}\nend_f=${end#*.}\nstart_us=$((10#$start_s * 1000000 + 10#$start_f))\nend_us=$((10#$end_s * 1000000 + 10#$end_f))\nelapsed_us=$((end_us - start_us))\n(( elapsed_us >= 10000 )) || exit 1\nprintf 'minimum delay observed\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 5,
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_seconds_suffix",
+      "kind": "parity",
+      "purpose": "Check GNU-style seconds suffix parsing on a short interval.",
+      "script": "sleep 0.003s\nprintf 'suffixed interval accepted\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_double_dash_zero",
+      "kind": "parity",
+      "purpose": "Check that -- ends option parsing before a valid zero interval.",
+      "script": "sleep -- 0\nprintf 'option terminator accepted\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_multiple_intervals",
+      "kind": "parity",
+      "purpose": "Check GNU sleep's documented behavior of summing multiple interval operands; a candidate rejection remains a compatibility failure.",
+      "script": "sleep 0 0\nprintf 'multiple intervals accepted\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_negative_interval",
+      "kind": "parity",
+      "purpose": "Check rejection of a negative interval and GNU's failure status.",
+      "script": "sleep -0.001",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_invalid_suffix",
+      "kind": "parity",
+      "purpose": "Check rejection of an unrecognized duration suffix.",
+      "script": "sleep 0.001x",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_missing_operand",
+      "kind": "parity",
+      "purpose": "Check GNU sleep's missing-operand error and status.",
+      "script": "sleep",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sleep_signal_interruption",
+      "kind": "deferred",
+      "purpose": "Qualify interrupted sleep behavior against GNU sleep.",
+      "reason": "Requires a future disposable VM or reviewed mock with a child-only SIGINT driver. That fixture must prove the signal targets only the sleeping child and compare GNU and candidate status and interruption behavior; no signal injection is available in the runner contract."
+    },
+    {
+      "id": "terminator-missing-operand",
+      "kind": "parity",
+      "purpose": "GNU sleep accepts an empty interval list after -- as a zero-duration sleep.",
+      "script": "sleep --",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "mixed-short-intervals",
+      "kind": "parity",
+      "purpose": "Accept multiple unit-suffixed and fractional intervals.",
+      "script": "sleep 0.003 0.0001m 0s 0h 0d; printf 'accepted\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "empty-interval",
+      "kind": "parity",
+      "purpose": "An empty interval is rejected.",
+      "script": "sleep ''",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "invalid-later-interval",
+      "kind": "parity",
+      "purpose": "A malformed later operand makes the command fail.",
+      "script": "sleep 0 invalid",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sleep"
+      ]
+    },
+    {
+      "id": "sum-delay-minimum",
+      "kind": "parity",
+      "purpose": "Verify multiple positive intervals are added using an independent conservative elapsed-time lower bound.",
+      "script": "start=${EPOCHREALTIME/./}\nsleep 0.01 0.01\nend=${EPOCHREALTIME/./}\n((10#$end - 10#$start >= 15000))\nprintf 'sum delay observed\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sleep"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "bashkmod",
+  "reference": "System Bash type/help builtins for metadata contracts; an independent Bash glob matcher for the simple shell patterns in a private modules.alias fixture; an independent Bash DFS over the documented modules.dep format; and GNU find/sort/mkdir/ln to encode the documented weak-updates symlink behavior. Synthetic info expectations follow the documented sysfs field/parameter contract. No reference expectation is copied from bashkmod output. The depmod output_deps implementation serializes all sorted transitive dependencies: https://github.com/kmod-project/kmod/blob/master/tools/depmod.c .",
+  "coverage": [
+    "Bash builtin availability and public help metadata without invoking a module operation.",
+    "Fixture-only aliases wildcard matching and file-order output.",
+    "Fixture-only modules.dep dependency order, including compressed suffixes and nested dependencies, checked with an independent Bash DFS encoder.",
+    "weak-modules materialization of relative symlinks inside the private fixture tree.",
+    "info and --params against a synthetic BASHKMOD_SYS_MODULE_DIR tree.",
+    "Usable relative weak-updates links: independent ln -sr reference, dereferenced file bytes and target comparison."
+  ],
+  "exclusions": [
+    "No real finit_module or delete_module calls, and no non-dry-run modprobe.",
+    "No live /proc/modules or /sys/module state; list and live info need a controlled disposable kernel.",
+    "No modprobe install/remove policy command execution.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "type-is-builtin",
+      "kind": "contract",
+      "purpose": "Bash type -t must classify the statically registered bashkmod as a builtin; this checks metadata only.",
+      "script": "type -t bashkmod",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "help-docs-public-verbs",
+      "kind": "contract",
+      "purpose": "Bash help must expose the documented bashkmod verbs and usage forms without invoking them.",
+      "script": "doc=$(help bashkmod)\n[[ $doc == *\"bashkmod load PATH [PARAMS]\"* ]]\n[[ $doc == *\"bashkmod modprobe\"* ]]\n[[ $doc == *\"bashkmod resolve NAME\"* ]]\n[[ $doc == *\"bashkmod unload NAME\"* ]]\n[[ $doc == *\"bashkmod list\"* ]]\n[[ $doc == *\"bashkmod info\"* ]]\n[[ $doc == *\"bashkmod deps NAME\"* ]]\n[[ $doc == *\"bashkmod aliases MODALIAS\"* ]]\n[[ $doc == *\"bashkmod policy NAME\"* ]]\n[[ $doc == *\"bashkmod weak-modules\"* ]]\nprintf '%s\\n' 'help contains all documented verbs'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "help contains all documented verbs\n"
+    },
+    {
+      "id": "aliases-shell-globs",
+      "kind": "parity",
+      "purpose": "Match multiple fixture aliases using shell-style * patterns and preserve modules.alias file order; reference branch independently applies Bash glob matching.",
+      "requires": [
+        "bash"
+      ],
+      "script": "modalias='pci:v00008086d00001234sv00000001sd00000002bc01sc02i03'\nprintf '%s\\n' \\\n  '# private aliases fixture' \\\n  'alias pci:v00008086d00001234sv00000001* first_mod' \\\n  'alias pci:v00008086d00001234sv00000001sd00000002* second_mod' \\\n  'alias pci:v00008086d00001234sv00000001sd00000002bc* third_mod' \\\n  'options ignored-module debug=1' > modules.alias\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_DIR=. bashkmod aliases \"$modalias\"\nelse\n  while IFS=$' \\t' read -r directive pattern module remainder; do\n    if [[ $directive != alias || -z $pattern || -z $module ]]; then\n      continue\n    fi\n    if [[ $modalias == $pattern ]]; then\n      printf '%s\\n' \"$module\"\n    fi\n  done < modules.alias\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": true
+    },
+    {
+      "id": "deps-compressed-direct",
+      "kind": "parity",
+      "purpose": "Read a direct dependency with a compressed suffix and compare its load order with an independent Bash graph traversal.",
+      "requires": [
+        "bash"
+      ],
+      "script": "printf '%s\\n' \\\n  'kernel/driver/root.ko: kernel/driver/dep.ko.xz' \\\n  'kernel/driver/dep.ko.xz:' > modules.dep\ntarget=root\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_DIR=. bashkmod deps \"$target\"\nelse\n  declare -A deps seen\n  module_name() {\n    local path=${1##*/}\n    case \"$path\" in\n      *.ko.zst) path=${path%.ko.zst} ;;\n      *.ko.xz) path=${path%.ko.xz} ;;\n      *.ko.gz) path=${path%.ko.gz} ;;\n      *.ko) path=${path%.ko} ;;\n    esac\n    printf '%s\\n' \"$path\"\n  }\n  while IFS= read -r line; do\n    if [[ $line != *:* ]]; then continue; fi\n    lhs=${line%%:*}\n    rhs=${line#*:}\n    owner=$(module_name \"$lhs\")\n    deps[$owner]=$rhs\n  done < modules.dep\n  visit() {\n    local name=$1 path dep\n    if [[ ${seen[$name]+x} ]]; then return 0; fi\n    seen[$name]=1\n    for path in ${deps[$name]-}; do\n      dep=$(module_name \"$path\")\n      visit \"$dep\"\n    done\n    printf '%s\\n' \"$name\"\n  }\n  visit \"$target\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": true
+    },
+    {
+      "id": "deps-nested-chain",
+      "kind": "parity",
+      "purpose": "Check a nested dependency with the transitive closure encoded in each modules.dep row, as depmod produces; compare against an independent graph traversal.",
+      "requires": [
+        "bash"
+      ],
+      "script": "printf '%s\\n' \\\n  'kernel/driver/root.ko: kernel/driver/middle.ko.xz kernel/driver/leaf.ko' \\\n  'kernel/driver/middle.ko.xz: kernel/driver/leaf.ko' \\\n  'kernel/driver/leaf.ko:' > modules.dep\ntarget=root\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_DIR=. bashkmod deps \"$target\"\nelse\n  declare -A deps seen\n  module_name() {\n    local path=${1##*/}\n    case \"$path\" in\n      *.ko.zst) path=${path%.ko.zst} ;;\n      *.ko.xz) path=${path%.ko.xz} ;;\n      *.ko.gz) path=${path%.ko.gz} ;;\n      *.ko) path=${path%.ko} ;;\n    esac\n    printf '%s\\n' \"$path\"\n  }\n  while IFS= read -r line; do\n    if [[ $line != *:* ]]; then continue; fi\n    lhs=${line%%:*}\n    rhs=${line#*:}\n    owner=$(module_name \"$lhs\")\n    deps[$owner]=$rhs\n  done < modules.dep\n  visit() {\n    local name=$1 path dep\n    if [[ ${seen[$name]+x} ]]; then return 0; fi\n    seen[$name]=1\n    for path in ${deps[$name]-}; do\n      dep=$(module_name \"$path\")\n      visit \"$dep\"\n    done\n    printf '%s\\n' \"$name\"\n  }\n  visit \"$target\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": true
+    },
+    {
+      "id": "weak-modules-fixture-links",
+      "kind": "parity",
+      "purpose": "Materialize weak-updates links from a relative private module root. GNU find/sort/mkdir and ln -sr independently build usable links into the source tree; compare target strings as well as contents and modes.",
+      "requires": [
+        "find",
+        "sort",
+        "mkdir",
+        "ln"
+      ],
+      "script": "root=fixture/modules\nmkdir -p \"$root/src/nested\"\nprintf '%s\\n' 'one' > \"$root/src/z.ko\"\nprintf '%s\\n' 'two' > \"$root/src/nested/a.ko.xz\"\nprintf '%s\\n' 'skip' > \"$root/src/readme.txt\"\nif [[ $(type -t bashkmod) == builtin ]]; then\n  BASHKMOD_MODULES_ROOT=\"$root\" bashkmod weak-modules src dst\nelse\n  srcdir=\"$root/src\"\n  dstdir=\"$root/dst/weak-updates\"\n  mkdir -p \"$dstdir\"\n  while IFS= read -r srcpath; do\n    rel=${srcpath#\"$srcdir\"/}\n    dest=\"$dstdir/$rel\"\n    mkdir -p \"${dest%/*}\"\n    printf 'ln -s %s %s\\n' \"$srcpath\" \"$dest\"\n    ln -sr \"$srcpath\" \"$dest\"\n  done < <(find \"$srcdir\" -type f \\( -name '*.ko' -o -name '*.ko.xz' -o -name '*.ko.gz' -o -name '*.ko.zst' \\) -print | sort)\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "compare_tree": true
+    },
+    {
+      "id": "info-synthetic-sysfs-fields",
+      "kind": "contract",
+      "purpose": "Read documented fields and alphabetically ordered parameters from a private synthetic sysfs-shaped tree; no live /sys or kernel module is used.",
+      "script": "sysroot=fixture/sys-module\nmkdir -p \"$sysroot/demo/parameters\"\nprintf '%s\\n' 4096 > \"$sysroot/demo/coresize\"\nprintf '%s\\n' live > \"$sysroot/demo/initstate\"\nprintf '%s\\n' 0 > \"$sysroot/demo/refcnt\"\nprintf '%s\\n' fixture-1 > \"$sysroot/demo/version\"\nprintf '%s\\n' last > \"$sysroot/demo/parameters/zeta\"\nprintf '%s\\n' first > \"$sysroot/demo/parameters/alpha\"\n: > \"$sysroot/demo/parameters/empty\"\nBASHKMOD_SYS_MODULE_DIR=\"$sysroot\" bashkmod info demo",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "coresize=4096\ninitstate=live\nrefcnt=0\nversion=fixture-1\nparam.alpha=first\nparam.empty=\nparam.zeta=last\n"
+    },
+    {
+      "id": "info-params-only",
+      "kind": "contract",
+      "purpose": "Check the documented --params mode against the same synthetic sysfs contract, including sorting and empty parameter values.",
+      "script": "sysroot=fixture/sys-module\nmkdir -p \"$sysroot/demo/parameters\"\nprintf '%s\\n' last > \"$sysroot/demo/parameters/zeta\"\nprintf '%s\\n' first > \"$sysroot/demo/parameters/alpha\"\n: > \"$sysroot/demo/parameters/empty\"\nBASHKMOD_SYS_MODULE_DIR=\"$sysroot\" bashkmod info --params demo",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "param.alpha=first\nparam.empty=\nparam.zeta=last\n"
+    },
+    {
+      "id": "defer-kernel-module-transitions",
+      "kind": "deferred",
+      "purpose": "Load/unload and non-dry-run modprobe mutate kernel module state.",
+      "reason": "Run only in a future disposable VM booted with a purpose-built test kernel and disposable modules, with CAP_SYS_MODULE and a snapshot/revert boundary. Compare load/unload state transitions with kmod insmod/rmmod/modprobe or a reviewed syscall mock that records finit_module and delete_module. The current fixture runner denies these syscalls, and host/kernel module changes are explicitly out of scope."
+    },
+    {
+      "id": "defer-live-module-inventory",
+      "kind": "deferred",
+      "purpose": "bashkmod list reads the live /proc/modules file; live info reads kernel-owned sysfs state.",
+      "reason": "A future disposable VM or reviewed procfs/sysfs mock must provide a deterministic set of loaded test modules. Compare list output with lsmod and info fields with the corresponding synthetic/live sysfs values. The current list command has no path override for /proc/modules, and changing kernel module state to seed it is prohibited here."
+    },
+    {
+      "id": "defer-policy-command-effects",
+      "kind": "deferred",
+      "purpose": "modprobe policy can select soft dependencies and may execute configured install/remove argv while applying module actions.",
+      "reason": "Use a future isolated modules tree plus a reviewed execve and module-syscall mock that records helper argv, dependency order, blacklist decisions, and load/unload requests. Compare planning with kmod modprobe --dry-run/--show-depends. Do not run against host modprobe.d files or a live kernel."
+    },
+    {
+      "id": "weak-modules-usable-relative-links",
+      "kind": "parity",
+      "purpose": "Weak-updates links created from a relative private module root must resolve to the original file bytes. GNU ln -sr independently builds usable relative links; compare raw action rows, link targets and dereferenced bytes.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cat"
+      ],
+      "script": "mkdir -p modules/src\nprintf 'module fixture bytes\\n' > modules/src/a.ko\nif [[ $(type -t bashkmod) == builtin ]]; then\n BASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst\nelse\n mkdir -p modules/dst/weak-updates\n printf 'ln -s %s %s\\n' modules/src/a.ko modules/dst/weak-updates/a.ko\n ln -sr modules/src/a.ko modules/dst/weak-updates/a.ko\nfi\ncat modules/dst/weak-updates/a.ko",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "weak-modules-relative-root-spaces",
+      "kind": "parity",
+      "purpose": "Relative module roots containing spaces and a dot component still produce usable nested links with the same target bytes as independent GNU ln -sr. Only synthetic ordinary dummy module files are used.",
+      "requires": [
+        "mkdir",
+        "ln",
+        "cat"
+      ],
+      "script": "root='module root/./parts'\nmkdir -p \"$root/src/nested\"\nprintf 'dummy nested bytes\\n' > \"$root/src/nested/a.ko\"\nif [[ $(type -t bashkmod) == builtin ]]; then\n BASHKMOD_MODULES_ROOT=\"$root\" bashkmod weak-modules src dst\nelse\n mkdir -p \"$root/dst/weak-updates/nested\"\n printf 'ln -s %s %s\\n' \"$root/src/nested/a.ko\" \"$root/dst/weak-updates/nested/a.ko\"\n ln -sr \"$root/src/nested/a.ko\" \"$root/dst/weak-updates/nested/a.ko\"\nfi\ncat \"$root/dst/weak-updates/nested/a.ko\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "weak-modules-dry-run-and-matching-link",
+      "kind": "contract",
+      "purpose": "The authorized branch dry run prints an action without creating destination paths; normal runs produce a usable relative link and accept that same matching link on a repeated call.",
+      "script": "mkdir -p modules/src\nprintf 'dummy bytes\\n' > modules/src/a.ko\nactions=$(BASHKMOD_MODULES_ROOT=modules bashkmod weak-modules -n src dst)\n[[ $actions == 'ln -s modules/src/a.ko modules/dst/weak-updates/a.ko' && ! -e modules/dst ]]\nBASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst > first-actions\nBASHKMOD_MODULES_ROOT=modules bashkmod weak-modules src dst > second-actions\n[[ -L modules/dst/weak-updates/a.ko ]]\nIFS= read -r payload < modules/dst/weak-updates/a.ko\n[[ $payload == 'dummy bytes' ]]\nprintf 'dry run and repeated relative link matched\\n'",
+      "expected_status": 0,
+      "stdout": "dry run and repeated relative link matched\n",
+      "stderr": "empty"
+    }
+  ]
+}

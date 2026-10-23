@@ -174,7 +174,7 @@ bcu_usage (const char *verb)
   else if (strcmp (verb, "numfmt") == 0)
     builtin_error ("usage: coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N");
   else if (strcmp (verb, "shred") == 0)
-    builtin_error ("usage: coreutils shred [-n N] [-z] [-u] [-s SIZE] FILE...");
+    builtin_error ("usage: coreutils shred [-n N] [-z] [-u] [-x] [-s SIZE] FILE...");
   else if (strcmp (verb, "groups") == 0)
     builtin_error ("usage: coreutils groups [USER...]");
   else if (strcmp (verb, "install") == 0)
@@ -1321,6 +1321,7 @@ bcu_numfmt_cmd (WORD_LIST *list)
  *   -n N    pass count (default 3)
  *   -z      add a final zero-fill pass
  *   -u      unlink after writing
+ *   -x      exact size (also the default; no block-size rounding)
  *   -s SZ   treat file as SZ bytes long (rare; default = current size)
  * =================================================================== */
 
@@ -1389,6 +1390,8 @@ bcu_shred_cmd (WORD_LIST *list)
       const char *a = w->word->word;
       if (strcmp (a, "-n") == 0 && w->next)
         { w = w->next; long long v; if (!bcu_parse_ll (w->word->word, &v) || v < 0 || v >= INT_MAX) { builtin_error ("shred: bad -n"); bcu_usage ("shred"); return EX_USAGE; } passes = (int) v; continue; }
+      /* This implementation always writes the exact requested/current size. */
+      if (strcmp (a, "-x") == 0 || strcmp (a, "--exact") == 0) continue;
       if (strcmp (a, "-z") == 0) { zero_pass = 1; continue; }
       if (strcmp (a, "-u") == 0) { unlink_after = 1; continue; }
       if (strcmp (a, "-s") == 0 && w->next)
@@ -1962,7 +1965,7 @@ char *coreutils_doc[] = {
   "    coreutils tsort  [FILE]",
   "    coreutils nproc  [--all] [--ignore=N]",
   "    coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N",
-  "    coreutils shred  [-n N] [-z] [-u] [-s SIZE] FILE...",
+  "    coreutils shred  [-n N] [-z] [-u] [-x] [-s SIZE] FILE...",
   "    coreutils groups [USER...]",
   "    coreutils install [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] SRC... DST",
   "    coreutils mknod  [-m MODE] PATH {b|c|p} [MAJ MIN]",

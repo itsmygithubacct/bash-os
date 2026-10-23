@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "loadable": "dmsetup",
+  "reference": "Runnable expectations use documented Bash type/help builtin behavior and the dmsetup builtin's published help contract; expected sentinels are fixed in this suite and do not come from candidate output. Device-mapper operation expectations are deferred for comparison against the LVM2 dmsetup CLI and an independently decoded Linux Device Mapper ioctl model in a future disposable VM or reviewed mock.",
+  "coverage": [
+    "Bash reports dmsetup as a builtin using both type -t and type descriptions.",
+    "Bash help metadata exposes the documented dmsetup description, command families, and mutation opt-in requirement.",
+    "Deferred plans cover query output, table input and loading, state changes, removal, rename and messages, and ioctl/error behavior.",
+    "Metadata only; operation coverage is zero. Deferred cases are future qualification requirements."
+  ],
+  "exclusions": [
+    "No dmsetup operation is invoked: queries and mutations communicate with the kernel device-mapper control interface, and mutations can alter block-device state.",
+    "Real device behavior, target-specific message handling, udev coordination, and open-device removal require a disposable VM or reviewed ioctl mock.",
+    "There is no runnable parity oracle for the loadable's metadata in system Bash, which does not register this custom builtin."
+  ],
+  "cases": [
+    {
+      "id": "type-token",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the registered dmsetup command as a builtin.",
+      "script": "type -t dmsetup",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-description",
+      "kind": "contract",
+      "purpose": "Bash type must describe dmsetup as a shell builtin, matching its documented command registration.",
+      "script": "type dmsetup",
+      "expected_status": 0,
+      "stdout": "dmsetup is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-description",
+      "kind": "contract",
+      "purpose": "The -d help view must expose the documented short description for dmsetup.",
+      "script": "description=$(help -d dmsetup)\ncase \"$description\" in\n  *\"Low-level device-mapper control.\"*) printf 'dmsetup short help description is present\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "dmsetup short help description is present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis-policy",
+      "kind": "contract",
+      "purpose": "Full help must include the documented query and mutation command families and the explicit mutation opt-in policy.",
+      "script": "doc=$(help dmsetup)\ncase \"$doc\" in\n  *\"dmsetup ls|info|table|status|deps|targets|version [ARGS...]\"*\"dmsetup create|load|reload|remove|remove_all|suspend|resume|rename|message|clear|wipe_table ...\"*\"Mutating commands require root and BASHOS_DMSETUP_ALLOW_MUTATE=1.\"*) printf 'dmsetup help synopsis and policy are present\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "dmsetup help synopsis and policy are present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-list-info",
+      "kind": "deferred",
+      "purpose": "Compare empty and populated ls/info results, name and UUID lookup, device state, and no-device behavior.",
+      "reason": "Requires a disposable VM with a private device-mapper control interface and controlled empty/named devices, or a reviewed ioctl/sysfs mock. Compare output and statuses with the LVM2 dmsetup CLI against the same fixture. This runner does not expose that kernel interface, so no query is invoked here."
+    },
+    {
+      "id": "query-tables-deps-targets",
+      "kind": "deferred",
+      "purpose": "Check active/inactive table and status formatting, target filtering, dependency lists, target versions, and crypt key redaction.",
+      "reason": "Requires a disposable VM or reviewed ioctl mock that supplies deterministic multi-target tables, dependencies, target versions, and crypt records. Compare table/status/deps/targets/version output with the LVM2 dmsetup CLI and use independently specified expected records. No device query is run in this suite."
+    },
+    {
+      "id": "table-input-create-load",
+      "kind": "deferred",
+      "purpose": "Exercise create/load/reload from inline text, a small relative table file, and stdin, including flags and rollback after activation failure.",
+      "reason": "Requires a disposable VM with an isolated device-mapper instance and a VM-local backing device, or a reviewed ioctl mock that records requests and injects load/resume failures. The future fixture should use a small relative file inside its private work directory and compare valid table encoding against an independent ABI encoder plus the LVM2 dmsetup CLI behavior. No mutation is attempted here."
+    },
+    {
+      "id": "table-invalid-input",
+      "kind": "deferred",
+      "purpose": "Verify malformed table rows and boundary values fail before a table-load ioctl, including invalid numbers, missing target fields, NUL input, and oversized text.",
+      "reason": "Requires a reviewed ioctl mock that records whether any request was sent, plus small relative fixture files for file-input cases and documented dmsetup/libdevmapper expectations. The operation path is not executed because dmsetup's load command reaches the kernel interface when mutation is enabled."
+    },
+    {
+      "id": "state-flags-removal",
+      "kind": "deferred",
+      "purpose": "Check suspend/resume flags, clear versus wipe behavior, forced removal, deferred removal, remove_all, and continuation across per-device errors.",
+      "reason": "Requires a disposable VM with private mapped devices and an open-holder fixture for busy/deferred removal, or a reviewed stateful ioctl mock for flags and injected failures. Expected transitions should be checked against the LVM2 dmsetup CLI and kernel ABI definitions. No state-changing command is run here."
+    },
+    {
+      "id": "rename-message",
+      "kind": "deferred",
+      "purpose": "Check name and UUID rename requests, validation of invalid names, sector/message payloads, and target message replies.",
+      "reason": "Requires a disposable VM with a target that accepts a deterministic message and isolated mapped devices, or a reviewed ioctl mock that verifies payload bytes and returns controlled replies. Compare CLI behavior with the LVM2 dmsetup CLI and encode request expectations independently. No rename or message is sent here."
+    },
+    {
+      "id": "ioctl-errors-buffering",
+      "kind": "deferred",
+      "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
+      "reason": "Requires a reviewed ioctl mock that can inject errno values, correctly shaped kernel replies, buffer-full responses, and malformed records; expected bytes must come from Linux Device Mapper ABI definitions and an independent decoder. This suite does not open the kernel control interface or inject a mock."
+    },
+    {
+      "id": "udev-real-device-qualification",
+      "kind": "deferred",
+      "purpose": "Qualify real target activation, udev node coordination, retry behavior, and output fields that depend on device nodes.",
+      "reason": "Requires a disposable VM with a private device-mapper kernel instance, VM-local backing devices, and controlled udev behavior. The published docs identify udev synchronization/node management and several report options as unimplemented or ignored; this case records the integration gap without claiming a pass."
+    }
+  ]
+}

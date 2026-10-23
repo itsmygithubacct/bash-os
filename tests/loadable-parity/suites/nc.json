@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "loadable": "nc",
+  "reference": "Bash type/help metadata and the documented custom nc connect/listen/scan parser contract. Safe invalid-argument cases return before address resolution or socket creation. There is no matching GNU CLI; all socket operations remain deferred.",
+  "coverage": [
+    "Bash metadata reports nc as a builtin with no PATH executable resolution.",
+    "Bash help exposes the documented nc verbs, options, constraints and deferred features.",
+    "Deferred TCP connect transfer and idle timeout behavior.",
+    "Deferred explicit-address, one-peer TCP listener behavior.",
+    "Deferred UDP request/reply and first-peer response behavior.",
+    "Deferred TCP scan open/closed range output and status behavior.",
+    "Deferred usage and decimal range validation.",
+    "Safe missing-operand/unknown-verb and invalid-wait parser contracts; no socket or DNS activity."
+  ],
+  "exclusions": [
+    "No network or authentication operation executes; parser cases lack required peer operands and return before socket/DNS calls.",
+    "No matching GNU netcat CLI implements this custom verb API.",
+    "TCP/UDP operation coverage requires a future disposable VM with a reviewed socket mock; metadata and parser results are not transfer/listener/scan coverage.",
+    "Proxy, TLS, keep-listen and broker/relay modes are outside the documented v1 interface."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-t",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies nc as a builtin when candidate execution has an empty PATH.",
+      "script": "type -t nc",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "metadata-type-a",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports only the builtin definition and does not resolve an executable through PATH.",
+      "script": "type -a nc",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "nc is a shell builtin\n"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Check help output against the documented nc_doc contract, including the verb synopsis, explicit listen address, timeout semantics and v1 limitations.",
+      "script": "help nc",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "nc: nc\n    Netcat-style TCP/UDP scratch tool (subset).\n    \n        nc connect HOST PORT [-u] [-w SECS]   TCP/UDP client\n        nc listen  PORT -s ADDR [-u] [-w SECS]   bind + accept-one (TCP) / recv (UDP)\n        nc scan    HOST FIRST [LAST] [-w SECS]   -z TCP port scan\n        nc --version\n    -w bounds TCP connect/accept, writes and idle reads (timeout returns 1);\n    for UDP it sets the reply drain window after stdin EOF. Zero uses defaults.\n    \n    Multiplexes stdin and the socket via epoll(7). Listen mode requires\n    explicit `-s ADDR`; use `-s 127.0.0.1` for loopback or `-s 0.0.0.0`\n    to expose externally. v1 always exits after the first connection (no -k);\n    SOCKS proxy, TLS, broker mode, and named-pipe wiring are deferred.\n"
+    },
+    {
+      "id": "deferred-tcp-connect-stream",
+      "kind": "deferred",
+      "purpose": "Exercise TCP connect mode's binary stdin-to-peer stream, EOF half-close, peer-to-stdout stream and clean success status.",
+      "reason": "Requires a future disposable VM with a private loopback-only network namespace or a reviewed socket mock. An independent controlled TCP peer must record the exact small input bytes through EOF, send a fixed reply, then close; assert nc returns 0 and stdout equals the reply byte-for-byte. Do not use a host or external network target."
+    },
+    {
+      "id": "deferred-tcp-idle-timeout",
+      "kind": "deferred",
+      "purpose": "Exercise the documented finite -w timeout while a connected TCP peer accepts but stays idle, including failure status and shell continuation.",
+      "reason": "Requires a future disposable VM or reviewed loopback socket mock with a controlled TCP peer that accepts and withholds data beyond a small -w interval. Assert the documented timeout failure and that a following shell command runs. No network operation is run in this suite."
+    },
+    {
+      "id": "deferred-tcp-listen-one-peer",
+      "kind": "deferred",
+      "purpose": "Exercise TCP listen mode's mandatory explicit -s address, one accepted peer, bidirectional streaming and v1 exit after that peer.",
+      "reason": "Requires a future disposable VM or reviewed loopback socket mock with an ephemeral private port and a controlled client. Verify the listener binds only the requested loopback address, transfers deterministic bytes in both directions, and ends after the first peer rather than waiting for a second connection. Do not bind a host or externally reachable address."
+    },
+    {
+      "id": "deferred-udp-connect-reply",
+      "kind": "deferred",
+      "purpose": "Exercise UDP connect mode's request payload and post-stdin-EOF reply drain window.",
+      "reason": "Requires a future disposable VM or reviewed loopback UDP mock. A deterministic responder must capture the exact small datagram and reply with fixed bytes; assert nc emits those bytes before the documented drain window closes. Keep the peer private to the disposable fixture."
+    },
+    {
+      "id": "deferred-udp-listen-peer-cache",
+      "kind": "deferred",
+      "purpose": "Exercise UDP listen mode's first-datagram source caching and response of stdin bytes to that peer.",
+      "reason": "Requires a future disposable VM or reviewed UDP socket mock with two controlled loopback senders. Verify received datagram bytes reach stdout and the response goes only to the first sender whose source was cached; verify bounded exit after stdin EOF. No external peer is permitted."
+    },
+    {
+      "id": "deferred-tcp-scan-range",
+      "kind": "deferred",
+      "purpose": "Exercise TCP scan over a small range containing one controlled open and one closed loopback port, plus the documented closed-only result.",
+      "reason": "Requires a future disposable VM or reviewed private socket mock that provides one known open listener and a known closed port. Independently assert one `PORT open` line per open port, no other stdout, status 0 when any port is open, and status 1 with empty stdout for a closed-only scan. Never scan a host or outside target."
+    },
+    {
+      "id": "deferred-usage-validation",
+      "kind": "deferred",
+      "purpose": "Exercise documented usage failures for missing operands, malformed or out-of-range decimal ports, reversed scan ranges and invalid -w values before any socket action.",
+      "reason": "Requires a future disposable VM or reviewed syscall/socket mock that can assert invalid arguments are rejected without DNS or socket activity. Check the documented usage status (2) for representative small invalid inputs and keep stdout empty; this loadable is not invoked here."
+    },
+    {
+      "id": "parser-missing-arguments",
+      "kind": "contract",
+      "script": "for verb in connect listen scan unknown; do\n if nc \"$verb\"; then rc=0; else rc=$?; fi\n printf '%s=%s\\n' \"$verb\" \"$rc\"\n [[ $rc == 2 ]]\ndone",
+      "stdout": "connect=2\nlisten=2\nscan=2\nunknown=2\n",
+      "purpose": "Missing required arguments and unknown verbs return before address resolution or socket creation, as verified by source control flow; diagnostics remain visible.",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "parser-invalid-wait",
+      "kind": "contract",
+      "script": "for value in -1 nope 1.5; do\n if nc connect -w \"$value\"; then rc=0; else rc=$?; fi\n printf '%s\\n' \"$rc\"\n [[ $rc == 2 ]]\ndone",
+      "stdout": "2\n2\n2\n",
+      "purpose": "Invalid wait values reject during argument parsing; no host or port operand is supplied and no network call can follow.",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

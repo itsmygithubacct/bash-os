@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "loadable": "killall5",
+  "reference": "Contract expectations use Bash's documented type/command resolution and help synopsis behavior. The synopsis is independently taken from the published loadable catalog (killall5|killall5 -SIG), with Bash short-help formatting documented in the Bash loadable metadata contract. No GNU killall5 CLI exists as an oracle; the SysV killall5 operation is process control and is deferred.",
+  "coverage": [
+    "Executed coverage is Bash availability/help metadata only; no operational behavior is counted as a pass.",
+    "Bash identifies killall5 as a builtin with type -t.",
+    "Bash resolves killall5 by name with command -v when candidate PATH is empty.",
+    "Bash short help exposes the catalog synopsis for killall5."
+  ],
+  "exclusions": [
+    "No matching GNU CLI oracle is available for killall5, so there are no parity cases.",
+    "The suite does not walk /proc or invoke killall5 operational options, including --dry-run.",
+    "No process signals are sent; operation behavior requires a future disposable PID namespace with a reviewed proc/signal mock or owned sacrificial processes."
+  ],
+  "cases": [
+    {
+      "id": "type_builtin",
+      "kind": "contract",
+      "purpose": "Bash type -t must classify the compiled loadable as a builtin.",
+      "script": "type -t killall5",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command_resolution",
+      "kind": "contract",
+      "purpose": "Bash command -v must resolve the builtin by its command name without relying on an external executable in PATH.",
+      "script": "command -v killall5",
+      "expected_status": 0,
+      "stdout": "killall5\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short_help_synopsis",
+      "kind": "contract",
+      "purpose": "Bash short help must publish the loadable catalog synopsis; the expected text comes from the catalog entry killall5|killall5 -SIG.",
+      "script": "help -s killall5",
+      "expected_status": 0,
+      "stdout": "killall5: killall5 -SIG\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "dry_run_selection",
+      "kind": "deferred",
+      "purpose": "Verify read-only target selection and omit-list handling without enumerating the runner's process set.",
+      "reason": "Requires a future disposable PID-namespace VM or reviewed /proc fixture adapter plus an independent selection oracle. Exercise --dry-run with synthetic entries covering caller-session and self exclusion, empty-cmdline kernel-thread exclusion, omitted PIDs, malformed/disappearing records, and eligible outside-session PIDs. This suite does not invoke the operation."
+    },
+    {
+      "id": "signal_delivery",
+      "kind": "deferred",
+      "purpose": "Verify the broadcast signal selection, omit-list behavior, and failure handling without sending signals to the runner's process set.",
+      "reason": "Requires a future disposable PID-namespace VM with a reviewed kill(2) interceptor or explicitly owned sacrificial children and an independent expected-call oracle. Verify default and named signal numbers, excluded session/self/omitted PIDs, and injected ESRCH/EPERM outcomes. Never target host or general runner processes; this suite does not invoke signal delivery."
+    }
+  ]
+}

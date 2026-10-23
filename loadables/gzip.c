@@ -13,23 +13,32 @@
 
 struct gzip_options { int decode, stdout_mode, keep, force, test, no_name, level, quiet; const char *suffix; };
 
+static int gzip_same_input(const struct stat *a, const struct stat *b)
+{
+    return a->st_dev == b->st_dev && a->st_ino == b->st_ino &&
+        a->st_size == b->st_size && a->st_mtim.tv_sec == b->st_mtim.tv_sec &&
+        a->st_mtim.tv_nsec == b->st_mtim.tv_nsec;
+}
+
 static int gzip_one(const char *file, const struct gzip_options *o)
 {
     int from_stdin = !strcmp(file, "-");
-    int in = from_stdin ? 0 : open(file, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    int filter = from_stdin || o->stdout_mode || o->test;
+    struct stat entry;
+    int followed_link = !filter && o->force && lstat(file, &entry) == 0 && S_ISLNK(entry.st_mode);
+    /* GNU treats an unforced named-input symlink as an open error, even
+       under -q. Filters and explicit -f may follow the input link. */
+    int flags = O_RDONLY | O_CLOEXEC | O_NONBLOCK;
+    if (!filter && !o->force) flags |= O_NOFOLLOW;
+    int in = from_stdin ? 0 : open(file, flags);
     if (in < 0) { builtin_error("%s: %s", file, strerror(errno)); return 1; }
     struct stat st;
     if (fstat(in, &st)) { if (in) close(in); return 1; }
-    int filter = from_stdin || o->stdout_mode || o->test;
     if (!filter && (!S_ISREG(st.st_mode) || (!o->force && st.st_nlink > 1))) {
         if (!o->quiet) builtin_error("%s: not a regular file with a single link -- unchanged", file);
         close(in); return 2;
     }
     struct stat lst;
-    if (!filter && lstat(file, &lst) == 0 && S_ISLNK(lst.st_mode)) {
-        if (!o->quiet) builtin_error("%s: symbolic link -- unchanged", file);
-        close(in); return 2;
-    }
     if (!o->force && ((from_stdin && o->decode && isatty(0)) || (filter && !o->decode && !o->test && isatty(1)))) {
         builtin_error("refusing compressed data on a terminal; use -f to override");
         if (in) close(in); return 1;
@@ -83,9 +92,14 @@ static int gzip_one(const char *file, const struct gzip_options *o)
             if (o->force ? rename(temp, dest) : link(temp, dest)) {
                 builtin_error("%s: %s", dest, strerror(errno)); rc = 1;
             } else if (!o->keep) {
-                if (lstat(file, &lst) || lst.st_dev != st.st_dev || lst.st_ino != st.st_ino ||
-                    lst.st_size != st.st_size || lst.st_mtim.tv_sec != st.st_mtim.tv_sec ||
-                    lst.st_mtim.tv_nsec != st.st_mtim.tv_nsec) {
+                struct stat current;
+                int unchanged = lstat(file, &lst) == 0;
+                if (followed_link)
+                    unchanged = unchanged && gzip_same_input(&lst, &entry) &&
+                        fstat(in, &current) == 0 && gzip_same_input(&current, &st);
+                else
+                    unchanged = unchanged && gzip_same_input(&lst, &st);
+                if (!unchanged) {
                     builtin_error("%s changed while processing -- input retained", file); rc = 1;
                 } else if (unlink(file)) { builtin_error("%s: %s", file, strerror(errno)); rc = 1; }
             }

@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "loadable": "taskset",
+  "reference": "GNU util-linux taskset from the runner's read-only /usr tree is the independent oracle for parse-time error cases. Bash builtin type/help output and the documented taskset loadable contract are checked as contract cases. Kernel affinity operations are deliberately deferred.",
+  "coverage": [
+    "Bash builtin registration and taskset help documentation",
+    "Documented --help and --version output",
+    "GNU taskset rejection of malformed hexadecimal masks and descending CPU ranges",
+    "GNU taskset rejection of an overflowing PID without producing query output"
+  ],
+  "exclusions": [
+    "Affinity query, affinity mutation, and command-wrapper syscalls are deferred because they require deterministic permitted CPU sets and a controlled process fixture; no such operation is claimed to have passed."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Verify taskset is registered as a Bash builtin and its Bash help retains the documented synopsis and CPU mask/list contract.",
+      "script": "[[ $(type -t taskset) == builtin ]] || exit 1\ndoc=$(help taskset) || exit 1\ncase $doc in *\"Run or query commands with a CPU affinity mask.\"*) ;; *) exit 1 ;; esac\ncase $doc in *\"taskset [-c] -p PID\"*) ;; *) exit 1 ;; esac\ncase $doc in *\"MASK is hexadecimal, with optional 0x prefix.\"*) ;; *) exit 1 ;; esac\ncase $doc in *\"With -c/--cpu-list,\"*) ;; *) exit 1 ;; esac\ncase $doc in *\"affinity values are CPU lists such as 0,2-3.\"*) ;; *) exit 1 ;; esac\nprintf 'builtin\\nhelp-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "option-help",
+      "kind": "contract",
+      "purpose": "Check the loadable's documented --help text, including supported query, set, wrapper and CPU-list forms.",
+      "script": "taskset --help",
+      "expected_status": 0,
+      "stdout": "taskset \u2014 taskset(1) subset over sched_getaffinity/sched_setaffinity\nusage: taskset [-c] -p PID\n       taskset [-c] -p MASK|LIST PID\n       taskset [-c] MASK|LIST COMMAND [ARG...]\n       taskset --help | --version\n\nMASK is a hexadecimal CPU affinity mask, with optional 0x prefix.\n-c/--cpu-list treats affinity values as CPU lists such as 0,2-3.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "version",
+      "kind": "contract",
+      "purpose": "Check the version string documented by the documented taskset interface.",
+      "script": "taskset --version",
+      "expected_status": 0,
+      "stdout": "taskset 0.1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "reject-invalid-mask",
+      "kind": "parity",
+      "purpose": "GNU taskset rejects a non-hexadecimal mask before attempting to start the relative command; compare its failure status and empty stdout.",
+      "requires": [
+        "taskset"
+      ],
+      "script": "taskset not-a-hex-mask ./must-not-run",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "reject-descending-cpu-range",
+      "kind": "parity",
+      "purpose": "GNU taskset rejects a descending CPU range while parsing -c input, before attempting to start the relative command.",
+      "requires": [
+        "taskset"
+      ],
+      "script": "taskset -c 4-2 ./must-not-run",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "reject-overflowing-query-pid",
+      "kind": "parity",
+      "purpose": "Check GNU taskset's parse-time rejection of an overflowing PID and verify no affinity-query output is produced.",
+      "requires": [
+        "taskset"
+      ],
+      "script": "taskset -p 4294967296",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "deferred-query-mask-and-list",
+      "kind": "deferred",
+      "purpose": "Query one controlled process in both hexadecimal-mask and CPU-list forms, then verify both describe the same affinity.",
+      "reason": "Requires a disposable VM or reviewed syscall mock with a fixed allowed CPU set, a live owned fixture process, and GNU util-linux taskset. The future fixture should verify exact PID-tagged output and independently encode mask/list equivalence; the controller's ambient CPU set is not a stable expected value."
+    },
+    {
+      "id": "deferred-set-owned-pid",
+      "kind": "deferred",
+      "purpose": "Set affinity on an owned helper process with -p and verify its reported and effective affinity afterward.",
+      "reason": "Requires a disposable VM or reviewed syscall mock with a helper child owned by the fixture and at least two known permitted CPUs. The future comparison must check GNU taskset's old/new output and independently query the child's resulting affinity; this suite does not mutate a process affinity."
+    },
+    {
+      "id": "deferred-command-wrapper",
+      "kind": "deferred",
+      "purpose": "Exercise mask and CPU-list command-wrapper forms with a controlled executable, including argv/stdout and child exit-status propagation.",
+      "reason": "Requires a disposable VM or reviewed sched_setaffinity mock with a deterministic permitted CPU set and a controlled executable probe. The future fixture should cover hexadecimal and -c list inputs, successful and rejected affinity requests, preserved arguments/output, and the child's exit status. No affinity-setting wrapper operation is claimed to have passed here."
+    }
+  ]
+}

@@ -243,7 +243,6 @@ bp_selector_parse (struct bp_selector *sel, int kind, const char *spec)
         sel->ids[sel->count++] = id;
         if (!comma) return 0;
         p = comma + 1;
-        if (!*p) return -1;
     }
     return 0;
 }

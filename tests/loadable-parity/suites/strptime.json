@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "loadable": "strptime",
+  "reference": "Selected complete calendar/ordinal timestamps use independent Python datetime.strptime only where its directives agree with the C strptime(3) interface. Prefix conversion and error/metadata contracts have independent fixed expectations. ISO week reconstruction is explicitly excluded: glibc consumes %G/%V without setting a calendar date, unlike Python. No claim of full GNU date or Python parity is made.",
+  "coverage": [
+    "Explicit full dates, the epoch, leap days, 12-hour boundaries and ordinal dates.",
+    "Common-format longest-prefix selection, four-digit years, AM/PM, English month names and date-only fallbacks.",
+    "Positive, negative, zero and colon numeric offsets, RFC822 and NCSA defaults, and explicit offsets under a POSIX local timezone.",
+    "Fallback state isolation, prefix-success warnings, invalid-input errors, empty input and help metadata."
+  ],
+  "exclusions": [
+    "Localized month and weekday names outside the C locale are deferred because the runner fixes C and does not pin a non-C locale database.",
+    "This suite covers selected deterministic parsing behavior, not every conversion accepted by the platform strptime(3).",
+    "ISO week reconstruction (%G-W%V-%u) is not promised: the pinned glibc strptime consumes %G and %V without setting calendar fields, unlike Python. Python is not an equivalent oracle for these directives.",
+    "Named %Z timezone interpretation follows libc and is not claimed to match Python or GNU date; numeric %z is the supported offset path.",
+    "Out-of-range epochs, leap seconds, ambiguous numeric calendar normalization, all locale variants and exhaustive directive coverage are outside this bounded suite."
+  ],
+  "cases": [
+    {
+      "id": "explicit-epoch",
+      "kind": "parity",
+      "purpose": "Checks explicit year-month-day and 24-hour parsing at the Unix epoch.",
+      "requires": [
+        "python3"
+      ],
+      "script": "input='1970-01-01 00:00:00'\nfmt='%Y-%m-%d %H:%M:%S'\nif [[ $(type -t strptime) == builtin ]]; then\n  strptime -f \"$fmt\" \"$input\"\nelse\n  python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-common-format",
+      "kind": "parity",
+      "purpose": "Checks complete common formats against independent calendar parsing; date-only and shorter time matches must not truncate a longer valid timestamp.",
+      "requires": [
+        "python3"
+      ],
+      "script": "parse_one() {\n  input=$1\n  fmt=$2\n  if [[ $(type -t strptime) == builtin ]]; then\n    strptime \"$input\"\n  else\n    python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\n  fi\n}\nparse_one '2024-02-29 12:34:56' '%Y-%m-%d %H:%M:%S'\nparse_one '2024-01-02' '%Y-%m-%d'\nparse_one '12/31/2024 23:45:56' '%m/%d/%Y %H:%M:%S'\nparse_one '31-12-2024 23:45:56' '%d-%m-%Y %H:%M:%S'\nparse_one '29-Feb-2024 11:05 PM' '%d-%b-%Y %I:%M %p'\nparse_one '2024-07-03 12:05 PM' '%Y-%m-%d %I:%M %p'\nparse_one '2024-07-03 12:05 AM' '%Y-%m-%d %I:%M %p'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "leap-day-explicit",
+      "kind": "parity",
+      "purpose": "Checks an explicit full timestamp on February 29 in a leap year, including the last second of that day.",
+      "requires": [
+        "python3"
+      ],
+      "script": "input='2000-02-29 23:59:59'\nfmt='%Y-%m-%d %H:%M:%S'\nif [[ $(type -t strptime) == builtin ]]; then\n  strptime -f \"$fmt\" \"$input\"\nelse\n  python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "twelve-hour-boundaries",
+      "kind": "parity",
+      "purpose": "Checks that 12 AM maps to midnight and 12 PM maps to noon for the same date.",
+      "requires": [
+        "python3"
+      ],
+      "script": "fmt='%Y-%m-%d %I:%M %p'\nparse_one() {\n  input=$1\n  if [[ $(type -t strptime) == builtin ]]; then\n    strptime -f \"$fmt\" \"$input\"\n  else\n    python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\n  fi\n}\nparse_one '2024-07-03 12:05 AM'\nparse_one '2024-07-03 12:05 PM'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numeric-offsets",
+      "kind": "parity",
+      "purpose": "Checks that positive and negative numeric UTC offsets produce the corresponding absolute timestamps. Includes zero, colon syntax, Z, a negative epoch, and literal/escaped z text that must not imply an offset.",
+      "requires": [
+        "python3"
+      ],
+      "script": "parse_one() {\n  input=$1\n  fmt=$2\n  if [[ $(type -t strptime) == builtin ]]; then\n    strptime -f \"$fmt\" \"$input\"\n  else\n    python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\n  fi\n}\nparse_one '2024-01-01 00:00:00 +0530' '%Y-%m-%d %H:%M:%S %z'\nparse_one '2024-01-01 00:00:00 -0400' '%Y-%m-%d %H:%M:%S %z'\nparse_one '1970-01-01 00:00:00 +0000' '%Y-%m-%d %H:%M:%S %z'\nparse_one '1970-01-01 00:00:00 +01:00' '%Y-%m-%d %H:%M:%S %z'\nparse_one '2024-01-01T00:00:00Z' '%Y-%m-%dT%H:%M:%S%z'\nparse_one '2024-01-01 00:00:00 %z' '%Y-%m-%d %H:%M:%S %%z'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "default-offsets",
+      "kind": "parity",
+      "purpose": "Checks offset-aware common formats, including RFC822 numeric-zone precedence over libc %Z and NCSA logs.",
+      "requires": [
+        "python3"
+      ],
+      "script": "parse_one() {\n  input=$1\n  fmt=$2\n  if [[ $(type -t strptime) == builtin ]]; then\n    strptime \"$input\"\n  else\n    python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\n  fi\n}\nparse_one '2024-01-01T00:00:00+0530' '%Y-%m-%dT%H:%M:%S%z'\nparse_one '2024-01-01 00:00:00-04:00' '%Y-%m-%d %H:%M:%S%z'\nparse_one 'Mon, 01 Jan 2024 00:00:00 +0530' '%a, %d %b %Y %H:%M:%S %z'\nparse_one '01/Jan/2024:00:00:00 -0400' '%d/%b/%Y:%H:%M:%S %z'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "offsets-local-timezone",
+      "kind": "parity",
+      "purpose": "A deterministic POSIX TZ requires no timezone database. Numeric offsets must be independent of local time, while offset-free and literal %%z formats still use local time.",
+      "requires": [
+        "python3"
+      ],
+      "script": "export TZ=EST5\nparse_one() {\n  input=$1\n  fmt=$2\n  if [[ $(type -t strptime) == builtin ]]; then\n    strptime -f \"$fmt\" \"$input\"\n  else\n    python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\n  fi\n}\nparse_one '2024-01-01 00:00:00 +0000' '%Y-%m-%d %H:%M:%S %z'\nparse_one '2024-01-01 00:00:00 +0530' '%Y-%m-%d %H:%M:%S %z'\nparse_one '2024-01-01 00:00:00 -0400' '%Y-%m-%d %H:%M:%S %z'\nparse_one '2024-01-01 00:00:00' '%Y-%m-%d %H:%M:%S'\nparse_one '2024-01-01 00:00:00 %z' '%Y-%m-%d %H:%M:%S %%z'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ordinal-day",
+      "kind": "parity",
+      "purpose": "Checks conversion of a leap-year ordinal day to its calendar date.",
+      "requires": [
+        "python3"
+      ],
+      "script": "input='2024 060 23:59:59'\nfmt='%Y %j %H:%M:%S'\nif [[ $(type -t strptime) == builtin ]]; then\n  strptime -f \"$fmt\" \"$input\"\nelse\n  python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-input",
+      "kind": "parity",
+      "purpose": "Checks that text which cannot match the supplied full-date format fails without producing a timestamp.",
+      "requires": [
+        "python3"
+      ],
+      "script": "input='not-a-date'\nfmt='%Y-%m-%d'\nif [[ $(type -t strptime) == builtin ]]; then\n  strptime -f \"$fmt\" \"$input\"\nelse\n  python3 -c 'import datetime,sys; print(int(datetime.datetime.strptime(sys.argv[1], sys.argv[2]).timestamp()))' \"$input\" \"$fmt\"\nfi",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "prefix-consumption",
+      "kind": "contract",
+      "purpose": "Checks the documented strptime(3) prefix-consumption contract: a complete date may parse successfully when trailing text remains, and the builtin reports that it did not consume all input. Also checks that failed longer fallback attempts cannot leak their time fields into a shorter successful prefix match; 1704153600 is calendar midnight UTC. The malformed-seconds example keeps the valid 12:34 prefix (1704198840), with a warning. A failed hour/minute attempt followed by a date-only match must reset the partially assigned hour and yield midnight.",
+      "script": "strptime -f '%Y-%m-%d' '2024-01-02 trailing'\nstrptime '2024-01-02 12:34:bogus'\nstrptime '2024-01-02 12:bogus'",
+      "expected_status": 0,
+      "stdout": "1704153600\n1704198840\n1704153600\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Checks Bash builtin availability and that the documented help entry is registered, without treating metadata as parsing coverage. Empty input keeps its existing successful no-output contract.",
+      "script": "trap 'rm -f discard.out' EXIT\ntype -t strptime\nhelp strptime >discard.out\nprintf 'help-ok\\n'\nstrptime ''",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "localized-month-names",
+      "kind": "deferred",
+      "purpose": "Localized %b and %B parsing outside the C locale.",
+      "reason": "Requires a future disposable image with a pinned non-C locale and its locale database installed on both reference and candidate sides. The runner forces LC_ALL=C, so this fixture cannot make a stable localized-name assertion here."
+    },
+    {
+      "id": "iso-week-consumption",
+      "kind": "contract",
+      "purpose": "glibc strptime consumes ISO year/week without reconstructing calendar fields. A full fixed calendar date is supplied first; POSIX local UTC conversion of 2024-01-02 23:59:59 is 1704239999. This replaces an inequivalent Python ISO reconstruction expectation.",
+      "script": "strptime -f \"%Y-%m-%d %G-W%V-%u %H:%M:%S\" \"2024-01-02 2020-W53-7 23:59:59\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "1704239999\n"
+    }
+  ]
+}

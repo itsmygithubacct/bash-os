@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "lsattr",
-  "reference": "Parity cases use the installed e2fsprogs lsattr (man page: 1.47.2), executed by system Bash inside the submit helper mandatory private namespaces. Candidate cases use the locally rebuilt Bash with empty PATH. Raw stdout bytes, independently checked reference statuses, stderr policy, and fixture trees are compared; no output sorting or flag-field normalization is performed. Type/help cases use independent Bash metadata contracts and do not count as operation coverage.",
+  "reference": "Parity cases use the installed e2fsprogs lsattr (man page: 1.47.2), executed by system Bash inside the submit helper mandatory private namespaces. Candidate cases use the pinned review candidate with empty PATH. Raw stdout bytes, independently checked reference statuses, stderr policy, and fixture trees are compared; no output sorting or flag-field normalization is performed. Type/help cases use independent Bash metadata contracts and do not count as operation coverage.",
   "coverage": [
     "Complete 22-column short flag field on ordinary fixture files/directories; no flags are set.",
     "End of options, leading-dash path, no operands, directory-only mode and combined -daR.",
@@ -15,7 +15,7 @@
     "Setting nonzero inode attribute bits is deferred because immutable/append flags can obstruct cleanup and the fixture filesystem does not guarantee writable ext4 flags.",
     "No block device, host path, real filesystem mount, or privileged inode mutation is used.",
     "Attribute-bit mappings on a disposable ext4 filesystem or controlled ioctl mock remain unqualified.",
-    "Full option parity (-V, -l, -p, -v), option permutation and exact diagnostic wording are outside this repair.",
+    "Full option parity (-V, -l, -p, -v), option permutation and exact diagnostic wording are outside this suite.",
     "Directory iteration order is filesystem-dependent: raw comparisons retain the local reference order, and portability review must distinguish independent directory ordering from missing columns, entries, headings or blank lines.",
     "The added nonzero bit constants come from factual Linux inode flag definitions and documented CLI letters; active-bit rendering beyond naturally present e remains deferred to a controlled mock or disposable VM."
   ],
@@ -208,6 +208,17 @@
       "kind": "deferred",
       "purpose": "Qualify exact flag-letter mapping and order for enabled inode attributes.",
       "reason": "Requires a disposable ext4 VM/image with controlled inode-flag setup, or a reviewed ioctl mock that returns deterministic FS_IOC_GETFLAGS values, plus an independent e2fsprogs oracle. Future coverage should exercise every supported bit, unset bits, and the full GNU flag field, with teardown that cannot leave immutable or append-only state behind."
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Compare rejection of an unsupported long option with e2fsprogs, preserving the reference exit status and a visible diagnostic.",
+      "script": "lsattr --not-a-real-option",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "lsattr"
+      ]
     }
   ]
 }

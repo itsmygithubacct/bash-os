@@ -1,0 +1,201 @@
+{
+  "release_tag": "v0.1.1",
+  "version": "0.1.1",
+  "architecture": "Linux x86-64",
+  "baseline": "docs/data/loadable-parity-validation-5.json",
+  "baseline_sha256": "44e707bbc132a06024540bfe6be94bbbe3273a1242896d56e158585e0c0aba7d",
+  "builds": {
+    "static": {
+      "binary_sha256": "10b502512f5b132a367b532e54eb890f1fc8df54cfa314d5d0fc25a3f2d1159e",
+      "regressions": {
+        "suite_count": 167,
+        "primary_summary": {
+          "PASS": 2057,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 19,
+          "DEFERRED": 260
+        },
+        "qualified_summary": {
+          "PASS": 2076,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 260
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1410,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 666,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 260
+          }
+        }
+      },
+      "suites": {
+        "suite_count": 289,
+        "primary_summary": {
+          "PASS": 3136,
+          "FAIL": 28,
+          "ERROR": 0,
+          "SKIP": 42,
+          "DEFERRED": 600
+        },
+        "qualified_summary": {
+          "PASS": 3155,
+          "FAIL": 28,
+          "ERROR": 0,
+          "SKIP": 23,
+          "DEFERRED": 600
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1733,
+            "FAIL": 28,
+            "ERROR": 0,
+            "SKIP": 16,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 1422,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 7,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 600
+          }
+        }
+      }
+    },
+    "dynamic": {
+      "binary_sha256": "38f4b6ed3dcf1501174b6d50e9d5357c5a687d18a82cf81b1168fbe5de08c18f",
+      "regressions": {
+        "suite_count": 167,
+        "primary_summary": {
+          "PASS": 2057,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 19,
+          "DEFERRED": 260
+        },
+        "qualified_summary": {
+          "PASS": 2076,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 260
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1410,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 666,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 260
+          }
+        }
+      },
+      "suites": {
+        "suite_count": 289,
+        "primary_summary": {
+          "PASS": 3136,
+          "FAIL": 28,
+          "ERROR": 0,
+          "SKIP": 42,
+          "DEFERRED": 600
+        },
+        "qualified_summary": {
+          "PASS": 3155,
+          "FAIL": 28,
+          "ERROR": 0,
+          "SKIP": 23,
+          "DEFERRED": 600
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1733,
+            "FAIL": 28,
+            "ERROR": 0,
+            "SKIP": 16,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 1422,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 7,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 600
+          }
+        }
+      }
+    }
+  },
+  "fixture_change": {
+    "fixture": "tests/loadable-parity/suites/file.json",
+    "case": "armor-signatures",
+    "original_sha256": "bb1c4837e05d317ed3c4a9abb2862c60532d41264f561110d547f2ed3ea7929d",
+    "release_sha256": "c203dcf3f3b4c3eb1772bc7125d91224e3cea7182ed46f9091f870226133d640",
+    "change": "Generate marker-only armor labels from a label array and one common printf format. Preserve identical fixture bytes and comparisons; no private key material is present."
+  },
+  "fixture_validation": {
+    "summary_per_build": {
+      "PASS": 22,
+      "FAIL": 0,
+      "ERROR": 0,
+      "SKIP": 0,
+      "DEFERRED": 0
+    },
+    "changed_case_results_identical_to_baseline": true,
+    "comparison": "Complete stdout, stderr, status and filesystem result objects for reference and candidate match the baseline in both builds.",
+    "all_other_fixture_hashes_match_baseline": true
+  },
+  "docker": {
+    "passed": 131,
+    "total": 131,
+    "image": "sha256:b92735778bec47c0b213dfb873353d4d425ea8a1603401fa652f0031f9cd09e3"
+  },
+  "optional_modules": "Qualified separately as recorded in the baseline; not included in these binary archives.",
+  "scope": "Existing canonical binaries, unchanged from the fifth checkpoint. The only fixture update constructs the same marker-only files with a shared format; expected bytes and comparison strength are unchanged. Upstream-context-only ln patch formatting equivalence remains recorded in the baseline."
+}

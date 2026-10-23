@@ -1,0 +1,266 @@
+{
+  "version": 1,
+  "loadable": "od",
+  "reference": "GNU coreutils od from the reference PATH; the reference command processes the same Bash script and fixture files as the candidate builtin.",
+  "coverage": [
+    "Default octal output including an odd trailing byte",
+    "Character escapes, hexadecimal bytes, and stacked formats",
+    "Typed little-endian signed and unsigned values with custom line width and decimal offsets",
+    "Address radix together with byte skip and byte count",
+    "Repeated-line collapsing and -v output-duplicates behavior",
+    "Three fresh redirected-stdin invocations in one Bash process",
+    "GNU -S NUL-terminated printable strings",
+    "Multiple named files and address continuity",
+    "Missing-file status and diagnostic presence",
+    "Bash type/help metadata for the registered builtin",
+    "Empty and odd-sized operands, typed groups and line/dedup/string state across file boundaries",
+    "Global skip/count, early stop before later operands, exact EOF and beyond-EOF skip",
+    "Interleaved shared stdin and named files; recovery around missing paths with status and diagnostics"
+  ],
+  "exclusions": [
+    "The source documents a custom -s strings mode whose meaning differs from GNU od's -s; it is excluded from GNU parity claims.",
+    "Floating-point type formatting, very large offsets, and unusual invalid-option diagnostics are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "default-octal-partial-word",
+      "kind": "parity",
+      "purpose": "Check GNU's default octal word format and handling of a final incomplete 16-bit word.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf '\\001\\002\\003\\004\\005' > bytes; od bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stacked-char-and-hex",
+      "kind": "parity",
+      "purpose": "Check ASCII/control-character escapes, hexadecimal byte values, and stacked output under hexadecimal addresses.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf '\\000\\007\\010\\011\\012\\013\\014\\015 \\101\\177' > bytes; od -A x -c -t x1 bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "typed-width-and-decimal-address",
+      "kind": "parity",
+      "purpose": "Check little-endian 16-bit hex/signed-decimal and 32-bit unsigned formatting, stacked alignment, custom line width, and decimal addresses.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf '\\001\\002\\377\\377\\000\\000\\200\\000\\001\\000\\000\\000' > bytes; od -A d -w8 -t x2 -t d2 -t u4 bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip-count-and-hex-address",
+      "kind": "parity",
+      "purpose": "Check that -j advances the displayed address and -N limits the number of dumped bytes.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf '0123456789abcdef' > bytes; od -A x -j 2 -N 5 -t x1 bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "duplicate-lines-and-v",
+      "kind": "parity",
+      "purpose": "Check default suppression of repeated full-width lines and -v's request to print every duplicate.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' > bytes; od bytes; od -v bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-redirected-stdin",
+      "kind": "parity",
+      "purpose": "Check that each invocation reads a fresh redirected stdin stream when the builtin runs repeatedly in one Bash process.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf 'alpha\\nbeta\\n' > bytes; od -An -tx1 < bytes; od -An -tx1 < bytes; od -An -tx1 < bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-strings-nul-terminated",
+      "kind": "parity",
+      "purpose": "Check GNU -S string extraction: minimum length, printable-byte boundaries, NUL termination, and suppressed addresses.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf 'xxHello\\000ab\\000World!\\000unfinished' > bytes; od -A n -S3 bytes",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-file-offset-continuity",
+      "kind": "parity",
+      "purpose": "Check GNU od's concatenation of multiple file operands and continuous byte addresses across their boundary.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf '\\001\\002\\003' > first; printf '\\004\\005' > second; od -A x -t x1 first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-diagnostic",
+      "kind": "parity",
+      "purpose": "Check nonzero status and a diagnostic when a relative input file does not exist; diagnostic wording may vary.",
+      "requires": [
+        "od"
+      ],
+      "script": "od absent",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "skip-from-shared-stdin-position",
+      "kind": "parity",
+      "purpose": "Check that -j skips from the current shared stdin position after Bash read consumes a line.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf 'first line\\nSECOND line\\nthird\\n' > stream; { IFS= read -r first; od -An -c -j 2 -N 6; } < stream",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-builtin-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash's documented builtin type metadata and that help has an entry for od; this is metadata coverage, not operation coverage.",
+      "script": "type -t od; help od > metadata.out; printf 'help available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp available\n"
+    },
+    {
+      "id": "empty-and-word-boundaries",
+      "kind": "parity",
+      "purpose": "Concatenate odd byte fragments and an empty middle operand into typed words and stacked output; only the final aggregate word is zero-padded.",
+      "script": "printf '\\001\\002\\003' > first; : > empty; printf '\\004\\005\\006\\007' > second; od -A d -w4 -t x2 -t x1 empty first empty second empty",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip-and-count-across-files",
+      "kind": "parity",
+      "purpose": "Apply -j and -N once to the concatenated byte stream, crossing both operand and output-line boundaries.",
+      "script": "printf 'abc' > first; : > empty; printf 'defgh' > second; printf 'ijk' > third; od -A x -w4 -j4 -N6 -t x1 first empty second third",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "count-before-next-operand",
+      "kind": "parity",
+      "purpose": "Stop opening operands after the global byte limit is reached; the later missing path must not produce a diagnostic.",
+      "script": "printf 'abc' > first; od -A x -N2 -t x1 first absent",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "skip-past-total-input",
+      "kind": "parity",
+      "purpose": "Skipping beyond all regular-file bytes is an error with a diagnostic, including with an empty operand.",
+      "script": "printf 'abc' > first; : > empty; printf 'de' > second; od -j6 -t x1 first empty second",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "duplicate-lines-across-files",
+      "kind": "parity",
+      "purpose": "Repeated complete lines spanning an empty operand share one deduplication state and a single final offset; -v prints them all.",
+      "script": "printf 'ABCDAB' > first; : > empty; printf 'CDABCD' > second; od -A x -w4 -t x1 first empty second; od -A x -w4 -v -t x1 first empty second",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "strings-across-files",
+      "kind": "parity",
+      "purpose": "A GNU NUL-terminated printable string may cross a named-file boundary and an empty operand; its offset is global.",
+      "script": "printf 'xx\\000Hel' > first; : > empty; printf 'lo\\000World\\000' > second; od -A x -S3 first empty second",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-among-files",
+      "kind": "parity",
+      "purpose": "Treat named files, empty files and repeated stdin operands as one byte stream; repeated stdin is not rewound.",
+      "script": "printf 'ab' > first; : > empty; printf 'cd' > stream; printf 'ef' > last; od -A x -t x1 first - empty - last < stream",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-between-valid-files",
+      "kind": "parity",
+      "purpose": "Retain status 1 and diagnostic presence while concatenating readable operands around a missing path.",
+      "script": "printf 'ab' > first; printf 'cd' > second; od -A x -t x1 first absent second",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-input-and-exact-skip",
+      "kind": "parity",
+      "purpose": "Empty streams and a skip exactly at a file boundary emit only the appropriate final aggregate address.",
+      "script": "printf 'abc' > first; : > empty; od -A x -t x1 empty empty; od -A x -j3 -t x1 first empty",
+      "requires": [
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "strings-global-skip-and-count",
+      "kind": "parity",
+      "purpose": "GNU string offsets include the global skip; the global count can end inside a string and must discard that unterminated run.",
+      "requires": [
+        "od"
+      ],
+      "script": "printf 'xxHe' > first; : > empty; printf 'llo\\000World\\000' > second; od -A x -j2 -N8 -S3 first empty second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-count-opens-first-input",
+      "kind": "parity",
+      "purpose": "A zero byte count still opens the first input, reporting a missing first operand with status 1.",
+      "requires": [
+        "od"
+      ],
+      "script": "od -N0 absent",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

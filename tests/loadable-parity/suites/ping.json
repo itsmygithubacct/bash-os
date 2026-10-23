@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "ping",
+  "reference": "Runnable cases are Bash metadata contracts: Bash documents `type -t` as reporting a builtin with `builtin`, and `help` displays the builtin's documented help text. The help markers are taken from the ping contract in sol-ping.md and its user-facing help text, not candidate execution output. No GNU ping parity case is safe and useful under this task's no-network rule: operational cases require deterministic socket/clock mocks or a disposable VM and are deferred.",
+  "coverage": [
+    "Bash identifies ping as a builtin through type -t.",
+    "Bash help exposes documented IPv4, IPv6, quiet, traceroute, and exit-status contracts.",
+    "DEFERRED: IPv4 echo request and valid reply matching/accounting under deterministic syscall mocks.",
+    "DEFERRED: IPv6 echo request/reply behavior under deterministic ICMPv6 socket mocks.",
+    "DEFERRED: quiet output, per-probe timeout, overall deadline, and no-reply status with a fake clock/socket.",
+    "DEFERRED: strict option and numeric boundary handling, with a mock proving invalid inputs do not resolve or open sockets.",
+    "DEFERRED: traceroute TTL progression, hop responses, and reached/unreached status with a UDP/ICMP mock.",
+    "Metadata results are not operation coverage; deferred operations are not passes."
+  ],
+  "exclusions": [
+    "No ping operation is invoked by this suite; no real network peer or packet transmission is used.",
+    "No live IPv4, IPv6, DNS, or traceroute parity is claimed. GNU output is not a valid oracle for Bash help metadata, and network operations need a reviewed deterministic mock or disposable VM.",
+    "No production selftest verbs are invoked because they execute the loadable operation entry point; source-level selftest evidence is not substituted for this suite's runtime results."
+  ],
+  "cases": [
+    {
+      "id": "ping-type-builtin",
+      "kind": "contract",
+      "purpose": "Check Bash's documented type -t classification for the registered ping builtin without invoking ping.",
+      "script": "type -t ping",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ping-help-contract",
+      "kind": "contract",
+      "purpose": "Check that Bash help metadata contains the documented address-family, quiet, traceroute, and completion-status descriptions without invoking network behavior.",
+      "script": "doc=$(help ping)\n[[ $doc == *\"ICMP echo + UDP traceroute (raw socket). Two modes via -T:\"* ]]\n[[ $doc == *\"force IPv4 resolution\"* ]]\n[[ $doc == *\"force IPv6 resolution\"* ]]\n[[ $doc == *\"ping: quiet output (summary only)\"* ]]\n[[ $doc == *\"traceroute mode (UDP probes, incremental TTL)\"* ]]\n[[ $doc == *\"Exit status: 0 on success (any reply / target reached), 1 otherwise.\"* ]]\nprintf 'documented ping help contract present\\n'",
+      "expected_status": 0,
+      "stdout": "documented ping help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ping-ipv4-echo-matching",
+      "kind": "deferred",
+      "purpose": "Exercise IPv4 echo request construction, exact reply identity and payload matching, output accounting, and success status with one deterministic matching reply.",
+      "reason": "Requires a reviewed syscall-mock fixture that intercepts socket, send/receive, and monotonic-clock calls and injects an RFC 792 reply, or a disposable VM with an isolated mock peer. The future fixture must assert the generated request and reply bytes and must not contact a real target."
+    },
+    {
+      "id": "ping-ipv6-echo-codec",
+      "kind": "deferred",
+      "purpose": "Exercise IPv6 echo request/reply type, sequence and payload matching, source validation, and successful accounting.",
+      "reason": "Requires a reviewed ICMPv6 syscall mock that supplies a deterministic matching reply and clock values, or a disposable VM with a mock peer. The future fixture must keep all packet handling in the mock and validate the expected ICMPv6 bytes without network activity."
+    },
+    {
+      "id": "ping-deadline-timeout-quiet",
+      "kind": "deferred",
+      "purpose": "Exercise no-reply timeout accounting, quiet summary-only output, and an overall deadline that ends a multi-probe request with the documented failure status.",
+      "reason": "Requires a deterministic socket/poll mock and monotonic-clock mock to model replies, timeouts, inter-probe waits, and deadline expiry. Run only under a disposable VM or the reviewed mocks; no live network operation is permitted."
+    },
+    {
+      "id": "ping-option-boundaries",
+      "kind": "deferred",
+      "purpose": "Exercise documented minimum/maximum numeric values and representative malformed or out-of-range -c, -W, -w, and -i arguments, checking usage status and that invalid values do not proceed to resolution or socket creation.",
+      "reason": "Requires a future syscall-mocked candidate fixture that records getaddrinfo/socket calls and confirms none occur for invalid arguments. Execute it only in the disposable mock environment; this suite does not invoke the operation entry point."
+    },
+    {
+      "id": "ping-traceroute-ttl",
+      "kind": "deferred",
+      "purpose": "Exercise -T UDP probe TTL progression, per-hop timeout output, hop-exceeded handling, destination-unreachable termination, and reached/unreached exit status.",
+      "reason": "Requires a reviewed UDP/ICMP syscall mock that returns deterministic hop-exceeded and terminal responses and records the requested TTL values, or a disposable VM with an isolated mock router. No routing change, real peer, or network packet is allowed in this suite."
+    }
+  ]
+}

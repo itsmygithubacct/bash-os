@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "loadable": "col",
+  "reference": "For stdin behavior, compare the candidate builtin with the independent util-linux col(1) command named by each parity case. The separate file-operand case is an explicit bash-os contract because util-linux col(1) reads stdin and rejects file operands. Builtin availability/help expectations are grounded in Bash's type/help interface and the checked-in col_doc synopsis in the documented source for column.c.",
+  "coverage": [
+    "Bash builtin registration and advertised help synopsis, as metadata only.",
+    "Plain terminated input, empty input, and completion of an unterminated final line.",
+    "Default backspace preservation and -b overstrike removal.",
+    "ESC-7 and C1 reverse-index control-byte filtering plus invalid-option status compared directly.",
+    "Repeated fresh stdin redirections in one Bash process.",
+    "The documented loadable file-operand extension, checked as a contract rather than GNU parity.",
+    "Raw C1 bytes in C and decoded C1 control characters in C.UTF-8, repeated dash operands, and the custom identity banner."
+  ],
+  "exclusions": [
+    "This suite does not cover every historical col control sequence, half-line motion, locale behavior, or large-input performance.",
+    "util-linux col is an stdin-only reference, so file operands are not mislabeled as parity."
+  ],
+  "cases": [
+    {
+      "id": "builtin_help_contract",
+      "kind": "contract",
+      "purpose": "Check Bash reports col as a builtin and that help exposes the documented col [-b] [FILE...] synopsis; metadata is not operation coverage.",
+      "script": "kind=$(type -t col)\n[[ $kind == builtin ]]\nhelp_text=$(help col)\n[[ $help_text == *\"col [-b] [FILE...]\"* ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "plain_terminated_input",
+      "kind": "parity",
+      "purpose": "Compare ordinary newline-terminated stdin pass-through with util-linux col.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'plain text\\nsecond line\\n' > input\ncol < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty_input",
+      "kind": "parity",
+      "purpose": "Verify empty stdin produces no output and succeeds, matching util-linux col.",
+      "requires": [
+        "col"
+      ],
+      "script": ": > input\ncol -b < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "backspace_preserved",
+      "kind": "parity",
+      "purpose": "Compare default-mode preservation of a backspace overstrike sequence with util-linux col.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'alpha\\bX\\n' > input\ncol < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "backspace_removed_with_b",
+      "kind": "parity",
+      "purpose": "Compare -b handling of two single-byte overstrikes with util-linux col.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'alpha\\bX\\nline\\b!\\n' > input\ncol -b < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unterminated_final_line",
+      "kind": "parity",
+      "purpose": "Check util-linux col's output newline completion for a nonempty unterminated input stream.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'last line without newline' > input\ncol -b < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "esc7_filter",
+      "kind": "parity",
+      "purpose": "Compare util-linux col's handling of an ESC-7 byte pair between lines. This checks byte output without presuming that the sequence moves output rows.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'upper\\nlower\\0337over\\n' > input\ncol < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c1_reverse_index_byte",
+      "kind": "parity",
+      "purpose": "Compare handling of the C1 reverse-index byte (0x8d) embedded between printable text against util-linux col.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'upper\\nlower\\215over\\n' > input\ncol < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fresh_stdin_redirections",
+      "kind": "parity",
+      "purpose": "Compare repeated col invocations over fresh redirected stdin streams in one shell, guarding against stale persistent stdio EOF state.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'alpha\\n' > first\nprintf 'beta\\n' > second\ncol -b < first\ncol -b < second\ncol -b < first",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_option_status",
+      "kind": "parity",
+      "purpose": "Check the exit status for an unsupported option against util-linux col; report the captured command status and fail if the candidate differs.",
+      "requires": [
+        "col"
+      ],
+      "script": ": > input\nrc=0\ncol -z < input || rc=$?\nprintf 'col-status=%s\\n' \"$rc\"\ntest \"$rc\" -eq 1",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "file_operands_contract",
+      "kind": "contract",
+      "purpose": "Check the loadable's documented FILE operand extension: two relative files form one byte stream and the nonempty unterminated final stream receives a newline. util-linux col(1) rejects file operands, so this is not GNU parity.",
+      "script": "printf 'left' > first\nprintf 'right' > second\ncol -b first second",
+      "expected_status": 0,
+      "stdout": "leftright\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "c1-control-family",
+      "kind": "parity",
+      "purpose": "Compare multiple C1 byte values in both implemented modes under the C locale.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'A\\200B\\205C\\215D\\237E\\n' > input\ncol < input\ncol -b < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "utf8-c1-and-text",
+      "kind": "parity",
+      "purpose": "Compare a valid UTF-8 C1 control codepoint adjacent to printable multibyte text.",
+      "requires": [
+        "col"
+      ],
+      "script": "printf 'A\\302\\215B\\303\\251C\\n' > input\nLC_ALL=C.UTF-8 col < input",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "implementation-version-contract",
+      "kind": "contract",
+      "purpose": "Keep the existing bash-loadable identity banner as a custom contract, separate from external version output.",
+      "script": "col --version",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "col 1.0 (bash-loadable)\n"
+    },
+    {
+      "id": "repeated-dash-stream-contract",
+      "kind": "contract",
+      "purpose": "Repeated dash operands share stdin once per invocation; each fresh redirection reads the complete stream. Expected bytes follow the documented logical-stream extension.",
+      "script": "printf 'A' > input\ncol -b - - < input\ncol -b - - < input",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "A\nA\n"
+    }
+  ]
+}

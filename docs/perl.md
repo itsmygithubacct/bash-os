@@ -100,6 +100,13 @@ Perl API for XS loading and keeps its code mapped after `enable -d` so native
 loader callbacks remain valid. Disabling and re-enabling the builtin destroys
 its interpreter resources; it does not unmap the library code.
 
+If the prefix's link flags require `-lcrypt`, the builder can replace that
+dependency with a supplied PIC archive using `--static-libcrypt PATH` and
+`--static-libcrypt-sha256 HEX_DIGEST` together. It verifies the archive hash,
+rejects text relocations and hides that archive's symbols. This leaves the
+package dependency rules unchanged; the Perl runtime data must still be
+installed at the prefix used during its build.
+
 ## Checks
 
 ```sh

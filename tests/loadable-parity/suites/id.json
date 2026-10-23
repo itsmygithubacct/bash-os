@@ -1,0 +1,479 @@
+{
+  "version": 1,
+  "loadable": "id",
+  "reference": "GNU coreutils id, invoked by system Bash on the reference side. The harness supplies the same synthetic runner passwd/group entries to both isolated sides; reference output and status are checked against the explicit GNU expectations before candidate parity is reported.",
+  "coverage": [
+    "Bash builtin type/help metadata is present.",
+    "Current numeric and named user/group selectors (-u, -g, -n) match GNU id.",
+    "Current all-groups and default identity formatting match GNU id.",
+    "Named-user scalar selectors, complete identity output and all-groups behavior are checked.",
+    "An unknown account produces GNU-compatible failure status and a diagnostic.",
+    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
+  ],
+  "exclusions": [
+    "Distinct real/effective UID or GID values are not available in the provided fixture runner.",
+    "The runner provides only one synthetic account and one group, so arbitrary named-user supplementary group membership cannot be injected safely.",
+    "This is bounded CLI parity, not full POSIX id conformance."
+  ],
+  "cases": [
+    {
+      "id": "id-builtin-metadata",
+      "kind": "contract",
+      "purpose": "Confirm through Bash's own type and help builtins that id is loaded as a builtin and advertises help metadata.",
+      "script": "[[ $(type -t id) == builtin ]] && help id >metadata.txt && printf 'builtin id is available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin id is available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "id-current-numeric-selectors",
+      "kind": "parity",
+      "purpose": "Compare the current effective numeric user and group IDs with GNU id.",
+      "script": "id -u; id -g",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-current-name-selectors",
+      "kind": "parity",
+      "purpose": "Check name resolution for the current user and primary group using the fixture's runner records.",
+      "script": "id -un; id -gn",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-current-all-groups",
+      "kind": "parity",
+      "purpose": "Compare numeric group-list membership and ordering for the current process.",
+      "script": "id -G",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-current-default-format",
+      "kind": "parity",
+      "purpose": "Compare GNU's default uid/gid names and supplementary group formatting for the current process.",
+      "script": "id",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-named-user-scalars",
+      "kind": "parity",
+      "purpose": "Check that a known fixture account can be selected by name for numeric uid and gid output.",
+      "script": "id -u runner; id -g runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-named-user-default",
+      "kind": "parity",
+      "purpose": "Check GNU's full identity report for the known fixture account, including groups and successful status.",
+      "script": "id runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-named-user-all-groups",
+      "kind": "parity",
+      "purpose": "Check GNU's -G behavior for an explicit known account and its group-list status.",
+      "script": "id -G runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "id-unknown-user",
+      "kind": "parity",
+      "purpose": "Verify the expected failure status, empty stdout and diagnostic when the account database has no such user.",
+      "script": "id loadable-parity-user-that-does-not-exist",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "id-real-effective-identity",
+      "kind": "deferred",
+      "purpose": "Exercise -r and the euid/egid fields when real and effective credentials differ.",
+      "reason": "Requires a future disposable VM or reviewed identity mock that can launch the tested Bash with ruid != euid and rgid != egid and matching synthetic passwd/group records. The provided runner starts one identity and removes capabilities; do not create or modify host accounts or set-id credentials. Compare id -ru, id -rg, and default output with GNU id in that fixture."
+    },
+    {
+      "id": "id-named-user-supplementary-groups",
+      "kind": "deferred",
+      "purpose": "Exercise supplementary group lookup for a second account with multiple group memberships.",
+      "reason": "Requires a future disposable VM or reviewed NSS mock with a private passwd/group database containing a second user and multiple supplementary group memberships visible identically to GNU id and both Bash binaries. The provided runner supplies only its runner record and one group, and fixture scripts cannot safely change /etc account data. Compare id USER and id -G USER there."
+    },
+    {
+      "id": "gnu-help-option",
+      "kind": "parity",
+      "purpose": "Banner branding is excluded; compare success, nonempty content and command identity.",
+      "script": "text=$(id --help); [[ -n $text && $text == *id* ]]; printf '%s\\n' 'id --help succeeds with identified nonempty output'",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-version-option",
+      "kind": "parity",
+      "purpose": "Banner branding is excluded; compare success, nonempty content and command identity.",
+      "script": "text=$(id --version); [[ -n $text && $text == *id* ]]; printf '%s\\n' 'id --version succeeds with identified nonempty output'",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-options",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id --user; id --group; id --groups; id --user --name; id --group --real",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-prefixes",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id --us; id --gro",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "numeric-user",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "u=$UID; id \"$u\"; id -G \"$u\"; id -un \"+$u\"",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "real-and-ignored-a",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -ru; id -rg; id -rG; id -a; id -au",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "named-group-names",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -Gn runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "current-group-names",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -Gn",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "multiple-users",
+      "kind": "parity",
+      "purpose": "GNU accepts multiple USER operands and prints one identity per user; both users are intentional fixture records.",
+      "script": "id runner runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -x",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-combination",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -ug",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "name-without-selector",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -n",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "real-without-selector",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -r",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "end-of-options",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -- runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-after-operand",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id runner -u",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-user",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id ''",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "zero-without-selector",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -z",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "zero-fields",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "id -zu; id -zg; id -zG runner; id -znG runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "named-user-options-after",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id runner --user; id -G runner -n; id --group runner --real",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-scalars",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id -u runner runner; id -G runner runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-zero-groups",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id -zG runner runner; id -zGn runner runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-mixed-users",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id runner missing-fixture-identity runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "zero-aliases",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id --zero --user; id --zero --groups runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unique-aliases",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id --us; id --group; id --groups --nam runner; id --user --rea",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bad-long-argument",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "id --user=runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "id-builtin-docs",
+      "kind": "contract",
+      "purpose": "Bash documentation advertises the corrected GNU options and numeric-UID operand lookup.",
+      "script": "doc=$(help id); [[ $doc == *'--groups'* && $doc == *'numeric UID'* && $doc == *'--zero'* ]]; help -s id",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "id: id [-aGgnruz] [USER ...]\n"
+    },
+    {
+      "id": "posix-option-order",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "POSIXLY_CORRECT=1 id runner -u",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "context-unavailable",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "id -Z",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "context-before-help",
+      "kind": "parity",
+      "purpose": "GNU immediately rejects unsupported SELinux context output on this fixture, even before a later --help option.",
+      "script": "id -Z --help",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "multiple-zero-missing",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "id -zG missing-fixture-identity runner",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-numeric-user",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "id 4294967296",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-numeric-user",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "id -- -1",
+      "requires": [
+        "id"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

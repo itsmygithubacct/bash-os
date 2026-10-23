@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "loadable": "at",
+  "reference": "No matching at CLI is assumed. Documented private-spool queue contracts use independently specified script bytes, fixed epochs and Python filesystem checks. No scheduler daemon or queued command is executed.",
+  "coverage": [
+    "Bash reports the loadable as a builtin through `type -t`.",
+    "The Bash help builtin exposes the documented at synopsis, options, and accepted time forms.",
+    "Operation coverage: fixed-epoch script publication and modes, repeated input/unique names, seeded list/print/remove, time and arity rejection.",
+    "All nine documented clock-dependent UTC forms checked with independent Python calendar/epoch arithmetic inside a bounded observation window."
+  ],
+  "exclusions": [
+    "Daemon execution and live system queues are outside this suite. Every at invocation sets a relative BASHCRON_SPOOL_DIR.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage.",
+    "Clock-dependent forms are checked within a measured UTC time window; forced exact-second transitions and non-UTC DST behavior are not qualified. No GNU at CLI parity is claimed for the custom spool format."
+  ],
+  "cases": [
+    {
+      "id": "at-type-is-builtin",
+      "kind": "contract",
+      "purpose": "Check Bash builtin discovery without invoking the scheduler operation.",
+      "script": "[[ $(type -t at) == builtin ]] || exit 1\nprintf 'builtin\\n'\n",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "at-help-contract",
+      "kind": "contract",
+      "purpose": "Check that Bash help presents the documented synopsis, queue controls, and supported time forms.",
+      "script": "h=$(help at)\n[[ $h == *'Schedule one-shot jobs (small POSIX at subset).'* ]] || exit 1\n[[ $h == *'at TIME      read commands from stdin and queue them'* ]] || exit 1\n[[ $h == *'at -l        list queued job ids'* ]] || exit 1\n[[ $h == *'at -r JOBID  remove a queued job'* ]] || exit 1\n[[ $h == *'at -c JOBID  print a queued job script'* ]] || exit 1\n[[ $h == *'TIME accepts now, noon, midnight, teatime, @EPOCH, EPOCH,'* ]] || exit 1\n[[ $h == *'+N[s|m|h|d], or HH:MM.'* ]] || exit 1\nprintf 'documented at help verified\\n'\n",
+      "expected_status": 0,
+      "stdout": "documented at help verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "at-schedule-private-spool",
+      "purpose": "Queue one fixed-epoch inert script in a private spool; verify exact newline/header bytes, 0600 job mode, 0700 directories and absence of partial files without executing the script.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nprintf 'fixture text' > input\nat @4102444800 < input > receipt\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nimport re,stat\nm=re.fullmatch(r'job ([A-Za-z0-9_.-]+) scheduled for 4102444800\\n',Path('receipt').read_text()); assert m\np=Path('spool/atjobs')/(m[1]+'.job')\nassert p.read_bytes()==b'# run_at=4102444800\\nfixture text\\n'\nassert stat.S_IMODE(p.stat().st_mode)==0o600\nassert set(Path('spool/atjobs').iterdir())=={p}\nfor d in ['spool','spool/atjobs']: assert stat.S_IMODE(Path(d).stat().st_mode)==0o700\nprint('published bytes and modes verified')\nPY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "published bytes and modes verified\n"
+    },
+    {
+      "id": "at-list-cat-seeded-jobs",
+      "purpose": "List only the seeded job ID and print its body without the private scheduling header.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nmkdir -p spool/atjobs\nprintf '# run_at=4102444800\\nseeded bytes\\n' > spool/atjobs/alpha.job\nprintf 'not a job\\n' > spool/atjobs/ignored.txt\nat -l\nat -c alpha",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "alpha\nseeded bytes\n"
+    },
+    {
+      "id": "at-remove-private-job",
+      "purpose": "Remove one seeded job, preserve a second entry, and report a missing-job error; only private files are changed.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nmkdir -p spool/atjobs\nprintf '# run_at=4102444800\\nseeded bytes\\n' > spool/atjobs/alpha.job\nprintf 'not a job\\n' > spool/atjobs/ignored.txt\nprintf '# run_at=4102444800\\nkeep\\n' > spool/atjobs/beta.job\nat -r alpha\n[[ ! -e spool/atjobs/alpha.job && -e spool/atjobs/beta.job ]]\nat -l\nat -c beta\nat -r absent",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": "beta\nkeep\n"
+    },
+    {
+      "id": "at-time-and-usage-errors",
+      "purpose": "Invalid time spelling, missing job ID and extra list operands return usage failure without publishing any job.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nfor scenario in time cat list; do\n rc=0\n case $scenario in\n time) at not-a-time || rc=$? ;;\n cat) at -c || rc=$? ;;\n list) at -l extra || rc=$? ;;\n esac\n [[ $rc == 2 ]]\n printf '%s=%s\\n' \"$scenario\" \"$rc\"\ndone\n[[ ! -e spool ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "time=2\ncat=2\nlist=2\n"
+    },
+    {
+      "id": "at-repeated-stdin-state",
+      "purpose": "Queue two distinct redirected inputs and empty stdin in the same shell at one fixed epoch; assert unique jobs and exact complete payloads without running any job.",
+      "kind": "contract",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nprintf first > first\nprintf 'second\\n' > second\n: > empty\nat 4102444800 < first > first-receipt\nat 4102444800 < second > second-receipt\nat 4102444800 < empty > empty-receipt\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\np=list(Path('spool/atjobs').iterdir()); assert len(p)==3\nassert all(x.suffix=='.job' for x in p)\nassert {x.read_bytes() for x in p}=={b'# run_at=4102444800\\nfirst\\n',b'# run_at=4102444800\\nsecond\\n',b'# run_at=4102444800\\n\\n'}\nprint('three unique complete scripts')\nPY",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "three unique complete scripts\n"
+    },
+    {
+      "id": "clock-dependent-time-forms",
+      "kind": "contract",
+      "purpose": "Queue all documented UTC clock-dependent time forms without executing their inert payloads. An independent Python calendar oracle checks each epoch within the measured before/after window, including next-day rollover.",
+      "script": "export BASHCRON_SPOOL_DIR=spool\nprintf 'inert fixture text' > input\nprintf '%(%s)T\\n' -1 > before\nindex=0\nfor when in now noon midnight teatime +2s +2m +2h +2d 12:34; do\n at \"$when\" < input > \"receipt-$index\"\n printf '%s\\n' \"$when\" > \"time-$index\"\n index=$((index+1))\ndone\nprintf '%(%s)T\\n' -1 > after\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nfrom datetime import datetime,timezone,timedelta\nimport re\nstart=int(Path('before').read_text()); end=int(Path('after').read_text())\nassert 0<=end-start<=15\nnames=[]\ndef epoch_for(t,form):\n    if form=='now': return t\n    if form.startswith('+'): return t+2*{'s':1,'m':60,'h':3600,'d':86400}[form[-1]]\n    h,m={'noon':(12,0),'midnight':(0,0),'teatime':(16,0),'12:34':(12,34)}[form]\n    at=datetime.fromtimestamp(t,timezone.utc).replace(hour=h,minute=m,second=0,microsecond=0)\n    if at.timestamp()<t: at+=timedelta(days=1)\n    return int(at.timestamp())\nfor i in range(9):\n    form=Path('time-'+str(i)).read_text().strip()\n    m=re.fullmatch(r'job ([A-Za-z0-9_.-]+) scheduled for ([0-9]+)\\n',Path('receipt-'+str(i)).read_text()); assert m\n    actual=int(m[2]); assert actual in {epoch_for(t,form) for t in range(start,end+1)},(form,actual)\n    job=Path('spool/atjobs')/(m[1]+'.job');names.append(job)\n    assert job.read_bytes()==('# run_at='+str(actual)+'\\ninert fixture text\\n').encode()\nassert len(set(names))==9 and set(Path('spool/atjobs').iterdir())==set(names)\nprint('nine UTC time forms and complete payloads verified')\nPY\n",
+      "expected_status": 0,
+      "stdout": "nine UTC time forms and complete payloads verified\n",
+      "stderr": "empty"
+    }
+  ]
+}

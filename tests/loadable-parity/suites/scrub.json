@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "loadable": "scrub",
+  "reference": "No GNU scrub(1) CLI exists. Runnable operations are contract checks based on the scrub builtin's published help/source contract, POSIX ERE matching, and literal expected fixture contents/counts chosen independently of candidate output. Bash type/help metadata is checked against Bash's builtin metadata behavior.",
+  "coverage": [
+    "Bash type -t and help metadata for the registered builtin.",
+    "Default denylist behavior for password/token/API-key forms and benign case-sensitive text.",
+    "Custom POSIX ERE addition/listing, match boundaries, and enabled/disabled behavior.",
+    "Invalid ERE rejection with nonzero status and a diagnostic.",
+    "scrub-current using a relative private fixture selected via HISTFILE; verifies retained lines, kept/dropped counts, executable mode preservation, and temporary-file cleanup.",
+    "Missing relative history file is a successful no-op.",
+    "Deferred requirements for /proc/self/mem argv rewriting and interactive readline/PROMPT_COMMAND pruning."
+  ],
+  "exclusions": [
+    "No parity cases: there is no matching GNU scrub command, so scrub behavior is tested honestly as a contract rather than by substituting a different CLI.",
+    "scrub-argv is not invoked because it writes this process's /proc/self/mem; a future disposable VM or narrowly scoped proc-memory mock is required.",
+    "scrub live is not invoked because prompt-time pruning needs a controlled PTY/readline history fixture that the declarative runner does not provide.",
+    "The suite does not test every POSIX ERE feature, pattern-table exhaustion, write/rename fault injection, concurrent history updates."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "purpose": "Confirm Bash reports scrub as a shell builtin without invoking an operation.",
+      "kind": "contract",
+      "script": "type -t scrub",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "purpose": "Confirm Bash help exposes the documented scrub verbs and safety-specific operation descriptions.",
+      "kind": "contract",
+      "script": "docs=$(help scrub)\n[[ $docs == *'bash history scrub helper (Stage 36.B-lite).'* ]] || exit 1\n[[ $docs == *'scrub add-pattern REGEX'* ]] || exit 1\n[[ $docs == *'scrub scrub-current [FILE] [-V VAR]'* ]] || exit 1\n[[ $docs == *'/proc/self/cmdline argv memory range'* ]] || exit 1\nprintf 'help contract verified\\n'",
+      "expected_status": 0,
+      "stdout": "help contract verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default-patterns",
+      "purpose": "Check documented built-in redaction patterns, status pattern count, and benign case-sensitive lines.",
+      "kind": "contract",
+      "script": "scrub status\nfor line in \\\n  'curl --password=fixture-value' \\\n  'TOKEN=fixture-value' \\\n  'API_TOKEN=fixture-value' \\\n  'token=ordinary-lowercase' \\\n  'echo harmless'; do\n  rc=0\n  scrub scrub-line \"$line\" || rc=$?\n  printf '%s\\n' \"$rc\"\ndone",
+      "expected_status": 0,
+      "stdout": "enabled=1 patterns=14 live=no dropped=0\n1\n1\n1\n0\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "custom-ere",
+      "purpose": "Verify a custom POSIX ERE is listed and matches only the anchored digit-suffixed form.",
+      "kind": "contract",
+      "script": "scrub clear-patterns\nscrub add-pattern '^blocked[0-9]+$'\nscrub list-patterns\nfor line in blocked42 blockedx xblocked42; do\n  rc=0\n  scrub scrub-line \"$line\" || rc=$?\n  printf '%s\\n' \"$rc\"\ndone",
+      "expected_status": 0,
+      "stdout": "^blocked[0-9]+$\n1\n0\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "enable-disable-state",
+      "purpose": "Verify disable temporarily permits a default-matching line while preserving the denylist, and enable restores matching.",
+      "kind": "contract",
+      "script": "scrub status\nscrub disable\nrc=0\nscrub scrub-line '--password=fixture-value' || rc=$?\nprintf '%s\\n' \"$rc\"\nscrub status\nscrub enable\nrc=0\nscrub scrub-line '--password=fixture-value' || rc=$?\nprintf '%s\\n' \"$rc\"\nscrub status",
+      "expected_status": 0,
+      "stdout": "enabled=1 patterns=14 live=no dropped=0\n0\nenabled=0 patterns=14 live=no dropped=0\n1\nenabled=1 patterns=14 live=no dropped=0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-ere",
+      "purpose": "Check malformed POSIX ERE input is rejected with failure and a diagnostic.",
+      "kind": "contract",
+      "script": "scrub clear-patterns\nrc=0\nscrub add-pattern '[' || rc=$?\n[[ $rc -eq 1 ]] || exit 1\nprintf 'invalid ERE rejected\\n'",
+      "expected_status": 0,
+      "stdout": "invalid ERE rejected\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "current-history-file",
+      "purpose": "Redact a disposable relative HISTFILE, verify the documented kept/dropped count and retained content, and check rename cleanup and preservation of an executable mode bit. Independently inspect every permission bit with stat and emit all retained file bytes.",
+      "kind": "contract",
+      "script": "scrub clear-patterns\nscrub add-pattern '^DROP='\numask 077\nprintf 'KEEP=one\\nDROP=fake-fixture-secret\\nKEEP=two\\n' > history\nchmod 751 history\nHISTFILE=history\nexport HISTFILE\nscrub scrub-current -V counts\n[[ $counts == '2 1' ]] || exit 1\nmapfile -t rows < \"$HISTFILE\"\n[[ ${#rows[@]} -eq 2 ]] || exit 1\n[[ ${rows[0]} == 'KEEP=one' && ${rows[1]} == 'KEEP=two' ]] || exit 1\n[[ -x history ]] || exit 1\n[[ ! -e history.scrub.tmp ]] || exit 1\nprintf '%s\\n' \"$counts\"\nstat -c '%a' history\nprintf '%s\\n' 'history bytes:'\nwhile IFS= read -r row; do printf '%s\\n' \"$row\"; done < history",
+      "expected_status": 0,
+      "stdout": "2 1\n751\nhistory bytes:\nKEEP=one\nKEEP=two\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-history-file",
+      "purpose": "Check scrub-current treats a nonexistent relative history path as a no-op without creating it.",
+      "kind": "contract",
+      "script": "scrub clear-patterns\nscrub scrub-current absent-history\n[[ ! -e absent-history ]] || exit 1\n[[ ! -e absent-history.scrub.tmp ]] || exit 1\nprintf 'missing history is a no-op\\n'",
+      "expected_status": 0,
+      "stdout": "missing history is a no-op\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argv-memory-deferred",
+      "purpose": "Future coverage should verify argv label truncation and zero-padding only within a disposable test shell process.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or narrowly scoped /proc fixture that supplies this test process's /proc/self/stat and writable /proc/self/mem, and independently inspects only the child fixture's argv bytes. The current runner's proc mount is read-only; this suite must not mutate host or runner process memory."
+    },
+    {
+      "id": "live-history-deferred",
+      "purpose": "Future coverage should verify pruning of curated in-memory history and PROMPT_COMMAND installation/restoration under a controlled prompt cycle.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM providing the following prerequisite: Requires a dedicated disposable PTY/readline harness with synthetic history and a bounded prompt cycle to verify pruning, dropped counts, and PROMPT_COMMAND save/restore. The declarative runner has no PTY interaction and must not touch a real login history."
+    },
+    {
+      "id": "empty-and-disabled-history",
+      "kind": "contract",
+      "purpose": "Empty history yields zero counts; disabled rewriting leaves literal bytes and returns documented pass marker.",
+      "script": "scrub clear-patterns\n: > empty\nscrub scrub-current empty -V counts\nprintf '%s\\n' \"$counts\"\nprintf 'KEEP\\n' > history\nscrub disable\nscrub scrub-current history -V counts\nprintf '%s\\n' \"$counts\"\nIFS= read -r row < history\nprintf '%s\\n' \"$row\"",
+      "expected_status": 0,
+      "stdout": "0 0\npass\nKEEP\n",
+      "stderr": "empty"
+    }
+  ]
+}

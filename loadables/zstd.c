@@ -56,6 +56,7 @@ static struct {
   size_t (*decompressStream) (zs_dstream *, zs_outbuf *, zs_inbuf *);
   size_t (*freeDStream) (zs_dstream *);
   size_t (*DCtx_setParameter) (ZSTD_DCtx *, ZSTD_dParameter, int);
+  size_t (*CCtx_setParameter) (ZSTD_CCtx *, ZSTD_cParameter, int);
 } zs;
 
 static int
@@ -78,6 +79,7 @@ zs_load (void)
       zs.decompressStream = ZSTD_decompressStream;
       zs.freeDStream = ZSTD_freeDStream;
       zs.DCtx_setParameter = ZSTD_DCtx_setParameter;
+      zs.CCtx_setParameter = ZSTD_CCtx_setParameter;
       zs.loaded = 1;
       return 0;
     }
@@ -102,6 +104,7 @@ zs_load (void)
   ZS_SYM (decompressStream, "ZSTD_decompressStream");
   ZS_SYM (freeDStream, "ZSTD_freeDStream");
   ZS_SYM (DCtx_setParameter, "ZSTD_DCtx_setParameter");
+  ZS_SYM (CCtx_setParameter, "ZSTD_CCtx_setParameter");
 #undef ZS_SYM
   zs.handle = h;
   zs.loaded = 1;
@@ -132,7 +135,7 @@ zs_frame_magic (const unsigned char *p)
 }
 
 static int
-zs_stream (int input, int output, int decompress, int level, int pass_through,
+zs_stream (int input, int output, int decompress, int level, int pass_through, int no_content_size,
            const char *src, const char *target)
 {
   unsigned char *in = NULL, *out = NULL;
@@ -154,6 +157,8 @@ zs_stream (int input, int output, int decompress, int level, int pass_through,
       cs = zs.createCStream ();
       if (!cs) goto nomem;
       r = zs.initCStream (cs, level);
+      if (!zs.isError (r) && no_content_size)
+        r = zs.CCtx_setParameter (cs, ZSTD_c_contentSizeFlag, 0);
     }
   if (zs.isError (r)) goto liberr;
   r = 1;                              /* Empty compressed input is incomplete. */
@@ -230,7 +235,7 @@ done:
   return rc;
 }
 
-struct zs_opts { int level, decompress, to_stdout, force, remove, quiet; const char *outname; };
+struct zs_opts { int level, decompress, to_stdout, force, remove, quiet, no_content_size; const char *outname; };
 
 /* Compress or decompress one input to its target. Returns 0 or -1. */
 static int
@@ -281,6 +286,7 @@ zs_one (const char *src, const struct zs_opts *o)
     }
   if (zs_stream (in_fd, to_stdout ? 1 : out_fd, o->decompress, o->level,
                  o->force && (o->to_stdout || (from_stdin && !o->outname)),
+                 o->no_content_size,
                  src, to_stdout ? "stdout" : target) < 0) goto out;
   /* Close input before publication/removal so delayed input errors also keep
      the old destination and source. Never close the shell's stdin. */
@@ -333,7 +339,7 @@ out:
 int
 bashos_zstd_run (WORD_LIST *list, int cat_mode)
 {
-  struct zs_opts o = { ZS_DEFAULT_LEVEL, cat_mode, cat_mode, cat_mode, 0, 0, NULL };
+  struct zs_opts o = { ZS_DEFAULT_LEVEL, cat_mode, cat_mode, cat_mode, 0, 0, 0, NULL };
   WORD_LIST *l; int status = EXECUTION_SUCCESS, nfiles = 0;
 
   for (l = list; l; l = l->next)
@@ -348,6 +354,7 @@ bashos_zstd_run (WORD_LIST *list, int cat_mode)
       if (strcmp (w, "--decompress") == 0 || strcmp (w, "--uncompress") == 0) { o.decompress = 1; continue; }
       if (strcmp (w, "--compress") == 0) { o.decompress = 0; continue; }
       if (strcmp (w, "--quiet") == 0) { o.quiet = 1; continue; }
+      if (strcmp (w, "--no-content-size") == 0) { o.no_content_size = 1; continue; }
       if (w[1] == '-') { builtin_error ("%s: invalid option", w); builtin_usage (); return EX_USAGE; }
       if (w[1] >= '0' && w[1] <= '9')
         {
@@ -408,6 +415,7 @@ char *zstd_doc[] = {
   "  -f           overwrite an existing target",
   "  -k, --rm     keep (the default) or remove the source after success",
   "  -q, -v       accepted; nothing is printed but errors",
+  "  --no-content-size  omit the original size from compressed frame headers",
   "",
   "Streams use bounded memory; decoder windows are limited to 128 MiB.",
   "Named output is published atomically after successful completion.",

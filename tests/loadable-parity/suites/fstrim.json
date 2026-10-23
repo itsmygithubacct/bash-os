@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "loadable": "fstrim",
+  "reference": "Bash type/help define metadata expectations. Future operations need util-linux 2.41 fstrim and a reviewed closed filesystem/FITRIM syscall mock in a disposable VM. No trim operation parity result is claimed.",
+  "coverage": [
+    "Bash metadata confirms that fstrim is registered as a builtin.",
+    "Bash help metadata contains the documented synopsis, table modes and dry-run description.",
+    "Deferred: -I colon-list selection, regular/non-empty file handling, fstab parsing and mountpoint eligibility.",
+    "Deferred: -a mountinfo parsing and local writable filesystem selection.",
+    "Deferred: -A fstab selection, device-tag resolution and root-device guessing.",
+    "Deferred: duplicate target/source handling, octal path escapes and positive/negative -t filters.",
+    "Deferred: -o/-l/-m size parsing, boundary values, option parsing and usage errors.",
+    "Deferred: FITRIM request values, verbose byte reporting, unsupported errors and aggregate statuses.",
+    "Deferred: single-target path validation and filesystem handle lifecycle."
+  ],
+  "exclusions": [
+    "No fstrim operation is invoked, including dry-run mode; operation execution is outside this runner's authorized safety scope.",
+    "There are no GNU parity cases in this run. Operation comparisons require a disposable VM or reviewed syscall mock that supplies private mount tables, filesystem metadata and device/sysfs fixtures, and prevents every FITRIM request from reaching the kernel.",
+    "No real mount, device, filesystem trim, host mount-table inspection or privilege-dependent behavior is exercised."
+  ],
+  "cases": [
+    {
+      "id": "builtin-registration",
+      "kind": "contract",
+      "purpose": "Check the Bash type contract for the loadable by querying metadata only; do not call fstrim.",
+      "script": "kind=$(type -t fstrim)\n[[ $kind == builtin ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "documented-help-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash help metadata against the documented synopsis, -a/-A/-I modes and dry-run description without invoking the operation.",
+      "script": "help_text=$(help fstrim)\ncase $help_text in *'Discard unused blocks on a mounted filesystem.'*) ;; *) exit 1 ;; esac\ncase $help_text in *'fstrim [options] <-A|-a|mount point>'*) ;; *) exit 1 ;; esac\ncase $help_text in *'in the first non-empty file of a colon-separated fstab/mountinfo list;'*) ;; *) exit 1 ;; esac\ncase $help_text in *'-n does everything apart from FITRIM.'*) ;; *) exit 1 ;; esac\nprintf 'fstrim help contract present\\n'",
+      "expected_status": 0,
+      "stdout": "fstrim help contract present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "listed-file-selection",
+      "kind": "deferred",
+      "purpose": "Compare -I colon-list choice, regular/non-empty file rules, fstab-shaped parsing, malformed rows and mountpoint eligibility.",
+      "reason": "Requires a disposable VM or reviewed syscall mock that redirects candidate and util-linux table/file/stat/access/statfs/realpath/open calls to the same small private fixture. The mock must supply fake mountpoint metadata and block real FITRIM ioctls; the current runner exposes neither the path macros nor a syscall fixture for this binary."
+    },
+    {
+      "id": "mountinfo-all-mode",
+      "kind": "deferred",
+      "purpose": "Compare -a mountinfo parsing and selection of writable local filesystems, including read-only, pseudo, network and unmounted entries.",
+      "reason": "Requires a disposable VM or reviewed mock that supplies a private mountinfo table and consistent filesystem/device metadata to both the candidate and util-linux reference. The mock must intercept table access and all filesystem checks and guarantee no FITRIM ioctl reaches the kernel."
+    },
+    {
+      "id": "fstab-tags-and-root",
+      "kind": "deferred",
+      "purpose": "Compare -A fstab behavior, LABEL/UUID-style device resolution and root-device selection from a supplied command line or fake sysfs.",
+      "reason": "Requires a disposable VM or reviewed mock for fstab, command-line, /dev/disk and sysfs lookups, plus fake mountpoint/device metadata for both implementations. It must contain no real device access and must block FITRIM ioctls."
+    },
+    {
+      "id": "dedup-escapes-and-types",
+      "kind": "deferred",
+      "purpose": "Compare duplicate target/source rules, octal escapes, repeated/trailing slash path equivalence, and case-insensitive positive and negated -t filters.",
+      "reason": "Requires the same reviewed private table and filesystem syscall mock for candidate and util-linux, with fixture paths containing spaces, tabs and backslashes and deterministic mountpoint/device identities. The mock must prevent all real trim ioctls."
+    },
+    {
+      "id": "ranges-and-option-errors",
+      "kind": "deferred",
+      "purpose": "Compare -o/-l/-m size parsing (base-0 numbers, binary/decimal suffixes, fractions and limits), option permutation and representative usage failures.",
+      "reason": "Even dry-run range cases open and validate a target path. Requires a disposable fixture target or syscall mock for both implementations, util-linux fstrim as oracle, and a check that dry-run issues no FITRIM request. Invalid-option cases may be added to that bounded reference comparison."
+    },
+    {
+      "id": "fitrim-results-and-statuses",
+      "kind": "deferred",
+      "purpose": "Compare range arguments, verbose size formatting, unsupported-operation handling, quiet mode, and all-failed/partial-failed aggregate exit statuses.",
+      "reason": "Requires a reviewed closed ioctl mock that records start/length/minimum-length and supplies deterministic success or errno responses to candidate and util-linux. The mock must prove that no FITRIM ioctl reaches the kernel; a disposable real filesystem alone is not an acceptable substitute."
+    },
+    {
+      "id": "single-target-path-lifecycle",
+      "kind": "deferred",
+      "purpose": "Compare single-target directory checks, realpath/open failures, dry-run output and descriptor cleanup on success or failure.",
+      "reason": "Requires a disposable target tree plus a reviewed filesystem/ioctl mock for both implementations to provide deterministic stat, realpath, open and close behavior. The mock must block FITRIM at the syscall boundary, including error cases."
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "loadable": "pgrep",
+  "reference": "GNU procps-ng pgrep for parser errors. Operation contracts use literal synthetic proc records through the documented read-only BASHOS_PROC_ROOT extension; live GNU comparisons need a reviewed procfs path adapter. Bash metadata is not operation coverage.",
+  "coverage": [
+    "Bash reports pgrep as a registered builtin.",
+    "Bash exposes the catalog synopsis through help -s.",
+    "Detailed builtin help retains documented matching and selector descriptions.",
+    "Deferred operation coverage specifies useful procfs and isolated-child comparisons against GNU procps-ng pgrep.",
+    "Synthetic read-only operation contracts: ERE/exact/inverse matching, cmdline formatting, effective/real IDs, combined selectors, ages/ties and self-exclusion; GNU parser parity.",
+    "Genuine procps parity for one private naturally exiting Bash child, parent restriction, command-line matching, no-match count/status and self-exclusion."
+  ],
+  "exclusions": [
+    "No signal-delivery command is invoked. Only private synthetic proc records are read by candidate operation fixtures.",
+    "GNU procps cannot read BASHOS_PROC_ROOT directly; synthetic operation contracts are not labeled GNU parity. Broader synthetic procfs reference comparisons remain deferred; one private-child comparison runs.",
+    "The case count exceeds the preferred range to retain original coverage and isolate independent additional edge cases."
+  ],
+  "cases": [
+    {
+      "id": "pgrep-type-builtin",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the catalogued pgrep loadable as a builtin, independently of executable lookup.",
+      "script": "type -t pgrep",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pgrep-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s must expose the synopsis documented by the pgrep catalog entry.",
+      "script": "help -s pgrep",
+      "expected_status": 0,
+      "stdout": "pgrep: pgrep PATTERN\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pgrep-help-contract",
+      "kind": "contract",
+      "purpose": "The detailed help must include the independently documented synopsis, summary, POSIX ERE semantics, effective/real UID selectors, and newest/oldest selector. The marker output identifies which documented fragments are present.",
+      "script": "doc=$(help pgrep)\nbits=\ncase $doc in *'pgrep: pgrep PATTERN'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\ncase $doc in *'Find PIDs of running processes by name or cmdline.'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\ncase $doc in *'PATTERN is a POSIX extended regular expression. Self is never matched.'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\ncase $doc in *'-u, --euid USER,...  filter effective uid (numeric or user name)'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\ncase $doc in *'-U, --uid USER,...   filter real uid (numeric or user name)'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\ncase $doc in *'-n, --newest / -o, --oldest select one by start time (ties by PID)'*) bits=${bits}1 ;; *) bits=${bits}0 ;; esac\nprintf 'help-doc markers: %s\\n' \"$bits\"\n[[ $bits == 111111 ]]",
+      "expected_status": 0,
+      "stdout": "help-doc markers: 111111\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pgrep-regex-name-matching",
+      "kind": "deferred",
+      "purpose": "Compare default comm-field regex matching, -x whole-name matching, alternatives, empty patterns, invalid ERE handling, and self-exclusion with GNU procps-ng pgrep.",
+      "reason": "Requires a disposable VM or independently reviewed read-only procfs mock with a deterministic PID tree and a GNU procps-ng pgrep reference. GNU synthetic parity requires a reviewed procfs path adapter in that disposable VM. Existing synthetic contract cases do not replace independent GNU qualification."
+    },
+    {
+      "id": "pgrep-cmdline-output",
+      "kind": "deferred",
+      "purpose": "Compare -f command-line matching, -a/-l listing, -d delimiters, and -c output, including NUL-separated arguments, embedded newlines, long arguments, and empty command lines.",
+      "reason": "Requires a disposable VM or read-only procfs mock containing controlled cmdline records, plus GNU procps-ng pgrep. A reviewed procfs path adapter must expose the same synthetic records to unmodified procps; runnable literal-record contracts cover only the bounded cases listed separately."
+    },
+    {
+      "id": "pgrep-selectors-and-age",
+      "kind": "deferred",
+      "purpose": "Compare effective and real UID, GID, parent, process-group and session selectors; comma alternatives and combined selectors; -v; and newest/oldest selection including start-time ties.",
+      "reason": "Requires deterministic synthetic procfs status/stat records in a disposable VM or reviewed read-only procfs mock, with GNU procps-ng pgrep as the independent oracle. A reviewed procfs path adapter must expose the same synthetic records to unmodified procps; runnable literal-record contracts cover only the bounded cases listed separately."
+    },
+    {
+      "id": "pgrep-usage-statuses",
+      "kind": "deferred",
+      "purpose": "Complete parser option matrix beyond the bounded runnable GNU parser cases.",
+      "reason": "Requires a disposable VM or procfs mock so parser cases that reach process enumeration cannot inspect the host process table; GNU procps-ng pgrep must be available as reference."
+    },
+    {
+      "id": "pgrep-owned-child-integration",
+      "kind": "parity",
+      "requires": [
+        "pgrep"
+      ],
+      "script": "coproc worker { IFS= read -r value; [[ $value == complete ]]; }\nowned_pid=$worker_PID\n# fixture_owned_probe remains in the inherited command line of this one owned child.\npgrep -P \"$$\" -c\npgrep -P \"$$\" -c -f fixture_owned_probe\nif pgrep -P \"$$\" -c -x zqfixture827; then rc=0; else rc=$?; fi\n[[ $rc == 1 ]]\nprintf 'no-match-status=%s\\n' \"$rc\"\nprintf 'complete\\n' >&\"${worker[1]}\"\nwait \"$owned_pid\"\n",
+      "purpose": "A bounded Bash coprocess reads one private pipe message and exits naturally. GNU and candidate compare direct-child counts, full-cmdline selection, self-exclusion and no-match status inside their private PID namespaces; no signals or host processes are involved.",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "synthetic-regex-and-count",
+      "kind": "contract",
+      "script": "mkdir -p proc/1001 proc/1002 proc/1003\nexport BASHOS_PROC_ROOT=proc\nprintf 'alpha\\n' > proc/1001/comm\nprintf 'alphabet\\n' > proc/1002/comm\nprintf 'beta\\n' > proc/1003/comm\nprintf 'alpha\\000arg one\\000' > proc/1001/cmdline\nprintf 'alphabet\\000arg two\\000' > proc/1002/cmdline\nprintf 'beta\\000line\\nbreak\\000' > proc/1003/cmdline\nprintf 'Uid:\\t10\\t20\\t20\\t20\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1001/status\nprintf 'Uid:\\t20\\t10\\t10\\t10\\nGid:\\t40\\t40\\t40\\t40\\n' > proc/1002/status\nprintf 'Uid:\\t10\\t10\\t10\\t10\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1003/status\nmake_stat() {\n local id=$1 parent=$2 group=$3 session=$4 start=$5\n printf '%s (fixture name) S %s %s %s' \"$id\" \"$parent\" \"$group\" \"$session\" > \"proc/$id/stat\"\n for ((j=7;j<=21;j++)); do printf ' 0' >> \"proc/$id/stat\"; done\n printf ' %s\\n' \"$start\" >> \"proc/$id/stat\"\n}\nmake_stat 1001 50 60 70 100\nmake_stat 1002 51 61 71 200\nmake_stat 1003 50 60 70 200\npgrep -c alpha\npgrep -l -x alpha\npgrep -c -x 'alpha|beta'\npgrep -c -v '^alpha'\nif pgrep -c -x absent; then rc=0; else rc=$?; fi\nprintf 'no-match=%s\\n' \"$rc\"\n[[ $rc == 1 ]]\n",
+      "stdout": "2\n1001 alpha\n2\n1\n0\nno-match=1\n",
+      "purpose": "Read only a private synthetic proc tree: substring ERE, exact alternatives, inversion, list-name, count and no-match status are fixed from literal records.",
+      "stderr": "empty",
+      "expected_status": 0
+    },
+    {
+      "id": "synthetic-cmdline-output",
+      "kind": "contract",
+      "script": "mkdir -p proc/1001 proc/1002 proc/1003\nexport BASHOS_PROC_ROOT=proc\nprintf 'alpha\\n' > proc/1001/comm\nprintf 'alphabet\\n' > proc/1002/comm\nprintf 'beta\\n' > proc/1003/comm\nprintf 'alpha\\000arg one\\000' > proc/1001/cmdline\nprintf 'alphabet\\000arg two\\000' > proc/1002/cmdline\nprintf 'beta\\000line\\nbreak\\000' > proc/1003/cmdline\nprintf 'Uid:\\t10\\t20\\t20\\t20\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1001/status\nprintf 'Uid:\\t20\\t10\\t10\\t10\\nGid:\\t40\\t40\\t40\\t40\\n' > proc/1002/status\nprintf 'Uid:\\t10\\t10\\t10\\t10\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1003/status\nmake_stat() {\n local id=$1 parent=$2 group=$3 session=$4 start=$5\n printf '%s (fixture name) S %s %s %s' \"$id\" \"$parent\" \"$group\" \"$session\" > \"proc/$id/stat\"\n for ((j=7;j<=21;j++)); do printf ' 0' >> \"proc/$id/stat\"; done\n printf ' %s\\n' \"$start\" >> \"proc/$id/stat\"\n}\nmake_stat 1001 50 60 70 100\nmake_stat 1002 51 61 71 200\nmake_stat 1003 50 60 70 200\npgrep -a -f -x 'alpha arg one'\npgrep -a -f 'line break'\npgrep -c -f 'arg (one|two)'\n",
+      "stdout": "1001 alpha arg one\n1003 beta line break\n2\n",
+      "purpose": "Synthetic NUL-separated command arguments preserve spaces; listing normalizes embedded newline according to the documented procps-compatible contract.",
+      "stderr": "empty",
+      "expected_status": 0
+    },
+    {
+      "id": "synthetic-selectors-and-age",
+      "kind": "contract",
+      "script": "mkdir -p proc/1001 proc/1002 proc/1003\nexport BASHOS_PROC_ROOT=proc\nprintf 'alpha\\n' > proc/1001/comm\nprintf 'alphabet\\n' > proc/1002/comm\nprintf 'beta\\n' > proc/1003/comm\nprintf 'alpha\\000arg one\\000' > proc/1001/cmdline\nprintf 'alphabet\\000arg two\\000' > proc/1002/cmdline\nprintf 'beta\\000line\\nbreak\\000' > proc/1003/cmdline\nprintf 'Uid:\\t10\\t20\\t20\\t20\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1001/status\nprintf 'Uid:\\t20\\t10\\t10\\t10\\nGid:\\t40\\t40\\t40\\t40\\n' > proc/1002/status\nprintf 'Uid:\\t10\\t10\\t10\\t10\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1003/status\nmake_stat() {\n local id=$1 parent=$2 group=$3 session=$4 start=$5\n printf '%s (fixture name) S %s %s %s' \"$id\" \"$parent\" \"$group\" \"$session\" > \"proc/$id/stat\"\n for ((j=7;j<=21;j++)); do printf ' 0' >> \"proc/$id/stat\"; done\n printf ' %s\\n' \"$start\" >> \"proc/$id/stat\"\n}\nmake_stat 1001 50 60 70 100\nmake_stat 1002 51 61 71 200\nmake_stat 1003 50 60 70 200\npgrep -c -u 20 alpha\npgrep -c -U 20 alpha\npgrep -c -G 30 ''\npgrep -c -P 50 -g 60 -s 70 ''\npgrep -c -P 50,51 -u 20 alpha\npgrep -n ''\npgrep -o ''\n",
+      "stdout": "1\n1\n2\n2\n1\n1003\n1001\n",
+      "purpose": "Distinguish real/effective UID and GID using synthetic metadata; combine selectors and alternatives; newest tie uses highest PID and oldest uses lowest start time.",
+      "stderr": "empty",
+      "expected_status": 0
+    },
+    {
+      "id": "synthetic-self-exclusion",
+      "kind": "contract",
+      "script": "mkdir -p proc/1001 proc/1002 proc/1003\nexport BASHOS_PROC_ROOT=proc\nprintf 'alpha\\n' > proc/1001/comm\nprintf 'alphabet\\n' > proc/1002/comm\nprintf 'beta\\n' > proc/1003/comm\nprintf 'alpha\\000arg one\\000' > proc/1001/cmdline\nprintf 'alphabet\\000arg two\\000' > proc/1002/cmdline\nprintf 'beta\\000line\\nbreak\\000' > proc/1003/cmdline\nprintf 'Uid:\\t10\\t20\\t20\\t20\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1001/status\nprintf 'Uid:\\t20\\t10\\t10\\t10\\nGid:\\t40\\t40\\t40\\t40\\n' > proc/1002/status\nprintf 'Uid:\\t10\\t10\\t10\\t10\\nGid:\\t30\\t30\\t30\\t30\\n' > proc/1003/status\nmake_stat() {\n local id=$1 parent=$2 group=$3 session=$4 start=$5\n printf '%s (fixture name) S %s %s %s' \"$id\" \"$parent\" \"$group\" \"$session\" > \"proc/$id/stat\"\n for ((j=7;j<=21;j++)); do printf ' 0' >> \"proc/$id/stat\"; done\n printf ' %s\\n' \"$start\" >> \"proc/$id/stat\"\n}\nmake_stat 1001 50 60 70 100\nmake_stat 1002 51 61 71 200\nmake_stat 1003 50 60 70 200\nmkdir -p \"proc/$$\"\nprintf 'only_self\\n' > \"proc/$$/comm\"\nif pgrep -c -x only_self; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\n[[ $rc == 1 ]]\n",
+      "stdout": "0\nstatus=1\n",
+      "purpose": "A synthetic record for the calling shell PID must be excluded without reading any live process record.",
+      "stderr": "empty",
+      "expected_status": 0
+    },
+    {
+      "id": "missing-pattern",
+      "kind": "parity",
+      "requires": [
+        "pgrep"
+      ],
+      "script": "export BASHOS_PROC_ROOT=missing-proc\npgrep",
+      "purpose": "Compare GNU procps parser failure before enumeration; candidate proc root is a nonexistent relative path.",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-regex",
+      "kind": "parity",
+      "requires": [
+        "pgrep"
+      ],
+      "script": "export BASHOS_PROC_ROOT=missing-proc\npgrep '['",
+      "purpose": "Compare GNU procps parser failure before enumeration; candidate proc root is a nonexistent relative path.",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "exclusive-ages",
+      "kind": "parity",
+      "requires": [
+        "pgrep"
+      ],
+      "script": "export BASHOS_PROC_ROOT=missing-proc\npgrep -n -o x",
+      "purpose": "Compare GNU procps parser failure before enumeration; candidate proc root is a nonexistent relative path.",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-option",
+      "kind": "parity",
+      "requires": [
+        "pgrep"
+      ],
+      "script": "export BASHOS_PROC_ROOT=missing-proc\npgrep --fixture-unknown",
+      "purpose": "Compare GNU procps parser failure before enumeration; candidate proc root is a nonexistent relative path.",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "trailing-comma-selector",
+      "kind": "parity",
+      "requires": [
+        "pgrep",
+        "mkdir"
+      ],
+      "script": "mkdir proc\nexport BASHOS_PROC_ROOT=proc\npgrep -P 1, -x zqfixture827",
+      "purpose": "A trailing parent-selector comma is accepted by procps. Use an existing empty synthetic proc directory for the candidate and a fixed absent name in the reference private PID namespace; both report no match without a diagnostic.",
+      "expected_status": 1,
+      "stderr": "empty"
+    }
+  ]
+}

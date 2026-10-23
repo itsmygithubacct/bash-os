@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "loadable": "ssh",
+  "reference": "OpenSSH ssh-keygen -F and -R for known_hosts filtering/removal; documented Bash ssh help/verify contracts for loadable-only behavior. The fixed Ed25519 public key is the RFC 8032 test vector encoded as an SSH public-key blob. The hashed-host fixture uses OpenSSH's documented HMAC-SHA1 known_hosts format with a fixed 20-byte salt, independently calculated.",
+  "coverage": [
+    "Bash type/help metadata without invoking transport operations",
+    "Documented known-hosts add and verify contracts using relative fixture files",
+    "OpenSSH known_hosts filtering for plain, hashed, comma-separated alias, and absent entries",
+    "OpenSSH known_hosts removal and resulting file state"
+  ],
+  "exclusions": [
+    "No SSH network activity, authentication, external host, installed credentials, PTY, or system service is used.",
+    "SSH transport, keyscan, forwarding, multiplexing, SFTP, and interactive shell behavior remain deferred pending an explicitly disposable isolated peer and suitable fixture drivers.",
+    "This audit covers ordinary plain/hashed host fields and comma-separated literal aliases in private files. Marker records, wildcard/negated patterns, symlink/concurrent update behavior and environmental I/O failures are not qualified."
+  ],
+  "cases": [
+    {
+      "id": "ssh-type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata identifies ssh as a loadable builtin without running an ssh operation.",
+      "script": "type -t ssh",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ssh-help-metadata",
+      "kind": "contract",
+      "purpose": "Bash help exposes the documented client verbs and known-hosts interface; the script emits a stable marker after checking those help entries.",
+      "script": "doc=$(help ssh)\n[[ $doc == *\"connect HOST\"* ]]\n[[ $doc == *\"exec HANDLE CMD\"* ]]\n[[ $doc == *\"known-hosts verify HOST\"* ]]\nprintf 'ssh help metadata ok\\n'",
+      "expected_status": 0,
+      "stdout": "ssh help metadata ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-add-contract",
+      "kind": "contract",
+      "purpose": "The documented add operation appends a host/key record to the explicitly configured relative known_hosts fixture; stdout reads back the resulting content.",
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf 'retained.fixture.test %s\\n' \"$key\" > known_hosts\nssh known-hosts add added.fixture.test \"$key\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < known_hosts",
+      "expected_status": 0,
+      "stdout": "retained.fixture.test ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea\nadded.fixture.test ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-verify-contract",
+      "kind": "contract",
+      "purpose": "The documented verifier distinguishes a matching key, a recorded key mismatch, and an unknown host with return codes 0, 1, and 2.",
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf 'fixture.test %s\\n' \"$key\" > known_hosts\nrecord_status() {\n  local actual\n  if ssh known-hosts verify \"$1\" \"$2\"; then actual=0; else actual=$?; fi\n  printf '%s\\n' \"$actual\"\n}\nrecord_status fixture.test \"$key\"\nrecord_status fixture.test wrong-key\nrecord_status unknown.fixture.test \"$key\"",
+      "expected_status": 0,
+      "stdout": "0\n1\n2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-list-plain-parity",
+      "kind": "parity",
+      "purpose": "A filtered lookup returns the matching plain known_hosts record byte-for-byte, using ssh-keygen -F as the OpenSSH oracle.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf '# fixture comment\\n\\nother.fixture.test %s\\nplain.fixture.test %s\\n' \"$key\" \"$key\" > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts list plain.fixture.test\nelse\n  ssh-keygen -q -F plain.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-list-alias-parity",
+      "kind": "parity",
+      "purpose": "OpenSSH matches a hostname listed as one member of a comma-separated known_hosts host field; this checks the same documented filtering behavior.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf 'primary.fixture.test,alias.fixture.test %s\\n' \"$key\" > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts list alias.fixture.test\nelse\n  ssh-keygen -q -F alias.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-list-missing-parity",
+      "kind": "parity",
+      "purpose": "A filtered lookup of a host absent from an empty known_hosts file returns status 1 with no output.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\n: > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts list absent.fixture.test\nelse\n  ssh-keygen -q -F absent.fixture.test -f known_hosts\nfi",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-hashed-list-remove-parity",
+      "kind": "parity",
+      "purpose": "A fixed OpenSSH HMAC-SHA1 hashed host record is found and then removed; status, stdout, stderr policy, and resulting fixture tree are compared with ssh-keygen -F/-R.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf '# retain this comment\\n|1|AAECAwQFBgcICQoLDA0ODxAREhM=|n9LVS+f9nF1+/FfRFwRpux5+lGs= %s\\nother.fixture.test %s\\n' \"$key\" \"$key\" > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts list hash.fixture.test\n  ssh known-hosts remove hash.fixture.test\nelse\n  ssh-keygen -q -F hash.fixture.test -f known_hosts\n  ssh-keygen -R hash.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-remove-plain-parity",
+      "kind": "parity",
+      "purpose": "Removing one plain host leaves unrelated records, comments, and blank lines in the fixture file as OpenSSH ssh-keygen -R does.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf '# preserved comment\\n\\nremove.fixture.test %s\\nkeep.fixture.test %s\\n' \"$key\" \"$key\" > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts remove remove.fixture.test\nelse\n  ssh-keygen -R remove.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ssh-remote-exec-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise native and encrypted connection setup, host-key policy, authentication, stdin/stdout/stderr, and remote exit-status forwarding.",
+      "reason": "Requires a future disposable VM or independently reviewed loopback SSH mock with generated fixture-only host/client keys, an isolated sshd endpoint, explicit known_hosts, and no external network route. This suite must not initiate network activity."
+    },
+    {
+      "id": "ssh-keyscan-forward-sftp-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise host-key scanning and hashing, local/remote forwarding lifecycle, and encrypted SFTP transfers against a controlled peer.",
+      "reason": "Requires a future disposable VM or independently reviewed network mock that provides a bounded SSH/SFTP peer, deterministic fixture ports and files, and an isolated route. No peer or network activity is available or permitted in this run."
+    },
+    {
+      "id": "ssh-pty-multiplex-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise interactive shell/PTY resizing, ControlMaster persistence and cleanup, and multiplexed session behavior.",
+      "reason": "Requires a future disposable VM with a private PTY driver, an isolated encrypted SSH server, bounded persistence timing, and fixture-only identities. The available fixture runner intentionally does not provide that live peer or interactive transport setup."
+    },
+    {
+      "id": "known-hosts-alias-case-and-whitespace",
+      "kind": "parity",
+      "purpose": "Find aliases case-insensitively, preserving the original whitespace and key record bytes printed by the independent oracle.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf ' \\tPrimary.fixture.test,Alias.fixture.test %s\\n' \"$key\" > known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts list ALIAS.fixture.test\nelse\n  ssh-keygen -q -F ALIAS.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-remove-aliases-mode-backup",
+      "kind": "parity",
+      "purpose": "Remove all alias-bearing records while preserving unrelated lines and the original 0600 file mode. Compare the complete .old backup and an existing old-backup replacement.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf 'old backup\\n' > known_hosts.old\nprintf '# fixture\\nprimary.fixture.test,alias.fixture.test %s\\nkeep.fixture.test %s\\nalias.fixture.test %s\\n' \"$key\" \"$key\" \"$key\" > known_hosts\nchmod 600 known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts remove alias.fixture.test\nelse\n  ssh-keygen -R alias.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "known-hosts-remove-no-match",
+      "kind": "parity",
+      "purpose": "Removing an absent host is idempotent and leaves the input contents and mode intact without creating a backup.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nprintf 'keep.fixture.test %s\\n' \"$key\" > known_hosts\nchmod 600 known_hosts\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts remove absent.fixture.test\nelse\n  ssh-keygen -R absent.fixture.test -f known_hosts\nfi",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "known-hosts-remove-missing-file",
+      "kind": "parity",
+      "purpose": "A missing explicitly selected relative known_hosts file reports a file-operation failure; no host files are consulted.",
+      "requires": [
+        "ssh-keygen"
+      ],
+      "script": "export BASHSSH_KNOWN_HOSTS=known_hosts\nkey='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea'\nif [[ $(type -t ssh) == builtin ]]; then\n  ssh known-hosts remove absent.fixture.test\nelse\n  ssh-keygen -R absent.fixture.test -f known_hosts\nfi",
+      "expected_status": 255,
+      "stderr": "nonempty"
+    }
+  ]
+}

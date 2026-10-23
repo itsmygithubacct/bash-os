@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "loadable": "pidof",
+  "reference": "procps-ng pidof supplies independent no-match CLI comparisons; positive matching, ordering and root filtering require controlled process records. Bash type/help cases are metadata only.",
+  "coverage": [
+    "Bash type metadata reports pidof as a builtin.",
+    "Bash help resolves the pidof help topic and emits metadata.",
+    "Deferred: exact comm-versus-argv distinctions and multiple matches; no-match status executes.",
+    "Deferred: slash-containing argv[0] basenames; a bare argv[0] match executes.",
+    "Deferred: first-match selection across multiple matches; single-child -s/-q execute.",
+    "Deferred: interpreter script argv[1] matching with -x.",
+    "Deferred: %PPID and multi-ID omission spellings; one numeric child omission executes.",
+    "Deferred: differing process roots and multiple-PID custom separators.",
+    "Executed no-match lookups and a controlled owned-child argv[0] match with -s/-q and numeric omission."
+  ],
+  "exclusions": [
+    "The single owned-child argv[0] lookup and no-match modes execute. Multiple-match enumeration, script/comm distinctions, parent relationships and differing process roots need the additional controlled fixtures described below.",
+    "Thread selection, namespace-specific process selection, races during procfs traversal, and non-procps pidof variants are outside this small suite."
+  ],
+  "cases": [
+    {
+      "id": "pidof-type-builtin",
+      "purpose": "Check Bash type metadata identifies the packaged pidof loadable as a builtin.",
+      "kind": "contract",
+      "script": "type -t pidof",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pidof-help-topic",
+      "purpose": "Check Bash help resolves pidof metadata and produces a nonempty help entry.",
+      "kind": "contract",
+      "script": "help -d pidof >help.txt\n[[ -s help.txt ]]\nprintf 'help-topic-present\\n'",
+      "expected_status": 0,
+      "stdout": "help-topic-present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pidof-comm-match-and-miss",
+      "purpose": "Compare exact-name comm matching, reporting multiple matching processes, and the no-match status/output contract.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with a private PID namespace and controlled fixture processes whose comm names and PIDs are known, or a reviewed procfs adapter supplying deterministic /proc/PID/comm and cmdline records to both sides. Run procps-ng pidof and bash-os against the same fixture. The current runner gives reference and candidate separate changing process trees, exposes only read-only live procfs, and pidof.c hardcodes /proc."
+    },
+    {
+      "id": "pidof-argv0-basename",
+      "purpose": "Compare argv[0] matching when comm differs, including a command argument containing a directory prefix whose basename should match.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM or reviewed shared procfs mock with NUL-delimited /proc/PID/cmdline records where argv[0] differs from comm, including both bare and slash-containing command arguments. procps-ng pidof must see the same fixed records; the current runner cannot inject them and the candidate opens hardcoded /proc paths."
+    },
+    {
+      "id": "pidof-single-and-quiet",
+      "purpose": "Compare -s first-match behavior and -q output suppression while retaining success and no-match statuses.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with at least two controlled matching processes, or a reviewed procfs mock with stable PID records and enumeration order, plus procps-ng pidof as the reference. The current live /proc snapshot is not shared or pinned between executions, so exact first-match output cannot be checked safely here."
+    },
+    {
+      "id": "pidof-script-match-x",
+      "purpose": "Compare whether -x includes a script name found as argv[1] of an interpreter, while the default mode excludes that argv[1] match.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM or reviewed procfs mock containing a controlled interpreter cmdline with a NUL-delimited script argv[1], plus the corresponding procps-ng pidof comparison. The current runner provides no stable synthetic cmdline records and the candidate reads hardcoded /proc/PID/cmdline."
+    },
+    {
+      "id": "pidof-omit-list",
+      "purpose": "Compare -o omission of numeric PIDs and %PPID, including the documented comma, semicolon, and colon list separators.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with fixed matching PIDs and a controlled parent relationship, or a reviewed procfs/process-ID mock that gives both procps-ng pidof and the candidate identical process records. The current runner's parent PIDs differ between reference and candidate runs, and the candidate has no injectable proc root."
+    },
+    {
+      "id": "pidof-check-root",
+      "purpose": "Compare -c filtering when one controlled process has the caller's root and another has a different root.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with controlled process root links or a reviewed procfs mock supplying distinct /proc/PID/root link targets to both implementations. The current runner gives processes one sandbox root and the candidate hardcodes /proc, so the root-filter behavior cannot be isolated with a stable oracle here."
+    },
+    {
+      "id": "pidof-custom-separator",
+      "purpose": "Compare -S and its -d alias for joining multiple matched PIDs with a requested separator.",
+      "kind": "deferred",
+      "reason": "Requires a future disposable VM with multiple controlled matching processes or a reviewed shared procfs mock fixing the matched PID set and output order, plus procps-ng pidof for comparison. Separate runner process trees and a live changing /proc prevent deterministic output comparison here."
+    },
+    {
+      "id": "no-match-plain",
+      "kind": "parity",
+      "purpose": "A deliberately absent command name has status 1 and no PID output; this negative process lookup does not need stable PID values.",
+      "script": "pidof  parity_no_such_command_73d9e26b",
+      "requires": [
+        "pidof"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-match-quiet",
+      "kind": "parity",
+      "purpose": "A deliberately absent command name has status 1 and no PID output; this negative process lookup does not need stable PID values.",
+      "script": "pidof -q parity_no_such_command_73d9e26b",
+      "requires": [
+        "pidof"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-match-single",
+      "kind": "parity",
+      "purpose": "A deliberately absent command name has status 1 and no PID output; this negative process lookup does not need stable PID values.",
+      "script": "pidof -s parity_no_such_command_73d9e26b",
+      "requires": [
+        "pidof"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "owned-child-lookup",
+      "kind": "parity",
+      "purpose": "Match one bounded fixture child by its explicit argv[0], compare its exact PID with Bash $!, and check -s/-q/-o. FIFO handshakes control lifetime; releasing and waiting for the child uses no signals. Dynamic PID identity is asserted locally, not discarded.",
+      "script": "mkfifo ready gate\n(PATH=/usr/bin:/bin; exec -a parity_pid_fixture_73d9e26b bash --noprofile --norc -c 'printf \"ready\\n\" > ready; IFS= read -r release < gate') &\nchild=$!\nIFS= read -r handshake < ready\nif out=$(pidof parity_pid_fixture_73d9e26b); then found=0; else found=$?; fi\nif one=$(pidof -s parity_pid_fixture_73d9e26b); then single=0; else single=$?; fi\nif quiet=$(pidof -q parity_pid_fixture_73d9e26b); then quiet_status=0; else quiet_status=$?; fi\nif omitted=$(pidof -o \"$child\" parity_pid_fixture_73d9e26b); then omit_status=0; else omit_status=$?; fi\nprintf 'release\\n' > gate\nwait \"$child\"\n[[ $handshake == ready && $found == 0 && $out == \"$child\" ]]\n[[ $single == 0 && $one == \"$child\" && $quiet_status == 0 && -z $quiet ]]\n[[ $omit_status == 1 && -z $omitted ]]\nprintf 'owned child matched; quiet and omission correct\\n' ",
+      "requires": [
+        "pidof",
+        "bash",
+        "mkfifo"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

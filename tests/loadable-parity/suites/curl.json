@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "loadable": "curl",
+  "reference": "The runnable contract expectations use Bash's documented type/help builtins and the loadable's documented short synopsis (curl_struct.short_doc), independent of any curl transfer output. No transfer parity is claimed. Deferred operation comparisons require curl plus a separately authored deterministic HTTP/TLS fixture in a future disposable VM with private networking; the fixture should capture request bytes and derive responses independently.",
+  "coverage": [
+    "Bash classifies curl as a shell builtin when PATH is empty.",
+    "Bash type output identifies the command as a shell builtin.",
+    "Bash short help exposes the documented curl synopsis.",
+    "Deferred: HTTP body framing, request construction, file output, HTTP errors, redirects, and HTTPS certificate behavior.",
+    "Parser-only missing option arguments and unknown option status/diagnostics against external curl."
+  ],
+  "exclusions": [
+    "No transfer command is executed; parser-only errors return before URL or network handling.",
+    "The HTTP and HTTPS operation cases are DEFERRED and have not passed; each requires a disposable VM or isolated mock service and a GNU curl reference."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Bash's type -t contract reports the compiled-in curl command as a builtin even with an empty executable search path.",
+      "script": "PATH=; type -t curl",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-description",
+      "kind": "contract",
+      "purpose": "Bash's type contract describes curl as a shell builtin rather than resolving an external executable.",
+      "script": "PATH=; type curl",
+      "expected_status": 0,
+      "stdout": "curl is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash short help publishes the documented synopsis registered by the curl loadable.",
+      "script": "help -s curl",
+      "expected_status": 0,
+      "stdout": "curl: curl\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "http-body-framing",
+      "kind": "deferred",
+      "purpose": "Compare response body bytes and status for Content-Length and chunked HTTP responses, including a small binary body with NUL and high-bit bytes.",
+      "reason": "Requires a future disposable VM with a private loopback HTTP fixture and GNU curl available as the independent CLI oracle. The fixture must serve fixed Content-Length and chunked responses and compare -s stdout/status byte-for-byte; this suite does not open sockets."
+    },
+    {
+      "id": "request-wire-shape",
+      "kind": "deferred",
+      "purpose": "Check request method, path, headers, POST body, Basic authorization, and cookie handling against a captured request from a deterministic server.",
+      "reason": "Requires a future disposable VM with a private HTTP mock that records request bytes, plus GNU curl for the shared option behavior. Use only fixture credentials and a small relative payload; this suite does not send requests."
+    },
+    {
+      "id": "response-file-effects",
+      "kind": "deferred",
+      "purpose": "Compare -o output bytes, -O URL basename handling, -D dumped headers, and -w %{http_code} output including resulting fixture files.",
+      "reason": "Requires a future disposable VM with an isolated deterministic HTTP endpoint and GNU curl. The runner should compare stdout and private fixture tree contents, modes, and links; this suite performs no transfer or file-output operation."
+    },
+    {
+      "id": "http-fail-policy",
+      "kind": "deferred",
+      "purpose": "Check ordinary HTTP error responses with and without -f, including curl's status 22 behavior and -sS diagnostic policy.",
+      "reason": "Requires a future disposable VM with a private mock serving fixed success and 404/500 responses, plus GNU curl as oracle. Compare body, status, and the documented silent/show-error behavior; no endpoint is contacted here."
+    },
+    {
+      "id": "redirect-resolution",
+      "kind": "deferred",
+      "purpose": "Check -L handling of absolute and relative Location values, redirect limits, and a bounded long redirect target.",
+      "reason": "Requires a future disposable VM with a private HTTP redirect fixture and GNU curl. The mock should include absolute and relative locations, a short loop for the redirect limit, and a deterministic multi-kilobyte Location boundary case; no network activity occurs in this suite."
+    },
+    {
+      "id": "https-trust-policy",
+      "kind": "deferred",
+      "purpose": "Check HTTPS trust using a throwaway local CA, rejection of an untrusted certificate, and the explicit -k bypass against a private TLS server.",
+      "reason": "Requires a future disposable VM with an isolated TLS mock, locally generated throwaway certificates, and GNU curl as the independent oracle. Compare status/body for --cacert, default verification, and -k; this suite creates no certificate and opens no connection."
+    },
+    {
+      "id": "missing-output-argument",
+      "kind": "parity",
+      "purpose": "Compare parser rejection before URL handling, DNS, socket creation or any transfer.",
+      "script": "curl -o",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "missing-method-argument",
+      "kind": "parity",
+      "purpose": "Compare parser rejection before URL handling, DNS, socket creation or any transfer.",
+      "script": "curl -X",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "invalid-option",
+      "kind": "parity",
+      "purpose": "Compare parser rejection before URL handling, DNS, socket creation or any transfer.",
+      "script": "curl --not-a-curl-option",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "curl"
+      ]
+    }
+  ]
+}

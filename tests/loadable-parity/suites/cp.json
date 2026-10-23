@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "loadable": "cp",
+  "reference": "GNU coreutils cp invoked by system Bash with its standard executable PATH; expected command status, output bytes, and file tree are compared against the bash-os cp builtin.",
+  "coverage": [
+    "Binary regular-file copy, source preservation, and verbose output",
+    "Multiple operands into an existing directory, including a leading-dash name after --",
+    "Recursive tree copy with a relative symlink",
+    "Archive copy preserving hard-link relationships, symlinks, and modes",
+    "-p mode preservation",
+    "-n and --no-clobber behavior when combined with -f",
+    "Default following of a destination symlink including -f following an openable referent",
+    "Same-file and missing-source diagnostics with unchanged fixture data",
+    "Interactive overwrite acceptance and decline using bounded here-string input",
+    "Bash type/help metadata contract for the registered cp builtin",
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+  ],
+  "exclusions": [
+    "Device nodes, FIFOs, sockets, ACLs, extended attributes, and security labels are outside this private regular-file/symlink fixture suite.",
+    "The suite does not claim full GNU option coverage or compare timestamps because the harness tree snapshot records contents, modes, and link relationships but not timestamps.",
+    "More than twelve cases retain original coverage and independently curated force/symlink regressions. Permission-error cases require the controller unprivileged namespace identity.",
+    "The case count exceeds the preferred range to preserve existing cases and isolate additional boundaries and regressions."
+  ],
+  "cases": [
+    {
+      "id": "copy_binary_verbose",
+      "kind": "parity",
+      "purpose": "Copies deterministic binary data, leaves the source intact, and compares GNU-compatible -v output.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf 'head\\000middle\\377tail\\n' > source\nif cp -v source copied; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]\nprintf 'cp-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple_sources_dash_name",
+      "kind": "parity",
+      "purpose": "Copies multiple files into an existing directory and honors -- before a source whose name begins with a dash.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir destination\nprintf 'dash-name\\n' > ./-first\nprintf 'second\\n' > second\nif cp -- -first second destination; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "recursive_tree_symlink",
+      "kind": "parity",
+      "purpose": "Copies a nested directory recursively and preserves a relative symlink as a symlink.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p source/sub\nprintf 'nested payload\\n' > source/sub/item\nln -s sub/item source/shortcut\nif cp -R source copied; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "archive_hardlinks",
+      "kind": "parity",
+      "purpose": "Checks -a over a directory containing a hard-linked pair and a symlink; the tree comparison includes modes and hard-link identity.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir source\nprintf 'shared bytes\\n' > source/one\nln source/one source/two\nln -s one source/shortcut\nif cp -a source copied; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "preserve_mode",
+      "kind": "parity",
+      "purpose": "Uses a controlled umask to make a 0640 source and verifies that -p preserves its mode and bytes.",
+      "requires": [
+        "cp"
+      ],
+      "script": "umask 027\nprintf 'mode payload\\n' > source\numask 022\nif cp -p source copied; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no_clobber_force_options",
+      "kind": "parity",
+      "purpose": "Verifies -f does not override -n in either option order and checks the documented --no-clobber spelling.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf 'new data\\n' > source\nprintf 'first old\\n' > first\nprintf 'second old\\n' > second\nprintf 'third old\\n' > third\nif cp -fn source first && cp -nf source second && cp --no-clobber source third; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "destination_symlink_follow",
+      "kind": "parity",
+      "purpose": "Checks the default behavior when a regular-file destination is a symlink: the target contents change and the symlink remains.",
+      "requires": [
+        "cp",
+        "ln"
+      ],
+      "script": "printf 'replacement\\n' > source\nprintf 'old target\\n' > target\nln -s target alias\nif cp source alias; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "force_follows_openable_symlink",
+      "kind": "parity",
+      "purpose": "GNU cp -f follows an openable destination symlink and writes its referent while preserving the symlink.",
+      "requires": [
+        "cp",
+        "ln"
+      ],
+      "script": "printf 'replacement\\n' > source\nprintf 'old target\\n' > target\nln -s target alias\nif cp -f source alias; then rc=0; else rc=$?; fi\n[[ $rc -eq 0 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "failure_cases_preserve_files",
+      "kind": "parity",
+      "purpose": "Captures same-file and missing-source failures and verifies that both the source and an existing destination remain unchanged; diagnostic wording may vary.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf 'keep these bytes\\n' > source\nprintf 'keep destination\\n' > destination\nif cp source source; then same_status=0; else same_status=$?; fi\nif cp absent destination; then missing_status=0; else missing_status=$?; fi\nprintf 'same=%s missing=%s\\n' \"$same_status\" \"$missing_status\"\n[[ $same_status -eq 1 && $missing_status -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive_overwrite_answers",
+      "kind": "parity",
+      "purpose": "Exercises -i with deterministic no and yes answers; output and the resulting files are compared with GNU cp.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf 'new data\\n' > source\nprintf 'keep on decline\\n' > declined\nprintf 'old before accept\\n' > accepted\nif cp -i source declined <<< n; then declined_status=0; else declined_status=$?; fi\nif cp -i source accepted <<< y; then accepted_status=0; else accepted_status=$?; fi\nprintf 'declined-status=%s accepted-status=%s\\n' \"$declined_status\" \"$accepted_status\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "builtin_type_help_contract",
+      "kind": "contract",
+      "purpose": "Checks Bash metadata only: cp is registered as a builtin and help exposes the documented synopsis. This does not count as cp operation coverage.",
+      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-afinpRrv] [-HLP] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
+      "expected_status": 0,
+      "stdout": "type=builtin\nhelp=cp synopsis present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "special_destination_deferred",
+      "kind": "deferred",
+      "purpose": "GNU cp can write regular-file data to special destinations, but this suite is restricted to relative private fixture paths.",
+      "reason": "Requires a future disposable VM with a synthetic writable special-file sink and isolated reader, or a reviewed syscall mock. This runner must not exercise host or raw device paths."
+    },
+    {
+      "id": "force-hardlink-mode",
+      "kind": "parity",
+      "purpose": "Force should write an openable destination inode, preserving its other hardlinks and existing mode.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nprintf old > target\nchmod 600 target\nln target alias\ncp -f source target",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "force-same-referent",
+      "kind": "parity",
+      "purpose": "A forced destination symlink to the source must fail without replacing either entry.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf keep > source\nln -s source alias\ncp -f source alias",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dangling-destination",
+      "kind": "parity",
+      "purpose": "Both ordinary and forced copy should reject a dangling destination symlink without creating its target.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nln -s absent alias\nif cp source alias; then a=0; else a=$?; fi\nif cp -f source alias; then b=0; else b=$?; fi\nprintf '%s %s\\n' \"$a\" \"$b\"\n[[ $a == 1 && $b == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "force-open-failure-retry",
+      "kind": "parity",
+      "purpose": "An unwritable destination is replaced after its write-open fails; its old hardlink keeps its data.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nprintf old > target\nln target alias\nchmod 400 target\ncp -f source target",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unreadable-source-preservation",
+      "kind": "parity",
+      "purpose": "Check source-read failure before forced replacement for regular and symlink destinations; restore source mode for snapshots.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf secret > source\nprintf old > target\nln -s target alias\nchmod 000 source\nif cp -f source target; then a=0; else a=$?; fi\nif cp -f source alias; then b=0; else b=$?; fi\nchmod 600 source\nprintf '%s %s\\n' \"$a\" \"$b\"\n[[ $a == 1 && $b == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "multi-operand-error-continuation",
+      "kind": "parity",
+      "purpose": "A missing middle operand must not prevent the later regular file from being copied.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "mkdir destination\nprintf first > first\nprintf last > last\ncp first absent last destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "source-symlink-default-and-explicit",
+      "kind": "parity",
+      "purpose": "Compare default, -P, -H, and -L copying of a command-line source symlink using GNU as the oracle.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf data > source\nln -s source alias\ncp alias ordinary\ncp -P alias physical\ncp -H alias args\ncp -L alias logical",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "same-hardlink-no-clobber",
+      "kind": "parity",
+      "purpose": "Reject copying between hardlink aliases while no-clobber still skips them successfully.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf keep > source\nln source alias\nif cp -f source alias; then a=0; else a=$?; fi\ncp -n source alias\nprintf '%s\\n' \"$a\"\n[[ $a == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "force-unwritable-symlink-retry",
+      "kind": "parity",
+      "purpose": "If opening the destination referent fails, force may replace the symlink after the source is readable; its old referent stays intact.",
+      "requires": [
+        "cp",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nprintf old > target\nchmod 400 target\nln -s target alias\ncp -f source alias",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "archive-existing-hardlinks",
+      "kind": "parity",
+      "purpose": "Preserve archive behavior on preexisting hardlinked destinations, with and without force.",
+      "requires": [
+        "cp",
+        "ln"
+      ],
+      "script": "printf new > source\nprintf old > first\nln first first-alias\nprintf old > second\nln second second-alias\ncp -a source first\ncp -af source second",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

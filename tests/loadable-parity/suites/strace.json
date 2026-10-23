@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "loadable": "strace",
+  "reference": "Bash metadata follows the published tracer interface. Actual tracing requires a disposable VM with ptrace permission and an independent upstream strace oracle; it remains deferred under the current tracing restriction.",
+  "coverage": [
+    "Bash reports strace as a loadable builtin and exposes its help entry.",
+    "The help entry documents the tracer synopsis, filtering/summary options, and ptrace privilege requirement.",
+    "Deferred: child execution and exit-status propagation, output-file routing, syscall filtering, summary counts, child following, and PID attach."
+  ],
+  "exclusions": [
+    "Tracing requires a future disposable VM with a reviewed ptrace boundary and an independent upstream strace CLI. No trace operation is invoked; metadata is not syscall operation coverage.",
+    "Timing output and signal delivery are not exercised."
+  ],
+  "cases": [
+    {
+      "id": "metadata-builtin",
+      "kind": "contract",
+      "purpose": "Check Bash's builtin metadata contract: strace is registered as a builtin and its help entry is available.",
+      "script": "[[ $(type -t strace) == builtin ]] || exit 1\nhelp strace >metadata-output || exit 2\nprintf 'builtin\\nhelp available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-contract",
+      "kind": "contract",
+      "purpose": "Verify that Bash help exposes the documented command synopsis, summary/filter options, and ptrace requirement without invoking tracing.",
+      "script": "help_text=$(help strace) || exit 1\n[[ $help_text == *\"Minimal ptrace(2) syscall tracer\"* ]] || exit 2\n[[ $help_text == *\"trace=LIST\"* && $help_text == *\"--summary|-c\"* ]] || exit 3\n[[ $help_text == *\"requires either CAP_SYS_PTRACE\"* ]] || exit 4\nprintf 'documented synopsis, options, and ptrace requirement present\\n'",
+      "expected_status": 0,
+      "stdout": "documented synopsis, options, and ptrace requirement present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "exec-trace-status",
+      "kind": "deferred",
+      "purpose": "Compare ordinary child tracing, decoded core syscalls, and propagation of the tracee's exit status.",
+      "reason": "Requires a future disposable Linux VM where the tracer may ptrace its own child, plus an independent GNU strace installation and a reviewed, deterministic fixture executable invoked by a relative path. The current harness denies ptrace through mandatory seccomp, and this suite must not treat that denial as operation coverage."
+    },
+    {
+      "id": "output-file-routing",
+      "kind": "deferred",
+      "purpose": "Check that -o writes trace records to the requested relative fixture file while preserving the tracee's stdout and exit status.",
+      "reason": "Requires a future disposable Linux VM with ptrace allowed, a relative-path fixture executable, and GNU strace as the independent reference. Validate the target's stdout/status and parse the trace file for expected events; runtime PIDs and GNU formatting must not be mistaken for stable fixture content."
+    },
+    {
+      "id": "syscall-filter",
+      "kind": "deferred",
+      "purpose": "Check that -e trace=LIST includes selected calls and excludes other calls for a deterministic tracee.",
+      "reason": "Requires a future disposable Linux VM with ptrace allowed, a reviewed relative-path fixture that makes a small known sequence of syscalls, and GNU strace as an independent filter-semantics oracle. The current seccomp policy blocks the operation before filtering can be observed."
+    },
+    {
+      "id": "summary-counts",
+      "kind": "deferred",
+      "purpose": "Check -c/--summary call and error counts on a deterministic fixture, including suppression of per-call records.",
+      "reason": "Requires a future disposable Linux VM with ptrace allowed, a small reviewed fixture with a known syscall sequence, and GNU strace as the independent oracle. Compare parsed syscall counts and error counts; elapsed-time columns are variable and need a semantic summary parser."
+    },
+    {
+      "id": "follow-children",
+      "kind": "deferred",
+      "purpose": "Check that -f reports syscalls from a fixture's child process and distinguish those records from the non-following mode.",
+      "reason": "Requires a future disposable Linux VM with ptrace allowed for fork/clone tracing, a reviewed relative-path fixture that forks and waits for one bounded child, and GNU strace as the independent reference. The fixture must remain private to that VM."
+    },
+    {
+      "id": "attach-existing-pid",
+      "kind": "deferred",
+      "purpose": "Check -p attachment to an already-running fixture process, tracing until that process exits naturally.",
+      "reason": "Requires a future disposable Linux VM with ptrace attach permission and an independently launched, bounded fixture process that exits naturally, plus GNU strace as the oracle. Do not attach to host processes or use system-wide signals; the current harness denies ptrace."
+    }
+  ]
+}

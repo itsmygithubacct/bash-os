@@ -1,16 +1,19 @@
 {
   "version": 1,
   "loadable": "fdisk",
-  "reference": "Runnable contract expectations use documented Bash builtin metadata behavior (type -t, command -v, and help -s) and the fdisk builtin synopsis/documentation registered in the pinned /source/loadables/fdisk.c. The expected synopsis and help markers are taken from that source contract, not from candidate output. No operation parity is claimed. A future image qualification should compare against version-pinned util-linux fdisk/sfdisk and independent MBR, GPT/CRC32, and EBR parsers/encoders.",
+  "reference": "Documented custom fdisk contracts with independent Python struct/UUID/CRC32 encoders and decoders for small private regular-file images. No util-linux CLI parity is claimed for custom verbs. Source regular-file geometry and write paths skip block-device ioctls. Metadata is separate from operation coverage.",
   "coverage": [
-    "Bash builtin registration and command lookup with the candidate PATH set to an empty directory.",
-    "The documented short help synopsis and selected full-help claims for MBR, GPT, mutation, and interactive scope.",
-    "Deferred: read-only table inspection, MBR creation/mutation, GPT creation/mutation, EBR-chain mutation, dry-run/error boundaries, kernel BLKPG operations, and the interactive editor."
+    "Bash registration and help metadata only.",
+    "Independent MBR image verification, disk ID and free-range lookup.",
+    "Private-file MBR creation, slot mutation, boot flag, type, geometry, disk ID and deletion with independent byte checks.",
+    "Private-file GPT creation, primary/backup CRC and array consistency, label/UUID/attribute changes.",
+    "Private-file extended/logical table creation, insertion/reorder/compact deletion and independent EBR traversal.",
+    "Dry-run byte invariance, invalid overlapping-spec rejection, missing private input and pipe-driven quit without writing."
   ],
   "exclusions": [
-    "No fdisk operation mode is invoked, including read-only and --no-act modes, under the explicit safety restriction.",
-    "No raw or block device, host path, mounted filesystem, or real kernel partition-table update is used.",
-    "There are no runnable parity cases because system Bash does not provide this loadable and invoking the candidate fdisk operation is prohibited; deferred operation results are not passes."
+    "No raw/block device, kernel partition request, mount, host path or network operation executes. All image paths are fresh relative regular files.",
+    "Real-device kernel partition ioctls remain deferred to a disposable VM or syscall mock.",
+    "PTY screen interaction, exhaustive geometry/CRC/error permutations and injected read/write failures remain unqualified; independent image parsers check only the specified fields and invariants."
   ],
   "cases": [
     {
@@ -43,41 +46,11 @@
     {
       "id": "full-help-scope",
       "kind": "contract",
-      "purpose": "The full Bash help text contains documented MBR, GPT, partition mutation, and interactive-scope statements from fdisk_doc.",
-      "script": "doc=$(help fdisk)\n[[ $doc == *\"fdisk --create-mbr DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --create-gpt DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --delete-compact DEV N\"* ]]\n[[ $doc == *\"fdisk --part-uuid DEV N UUID\"* ]]\n[[ $doc == *\"Differences from util-linux fdisk: no interactive prompt UI\"* ]]\nprintf 'help documents MBR, GPT, mutation, and interactive scope\\n'\n",
+      "purpose": "Full Bash help advertises MBR, GPT, mutation, and the implemented finite-input editor; metadata only. The stale no-interactive-UI disclaimer is not an operation oracle.",
+      "script": "doc=$(help fdisk)\n[[ $doc == *\"fdisk --create-mbr DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --create-gpt DEV SPEC [SPEC ...]\"* ]]\n[[ $doc == *\"fdisk --delete-compact DEV N\"* ]]\n[[ $doc == *\"fdisk --part-uuid DEV N UUID\"* ]]\n[[ $doc == *\"Reads single-letter commands from stdin\"* ]]\nprintf 'help documents MBR, GPT, mutation, and interactive scope\\n'\n",
       "expected_status": 0,
       "stdout": "help documents MBR, GPT, mutation, and interactive scope\n",
       "stderr": "empty"
-    },
-    {
-      "id": "defer-read-only-inspection",
-      "kind": "deferred",
-      "purpose": "Cover -l/--list, --verify, --list-free, --list-types, and read-only --disk-id output on deterministic MBR and GPT images.",
-      "reason": "Requires a future disposable VM or reviewed private-image mock, deterministic partition-table fixtures, and pinned util-linux fdisk/sfdisk plus an independent parser for semantic comparisons. This suite does not invoke any fdisk operation, even read-only modes, under the explicit safety rule."
-    },
-    {
-      "id": "defer-mbr-write-mutations",
-      "kind": "deferred",
-      "purpose": "Cover fresh MBR creation, --apply/--append, primary slot deletion, activation, type changes, disk-id writes, and set-part updates.",
-      "reason": "Requires a disposable VM or reviewed write-fault mock with a throwaway regular-file image and an independent MBR encoder/parser to verify exact 16-byte partition entries, boot flags, signatures, error statuses, and unchanged payload bytes. The candidate fdisk writer is not invoked here."
-    },
-    {
-      "id": "defer-gpt-write-mutations",
-      "kind": "deferred",
-      "purpose": "Cover GPT creation, append/update/delete, partition attributes, labels, UUIDs, and backup-based repair.",
-      "reason": "Requires a disposable VM or reviewed write-fault mock with small throwaway images, pinned util-linux sfdisk/fdisk, and an independent GPT encoder/parser that checks primary and backup headers, arrays, GUID byte order, names, and CRC32. The candidate fdisk writer is not invoked here."
-    },
-    {
-      "id": "defer-ebr-chain-mutations",
-      "kind": "deferred",
-      "purpose": "Cover extended/logical table creation, logical insertion, reordering, ordinary logical deletion, and compact deletion/relinking.",
-      "reason": "Requires a disposable VM or reviewed image mock, seeded EBR-chain fixtures, and an independent EBR parser/reference to check link offsets, numbering, empty slots, and payload preservation. These mutating fdisk modes are not run by this suite."
-    },
-    {
-      "id": "defer-no-act-and-validation",
-      "kind": "deferred",
-      "purpose": "Cover --no-act behavior and invalid, overlapping, out-of-range, malformed, or boundary partition specifications without masking candidate differences.",
-      "reason": "Requires a future disposable VM or reviewed write-observation mock with copied MBR/GPT images, independent sfdisk/util-linux expectations, and before/after byte snapshots proving dry runs leave all bytes unchanged. No candidate fdisk invocation is allowed in this suite."
     },
     {
       "id": "defer-kernel-partx",
@@ -88,8 +61,107 @@
     {
       "id": "defer-interactive-editor",
       "kind": "deferred",
-      "purpose": "Cover bounded interactive menu input, create/delete/verify flows, and write-versus-quit behavior.",
-      "reason": "Requires a PTY driver connected only to a disposable VM scratch image, with byte snapshots confirming q leaves data unchanged and w writes only the intended table. This suite does not enter the fdisk interactive editor."
+      "purpose": "Qualify interactive PTY prompts, key handling and screen restoration; pipe-driven quit has separate runnable coverage.",
+      "reason": "Requires a future disposable VM or reviewed bounded PTY driver with fixed dimensions, a scratch regular-file image, and independently specified terminal transcripts and byte snapshots. Captured pipes cannot establish PTY rendering or terminal restoration."
+    },
+    {
+      "id": "regular-mbr-inspection",
+      "kind": "contract",
+      "purpose": "Read an independently encoded MBR in a private regular file. Validate verification, disk signature, exact free-range arithmetic, and read-only byte invariance.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct\nb=bytearray(2*1024*1024)\nstruct.pack_into('<I',b,440,0x12345678)\nstruct.pack_into('<B3sB3sII',b,446,128,bytes(3),131,bytes(3),2048,128)\nb[510:512]=b'\\x55\\xaa'\nPath('image.img').write_bytes(b)\nPath('before.img').write_bytes(b)\nPYC\nfdisk --verify image.img\nfdisk --disk-id image.img\nfdisk --list-free image.img\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nassert Path('image.img').read_bytes()==Path('before.img').read_bytes()\nPYC\n",
+      "expected_status": 0,
+      "stdout": "image.img: MBR table validates cleanly\n0x12345678\nDisk image.img: MBR table free ranges\nDevice       Start        Sectors     \n(free)       2176         1920        \n",
+      "stderr": "empty"
+    },
+    {
+      "id": "regular-mbr-mutations",
+      "kind": "contract",
+      "purpose": "Create and mutate only a fresh private regular-file MBR. Independent public-format decoding checks the final slot, signature, deletion, and every payload byte.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-mbr image.img 2048,128,linux,boot 2304,64,swap\nfdisk --activate image.img 2 on\nfdisk --part-type image.img 1 ntfs\nfdisk --set-part image.img 1 2048,192\nfdisk --disk-id image.img 89abcdef\nfdisk --delete image.img 2\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct\nb=Path('image.img').read_bytes()\nassert len(b)==2*1024*1024 and b[510:512]==b'\\x55\\xaa'\nassert struct.unpack_from('<I',b,440)[0]==0x89abcdef\np=struct.unpack_from('<B3sB3sII',b,446)\nassert (p[0],p[2],p[4],p[5])==(0,7,2048,192)\nassert b[462:510]==bytes(48)\nassert b[512:]==bytes(len(b)-512)\nprint('MBR fields and payload verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "MBR fields and payload verified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-gpt-create",
+      "kind": "contract",
+      "purpose": "Create GPT on a private regular file. Independent UUID/struct/CRC32 decoding checks both headers, arrays, type, bounds, label and unchanged partition payload.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-gpt image.img 2048,128,linux,fixture\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct,zlib,uuid\nb=Path('image.img').read_bytes(); sectors=len(b)//512\nassert b[510:512]==bytes([0x55,0xaa]) and b[450]==0xee\narrays=[]\nfor lba,other in [(1,sectors-1),(sectors-1,1)]:\n h=b[lba*512:(lba+1)*512]; assert h[:8]==b'EFI PART'\n size,crc=struct.unpack_from('<II',h,12)\n header=bytearray(h[:size]); header[16:20]=bytes(4)\n assert zlib.crc32(header)==crc\n assert struct.unpack_from('<QQ',h,24)==(lba,other)\n array_lba,count,entry_size,array_crc=struct.unpack_from('<QIII',h,72)\n a=b[array_lba*512:array_lba*512+count*entry_size]\n assert zlib.crc32(a)==array_crc\n arrays.append(a)\nassert arrays[0]==arrays[1]\na=arrays[0]\nassert uuid.UUID(bytes_le=a[:16])==uuid.UUID('0fc63daf-8483-4772-8e79-3d69d8477de4')\nassert struct.unpack_from('<QQ',a,32)==(2048,2175)\nassert not any(a[128:])\nassert b[2048*512:2176*512]==bytes(128*512)\nassert a[56:128].decode('utf-16-le').rstrip('\\0')=='fixture'\nprint('GPT CRCs arrays and payload verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "GPT CRCs arrays and payload verified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-gpt-mutations",
+      "kind": "contract",
+      "purpose": "Change label, partition UUID and attributes only in a private image; independent decoding verifies fields plus primary/backup checksums after mutation.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-gpt image.img 2048,128,linux,fixture\nfdisk --part-label image.img 1 renamed\nfdisk --part-uuid image.img 1 01234567-89ab-cdef-0123-456789abcdef\nfdisk --set-attrs image.img 1 4\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct,zlib,uuid\nb=Path('image.img').read_bytes(); sectors=len(b)//512\nassert b[510:512]==bytes([0x55,0xaa]) and b[450]==0xee\narrays=[]\nfor lba,other in [(1,sectors-1),(sectors-1,1)]:\n h=b[lba*512:(lba+1)*512]; assert h[:8]==b'EFI PART'\n size,crc=struct.unpack_from('<II',h,12)\n header=bytearray(h[:size]); header[16:20]=bytes(4)\n assert zlib.crc32(header)==crc\n assert struct.unpack_from('<QQ',h,24)==(lba,other)\n array_lba,count,entry_size,array_crc=struct.unpack_from('<QIII',h,72)\n a=b[array_lba*512:array_lba*512+count*entry_size]\n assert zlib.crc32(a)==array_crc\n arrays.append(a)\nassert arrays[0]==arrays[1]\na=arrays[0]\nassert uuid.UUID(bytes_le=a[:16])==uuid.UUID('0fc63daf-8483-4772-8e79-3d69d8477de4')\nassert struct.unpack_from('<QQ',a,32)==(2048,2175)\nassert not any(a[128:])\nassert b[2048*512:2176*512]==bytes(128*512)\nassert a[56:128].decode('utf-16-le').rstrip('\\0')=='renamed'\nassert uuid.UUID(bytes_le=a[16:32])==uuid.UUID('01234567-89ab-cdef-0123-456789abcdef')\nassert struct.unpack_from('<Q',a,48)[0]==4\nprint('GPT mutations independently verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "GPT mutations independently verified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-ebr-chain",
+      "kind": "contract",
+      "purpose": "Create, insert, reorder and compact-delete two remaining logical entries in a regular-file image; independently traverse EBR relative links and verify payload bytes.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-mbr-extended image.img 2048,2048,05 2112,128,linux 2560,128,swap\nfdisk --insert-logical image.img 2816,64,linux\nfdisk --reorder image.img\nfdisk --delete-compact image.img 6\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct\nb=Path('image.img').read_bytes(); base=2048\nassert b[450] in (5,15,133)\nseen=set(); lba=base; rows=[]\nwhile True:\n assert lba not in seen; seen.add(lba)\n off=lba*512; assert b[off+510:off+512]==b'\\x55\\xaa'\n p=struct.unpack_from('<B3sB3sII',b,off+446)\n rows.append((lba+p[4],p[5],p[2]))\n link=struct.unpack_from('<B3sB3sII',b,off+462)\n if not link[2]:break\n lba=base+link[4]\nassert rows==[(2112,128,131),(2816,64,131)]\nfor start,size,_ in rows:assert b[start*512:(start+size)*512]==bytes(size*512)\nprint('EBR links and payload verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "EBR links and payload verified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-dryrun-invariance",
+      "kind": "contract",
+      "purpose": "A dry-run mutation on an independently encoded private MBR must leave every image byte unchanged.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct\nb=bytearray(2*1024*1024)\nstruct.pack_into('<I',b,440,0x12345678)\nstruct.pack_into('<B3sB3sII',b,446,128,bytes(3),131,bytes(3),2048,128)\nb[510:512]=b'\\x55\\xaa'\nPath('image.img').write_bytes(b)\nPath('before.img').write_bytes(b)\nPYC\nfdisk --no-act --part-type image.img 1 swap\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nassert Path('image.img').read_bytes()==Path('before.img').read_bytes()\nprint('dry run unchanged')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "dry run unchanged\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-overlap-rejection",
+      "kind": "contract",
+      "purpose": "A small overlapping partition specification is a normal validation error; private image bytes remain untouched.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nif fdisk --create-mbr image.img 2048,128 2100,64; then rc=0; else rc=$?; fi\n[[ $rc -eq 1 ]]\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nb=Path('image.img').read_bytes(); assert b==bytes(2*1024*1024)\nprint('overlap rejected without writes')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "overlap rejected without writes\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "regular-interactive-quit",
+      "kind": "contract",
+      "purpose": "Use the documented finite pipe-input editor path and quit immediately; independent byte snapshot proves no image writes. PTY rendering is separate.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nimport struct\nb=bytearray(2*1024*1024)\nstruct.pack_into('<I',b,440,0x12345678)\nstruct.pack_into('<B3sB3sII',b,446,128,bytes(3),131,bytes(3),2048,128)\nb[510:512]=b'\\x55\\xaa'\nPath('image.img').write_bytes(b)\nPath('before.img').write_bytes(b)\nPYC\nprintf 'q\\n' | fdisk image.img > transcript\n[[ -s transcript ]]\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nassert Path('image.img').read_bytes()==Path('before.img').read_bytes()\nprint('quit leaves image unchanged')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "quit leaves image unchanged\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "extended-default-type",
+      "kind": "contract",
+      "purpose": "The documented extended-container default type is 05 when TYPE is omitted. A fresh private regular-file image should accept the two-field EXT_SPEC; independent decoding verifies the default without using candidate output as the oracle.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-mbr-extended image.img 2048,2048 2112,128,linux\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nb=Path('image.img').read_bytes()\nassert b[450]==5 and b[510:512]==bytes([0x55,0xaa])\nprint('extended default type verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "extended default type verified\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-private-image",
+      "kind": "contract",
+      "purpose": "Read-only verification of a missing relative regular-file image fails with a diagnostic; no device lookup or file creation occurs.",
+      "script": "fdisk --verify missing.img",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "explicit-empty-default-types",
+      "kind": "contract",
+      "purpose": "Empty TYPE fields retain the documented extended 05 and logical 83 defaults in a private regular image; independently decode both MBR and EBR entries.",
+      "script": "PATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nPath('image.img').write_bytes(bytes(2*1024*1024))\nPYC\nfdisk --create-mbr-extended image.img 2048,2048, 2112,128,\nPATH=/usr/bin:/bin python3 - <<'PYC'\nfrom pathlib import Path\nb=Path('image.img').read_bytes()\nassert b[450]==5 and b[510:512]==bytes([0x55,0xaa])\nassert b[2048*512+450]==0x83\nprint('extended default type verified')\nPYC\n",
+      "expected_status": 0,
+      "stdout": "extended default type verified\n",
+      "stderr": "nonempty"
     }
   ]
 }

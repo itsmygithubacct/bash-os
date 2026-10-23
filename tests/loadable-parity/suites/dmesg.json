@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "loadable": "dmesg",
+  "reference": "Fixture-backed parity cases branch on Bash's type builtin: candidate executes the dmesg builtin, while system Bash uses GNU awk to parse the documented Linux /dev/kmsg record framing and independently encode the tested output/filter behavior. The deterministic -T case uses GNU coreutils date under UTC. The reference never executes GNU dmesg or reads the host ring buffer, and expected output is never taken from candidate output. Type/help and usage-error checks are documented Bash-builtin contracts. Live kernel operations are deferred.",
+  "coverage": [
+    "Default decoded timestamp output, extension fields, malformed records, and an unterminated final fixture record.",
+    "Named multi-facility and multi-level filtering, plus kernel-only filtering.",
+    "Inclusive fractional --since and --until timestamp boundaries.",
+    "Deterministic human-readable -T timestamps using a fixed boot epoch and UTC.",
+    "Raw priority prefix combined with timestamp suppression.",
+    "A record crossing the implementation's 8192-byte read boundary.",
+    "Bash type/help metadata and invalid-level usage status."
+  ],
+  "exclusions": [
+    "Live /dev/kmsg reading is deferred because it requires an isolated disposable VM with a seeded kernel ring buffer and suitable access.",
+    "Console-level changes (-n) and ring-buffer clearing (-c) are deferred because they require CAP_SYSLOG and an isolated disposable VM.",
+    "Follow mode with asynchronous live kernel records is not covered."
+  ],
+  "cases": [
+    {
+      "id": "decoded-records",
+      "kind": "parity",
+      "purpose": "Check default timestamp formatting, accepted extension metadata, malformed-header skipping, and output of a final record without a newline against an independent encoder.",
+      "requires": [
+        "awk"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "cat > fixture <<'EOF'\n0,1,1000000,-;kernel-one\n8,2,2000000,-;user-two\n2048,3,3000000,-;priority-outside-abi\ngarbage\n8,x,4000000,-;bad-sequence\n0,5,4500000,I,subsys=fixture;extended-record\nEOF\nprintf '%s' '16,6,6000000,-;unterminated-final' >> fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      header = substr(line, 1, semi - 1)\n      message = substr(line, semi + 1)\n      n = split(header, fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      usec = fields[3] + 0\n      if (priority > 2047) next\n      printf \"[%5d.%06d] %s\\n\", int(usec / 1000000), usec % 1000000, message\n    }\n  ' fixture\nfi"
+    },
+    {
+      "id": "facility-level-filters",
+      "kind": "parity",
+      "purpose": "Compare comma-separated facility and level filters, then kernel-only filtering, against an independent priority-field decoder.",
+      "requires": [
+        "awk"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "cat > fixture <<'EOF'\n0,1,1,-;kern-emerg\n3,2,2,-;kern-err\n4,3,3,-;kern-warn\n6,4,4,-;kern-info\n8,5,5,-;user-emerg\n11,6,6,-;user-err\n27,7,7,-;daemon-err\n29,8,8,-;daemon-notice\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -f kern,daemon -l warn,err -t\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -k -t\nelse\n  awk -v pass=filtered '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      facility = int(priority / 8)\n      level = priority % 8\n      if (pass == \"filtered\" &&\n          !((facility == 0 || facility == 3) && (level == 3 || level == 4))) next\n      if (pass == \"kernel\" && facility != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\n  awk -v pass=kernel '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047 || int(priority / 8) != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi"
+    },
+    {
+      "id": "time-filter-boundaries",
+      "kind": "parity",
+      "purpose": "Check inclusive --since and --until comparisons at exact microsecond boundaries and exclusion immediately outside them.",
+      "requires": [
+        "awk"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "cat > fixture <<'EOF'\n0,1,999998,-;before-lower-bound\n0,2,999999,-;at-lower-bound\n0,3,1000000,-;after-lower-bound\n0,4,2000000,-;at-upper-bound\n0,5,2000001,-;after-upper-bound\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t --since=.999999 --until 2\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      usec = fields[3] + 0\n      if (usec < 999999 || usec > 2000000) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi"
+    },
+    {
+      "id": "human-timestamps",
+      "kind": "parity",
+      "purpose": "Compare -T wall-clock rendering for fixed record times with an independent GNU date encoder under UTC.",
+      "requires": [
+        "date"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "cat > fixture <<'EOF'\n0,1,0,-;boot-start\n0,2,1234567,-;one-second-later\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture BASHDMESG_BOOT_EPOCH=1700000000 dmesg -T\nelse\n  while IFS= read -r record || [[ -n $record ]]; do\n    header=${record%%;*}\n    message=${record#*;}\n    IFS=, read -r priority sequence usec flags rest <<< \"$header\"\n    epoch=$((1700000000 + usec / 1000000))\n    stamp=$(date -u -d \"@$epoch\" '+[%a %b %e %H:%M:%S %Y] ')\n    printf '%s%s\\n' \"$stamp\" \"$message\"\n  done < fixture\nfi"
+    },
+    {
+      "id": "raw-priority-prefix",
+      "kind": "parity",
+      "purpose": "Check the documented raw leading priority field together with -t timestamp suppression.",
+      "requires": [
+        "awk"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "cat > fixture <<'EOF'\n0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -r -t\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      printf \"<%d>%s\\n\", priority, substr(line, semi + 1)\n    }\n  ' fixture\nfi"
+    },
+    {
+      "id": "split-read-boundary",
+      "kind": "parity",
+      "purpose": "Ensure a valid fixture record longer than one 8192-byte read is emitted intact, comparing with an independent line encoder.",
+      "requires": [
+        "awk"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "printf -v message '%*s' 8200 ''\nmessage=${message// /x}\nprintf '0,1,1000000,-;%s\\n' \"$message\" > fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      if (fields[1] + 0 > 2047) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi"
+    },
+    {
+      "id": "builtin-help-metadata",
+      "kind": "contract",
+      "purpose": "Verify Bash exposes dmesg as a builtin and its help documents the ring-buffer and deterministic fixture interfaces.",
+      "script": "[[ $(type -t dmesg) == builtin ]]\ndoc=$(help dmesg)\n[[ $doc == *'Read / control the kernel ring buffer via /dev/kmsg.'* ]]\n[[ $doc == *'BASHDMESG_DEV_KMSG_FILE'* ]]\n[[ $doc == *'--since S'* ]]\nprintf 'dmesg builtin and help contract available\\n'",
+      "expected_status": 0,
+      "stdout": "dmesg builtin and help contract available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-level-usage",
+      "kind": "contract",
+      "purpose": "Check that an invalid level is rejected as a Bash builtin usage error before attempting to open even the relative fixture path.",
+      "script": "BASHDMESG_DEV_KMSG_FILE=missing-fixture dmesg -l unknown",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "live-ring-buffer",
+      "kind": "deferred",
+      "purpose": "Read and decode records from the live kernel ring buffer.",
+      "reason": "Requires a disposable Linux VM with a seeded private /dev/kmsg ring buffer, known record timestamps, and access sufficient to read it; a regular-file fixture cannot establish live device behavior. Compare against the Linux dev-kmsg ABI and a pinned util-linux dmesg in that VM."
+    },
+    {
+      "id": "console-level-change",
+      "kind": "deferred",
+      "purpose": "Exercise dmesg -n against the kernel console log level.",
+      "reason": "Requires a disposable VM with CAP_SYSLOG and an isolated console log level. Set a known level, independently observe the result, and restore or discard the VM; this suite does not issue the syslog control operation."
+    },
+    {
+      "id": "clear-ring-buffer",
+      "kind": "deferred",
+      "purpose": "Exercise dmesg -c against a populated kernel ring buffer.",
+      "reason": "Requires a disposable VM with CAP_SYSLOG and a seeded private ring buffer; verify printed records and the post-clear state, then discard the VM. This suite does not clear a kernel ring buffer."
+    }
+  ]
+}

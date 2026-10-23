@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "loadable": "watch",
+  "reference": "Procps-ng watch is the independent oracle for parser rejection only. Bounded non-terminal operations use the documented custom watch behavior with fixed frame and private-file expectations. Bash type/help checks are metadata, not operation coverage.",
+  "coverage": [
+    "Bash registration and help metadata (not operation coverage).",
+    "Five independent Procps-ng parser rejection comparisons.",
+    "Bounded single failed child with -e/-x, two deterministic frames with -g, and two-frame custom -d/-C capture in private relative files."
+  ],
+  "exclusions": [
+    "No unbounded monitor, host process signals, host system mutations, or network activity.",
+    "Actual terminal frames, cadence, interactive SIGINT, and beep behavior remain unverified."
+  ],
+  "cases": [
+    {
+      "id": "watch-type-builtin",
+      "kind": "contract",
+      "purpose": "Bash type -t reports the statically enabled watch command as a builtin.",
+      "script": "type -t watch",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-help-synopsis",
+      "kind": "contract",
+      "purpose": "The static and packaged builtin expose the complete documented option synopsis.",
+      "script": "help -s watch",
+      "expected_status": 0,
+      "stdout": "watch: watch [-n SEC] [-x] [-b] [-e] [-g] [-d] [-t|--no-title] [-p|--precise] [-C FILE] CMD [ARGS...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-help-options",
+      "kind": "contract",
+      "purpose": "The help entry contains the documented invocation forms for the interval, exec, failure, change, diff, no-title, precise, and capture options.",
+      "script": "doc=$(help watch)\nfor option in '-n SEC' '-x CMD' '-b CMD' '-e CMD' '-g CMD' '-d CMD' '-t|--no-title' '-p|--precise' '-C FILE CMD'; do\n  [[ $doc == *\"$option\"* ]] || exit 1\ndone\nprintf 'documented watch options present\\n'",
+      "expected_status": 0,
+      "stdout": "documented watch options present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-invalid-interval",
+      "kind": "parity",
+      "purpose": "An unparseable -n value is rejected before the harmless watched command can start; procps watch exits 1 for this parse error.",
+      "requires": [
+        "watch"
+      ],
+      "script": "watch -n fast true",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "watch-missing-command",
+      "kind": "parity",
+      "purpose": "Omitting the watched command is a usage error and starts no operation; procps watch exits 1 for this usage error.",
+      "requires": [
+        "watch"
+      ],
+      "script": "watch",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "watch-unknown-option",
+      "kind": "parity",
+      "purpose": "An unsupported option is rejected during parsing before any watched command starts; procps watch exits 1 for this option error.",
+      "requires": [
+        "watch"
+      ],
+      "script": "watch -Z true",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "watch-missing-interval",
+      "kind": "parity",
+      "purpose": "Missing -n operand is rejected during option parsing; no watched command can start.",
+      "script": "watch -n",
+      "requires": [
+        "watch"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "watch-normalized-options-error",
+      "kind": "parity",
+      "purpose": "Accepted no-title and precise long options still lead to independent interval parser rejection, with no child execution.",
+      "script": "watch --no-title --precise -n fast false",
+      "requires": [
+        "watch"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "watch-bounded-exec-failure",
+      "kind": "contract",
+      "purpose": "Documented custom -e exits with failure after exactly one harmless failing builtin child; -x selects direct argv execution.",
+      "script": "watch -n 0.01 -e -x false",
+      "stdout": "",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-bounded-change-exit",
+      "kind": "contract",
+      "purpose": "Custom non-terminal -g emits two deterministic small frames and exits on their change; the private counter must be exactly two. This exercises ordinary file writes.",
+      "script": "watch -n 0.01 -g 'n=0; if test -f count; then read -r n < count; fi; n=$((n + 1)); printf \"%s\\n\" \"$n\" > count; printf \"%s\\n\" \"$n\"'\n[[ $(< count) == 2 ]]",
+      "stdout": "1\n2\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-bounded-diff-capture",
+      "kind": "contract",
+      "purpose": "The documented custom -C capture contains two iteration markers and -d reverse-video bytes for the changed digit. Deterministic private counter changes on the second frame; no PTY or procps byte equality is claimed.",
+      "script": "watch -n 0.01 -g -d -C frames 'n=0; if test -f count; then read -r n < count; fi; n=$((n + 1)); printf \"%s\\n\" \"$n\" > count; printf \"%s\\n\" \"$n\"'\n[[ $(< count) == 2 ]]\nexpected=$'--- iteration 1 ---\\n1\\n--- iteration 2 ---\\n\\e[7m2\\e[27m\\n'\nread_status=0\nIFS= read -r -d '' actual < frames || read_status=$?\n[[ $read_status == 1 ]]\n[[ $actual == \"$expected\" ]]",
+      "stdout": "1\n\u001b[7m2\u001b[27m\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "watch-terminal-parity",
+      "kind": "deferred",
+      "purpose": "Compare real terminal rendering, interactive errors, and terminal interaction with Procps-ng watch.",
+      "reason": "Requires a reviewed bounded PTY driver and independent terminal-frame oracle. The current submit helper provides pipes rather than a PTY. Cadence and interactive signals are outside this review."
+    },
+    {
+      "id": "watch-exec-literal-argv",
+      "kind": "contract",
+      "purpose": "A bounded relative helper prints one argument and exits nonzero. Direct -x execution must preserve spaces and a semicolon literally, and -e must stop after that first child.",
+      "script": "printf '%s\\n' '#!/bin/sh' 'printf \"<%s>\\n\" \"$1\"' 'exit 7' > helper\nchmod 700 helper\nwatch -n 0.01 -e -x ./helper 'arg;two words'",
+      "expected_status": 1,
+      "stdout": "<arg;two words>\n",
+      "stderr": "empty"
+    }
+  ]
+}

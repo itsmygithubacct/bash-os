@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "loadable": "pkt",
+  "reference": "Documented Git pkt-line/side-band contracts with independently counted fixed frames. One parity case deliberately adapts reference pkt encode using four hexadecimal total-length digits and the input text, then uses GNU private file operations; no GNU pkt CLI exists.",
+  "coverage": [
+    "Bash builtin type and help metadata",
+    "pkt encode output and variable assignment for ordinary and empty payloads",
+    "pkt decode payloads, length and payload variables, and control packets",
+    "flush, delim, and response-end marker encodings",
+    "refs parsing for a branch, HEAD, peeled tag filtering, and control markers",
+    "sideband channel 1 file output and channel 2 stderr routing",
+    "rejection of a declared-length overrun and a short file header",
+    "pkt encode frame integration through ordinary GNU-reference private file operations; assigned loadable is invoked."
+  ],
+  "exclusions": [
+    "No GNU command implements the pkt builtin interface, so pkt operation cases are honest contract checks rather than GNU parity.",
+    "No live Git transport, remote peer, credentials, or real network target is exercised; pkt operations here consume arguments or private relative-path files.",
+    "Large maximum-size frames and non-ASCII payloads are outside this bounded deterministic suite."
+  ],
+  "cases": [
+    {
+      "id": "relative-fixture-filesystem",
+      "kind": "parity",
+      "purpose": "Invoke pkt encode (or an independent Bash length-prefix reference adapter) and preserve its frame through relative copy/move/hardlink/symlink/mode/remove operations. The complete tree is compared; this is adapter-based frame integration, not a matching GNU pkt CLI.",
+      "requires": [
+        "chmod",
+        "cp",
+        "ln",
+        "mkdir",
+        "mv",
+        "rm"
+      ],
+      "script": "if [[ $(type -t pkt) != builtin ]]; then\n  pkt() { [[ $1 == encode && $# == 2 ]]; printf '%04x%s' \"$((${#2}+4))\" \"$2\"; }\nfi\nmkdir pkt-fixture\npkt encode frame > pkt-fixture/body\ncp pkt-fixture/body pkt-fixture/copied\nln pkt-fixture/body pkt-fixture/hard\nmv pkt-fixture/copied pkt-fixture/moved\nln -s body pkt-fixture/current\nchmod 640 pkt-fixture/body\nrm pkt-fixture/moved\nbody=$(< pkt-fixture/current)\n[[ $body == 0009frame ]] || exit 1\nprintf '%s\\n' \"$body\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata identifies pkt as a builtin, as required for a statically registered loadable.",
+      "script": "type -t pkt",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "The Bash help entry exposes the documented pkt verbs and their argument forms.",
+      "script": "doc=$(help pkt)\n[[ $doc == *'Git pkt-line helpers.'* && $doc == *'pkt encode TEXT'* && $doc == *'pkt sideband BODY_FILE -o PACK_FILE'* ]] || exit 1\nprintf 'pkt help metadata ok\\n'",
+      "expected_status": 0,
+      "stdout": "pkt help metadata ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-payloads",
+      "kind": "contract",
+      "purpose": "Four hexadecimal bytes encode the total frame length; empty payloads have length four, and -V binds the encoded frame without printing it.",
+      "script": "pkt encode hello\nprintf '|'\npkt encode ''\nprintf '|'\npkt encode hi -V frame\nprintf '%s\\n' \"$frame\"",
+      "expected_status": 0,
+      "stdout": "0009hello|0004|0006hi\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-payloads-and-markers",
+      "kind": "contract",
+      "purpose": "Decode returns the framed payload, -L reports the total frame length, -V binds the payload, and the three protocol control lengths carry empty payloads.",
+      "script": "pkt decode 0009hello\nprintf '\\n'\npkt decode 000ahello! -L length -V payload\nprintf '%s:%s\\n' \"$length\" \"$payload\"\nfor packet in 0000 0001 0002; do\n  pkt decode \"$packet\" -L length -V payload\n  printf '%s:%s\\n' \"$length\" \"$payload\"\ndone",
+      "expected_status": 0,
+      "stdout": "hello\n10:hello!\n0:\n1:\n2:\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "control-encodings",
+      "kind": "contract",
+      "purpose": "The protocol assigns 0000 to flush, 0001 to delimiter, and 0002 to response-end; these verbs emit those four-byte markers.",
+      "script": "pkt flush\nprintf '|'\npkt delim\nprintf '|'\npkt response-end\nprintf '\\n'",
+      "expected_status": 0,
+      "stdout": "0000|0001|0002\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "refs-filtering",
+      "kind": "contract",
+      "purpose": "Parse an independently framed advertisement: retain a branch and HEAD, ignore a peeled tag, and skip flush/delim/response-end control packets.",
+      "script": "oid=0123456789abcdef0123456789abcdef01234567\nprintf '003d%s refs/heads/main\\n00000032%s HEAD\\n0001003d%s refs/tags/v1^{}\\n0002' \"$oid\" \"$oid\" \"$oid\" > refs.in\npkt refs refs.in",
+      "expected_status": 0,
+      "stdout": "0123456789abcdef0123456789abcdef01234567 refs/heads/main\n0123456789abcdef0123456789abcdef01234567 HEAD\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "sideband-routing",
+      "kind": "contract",
+      "purpose": "A channel 1 packet is written to the pack file while channel 2 progress text is written to stderr; the fixed frame lengths are computed from the payload bytes.",
+      "script": "printf '000b\\001hello\\n000e\\002progress\\n0000' > sideband.in\npkt sideband sideband.in -o pack.out\nPATH=/usr/bin:/bin python3 - <<'PY'\nfrom pathlib import Path\nassert Path('pack.out').read_bytes() == b'hello\\n'\nprint('hello')\nPY",
+      "expected_status": 0,
+      "stdout": "hello\n",
+      "stderr": "exact",
+      "stderr_text": "progress\n"
+    },
+    {
+      "id": "malformed-frame-errors",
+      "kind": "contract",
+      "purpose": "A declared pkt length larger than the available decode input and a short sideband header both fail with status 1 and diagnostics.",
+      "script": "if pkt decode 000fshort; then decode_status=0; else decode_status=$?; fi\nprintf '00' > short.in\nif pkt sideband short.in -o short.out; then sideband_status=0; else sideband_status=$?; fi\nprintf 'decode=%s\\nsideband=%s\\n' \"$decode_status\" \"$sideband_status\"",
+      "expected_status": 0,
+      "stdout": "decode=1\nsideband=1\n",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "sideband-fatal-channel",
+      "kind": "contract",
+      "purpose": "A documented channel 3 fatal record returns failure and reports its payload on stderr without pack bytes.",
+      "script": "printf '0009\\003oops0000' > input\nif pkt sideband input -o pack; then rc=0; else rc=$?; fi\n[[ -f pack && ! -s pack ]]\nexit \"$rc\"",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "exact",
+      "stderr_text": "oops"
+    }
+  ]
+}

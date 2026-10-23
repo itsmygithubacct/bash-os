@@ -74,6 +74,7 @@ b64_decode (int in_fd, int out_fd, int url_safe, int ignore_garbage)
     int nibble[4];
     int n_in_group = 0;
     int post_padding_error = 0;
+    int incomplete_group = 0;
     unsigned char post_padding_char = 0;
     size_t post_padding_offset = 0;
     size_t i = 0;
@@ -141,6 +142,17 @@ b64_decode (int in_fd, int out_fd, int url_safe, int ignore_garbage)
             n_in_group = 0;
         }
     }
+    /* EOF can terminate an unpadded group once it contains a whole byte.
+       A single remaining alphabet character cannot encode any byte. */
+    if (i == len && n_in_group >= 2) {
+        unsigned int v = ((unsigned int) nibble[0] << 18)
+                       | ((unsigned int) nibble[1] << 12)
+                       | (n_in_group == 3 ? (unsigned int) nibble[2] << 6 : 0);
+        out[olen++] = (unsigned char) ((v >> 16) & 0xff);
+        if (n_in_group == 3) out[olen++] = (unsigned char) ((v >> 8) & 0xff);
+    } else if (i == len && n_in_group == 1) {
+        incomplete_group = 1;
+    }
 decode_done:
     free (buf);
     /* Write all bytes (NUL-safe). */
@@ -156,6 +168,10 @@ decode_done:
         off += (size_t) w;
     }
     free (out);
+    if (incomplete_group) {
+        builtin_error ("incomplete base64 group");
+        return 1;
+    }
     if (post_padding_error) {
         builtin_error ("invalid base64 char: 0x%02x at offset %zu",
                        post_padding_char, post_padding_offset);

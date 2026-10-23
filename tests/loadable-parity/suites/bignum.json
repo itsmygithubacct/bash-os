@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "loadable": "bignum",
+  "reference": "Fixed documented API contracts; expected arithmetic independently computed with Python arbitrary-precision integers, magnitude-based truncating division/shifts, integer bit_length, base-16 formatting and pow(base, exponent, modulus). No matching GNU CLI exists and no GNU parity is claimed.",
+  "coverage": [
+    "Bash recognizes bignum as a builtin.",
+    "Bash help exposes the documented bignum synopsis.",
+    "signed arbitrary-precision decimal addition, subtraction and multiplication, including carry, borrow and zero normalization.",
+    "quotient and remainder signs, truncation toward zero and exact division.",
+    "hexadecimal input/output, case normalization and leading-zero handling.",
+    "modular remainder and modular exponentiation, including zero exponent and invalid modulus/exponent cases.",
+    "signed comparison output/status and bit lengths at zero and limb boundaries.",
+    "left/right shifts, including negative operands and counts crossing a 32-bit limb.",
+    "invalid numbers, missing/extra arguments, zero divisors and invalid shift counts."
+  ],
+  "exclusions": [
+    "No exact matching GNU CLI; these are independently calculated operation contracts.",
+    "Very large/stress inputs, allocation-failure injection and constant-time cryptographic behavior are not qualified."
+  ],
+  "cases": [
+    {
+      "id": "metadata-builtin-type",
+      "purpose": "Check through Bash's type builtin that bignum is registered as a shell builtin.",
+      "kind": "contract",
+      "script": "type -t bignum",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-synopsis",
+      "purpose": "Check help availability and that its synopsis contains the documented command and complete subcommand set; print a stable marker after the assertions.",
+      "kind": "contract",
+      "script": "help_text=$(help -s bignum); case $help_text in *'bignum add|sub|mul|divmod|mod|modexp|cmp|bits|shl|shr [-x] ARGS...'*) printf 'documented synopsis available\n' ;; *) exit 1 ;; esac",
+      "expected_status": 0,
+      "stdout": "documented synopsis available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "decimal-signed-arithmetic",
+      "kind": "contract",
+      "purpose": "Signed addition, subtraction, multiplication, carry/borrow and canonical zero beyond 64 bits.",
+      "script": "bignum add 999999999999999999999999999999 1\nbignum sub -17 24\nbignum mul -123456789 987654321\nbignum add -0 0\nbignum sub 4294967296 1",
+      "expected_status": 0,
+      "stdout": "1000000000000000000000000000000\n-41\n-121932631112635269\n0\n4294967295\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "divmod-signed-contract",
+      "kind": "contract",
+      "purpose": "Division truncates toward zero; remainder retains the dividend sign, including exact division.",
+      "script": "bignum divmod -100 9\nbignum divmod 100 -9\nbignum divmod -100 -9\nbignum divmod -99 9",
+      "expected_status": 0,
+      "stdout": "-11\n-1\n-11\n1\n11\n-1\n-11\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hexadecimal-io",
+      "kind": "contract",
+      "purpose": "Hexadecimal parsing and lowercase magnitude output, prefixes, negative values and canonical zero.",
+      "script": "bignum add -x 0Xff 1\nbignum mul -x -0x10 0a\nbignum add -x 0000 -0\nbignum add -x 00000000ffffffff 1",
+      "expected_status": 0,
+      "stdout": "100\n-a0\n0\n100000000\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "modular-arithmetic",
+      "kind": "contract",
+      "purpose": "Dividend-sign remainder and independent Python pow results including exponent zero and modulus one.",
+      "script": "bignum mod -100 9\nbignum modexp 1234 567 891\nbignum modexp 4 0 7\nbignum modexp 4 0 1",
+      "expected_status": 0,
+      "stdout": "-1\n568\n1\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "comparison-and-bits",
+      "kind": "contract",
+      "purpose": "Three-way comparison output/status and bit lengths at zero, negative input and a limb boundary.",
+      "script": "for pair in \"-4 0\" \"17 17\" \"0 -1\"; do read -r a b <<< \"$pair\"; if bignum cmp \"$a\" \"$b\"; then rc=0; else rc=$?; fi; printf \"status=%s\\n\" \"$rc\"; done\nbignum bits 0\nbignum bits -1024\nbignum bits 4294967296",
+      "expected_status": 0,
+      "stdout": "-1\nstatus=1\n0\nstatus=0\n1\nstatus=2\n0\n11\n33\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "left-and-right-shifts",
+      "kind": "contract",
+      "purpose": "Signed magnitude shifts, cross-limb counts, zero counts and counts larger than the magnitude bit length.",
+      "script": "bignum shl 3 33\nbignum shr 9 2\nbignum shr -9 1\nbignum shl 0 32\nbignum shl -17 0\nbignum shr -17 100",
+      "expected_status": 0,
+      "stdout": "25769803776\n2\n-4\n0\n-17\n0\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argument-and-domain-errors",
+      "kind": "contract",
+      "purpose": "Malformed numbers, missing/extra operands, zero divisors/modulus, negative exponent and invalid shift counts retain explicit API statuses and visible diagnostics.",
+      "script": "if bignum add bad 1; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum add 1; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum add 1 2 3; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum divmod 2 0; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum mod 2 0; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum modexp 2 -1 5; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum modexp 2 2 0; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum shl 1 -1; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum shr 1 1x; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"\nif bignum add -x +1 1; then rc=0; else rc=$?; fi\nprintf \"%s\\n\" \"$rc\"",
+      "expected_status": 0,
+      "stdout": "1\n2\n2\n1\n1\n1\n1\n2\n2\n1\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

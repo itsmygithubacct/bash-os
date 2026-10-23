@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "loadable": "nano",
+  "reference": "Parity cases run the same noninteractive command under system Bash with GNU nano found on /usr/bin:/bin and under bash-os, where the nano builtin takes precedence and PATH is empty. The expected GNU nano exit statuses are checked before differences are classified. Metadata contracts use Bash type/help builtins and the documented nano help text.",
+  "coverage": [
+    "Bash recognizes nano as a builtin and exposes its documented invocation and key-operation summary.",
+    "GNU nano --help and invalid-option/fill-width argument behavior compared with the loadable.",
+    "Valid fill and trimblanks options reach the documented no-terminal error with a private fixture file.",
+    "Deferred PTY operation coverage: opening, editing, saving, paragraph justification, undo/redo, selection, completion, spelling, and terminal restoration."
+  ],
+  "exclusions": [
+    "No PTY can be allocated by the declarative runner: fixtures receive stdin from /dev/null, and candidate execution uses an empty PATH. Interactive editing and GNU nano saved-file comparisons are therefore deferred to a bounded PTY-capable runner.",
+    "Bash type/help metadata cases check availability and documentation only; they do not count as nano editing-operation coverage.",
+    "Signal-driven emergency-save behavior is excluded because this suite does not send signals."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type_metadata",
+      "kind": "contract",
+      "purpose": "Bash's documented type -t contract identifies an enabled loadable command as a builtin.",
+      "script": "kind=$(type -t nano)\n[[ $kind == builtin ]]\nprintf '%s\\n' \"$kind\"",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_contract",
+      "kind": "contract",
+      "purpose": "Check the documented help text advertises the invocation options and representative editing operations; expected markers come from the nano documentation contract.",
+      "script": "doc=$(help nano)\n[[ $doc == *\"Minimal nano-like text editor\"* ]]\n[[ $doc == *\"Options: -r/--fill\"* ]]\n[[ $doc == *\"^J justify the paragraph\"* ]]\n[[ $doc == *\"^] complete the word\"* ]]\nprintf 'nano help covers options, justify, and completion\\n'",
+      "expected_status": 0,
+      "stdout": "nano help covers options, justify, and completion\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_help_option",
+      "kind": "parity",
+      "purpose": "GNU nano documents --help as a successful noninteractive option; compare its output and status with the loadable's command-line interface.",
+      "requires": [
+        "nano"
+      ],
+      "script": "nano --help",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_unknown_option",
+      "kind": "parity",
+      "purpose": "Compare the GNU CLI's rejection of an unknown option with the loadable, including the documented failure status.",
+      "requires": [
+        "nano"
+      ],
+      "script": "nano --not-an-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_missing_fill_value",
+      "kind": "parity",
+      "purpose": "Compare GNU nano's missing -r argument handling with the loadable's fill-width option parser.",
+      "requires": [
+        "nano"
+      ],
+      "script": "nano -r",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_malformed_fill_value",
+      "kind": "parity",
+      "purpose": "Compare rejection of a nonnumeric --fill value and its failure status with GNU nano.",
+      "requires": [
+        "nano"
+      ],
+      "script": "nano --fill=12x",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu_options_without_terminal",
+      "kind": "parity",
+      "purpose": "With an existing private file and no terminal, verify GNU nano and the loadable accept documented fill/trimblanks options far enough to report the terminal requirement without changing the file tree.",
+      "requires": [
+        "nano"
+      ],
+      "script": "printf 'seed\\n' > note.txt\nnano --trimblanks --fill=16 note.txt",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "deferred_edit_save",
+      "kind": "deferred",
+      "purpose": "Drive a bounded PTY session that inserts and saves deterministic text, then compare saved bytes, mode preservation, and temporary-file cleanup against GNU nano.",
+      "reason": "Requires a future disposable PTY-capable fixture runner that can deliver keys to both editors and inspect only a private fixture tree; the current declarative runner forces stdin to /dev/null and cannot create a controlling terminal."
+    },
+    {
+      "id": "deferred_justify_undo",
+      "kind": "deferred",
+      "purpose": "Use fixed paragraphs and identical PTY key sequences to compare fill-width, trimblanks, repeated justification, and undo/redo saved bytes against GNU nano.",
+      "reason": "Requires a bounded disposable PTY driver and GNU nano reference. The current runner has no terminal input or window-size control, so justified output cannot be reached through the editor's real keyboard path."
+    },
+    {
+      "id": "deferred_selection_completion_utf8",
+      "kind": "deferred",
+      "purpose": "Exercise marked-region cut/paste and word completion with ASCII and multibyte grapheme inputs, then compare deterministic saved bytes and selected display behavior.",
+      "reason": "Requires a disposable PTY session with deterministic key and screen capture support; the current runner does not provide a terminal. GNU nano must be available for the operation comparison."
+    },
+    {
+      "id": "deferred_spell_helper",
+      "kind": "deferred",
+      "purpose": "Run a tiny fixture-local word-list helper through the editor, test replacement and cancel behavior, and compare the resulting saved file with GNU nano using the same deterministic helper contract.",
+      "reason": "Requires a disposable PTY-capable fixture harness to invoke the editor and helper safely inside the private fixture tree, plus GNU nano as the behavioral reference. No helper or editor operation is executed by this suite."
+    },
+    {
+      "id": "command_help_contract",
+      "kind": "contract",
+      "purpose": "Both supported help spellings succeed without a terminal and print the builtin documentation, whose option and key markers are independently declared by its help contract.",
+      "script": "a=$(nano --help)\nb=$(nano -h)\n[[ $a == \"$b\" && $a == *'Minimal nano-like text editor'* && $a == *'Options: -r/--fill'* && $a == *'^J justify the paragraph'* ]]\nprintf 'command help available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "command help available\n"
+    },
+    {
+      "id": "options_without_terminal_contract",
+      "kind": "contract",
+      "purpose": "Valid supported options reach the documented early terminal requirement, leave stdout empty and preserve a private file; terminal escape rendering is not GNU parity.",
+      "script": "printf 'seed\\n' > note.txt\nrc=0; nano --trimblanks --fill=16 note.txt > output 2> error || rc=$?\n[[ $rc == 1 && ! -s output ]]\nmessage=; IFS= read -r message < error\n[[ $message == *'nano needs a tty'* ]]\nactual=; IFS= read -r -d '' actual < note.txt || :\n[[ $actual == $'seed\\n' ]]\nprintf 'terminal requirement preserved\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "terminal requirement preserved\n"
+    },
+    {
+      "id": "fill_spellings_and_recovery",
+      "kind": "contract",
+      "purpose": "Documented valid short, attached and long fill spellings reach the early terminal error on a private file and reset options across calls. No editor screen or helper is started.",
+      "script": "printf 'seed\\n' > note.txt\nfor fill in -8 0 +16 16; do\n for form in split attached long; do\n  rc=0\n  case $form in\n   split) nano -M -r \"$fill\" note.txt > output 2> error || rc=$? ;;\n   attached) nano \"-r$fill\" note.txt > output 2> error || rc=$? ;;\n   long) nano \"--fill=$fill\" note.txt > output 2> error || rc=$? ;;\n  esac\n  [[ $rc == 1 && ! -s output ]]\n  message=; IFS= read -r message < error\n  [[ $message == *'nano needs a tty'* ]]\n done\ndone\nprintf 'fill spellings accepted\\n'",
+      "expected_status": 0,
+      "stdout": "fill spellings accepted\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "malformed_fill_values",
+      "kind": "parity",
+      "purpose": "Reject bounded ordinary malformed and out-of-range integer spellings before any interactive operation; GNU nano independently supplies failure status and empty stdout.",
+      "requires": [
+        "nano"
+      ],
+      "script": "for fill in '' 12x 9223372036854775808; do\n rc=0; nano \"--fill=$fill\" || rc=$?\n [[ $rc == 1 ]]\ndone\nprintf 'malformed fills rejected\\n'",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help_closed_output",
+      "kind": "contract",
+      "purpose": "A failed documentation write reports failure while the calling shell remains usable.",
+      "script": "rc=0; nano --help >&- || rc=$?\n[[ $rc == 1 ]]\nprintf 'help failure reported\\n'",
+      "expected_status": 0,
+      "stdout": "help failure reported\n",
+      "stderr": "nonempty"
+    }
+  ]
+}

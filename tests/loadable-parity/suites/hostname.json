@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "loadable": "hostname",
+  "reference": "Installed hostname for plain gethostname and short-name reads in the same isolated UTS environment; documented read-only fixture hooks for full/short/domain and token rendering. Fixture contracts do not claim DNS, interface discovery or GNU -f parity.",
+  "coverage": [
+    "The hostname command is registered as a Bash builtin.",
+    "Bash help exposes the documented hostname forms and their key read-mode contract.",
+    "Deferred plans cover name formatting, address discovery, positional and file-based setting, dry-run behavior, and argument validation.",
+    "Operation coverage: isolated plain/short hostname reads, dotted and undotted fixture formatting, and fixture-only IP/FQDN token rendering.",
+    "Exact dry-run audit for positional and CRLF relative-file names plus unchanged observed hostname; syscall-count proof remains deferred."
+  ],
+  "exclusions": [
+    "Setting the UTS hostname remains deferred. Live address discovery remains deferred because it can use resolver/network interfaces.",
+    "Read-only fixture hooks are custom contracts; no live DNS or interface behavior is inferred.",
+    "Bash type/help and command help/version cases are metadata only and do not count as operation coverage."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Verify through Bash's type builtin that the catalogued hostname command is registered as a shell builtin, not resolved from PATH.",
+      "script": "type -t hostname",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-contract",
+      "kind": "contract",
+      "purpose": "Check that Bash help publishes the implementation's documented hostname forms, option exclusivity, and fixture hook without invoking hostname itself.",
+      "script": "h=$(help hostname)\n[[ $h == *\"Get or set the system hostname.\"* ]]\n[[ $h == *\"bashhostname -s\"* ]]\n[[ $h == *\"-s, -d, -f, -i, -I, -A are mutually exclusive.\"* ]]\n[[ $h == *\"BASHOS_HOSTNAME_FIXTURE_ROOT\"* ]]\nprintf 'hostname help contract\n'",
+      "expected_status": 0,
+      "stdout": "hostname help contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "name-display-modes",
+      "purpose": "Render dotted and undotted names from the documented read-only fixture hook, including CRLF trimming and an empty domain.",
+      "kind": "contract",
+      "script": "mkdir fixture\nexport BASHOS_HOSTNAME_FIXTURE_ROOT=fixture\nprintf 'node.fixture.test\\r\\n' > fixture/hostname\nhostname\nhostname -f\nhostname -s\nhostname -d\nprintf 'plain\\n' > fixture/hostname\nhostname -s\nhostname -d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "node.fixture.test\nnode.fixture.test\nnode\nfixture.test\nplain\n\n"
+    },
+    {
+      "id": "address-discovery-modes",
+      "kind": "deferred",
+      "purpose": "Check -i, -I, and -A formatting, token order, duplicate handling, and empty-result behavior with deterministic resolver and interface data.",
+      "reason": "Live resolver and interface discovery requires a future disposable VM with reviewed resolver/getifaddrs mocks and independent expected discovery results. The runnable text-file hooks cover rendering only and do not establish live discovery or deduplication behavior."
+    },
+    {
+      "id": "set-positional-name",
+      "kind": "deferred",
+      "purpose": "Exercise positional hostname setting, successful isolated state change, and rejection of names at the length and slash boundaries.",
+      "reason": "The positional form calls sethostname(2) and changes kernel UTS state. It needs a disposable VM with a private UTS namespace and the narrowly required capability, or a reviewed syscall mock that records arguments and returns controlled results; the host or ordinary candidate runner must not be used."
+    },
+    {
+      "id": "set-from-file",
+      "kind": "deferred",
+      "purpose": "Exercise -F with a small relative fixture containing a newline or CRLF, and cover empty and unreadable-file errors without host paths.",
+      "reason": "A successful -F operation also calls sethostname(2). A future disposable private-UTS VM or reviewed syscall mock must accept only relative files inside its private fixture tree and record the exact name passed to the syscall; no host path may be used."
+    },
+    {
+      "id": "dry-run-audit",
+      "kind": "contract",
+      "purpose": "The documented dry-run branches render positional and relative CRLF-file names without changing the hostname; independent audit bytes are exact.",
+      "script": "before=$(hostname)\nhostname -n fixture.test\nprintf 'file.fixture.test\\r\\n' > name\nhostname --dry-run -F name\n[[ $(hostname) == \"$before\" ]]",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "exact",
+      "stderr_text": "bashhostname: dry-run: would set hostname to 'fixture.test'\nbashhostname: dry-run: would set hostname to 'file.fixture.test'\n"
+    },
+    {
+      "id": "option-errors",
+      "purpose": "Conflicting print selectors and a missing -F operand fail in argument parsing before any hostname-setting syscall.",
+      "kind": "contract",
+      "script": "for scenario in selectors missing-file; do\n rc=0\n case $scenario in\n selectors) hostname -s -d || rc=$? ;;\n missing-file) hostname -F || rc=$? ;;\n esac\n [[ $rc == 2 ]]\n printf '%s=%s\\n' \"$scenario\" \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "selectors=2\nmissing-file=2\n"
+    },
+    {
+      "id": "isolated-name-read",
+      "purpose": "Read the isolated kernel hostname and short form without changing it or performing resolution.",
+      "kind": "parity",
+      "script": "hostname\nhostname -s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hostname"
+      ]
+    },
+    {
+      "id": "fixture-address-token-rendering",
+      "purpose": "The documented read-only hooks render supplied token order and duplicates; they do not exercise discovery or deduplication.",
+      "kind": "contract",
+      "script": "mkdir fixture\nexport BASHOS_HOSTNAME_FIXTURE_ROOT=fixture\nprintf '192.0.2.7\\t2001:db8::7 192.0.2.7\\n' > fixture/ipaddrs\nprintf '198.51.100.9\\n' > fixture/ifaddrs\nprintf 'a.fixture.test\\tb.fixture.test\\n' > fixture/fqdns\nhostname -i\nhostname -I\nhostname -A\n: > fixture/ipaddrs\nhostname -i",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "192.0.2.7 2001:db8::7 192.0.2.7\n198.51.100.9\na.fixture.test b.fixture.test\n\n"
+    },
+    {
+      "id": "dry-run-syscall-proof",
+      "kind": "deferred",
+      "purpose": "Prove no sethostname syscall is issued by any dry-run form, beyond checking the documented output and unchanged observed name.",
+      "reason": "Requires a future reviewed sethostname syscall counter/mock in a disposable VM. The current byte/audit contract cannot observe attempted syscalls; no UTS mutation is authorized."
+    }
+  ]
+}
