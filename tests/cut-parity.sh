@@ -140,6 +140,24 @@ n=$((n+1)); a=$("$G" -d ' ' -f2 --complement mix); b=$("$BX" -c 'PATH=; cut -d "
 [[ "$a" == "$b" ]] || { fail=$((fail+1)); echo "  DIFF -a ARRAY"; diff <(echo "$a") <(echo "$b") | head -4 | sed 's/^/    /'; }
 n=$((n+1)); a=$("$G" -d ' ' -f1 -s mix | wc -l); b=$("$BX" -c 'PATH=; cut -d " " -f1 -s -a A mix; echo ${#A[@]}')
 [[ "$a" == "$b" ]] || { fail=$((fail+1)); echo "  DIFF -a ARRAY with -s: $a lines vs $b elements"; }
+# Array assignment follows normal Bash execution scope. Input redirection
+# keeps the builtin in this shell; a default pipeline uses a subshell.
+printf 'a,b,,d\n,lead\ntrail,\nplain\n' > array_input
+n=$((n+1))
+b=$("$BX" -c 'PATH=; cut -d, -f2 --complement -a A < array_input; printf "count=%s\n" "${#A[@]}"; printf "<%s>\n" "${A[@]}"')
+[[ "$b" == $'count=4\n<a,,d>\n<>\n<trail>\n<plain>' ]] || {
+  fail=$((fail+1)); echo "  DIFF -a ARRAY with input redirection"
+}
+n=$((n+1))
+b=$("$BX" -c 'PATH=; A=(parent); printf "a,b\n" | cut -d, -f2 -a A; printf "<%s>\n" "${A[@]}"')
+[[ "$b" == '<parent>' ]] || {
+  fail=$((fail+1)); echo "  DIFF -a ARRAY pipeline changed the parent"
+}
+n=$((n+1))
+b=$("$BX" -c 'PATH=; set +m; shopt -s lastpipe; printf "a,b\nc,d\n" | cut -d, -f2 -a A; printf "<%s>\n" "${A[@]}"')
+[[ "$b" == $'<b>\n<d>' ]] || {
+  fail=$((fail+1)); echo "  DIFF -a ARRAY with lastpipe"
+}
 # A named input opened at descriptor zero still belongs to this invocation.
 if [[ -d /proc/self/fd ]]; then
   n=$((n+1))

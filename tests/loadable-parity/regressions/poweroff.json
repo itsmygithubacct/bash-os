@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "loadable": "poweroff",
+  "reference": "There is no matching GNU/POSIX poweroff CLI with equivalent Bash-OS semantics; system shutdown utilities can perform a real shutdown and have different interfaces. Runnable expectations use GNU Bash type/help builtin behavior and the documented Bash-OS help metadata in /source/loadables/poweroff.c and /source/docs/sol-poweroff.md. No operation invocation is used as an oracle or executed by this suite.",
+  "coverage": [
+    "Bash classifies the loaded command as a builtin and reports only that builtin when PATH is empty.",
+    "Bash help exposes the declared synopsis, short description, and documented operation/option contract."
+  ],
+  "exclusions": [
+    "All poweroff operation behavior is deferred: no command in this suite invokes poweroff, reboot, sync, or another shutdown utility.",
+    "A disposable VM or reviewed closed syscall mock is required to verify dry-run behavior, -f sync suppression, RB_POWER_OFF dispatch, syscall ordering, and returned kernel errors safely."
+  ],
+  "cases": [
+    {
+      "id": "type-kind",
+      "kind": "contract",
+      "purpose": "Bash type -t reports the loaded poweroff command as a builtin.",
+      "script": "type -t poweroff",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type-resolution",
+      "kind": "contract",
+      "purpose": "With the candidate PATH empty, Bash reports the sole poweroff resolution as its shell builtin.",
+      "script": "type -a poweroff",
+      "expected_status": 0,
+      "stdout": "poweroff is a shell builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s renders the builtin synopsis declared as poweroff [-f] [-n].",
+      "script": "help -s poweroff",
+      "expected_status": 0,
+      "stdout": "poweroff: poweroff [-f] [-n]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-short-description",
+      "kind": "contract",
+      "purpose": "The Bash short-description help view contains the declared description without depending on spacing or line wrapping.",
+      "script": "description=$(help -d poweroff)\n[[ $description == *'Power off the system.'* ]] || exit 1\nprintf '%s\\n' 'short description verified'",
+      "expected_status": 0,
+      "stdout": "short description verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-documentation",
+      "kind": "contract",
+      "purpose": "The full help text retains the documented direct reboot path, -f and -n meanings, and absence of runlevel/accounting behavior.",
+      "script": "documentation=$(help poweroff)\n[[ $documentation == *'poweroff [-f] [-n]'* ]] || exit 1\n[[ $documentation == *'-f: skip sync'* ]] || exit 1\n[[ $documentation == *'-n: dry run (report, do not act)'* ]] || exit 1\n[[ $documentation == *'Calls reboot(2) directly; does not change runlevel or write accounting records.'* ]] || exit 1\nprintf '%s\\n' 'documented operation contract verified'",
+      "expected_status": 0,
+      "stdout": "documented operation contract verified\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-request-dispatch",
+      "kind": "deferred",
+      "purpose": "Verify the dry-run, normal, and forced request paths against the documented poweroff contract.",
+      "reason": "Deferred until a disposable VM or a reviewed closed syscall mock is available. The future fixture must intercept reboot and sync without forwarding to the kernel; assert that -n reports a dry run and performs neither call, an ordinary request calls sync before reboot(RB_POWER_OFF), and -f skips sync but still dispatches reboot(RB_POWER_OFF). This suite did not invoke the operation."
+    },
+    {
+      "id": "deferred-argument-and-kernel-results",
+      "kind": "deferred",
+      "purpose": "Verify invalid arguments and kernel success/failure handling without allowing a real shutdown.",
+      "reason": "Deferred until a disposable VM or a reviewed closed syscall mock is available. The future fixture must intercept all reboot/sync calls, check that unsupported options and operands return the documented usage status before either call, and inject success plus representative errno results to verify status and diagnostics. The interceptor must never forward reboot to the host kernel. This suite did not invoke the operation."
+    }
+  ]
+}

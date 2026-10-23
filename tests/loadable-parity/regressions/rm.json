@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "loadable": "rm",
+  "reference": "Parity cases invoke GNU coreutils rm through system Bash with the runner's /usr/bin:/bin PATH; GNU mkdir and ln provide only deterministic private-fixture setup where needed. Common behavior is grounded in POSIX rm semantics, while the reference run validates each exact expected status. The candidate runs the same script with PATH empty so rm resolves to the bash-os builtin. No expected result is derived from candidate output.",
+  "coverage": [
+    "Unlinking multiple ordinary file names, including a surviving hardlink.",
+    "Removing an option-looking file name after the end-of-options marker.",
+    "-f behavior for missing operands and an empty operand list.",
+    "Recursive removal of nested directories containing a symlink, without removing the symlink target.",
+    "The -R recursive option spelling.",
+    "Missing operand status and continuing through mixed successful and missing operands.",
+    "Failure to remove a directory without recursive mode, with contents preserved.",
+    "Invalid-option status and preservation of the named file.",
+    "Bash type/help metadata contract for builtin registration and documentation."
+  ],
+  "exclusions": [
+    "Interactive -i confirmation is deferred because the runner does not provide a PTY. Its deferred case specifies private files and affirmative/negative responses for a future PTY-capable runner.",
+    "Permission-denied, immutable-file, filesystem-race, and privileged filesystem behavior are not covered."
+  ],
+  "cases": [
+    {
+      "id": "unlink_multiple_and_hardlink",
+      "kind": "parity",
+      "purpose": "Remove two names while a separate hardlink to one file remains intact; check ordinary unlink behavior and resulting file contents.",
+      "requires": [
+        "rm",
+        "ln"
+      ],
+      "script": "printf 'shared payload\\n' > primary; ln primary surviving-link; printf 'single payload\\n' > standalone; rm primary standalone; [[ ! -e primary && ! -e standalone && -f surviving-link ]]; [[ $(<surviving-link) == 'shared payload' ]]; printf 'removed two names; hardlink remains\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "end_of_options_filename",
+      "kind": "parity",
+      "purpose": "Remove a file whose name begins with a dash using --, and verify the name is gone.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf 'dash name\\n' > ./-n; rm -- ./-n; [[ ! -e ./-n ]]; printf 'option-like name removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "force_missing_and_no_operands",
+      "kind": "parity",
+      "purpose": "Check that -f suppresses a missing-file error and that GNU rm accepts an empty operand list with -f.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf 'remove me\\n' > present; rm -f absent present; rm -f; [[ ! -e present ]]; printf 'force completed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "recursive_tree_and_symlink",
+      "kind": "parity",
+      "purpose": "Remove a nested private directory tree and its symlink without following the symlink to a sibling target.",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p tree/sub outside; printf 'nested\\n' > tree/sub/file; printf 'keep\\n' > outside/payload; ln -s ../outside/payload tree/link; rm -r tree; [[ ! -e tree && -f outside/payload && ! -L outside/payload ]]; [[ $(<outside/payload) == keep ]]; printf 'tree removed; target kept\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "uppercase_recursive_option",
+      "kind": "parity",
+      "purpose": "Check the stock loadable's documented -R recursive spelling against GNU rm on a private directory.",
+      "requires": [
+        "rm",
+        "mkdir"
+      ],
+      "script": "mkdir bundle; printf 'inside\\n' > bundle/item; rm -R bundle; [[ ! -e bundle ]]; printf 'bundle removed\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing_operand",
+      "kind": "parity",
+      "purpose": "Verify the non-forced no-operand error status; diagnostic text may vary between Bash and GNU rm.",
+      "requires": [
+        "rm"
+      ],
+      "script": "rm",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "mixed_success_and_missing_operand",
+      "kind": "parity",
+      "purpose": "Capture GNU rm's failing status after it processes a present path and a missing path, then verify the present path was removed.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf 'remove me\\n' > present; if rm present absent; then rc=0; else rc=$?; fi; [[ ! -e present && $rc -eq 1 ]]; exit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "directory_without_recursive",
+      "kind": "parity",
+      "purpose": "Verify that removing a directory without -r fails and leaves the directory and its child untouched.",
+      "requires": [
+        "rm",
+        "mkdir"
+      ],
+      "script": "mkdir protected-dir; printf 'keep me\\n' > protected-dir/item; if rm protected-dir; then rc=0; else rc=$?; fi; [[ -d protected-dir && -f protected-dir/item && $rc -eq 1 ]]; exit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid_option_preserves_file",
+      "kind": "parity",
+      "purpose": "Compare GNU and builtin invalid-option status and confirm the rejected invocation leaves its operand untouched.",
+      "requires": [
+        "rm"
+      ],
+      "script": "printf 'keep me\\n' > protected; if rm -z protected; then exit 92; else rc=$?; fi; [[ -f protected ]]; exit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash_type_and_help_metadata",
+      "kind": "contract",
+      "purpose": "Check Bash metadata independently of GNU rm: type -t must identify a builtin, and help rm must contain the documented 'Remove files.' description from the stock loadable source.",
+      "script": "kind=$(type -t rm); docs=$(help rm); [[ $kind == builtin && $docs == *'Remove files.'* ]]; printf '%s\\n' \"$kind\" 'help description present'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp description present\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "interactive_confirmation_pty",
+      "kind": "deferred",
+      "purpose": "Exercise rm -i confirmation and refusal behavior on private regular files.",
+      "reason": "The provided runner connects stdin to /dev/null and supplies no PTY. A future disposable PTY fixture should create only private files, send a negative response and verify the file remains, then send an affirmative response and verify the file is removed; compare prompts, statuses, and resulting trees with GNU rm."
+    }
+  ]
+}

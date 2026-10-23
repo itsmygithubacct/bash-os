@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "loadable": "chmod",
+  "reference": "GNU coreutils chmod from the harness's read-only /usr tree is the independent oracle. Parity cases execute identical deterministic Bash scripts against GNU chmod and the candidate builtin, then compare script status, stdout bytes, diagnostics policy, and the complete fixture tree including file modes and symlink targets. The expected mode semantics follow GNU/POSIX chmod behavior; no expectation is taken from candidate output.",
+  "coverage": [
+    "Bash type/help registration metadata for chmod",
+    "Octal modes on a regular file reached through a symlink and on a directory, including special mode bits",
+    "Omitted-who symbolic changes filtered by umask versus explicitly named classes",
+    "Conditional X on a non-executable file, executable file, and directory",
+    "Symbolic set-ID and sticky bits, including clearing only the user set-ID bit",
+    "Invalid octal mode rejection without changing the target",
+    "Multiple operands with one missing path, checking partial effects and final status",
+    "GNU recursive, force, and verbose option behavior",
+    "Missing operand status",
+    "Multiple symbolic actions, permission copies and a four-umask regression matrix",
+    "Directory set-ID preservation and explicitly requested clearing",
+    "Recursive command-line and descendant symlinks, dangling links and error continuation",
+    "Verbose retained/changed/error output and missing mode/negative mode parsing"
+  ],
+  "exclusions": [
+    "Set-ID clearing and permission-denied outcomes for files owned by another UID or an unrelated group are deferred because the fixture namespace supplies one identity and account/ownership changes are outside scope.",
+    "ACL interactions and filesystem-specific symlink permission behavior are not covered."
+  ],
+  "cases": [
+    {
+      "id": "builtin-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash recognizes chmod as a builtin and its help entry is available; this checks metadata only, not chmod operation behavior.",
+      "script": "[[ $(type -t chmod) == builtin ]]; help chmod >/dev/null; printf 'builtin\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "octal-and-symlink",
+      "kind": "parity",
+      "purpose": "Apply a literal octal mode through a symlink (GNU chmod follows it by default) and set a directory's octal mode; compare the target and directory permission bits.",
+      "script": "umask 000; printf x > file; ln -s file alias; mkdir directory; chmod 04751 alias; chmod 2750 directory",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "ln",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "symbolic-umask-classes",
+      "kind": "parity",
+      "purpose": "Compare an omitted-who +x clause, whose changes are filtered by umask, with explicitly named user/other clauses that are not filtered.",
+      "script": "umask 077; printf x > masked; printf x > named; chmod 0600 masked named; chmod +x masked; chmod u+x,o+x named",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "conditional-X",
+      "kind": "parity",
+      "purpose": "Check that X adds execute permission to a directory and to a file already executable, while leaving a non-executable regular file unchanged.",
+      "script": "umask 0777; printf x > plain; printf x > executable; mkdir directory; umask 000; chmod 0644 plain; chmod 0744 executable; chmod 0600 directory; chmod a+X plain executable directory",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "symbolic-special-bits",
+      "kind": "parity",
+      "purpose": "Exercise symbolic set-user-ID/set-group-ID changes on a file, clearing only set-user-ID with u=rw, and adding the sticky bit to a directory despite a restrictive umask.",
+      "script": "umask 027; printf x > file; mkdir directory; chmod 0640 file; chmod 0750 directory; chmod u+s,g+s file; chmod u=rw file; chmod +t directory",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "invalid-octal-unchanged",
+      "kind": "parity",
+      "purpose": "Reject an octal mode containing an invalid digit, return failure, and leave the preexisting mode unchanged.",
+      "script": "umask 000; printf x > file; chmod 0644 file; rc=0; chmod 0888 file || rc=$?; [[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "multiple-target-partial-error",
+      "kind": "parity",
+      "purpose": "GNU chmod continues across operands after a missing path: both valid targets should receive their requested modes while the command reports failure.",
+      "script": "umask 000; printf a > first; printf b > second; rc=0; chmod 0600 first missing second || rc=$?; [[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "recursive-option",
+      "kind": "parity",
+      "purpose": "GNU -R changes every descendant as well as the named directory; compare the recursive tree and capture the command status so unsupported candidate options remain visible.",
+      "script": "umask 000; mkdir tree; mkdir tree/sub; printf a > tree/file; printf b > tree/sub/nested; rc=0; chmod -R 0710 tree || rc=$?; printf 'chmod-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "force-suppresses-error",
+      "kind": "parity",
+      "purpose": "GNU -f suppresses the diagnostic for a missing path while still returning failure; compare both the captured command status and stderr policy.",
+      "script": "rc=0; chmod -f 0600 missing || rc=$?; printf 'chmod-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "verbose-reports-change",
+      "kind": "parity",
+      "purpose": "GNU -v reports the mode change on stdout; compare GNU's output and resulting mode while capturing the command status.",
+      "script": "umask 000; printf x > file; chmod 0644 file; rc=0; chmod -v 0600 file || rc=$?; printf 'chmod-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "missing-operand-status",
+      "kind": "parity",
+      "purpose": "Check GNU chmod's missing-file-operand exit status after a mode argument; the script succeeds only when chmod itself returns 1.",
+      "script": "rc=0; chmod 0644 || rc=$?; [[ $rc -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "conditional-X-clause-order",
+      "kind": "parity",
+      "purpose": "Exercise X after adding and removing execute bits, directories without execute, and umask filtering; retain the GNU oracle modes.",
+      "script": "umask 000; for f in added removed multi masked; do printf x > \"$f\"; done; mkdir directory; chmod 0644 added multi masked; chmod 0744 removed; chmod 0600 directory; chmod u+x,a+X added; chmod a-x,a+X removed; chmod u+x+X multi; umask 077; chmod +X directory masked; stat -c '%n %a' added removed multi masked directory",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "mkdir",
+        "stat"
+      ]
+    },
+    {
+      "id": "recursive-symlinks",
+      "kind": "parity",
+      "purpose": "Default recursion skips descendant symlinks (including dangling links), follows and traverses command-line symlink directories, and continues after missing operands.",
+      "script": "umask 000; mkdir tree tree/sub outside; printf x > tree/sub/file; printf x > outside/file; ln -s ../../outside tree/sub/link; ln -s absent tree/dangling; ln -s outside alias; chmod 0755 tree tree/sub outside; chmod 0644 outside/file tree/sub/file; rc=0; chmod -R 0700 missing tree alias || rc=$?; printf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod",
+        "mkdir",
+        "ln"
+      ]
+    },
+    {
+      "id": "verbose-unchanged-and-errors",
+      "kind": "parity",
+      "purpose": "Compare GNU verbose retained/changed/error reports, special-bit permission rendering, force suppression, and continuation across operands.",
+      "script": "umask 000; printf x > file; chmod 0644 file; rc=0; chmod -fv 0644 file missing || rc=$?; printf 'status=%s\\n' \"$rc\"; chmod -v 4751 file; chmod -v 4751 file",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "missing-operands-and-negative-mode",
+      "kind": "parity",
+      "purpose": "Missing mode and missing file return 1, while an initial negative symbolic mode is a mode operand rather than an option.",
+      "script": "umask 000; rc=0; chmod || rc=$?; printf 'empty=%s\\n' \"$rc\"; rc=0; chmod -f || rc=$?; printf 'force=%s\\n' \"$rc\"; printf x > file; chmod 0777 file; chmod -w file; chmod -- -x file",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "umask-special-action-regression",
+      "kind": "parity",
+      "purpose": "Retain umask and special-bit fixes across masks, assignment, copies and multiple actions; compare statuses and final modes with GNU rather than assuming parser behavior. Record each resulting mode before restoring owner-read permission so the harness can inspect file contents; the stdout comparison retains every permission difference.",
+      "script": "i=0; for mask in 077 022 002 000; do umask \"$mask\"; for mode in +x a+x +w +rw =x u+x,+w go-r +X o=r ug=rw 755 0644 +t u+s g+s +s u+x,g+s u=rws g=rxs ug+s a-s u+s-s g=u,o=g u=rw+x-s; do i=$((i+1)); f=file$i; printf x > \"$f\"; chmod 0644 \"$f\"; rc=0; chmod \"$mode\" \"$f\" || rc=$?; printf '%s %s %s ' \"$mask\" \"$mode\" \"$rc\"; stat -c %a \"$f\"; chmod u+r \"$f\"; done; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "directory-special-preservation",
+      "kind": "parity",
+      "purpose": "Directory set-ID bits survive ordinary symbolic and short numeric modes; explicit removal and five-digit numeric modes clear them. Sticky operations honor the named classes. Record modes before restoring owner-read permission on the regular file for the harness content snapshot.",
+      "script": "umask 000; mkdir one two three four; chmod 07755 one two three four; chmod u=rw,g=rx,o=t one; chmod 0750 two; chmod 00750 three; chmod u-s,g-s four; printf x > file; chmod 07777 file; chmod u=t,g=t file; stat -c '%n %a' one two three four file; chmod u+r file",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "mkdir",
+        "stat"
+      ]
+    },
+    {
+      "id": "negative-mode-umask-status",
+      "kind": "parity",
+      "purpose": "Preserve GNU surprise diagnostics and status when a negative symbolic mode is parsed without -- and the umask prevents requested removals; compare explicit -- and named-class variants.",
+      "script": "umask 022; for f in bare separated named; do printf x > \"$f\"; chmod 0777 \"$f\"; done; rc=0; chmod -w bare || rc=$?; printf 'bare=%s\\n' \"$rc\"; rc=0; chmod -- -w separated || rc=$?; printf 'separated=%s\\n' \"$rc\"; rc=0; chmod a-w named || rc=$?; printf 'named=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "chmod"
+      ]
+    },
+    {
+      "id": "foreign-owner-and-group",
+      "kind": "deferred",
+      "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
+      "reason": "Requires a future disposable VM provisioned with at least two unprivileged UIDs and controlled group membership (or a separately reviewed ownership syscall mock). The current fixture namespace exposes one identity, and this suite must not create/change host accounts or ownership. No operation was run and this is not a pass."
+    }
+  ]
+}

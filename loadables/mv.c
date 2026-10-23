@@ -405,6 +405,13 @@ bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
 static int
 bmv_one (const char *src, const char *dst, bmv_opts *o)
 {
+    /* A skip still requires a valid source. Diagnose missing operands before
+       no-clobber or an interactive refusal can hide the source error. */
+    struct stat src_st;
+    if (lstat (src, &src_st) < 0) {
+        builtin_error ("stat %s: %s", src, strerror (errno));
+        return -1;
+    }
     /* Existence check on dst with -i / -n / -f. */
     struct stat dst_st;
     int dst_exists = (lstat (dst, &dst_st) == 0);
@@ -415,7 +422,9 @@ bmv_one (const char *src, const char *dst, bmv_opts *o)
             fflush (stderr);
             int c = getchar (), answer = c;
             while (c != EOF && c != '\n') c = getchar ();
-            if (answer != 'y' && answer != 'Y') return 1;
+            /* A declined interactive move is a failure, including EOF.
+               The operand loop still continues with later sources. */
+            if (answer != 'y' && answer != 'Y') return -1;
         }
         for (bmv_link *entry = o->written; entry; entry = entry->next) {
             /* GNU mv permits replacing a just-moved empty directory. */
@@ -427,13 +436,9 @@ bmv_one (const char *src, const char *dst, bmv_opts *o)
             }
         }
     }
-    {
-        struct stat src_st;
-        if (lstat (src, &src_st) == 0 && dst_exists
-            && src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino) {
-            builtin_error ("'%s' and '%s' are the same file", src, dst);
-            return -1;
-        }
+    if (dst_exists && src_st.st_dev == dst_st.st_dev && src_st.st_ino == dst_st.st_ino) {
+        builtin_error ("'%s' and '%s' are the same file", src, dst);
+        return -1;
     }
     /* rename(2) handles same-fs atomically. */
     if (rename (src, dst) == 0) return 0;

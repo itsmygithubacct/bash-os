@@ -84,7 +84,7 @@ configuration. See [Perl inside Bash](perl.md).
 | `_tree_sitter` | MIT with Unicode/ICU notices for bundled Unicode headers |
 | `_ts_bash`, `_ts_json`, `_ts_toml`, `_ts_markdown`, `_ts_markdown_inline` | MIT, per-grammar notices |
 | `tests/*.c`, `build.sh`, `config/` | MIT |
-| `patches/head-stdin.patch` (adaptation of Bash's stock head) | GPL-3.0-or-later |
+| Stock Bash adaptations listed in `config/stock-patches.json` | GPL-3.0-or-later |
 
 The project sources carry an MIT marker. Vendored helpers retain their original
 notices and are registered in `config/helpers.json`. Other vendored files are
@@ -172,17 +172,47 @@ project. bash-os is the board-agnostic layer it builds on.
 
 ## Local adaptations
 
-Fixes to stock loadables, applied at build time in `build.sh` so the pinned
-sources stay as taken:
+Fixes to stock loadables are selected by `config/stock-patches.json` and applied
+by both `build.sh` and `config/build-packages.py`, so the pinned originals stay
+as taken. The patches preserve their upstream GPL headers:
 
 - `head`: [a tracked patch](../patches/head-stdin.patch) gives redirected stdin
   a private stream, restores unread seekable input, avoids pipe read-ahead and
   propagates I/O errors. The upstream copyright and GPL header are preserved;
   [behavior and validation](head-sed.md) document the remaining option limits.
 - `mkdir -p`: only `chmod` the components it actually created, not existing
-  parents.
+  parents or an existing final directory. Explicit `-m` modes ignore the umask;
+  missing operands and invalid options return status 1.
+- `mktemp`: invalid options return status 1; `-u` retains the existing fix to
+  generate a name without creating or removing filesystem entries.
+- `printenv`: print every requested exported value, continue past missing
+  variables with status 1, and support `-0`/`--null`, successful help/version
+  requests, and GNU option ordering. Help and version identify this implementation.
 - `fltexpr`: initialise NaN/Inf at compile time (its runtime `_builtin_load`
   hook never fires for a static builtin). Needs `libm`, linked via `LOCAL_LIBS`.
+  Its lexer also recognizes the logical `&&` and `||` operators already handled
+  by the expression parser.
+- `basename`, `dirname`, `pathchk`, `rm`, `tee`, `tty`, `unlink`: operand and
+  option validation, empty-path behavior, pathname limits and error statuses.
+  `dirname` accepts multiple operands and NUL termination; `unlink` validates
+  its single operand before changing the filesystem.
+- `chmod`, `mkfifo`, `rmdir`: GNU mode semantics, creation umasks, recursive
+  permission changes, and removal of empty parent directories. Directory
+  set-ID preservation and command-line versus descendant symlinks have focused
+  fixtures.
+- `realpath`, `getconf`, `finfo`: missing final path components and lexical
+  normalization, configuration listings and undefined values, and sticky bits.
+- `id`, `logname`, `whoami`, `uname`: identity/group formatting, operand checks
+  and selected GNU option aliases, with synthetic account fixtures.
+- `sleep`, `strftime`, `strptime`: multiple intervals, negative epochs,
+  longest matching common date formats, reset state between parsing attempts,
+  and numeric timezone offsets. The C-library date parser's locale and ISO-week
+  limitations remain documented.
+
+The [compatibility notes](gnu-compatibility.md) and
+[`tests/loadable-parity/regressions/`](../tests/loadable-parity/regressions/)
+describe the bounded comparisons for these adaptations. They are correctness
+fixtures, not new timing measurements or claims of complete GNU conformance.
 
 Changes carried in the sources, noted there:
 
@@ -233,6 +263,43 @@ Changes carried in the sources, noted there:
   that points back at the source truncated the source before the same-file
   check: it now opens without truncating, compares the open descriptors'
   inodes, then truncates (contributed with `tests/regressions.py`).
+  Nonrecursive source symlinks follow GNU's default; `-P` preserves them.
+  Force retries a failed destination open, preserving openable destination
+  symlinks and hardlinks. `mv` validates its source before a no-clobber skip
+  and reports interactive refusal as failure.
+- `find`: missing starting paths and detected directory cycles report failure;
+  the walker does not open children at the maximum depth and stops safely when
+  traversal-state allocation fails. `du -L` counts a file only once when a
+  nested symlink later reaches the same inode, unless `-l` requests each link.
+- `df`: mount lookup requires the resolved operand to be contained by the mount
+  path, distinguishes the original file operand from its mount target, and
+  preserves full string fields. `ps`, `free`, `tr`, `wc`, `touch` and `tail`
+  report the selected GNU argument-error statuses. `cmp -l` aligns its offset
+  and octal columns using the available input lengths.
+- `chown`: rejects negative, overflowing and unchanged-sentinel numeric IDs
+  before calling the ownership syscall; legacy dot separators warn. These
+  checks use private fixtures with the runner's existing identity.
+- `env`: repeated assignments replace earlier values, and external commands
+  use the requested child environment's search path without changing the caller.
+  `od` numeric and GNU string modes preserve one input state across file
+  boundaries, including global skip/count limits and repeated stdin operands.
+- `rev` recognizes the end-of-options marker; `comm`, `fold`, `paste`, `date`,
+  `truncate` and `uniq` use GNU argument-error statuses. The documented `blkid`
+  export format emits one newline per field without an extra trailing blank line.
+- `xargs`: tracks logical input lines separately from words, implements GNU
+  quoting and batching-option precedence, keeps logical batches intact under
+  `-s`, and diagnoses child status 255 while preserving fatal-stop cleanup.
+- `lsattr`: expands the short flag field to e2fsprogs' 22 columns, rejects
+  symlink queries and matches dot-entry and recursive heading behavior.
+  Tests read attributes on private files and do not set inode flags.
+- `zstd`, `zstdcat`: read stdin by default and preserve strict decoding after
+  recognized frame magic while supporting forced pass-through of ordinary
+  input. The alias selects `-dcf`; later `-o` and `-c` options select the output
+  destination in argument order. Other compression formats remain unsupported.
+- `bashbase64`, `binhex`, `bashmount`, `stat`: preserve complete decoded groups
+  before an invalid base64 suffix, reject an incomplete single-zero hex byte,
+  report an empty mount-table query as no match, and handle unknown/stat-context
+  format directives. No mount operation is used by the mount-table fixtures.
 - `diff`: the line-table growth is checked; out of memory is an error, not a
   crash.
 - `wc`: a block-reading path for every call without `-m`/`-L` (lines by

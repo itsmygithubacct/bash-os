@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "loadable": "binhex",
+  "reference": "Valid complete hexadecimal byte streams are compared against xxd plain mode. Separate contracts cover the documented optional leading 0x prefix and strict rejection of malformed input; xxd intentionally tolerates malformed input and is not an error-path oracle.",
+  "coverage": [
+    "Bash metadata: `type -t` reports binhex as a builtin and `help binhex` contains the documented description.",
+    "Encode empty input, mixed binary stdin containing NUL and high-bit bytes, a relative file argument, and 4097 deterministic bytes across the implementation's 4096-byte read boundary.",
+    "Decode compact hex, whitespace-separated hex, and a relative hex-file argument, preserving arbitrary output bytes.",
+    "Documented leading 0x/0X decoder prefix behavior.",
+    "Compatibility behavior for odd trailing nibbles and non-hex characters accepted by xxd plain reverse mode."
+  ],
+  "exclusions": [
+    "Deterministically injecting EINTR and short read/write results requires syscall fault injection and is listed as deferred.",
+    "No privilege, device, terminal, network, or host-path operation is part of binhex.",
+    "Full xxd decoding compatibility is not claimed: binhex rejects nonhex characters and incomplete bytes."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Check Bash reports binhex as a builtin and its help text contains the documented description.",
+      "script": "kind=$(type -t binhex)\nhelp_text=$(help binhex)\ncase \"$kind\" in\n  builtin)\n    case \"$help_text\" in\n      *'Hex-encode or decode a byte stream'*) printf 'available documented builtin\\n' ;;\n      *) exit 1 ;;\n    esac\n    ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "available documented builtin\n"
+    },
+    {
+      "id": "encode-empty-stdin",
+      "kind": "parity",
+      "purpose": "Empty stdin encodes to zero hex bytes with no newline.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if command -v xxd >/dev/null 2>&1; then\n  hex=$(printf '' | xxd -p -c 999999)\nelse\n  hex=$(printf '' | binhex)\nfi\nprintf '%s' \"$hex\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-mixed-binary-stdin",
+      "kind": "parity",
+      "purpose": "Encode NUL, control, high-bit, and printable bytes from stdin as lowercase hex.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if command -v xxd >/dev/null 2>&1; then\n  hex=$(printf '\\000\\001\\012\\015\\177\\200\\377A\\n' | xxd -p -c 999999)\nelse\n  hex=$(printf '\\000\\001\\012\\015\\177\\200\\377A\\n' | binhex)\nfi\nprintf '%s' \"$hex\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-relative-file",
+      "kind": "parity",
+      "purpose": "Encode bytes read from one relative FILE argument, including an embedded NUL.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "printf 'Bash\\nbinary\\000tail' > sample.bin\nif command -v xxd >/dev/null 2>&1; then\n  hex=$(xxd -p -c 999999 sample.bin)\nelse\n  hex=$(binhex sample.bin)\nfi\nprintf '%s' \"$hex\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "encode-read-boundary",
+      "kind": "parity",
+      "purpose": "Encode 4097 deterministic bytes to cover a read crossing the implementation's 4096-byte buffer boundary.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "printf '%4097s' '' > boundary.bin\nif command -v xxd >/dev/null 2>&1; then\n  hex=$(xxd -p -c 999999 boundary.bin)\nelse\n  hex=$(binhex boundary.bin)\nfi\nprintf '%s' \"$hex\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-compact-binary",
+      "kind": "parity",
+      "purpose": "Decode compact uppercase and lowercase hex into NUL, newline, printable, and high-bit bytes.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if command -v xxd >/dev/null 2>&1; then\n  printf '000a41b2ff\\n' | xxd -r -p\nelse\n  printf '000a41b2ff\\n' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-whitespace",
+      "kind": "parity",
+      "purpose": "Decode plain hex containing spaces, a tab, and a line break between byte pairs.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "if command -v xxd >/dev/null 2>&1; then\n  printf '00 41\\nFF\\t42\\n' | xxd -r -p\nelse\n  printf '00 41\\nFF\\t42\\n' | binhex -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-relative-file",
+      "kind": "parity",
+      "purpose": "Decode a whitespace-formatted relative FILE argument and preserve binary output.",
+      "requires": [
+        "xxd"
+      ],
+      "script": "printf '0a 00 5a ff\\n' > encoded.txt\nif command -v xxd >/dev/null 2>&1; then\n  xxd -r -p encoded.txt\nelse\n  binhex -d encoded.txt\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decode-leading-prefix",
+      "kind": "contract",
+      "purpose": "Check the documented one-time leading 0X prefix and ASCII whitespace handling.",
+      "script": "printf ' \\t0X0041 ff\\n' | binhex -d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout_base64": "AEH/"
+    },
+    {
+      "id": "decode-odd-nibble",
+      "kind": "contract",
+      "purpose": "The documented strict decoder rejects incomplete byte pairs and non-hexadecimal characters. xxd reverse mode is permissive and is not an equivalent oracle for malformed input.",
+      "script": "printf '%s' '414' | binhex -d >/dev/null",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "decode-nonhex-characters",
+      "kind": "contract",
+      "purpose": "The documented strict decoder rejects incomplete byte pairs and non-hexadecimal characters. xxd reverse mode is permissive and is not an equivalent oracle for malformed input.",
+      "script": "printf '%s' '41gg42' | binhex -d >/dev/null",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "deferred-short-io-injection",
+      "kind": "deferred",
+      "purpose": "Exercise binhex read/write loops after deterministic EINTR and short transfers.",
+      "reason": "A future disposable VM or audited syscall mock must wrap only fixture file descriptors and inject EINTR plus short reads/writes. The provided harness has no deterministic syscall-injection fixture, and ordinary files/pipes cannot reliably force these return patterns."
+    },
+    {
+      "id": "decode-single-zero",
+      "kind": "contract",
+      "purpose": "A single zero digit is an incomplete hex byte, even when it could begin a 0x prefix; surrounding whitespace does not supply a second digit.",
+      "script": "printf ' \\t0 \\n' | binhex -d >/dev/null",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    }
+  ]
+}

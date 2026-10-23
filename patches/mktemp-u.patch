@@ -1,7 +1,13 @@
 --- builtins/mktemp.c
 +++ builtins/mktemp.c
-@@ -123,7 +123,10 @@
- 
+@@ -69,5 +69,5 @@
+ 	default:
+ 	  builtin_usage ();
+-	  return (EX_USAGE);
++	  return (EXECUTION_FAILURE);
+ 	}
+     }
+@@ -124,5 +124,8 @@
        if (dflag)
  	{
 -	  filename = sh_mktmpdir (template, mflags);
@@ -11,16 +17,14 @@
 +	    filename = sh_mktmpdir (template, mflags);
  	  if (filename == 0)
  	    {
- 	      if (qflag == 0)
-@@ -132,14 +135,18 @@
- 	    }
+@@ -133,6 +136,4 @@
  	  else
  	    {
 -	      if (uflag)
 -		rmdir (filename);
  	      printf ("%s\n", filename);
  	    }
- 	}
+@@ -140,5 +141,11 @@
        else		/* filename */
  	{
 -	  fd = sh_mktmpfd (template, mflags, &filename);
@@ -33,9 +37,7 @@
 +	    fd = sh_mktmpfd (template, mflags, &filename);
  	  if (fd < 0)
  	    {
- 	      if (qflag == 0)
-@@ -148,9 +155,8 @@
- 	    }
+@@ -149,7 +156,6 @@
  	  else
  	    {
 -	      close (fd);
@@ -45,4 +47,3 @@
 +		close (fd);
  	      printf ("%s\n", filename);
  	    }
- 	}

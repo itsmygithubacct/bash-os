@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "loadable": "link",
+  "reference": "GNU coreutils link, executed by system Bash with /usr/bin:/bin on PATH. The runner compares exit status, stdout, and the complete fixture tree, including file bytes and hard-link identity.",
+  "coverage": [
+    "Bash builtin type/help metadata",
+    "Hard-link creation with ordinary and whitespace-containing relative paths",
+    "The -- option terminator for dash-prefixed operands",
+    "Existing-destination, missing-target, and directory-target failures and their file effects",
+    "Wrong-operand-count status compared with GNU coreutils",
+    "Deferred ownership and cross-filesystem permission boundaries"
+  ],
+  "exclusions": [
+    "Cross-owner and cross-filesystem hard-link behavior are deferred because they need distinct UIDs, controlled protected-hardlink policy, or separate filesystems in a disposable VM.",
+    "The command only creates hard links; symlink operations belong to the separate ln loadable and are outside this suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports link as a builtin and exposes the short description documented by the loadable source.",
+      "script": "printf '%s\\n' \"$(type -t link)\"; help -d link",
+      "expected_status": 0,
+      "stdout": "builtin\nlink - POSIX link \u2014 create a hard link.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "hardlink-basic",
+      "kind": "parity",
+      "purpose": "Create a hard link from an existing file and compare bytes and shared inode identity with GNU coreutils.",
+      "script": "printf payload > target; link target alias",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hardlink-relative-paths-with-spaces",
+      "kind": "parity",
+      "purpose": "Create a hard link between nested relative paths whose components contain spaces.",
+      "script": "mkdir 'source dir' 'destination dir'; printf payload > 'source dir/file name'; link 'source dir/file name' 'destination dir/alias name'",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dash-prefixed-operands",
+      "kind": "parity",
+      "purpose": "Verify -- ends option processing so both dash-prefixed path operands are treated as filenames.",
+      "script": "printf payload > -target; link -- -target -alias",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "existing-destination-preserved",
+      "kind": "parity",
+      "purpose": "A failed hard-link attempt must leave an existing destination and its contents unchanged.",
+      "script": "printf source > source; printf keep > destination; set +e; link source destination; rc=$?; set -e; [[ $rc -eq 1 ]]; printf 'rejected=%s\\n' \"$rc\"",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-target-no-destination",
+      "kind": "parity",
+      "purpose": "A missing target must fail and must not create the requested link name.",
+      "script": "set +e; link missing destination; rc=$?; set -e; [[ $rc -eq 1 ]]; [[ ! -e destination && ! -L destination ]]; printf 'rejected=%s\\n' \"$rc\"",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "directory-target-no-destination",
+      "kind": "parity",
+      "purpose": "A directory cannot be hard-linked; verify failure and absence of a destination entry.",
+      "script": "mkdir source-dir; set +e; link source-dir destination; rc=$?; set -e; [[ $rc -eq 1 ]]; [[ ! -e destination && ! -L destination ]]; printf 'rejected=%s\\n' \"$rc\"",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "wrong-operand-count",
+      "kind": "parity",
+      "purpose": "Compare the status and diagnostic policy for an invalid one-operand invocation against GNU coreutils.",
+      "script": "link only-one-operand",
+      "requires": [
+        "link"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "cross-owner-hardlink-permission",
+      "kind": "deferred",
+      "purpose": "Exercise hard-link permission checks across an ownership boundary.",
+      "reason": "Requires a disposable VM or reviewed privilege-separated mock that can create two distinct UIDs, arrange a sticky writable directory containing a differently owned source, and set the protected-hardlinks policy. The provided fixtures use one unprivileged identity; do not alter host users, ownership, or kernel policy."
+    },
+    {
+      "id": "cross-filesystem-link-rejection",
+      "kind": "deferred",
+      "purpose": "Verify a hard-link attempt across filesystems fails without creating the destination.",
+      "reason": "Requires a disposable VM with two private writable filesystems mounted at fixture directories, or a reviewed syscall mock that returns EXDEV for link(). Mount operations are outside this run; both reference and candidate must see the same isolated filesystem boundary."
+    }
+  ]
+}

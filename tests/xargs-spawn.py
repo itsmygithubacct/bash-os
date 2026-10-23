@@ -153,10 +153,12 @@ def parser_checks(checks, helper, root):
     raw = [b"", b"two words", b'quote"slash\\', b"line\nbreak", b"last"]
     checks.check('xargs -0 -n 2 "$1" batch', helper,
                  data=b"\0".join(raw), output=batches(raw, 2))
-    lines = [b"one two", b"three", b"four five"]
+    # -L groups logical lines, while blanks within each line still split words.
+    first_lines = [b"one", b"two", b"three"]
+    last_line = [b"four", b"five"]
     checks.check('xargs -L 2 "$1" batch', helper,
                  data=b"\n\none two\n\nthree\nfour five",
-                 output=batches(lines, 2))
+                 output=batches(first_lines, 3) + batches(last_line, 2))
     replacements = [b"prefix:one two:one two", b"prefix:three:three"]
     checks.check('xargs -I {} "$1" batch "prefix:{}:{}"', helper,
                  data=b"\none two\n\nthree\n", output=batches(replacements, 1))

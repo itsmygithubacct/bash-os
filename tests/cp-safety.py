@@ -79,7 +79,7 @@ class CopySafety(unittest.TestCase):
         ):
             with self.subTest(kind=kind):
                 result = self.shell('collision="destination.bcptmp.$$"; ' + setup + '; '
-                                    'cp link-source destination || exit; ' + verify)
+                                    'cp -P link-source destination || exit; ' + verify)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(os.readlink(self.root / "destination"), "new-target")
 
@@ -88,7 +88,7 @@ class CopySafety(unittest.TestCase):
         (self.root / "destination" / "link-source").mkdir(parents=True)
         sentinel = self.root / "destination" / "link-source" / "sentinel"
         sentinel.write_bytes(b"keep\n")
-        result = self.shell('cp link-source destination')
+        result = self.shell('cp -P link-source destination')
         self.assertEqual(result.returncode, 1)
         self.assertEqual(sentinel.read_bytes(), b"keep\n")
         self.assertEqual(sorted(p.name for p in (self.root / "destination").iterdir()), ["link-source"])

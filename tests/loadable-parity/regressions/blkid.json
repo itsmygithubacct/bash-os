@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "loadable": "blkid",
+  "reference": "The runner validation report shows no util-linux blkid executable in its allowed reference PATH, so this suite makes no util-linux parity claim. Runnable probe cases are documented-contract checks: small Bash-printf encoders write ext superblock UUID/label/type fields, FAT BPB serial/label/type fields, and an MBR type byte; expected output is computed independently from those bytes and the documented value/export/default formats. Bash type/help contracts use the pinned source documentation.",
+  "coverage": [
+    "Bash builtin availability and documented help text (metadata only).",
+    "Documented regular-file probe behavior for independently encoded ext2 LABEL/UUID/TYPE, FAT LABEL/UUID/TYPE, and MBR PTTYPE.",
+    "Value, filtered export, default, and multiple-operand output contracts.",
+    "Unsupported output-format usage behavior."
+  ],
+  "exclusions": [
+    "GNU blkid was unavailable in the runner reference PATH; these are contract checks, not parity comparisons.",
+    "No real block device is opened or probed; fixtures are relative regular files in the runner private tree.",
+    "No-operand /sys enumeration and -L/-U discovery need a controlled device namespace or mock and are deferred.",
+    "No unmatched-device or missing-file exit-status assertion is made without the GNU oracle.",
+    "Only ext2, VFAT, and an MBR signature are covered; other filesystem and GPT signatures, parent-disk GPT partition metadata, and the complete util-linux option surface are not covered."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Bash metadata contract: the selected command is registered as a builtin, without invoking its probe operation.",
+      "script": "type -t blkid",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Bash help exposes the description documented by the pinned loadable source; no device operation is invoked.",
+      "script": "doc=$(help blkid)\ncase $doc in\n  *'Probe filesystem and partition-table signatures'*) printf 'documented\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stdout": "documented\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ext-value-fields",
+      "kind": "contract",
+      "purpose": "Probe an independently encoded ext2 superblock and compare the documented value output for TYPE, LABEL, and canonical UUID.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nblkid -s TYPE -o value ext.img\nblkid -s LABEL -o value ext.img\nblkid -s UUID -o value ext.img",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ext2\nFIXTURE_EXT\n01234567-89ab-cdef-1032-547698badcfe\n"
+    },
+    {
+      "id": "ext-export-filter",
+      "kind": "contract",
+      "purpose": "Check export formatting together with -s tag filtering on the ext2 TYPE field.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nblkid -s TYPE -o export ext.img",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ID_FS_TYPE=ext2\n"
+    },
+    {
+      "id": "ext-default-output",
+      "kind": "contract",
+      "purpose": "Check the documented device-and-tag line against independently encoded ext2 type, label and UUID values.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nblkid ext.img",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "ext.img: LABEL=\"FIXTURE_EXT\" UUID=\"01234567-89ab-cdef-1032-547698badcfe\" TYPE=\"ext2\"\n"
+    },
+    {
+      "id": "vfat-value-fields",
+      "kind": "contract",
+      "purpose": "Probe a deterministic FAT16-style BPB and compare its type, volume label, and little-endian volume serial rendering.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > vfat.img\nzeros 11 >> vfat.img\nprintf '\\x00\\x02\\x01\\x01\\x00\\x02\\xe0\\x00\\x40\\x0b\\xf0\\x09\\x00\\x12\\x00\\x02\\x00' >> vfat.img\nzeros 10 >> vfat.img\nprintf '\\x29\\x78\\x56\\x34\\x12FIXTUREVOL \\x46\\x41\\x54\\x31\\x36\\x20\\x20\\x20' >> vfat.img\nzeros 448 >> vfat.img\nprintf '\\x55\\xaa' >> vfat.img\nblkid -s TYPE -o value vfat.img\nblkid -s LABEL -o value vfat.img\nblkid -s UUID -o value vfat.img",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "vfat\nFIXTUREVOL\n1234-5678\n"
+    },
+    {
+      "id": "mbr-terminator",
+      "kind": "contract",
+      "purpose": "Recognize a valid nonempty MBR entry and verify PTTYPE output; the leading-dash fixture also checks that -- ends option parsing.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > -mbr.img\nzeros 446 >> -mbr.img\nprintf '\\x00\\x00\\x00\\x00\\x83\\x00\\x00\\x00\\x00\\x08\\x00\\x00\\x00\\x20\\x00\\x00' >> -mbr.img\nzeros 48 >> -mbr.img\nprintf '\\x55\\xaa' >> -mbr.img\nblkid -s PTTYPE -o value -- -mbr.img",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dos\n"
+    },
+    {
+      "id": "multi-input-types",
+      "kind": "contract",
+      "purpose": "The documented DEV... interface accepts multiple explicit regular-file operands; the independent ext and FAT byte encoders imply the two TYPE values in argument order.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nzeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > vfat.img\nzeros 11 >> vfat.img\nprintf '\\x00\\x02\\x01\\x01\\x00\\x02\\xe0\\x00\\x40\\x0b\\xf0\\x09\\x00\\x12\\x00\\x02\\x00' >> vfat.img\nzeros 10 >> vfat.img\nprintf '\\x29\\x78\\x56\\x34\\x12FIXTUREVOL \\x46\\x41\\x54\\x31\\x36\\x20\\x20\\x20' >> vfat.img\nzeros 448 >> vfat.img\nprintf '\\x55\\xaa' >> vfat.img\nblkid -s TYPE -o value ext.img vfat.img",
+      "expected_status": 0,
+      "stdout": "ext2\nvfat\n",
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
+      "id": "invalid-format-status",
+      "kind": "contract",
+      "purpose": "A format outside the documented default/value/export set is a Bash builtin usage error; assert the conventional usage status and that no data is printed.",
+      "script": "blkid -o not-a-format",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "device-discovery-deferred",
+      "kind": "deferred",
+      "purpose": "No-operand enumeration and -L/-U discovery are core operations that cannot be compared safely against ambient device state.",
+      "reason": "Requires a disposable VM or reviewed sysfs/device mock with a controlled /dev topology. The reference GNU blkid must enumerate the same isolated fixture devices so path resolution and partition-parent metadata can be compared; this suite never scans host devices."
+    }
+  ]
+}

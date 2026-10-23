@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "loadable": "df",
+  "reference": "GNU coreutils df, executed by the harness with the same Bash script and fixture-relative working directory. Runnable output is compared byte-for-byte. Contract expectations are the Bash builtin type/help metadata published for df.",
+  "coverage": [
+    "Bash recognizes df as a builtin and exposes its documented help text.",
+    "GNU parity for stable filesystem type, target mount point, and input file fields on a relative fixture operand.",
+    "Filesystem type inclusion and exclusion filters on the fixture filesystem.",
+    "Diagnostics and status for invalid output fields and a zero block size.",
+    "Nested relative operands, symlink resolution, invalid comma lists, zero-size spellings and filtered missing operands."
+  ],
+  "exclusions": [
+    "No operand enumerates the sandbox mount table, whose contents depend on the controller environment.",
+    "Space and inode counters, human-readable rounding, block-size arithmetic, and totals need stable statvfs data; the harness does not provide a deterministic statvfs fixture.",
+    "No host/system paths, mount operations, real network filesystems, or privileged setup are used.",
+    "The suite exceeds the preferred case count to retain the original metadata and seven operation cases while isolating regressions and two deferred gaps."
+  ],
+  "cases": [
+    {
+      "id": "df-type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata identifies df as a builtin with PATH-independent availability.",
+      "script": "type -t df",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "df-help-metadata",
+      "kind": "contract",
+      "purpose": "Bash help exposes the df interface documented by the builtin.",
+      "script": "help df",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "df: df [FILE]\n    Report filesystem disk space usage.\n    \n        bashdf [-ahHiklmPT] [-B SIZE] [-t TYPE] [-x TYPE] [FILE...]\n    \n        -a   show all filesystems\n        -h   human-readable sizes (powers of 1024)\n        -H   SI human-readable sizes (powers of 1000)\n        -B SIZE  scale block output by SIZE (for example 1, K, M, G)\n        -i   list inode usage\n        -k   1024-byte blocks (POSIX default)\n        -m   1M-byte blocks\n        -l   limit listing to local filesystems\n        -P   POSIX output format\n        -t TYPE  limit listing to filesystem type\n        -T   print filesystem type\n        -x TYPE  exclude filesystem type\n        --help     show usage and exit\n        --version  show version and exit\n        --all         show all filesystems\n        --human-readable  human-readable sizes (powers of 1024)\n        --si            SI human-readable sizes (powers of 1000)\n        --block-size=SIZE  scale block output by SIZE\n        --output[=LIST] select output columns (source,size,used,avail,pcent,target,...)\n        --total       show a grand-total row\n        --local       limit listing to local filesystems\n        --type=TYPE   limit listing to filesystem type\n        --exclude-type=TYPE  exclude filesystem type\n        --print-type  print filesystem type\n    \n    No FILE: enumerate /proc/mounts. Pseudo-filesystems\n    (proc/sysfs/cgroup/etc.) are filtered out.\n"
+    },
+    {
+      "id": "df-output-filesystem-type",
+      "kind": "parity",
+      "purpose": "The fstype output field for the fixture's current filesystem matches GNU df without comparing live size counters.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --output=fstype .",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-output-mount-target",
+      "kind": "parity",
+      "purpose": "The target field reports the mount point containing the relative current-directory operand.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --output=target .",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-output-file-operand",
+      "kind": "parity",
+      "purpose": "The file field retains the relative operand (.) rather than replacing it with the containing mount point.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --output=file .",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-type-filter-match",
+      "kind": "parity",
+      "purpose": "Use the reported filesystem type as the filter, then verify that --type retains the matching relative operand's mount target.",
+      "requires": [
+        "df"
+      ],
+      "script": "out=$(df --output=fstype .); fs=${out#*$'\\n'}; df --type=\"$fs\" --output=target .",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-exclude-type-match",
+      "kind": "parity",
+      "purpose": "Use the reported filesystem type with --exclude-type and compare GNU's result when the only operand is excluded.",
+      "requires": [
+        "df"
+      ],
+      "script": "out=$(df --output=fstype .); fs=${out#*$'\\n'}; df --exclude-type=\"$fs\" --output=target .",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-invalid-output-field",
+      "kind": "parity",
+      "purpose": "An unknown --output field must be rejected with a diagnostic and GNU's failure status.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --output=source,not-a-field .",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-zero-block-size",
+      "kind": "parity",
+      "purpose": "A zero --block-size is invalid and must fail with a diagnostic.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --block-size=0 .",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-relative-file-and-symlink",
+      "kind": "parity",
+      "purpose": "Both mount target and exact operand are checked byte-for-byte on a nested relative file, dot components, and symlink; no counters are compared.",
+      "requires": [
+        "df"
+      ],
+      "script": "mkdir -p fixture/sub; : > fixture/sub/item; ln -s sub/item fixture/link\nfor operand in fixture/sub/item fixture/sub/../sub/item fixture/link; do\n df --output=target \"$operand\"\n df --output=file \"$operand\"\ndone\noperand=fixture/long-name-long-name-long-name-long-name-long-name-long-name-long-name-long-name-item\n: > \"$operand\"\ndf --output=file \"$operand\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-filter-nonmatch",
+      "kind": "parity",
+      "purpose": "A filesystem type absent from the private fixture excludes the only operand and emits no table.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --type=fixture_nonexistent_type --output=target .",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-invalid-field-lists",
+      "kind": "parity",
+      "purpose": "Invalid output lists, including empty tokens, must each fail before producing a table.",
+      "requires": [
+        "df"
+      ],
+      "script": "for fields in '' source, ,target source,,target; do\n rc=0; df --output=\"$fields\" . || rc=$?\n [[ $rc == 1 ]]\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-zero-block-size-spellings",
+      "kind": "parity",
+      "purpose": "All supported argument spellings reject a zero block size with status 1 and no table.",
+      "requires": [
+        "df"
+      ],
+      "script": "for option in '--block-size=0' '-B0'; do\n rc=0; df \"$option\" . || rc=$?\n [[ $rc == 1 ]]\ndone\nrc=0; df -B 0 . || rc=$?\n[[ $rc == 1 ]]\nrc=0; df --block-size 0 . || rc=$?\n[[ $rc == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-missing-operand",
+      "kind": "parity",
+      "purpose": "A missing relative path must report failure even when a type filter is present.",
+      "requires": [
+        "df"
+      ],
+      "script": "df --type=fixture_nonexistent_type --output=target missing-file",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "df-posix-mount-target",
+      "kind": "parity",
+      "purpose": "Select only the mount target from the POSIX table using stable field parsing; counters are read but never compared. Mount identity remains byte-exact.",
+      "requires": [
+        "df"
+      ],
+      "script": "out=$(df -P .)\nrow=${out#*$'\\n'}\nread -r source size used avail percent target <<< \"$row\"\nprintf \"%s\\n\" \"$target\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "df-mount-inventory-deferred",
+      "kind": "deferred",
+      "purpose": "Check no-operand inventory and interactions among --all, --local, --type, and --exclude-type across multiple filesystem kinds.",
+      "reason": "Requires a disposable Linux VM with a deliberately arranged set of local and pseudo filesystem mounts and a stable mount table. The harness does not provide synthetic mounts or a controlled /proc/mounts fixture, and this suite must not inspect or manipulate host mounts."
+    },
+    {
+      "id": "df-statvfs-accounting-deferred",
+      "kind": "deferred",
+      "purpose": "Verify block and inode counters, -h/-H rounding, -B/-m scaling, and --total arithmetic at controlled boundary values.",
+      "reason": "Requires a disposable VM or reviewed statvfs mock that supplies fixed block, free, available, inode, and free-inode counts. Live counters can change between the sequential GNU and candidate runs, and the harness cannot inject statvfs results."
+    }
+  ]
+}

@@ -377,29 +377,29 @@ tr_builtin (WORD_LIST *list)
                 default:
                     builtin_error ("unknown flag: -%c", *p);
                     builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
             }
         }
         list = list->next;
     }
-    if (!list) { builtin_error ("usage: bashtr [-Ccdst] SET1 [SET2]"); return EX_USAGE; }
+    if (!list) { builtin_error ("usage: bashtr [-Ccdst] SET1 [SET2]"); return EXECUTION_FAILURE; }
     const char *set1 = list->word->word;
     const char *set2 = (list->next) ? list->next->word->word : "";
     if (list->next && list->next->next) {
         builtin_error ("extra operand: %s", list->next->next->word->word);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     /* POSIX: translate mode (no -d/-s) requires SET2. */
     if (!dflag && !sflag && !set2[0]) {
         builtin_error ("translate mode requires SET2; use -d/-s for single-set ops");
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     /* GNU parity: deleting without squeezing takes only one string. */
     if (dflag && !sflag && set2[0]) {
         builtin_error ("extra operand '%s' (only one string may be given "
                        "when deleting without squeezing repeats)", set2);
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
     int translate_mode = (!dflag && set2[0]);
     if (btr_check_repeats (set1, 1, translate_mode) < 0 ||
@@ -451,7 +451,7 @@ tr_builtin (WORD_LIST *list)
         if (n1 && n2 == 0) {
             free (l1); free (l2);
             builtin_error ("tr: SET2 empty for translate mode");
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
         size_t nmap = tflag && n2 < n1 ? n2 : n1;
         for (int i = 0; i < 256; i++) xlat[i] = (unsigned char) i;

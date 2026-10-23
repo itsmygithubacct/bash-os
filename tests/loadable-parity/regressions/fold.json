@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "loadable": "fold",
+  "reference": "GNU coreutils fold from the runner's reference PATH for parity cases. The -c UTF-8 character-count contract is independently taken from /source/docs/sol-fold.md and strict UTF-8 byte encodings; Bash type/help metadata is asserted directly.",
+  "coverage": [
+    "Default 80-column behavior and explicit-width wrapping, including an unterminated final line.",
+    "Byte mode over NUL, multibyte bytes, spaces, and tabs, with and without word wrapping.",
+    "Display-column handling of tabs, backspace, and carriage return in the C locale.",
+    "Space and tab word-wrap behavior, including words longer than the selected width.",
+    "Ordered file operands, empty files, repeated stdin operands, and per-file column reset.",
+    "A leading-dash filename protected by --, invalid width status, and continuation after a missing input file.",
+    "Bash type/help metadata and the documented -c scalar counting and malformed-byte preservation contract."
+  ],
+  "exclusions": [
+    "GNU fold has no matching -c character-count option; that behavior is checked against the independent documented UTF-8 contract.",
+    "Locale-dependent non-ASCII display widths are not compared; parity display-column cases use ASCII and LC_ALL=C.",
+    "Incremental output while a producer remains open is deferred because this fixture runner has no concurrent open-producer or PTY driver."
+  ],
+  "cases": [
+    {
+      "id": "bash_metadata",
+      "kind": "contract",
+      "purpose": "Confirm the candidate is exposed as a Bash builtin and Bash help metadata is available without treating metadata as operation coverage.",
+      "script": "[[ $(type -t fold) == builtin ]]\nhelp fold >/dev/null\nprintf 'builtin\\nhelp-available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_and_width",
+      "kind": "parity",
+      "purpose": "Compare the GNU default width and an explicit width on several short lines, including a final line without a newline.",
+      "script": "printf 'alpha beta\\nabcde\\nq' > text\nfold -w4 < text\nfold < text",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "byte_binary_modes",
+      "kind": "parity",
+      "purpose": "Compare byte counting over NUL and UTF-8 bytes, including byte-boundary splitting and -bs blank handling.",
+      "script": "printf 'A\\000\\303\\251Z\\none two\\tX\\n' > bytes\nfold -b -w3 < bytes\nfold -bs -w4 < bytes",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "display_controls",
+      "kind": "parity",
+      "purpose": "Compare ASCII display-column behavior for tab stops, backspace, and carriage-return column reset.",
+      "script": "printf 'abc\\tX\\nab\\bC\\rXYZ\\n' > controls\nfold -w3 < controls",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "space_word_wrap",
+      "kind": "parity",
+      "purpose": "Compare -s breaking after the last eligible space or tab while still hard-wrapping long words.",
+      "script": "printf 'alpha beta gamma\\n12345 67890\\nab\\tcdEFG\\n' > words\nfold -s -w6 < words",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ordered_files_and_stdin",
+      "kind": "parity",
+      "purpose": "Compare file order, an empty file, repeated stdin operands, and column reset when the preceding file lacks a final newline.",
+      "script": "printf 'ab' > first\n: > empty\nprintf 'cdef\\n' > second\nprintf 'ghi jk\\n' | fold -s -w3 first empty - second -",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "leading_dash_file",
+      "kind": "parity",
+      "purpose": "Compare -- handling for a relative input filename that begins with a dash.",
+      "script": "printf 'abcdef\\n' > -literal\nfold -w3 -- -literal",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_width_status",
+      "kind": "parity",
+      "purpose": "Retain GNU's invalid-width exit status and diagnostic behavior as a negative parity case.",
+      "script": ": > empty\nfold -w0 < empty",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_file_continues",
+      "kind": "parity",
+      "purpose": "Compare a missing input diagnostic and nonzero result while confirming a later valid file is still folded.",
+      "script": "printf 'abcde\\n' > valid\nfold -w3 missing valid",
+      "requires": [
+        "fold"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "utf8_character_contract",
+      "kind": "contract",
+      "purpose": "Check the documented -c rule that each valid UTF-8 scalar and each malformed byte counts as one, while preserving input bytes.",
+      "script": "printf '\\303\\251\\347\\225\\214ab\\nA\\300\\200B\\n' | fold -c -w2",
+      "expected_status": 0,
+      "stdout_base64": "w6nnlYwKYWIKQcAKgEIK",
+      "stderr": "empty"
+    },
+    {
+      "id": "incremental_open_producer",
+      "kind": "deferred",
+      "purpose": "Verify that a completed folded line is delivered before the input producer closes, for both pipe and terminal output.",
+      "reason": "Requires a future isolated open-producer and PTY driver that can hold stdin open, send a width-overflowing prefix, and observe output before EOF; the current one-shot fixture runner captures output only after the script exits."
+    }
+  ]
+}

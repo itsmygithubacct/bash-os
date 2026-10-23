@@ -354,13 +354,13 @@ fold_builtin (WORD_LIST *list)
                 builtin_error ("--width needs WIDTH");
                 builtin_usage ();
                 free (files.v);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             if (!bf_parse_width (p->next->word->word, &o.width)) {
                 builtin_error ("invalid width: %s", p->next->word->word);
                 builtin_usage ();
                 free (files.v);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             p = p->next;
             continue;
@@ -370,7 +370,7 @@ fold_builtin (WORD_LIST *list)
                 builtin_error ("invalid width: %s", w + 8);
                 builtin_usage ();
                 free (files.v);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             continue;
         }
@@ -392,7 +392,7 @@ fold_builtin (WORD_LIST *list)
                 builtin_error ("invalid width: %s", w);
                 builtin_usage ();
                 free (files.v);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             continue;
         }
@@ -402,7 +402,7 @@ fold_builtin (WORD_LIST *list)
                 builtin_error ("unknown flag: %s", w);
                 builtin_usage ();
                 free (files.v);
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             for (int i = 1; w[i]; i++) {
                 switch (w[i]) {
@@ -415,7 +415,7 @@ fold_builtin (WORD_LIST *list)
                         builtin_error ("invalid width: %s", w + i);
                         builtin_usage ();
                         free (files.v);
-                        return EX_USAGE;
+                        return EXECUTION_FAILURE;
                     }
                     i = (int) strlen (w) - 1;
                     break;
@@ -425,20 +425,20 @@ fold_builtin (WORD_LIST *list)
                             builtin_error ("invalid width: %s", w + i + 1);
                             builtin_usage ();
                             free (files.v);
-                            return EX_USAGE;
+                            return EXECUTION_FAILURE;
                         }
                     } else {
                         if (!p->next) {
                             builtin_error ("-w needs WIDTH");
                             builtin_usage ();
                             free (files.v);
-                            return EX_USAGE;
+                            return EXECUTION_FAILURE;
                         }
                         if (!bf_parse_width (p->next->word->word, &o.width)) {
                             builtin_error ("invalid width: %s", p->next->word->word);
                             builtin_usage ();
                             free (files.v);
-                            return EX_USAGE;
+                            return EXECUTION_FAILURE;
                         }
                         p = p->next;
                     }
@@ -448,7 +448,7 @@ fold_builtin (WORD_LIST *list)
                     builtin_error ("unknown flag: -%c", w[i]);
                     builtin_usage ();
                     free (files.v);
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
             }
         } else {

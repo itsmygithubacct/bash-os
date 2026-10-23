@@ -122,10 +122,12 @@ b64_decode (int in_fd, int out_fd, int url_safe, int ignore_garbage)
         if (v < 0) {
             if (ignore_garbage)   /* GNU -i: silently drop non-alphabet bytes */
                 continue;
-            free (buf); free (out);
-            builtin_error ("invalid base64 char: 0x%02x at offset %zu",
-                           c, i);
-            return 1;
+            /* Preserve complete decoded groups before reporting later junk,
+               just as the padding-error path preserves its valid prefix. */
+            post_padding_error = 1;
+            post_padding_char = c;
+            post_padding_offset = i;
+            break;
         }
         nibble[n_in_group++] = v;
         if (n_in_group == 4) {
@@ -155,7 +157,7 @@ decode_done:
     }
     free (out);
     if (post_padding_error) {
-        builtin_error ("invalid base64 char after padding: 0x%02x at offset %zu",
+        builtin_error ("invalid base64 char: 0x%02x at offset %zu",
                        post_padding_char, post_padding_offset);
         return 1;
     }

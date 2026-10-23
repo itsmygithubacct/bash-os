@@ -603,7 +603,7 @@ bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
     bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, &count);
     bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, &count);
     bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, &count);
-    if (count > 0) putchar ('\n');
+    if (count > 0 && strcmp (fmt, "value") == 0) putchar ('\n');
 }
 
 /* ---------------- /sys/class/block enumeration -------------------- */

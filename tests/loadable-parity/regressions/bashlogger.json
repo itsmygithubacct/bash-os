@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "loadable": "bashlogger",
+  "reference": "Runnable metadata expectations use Bash 5.3 type/help builtin contracts and the bashlogger synopsis documented in docs/sol-bashlogger.md. No GNU or POSIX logger CLI is a byte-for-byte oracle for this intentionally small builtin. Datagram expectations for deferred cases are specified independently by the documented wire format and POSIX syslog priority arithmetic; they must be checked against a private AF_UNIX receiver in a future disposable VM/mock harness.",
+  "coverage": [
+    "Bash builtin classification through type -t.",
+    "Documented short usage through help -s.",
+    "Deferred: default and explicit wire formatting, tag and PID options.",
+    "Deferred: decimal, named, mixed and boundary priority parsing, aliases and invalid priorities.",
+    "Deferred: argument joining, -- handling, stdin framing, NUL rejection and message-size limits.",
+    "Deferred: private socket destination errors, path-length handling and truncation safety.",
+    "Deferred: close-on-exec, interrupted-send retry and cleanup on send failures using a syscall mock."
+  ],
+  "exclusions": [
+    "No GNU logger parity is claimed; util-linux logger has a different, broader CLI and protocol behavior.",
+    "No operation case sends a datagram in this suite. The provided fixture runner cannot start a private AF_UNIX receiver or syscall interposer for a Bash script.",
+    "No host /dev/log, syslog daemon, persistent logging, network target, RFC timestamp/hostname formatting, or external logger behavior is exercised."
+  ],
+  "cases": [
+    {
+      "id": "type-classification",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies the available bashlogger command as a builtin using the documented type -t contract, without invoking its logging operation.",
+      "script": "PATH=\ntype -t bashlogger",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "short-help",
+      "kind": "contract",
+      "purpose": "Confirm help -s exposes the documented short synopsis. Expected text comes from the published bashlogger synopsis and Bash help -s formatting, not candidate output.",
+      "script": "PATH=\nhelp -s bashlogger",
+      "expected_status": 0,
+      "stdout": "bashlogger: bashlogger [-i] [-t TAG] [-p PRI] [MESSAGE...]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "wire-format-options",
+      "kind": "deferred",
+      "purpose": "Check one datagram per valid call, default <13> user formatting, explicit tags and priorities, and the PID-bearing -i/--id form. Compute the expected PRI independently as facility * 8 + severity and compare exact packet bytes.",
+      "reason": "Requires a future disposable VM fixture with a private AF_UNIX SOCK_DGRAM receiver and a shell runner that can keep the receiver alive while bashlogger runs. This runner executes only a Bash script per side and must not send to host /dev/log."
+    },
+    {
+      "id": "priority-grammar",
+      "kind": "deferred",
+      "purpose": "Check decimal PRI endpoints 0 and 191, named and numeric facility/severity pairs, case-insensitive names and documented aliases; verify invalid or out-of-range priorities fail before any datagram is sent.",
+      "reason": "Requires a future disposable VM with an independent private datagram receiver plus a socket-call mock or audit hook to verify invalid priorities open no socket. There is no matching GNU CLI with the documented grammar."
+    },
+    {
+      "id": "message-framing-limits",
+      "kind": "deferred",
+      "purpose": "Check argument joining including empty arguments, -- termination, stdin input, removal of one trailing LF/CRLF, preservation of internal newlines, NUL rejection, and the documented 2047-byte message boundary against exact received bytes/status.",
+      "reason": "Requires a future disposable VM with a private AF_UNIX datagram receiver and bounded byte-input support for Bash stdin. The current runner provides no receiver process or way to observe emitted packets."
+    },
+    {
+      "id": "socket-path-errors",
+      "kind": "deferred",
+      "purpose": "Check missing and non-socket destinations fail, an overlong socket path is rejected before send, and a path that would otherwise be truncated never receives a packet. Use only private relative fixture paths and independently inspect packet delivery/status.",
+      "reason": "Requires a future disposable VM with private AF_UNIX socket fixtures and an independent receiver bound at the would-be truncated path. The current runner cannot create or observe that socket endpoint from its Bash fixture."
+    },
+    {
+      "id": "descriptor-safety",
+      "kind": "deferred",
+      "purpose": "Check SOCK_CLOEXEC/FD_CLOEXEC on the sending socket, no descriptor inheritance by an exec child, interrupted-send retry, and descriptor closure after one injected send failure or short send.",
+      "reason": "Requires a future disposable VM and a narrowly scoped test-only syscall interposer or equivalent mock to inspect descriptors and inject EINTR/short-send/failure outcomes. No repeated stress loop is needed; use bounded single-call checks."
+    }
+  ]
+}

@@ -1779,6 +1779,574 @@
       "status": "Parity",
       "evidence": "tests/gnu-command-compat.py",
       "scope": "Bounded GNU command byte/status comparisons, exact epoch nanoseconds, no-clobber file behavior, checksum verification, independent gzip/tar readers and output-error recovery. Common interfaces only; not complete GNU option parity."
+    },
+    {
+      "names": [
+        "basename"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/basename.json",
+      "scope": "8 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashbase64"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/bashbase64.json",
+      "scope": "9 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashjson"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/bashjson.json",
+      "scope": "9 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashkmod"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/bashkmod.json",
+      "scope": "4 bounded reference comparisons and 4 documented contracts; 3 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashlogger"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/bashlogger.json",
+      "scope": "0 bounded reference comparisons and 2 documented contracts; 5 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashmount"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/bashmount.json",
+      "scope": "6 bounded reference comparisons and 2 documented contracts; 3 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "bashtermraw"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/bashtermraw.json",
+      "scope": "0 bounded reference comparisons and 3 documented contracts; 5 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "binhex"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/binhex.json",
+      "scope": "7 bounded reference comparisons and 5 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "blkid"
+      ],
+      "status": "Contract",
+      "evidence": "tests/loadable-parity/regressions/blkid.json",
+      "scope": "0 bounded reference comparisons and 9 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "chmod"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/chmod.json",
+      "scope": "17 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "chown"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/chown.json",
+      "scope": "17 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "cmp"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/cmp.json",
+      "scope": "15 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "comm"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/comm.json",
+      "scope": "11 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "cp"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/cp.json",
+      "scope": "20 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "cut"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/cut.json",
+      "scope": "9 bounded reference comparisons and 4 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "date"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/date.json",
+      "scope": "8 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "df"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/df.json",
+      "scope": "13 bounded reference comparisons and 2 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "dirname"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/dirname.json",
+      "scope": "13 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "du"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/du.json",
+      "scope": "10 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "env"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/env.json",
+      "scope": "18 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "find"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/find.json",
+      "scope": "16 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "finfo"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/finfo.json",
+      "scope": "8 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "fltexpr"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/fltexpr.json",
+      "scope": "11 bounded reference comparisons and 4 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "fold"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/fold.json",
+      "scope": "8 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "free"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/free.json",
+      "scope": "6 bounded reference comparisons and 9 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "getconf"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/getconf.json",
+      "scope": "14 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "grep"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/grep.json",
+      "scope": "11 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "halt"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/halt.json",
+      "scope": "0 bounded reference comparisons and 4 documented contracts; 5 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "id"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/id.json",
+      "scope": "39 bounded reference comparisons and 2 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "link"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/link.json",
+      "scope": "7 bounded reference comparisons and 1 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "logname"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/logname.json",
+      "scope": "19 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "ls"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/ls.json",
+      "scope": "10 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "lsattr"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/lsattr.json",
+      "scope": "15 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "mkdir"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/mkdir.json",
+      "scope": "11 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "mkfifo"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/mkfifo.json",
+      "scope": "8 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "mktemp"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/mktemp.json",
+      "scope": "7 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "mv"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/mv.json",
+      "scope": "16 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "nohup"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/nohup.json",
+      "scope": "7 bounded reference comparisons and 3 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "od"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/od.json",
+      "scope": "21 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "paste"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/paste.json",
+      "scope": "10 bounded reference comparisons and 2 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "pathchk"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/pathchk.json",
+      "scope": "12 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "poweroff"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/poweroff.json",
+      "scope": "0 bounded reference comparisons and 5 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "printenv"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/printenv.json",
+      "scope": "19 bounded reference comparisons and 2 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "ps"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/ps.json",
+      "scope": "8 bounded reference comparisons and 5 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "readlink"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/readlink.json",
+      "scope": "8 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "realpath"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/realpath.json",
+      "scope": "9 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "rev"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/rev.json",
+      "scope": "10 bounded reference comparisons and 2 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "rm"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/rm.json",
+      "scope": "9 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "rmdir"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/rmdir.json",
+      "scope": "14 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "rngseed"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/rngseed.json",
+      "scope": "0 bounded reference comparisons and 3 documented contracts; 3 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "rtspcat"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/rtspcat.json",
+      "scope": "0 bounded reference comparisons and 3 documented contracts; 5 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "setpgid"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/setpgid.json",
+      "scope": "0 bounded reference comparisons and 4 documented contracts; 3 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "sleep"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/sleep.json",
+      "scope": "12 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "stat"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/stat.json",
+      "scope": "11 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "strftime"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/strftime.json",
+      "scope": "9 bounded reference comparisons and 4 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "strptime"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/strptime.json",
+      "scope": "9 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "tail"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/tail.json",
+      "scope": "17 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "tee"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/tee.json",
+      "scope": "8 bounded reference comparisons and 2 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "touch"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/touch.json",
+      "scope": "20 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "tr"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/tr.json",
+      "scope": "16 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "truncate"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/truncate.json",
+      "scope": "9 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "tty"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/tty.json",
+      "scope": "8 bounded reference comparisons and 3 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "uname"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/uname.json",
+      "scope": "25 bounded reference comparisons and 2 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "uniq"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/uniq.json",
+      "scope": "10 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "unlink"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/unlink.json",
+      "scope": "12 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "wc"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/wc.json",
+      "scope": "13 bounded reference comparisons and 1 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "whoami"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/whoami.json",
+      "scope": "19 bounded reference comparisons and 3 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "wipefs"
+      ],
+      "status": "Build/help",
+      "evidence": "tests/loadable-parity/regressions/wipefs.json",
+      "scope": "0 bounded reference comparisons and 4 documented contracts; 2 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "xargs"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/xargs.json",
+      "scope": "47 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "zstd"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/zstd.json",
+      "scope": "9 bounded reference comparisons and 3 documented contracts; 0 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
+    },
+    {
+      "names": [
+        "zstdcat"
+      ],
+      "status": "Parity",
+      "evidence": "tests/loadable-parity/regressions/zstdcat.json",
+      "scope": "16 bounded reference comparisons and 1 documented contracts; 1 deferred cases do not count as coverage. Each JSON file states its oracle, scope and exclusions."
     }
   ],
   "sanitizer_groups": [
@@ -2980,7 +3548,7 @@
     "index": {
       "evidence": "docs/sol-index.md",
       "note": "Listings match git 2.47.3 wherever git's own ls-files --stage result is deterministic. Errors exit 1, where git exits 128. Three index shapes are refused, where git's result varies or does not finish: mapped-page overruns, a two-word split bitmap literal that has already reached the shared index, and three untracked-cache shapes. The version-4 overlap listing for tests/fixtures/sol-index-parity/indexes/m00895.index follows a measured allocator placement, which another host can place differently. No valgrind or ASan git was used. FSMN, sha256 repositories and mutating sharedindex.* are not covered. There is no new performance result.",
-      "next": "Remeasure index-read on the current build (1.93× external time in the historical snapshot)."
+      "next": "Remeasure index-read on the current build (1.93\u00d7 external time in the historical snapshot)."
     },
     "grep": {
       "evidence": "docs/sol-grep.md",
@@ -3632,9 +4200,9 @@
       }
     ],
     "validation_limits": "The full harness was not rerun after the final focused fixes. These correctness results add no new command timings. Coverage labels identify available fixtures; they do not imply that every referenced suite or conditional branch ran on the reviewed commit. Optional interpreter builds, hardware-dependent paths and credential transitions have their own prerequisites, and this record does not establish current cross-platform or complete CLI conformance.",
-    "catalog_sha256": "c1b2303075df99c7a2ccfdecc717695fc7d35374b6b8cdfa83cef55600e88be8",
+    "catalog_sha256": "61afa826489b3790a942acbbedabe3f3e10fe8666ad33a96d69f5350d0260134",
     "optional_catalog_sha256": "d2f78f57e259902d54bbb1ce33b45a650de590eacb3e84a3a27d9a41b9322b2b",
-    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged.",
+    "catalog_refresh_note": "2026-10-20: updated only the uclampset description for implemented setters. The validation summary above remains historical; new focused evidence is recorded in the uclampset coverage entries. 2026-10-22: added bashclear and clear in core and inherited profiles plus full; refreshed catalog membership and focused coverage only. The broad inventory review and historical measurements retain their original dates and source commits. 2026-10-23: added base64, sha256sum, gzip and tar in core and inherited profiles; added GNU interface regression coverage and documented limits. Historical timings and broad release validation remain unchanged. 2026-10-23: refreshed help syntax and focused isolated parity fixtures for the GNU compatibility corrections. Historical timing and broad inventory records retain their original dates and commits.",
     "historical_validation_summary": "On 2026-10-19, `tests/run.sh` recorded **212 passed, 0 failed** on `85c1f72609c46ea58e265934272abf52e4889c9e` plus the reviewed working-tree changes (tracked diff SHA-256 `6b1e58659a53475de550108104ba265e752827091e2eb0893ad95783982a7abc`; native binary SHA-256 `6f78739d29acea39800d49948ba71bbf35ad8b887831d60e242ee37021d4f883`). That full run preceded the final Git long-line and package-index byte-verification fixes. The focused checks below passed later that day with those fixes, now committed in the reviewed source above. Their native binary SHA-256 was `25bacd907a13baa8c8a4cbe96f178ae20e4e3cbadd5c902175906b29f65dd5cf`; the package sanitizer check used separately instrumented modules."
   },
   "optional_integrations": {

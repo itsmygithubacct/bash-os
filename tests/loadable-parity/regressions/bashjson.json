@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "loadable": "bashjson",
+  "reference": "Independent jq comparisons cover selected values, presence, types, byte lengths, keys and sorted compact serialization without a trailing newline. The documented UTF-8 byte length uses jq utf8bytelength. Strict duplicate-key rejection and TYPE PATH VALUE parse output use separate documented contract expectations; they are not claims of identical jq behavior.",
+  "coverage": [
+    "Bash builtin availability, help metadata entries, and parse output contract",
+    "Nested object and array-index get paths",
+    "has presence semantics including present-null and absent nested member",
+    "JSON value type classification",
+    "Object keys in already sorted ASCII order",
+    "Array, object, and UTF-8 string lengths",
+    "Nested set with a string replacement",
+    "Valid strict JSON validation",
+    "Sorted compact canonical output",
+    "Strict duplicate-key rejection against jq's last-value behavior",
+    "Invalid leading-zero number rejection"
+  ],
+  "exclusions": [
+    "String length is the documented UTF-8 byte count, not jq Unicode character count. Strict duplicate-key rejection remains a separately checked contract.",
+    "The historical jq.sh wrapper is not part of this repository; the current jq builtin receives its own suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-and-parse",
+      "kind": "contract",
+      "purpose": "Check that Bash reports bashjson as a builtin, that help includes the parser description and parse/validate entries, and that parse emits the documented root and child TYPE PATH VALUE rows.",
+      "script": "kind=$(type -t bashjson)\nhelp_text=$(help bashjson)\n[[ $kind == builtin ]] || exit 1\n[[ $help_text == *\"JSON parser/serializer\"* ]] || exit 1\n[[ $help_text == *\"bashjson parse\"* ]] || exit 1\n[[ $help_text == *\"bashjson validate\"* ]] || exit 1\nprintf 'builtin\\nhelp metadata available\\n'\nprintf '%s\\n' '{\"a\":1}' | bashjson parse",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp metadata available\nobject . {\"a\":1}\nnumber .a 1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "get-nested-and-array",
+      "kind": "parity",
+      "purpose": "Compare nested object lookup and a chained array-index/object-field lookup on the same compact JSON document.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"account\":{\"profile\":{\"score\":17}},\"records\":[{\"name\":\"Ari\"},{\"name\":\"Mira\"}]}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson get .account.profile.score\n  printf '%s\\n' \"$doc\" | bashjson get '.records[1].name'\nelse\n  printf '%s\\n' \"$doc\" | jq -c '.account.profile.score'\n  printf '%s\\n' \"$doc\" | jq -c '.records[1].name'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "has-presence",
+      "kind": "parity",
+      "purpose": "Check that a present null-valued field exists and a missing nested field does not, matching jq has predicates.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"nullable\":null,\"nested\":{\"found\":1}}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  if printf '%s\\n' \"$doc\" | bashjson has .nullable; then printf 'present-null\\n'; else exit 1; fi\n  if printf '%s\\n' \"$doc\" | bashjson has .nested.missing; then exit 1; else printf 'missing-nested\\n'; fi\nelse\n  if printf '%s\\n' \"$doc\" | jq -e 'has(\"nullable\")' >/dev/null; then printf 'present-null\\n'; else exit 1; fi\n  if printf '%s\\n' \"$doc\" | jq -e '(.nested | has(\"missing\"))' >/dev/null; then exit 1; else printf 'missing-nested\\n'; fi\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "type-classification",
+      "kind": "parity",
+      "purpose": "Compare type results for string, number, boolean, null, array, and object values.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"s\":\"x\",\"n\":1,\"b\":true,\"z\":null,\"a\":[],\"o\":{}}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson type .s\n  printf '%s\\n' \"$doc\" | bashjson type .n\n  printf '%s\\n' \"$doc\" | bashjson type .b\n  printf '%s\\n' \"$doc\" | bashjson type .z\n  printf '%s\\n' \"$doc\" | bashjson type .a\n  printf '%s\\n' \"$doc\" | bashjson type .o\nelse\n  printf '%s\\n' \"$doc\" | jq -r '(.s, .n, .b, .z, .a, .o) | type'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "keys-sorted-ascii",
+      "kind": "parity",
+      "purpose": "Compare object key output where source order is already jq's lexicographic key order. Both commands emit unquoted key names, one per line.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"alpha\":1,\"bravo\":2}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson keys .\nelse\n  printf '%s\\n' \"$doc\" | jq -r 'keys[]'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "length-utf8-bytes",
+      "kind": "parity",
+      "purpose": "Compare the documented UTF-8 byte length with jq utf8bytelength; array and object lengths use their shared length interface.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"label\":\"\u00e9\",\"array\":[1,2],\"object\":{\"x\":1,\"y\":2}}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson length .label\n  printf '%s\\n' \"$doc\" | bashjson length .array\n  printf '%s\\n' \"$doc\" | bashjson length .object\nelse\n  printf '%s\\n' \"$doc\" | jq -r '.label | utf8bytelength'\n  printf '%s\\n' \"$doc\" | jq -r '.array | length'\n  printf '%s\\n' \"$doc\" | jq -r '.object | length'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "set-nested-string",
+      "kind": "parity",
+      "purpose": "Replace a nested string value and compare the complete resulting JSON document. The input includes a final newline, which bashjson preserves and jq -c also emits.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"user\":{\"name\":\"old\",\"active\":true},\"count\":1}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson set .user.name '\"new\"'\nelse\n  printf '%s\\n' \"$doc\" | jq -c '.user.name = \"new\"'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "validate-standard-json",
+      "kind": "parity",
+      "purpose": "Validate a standard nested JSON document without producing output.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"ok\":true,\"list\":[null,1,\"x\"]}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson validate\nelse\n  printf '%s\\n' \"$doc\" | jq empty\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "canonical-sorted",
+      "kind": "parity",
+      "purpose": "Compare sorted compact output with jq join-output mode, including the absence of a trailing newline.",
+      "requires": [
+        "jq"
+      ],
+      "script": "doc='{\"z\":{\"n\":3,\"a\":1},\"b\":[true,{\"y\":2,\"x\":4}]}'\nif [[ $(type -t bashjson) == builtin ]]; then\n  printf '%s\\n' \"$doc\" | bashjson canonical\nelse\n  printf '%s\\n' \"$doc\" | jq -c -S -j .\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "duplicate-key-strictness",
+      "kind": "contract",
+      "purpose": "The documented strict default rejects duplicate object keys without emitting a canonical document.",
+      "script": "printf '%s' '{\"x\":1,\"x\":2}' | bashjson canonical",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "invalid-leading-zero-contract",
+      "kind": "contract",
+      "purpose": "Verify that strict validation rejects a leading-zero JSON number, forbidden by RFC 8259 section 6.",
+      "script": "printf '%s\\n' '{\"n\":01}' | bashjson validate",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "duplicate-key-opt-in-validation",
+      "kind": "parity",
+      "purpose": "The explicit lenient validation option accepts duplicate keys, matching jq validation.",
+      "script": "if [[ $(type -t bashjson 2>/dev/null) == builtin ]]; then printf '%s' '{\"x\":1,\"x\":2}' | bashjson --no-strict-json validate; else printf '%s' '{\"x\":1,\"x\":2}' | jq empty; fi",
+      "requires": [
+        "jq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

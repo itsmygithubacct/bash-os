@@ -19,15 +19,18 @@ B cp "$d/a" "$d/b"; rc=$?
 [[ $rc == 0 ]] && same "$d/a" "$d/b" \
   && ok "copy writes dest and keeps source" || no "copy rc=$rc"
 
-# Link: default clones a symlink as a symlink
+# Explicit -P clones a symlink; the nonrecursive default follows it.
 printf 'via-link\n' > "$d/real"
 ln -s real "$d/slink"
-B cp "$d/slink" "$d/slink-copy"; rc=$?
+B cp -P "$d/slink" "$d/slink-copy"; rc=$?
 if [[ $rc == 0 && -L $d/slink-copy && $(readlink "$d/slink-copy") == real ]]; then
   ok "copies a symlink as a symlink"
 else
   no "symlink copy rc=$rc link=$(readlink "$d/slink-copy" 2>/dev/null)"
 fi
+B cp "$d/slink" "$d/slink-follow"; rc=$?
+[[ $rc == 0 && ! -L $d/slink-follow ]] && same "$d/real" "$d/slink-follow" \
+  && ok "default copy follows a source symlink" || no "source symlink follow rc=$rc"
 
 # Metadata
 printf 'meta\n' > "$d/msrc"
@@ -98,15 +101,14 @@ B cp >/dev/null 2>"$d/op"; rc=$?
 B cp "$d/a" >/dev/null 2>"$d/op2"; rc=$?
 [[ $rc != 0 && -s $d/op2 ]] && ok "one operand fails" || no "one operand rc=$rc"
 
-# -f replaces a dest symlink only after source is readable
+# -f writes through an openable destination symlink.
 printf 'fresh\n' > "$d/s3"
 printf 'other\n' > "$d/other"
 printf 'fresh\n' > "$d/want-fresh"
-printf 'other\n' > "$d/want-other"
 ln -sf other "$d/alias"
 B cp -f "$d/s3" "$d/alias"; rc=$?
-[[ $rc == 0 && ! -L $d/alias ]] && same "$d/alias" "$d/want-fresh" && same "$d/other" "$d/want-other" \
-  && ok "-f replaces dest symlink, not its target" || no "symlink replace rc=$rc islink=$([[ -L $d/alias ]] && echo yes || echo no)"
+[[ $rc == 0 && -L $d/alias ]] && same "$d/alias" "$d/want-fresh" && same "$d/other" "$d/want-fresh" \
+  && ok "-f preserves dest symlink and updates its target" || no "symlink follow rc=$rc islink=$([[ -L $d/alias ]] && echo yes || echo no)"
 
 echo "cp-check: $pass passed, $fail failed"
 exit $(( fail>0 ? 1 : 0 ))

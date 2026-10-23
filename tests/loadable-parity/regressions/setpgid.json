@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "loadable": "setpgid",
+  "reference": "No GNU command-line utility implements this Bash loadable. Runnable expectations use Bash's documented type/help builtin behavior and the maintained setpgid contract in docs/sol-setpgid.md; they do not invoke the setpgid operation. POSIX setpgid(2) and independent getpgid/getsid observations are specified as future operation oracles in the deferred cases.",
+  "coverage": [
+    "Bash identifies setpgid as a builtin through type -t and type.",
+    "Bash help exposes the documented setpgid synopsis, exact operand count and zero-ID semantics.",
+    "Bash help exposes the documented ID bounds and same-session/session-leader restrictions.",
+    "Future isolated operation coverage is specified for owned-child success, argument validation and kernel-rejected process states."
+  ],
+  "exclusions": [
+    "There is no matching GNU CLI, so no fake command-line parity oracle is used.",
+    "No setpgid operation is invoked here: changing process-group membership is outside the authorized metadata-only execution scope.",
+    "The deferred cases are not passes and do not validate runtime syscall behavior, errno wording or cross-platform pid_t width."
+  ],
+  "cases": [
+    {
+      "id": "type_kind",
+      "kind": "contract",
+      "purpose": "Check Bash type metadata reports the available loadable as a builtin.",
+      "script": "type -t setpgid",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "type_description",
+      "kind": "contract",
+      "purpose": "Check Bash's type description identifies setpgid as a shell builtin, independently of any external executable search path.",
+      "script": "description=$(type setpgid); [[ $description == *'setpgid is a shell builtin'* ]] && printf 'builtin-description-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin-description-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_syntax_contract",
+      "kind": "contract",
+      "purpose": "Check help -s renders the builtin's declared usage synopsis, including both required operands.",
+      "script": "help -s setpgid",
+      "expected_status": 0,
+      "stdout": "setpgid: setpgid pid pgrpid\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_id_contract",
+      "kind": "contract",
+      "purpose": "Check help describes nonnegative pid_t IDs, the zero defaults, and the documented same-session/session-leader limits.",
+      "script": "documentation=$(help setpgid); [[ $documentation == *'numeric process identifier, >= 0'* && $documentation == *'numeric process group identifier, >=0'* && $documentation == *'Zero pid selects the calling process.'* && $documentation == *'For zero pgrpid, the new process group ID is the target process ID.'* && $documentation == *'IDs must fit pid_t.'* && $documentation == *'The target must be in the caller'* && $documentation == *'cannot be a session leader.'* ]] && printf 'id-contract-ok\\n'",
+      "expected_status": 0,
+      "stdout": "id-contract-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "defer_owned_child_moves",
+      "kind": "deferred",
+      "purpose": "Exercise successful default and explicit process-group changes and verify the resulting group after each change.",
+      "reason": "Requires a future disposable Linux VM or reviewed syscall mock. In the VM, use only the test shell and a blocked, unexecuted child created and reaped by that shell; cover (pid=0,pgid=0), explicit self IDs, child-to-own-PID group changes, and moves back to the inherited same-session group. Independently query state with Python os.getpgid/os.getsid (and compare syscall behavior with Python os.setpgid). This operation is deliberately not invoked in the metadata-only suite."
+    },
+    {
+      "id": "defer_argument_validation",
+      "kind": "deferred",
+      "purpose": "Verify exact arity, numeric/nonnegative parsing and pid_t range rejection without changing process-group state.",
+      "reason": "Requires a future disposable VM or reviewed syscall mock that can record whether setpgid(2) was reached. Check missing/extra operands, nonnumeric and negative values, intmax overflow, and values outside pid_t; verify documented status classes and that rejected inputs make no syscall. No loadable operation invocation is attempted here."
+    },
+    {
+      "id": "defer_kernel_errors",
+      "kind": "deferred",
+      "purpose": "Verify kernel error handling for a missing/reaped or nonchild PID, an unavailable group, a session leader, and an executed child.",
+      "reason": "Requires a future disposable Linux VM with a private test session, or a reviewed syscall mock with independently specified errno results. Any real-kernel targets must be the shell or children created and reaped by the test; use Python os.getpgid/os.getsid to verify state remains unchanged after each failure. Never target unrelated processes or signal a process group. Not invoked here because this exercises kernel process control."
+    }
+  ]
+}

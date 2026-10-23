@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "loadable": "zstdcat",
+  "reference": "Installed zstdcat CLI (the zstd package alias), independently constructed small Zstandard frames; no candidate-generated oracle bytes. Bash metadata is a separate contract.",
+  "coverage": [
+    "Named-file decode preserves exact binary output including NUL and 0xff bytes.",
+    "Explicit '-' input reads compressed bytes from standard input.",
+    "Concatenated unknown-content-size frames decode in order.",
+    "Multiple named inputs concatenate without inserted separators.",
+    "A valid empty frame produces empty output.",
+    "-- permits a filename beginning with a dash.",
+    "Ordinary noncompressed input passes through; recognized incomplete frames fail.",
+    "Processing continues across raw and encoded operands in order.",
+    "GNU's no-operand stdin behavior is compared with the loadable behavior.",
+    "Bash builtin type/help metadata matches the documented name and purpose.",
+    "Default stdin passes plain binary bytes through; embedded magic after a raw prefix is copied without scanning.",
+    "Each short ordinary operand and each 1\u20133 byte partial magic is independent raw input, matching the reference; a full four-byte magic is recognized and tested separately.",
+    "A finite producer splits the four-byte magic across delayed writes; decoder selection must wait for enough bytes and produce the complete decoded payload.",
+    "Recheck format at complete frame boundaries, even when the following raw prefix arrives in separate short pipe writes.",
+    "Complete standard and skippable magic bytes select strict decoding, even with force pass-through enabled. Incomplete bodies, next-frame headers and skippable payloads fail; later operands are still processed.",
+    "Supported skippable and complete empty frames produce no raw bytes and can precede a normal frame."
+  ],
+  "exclusions": [
+    "A decoder frame advertising a window above the documented 128 MiB limit is deferred because exercising it may allocate more than 128 MiB; the required future VM and independent fixture are specified below.",
+    "No compression behavior is tested because zstdcat is a decompressor-only loadable.",
+    "Broken-output-pipe and injected I/O failure behavior are outside these bounded byte-parity fixtures.",
+    "Other compression formats, legacy Zstandard frame versions, dictionaries and undocumented options are outside the supported decoder subset. Full zstd CLI conformance is not claimed."
+  ],
+  "cases": [
+    {
+      "id": "named-binary-frame",
+      "kind": "parity",
+      "purpose": "Decode an independently encoded raw-block frame from a named file and preserve all output bytes, including NUL and 0xff; tree comparison also checks that zstdcat leaves its input in place.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x05\\x29\\x00\\x00A\\x00B\\xff\\n' > binary.zst\nzstdcat binary.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-dash",
+      "kind": "parity",
+      "purpose": "Verify the documented '-' operand reads a compressed stream from standard input and writes only decoded bytes to stdout.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00Alpha\\n' > input.zst\nzstdcat - < input.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "concatenated-unknown-size-frames",
+      "kind": "parity",
+      "purpose": "Decode two concatenated non-single-segment frames with unknown content sizes, in order and without frame separators.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x00\\x00\\x29\\x00\\x00left\\n\\x28\\xb5\\x2f\\xfd\\x00\\x00\\x31\\x00\\x00right\\n' > joined.zst\nzstdcat joined.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-named-inputs",
+      "kind": "parity",
+      "purpose": "Verify successive named files are decoded to one stdout stream with no inserted delimiter.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x04\\x21\\x00\\x00one\\n' > first.zst\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x04\\x21\\x00\\x00two\\n' > second.zst\nzstdcat first.zst second.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-frame",
+      "kind": "parity",
+      "purpose": "Decode a valid empty Zstandard frame and distinguish it from an empty or malformed compressed input.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x00\\x01\\x00\\x00' > empty.zst\nzstdcat empty.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "leading-dash-option-stop",
+      "kind": "parity",
+      "purpose": "Verify '--' ends option parsing so a relative compressed filename beginning with '-' is treated as an input operand.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00Alpha\\n' > -input.zst\nzstdcat -- -input.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bad-magic",
+      "kind": "parity",
+      "purpose": "Check Installed zstdcat pass-through behavior for a non-Zstandard file: its bytes are emitted unchanged with success, rather than a decoder error.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf 'not a zstd frame\\n' > bad.zst\nzstdcat bad.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "incomplete-frame-header",
+      "kind": "parity",
+      "purpose": "Check failure on a frame header that advertises six content bytes but ends before its block header.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06' > partial.zst\nzstdcat partial.zst",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "continue-after-bad-file",
+      "kind": "parity",
+      "purpose": "Pass an ordinary raw operand between complete encoded operands, preserve byte order, and return success.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x07\\x39\\x00\\x00before\\n' > before.zst\nprintf 'bad' > broken.zst\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00after\\n' > after.zst\nzstdcat before.zst broken.zst after.zst",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-operands-stdin-default",
+      "kind": "parity",
+      "purpose": "Empty default stdin is attempted as encoded input and fails with status 1, rather than a usage error.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "zstdcat",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-type-help-contract",
+      "kind": "contract",
+      "purpose": "Use Bash metadata builtins to verify zstdcat is registered as a builtin and its help includes the documented function and exit status.",
+      "script": "kind=$(type -t zstdcat)\ndoc=$(help zstdcat)\n[[ $kind == builtin ]]\n[[ $doc == *'Decompress zstd files to standard output.'* ]]\n[[ $doc == *'Exit status: 0, or 1 if any file failed.'* ]]\nprintf 'builtin help contract ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin help contract ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "oversized-decoder-window",
+      "kind": "deferred",
+      "purpose": "Check the documented decoder window ceiling using a small frame that advertises a window above 128 MiB.",
+      "reason": "Run only in a future disposable VM with at least 512 MiB available memory and an independently generated, size-bounded frame advertising a 256 MiB window. First validate that fixture with GNU zstdcat, then assert bash-os zstdcat rejects it at its documented 128 MiB decoder-window limit. This suite limits runtime fixtures to small resource use, so this operation is DEFERRED and is not counted as passed."
+    },
+    {
+      "id": "raw-binary-default-stdin",
+      "kind": "parity",
+      "purpose": "Default stdin passes plain binary bytes through; embedded magic after a raw prefix is copied without scanning.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x00\\x72\\x61\\x77\\xff\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a' > plain\nzstdcat < plain\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-raw-operands",
+      "kind": "parity",
+      "purpose": "Each short ordinary operand and each 1\u20133 byte partial magic is independent raw input, matching the reference; a full four-byte magic is recognized and tested separately.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x61' > plain1\nprintf '%b' '\\x28' > prefix1\nprintf '%b' '\\x61\\x62' > plain2\nprintf '%b' '\\x28\\xb5' > prefix2\nprintf '%b' '\\x61\\x62\\x63' > plain3\nprintf '%b' '\\x28\\xb5\\x2f' > prefix3\nzstdcat plain1 prefix1 plain2 prefix2 plain3 prefix3\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "split-magic-finite-pipe",
+      "kind": "parity",
+      "purpose": "A finite producer splits the four-byte magic across delayed writes; decoder selection must wait for enough bytes and produce the complete decoded payload.",
+      "requires": [
+        "zstdcat",
+        "sleep"
+      ],
+      "script": "{ printf '%b' '\\x28'; /usr/bin/sleep 0.02; printf '%b' '\\xb5\\x2f'; /usr/bin/sleep 0.02; printf '%b' '\\xfd\\x20\\x06\\x31\\x00\\x00Alpha\\n'; } | zstdcat\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "frame-to-raw-boundary",
+      "kind": "parity",
+      "purpose": "Recheck format at complete frame boundaries, even when the following raw prefix arrives in separate short pipe writes.",
+      "requires": [
+        "zstdcat",
+        "cat",
+        "sleep"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a' > frame\n{ cat frame; printf x; /usr/bin/sleep 0.02; printf '%b' '\\x00tail\\xff'; } | zstdcat -\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "recognized-truncation-boundaries",
+      "kind": "parity",
+      "purpose": "Complete standard and skippable magic bytes select strict decoding, even with force pass-through enabled. Incomplete bodies, next-frame headers and skippable payloads fail; later operands are still processed.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd' > magic\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61' > body\nprintf '%b' '\\x50\\x2a\\x4d\\x18\\x02\\x00\\x00\\x00' > skip\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a\\x28\\xb5\\x2f\\xfd' > joined\nprintf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a' > good\nzstdcat magic body skip joined good\n",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "skippable-and-empty-frames",
+      "kind": "parity",
+      "purpose": "Supported skippable and complete empty frames produce no raw bytes and can precede a normal frame.",
+      "requires": [
+        "zstdcat"
+      ],
+      "script": "printf '%b' '\\x50\\x2a\\x4d\\x18\\x00\\x00\\x00\\x00\\x28\\xb5\\x2f\\xfd\\x20\\x00\\x01\\x00\\x00\\x28\\xb5\\x2f\\xfd\\x20\\x06\\x31\\x00\\x00\\x41\\x6c\\x70\\x68\\x61\\x0a' > in.zst\nzstdcat in.zst\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

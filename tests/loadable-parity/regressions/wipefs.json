@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "loadable": "wipefs",
+  "reference": "Contract cases use Bash type/help behavior and the pinned loadable's published synopsis/help strings as the documented contract; expected bytes are written independently from those strings and never copied from a candidate run. wipefs is a util-linux command, not a GNU utility, and no matching external oracle is available here, so no parity comparison is claimed. Signature inspection and erasure are deferred under the requested safety limits.",
+  "coverage": [
+    "Bash reports wipefs as a builtin with the executable search path disabled by the runner.",
+    "Bash help registration and the loadable's published synopsis are checked.",
+    "The command's own --help output is checked against its published help text.",
+    "Future safe inspection, dry-run, and erase behavior is specified as deferred work with independent reference requirements."
+  ],
+  "exclusions": [
+    "No wipefs operation is executed: even regular-file signature erasure is a destructive loadable operation forbidden by this task.",
+    "No parity case is claimed because wipefs is from util-linux rather than GNU and no external wipefs oracle is installed in this environment.",
+    "No block device, loop device, mount, or real system path is used."
+  ],
+  "cases": [
+    {
+      "id": "builtin-type",
+      "kind": "contract",
+      "purpose": "Verify Bash resolves the loadable as a builtin when candidate execution uses an empty PATH.",
+      "script": "type -t wipefs",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-registration",
+      "kind": "contract",
+      "purpose": "Verify Bash has registered help for wipefs; the marker makes the expected output independent of help formatting.",
+      "script": "help wipefs >/dev/null; printf 'help-registered\\n'",
+      "expected_status": 0,
+      "stdout": "help-registered\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-help-synopsis",
+      "kind": "contract",
+      "purpose": "Check Bash's short-help form against the usage synopsis declared in the builtin table entry.",
+      "script": "help -s wipefs",
+      "expected_status": 0,
+      "stdout": "wipefs: wipefs [-a] [-n] device...\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "command-help-contract",
+      "kind": "contract",
+      "purpose": "Check wipefs --help prints the documented mode descriptions and signature-family scope without opening a target.",
+      "script": "wipefs --help",
+      "expected_status": 0,
+      "stdout": "Detect or wipe filesystem / swap signatures.\n\n    wipefs device       list detected signatures (offset, type)\n    wipefs -a device    erase all detected signatures\n    wipefs -n device    dry-run: show what -a would erase\n\nRecognises swap, ext, xfs, btrfs, ntfs, vfat and iso9660 magics.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "signature-inspection-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify default listing and -n behavior over synthetic signatures, no-signature inputs, and repeated operands while proving reads do not change fixture bytes.",
+      "reason": "Requires a future disposable fixture environment with a separately installed util-linux wipefs reference (or independently specified expected rows) and a small regular-file corpus encoded from filesystem-format references. Compare statuses and exact signature rows for empty, unmatched, and supported signatures; verify default and -n leave all bytes unchanged. No operation ran in this suite."
+    },
+    {
+      "id": "signature-erasure-deferred",
+      "kind": "deferred",
+      "purpose": "Qualify -a byte changes, including multiple signatures and preservation of unrelated fixture data.",
+      "reason": "Requires a disposable VM or reviewed private-image mock that confines all writes to throwaway regular-file images, plus independently encoded signature vectors and an independent util-linux/reference-byte oracle. Verify -a clears only specified magic bytes, preserves neighboring data, and compare repeated/no-match behavior; separately verify -n preserves the image. The destructive operation is not run here."
+    }
+  ]
+}

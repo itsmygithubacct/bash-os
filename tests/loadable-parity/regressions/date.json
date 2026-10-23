@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "loadable": "date",
+  "reference": "GNU coreutils date, executed by the harness in reference mode with the same Bash fixture, C locale, and UTC baseline. Each parity case compares the reference status, stdout bytes, stderr policy, and resulting fixture tree against the candidate. The type/help contract case uses documented Bash builtin metadata and the loadable help registration as its independent expectation.",
+  "coverage": [
+    "Default output plus signed epoch seconds and explicit UTC/offset ISO timestamps",
+    "Fractional epoch timestamps, including negative and sub-nanosecond values, with GNU %N widths",
+    "Local parsing and formatting under a deterministic POSIX timezone rule",
+    "GNU ISO-8601, RFC 3339, RFC email, and extended strftime formats",
+    "Documented compact, slash-separated, and RFC-style date input shapes",
+    "Invalid calendar input statuses and invalid ISO timespec status",
+    "Bash type/help metadata for the registered date builtin"
+  ],
+  "exclusions": [
+    "Current-time output and the documented now input alias are omitted because they depend on wall-clock timing.",
+    "Natural-language date arithmetic and GNU options outside the documented loadable interface are not covered.",
+    "Setting the system wall clock is deferred; it would mutate clock state and requires a disposable VM or a reviewed clock syscall mock."
+  ],
+  "cases": [
+    {
+      "id": "epoch_iso_zone_parse",
+      "kind": "parity",
+      "purpose": "Compare the default output format, signed epoch seconds, Z timestamps, and an explicit +05:30 offset after UTC conversion.",
+      "requires": [
+        "date"
+      ],
+      "script": "for value in '@0' '@1' '@-1' '2024-02-29T12:34:56Z' '2024-02-29T12:34:56+05:30'; do\n  date -u -d \"$value\" '+%Y-%m-%dT%H:%M:%S|%s|%:z'\ndone\ndate -u -d '@0'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fractional_epoch_nanoseconds",
+      "kind": "parity",
+      "purpose": "Compare GNU fractional epoch normalization before and after the epoch, including values with more than nine fractional digits, using full and truncated nanosecond formats.",
+      "requires": [
+        "date"
+      ],
+      "script": "for value in '@1.25' '@-0.5' '@0.000000001' '@-0.000000001' '@1.1234567899' '@-1.1234567899' '@-0.0000000001'; do\n  date -u -d \"$value\" '+%s.%N|%3N|%1N'\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix_timezone_conversion",
+      "kind": "parity",
+      "purpose": "Check local-time interpretation, daylight/standard offset selection, and conversion of an explicit UTC timestamp using a fixed POSIX timezone rule.",
+      "requires": [
+        "date"
+      ],
+      "script": "TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\nexport TZ\ndate -d '2024-01-15 12:34:56' '+%s|%F %T|%Z|%z'\ndate -d '2024-07-15 12:34:56' '+%s|%F %T|%Z|%z'\ndate -d '2024-01-15T12:34:56Z' '+%s|%F %T|%Z|%z'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_format_extensions",
+      "kind": "parity",
+      "purpose": "Compare epoch, nanosecond precision, colonized UTC offsets, 12/24-hour padding, lowercase meridian, and case-folded weekday formats.",
+      "requires": [
+        "date"
+      ],
+      "script": "date -u -d '2024-02-29T15:04:05Z' '+%s|%N|%3N|%1N|%:z|%::z|%:::z|%k|%0k|%l|%0l|%P|%^a|%#p'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "iso_rfc_output_options",
+      "kind": "parity",
+      "purpose": "Compare date-only, hours, minutes, and seconds ISO-8601 output plus RFC 3339 and RFC email output for a fixed offset timestamp.",
+      "requires": [
+        "date"
+      ],
+      "script": "stamp='2024-02-29T12:34:56+05:30'\ndate -d \"$stamp\" -I\ndate -d \"$stamp\" -Ihours\ndate -d \"$stamp\" --iso-8601=minutes\ndate -d \"$stamp\" --iso-8601=seconds\ndate -d \"$stamp\" --rfc-3339=date\ndate -d \"$stamp\" --rfc-3339=seconds\ndate -d \"$stamp\" -R",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "documented_calendar_shapes",
+      "kind": "parity",
+      "purpose": "Compare compact YYYYMMDD, slash-separated date-time, and RFC-style email timestamp parsing against GNU date.",
+      "requires": [
+        "date"
+      ],
+      "script": "for value in '20240229' '2024/02/29 12:34:56' 'Thu, 29 Feb 2024 12:34:56 +0530'; do\n  date -u -d \"$value\" '+%F %T %s'\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_calendar_statuses",
+      "kind": "parity",
+      "purpose": "Verify GNU-compatible failure status for invalid Gregorian dates while capturing each diagnostic inside command substitution so wording differences do not obscure the status comparison.",
+      "requires": [
+        "date"
+      ],
+      "script": "for value in '2024-02-30' '2023-02-29' '2024-04-31T12:00:00Z' '30 Feb 2024 00:00:00 UTC'; do\n  rc=0\n  diagnostic=$(date -u -d \"$value\" +%F 2>&1) || rc=$?\n  printf '%s:%s\\n' \"$value\" \"$rc\"\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_iso_timespec_status",
+      "kind": "parity",
+      "purpose": "Check GNU date's exit status for an invalid ISO-8601 timespec. Preserve a candidate status difference as a failure.",
+      "requires": [
+        "date"
+      ],
+      "script": "date -u -d '@0' --iso-8601=bogus",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash_builtin_metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports date as a builtin and exposes its registered help text; this is metadata coverage, not operation coverage.",
+      "script": "kind=$(type -t date)\n[[ $kind == builtin ]]\nhelp date >/dev/null\nprintf '%s\\n' \"$kind\" 'help available'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "system_clock_setting",
+      "kind": "deferred",
+      "purpose": "GNU date can request a system wall-clock change, but exercising that operation here would mutate clock state and the loadable documentation does not advertise it.",
+      "reason": "Do not execute date -s or another clock-setting path in this environment. A future test requires a disposable VM with an isolated controllable wall clock, or a reviewed clock syscall mock that records the requested timestamp without changing the host clock."
+    }
+  ]
+}

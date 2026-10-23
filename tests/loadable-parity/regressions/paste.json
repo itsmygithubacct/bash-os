@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "loadable": "paste",
+  "reference": "Parity cases run GNU coreutils paste(1), and GNU coreutils file commands where listed in requires, from the host reference PATH against the same bounded fixture script. GNU exit status, stdout bytes, and relative filesystem snapshots are the independent oracle. Metadata contract cases use Bash type/help behavior and the registered synopsis in config/bash-loadables.list.",
+  "coverage": [
+    "Bash builtin type and registered help synopsis metadata (contract cases only).",
+    "Parallel records with unequal input lengths, a missing final newline, and default tab delimiters.",
+    "Cycling delimiters and the backslash-tab escape; serial mode across multiple files; repeated stdin operands.",
+    "NUL record framing with -z and the empty delimiter escape \\0.",
+    "Missing-input and invalid-option status/diagnostic behavior, plus -- before a leading-dash filename.",
+    "Relative fixture file lifecycle using mkdir, cp, ln, chmod, touch, mv, rm and paste; resulting bytes, modes, hardlinks, and symlink target are compared."
+  ],
+  "exclusions": [
+    "No VM-only cases are needed for paste's bounded local-file and pipe operations; the suite uses only small relative fixtures and no host paths, network, devices, or privileged actions.",
+    "No large-input, interactive PTY, special-file, forced I/O-failure, or cross-filesystem behavior is covered."
+  ],
+  "cases": [
+    {
+      "id": "parallel-uneven-records",
+      "purpose": "Compare default parallel tabs across unequal files, including a final record without a newline and blank columns after one input ends.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'north\\nsouth' > a\nprintf 'red\\ngreen\\nblue\\n' > b\npaste a b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delimiter-cycle-escapes",
+      "purpose": "Check a three-column delimiter cycle with a POSIX backslash-tab escape in the delimiter list.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'a1\\na2\\na3\\n' > a\nprintf 'b1\\nb2\\nb3\\n' > b\nprintf 'c1\\nc2\\nc3\\n' > c\npaste -d ',\\t|' a b c",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "serial-per-file-cycle",
+      "purpose": "Check serial joining across multiple files and that the delimiter list is applied within each file's output line.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'a1\\na2\\na3\\n' > a\nprintf 'b1\\nb2\\n' > b\npaste -s -d ',|' a b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-stdin-operand",
+      "purpose": "Check two '-' operands consume successive records from the same finite stdin stream, including an unmatched final record.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'red\\nblue\\ngreen\\n' | paste -d: - -",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-terminated-records",
+      "purpose": "Check -z record framing and delimiter output with small NUL-separated files.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'a\\0b\\0' > a\nprintf '1\\0two\\0' > b\npaste -z -d: a b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-delimiter-escape",
+      "purpose": "Check GNU paste's documented \\0 empty-delimiter escape between parallel columns.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'left1\\nleft2\\n' > a\nprintf 'right1\\nright2\\n' > b\npaste -d '\\0' a b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-input-with-valid-peer",
+      "purpose": "Check GNU paste's status, diagnostic presence, and output behavior when one named input is missing but another is readable.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'available\\n' > good\npaste missing good",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "relative-file-lifecycle",
+      "purpose": "Compare ordinary relative-path mkdir, cp, hard/symbolic links, chmod, touch, mv, and rm effects while paste reads the moved fixture; tree comparison checks bytes, modes, link relationships, and symlink target.",
+      "kind": "parity",
+      "requires": [
+        "paste",
+        "mkdir",
+        "cp",
+        "ln",
+        "chmod",
+        "touch",
+        "mv",
+        "rm"
+      ],
+      "script": "mkdir fixture\nprintf 'oak\\npine' > fixture/one\nprintf 'left\\nright\\nthird\\n' > fixture/two\ncp fixture/one fixture/copy\nln fixture/copy fixture/hard\nln -s copy fixture/sym\nchmod 640 fixture/copy\ntouch fixture/touched\nmv fixture/two fixture/moved\npaste -d: fixture/hard fixture/moved\nrm fixture/one fixture/touched",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-terminator-leading-dash-file",
+      "purpose": "Check -- ends option parsing so a relative input whose name begins with a dash is treated as a file.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "printf 'left\\n' > -left\nprintf 'right\\n' > right\npaste -- -left right",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-option-status",
+      "purpose": "Check GNU paste's exit status and diagnostic class for an unsupported short option.",
+      "kind": "parity",
+      "requires": [
+        "paste"
+      ],
+      "script": "paste -Q",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "metadata-type",
+      "purpose": "Bash contract check that the compiled paste command is reported as a builtin; this is metadata coverage, not operation coverage.",
+      "kind": "contract",
+      "script": "type -t paste",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help-synopsis",
+      "purpose": "Contract check for the short synopsis registered in config/bash-loadables.list and exposed by Bash help.",
+      "kind": "contract",
+      "script": "help -s paste",
+      "expected_status": 0,
+      "stdout": "paste: paste [-s] [-z] [-d DELIM] [FILE...]\n",
+      "stderr": "empty"
+    }
+  ]
+}

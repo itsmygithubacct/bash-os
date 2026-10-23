@@ -1,0 +1,640 @@
+{
+  "version": 1,
+  "loadable": "xargs",
+  "reference": "Independent GNU findutils xargs runs under system Bash in C locale and UTC. Each parity case compares stdout bytes, exit status, diagnostic presence, and private fixture trees through the mandatory isolated submit helper. Children are fixed /bin/sh or /usr/bin/printf commands. Metadata is a separate Bash type/help contract.",
+  "coverage": [
+    "Bash type/help metadata availability",
+    "POSIX whitespace splitting, quotes, backslash escapes, empty quoted arguments, and -n batching",
+    "-0 NUL-separated arguments, including spaces, an empty argument, and an embedded newline",
+    "-I replacement on complete lines with repeated replacement strings and blank-line skipping",
+    "-L line-count batching with multiword lines",
+    "-s command-line byte accounting at a two-item boundary",
+    "empty-input default invocation and -r suppression",
+    "fatal child exit status 255 and early stop",
+    "unmatched quote error status",
+    "successful -P launches with order-independent child output",
+    "Logical line boundaries, trailing-blank continuations, quoting and NUL interactions",
+    "Grouping option precedence and bounded command-size failures",
+    "Ordinary child error folding and parallel fatal-child cleanup"
+  ],
+  "exclusions": [
+    "Interactive -p prompting is deferred because the runner does not provide a controlling PTY.",
+    "Signal and host-process tests, stress inputs, execution-failure probes, and large ARG_MAX boundaries are outside this bounded review.",
+    "The 49 cases retain the draft suite and separately expose small parser, grouping, size, and error boundaries shared by -n, -L, -I and -0; metadata and PTY deferral do not count as GNU operation passes."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Bash type reports xargs as a builtin and Bash help can find the loadable's documented help topic.",
+      "script": "type -t xargs\nhelp xargs >help.txt\nprintf 'help:available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp:available\n"
+    },
+    {
+      "id": "quotes-and-n-batches",
+      "kind": "parity",
+      "purpose": "Check GNU/POSIX token parsing, including quoted spaces, an escaped blank, an empty quoted argument, and a final short -n batch.",
+      "script": "printf '%s' 'alpha \"two words\" three\\ four \"\" tail' | xargs -n 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-separated-arguments",
+      "kind": "parity",
+      "purpose": "Check -0 preserves spaces, empty arguments, and embedded newlines as argument bytes.",
+      "script": "printf 'a b\\0two words\\0\\0line\\nbreak\\0' | xargs -0 -n 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace-each-line",
+      "kind": "parity",
+      "purpose": "Check -I treats each nonblank input line as one replacement value and substitutes every occurrence in a template word.",
+      "script": "printf 'two words\\n\\nend\\n' | xargs -I '{}' /usr/bin/printf '<%s>\\n' 'left:{}:{}'",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "line-count-batching",
+      "kind": "parity",
+      "purpose": "Check that -L groups nonblank input lines while ordinary blanks within a line still delimit separate arguments.",
+      "script": "printf 'one two\\nthree\\nfour five\\n' | xargs -L 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "size-limit-accounting",
+      "kind": "parity",
+      "purpose": "Check -s byte accounting including /bin/sh, its fixed arguments, input arguments, and terminating NUL bytes; the 35-byte cap fits exactly two one-byte items per invocation.",
+      "script": "printf 'a b c d\\n' | xargs -s 35 /bin/sh -c 'printf \"batch\\n\"' sh",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-input-run-policy",
+      "kind": "parity",
+      "purpose": "Check GNU's default one invocation on empty input and -r suppression in the same shell process.",
+      "script": "xargs -r /usr/bin/printf 'ran\\n'; xargs /usr/bin/printf 'ran\\n'",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fatal-child-255",
+      "kind": "parity",
+      "purpose": "Check exit 255 maps to xargs status 124, emits a diagnostic, and prevents later input from being launched.",
+      "script": "set +e\nprintf 'first\\nsecond\\n' | xargs -n 1 /bin/sh -c 'printf \"%s\\n\" \"$1\"; exit 255' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 124,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unmatched-quote-error",
+      "kind": "parity",
+      "purpose": "Check an unterminated input quote is reported as an xargs error and does not execute a command on otherwise empty input.",
+      "script": "set +e\nprintf '\"unfinished' | xargs -r /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "parallel-successful-launches",
+      "kind": "parity",
+      "purpose": "Exercise -P 2 over four independent invocations. The fixed marker output is identical for every child, so scheduler order cannot affect stdout.",
+      "script": "printf 'a b c d\\n' | xargs -n 1 -P 2 /bin/sh -c 'printf \"job\\n\"' sh",
+      "requires": [
+        "xargs",
+        "sh"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "prompt-requires-pty",
+      "kind": "deferred",
+      "purpose": "Exercise -p confirmation and rejection with one harmless fixed child command.",
+      "reason": "A meaningful -p check needs a controlling PTY to provide bounded y/n responses. The fixture runner supplies no PTY, so defer until a future disposable VM/PTY driver can feed fixed answers and verify whether the child marker runs."
+    },
+    {
+      "id": "lines-blanks-quotes",
+      "kind": "parity",
+      "purpose": "Nonblank logical lines contain separately parsed quoted, escaped, and empty arguments; final line lacks newline.",
+      "script": "printf '%b' '\n \t\n  one \"two words\"\n\tthree\\\\ four '\"'\"''\"'\"'\n\nfive six' | xargs -L 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-trailing-blanks",
+      "kind": "parity",
+      "purpose": "Trailing unquoted blanks continue a logical line, including across an empty physical line.",
+      "script": "printf '%b' 'a b \t\n\n  c\nd \n e\nf\n' | xargs -L 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-quoted-blanks",
+      "kind": "parity",
+      "purpose": "A blank inside quotes or escaped at end of an argument does not act as a trailing separator.",
+      "script": "printf '%b' '\"a \"\nb\\\\ \nc\nd\n' | xargs -L 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-escaped-newline",
+      "kind": "parity",
+      "purpose": "Escaped newline is an argument byte rather than a logical line boundary.",
+      "script": "printf '%b' 'a\\\\\nb c\nd\n' | xargs -L 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-whitespace-classes",
+      "kind": "parity",
+      "purpose": "Check small C-locale whitespace classes without counting blank physical lines.",
+      "script": "printf '%b' 'a\u000bb\fc\rd\n\t\nend\n' | xargs -L 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-nul-records",
+      "kind": "parity",
+      "purpose": "Under -0, each NUL record counts toward -L; embedded newlines, empty records, quotes and blanks are literal.",
+      "script": "printf '%b' 'a b\nnext\\0\\0\"q\" \\\\ \\0end\\0' | xargs -0 -L 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-nul-final-empty",
+      "kind": "parity",
+      "purpose": "An empty NUL record counts as an input line.",
+      "script": "printf '%b' 'a\\0\\0' | xargs -0 -L 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-size-exact",
+      "kind": "parity",
+      "purpose": "The 23-byte fixed printf command plus two one-byte words and their NULs fits exactly at -s 27; -L preserves both arguments.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -L 1 -s 27 /usr/bin/printf '<%s>\\n'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "lines-size-overflow",
+      "kind": "parity",
+      "purpose": "GNU -L implies exit on an oversized logical batch rather than splitting it.",
+      "script": "set +e\nprintf '%b' 'aaa bbb ccc\nd\n' | xargs -L 2 -s 32 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lines-unmatched-quote",
+      "kind": "parity",
+      "purpose": "Line batching must retain quote parse errors.",
+      "script": "set +e\nprintf '%b' '\"unfinished\n' | xargs -L 2 -r /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-quotes-at-eof",
+      "kind": "parity",
+      "purpose": "GNU drops an empty quoted argument at EOF without a terminating delimiter; preserve that observed boundary behavior.",
+      "script": "printf '%b' '\"\"' | xargs -n 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quotes-literal-backslash",
+      "kind": "parity",
+      "purpose": "Backslashes within quotes are literal under GNU xargs.",
+      "script": "printf '%b' ''\"'\"'a\\\\b'\"'\"' \"c\\\\d\"\n' | xargs -n 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace-quoted-input",
+      "kind": "parity",
+      "purpose": "Replacement input strips leading separators and parses quotes and escapes while retaining internal and trailing blanks.",
+      "script": "printf '%b' ' \t\"two words\" \\\\x\n\n\tend \n' | xargs -I {} /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace-trailing-blank",
+      "kind": "parity",
+      "purpose": "Replacement mode does not use -L trailing-blank continuation.",
+      "script": "printf '%b' 'a \n b\nc\n' | xargs -I {} /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace-nul-literal",
+      "kind": "parity",
+      "purpose": "Replacement mode with -0 preserves literal record bytes and empty records.",
+      "script": "printf '%b' ' a \"b\"\\\\\n\\0\\0last\\0' | xargs -0 -I {} /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "args-after-lines",
+      "kind": "parity",
+      "purpose": "Last grouping option -n takes precedence over -L with a warning.",
+      "script": "printf '%b' 'a b\nc d\ne\n' | xargs -L 2 -n 1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lines-after-args",
+      "kind": "parity",
+      "purpose": "Last grouping option -L takes precedence over -n with a warning.",
+      "script": "printf '%b' 'a b\nc d\ne\n' | xargs -n 1 -L 2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replace-size-overflow",
+      "kind": "parity",
+      "purpose": "Replacement must reject expanded command bytes above -s.",
+      "script": "set +e\nprintf '%b' 'abcdefgh\n' | xargs -I {} -s 27 /usr/bin/printf '<%s>\\n' '{}'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lines-size-split-forbidden",
+      "kind": "parity",
+      "purpose": "A logical line that exceeds -s must fail rather than being split into smaller invocations.",
+      "script": "set +e\nprintf '%b' 'a b c d\ne\n' | xargs -L 1 -s 30 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lines-quoted-newline",
+      "kind": "parity",
+      "purpose": "A physical newline inside a quoted input argument is a parse error.",
+      "script": "set +e\nprintf '%b' '\"a\nb\"\n' | xargs -L 1 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replace-empty-quotes",
+      "kind": "parity",
+      "purpose": "Empty quoted replacement lines and whitespace-only lines follow GNU behavior.",
+      "script": "printf '%b' ''\"'\"''\"'\"'\n  \nlast\n' | xargs -I {} /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "replace-after-args",
+      "kind": "parity",
+      "purpose": "Last replacement option overrides argument grouping with a warning.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -n 2 -I {} /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "args-after-replace",
+      "kind": "parity",
+      "purpose": "Last argument grouping option disables replacement with a warning.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -I {} -n 2 /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "one-arg-after-replace",
+      "kind": "parity",
+      "purpose": "GNU treats -n 1 after -I as redundant and retains replacement.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -I {} -n 1 /usr/bin/printf '<%s>\\n' '{}'",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ordinary-child-errors",
+      "kind": "parity",
+      "purpose": "Ordinary nonzero children fold to 123 while remaining batches run, followed by a fresh successful invocation in the same shell.",
+      "script": "set +e\nprintf 'a b c\\n' | xargs -n 1 /bin/sh -c 'printf \"<%s>\\n\" \"$1\"; exit 7' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nprintf 'tail\\n' | xargs -n 1 /usr/bin/printf '<%s>\\n'\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 123,
+      "stderr": "empty"
+    },
+    {
+      "id": "parallel-fatal-child-cleanup",
+      "kind": "parity",
+      "purpose": "Two fixed parallel children both exit 255; diagnostics and 124 folding survive pool cleanup, and a following invocation still runs.",
+      "script": "set +e\nprintf 'a b\\n' | xargs -P 2 -n 1 /bin/sh -c 'exit 255' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nprintf 'tail\\n' | xargs -n 1 /usr/bin/printf '<%s>\\n'\nexit \"$rc\"",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ],
+      "expected_status": 124,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "lines-escaped-blank-span",
+      "kind": "parity",
+      "purpose": "Escaped blanks followed by ordinary bytes must not continue the line; exercise buffered parsing after earlier batches.",
+      "script": "printf '%b' 'seed\nmiddle\na\\\\ bc\nend\n' | xargs -L1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "args-vertical-whitespace",
+      "kind": "parity",
+      "purpose": "Ordinary argument mode retains vertical whitespace inside one argument.",
+      "script": "printf '%b' 'a\u000bb\fc\rd\nend\n' | xargs -n1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-nul-final-record",
+      "kind": "parity",
+      "purpose": "An unterminated final NUL record remains one literal input item.",
+      "script": "printf '%b' 'a b\\0last\nline' | xargs -0 -L1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-after-replace",
+      "kind": "parity",
+      "purpose": "A later attached -L option disables replacement and warns.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -I{} -L1 /usr/bin/printf '<%s>\\n' '{}'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "replace-after-lines",
+      "kind": "parity",
+      "purpose": "A later attached -I option enables replacement and warns.",
+      "script": "printf '%b' 'a b\nc\n' | xargs -L1 -I{} /usr/bin/printf '<%s>\\n' '{}'",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-parse-error-after-batch",
+      "kind": "parity",
+      "purpose": "Preserve completed commands and error status when a later logical line has an unmatched quote.",
+      "script": "set +e\nprintf '%b' 'a b\nc \"unfinished\n' | xargs -L1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "args-parse-error-after-batch",
+      "kind": "parity",
+      "purpose": "Preserve completed argument batches when later parsing fails.",
+      "script": "set +e\nprintf '%b' 'a b\nc \"unfinished\n' | xargs -n2 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "unterminated-escape",
+      "kind": "parity",
+      "purpose": "GNU discards an unquoted final backslash at EOF, retains the preceding word, and succeeds.",
+      "script": "set +e\nprintf '%b' 'unfinished\\\\' | xargs -r -n1 /bin/sh -c 'printf \"argc=%s\\n\" \"$#\"; printf \"<%s>\\n\" \"$@\"' sh\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "xargs",
+        "sh",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-parse-error-before-next",
+      "kind": "parity",
+      "purpose": "Check whether GNU retains completed line batches and discards partial line batches on quote errors.",
+      "script": "set +e\nprintf '%b' 'a b\\n\"unfinished\\n' | xargs -L1 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-partial-batch-parse-error",
+      "kind": "parity",
+      "purpose": "Check whether GNU retains completed line batches and discards partial line batches on quote errors.",
+      "script": "set +e\nprintf '%b' 'a b\\nc \"unfinished\\n' | xargs -L2 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "printf"
+      ]
+    },
+    {
+      "id": "lines-size-one-less",
+      "kind": "parity",
+      "purpose": "One byte below the exact two-word logical-line command size must fail without splitting.",
+      "script": "set +e\nprintf 'a b\\n' | xargs -L1 -s 26 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "printf"
+      ]
+    },
+    {
+      "id": "args-size-after-lines",
+      "kind": "parity",
+      "purpose": "A later -n disables -L and its implied exit-on-size-overflow policy: retain the warning and split to fit -s.",
+      "script": "set +e\nprintf 'aaaa bbbb\\n' | xargs -L1 -n2 -s 30 /usr/bin/printf '<%s>\\n'\nrc=$?\nprintf 'xargs-status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "xargs",
+        "printf"
+      ]
+    }
+  ]
+}

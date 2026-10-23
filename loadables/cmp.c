@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 
@@ -196,11 +197,33 @@ cmp_builtin (WORD_LIST *list)
     size_t used[2] = { 0, 0 }, available[2] = { 0, 0 };
     uint64_t off = 1, line = 1;
     int rc = 0;
+    int offset_width = 1;
     int eof[2] = { 0, 0 };
     if ((skip[0] && bcm_skip (fd[0], skip[0], paths[0]) < 0) ||
         (skip[1] && bcm_skip (fd[1], skip[1], paths[1]) < 0)) {
         rc = 2;
         goto done;
+    }
+    if (lflag) {
+        uint64_t remaining = UINT64_MAX;
+        for (int j = 0; j < 2; j++) {
+            struct stat st;
+            off_t position;
+            if (fstat (fd[j], &st) == 0 && S_ISREG (st.st_mode)
+                && (position = lseek (fd[j], 0, SEEK_CUR)) >= 0) {
+                uint64_t count = position < st.st_size
+                    ? (uint64_t) (st.st_size - position) : 0;
+                if (count < remaining) remaining = count;
+            }
+        }
+        /* Unknown-length streams use the signed file-offset range, as GNU
+           cmp does. Known regular inputs narrow that bound. */
+        if (remaining == UINT64_MAX)
+            remaining = ((uint64_t) 1 << (sizeof (off_t) * CHAR_BIT - 1)) - 1;
+        while (remaining >= 10) {
+            offset_width++;
+            remaining /= 10;
+        }
     }
     for (;;) {
         /* Short reads are normal for pipes. Retain each unmatched suffix
@@ -236,8 +259,8 @@ cmp_builtin (WORD_LIST *list)
             unsigned char a = buf[0][used[0] + i], b = buf[1][used[1] + i];
             if (a != b) {
                 if (lflag) {
-                    printf ("%" PRIu64 " %o %o\n",
-                            off + (uint64_t) i,
+                    printf ("%*" PRIu64 " %3o %3o\n",
+                            offset_width, off + (uint64_t) i,
                             (unsigned) a, (unsigned) b);
                 } else {
                     if (!sflag)

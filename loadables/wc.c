@@ -400,7 +400,7 @@ wc_builtin (WORD_LIST *list)
         if (!strcmp (w, "--chars")) { mflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--max-line-length")) { Lflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--files0-from")) {
-            if (!list->next) { builtin_error ("%s needs FILE", w); return EX_USAGE; }
+            if (!list->next) { builtin_error ("%s needs FILE", w); return EXECUTION_FAILURE; }
             list = list->next;
             files_from = list->word->word;
             list = list->next;
@@ -414,7 +414,7 @@ wc_builtin (WORD_LIST *list)
         if (!strncmp (w, "--", 2)) {
             builtin_error ("unknown flag: %s", w);
             builtin_usage ();
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
         for (const char *p = w + 1; *p; p++) {
             switch (*p) {
@@ -423,7 +423,7 @@ wc_builtin (WORD_LIST *list)
                 case 'c': cflag = 1; break;
                 case 'm': mflag = 1; break;
                 case 'L': Lflag = 1; break;
-                default: builtin_error ("unknown flag: -%c", *p); builtin_usage (); return EX_USAGE;
+                default: builtin_error ("unknown flag: -%c", *p); builtin_usage (); return EXECUTION_FAILURE;
             }
         }
         list = list->next;
@@ -444,7 +444,7 @@ wc_builtin (WORD_LIST *list)
     if (files_from) {
         if (list) {
             builtin_error ("file operands cannot be combined with --files0-from");
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
         size_t blen = 0;
         char *blob = bwc_slurp (files_from, &blen);

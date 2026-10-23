@@ -265,7 +265,7 @@ for n in "${NAMES[@]}"; do
       "$src" > "builtins/$n.c"
   is_stock "$n" || continue
   if [[ -n ${STOCK_PATCHES[$n]:-} ]]; then
-    patch --batch -s "builtins/$n.c" < "$HERE/patches/${STOCK_PATCHES[$n]}" >>"$LOG" 2>&1 || die "$n fixup did not apply (see $LOG)"
+    patch --batch --fuzz=0 -s "builtins/$n.c" < "$HERE/patches/${STOCK_PATCHES[$n]}" >>"$LOG" 2>&1 || die "$n fixup did not apply (see $LOG)"
   fi
   case "$n" in
     fltexpr)
@@ -333,7 +333,7 @@ entries = json.loads(os.environ['SELECTION'])['entries']
 p = Path('builtins/builtins.c'); text = p.read_text()
 anchor = '  { (char *)0x0,'
 assert text.count(anchor) == 1, 'builtin table anchor not found'
-rows = ''.join('  { '+json.dumps(n)+', '+n+'_builtin, BUILTIN_ENABLED, '+n+'_doc, '
+rows = ''.join('  { '+json.dumps(n)+', '+n+'_builtin, BUILTIN_ENABLED | STATIC_BUILTIN, '+n+'_doc, '
                +json.dumps(doc, ensure_ascii=False)+', 0 },\n' for n, doc in entries.items())
 p.write_text(text.replace(anchor, rows+anchor))
 PYTABLE

@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "loadable": "cut",
+  "reference": "GNU coreutils cut is the independent oracle for standard options, output bytes, and exit status. The runner executes each parity script with system Bash and GNU cut on PATH, then with bash-os and an empty PATH. LC_ALL=C and TZ=UTC are fixed by the runner. The loadable-specific -a ARRAY behavior is checked separately against its documented contract.",
+  "coverage": [
+    "Byte ranges, complement selection, and a multi-byte output delimiter",
+    "Field extraction with empty fields, a custom delimiter, output delimiter, and undelimited lines",
+    "Default TAB delimiter and suppression of undelimited lines",
+    "GNU's documented byte behavior for -c under the C locale",
+    "NUL-terminated records and an unterminated final record with -z",
+    "Newline as the field delimiter, treating the input as one record",
+    "Multiple input files, continued processing after a missing file, output bytes, and failure status",
+    "A decreasing range's expected failure status and diagnostic presence",
+    "Unambiguous long-option prefixes after a file operand",
+    "The documented -a ARRAY output-line mapping",
+    "Bash type/help metadata for the cut builtin"
+  ],
+  "exclusions": [
+    "No exhaustive option parser or range grammar fuzzing; the cases target representative selection, boundary, and error behavior.",
+    "The 64 KiB block boundary and very large inputs are omitted to keep these fixtures small and deterministic.",
+    "The -a ARRAY contract case does not cover readonly variables, invalid identifiers, or array attribute edge cases.",
+    "No deferred cases are needed: cut performs local text processing and has no privileged, hardware, network, or terminal operation in scope."
+  ],
+  "cases": [
+    {
+      "id": "byte_ranges_complement",
+      "kind": "parity",
+      "purpose": "Checks inclusive byte ranges, complement selection, short and empty lines, and joining separated output ranges with a multi-byte delimiter against GNU cut.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'abcdef\\nxy\\n\\n' | cut -b '1-2,5' --complement --output-delimiter=::",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fields_empty_and_undelimited",
+      "kind": "parity",
+      "purpose": "Checks empty leading and interior fields, a custom input delimiter, multi-byte output joining, undelimited lines, and empty input lines.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'a,,c\\n,lead\\ntrail,\\nplain\\n\\n' | cut -d, -f '1,3' --output-delimiter=::",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tab_fields_only_delimited",
+      "kind": "parity",
+      "purpose": "Checks the default TAB field delimiter, -s suppression, and preservation of a selected empty trailing field.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'a\\tb\\tc\\nsingle\\n\\tlead\\ntrail\\t\\n\\n' | cut -f2 -s",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "character_mode_bytes",
+      "kind": "parity",
+      "purpose": "Checks the documented GNU behavior that -c selects bytes, including a selection that ends partway through a UTF-8 encoded character in the C locale.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf '\\316\\261\\316\\262\\n' | cut -c1-3",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero_terminated_final_record",
+      "kind": "parity",
+      "purpose": "Checks comma-delimited field selection across NUL-terminated records and a final record without a NUL terminator.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'a,b\\0c,d\\0tail,x' | cut -z -d, -f2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "newline_field_delimiter",
+      "kind": "parity",
+      "purpose": "Checks GNU cut's documented special case where newline is the field delimiter and the complete input is treated as one record.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'alpha\\nbeta\\ngamma\\n' | cut -d $'\\n' -f '1,3' --output-delimiter='|'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple_files_missing_input",
+      "kind": "parity",
+      "purpose": "Checks that a missing file sets failure status while later readable operands are still processed, with the output from all readable files preserved.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'first\\n' > first\nprintf 'last' > last\nif cut -b1 first missing last; then\n  exit 91\nelse\n  rc=$?\nfi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "decreasing_range_error",
+      "kind": "parity",
+      "purpose": "Checks that a decreasing field range is rejected with a nonzero status and a diagnostic, as GNU cut specifies.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'a,b\\n' > input\nif cut -d, -f3-1 input; then\n  exit 91\nelse\n  rc=$?\nfi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "long_option_prefix_after_operand",
+      "kind": "parity",
+      "purpose": "Checks unambiguous GNU long-option prefixes and option permutation after a file operand.",
+      "requires": [
+        "cut"
+      ],
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'a,b,c\\nx,y\\n' > input\ncut input --del , --fi 2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "array_output_contract",
+      "kind": "contract",
+      "purpose": "Checks the documented -a ARRAY extension: each selected output line becomes one indexed-array element, including empty and undelimited lines. Expected elements are derived from the documented field/complement contract. Input redirection keeps the builtin in the parent shell; a default pipeline would intentionally lose array changes in a subshell.",
+      "script": "printf 'a,b,,d\\n,lead\\ntrail,\\nplain\\n' > input\ncut -d, -f2 --complement -a got < input\nprintf 'count=%s\\n' \"${#got[@]}\"\nprintf '<%s>\\n' \"${got[@]}\"",
+      "expected_status": 0,
+      "stdout": "count=4\n<a,,d>\n<>\n<trail>\n<plain>\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "bash_builtin_metadata",
+      "kind": "contract",
+      "purpose": "Checks the Bash metadata contract for this loadable without invoking its text-processing operation: type identifies a builtin and help has an entry.",
+      "script": "export LC_ALL=C TZ=UTC\nprintf 'type=%s\\n' \"$(type -t cut)\"\nhelp_output=$(help cut)\n[[ -n $help_output ]]\nprintf 'help=available\\n'",
+      "expected_status": 0,
+      "stdout": "type=builtin\nhelp=available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "array-pipeline-subshell",
+      "kind": "contract",
+      "purpose": "Bash default pipeline isolation keeps the parent array unchanged.",
+      "script": "got=(parent); printf 'a,b\\n' | cut -d, -f2 -a got; printf '<%s>\\n' \"${got[@]}\"",
+      "expected_status": 0,
+      "stdout": "<parent>\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "array-lastpipe",
+      "kind": "contract",
+      "purpose": "Bash lastpipe executes the final pipeline builtin in the parent when job control is disabled.",
+      "script": "set +m; shopt -s lastpipe; printf 'a,b\\nc,d\\n' | cut -d, -f2 -a got; printf '<%s>\\n' \"${got[@]}\"",
+      "expected_status": 0,
+      "stdout": "<b>\n<d>\n",
+      "stderr": "empty"
+    }
+  ]
+}

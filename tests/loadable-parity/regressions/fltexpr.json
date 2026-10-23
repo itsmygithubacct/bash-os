@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "loadable": "fltexpr",
+  "reference": "Python 3 binary64 arithmetic and its math module provide an independent numeric encoder for selected expressions. The reference computes equivalent formulas where the syntax differs (Python ** for exponentiation and sqrt(a*a+b*b) for hypot) and formats the chosen exact, simple results with general notation so they match fltexpr's shortest round-trip output. Builtin metadata and error contracts use the fltexpr synopsis/documentation and documented division-by-zero behavior; there is no GNU CLI with the same expression language.",
+  "coverage": [
+    "Bash type and help metadata contract",
+    "arithmetic precedence with fractional literals",
+    "fractional division and grouping",
+    "right-associative exponentiation",
+    "relational, logical, and conditional operators",
+    "one- and two-argument math function calls",
+    "shell variable compound assignment and resulting value",
+    "post-increment result, mutation, and truth-valued exit status",
+    "zero-expression status and printed result",
+    "division by zero and malformed function arity errors"
+  ],
+  "exclusions": [
+    "No deferred operation case is warranted: fltexpr performs local arithmetic and has no privilege, hardware, network, or system-control operation.",
+    "The full libm function table, NaN/Inf comparisons, overflow boundaries, and array subscripts are not exhaustively covered; they need additional carefully specified numeric oracles and are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Confirm Bash exposes fltexpr as a builtin, using Bash's type metadata contract.",
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then printf 'builtin\\n'; else exit 1; fi",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-help",
+      "kind": "contract",
+      "purpose": "Check the documented synopsis and zero-result exit rule appear in Bash help without invoking a numeric operation.",
+      "script": "help_text=$(help fltexpr)\n[[ $help_text == *'fltexpr [-p] expression'* ]] || exit 1\n[[ $help_text == *'If the EXPRESSION evaluates to 0'* ]] || exit 1\nprintf 'synopsis-and-exit-contract\\n'",
+      "expected_status": 0,
+      "stdout": "synopsis-and-exit-contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "arithmetic-precedence",
+      "kind": "parity",
+      "purpose": "Check multiplication binds more tightly than addition while preserving an exactly representable fractional result.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '1.5 + 2 * 3'\nelse\n  python3 -c 'print(format(1.5 + 2 * 3, \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fractional-division",
+      "kind": "parity",
+      "purpose": "Check division retains fractional values and parentheses determine the grouped arithmetic result.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '1 / 8 + (3 / 4)'\nelse\n  python3 -c 'print(format(1 / 8 + (3 / 4), \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "power-associativity",
+      "kind": "parity",
+      "purpose": "Check exponentiation is right-associative; the Python reference uses the equivalent ** expression.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '2 ** 3 ** 2'\nelse\n  python3 -c 'print(format(2 ** (3 ** 2), \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "boolean-conditional",
+      "kind": "parity",
+      "purpose": "Check numeric comparisons feed logical AND and the selected ternary branch returns its value.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '3.5 > 2 && 5 != 4 ? 7 : 0'\nelse\n  python3 -c 'print(format(7 if 3.5 > 2 and 5 != 4 else 0, \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "math-functions",
+      "kind": "parity",
+      "purpose": "Check unary sqrt and a two-argument hypot call; Python independently computes the exact expected value with sqrt(a*a+b*b).",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p 'sqrt(9) + hypot(3, 4)'\nelse\n  python3 -c 'import math; print(format(math.sqrt(9) + math.sqrt(3 * 3 + 4 * 4), \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "variable-compound-assignment",
+      "kind": "parity",
+      "purpose": "Check += evaluates and stores a fractional shell-variable value; both implementations print the expression result and updated variable.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  amount=2.5\n  fltexpr -p 'amount += 1.5'\n  printf 'amount=%s\\n' \"$amount\"\nelse\n  python3 -c 'amount = 2.5; amount += 1.5; print(format(amount, \"g\")); print(\"amount=\" + format(amount, \"g\"))'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "postincrement",
+      "kind": "parity",
+      "purpose": "Check post-increment returns the old numeric value, mutates the shell variable, and returns success for a nonzero result.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  count=4\n  if fltexpr -p 'count++'; then status=0; else status=$?; fi\n  printf 'count=%s\\nstatus=%s\\n' \"$count\" \"$status\"\n  exit \"$status\"\nelse\n  python3 -c 'count = 4.0; previous = count; count += 1; print(format(previous, \".0f\")); print(\"count=\" + format(count, \".0f\")); print(\"status=0\")'\nfi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-exit-status",
+      "kind": "parity",
+      "purpose": "Check the documented contract that a zero expression prints zero with -p and returns status 1; the reference computes the same rule in Python.",
+      "requires": [
+        "python3"
+      ],
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  if fltexpr -p '0'; then status=0; else status=$?; fi\n  printf 'status=%s\\n' \"$status\"\n  exit \"$status\"\nelse\n  if python3 -c 'value = 0.0; print(format(value, \"g\")); raise SystemExit(1 if value == 0.0 else 0)'; then status=0; else status=$?; fi\n  printf 'status=%s\\n' \"$status\"\n  exit \"$status\"\nfi",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "division-by-zero",
+      "kind": "contract",
+      "purpose": "Check the source-documented error contract: division by zero is rejected, reports a diagnostic, and emits no -p value.",
+      "script": "fltexpr -p '1 / 0'",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "function-arity-error",
+      "kind": "contract",
+      "purpose": "Check a malformed call is rejected when the documented one-argument sqrt function receives an extra argument.",
+      "script": "fltexpr -p 'sqrt(1, 2)'",
+      "expected_status": 1,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "logical-or",
+      "kind": "parity",
+      "purpose": "Logical operators evaluate their result and short-circuit unused operands.",
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '0 || 4'\nelse\n  python3 -c 'import sys; value=int(bool(0 or 4)); print(value); sys.exit(0 if value else 1)'\nfi",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-circuit-or",
+      "kind": "parity",
+      "purpose": "Logical operators evaluate their result and short-circuit unused operands.",
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '1 || 1/0'\nelse\n  python3 -c 'import sys; value=int(bool(1 or 1/0)); print(value); sys.exit(0 if value else 1)'\nfi",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-circuit-and",
+      "kind": "parity",
+      "purpose": "Logical operators evaluate their result and short-circuit unused operands.",
+      "script": "if [[ $(type -t fltexpr 2>/dev/null) == builtin ]]; then\n  fltexpr -p '0 && 1/0'\nelse\n  python3 -c 'import sys; value=int(bool(0 and 1/0)); print(value); sys.exit(0 if value else 1)'\nfi",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    }
+  ]
+}

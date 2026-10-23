@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "loadable": "logname",
+  "reference": "GNU coreutils logname from the isolated runner's /usr/bin:/bin PATH, invoked by stock Bash. Metadata expectations are based on Bash type/help builtins and the stock loadable's documented help text; no expectation is derived from the candidate output.",
+  "coverage": [
+    "GNU no-argument login-name output in the runner\u2019s fixed passwd environment",
+    "Documented independence from LOGNAME and USER environment variables",
+    "GNU rejection of extra non-option operands compared with the loadable contract",
+    "GNU unsupported-option, --help, and --version behavior",
+    "Candidate Bash builtin availability and help metadata",
+    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
+  ],
+  "exclusions": [
+    "A non-default successful login identity requires a controlled disposable PTY/session and matching login record (or an independently reviewed libc mock); the runner exposes only its fixed synthetic runner account.",
+    "Locale-specific diagnostic wording is not asserted for the invalid-option case; that case requires nonempty stderr and also compares candidate bytes with GNU."
+  ],
+  "cases": [
+    {
+      "id": "default-login-name",
+      "kind": "parity",
+      "purpose": "The runner supplies a fixed synthetic passwd entry for runner, and GNU logname resolves that login name in this fixture. Checks the normal no-argument output and status path.",
+      "requires": [
+        "logname"
+      ],
+      "script": "logname",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "ignore-login-environment",
+      "kind": "parity",
+      "purpose": "The documented contract ignores LOGNAME and USER; spoofed values must not replace the runner login name exposed by the isolated fixture.",
+      "requires": [
+        "logname"
+      ],
+      "script": "LOGNAME=claimed USER=claimed logname",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reject-nonoption-operands",
+      "kind": "parity",
+      "purpose": "GNU rejects extra non-option operands with status 1 and a diagnostic.",
+      "requires": [
+        "logname"
+      ],
+      "script": "logname first second",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-short-option",
+      "kind": "parity",
+      "purpose": "Checks GNU's diagnostic and status for an unsupported option; the reference expectation is validated by GNU logname before candidate comparison.",
+      "requires": [
+        "logname"
+      ],
+      "script": "logname -z",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-help-option",
+      "kind": "parity",
+      "purpose": "GNU branding and banner wording are excluded from byte parity. Check successful status, nonempty output and correct command identity, then compare only that invariant.",
+      "requires": [
+        "logname"
+      ],
+      "script": "text=$(logname --help)\n[[ -n $text && $text == *'logname'* ]]\nprintf '%s\\n' 'logname --help succeeds with identified nonempty output'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-version-option",
+      "kind": "parity",
+      "purpose": "GNU branding and banner wording are excluded from byte parity. Check successful status, nonempty output and correct command identity, then compare only that invariant.",
+      "requires": [
+        "logname"
+      ],
+      "script": "text=$(logname --version)\n[[ -n $text && $text == *'logname'* ]]\nprintf '%s\\n' 'logname --version succeeds with identified nonempty output'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bash-type-and-help-metadata",
+      "kind": "contract",
+      "purpose": "Bash metadata must document the corrected operand rejection and environment independence.",
+      "script": "kind=$(type -t logname) || exit 1\n[[ $kind == builtin ]] || exit 1\ndoc=$(help logname) || exit 1\n[[ $doc == *\"Display user login name.\"* ]] || exit 1\n[[ $doc == *\"ignores the LOGNAME and USER variables.\"* ]] || exit 1\n[[ $doc == *\"rejects operands.\"* ]] || exit 1\nprintf '%s\\n' builtin 'help text includes documented logname contract'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp text includes documented logname contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "successful-login-session",
+      "kind": "deferred",
+      "purpose": "Verify that a non-default controlled login-session identity is returned, and that spoofed environment values do not replace it.",
+      "reason": "Requires a future disposable VM fixture that creates a controlled PTY and matching login record visible to getlogin(), or an independently reviewed libc getlogin mock returning a non-default fixed name. The current runner exposes only its synthetic runner account, so it cannot validate a distinct login-session identity."
+    },
+    {
+      "id": "end-of-options",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "logname --",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "operand-after-end",
+      "kind": "parity",
+      "purpose": "Compare GNU option parsing, output and status for this bounded invocation.",
+      "script": "logname -- extra",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "option-after-operand",
+      "kind": "parity",
+      "purpose": "GNU oracle confirmed that help/version accept unique prefixes and take effect even with operands; check successful nonempty output and command identity, excluding banner branding.",
+      "script": "text=$(logname extra --help); [[ -n $text && $text == *logname* ]]; printf '%s\\n' 'logname banner accepted'",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-extra",
+      "kind": "parity",
+      "purpose": "GNU oracle confirmed that help/version accept unique prefixes and take effect even with operands; check successful nonempty output and command identity, excluding banner branding.",
+      "script": "text=$(logname --help extra); [[ -n $text && $text == *logname* ]]; printf '%s\\n' 'logname banner accepted'",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "abbreviated-help",
+      "kind": "parity",
+      "purpose": "GNU oracle confirmed that help/version accept unique prefixes and take effect even with operands; check successful nonempty output and command identity, excluding banner branding.",
+      "script": "text=$(logname --he); [[ -n $text && $text == *logname* ]]; printf '%s\\n' 'logname banner accepted'",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "version-extra",
+      "kind": "parity",
+      "purpose": "GNU oracle confirmed that help/version accept unique prefixes and take effect even with operands; check successful nonempty output and command identity, excluding banner branding.",
+      "script": "text=$(logname --version extra); [[ -n $text && $text == *logname* ]]; printf '%s\\n' 'logname banner accepted'",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bad-long-argument",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "logname --help=x",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "short-help-rejected",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "logname -h",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "empty-operand",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "logname ''",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "version-prefix",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "text=$(logname --v); [[ -n $text && $text == *logname* ]]; printf '%s\\n' 'logname version accepted'",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-after-end",
+      "kind": "parity",
+      "purpose": "Focused regression for GNU aliases, delimiters, repeated calls or invalid operands; banner content is checked only for identity and nonemptiness.",
+      "script": "logname -- --help",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "updated-short-help",
+      "kind": "contract",
+      "purpose": "Verify the synopsis required in the generated short-help catalog.",
+      "script": "help -s logname",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "logname: logname [--help] [--version]\n"
+    },
+    {
+      "id": "posix-option-order",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "POSIXLY_CORRECT=1 logname operand --help",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "unknown-long",
+      "kind": "parity",
+      "purpose": "Check bounded GNU option-order, unsupported-context or user-resolution error behavior using the independent oracle.",
+      "script": "logname --unknown",
+      "requires": [
+        "logname"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

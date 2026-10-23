@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "loadable": "stat",
+  "reference": "GNU coreutils stat from the isolated /usr tree, invoked by the same Bash script and against the same relative fixture setup. GNU stat is the oracle for CLI output, status, and fixture tree; the Bash-only -A extension and loadable metadata use documented contract expectations.",
+  "coverage": [
+    "Stable GNU format directives for regular and empty files, including mode, type, size, quoting, block size, device fields, alignment, and literal percent.",
+    "Directory and symbolic-link lstat reporting, plus -L and --dereference target reporting.",
+    "Hard-link count, multiple operands, -- operand termination, and partial failure status when one operand is missing.",
+    "--printf backslash escapes and its lack of an implicit trailing newline.",
+    "Bash type/help metadata and the documented associative-array -A extension."
+  ],
+  "exclusions": [
+    "Raw default and -t output are not byte-compared because their inode and creation-time fields vary between the harness's independently constructed reference and candidate fixture trees; stable format directives are compared directly.",
+    "Birth-time and access/modify/change-time output is omitted because those values vary with filesystem support and fixture creation timing.",
+    "Character and block device directives and the device-specific default layout are deferred: fixed-major/minor nodes require a disposable VM or an independently reviewed metadata mock. No host device is used.",
+    "Security-context output and unusual filesystems are not covered."
+  ],
+  "cases": [
+    {
+      "id": "regular-directives",
+      "kind": "parity",
+      "purpose": "Compare many stable coreutils format directives on a small regular file with a fixed mode, including quoting, widths, device identifiers, and literal percent.",
+      "requires": [
+        "stat"
+      ],
+      "script": "umask 027\nprintf 'abcde' > data\nstat --format='%a|%A|%b|%B|%d|%D|%f|%F|%g|%G|%h|%m|%n|%N|%o|%r|%s|%t|%T|%u|%U|%Hd|%Ld|%Hr|%Lr|%08s|%-6s|%%' data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-and-directory",
+      "kind": "parity",
+      "purpose": "Check the empty-file type boundary and directory classification with explicit deterministic permissions.",
+      "requires": [
+        "stat"
+      ],
+      "script": "umask 077\n: > empty\nmkdir folder\nstat -c '%n|%F|%a' empty folder",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-lstat",
+      "kind": "parity",
+      "purpose": "Check that the default operation reports a symlink itself, including its target, type, size, and permissions.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'xy' > target\nln -s target link\nstat --format='%n|%F|%s|%a|%A|%N|%h' link",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "symlink-dereference",
+      "kind": "parity",
+      "purpose": "Compare both documented dereference spellings while reporting the target file metadata through the link name.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'target-data' > target\nln -s target link\nstat -L -c 'short:%n|%F|%s|%a' link\nstat --dereference --format='long:%n|%F|%s|%a' link",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "hardlinks-multiple",
+      "kind": "parity",
+      "purpose": "Check multiple-operand output and the link count for two names sharing one fixture inode.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'z' > first\nln first second\nstat -c '%n|%F|%s|%h' first second",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "printf-escapes",
+      "kind": "parity",
+      "purpose": "Compare --printf tab, newline, hexadecimal escapes, zero padding, percent handling, and no implicit final newline.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'ok' > sample\nstat --printf='[%n]\\t%08s\\x21\\n%%' sample",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "partial-missing-operand",
+      "kind": "parity",
+      "purpose": "Check that a missing middle operand sets failure status and emits a diagnostic while successful operands before and after it still produce output.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'a' > before\nprintf 'bb' > after\nif stat --format='%n=%s' before missing after; then exit 0; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dash-operand",
+      "kind": "parity",
+      "purpose": "Check that -- ends option parsing and permits statting a relative filename beginning with a dash.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'x' > -dash\nstat --format='%n|%F|%s' -- -dash",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "directive-error-semantics",
+      "kind": "parity",
+      "purpose": "Record GNU's status/output behavior for an unavailable security context and an unknown directive, then compare the loadable's command statuses and output without hiding either result.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf 'x' > data\nif context=$(stat --format='%C' data); then context_rc=0; else context_rc=$?; fi\nprintf 'context=%s|%s\\n' \"$context_rc\" \"$context\"\nif unknown=$(stat --format='%Q' data); then unknown_rc=0; else unknown_rc=$?; fi\nprintf 'unknown=%s|%s\\n' \"$unknown_rc\" \"$unknown\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check the Bash builtin type and that Bash help resolves the loadable's documented help entry. This is metadata coverage, not stat operation coverage.",
+      "script": "[[ $(type -t stat) == builtin ]]\nhelp stat > /dev/null\nprintf 'type=builtin\\nhelp=available\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "type=builtin\nhelp=available\n"
+    },
+    {
+      "id": "array-extension",
+      "kind": "contract",
+      "purpose": "Check the documented -A associative-array extension against a fixed relative regular-file fixture and independently known name, type, permissions, size, and empty link target.",
+      "script": "umask 027\nprintf 'abc' > array-data\nstat -A info array-data\nprintf '%s|%s|%s|%s|<%s>\\n' \"${info[name]}\" \"${info[type]}\" \"${info[perms]}\" \"${info[size]}\" \"${info[link]}\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "array-data|regular file|-rw-r-----|3|<>\n"
+    },
+    {
+      "id": "device-node-formats",
+      "kind": "deferred",
+      "purpose": "Qualify character/block device fields and the device-specific default layout with fixed metadata.",
+      "reason": "Requires a future disposable VM with safely created, non-host-attached character and block nodes of fixed major/minor numbers, or an independently reviewed stat metadata mock. The current fixture boundary has no device creation or host device access; expected checks should include %t/%T, %Hr/%Lr, -L behavior, and the device default layout."
+    },
+    {
+      "id": "unknown-directive-continues",
+      "kind": "parity",
+      "purpose": "An unknown directive prints a question mark and preserves the rest of the output.",
+      "script": "printf x > data; stat -c 'before:%Q:%s:after' data",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "stat"
+      ]
+    },
+    {
+      "id": "context-error-continues",
+      "kind": "parity",
+      "purpose": "Unavailable security labels fail while completing both file records.",
+      "script": "printf x > data; printf yz > second; stat -c '%s:%C:%n' data second",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "stat"
+      ]
+    }
+  ]
+}

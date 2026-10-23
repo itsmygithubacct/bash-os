@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "loadable": "find",
+  "reference": "GNU find on the runner's reference PATH is the independent oracle for parity cases. The runner validates each script status against GNU find, compares stdout bytes and the resulting fixture tree, including modes and links. The metadata contract uses Bash type/help builtins and the documented loadable registry; it is not counted as operation coverage.",
+  "coverage": [
+    "Bounded depth and default -print on a small nested relative tree.",
+    "Boolean expression grouping, basename globs, and -prune traversal control.",
+    "-P, -L, and -H behavior on an ordinary directory symlink without a cycle.",
+    "Byte-size boundaries, exact and symbolic permission masks, and -empty.",
+    "Documented -printf escapes for path, relative path, basename, dirname, type, and byte size.",
+    "NUL-delimited output for a filename containing a newline.",
+    "Safe -exec ; and -exec + argument substitution using printf only.",
+    "Postorder -delete of relative entries inside the disposable fixture tree.",
+    "GNU error status for a missing starting path and an -L symlink cycle.",
+    "Bash type/help metadata contract; xdev mount-boundary behavior is deferred.",
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+  ],
+  "exclusions": [
+    "No host or system paths, mount operations, network activity, devices, credentials, or process-control operations are used.",
+    "-xdev requires a distinct mounted filesystem and is recorded as deferred.",
+    "The suite does not qualify time predicates, ownership lookup, every file type, GNU's full -printf language, or predicates documented as out of scope (-links, -inum, and -anewer)."
+  ],
+  "cases": [
+    {
+      "id": "depth-default-print",
+      "kind": "parity",
+      "purpose": "Check bounded recursive traversal, both depth limits, and find's default -print action on a tree with files and directories at several depths.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/one/two tree/two\nprintf a > tree/top\nprintf b > tree/one/mid\nprintf c > tree/one/two/deep\nprintf d > tree/two/other\nfind tree -mindepth 1 -maxdepth 2 -type f"
+    },
+    {
+      "id": "expression-prune",
+      "kind": "parity",
+      "purpose": "Check explicit Boolean grouping and short-circuit -prune so a matching subtree is neither printed nor descended into.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/cache/sub tree/src tree/keep\nprintf cache > tree/cache/sub/ignored.txt\nprintf source > tree/src/kept.txt\nprintf keep > tree/keep/also.txt\nfind tree -path 'tree/cache' -prune -o \\( -type f -name '*.txt' \\) -print"
+    },
+    {
+      "id": "symlink-follow-modes",
+      "kind": "parity",
+      "purpose": "Compare physical, full-follow, and command-line-argument-follow traversal on one relative directory symlink.",
+      "requires": [
+        "find",
+        "ln",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/real\nprintf data > tree/real/item\nln -s real tree/alias\nfind -P tree -type l\nfind -L tree -maxdepth 2 -type f\nfind -H tree/alias -maxdepth 2 -type f"
+    },
+    {
+      "id": "size-perm-empty",
+      "kind": "parity",
+      "purpose": "Check byte-count size predicates, exact and symbolic permission matching, and empty-file/empty-directory detection.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/empty-dir\nprintf 1234 > tree/exact\nprintf 12 > tree/small\n: > tree/empty-file\n(umask 077; printf private > tree/private)\nfind tree -type f -size 4c -perm 0644\nfind tree -type f -size +2c -perm -u+rw\nfind tree -empty"
+    },
+    {
+      "id": "printf-fields",
+      "kind": "parity",
+      "purpose": "Check the documented subset of -printf against GNU find for full and root-relative paths, basename, dirname, type, size, and newline escaping.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/sub\nprintf abc > 'tree/sub/name with space'\nfind tree -type f -printf '%p|%P|%f|%h|%y|%s\\n'"
+    },
+    {
+      "id": "print0-newline-name",
+      "kind": "parity",
+      "purpose": "Check that -print0 safely delimits a single relative path whose filename contains an embedded newline.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree\nname=$'line\\nbreak'\nprintf x > \"tree/$name\"\nfind tree -type f -print0"
+    },
+    {
+      "id": "safe-exec-forms",
+      "kind": "parity",
+      "purpose": "Check literal {} substitution, preservation of spaces and shell metacharacters in a filename, and both per-entry and batched -exec using only printf.",
+      "requires": [
+        "find",
+        "mkdir",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree\nname='a space * $(literal)'\nprintf x > \"tree/$name\"\nfind \"tree/$name\" -exec printf '<%s>\\n' 'pre{}post' \\;\nfind \"tree/$name\" -exec printf '[%s]\\n' '{}' +"
+    },
+    {
+      "id": "delete-fixture-postorder",
+      "kind": "parity",
+      "purpose": "Check that -delete removes matched files and then their now-empty descendants in postorder while -mindepth preserves the fixture root; all effects stay inside the disposable relative tree.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/a/b tree/c\nprintf x > tree/a/b/file\nprintf y > tree/c/file\nfind tree -mindepth 1 -delete"
+    },
+    {
+      "id": "missing-start-path",
+      "kind": "parity",
+      "purpose": "Check GNU find's nonzero status and diagnostic when a relative command-line starting path does not exist.",
+      "requires": [
+        "find"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "find absent"
+    },
+    {
+      "id": "symlink-cycle-diagnostic",
+      "kind": "parity",
+      "purpose": "Check GNU find -L cycle reporting and nonzero status on a minimal relative symlink loop, without following the loop indefinitely.",
+      "requires": [
+        "find",
+        "ln",
+        "mkdir"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "script": "mkdir -p tree/sub\nprintf x > tree/sub/file\nln -s .. tree/sub/back\nfind -L tree -type f"
+    },
+    {
+      "id": "bash-metadata",
+      "kind": "contract",
+      "purpose": "Check Bash's documented type/help metadata for the registered find loadable without invoking a search operation.",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nhelp=available\n",
+      "script": "builtin type -t find\nif builtin help -s find >/dev/null 2>&1; then\n  builtin printf 'help=available\\n'\nelse\n  builtin printf 'help=missing\\n'\n  exit 1\nfi"
+    },
+    {
+      "id": "xdev-mount-boundary",
+      "kind": "deferred",
+      "purpose": "Exercise -xdev/-mount on a directory tree containing a second filesystem.",
+      "reason": "Requires a disposable Linux VM that can create or mount a second filesystem beneath a relative fixture path, then run GNU find and the candidate against it. The provided runner forbids mount operations and offers only a single-filesystem fixture; no mount was attempted here."
+    },
+    {
+      "id": "missing-path-continuation",
+      "kind": "parity",
+      "purpose": "Missing starting paths must report failure while valid paths before and after are searched.",
+      "requires": [
+        "find",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf first > first\nprintf last > last\nfind first absent last",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "dangling-link-follow-fallback",
+      "kind": "parity",
+      "purpose": "Dangling symlinks remain searchable under -P, -H, and -L.",
+      "requires": [
+        "find",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "ln -s missing alias\nfind -P alias -type l\nfind -H alias -type l\nfind -L alias -type l",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "sibling-alias-hardlinks",
+      "kind": "parity",
+      "purpose": "Two noncyclic directory spellings are both visited; hardlink aliases are separate results.",
+      "requires": [
+        "find",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "mkdir -p tree/real\nprintf keep > tree/real/file\nln tree/real/file tree/real/hard\nln -s real tree/alias\nfind -L tree -type f",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cycle-other-root-continuation",
+      "kind": "parity",
+      "purpose": "A detected cycle reports failure while an independent later root is still visited.",
+      "requires": [
+        "find",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "mkdir -p tree/sub\nln -s .. tree/sub/back\nprintf last > last\nfind -L tree last -type f",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "nondirectory-path-error",
+      "kind": "parity",
+      "purpose": "An invalid path component is a diagnosed search failure; later operands still print.",
+      "requires": [
+        "find",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf data > file\nfind file/child file",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "maxdepth-unreadable-directory",
+      "kind": "parity",
+      "purpose": "A depth-zero search reports the starting directory without trying to read its children.",
+      "requires": [
+        "find",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "mkdir tree\nprintf hidden > tree/file\nchmod 000 tree\nif find tree -maxdepth 0; then rc=0; else rc=$?; fi\nchmod 700 tree\nexit \"$rc\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

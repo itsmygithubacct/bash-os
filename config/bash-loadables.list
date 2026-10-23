@@ -11,48 +11,48 @@
 
 basename|basename
 cat|cat
-chmod|chmod
+chmod|chmod [-Rfv] MODE FILE...
 cut|cut -b LIST | -c LIST | -f LIST [-d DELIM] [-s] [-z] [--complement] [--output-delimiter=STRING] [-a ARRAY] [FILE...]
-dirname|dirname
+dirname|dirname [-z|--zero] [--] NAME...
 head|head
-id|id
+id|id [-aGgnruz] [USER ...]
 ln|ln
-logname|logname
-mkdir|mkdir
-mkfifo|mkfifo
-mktemp|mktemp
-pathchk|pathchk
-printenv|printenv
-realpath|realpath
+logname|logname [--help] [--version]
+mkdir|mkdir [-p] [-m MODE] DIRECTORY...
+mkfifo|mkfifo [-m mode] fifo_name [fifo_name ...]
+mktemp|mktemp [-dqu] [-t PREFIX] [-v VAR] [TEMPLATE...]
+pathchk|pathchk [-p] pathname ...
+printenv|printenv [-0|--null] [--] [VARIABLE...]
+realpath|realpath [-a varname] [-ceqsv] pathname [pathname...]
 rm|rm
-rmdir|rmdir
+rmdir|rmdir [-p] DIRECTORY...
 seq|seq [-w] [-s STRING] [-f FORMAT] [FIRST [INCREMENT]] LAST
-sleep|sleep
+sleep|sleep NUMBER[SUFFIX]...
 stat|stat
-strftime|strftime
-strptime|strptime
+strftime|strftime format [seconds]
+strptime|strptime [-f format] date-time
 sync|sync
-tee|tee
-tty|tty
-uname|uname
-unlink|unlink
-whoami|whoami
+tee|tee [-ai] [file ...]
+tty|tty [-s]
+uname|uname [-amnrsvpio]
+unlink|unlink name
+whoami|whoami [--help] [--version]
 fdflags|fdflags
 finfo|finfo
-fltexpr|fltexpr
+fltexpr|fltexpr [-p] expression
 getconf|getconf
-setpgid|setpgid
+setpgid|setpgid pid pgrpid
 bashio|bashio
 bashpoll|bashpoll
 bashinotify|bashinotify
 bashclock|bashclock
 bashjson|bashjson
 binhex|binhex
-bashbase64|bashbase64
-bashtermraw|bashtermraw
+bashbase64|bashbase64 [-d] [-u] [-i] [-w N] [FILE] > output
+bashtermraw|bashtermraw raw|cooked|size|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off
 bashkmod|bashkmod
-bashmount|bashmount
-bashlogger|bashlogger
+bashmount|bashmount [-t TYPE] [-o OPTS] [-B|-R|--remount|-u|-l|--mountpoint|--findmnt-table] SRC DST
+bashlogger|bashlogger [-i] [-t TAG] [-p PRI] [MESSAGE...]
 bashsyslogd|bashsyslogd
 ls|ls [OPTION]... [FILE]...
 cp|cp [-r] SRC... DST
@@ -69,12 +69,12 @@ free|free memory summary
 dd|dd if= of= ...
 df|df [FILE]
 du|du [FILE]
-reboot|reboot the system
-halt|halt the system
-poweroff|power off the system
+reboot|reboot [-f] [-n]
+halt|halt [-f] [-n]
+poweroff|poweroff [-f] [-n]
 chown|chown OWNER[:GROUP] FILE...
-rngseed|Credit and refresh the kernel random seed
-rtspcat|RTSP/RTP H.264 client, access units out as framed records
+rngseed|rngseed load|save FILE
+rtspcat|rtspcat URL [-o FD] [-n COUNT] [-k SECS] [-t SECS] [-v]
 httpd|HTTP server primitive: listen, accept one request, reply
 chgrp|chgrp GROUP FILE...
 tr|tr
@@ -90,7 +90,7 @@ hostname|hostname
 rev|rev
 fold|fold
 comm|comm
-paste|paste [-d LIST] FILE...
+paste|paste [-s] [-z] [-d DELIM] [FILE...]
 pgrep|pgrep PATTERN
 pidof|pidof NAME
 killall|killall NAME
@@ -113,8 +113,8 @@ ping|ping [-c N] HOST
 pax|POSIX pax ustar archives: list, -w create, -r extract, -rw copy
 
 # compression (libzstd loaded at run time; no link-time dependency)
-zstd|Compress or decompress files with zstd
-zstdcat|Decompress zstd files to standard output
+zstd|zstd [-1..-19] [-d] [-c] [-f] [-k|--rm] [-o OUT] [FILE...]
+zstdcat|zstdcat [FILE...]
 
 # util-linux family (imported 2026-09-06 from the upstream collection)
 flock|Manage advisory file locks via flock(2)
@@ -128,7 +128,7 @@ lsattr|List file attributes on a Linux filesystem
 mkswap|Set up a Linux swap area
 swapon|Enable a swap area, or list the active ones
 swapoff|Disable a swap area
-wipefs|Detect or wipe filesystem / swap signatures
+wipefs|wipefs [-a] [-n] device...
 fincore|Count pages of a file resident in core (the page cache)
 fsfreeze|Suspend or resume access to a filesystem
 losetup|Set up and control loop devices

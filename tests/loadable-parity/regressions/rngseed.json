@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "loadable": "rngseed",
+  "reference": "No GNU command-line equivalent is available. Contract expectations use Bash builtin metadata behavior (type -t, help -d, help -s) and the documented rngseed short description and synopsis from the builtin contract.",
+  "coverage": [
+    "Bash reports rngseed as an enabled builtin through type -t.",
+    "Bash help -d exposes the documented one-line description.",
+    "Bash help -s exposes the documented usage synopsis.",
+    "Deferred operation cases identify the kernel and syscall-mock requirements for safe future validation."
+  ],
+  "exclusions": [
+    "No rngseed load or save operation is invoked in this suite because load can credit the kernel entropy pool and save reads kernel randomness.",
+    "No live entropy-credit behavior, random-pool readiness, or power-loss durability is claimed; these require a disposable VM and/or an intercepting syscall/filesystem mock."
+  ],
+  "cases": [
+    {
+      "id": "builtin_type",
+      "kind": "contract",
+      "purpose": "Confirm Bash classifies rngseed as a builtin, independent of executable lookup.",
+      "script": "type -t rngseed",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_description",
+      "kind": "contract",
+      "purpose": "Check the one-line description advertised by the Bash help metadata against the documented rngseed contract.",
+      "script": "help -d rngseed",
+      "expected_status": 0,
+      "stdout": "rngseed - Credit and refresh the kernel random seed.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_synopsis",
+      "kind": "contract",
+      "purpose": "Check that Bash help exposes the documented load|save FILE synopsis.",
+      "script": "help -s rngseed",
+      "expected_status": 0,
+      "stdout": "rngseed: rngseed load|save FILE\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "save_transaction",
+      "kind": "deferred",
+      "purpose": "Validate save output length, 0600 permissions, atomic replacement, sync ordering, and temporary-file cleanup.",
+      "reason": "Requires a disposable VM with a controlled initialized random source or an intercepting getrandom/syscall mock plus a private fixture filesystem. The test must assert exactly 512 output bytes, mode 0600, complete file and directory sync/rename behavior, and cleanup without using host randomness or storage."
+    },
+    {
+      "id": "load_entropy_credit",
+      "kind": "deferred",
+      "purpose": "Validate accepted seed sizes, durable consume-before-credit ordering, exact credit payload, and nonblocking refresh behavior.",
+      "reason": "Requires a disposable VM with a dedicated random pool and explicit privilege/capability setup, or a mock that intercepts RNDADDENTROPY and getrandom. The future test must capture the exact seed bytes and credit count, prove unlink plus directory fsync precedes credit, and avoid the host kernel entropy pool entirely."
+    },
+    {
+      "id": "load_failure_recovery",
+      "kind": "deferred",
+      "purpose": "Exercise invalid seed files, credit denial, post-consumption refresh failures, and restoration/cleanup paths.",
+      "reason": "Requires a disposable VM or syscall/filesystem fault-injection mock that can deny entropy credit and inject read, sync, rename, and getrandom failures. Verify invalid files are untouched and never credited, failed credit restores identical uncredited bytes when restoration succeeds, consumed bytes are never reusable after refresh failure, and no temporary file or FD is leaked. Power-cut durability additionally needs filesystem crash/recovery testing in a disposable VM."
+    }
+  ]
+}

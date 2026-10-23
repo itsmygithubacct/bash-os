@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "loadable": "finfo",
+  "reference": "GNU coreutils stat supplies file metadata fields and GNU readlink supplies symlink targets. GNU stat %A plus a Bash permission-string encoder covers finfo -p; Bash printf strftime formatting independently encodes the documented ctime-style date. GNU ln/mkdir/chmod are used only on relative private fixture paths. No finfo output is used as a reference expectation.",
+  "coverage": [
+    "Bash builtin type and documented help metadata.",
+    "Zero and nonzero file sizes across multiple operands.",
+    "Octal and symbolic permissions, permission masks, and directory metadata.",
+    "Numeric and named owner/group fields.",
+    "Hardlink counts and portable inode/device/file-ID relationships.",
+    "Symlink targets, including a dangling target, and symlink size.",
+    "Numeric access/modify/change times and ctime-style formatting under C locale and UTC.",
+    "Missing path status and diagnostic presence.",
+    "Sticky-bit mode behavior against GNU stat."
+  ],
+  "exclusions": [
+    "The no-option multi-line summary is not compared because it includes device/inode values and wall-clock fields that vary across fresh isolated roots.",
+    "Character and block device metadata is deferred because this fixture environment cannot safely create privileged device nodes.",
+    "The /dev/fd interface is not exercised because fixture scripts avoid absolute device/system paths."
+  ],
+  "cases": [
+    {
+      "id": "finfo-size",
+      "purpose": "Compare -s for empty and fixed-content files, with both operands in one call, against GNU stat %s.",
+      "kind": "parity",
+      "requires": [
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() { shift; stat -c '%s' -- \"$@\"; }\nfi\n: > empty\nprintf 'abcde' > payload\nfinfo -s empty payload"
+    },
+    {
+      "id": "finfo-permissions",
+      "purpose": "Compare -o, -p, and -P for regular files and a directory with controlled modes; GNU stat %a/%A and an independent compact-permission encoder provide expected output.",
+      "kind": "parity",
+      "requires": [
+        "stat",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1 path mode user group other mask\n    shift\n    case $option in\n      -o) stat -c '%a' -- \"$@\" ;;\n      -p)\n        for path in \"$@\"; do\n          mode=$(stat -c '%A' -- \"$path\")\n          mode=${mode:1}\n          user=${mode:0:3}; user=${user//-/}\n          group=${mode:3:3}; group=${group//-/}\n          other=${mode:6:3}; other=${other//-/}\n          printf 'u=%s,g=%s,o=%s\\n' \"$user\" \"$group\" \"$other\"\n        done ;;\n      -P)\n        mask=$1; shift\n        for path in \"$@\"; do\n          mode=$(stat -c '%a' -- \"$path\")\n          printf '%o\\n' \"$((8#$mode & 8#$mask))\"\n        done ;;\n    esac\n  }\nfi\numask 027\n: > group-readable\nmkdir public-directory\numask 077\n: > private\numask 022\nfinfo -o group-readable public-directory private\nfinfo -p group-readable private\nfinfo -P 0640 group-readable private"
+    },
+    {
+      "id": "finfo-sticky-mode",
+      "purpose": "Set the sticky bit on a private regular fixture and compare finfo -o/-P with GNU stat. GNU reports mode 1777; the pinned implementation omits the sticky bit from both octal outputs, so this assertion preserves the confirmed incompatibility.",
+      "kind": "parity",
+      "requires": [
+        "chmod",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1 mask mode path\n    shift\n    case $option in\n      -o) stat -c '%a' -- \"$@\" ;;\n      -p)\n        for path in \"$@\"; do\n          mode=$(stat -c '%A' -- \"$path\")\n          mode=${mode:1}\n          user=${mode:0:3}; user=${user//-/}\n          group=${mode:3:3}; group=${group//-/}\n          other=${mode:6:3}; other=${other//-/}\n          printf 'u=%s,g=%s,o=%s\\n' \"$user\" \"$group\" \"$other\"\n        done ;;\n      -P)\n        mask=$1; shift\n        for path in \"$@\"; do\n          mode=$(stat -c '%a' -- \"$path\")\n          printf '%o\\n' \"$((8#$mode & 8#$mask))\"\n        done ;;\n    esac\n  }\nfi\n: > sticky\nchmod 1777 sticky\nfinfo -o sticky\nfinfo -p sticky\nfinfo -P 7777 sticky"
+    },
+    {
+      "id": "finfo-owner-group",
+      "purpose": "Compare numeric and named UID/GID fields against GNU stat for the same private fixture owner.",
+      "kind": "parity",
+      "requires": [
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1 format\n    shift\n    case $option in\n      -u) format='%u' ;;\n      -U) format='%U' ;;\n      -g) format='%g' ;;\n      -G) format='%G' ;;\n    esac\n    stat -c \"$format\" -- \"$@\"\n  }\nfi\n: > owner\nfinfo -u owner\nfinfo -U owner\nfinfo -g owner\nfinfo -G owner"
+    },
+    {
+      "id": "finfo-links-identifiers",
+      "purpose": "Compare link counts to GNU stat and check portable identity invariants: two hardlink names share an inode/file ID, a distinct live file differs, and files share a device. Raw inode numbers are intentionally not compared across separate fixture roots.",
+      "kind": "parity",
+      "requires": [
+        "ln",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1 format\n    shift\n    case $option in\n      -n) format='%h' ;;\n      -i) format='%i' ;;\n      -d) format='%d' ;;\n      -f) format='%d:%i' ;;\n    esac\n    stat -c \"$format\" -- \"$@\"\n  }\nfi\nprintf 'linked data' > original\nln original hardlink\n: > distinct\nfinfo -n original hardlink distinct\ninode1=$(finfo -i original)\ninode2=$(finfo -i hardlink)\ninode3=$(finfo -i distinct)\n[[ $inode1 =~ ^[0-9]+$ && $inode1 == \"$inode2\" && $inode1 != \"$inode3\" ]]\ndevice1=$(finfo -d original)\ndevice2=$(finfo -d distinct)\n[[ $device1 =~ ^[0-9]+$ && $device1 == \"$device2\" ]]\nfileid1=$(finfo -f original)\nfileid2=$(finfo -f hardlink)\nfileid3=$(finfo -f distinct)\n[[ $fileid1 =~ ^[0-9]+:[0-9]+$ && $fileid1 == \"$fileid2\" && $fileid1 != \"$fileid3\" ]]\nprintf 'inode, device, and file-ID relationships agree\\n'"
+    },
+    {
+      "id": "finfo-symlinks",
+      "purpose": "Compare -l target strings and -s symlink sizes with GNU readlink/stat for a target containing spaces and a dangling symlink; tree comparison also checks symlink targets.",
+      "kind": "parity",
+      "requires": [
+        "ln",
+        "readlink",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1\n    shift\n    if [[ ${1-} == -- ]]; then shift; fi\n    case $option in\n      -l) readlink -- \"$@\" ;;\n      -s) stat -c '%s' -- \"$@\" ;;\n    esac\n  }\nfi\nprintf 'target bytes' > 'target file'\nln -s 'target file' 'link with spaces'\nln -s 'missing target' dangling\nfinfo -l -- 'link with spaces' dangling\nfinfo -s -- 'link with spaces' dangling"
+    },
+    {
+      "id": "finfo-times",
+      "purpose": "Compare numeric atime/mtime/ctime to GNU stat and independently encode ctime-style dates with Bash printf under the runner's C locale and UTC. Assertions use a creation-time window so timestamps remain comparable across fresh reference/candidate roots.",
+      "kind": "parity",
+      "requires": [
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() {\n    local option=$1 format path value rendered\n    shift\n    case $option in\n      -a|-A) format='%X' ;;\n      -m|-M) format='%Y' ;;\n      -c|-C) format='%Z' ;;\n    esac\n    for path in \"$@\"; do\n      value=$(stat -c \"$format\" -- \"$path\")\n      case $option in\n        -A|-M|-C)\n          printf -v rendered '%(%a %b %e %H:%M:%S %Y)T' \"$value\"\n          printf '%s\\n' \"$rendered\" ;;\n        *) printf '%s\\n' \"$value\" ;;\n      esac\n    done\n  }\nfi\nprintf -v start '%(%s)T' -1\nprintf 'time data' > timestamp\natime=$(finfo -a timestamp)\nmtime=$(finfo -m timestamp)\nctime=$(finfo -c timestamp)\nprintf -v end '%(%s)T' -1\n[[ $mtime =~ ^[0-9]+$ && $atime == \"$mtime\" && $ctime == \"$mtime\" && $mtime -ge $start && $mtime -le $end ]]\nprintf -v expected '%(%a %b %e %H:%M:%S %Y)T' \"$mtime\"\n[[ $(finfo -A timestamp) == \"$expected\" ]]\n[[ $(finfo -M timestamp) == \"$expected\" ]]\n[[ $(finfo -C timestamp) == \"$expected\" ]]\nprintf 'numeric timestamps and ctime-style formatting agree\\n'"
+    },
+    {
+      "id": "finfo-missing-path",
+      "purpose": "Compare the documented nonzero failure for a missing file using GNU stat as the independent oracle; diagnostic wording is allowed to differ while its presence and the command status are checked.",
+      "kind": "parity",
+      "requires": [
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "script": "if ! builtin type finfo >/dev/null 2>&1; then\n  finfo() { shift; stat -c '%s' -- \"$@\"; }\nfi\nif finfo -s missing; then\n  rc=0\nelse\n  rc=$?\nfi\nprintf 'status=%s\\n' \"$rc\""
+    },
+    {
+      "id": "finfo-invalid-mask",
+      "purpose": "Check the documented -P octal mask contract rejects an invalid mask with a nonzero status and diagnostic; this option-parse failure has no GNU stat equivalent.",
+      "kind": "contract",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": "",
+      "script": ": > item\nfinfo -P not-octal item"
+    },
+    {
+      "id": "finfo-help-metadata",
+      "purpose": "Check Bash registers finfo as a builtin and exposes its documented help summary.",
+      "kind": "contract",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin registration and help text are available\n",
+      "script": "kind=$(type -t finfo)\ndoc=$(help finfo)\n[[ $kind == builtin && $doc == *'Display information about file attributes.'* ]]\nprintf 'builtin registration and help text are available\\n'"
+    },
+    {
+      "id": "finfo-device-nodes",
+      "purpose": "Exercise the full-summary major/minor and device-type fields for character and block nodes.",
+      "kind": "deferred",
+      "reason": "Requires a disposable VM or reviewed privileged fixture builder that can create synthetic character and block device nodes with known major/minor values and remove them afterward. The provided unprivileged fixture sandbox cannot safely create such nodes; no device operation is executed here."
+    }
+  ]
+}

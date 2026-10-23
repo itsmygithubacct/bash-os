@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "loadable": "wc",
+  "reference": "GNU Coreutils wc selected from the harness reference PATH; each expected status is checked against GNU before candidate output and fixture-tree parity are assessed.",
+  "coverage": [
+    "Default counts and selected line, word, byte, character, and maximum-line fields on ASCII text, empty input, and a final line without newline.",
+    "UTF-8 character counts and display widths, including multibyte, combining, and wide characters.",
+    "Unicode whitespace and POSIXLY_CORRECT word separation.",
+    "Tabs, carriage returns, form feeds, and maximum display-line width.",
+    "Multiple named inputs, per-file rows, total sums, maximum width totals, and repeated stdin operands.",
+    "NUL-separated filename lists with a space in a name, an unterminated final name, and an empty list.",
+    "Missing-file and invalid-option exit behavior.",
+    "Bash builtin type and help metadata against the documented wc help entry."
+  ],
+  "exclusions": [
+    "Only the harness-provided GNU wc version and C/C.UTF-8 locales are compared; other GNU versions, locales, and libc behavior are not qualified.",
+    "Read/write error injection, malformed UTF-8 matrices, very large inputs, and every GNU option combination are outside this compact suite."
+  ],
+  "cases": [
+    {
+      "id": "basic-fields",
+      "kind": "parity",
+      "purpose": "Compare default output and selected fields on ordinary C-locale text, including repeated spaces, tabs, an empty file, and a final unterminated line.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'one two  three\\n\\tfour\\nno-final' > basic\n: > empty\nwc basic\nwc -lwcmL basic\nwc -c basic\nwc empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "utf8-counts-width",
+      "kind": "parity",
+      "purpose": "Compare bytes, characters, words, line count, and display width for valid UTF-8 with a multibyte accented letter, a wide character, a combining sequence, and a tab.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf 'caf\\303\\251 \\347\\225\\214 e\\314\\201 \\360\\237\\230\\200\\tX\\n' > utf8\nwc -lwcmL utf8\nwc -m utf8",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unicode-posix-spaces",
+      "kind": "parity",
+      "purpose": "Check GNU's Unicode nonbreaking-space word behavior and its POSIXLY_CORRECT change while an ordinary Unicode em space remains a separator.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf 'a\\302\\240b c\\342\\200\\203d\\n' > spaces\nwc -w spaces\nexport POSIXLY_CORRECT=1\nwc -w spaces\nunset POSIXLY_CORRECT\nwc -w spaces",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "max-line-width",
+      "kind": "parity",
+      "purpose": "Compare -L tab-stop expansion, wide-character display width, and line-width resets at carriage return and form feed.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf '\\tabc\\tX\\r123456\\fwide\\347\\225\\214\\n' > widths\nwc -lL widths\nwc -L widths",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multi-file-totals",
+      "kind": "parity",
+      "purpose": "Compare multi-file rows and totals for selected fields, including sum semantics and maximum-of-files semantics for -L.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'a\\nb' > first\nprintf 'one two\\n' > 'second file'\n: > empty\nwc -lwcmL first 'second file' empty\nwc -m first 'second file' empty",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "stdin-repeated-operands",
+      "kind": "parity",
+      "purpose": "Compare stdin counting, repeated '-' operands after stdin is consumed, and an empty pipeline input.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'first line\\nsecond' | wc -m - -\nprintf '' | wc -l -w -c",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "files0-from",
+      "kind": "parity",
+      "purpose": "Compare --files0-from with a filename containing spaces, an unterminated final NUL-list entry, and the documented successful empty-list behavior.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'alpha\\n' > first\nprintf 'two words\\n' > 'file with space'\nprintf 'first\\0file with space' > names\nwc -m --files0-from=names\n: > empty-list\nwc -w --files0-from=empty-list",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-file-status",
+      "kind": "parity",
+      "purpose": "Check GNU-compatible nonzero status and diagnostic behavior when a named input cannot be opened.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nif wc -l missing; then exit 99; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Check the GNU wc invalid-option exit status and diagnostic policy; preserve any candidate status difference as a parity failure.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nif wc -z; then exit 99; else rc=$?; fi\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "bash-type-help-contract",
+      "kind": "contract",
+      "purpose": "Check that wc is exposed as a Bash builtin and that Bash help contains the documented wc summary; this is metadata coverage, not wc operation coverage.",
+      "script": "kind=$(type -t wc)\n[[ $kind == builtin ]] || exit 1\ndoc=$(help wc)\n[[ $doc == *'Count lines / words / bytes / chars in FILEs (or stdin).'* ]] || exit 1\nprintf 'builtin\\nhelp-doc-ok\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp-doc-ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "Missing values, missing file lists and conflicting operands report status 1 and preserve private inputs.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'file\\0' > names\nprintf x > file\nwc --files0-from",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "Missing values, missing file lists and conflicting operands report status 1 and preserve private inputs.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'file\\0' > names\nprintf x > file\nwc --files0-from=absent",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "Missing values, missing file lists and conflicting operands report status 1 and preserve private inputs.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'file\\0' > names\nprintf x > file\nwc --files0-from=names file",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-3",
+      "kind": "parity",
+      "purpose": "Missing values, missing file lists and conflicting operands report status 1 and preserve private inputs.",
+      "requires": [
+        "wc"
+      ],
+      "script": "printf 'file\\0' > names\nprintf x > file\nwc -?",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

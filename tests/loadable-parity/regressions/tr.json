@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "loadable": "tr",
+  "reference": "GNU coreutils tr, invoked by system Bash with the harness C locale (LC_ALL=C) and UTC environment. Parity expectations are generated independently by that GNU command; byte and error cases use small literal inputs.",
+  "coverage": [
+    "Bash metadata: tr is a builtin and help tr succeeds.",
+    "Range translation and POSIX lower/upper classes.",
+    "Octal NUL deletion and octal escaped range translation over binary stdin.",
+    "Squeezing POSIX blank characters.",
+    "Complemented deletion combined with squeezing.",
+    "Complemented translation including NUL and 0xff bytes in the C locale.",
+    "GNU -t SET1 truncation and SET2 indefinite repeat with a trailing element.",
+    "Invalid character class and unknown option diagnostics/status."
+  ],
+  "exclusions": [
+    "Multibyte and locale-specific character semantics are not covered; parity fixtures intentionally run in LC_ALL=C.",
+    "No in-place file operation is applicable: tr transforms stdin to stdout."
+  ],
+  "cases": [
+    {
+      "id": "type_help_metadata",
+      "purpose": "Check the Bash contract that tr is registered as a builtin and its help entry is available, without counting this as operation parity.",
+      "kind": "contract",
+      "script": "type -t tr; help tr >/dev/null",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\n"
+    },
+    {
+      "id": "translate_ranges",
+      "purpose": "Translate an ASCII range while leaving nonmembers and blank lines unchanged.",
+      "kind": "parity",
+      "script": "printf 'abc XYZ\\n\\n' | tr 'a-z' 'A-Z'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "translate_posix_classes",
+      "purpose": "Translate the POSIX lower class to upper and preserve digits and existing uppercase bytes.",
+      "kind": "parity",
+      "script": "printf 'abc XYZ\\n123\\n' | tr '[:lower:]' '[:upper:]'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "delete_octal_nul",
+      "purpose": "Delete NUL bytes selected by an octal escape while retaining surrounding bytes and the final newline.",
+      "kind": "parity",
+      "script": "printf 'A\\000B\\000\\n' | tr -d '\\000'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "squeeze_blank_class",
+      "purpose": "Squeeze repeated spaces and tabs from the POSIX blank class, including separate adjacent runs.",
+      "kind": "parity",
+      "script": "printf 'a   b\\t\\t c\\n' | tr -s '[:blank:]'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "complement_delete_squeeze",
+      "purpose": "Delete bytes outside alphanumeric-or-space and then squeeze the surviving spaces.",
+      "kind": "parity",
+      "script": "printf 'A !!!  2??\\n' | tr -cds '[:alnum:] ' ' '",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "translate_octal_range",
+      "purpose": "Translate a three-byte octal range and preserve an input byte outside the range.",
+      "kind": "parity",
+      "script": "printf '\\000\\001\\002Z' | tr '\\000-\\002' 'abc'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "complement_translate_binary",
+      "purpose": "Translate the complement of one byte in the C locale, covering NUL and 0xff and the default final-character extension of SET2.",
+      "kind": "parity",
+      "script": "printf 'A\\000\\377' | tr -c 'A' 'xyz'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "truncate_set1",
+      "purpose": "Check GNU -t truncation: only the first two members of SET1 translate when SET2 has two characters.",
+      "kind": "parity",
+      "script": "printf 'abcabc\\n' | tr -t 'abc' 'XY'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "indefinite_repeat_suffix",
+      "purpose": "Check GNU SET2 [c*] padding while reserving a trailing explicit replacement character.",
+      "kind": "parity",
+      "script": "printf 'abcde\\n' | tr 'abcde' '[x*]y'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "reject_unknown_class",
+      "purpose": "A misspelled POSIX character class must fail with a diagnostic instead of silently translating literal bracket text.",
+      "kind": "parity",
+      "script": "printf 'abc\\n' | tr '[:bogus:]' x",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "reject_unknown_option",
+      "purpose": "An unsupported option must be rejected with a diagnostic; this also checks the externally visible status code against GNU tr.",
+      "kind": "parity",
+      "script": "printf 'abc\\n' | tr -z a b",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "GNU tr argument errors return status 1 and a diagnostic without translating input.",
+      "script": "tr ",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "GNU tr argument errors return status 1 and a diagnostic without translating input.",
+      "script": "tr a",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "GNU tr argument errors return status 1 and a diagnostic without translating input.",
+      "script": "tr -d",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-3",
+      "kind": "parity",
+      "purpose": "GNU tr argument errors return status 1 and a diagnostic without translating input.",
+      "script": "tr -s",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-4",
+      "kind": "parity",
+      "purpose": "GNU tr argument errors return status 1 and a diagnostic without translating input.",
+      "script": "tr -Q",
+      "requires": [
+        "tr"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

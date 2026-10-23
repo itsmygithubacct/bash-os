@@ -8,7 +8,7 @@
  * named output is published atomically only after the entire stream succeeds.
  *
  *   zstd [-1..-19] [-d] [-c] [-f] [-k] [--rm] [-q] [-o OUT] FILE...
- *   zstdcat FILE...                     = zstd -dc   (loadables/zstdcat.c)
+ *   zstdcat [FILE...]                   = zstd -dcf  (loadables/zstdcat.c)
  *
  * The subset of zstd(1) a script uses, with zstd(1)'s semantics: the source
  * is kept unless --rm; an existing target is not overwritten without -f;
@@ -125,12 +125,20 @@ zs_write_all (int fd, const unsigned char *b, size_t n, const char *name)
 /* Fixed input/output buffers plus libzstd's level-dependent context/window.
    Never allocate from a file size or a frame's declared content size. */
 static int
-zs_stream (int input, int output, int decompress, int level,
+zs_frame_magic (const unsigned char *p)
+{
+  return (p[0] == 0x28 && p[1] == 0xb5 && p[2] == 0x2f && p[3] == 0xfd)
+         || ((p[0] & 0xf0) == 0x50 && p[1] == 0x2a && p[2] == 0x4d && p[3] == 0x18);
+}
+
+static int
+zs_stream (int input, int output, int decompress, int level, int pass_through,
            const char *src, const char *target)
 {
   unsigned char *in = NULL, *out = NULL;
   ZSTD_CStream *cs = NULL; zs_dstream *ds = NULL;
-  size_t r = 1; int rc = -1;
+  size_t r = 1, pending = 0;
+  int rc = -1, eof = 0, frame_start = 1, raw = 0;
   in = malloc (ZS_CHUNK); out = malloc (ZS_CHUNK);
   if (!in || !out) goto nomem;
   if (decompress)
@@ -153,17 +161,39 @@ zs_stream (int input, int output, int decompress, int level,
     {
       ssize_t n;
       zs_inbuf ib;
-      do n = read (input, in, ZS_CHUNK); while (n < 0 && errno == EINTR);
+      do n = read (input, in + pending, ZS_CHUNK - pending); while (n < 0 && errno == EINTR);
       if (n < 0) { builtin_error ("%s: read: %s", src, strerror (errno)); goto done; }
-      if (n == 0) break;
-      ib.src = in; ib.size = (size_t) n; ib.pos = 0;
+      eof = n == 0;
+      if (eof && pending == 0) break;
+      ib.src = in; ib.size = pending + (size_t) n; ib.pos = 0;
+      pending = 0;
       for (;;)
         {
           zs_outbuf ob = { out, ZS_CHUNK, 0 };
           size_t before = ib.pos;
+          if (decompress && pass_through && frame_start && !raw)
+            {
+              size_t left = ib.size - ib.pos;
+              /* A pipe may split the magic anywhere. Retain the undecided
+                 prefix; never fall back after a recognized frame has begun. */
+              if (left < 4 && !eof)
+                {
+                  memmove (in, in + ib.pos, left);
+                  pending = left;
+                  break;
+                }
+              if (left < 4 || !zs_frame_magic (in + ib.pos)) raw = 1;
+              frame_start = 0;
+            }
+          if (raw)
+            {
+              if (zs_write_all (output, in + ib.pos, ib.size - ib.pos, target) < 0) goto done;
+              break;
+            }
           r = decompress ? zs.decompressStream (ds, &ob, &ib) : zs.compressStream (cs, &ob, &ib);
           if (zs.isError (r)) goto liberr;
           if (zs_write_all (output, out, ob.pos, target) < 0) goto done;
+          if (decompress && r == 0) frame_start = 1;
           if (ib.pos == ib.size && (!decompress || ob.pos < ob.size || r == 0)) break;
           if (ib.pos == before && ob.pos == 0)
             {
@@ -174,7 +204,7 @@ zs_stream (int input, int output, int decompress, int level,
     }
   if (decompress)
     {
-      if (r != 0) { builtin_error ("%s: truncated input, the last frame is incomplete", src); goto done; }
+      if (!raw && r != 0) { builtin_error ("%s: truncated input, the last frame is incomplete", src); goto done; }
     }
   else
     do
@@ -250,6 +280,7 @@ zs_one (const char *src, const struct zs_opts *o)
       if (out_fd < 0) { builtin_error ("%s: %s", target, strerror (errno)); temp[0] = 0; goto out; }
     }
   if (zs_stream (in_fd, to_stdout ? 1 : out_fd, o->decompress, o->level,
+                 o->force && (o->to_stdout || (from_stdin && !o->outname)),
                  src, to_stdout ? "stdout" : target) < 0) goto out;
   /* Close input before publication/removal so delayed input errors also keep
      the old destination and source. Never close the shell's stdin. */
@@ -302,7 +333,7 @@ out:
 int
 bashos_zstd_run (WORD_LIST *list, int cat_mode)
 {
-  struct zs_opts o = { ZS_DEFAULT_LEVEL, cat_mode, cat_mode, 0, 0, 0, NULL };
+  struct zs_opts o = { ZS_DEFAULT_LEVEL, cat_mode, cat_mode, cat_mode, 0, 0, NULL };
   WORD_LIST *l; int status = EXECUTION_SUCCESS, nfiles = 0;
 
   for (l = list; l; l = l->next)
@@ -338,15 +369,16 @@ bashos_zstd_run (WORD_LIST *list, int cat_mode)
             if (p[1]) o.outname = p + 1;
             else if (l->next) { l = l->next; o.outname = l->word->word; }
             else { builtin_error ("-o: option requires an argument"); builtin_usage (); return EX_USAGE; }
+            o.to_stdout = 0;
             done = 1; break;
           default: builtin_error ("-%c: invalid option", *p); builtin_usage (); return EX_USAGE;
           }
     }
   for (WORD_LIST *m = l; m; m = m->next) nfiles++;
-  if (nfiles == 0) { builtin_error ("no input file (use - for stdin)"); builtin_usage (); return EX_USAGE; }
   if (o.outname && nfiles > 1) { builtin_error ("-o names one target; there are %d inputs", nfiles); return EX_USAGE; }
   if (zs_load () < 0) return EXECUTION_FAILURE;
 
+  if (nfiles == 0 && zs_one ("-", &o) < 0) status = EXECUTION_FAILURE;
   for (; l; l = l->next)
     if (zs_one (l->word->word, &o) < 0) status = EXECUTION_FAILURE;
   if (fflush (stdout) == EOF) status = EXECUTION_FAILURE;
@@ -367,6 +399,7 @@ char *zstd_doc[] = {
   "The source is kept unless --rm, an existing",
   "target is not overwritten without -f, and the target takes the source's",
   "mode and modification time. \"-\" reads stdin and writes stdout.",
+  "With no FILE, read standard input. -dcf passes unrecognized input through.",
   "",
   "  -1 .. -19    compression level (default 3)",
   "  -d           decompress",
@@ -383,5 +416,5 @@ char *zstd_doc[] = {
 };
 
 struct builtin zstd_struct = {
-  "zstd", zstd_builtin, BUILTIN_ENABLED, zstd_doc, "zstd [-1..-19] [-d] [-c] [-f] [-k|--rm] [-o OUT] FILE...", 0
+  "zstd", zstd_builtin, BUILTIN_ENABLED, zstd_doc, "zstd [-1..-19] [-d] [-c] [-f] [-k|--rm] [-o OUT] [FILE...]", 0
 };

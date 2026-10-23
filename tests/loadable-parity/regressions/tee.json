@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "loadable": "tee",
+  "reference": "GNU coreutils tee is the independent oracle for parity cases, run by system Bash with the same bounded fixture script. The runner verifies each expected reference status before comparing stdout bytes and the complete private fixture tree. Contract expectations come from Bash type/help behavior and the documented tee synopsis/options in the stock Bash loadable source.",
+  "coverage": [
+    "Binary and unterminated input copied to stdout and multiple files",
+    "Empty input creates empty output files",
+    "Overwrite truncates an existing file while retaining its mode",
+    "Append mode preserves prior bytes and creates additional outputs",
+    "End-of-options handling for a relative filename beginning with a dash",
+    "A failed output open is reported while healthy outputs still receive input",
+    "Invalid option and closed-stdin error statuses",
+    "Bash builtin availability and documented help metadata"
+  ],
+  "exclusions": [
+    "SIGINT behavior for -i is deferred because this runner has no controlled per-process signal scheduler.",
+    "Per-sink write-error recovery is deferred because this runner does not provide a deterministic private write-fault injection sink; /dev/full is not used.",
+    "No live terminal, device, host path, or external process signal is exercised."
+  ],
+  "cases": [
+    {
+      "id": "binary-multiple-outputs",
+      "kind": "parity",
+      "purpose": "Copy NUL-containing input without a final newline to stdout and two output files.",
+      "requires": [
+        "tee"
+      ],
+      "script": "printf 'left\\000middle\\nright' | tee copy-a copy-b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-input-files",
+      "kind": "parity",
+      "purpose": "EOF on the runner-provided empty stdin should still create each named output as an empty file.",
+      "requires": [
+        "tee"
+      ],
+      "script": "tee empty-a empty-b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "overwrite-existing-file",
+      "kind": "parity",
+      "purpose": "Overwrite truncates existing contents; its existing mode remains unchanged despite a later umask change.",
+      "requires": [
+        "tee"
+      ],
+      "script": "umask 077; printf 'old contents\\n' > target; umask 022; printf 'new\\n' | tee target",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "append-existing-and-new",
+      "kind": "parity",
+      "purpose": "Combined -a and -i options append binary input to an existing file and create a second output; absent a signal, bytes match GNU tee.",
+      "requires": [
+        "tee"
+      ],
+      "script": "printf 'prefix:' > existing; printf '\\000tail' | tee -ai existing added",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "end-options-dash-name",
+      "kind": "parity",
+      "purpose": "The -- option terminator permits tee to create a relative file whose name begins with a dash.",
+      "requires": [
+        "tee"
+      ],
+      "script": "printf 'dash-name\\n' | tee -- -destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "failed-open-keeps-healthy-output",
+      "kind": "parity",
+      "purpose": "A missing-parent output reports failure but must not prevent stdout or a later healthy file from receiving the full input.",
+      "requires": [
+        "tee"
+      ],
+      "script": "printf 'survives\\n' | tee missing-parent/blocked healthy",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "invalid-option-status",
+      "kind": "parity",
+      "purpose": "Check GNU tee's exit status and diagnostic policy for an unrecognized option; preserve a candidate status difference as a failure.",
+      "requires": [
+        "tee"
+      ],
+      "script": "tee --not-a-real-option",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "closed-stdin",
+      "kind": "parity",
+      "purpose": "A closed standard input descriptor is a read error and should return the GNU tee failure status.",
+      "requires": [
+        "tee"
+      ],
+      "script": "tee <&-",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Bash type metadata identifies tee as a builtin when the executable search path is empty.",
+      "script": "PATH=; type -t tee",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-doc-options",
+      "kind": "contract",
+      "purpose": "The Bash help text exposes the documented synopsis and the append and interrupt options described by the stock tee loadable documentation.",
+      "script": "PATH=; doc=$(help tee); [[ $doc == *\"tee [-ai] [file ...]\"* && $doc == *appended* && $doc == *\"ignores interrupts\"* ]]; printf 'help exposes synopsis and -a/-i documentation\\n'",
+      "expected_status": 0,
+      "stdout": "help exposes synopsis and -a/-i documentation\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "interrupt-ignore-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise the documented difference between tee and tee -i when SIGINT arrives during a blocked bounded read.",
+      "reason": "Requires a disposable VM or equivalent isolated process harness with a deterministic signal scheduler. A future fixture should deliver SIGINT only to the tee test process while it reads from a bounded private pipe, then compare tee and tee -i against GNU for exit status, continued bytes on every output and prompt completion. No host or system-wide process signal is appropriate."
+    },
+    {
+      "id": "write-error-recovery-deferred",
+      "kind": "deferred",
+      "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
+      "reason": "Requires a disposable VM with a reviewed deterministic write-fault mock that returns EIO for one private output after open, without relying on /dev/full. A future fixture should compare GNU and candidate status, stderr policy, prompt termination, stdout bytes and the complete contents of healthy sinks for a small bounded input."
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "loadable": "bashmount",
+  "reference": "GNU Bash builtin metadata/help conventions; GNU util-linux findmnt reading the same synthetic mountinfo fixture with --tab-file --raw --noheadings and the ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE columns; GNU util-linux mountpoint for mountpoint state/device-number checks. The findmnt adapter maps its raw space-separated fields to the builtin's tab-separated table and decodes findmnt's raw \\x20 spelling to the literal spaces produced by decoding mountinfo's \\040 escape.",
+  "coverage": [
+    "Bash recognizes bashmount as an enabled builtin and exposes its long help text.",
+    "Synthetic mountinfo parsing with and without optional fields before the separator, including VFS options and source fields.",
+    "Kernel octal escape decoding for spaces in mount target and source, independently compared with findmnt raw output.",
+    "Empty mountinfo table and missing table path behavior.",
+    "Mountpoint device number for the private fixture working directory and quiet classification of a regular file.",
+    "Empty table returns status 1 without rows, matching findmnt no-match behavior."
+  ],
+  "exclusions": [
+    "No mount(2), umount2(2), bind, recursive bind, remount, or propagation operation is executed; these have explicit deferred VM/mock cases.",
+    "The live /proc/self/mountinfo listing path (-l) is not compared; table parsing is exercised against deterministic relative fixture files instead.",
+    "Block-device mountpoint mode (-x), fstab, UUID/LABEL source resolution, real devices, and kernel-specific filesystem behavior are not exercised. UUID/LABEL and fstab handling are documented as outside the v1 implementation."
+  ],
+  "cases": [
+    {
+      "id": "type_builtin",
+      "kind": "contract",
+      "purpose": "Bash type metadata must identify the statically enabled command as a builtin.",
+      "script": "type -t bashmount",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_metadata",
+      "kind": "contract",
+      "purpose": "Bash help must use bashmount's configured static short description and expose the full documented options text.",
+      "script": "help bashmount",
+      "expected_status": 0,
+      "stdout": "bashmount: bashmount [-t TYPE] [-o OPTS] [-B|-R|--remount|-u|-l|--mountpoint|--findmnt-table] SRC DST\n    Mount/umount filesystems and list /proc/self/mountinfo.\n    \n        bashmount [-t TYPE] [-o OPTS] SRC DST\n        bashmount -B SRC DST              # bind mount\n        bashmount -R SRC DST              # recursive bind mount\n        bashmount --remount [-o OPTS] DST\n        bashmount -l                       # list mounts\n        bashmount -u [-l|-f] DST           # umount (-l detach, -f force)\n        bashmount --mountpoint [-q|-d|-x] PATH\n        bashmount --findmnt-table [PATH]\n        bashmount -h | --help\n    \n    OPTS is a comma-separated subset of:\n        ro / rw / nosuid / nodev / noexec / noatime / nodiratime /\n        relatime / strictatime / sync / dirsync / mand / bind / remount /\n        shared / private / slave / unbindable / rec\n    Unknown tokens are passed as fs-specific data (e.g. tmpfs size=64m).\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "table_rows",
+      "kind": "parity",
+      "purpose": "Parse ordinary mountinfo rows, both with no optional fields and with multiple optional fields before the dash; retain the specified eight tab-separated columns.",
+      "script": "printf '%s\\n' \\\n  '10 1 8:1 / / rw,relatime - ext4 /dev/vda1 rw,errors=remount-ro' \\\n  '11 10 0:41 / /mnt/cache rw,nosuid,nodev shared:1 master:2 - tmpfs tmpfs rw,size=65536k' \\\n  '12 10 8:2 / /srv/data ro,noexec - ext4 /dev/vdb1 ro' \\\n  > mountinfo\nrun_case() {\n  if [[ $(type -t bashmount) == builtin ]]; then\n    bashmount --findmnt-table mountinfo\n    return $?\n  fi\n\n  local rows id parent dev root target opts fstype source\n  rows=$(findmnt --tab-file mountinfo --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE)\n  while IFS=$' \\t' read -r id parent dev root target opts fstype source; do\n    [[ -n $id ]] || continue\n    # findmnt --raw spells an encoded space as \\x20; the builtin decodes\n    # mountinfo's kernel octal escape to a literal space.\n    id=${id//\\\\x20/ }\n    parent=${parent//\\\\x20/ }\n    dev=${dev//\\\\x20/ }\n    root=${root//\\\\x20/ }\n    target=${target//\\\\x20/ }\n    opts=${opts//\\\\x20/ }\n    fstype=${fstype//\\\\x20/ }\n    source=${source//\\\\x20/ }\n    printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\\n      \"$id\" \"$parent\" \"$dev\" \"$root\" \"$target\" \"$opts\" \"$fstype\" \"$source\"\n  done <<< \"$rows\"\n}\nrun_case",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "findmnt"
+      ]
+    },
+    {
+      "id": "table_escaped_space",
+      "kind": "parity",
+      "purpose": "Decode Linux mountinfo's \\040 representation in target and source fields while preserving the tab-delimited output structure.",
+      "script": "printf '%s\\n' \\\n  '21 1 0:50 / /mnt/with\\040space rw,relatime shared:10 - tmpfs tmp\\040source rw,size=4k' \\\n  > mountinfo\nrun_case() {\n  if [[ $(type -t bashmount) == builtin ]]; then\n    bashmount --findmnt-table mountinfo\n    return $?\n  fi\n\n  local rows id parent dev root target opts fstype source\n  rows=$(findmnt --tab-file mountinfo --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE)\n  while IFS=$' \\t' read -r id parent dev root target opts fstype source; do\n    [[ -n $id ]] || continue\n    # findmnt --raw spells an encoded space as \\x20; the builtin decodes\n    # mountinfo's kernel octal escape to a literal space.\n    id=${id//\\\\x20/ }\n    parent=${parent//\\\\x20/ }\n    dev=${dev//\\\\x20/ }\n    root=${root//\\\\x20/ }\n    target=${target//\\\\x20/ }\n    opts=${opts//\\\\x20/ }\n    fstype=${fstype//\\\\x20/ }\n    source=${source//\\\\x20/ }\n    printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\\n      \"$id\" \"$parent\" \"$dev\" \"$root\" \"$target\" \"$opts\" \"$fstype\" \"$source\"\n  done <<< \"$rows\"\n}\nrun_case",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "findmnt"
+      ]
+    },
+    {
+      "id": "table_empty",
+      "kind": "parity",
+      "purpose": "Compare the zero-byte table boundary with GNU findmnt's empty-file status; both sides must emit no rows and the expected status is checked against findmnt.",
+      "script": ": > mountinfo\nrun_case() {\n  if [[ $(type -t bashmount) == builtin ]]; then\n    bashmount --findmnt-table mountinfo\n    return $?\n  fi\n\n  local rows id parent dev root target opts fstype source\n  rows=$(findmnt --tab-file mountinfo --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE)\n  while IFS=$' \\t' read -r id parent dev root target opts fstype source; do\n    [[ -n $id ]] || continue\n    # findmnt --raw spells an encoded space as \\x20; the builtin decodes\n    # mountinfo's kernel octal escape to a literal space.\n    id=${id//\\\\x20/ }\n    parent=${parent//\\\\x20/ }\n    dev=${dev//\\\\x20/ }\n    root=${root//\\\\x20/ }\n    target=${target//\\\\x20/ }\n    opts=${opts//\\\\x20/ }\n    fstype=${fstype//\\\\x20/ }\n    source=${source//\\\\x20/ }\n    printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\\n      \"$id\" \"$parent\" \"$dev\" \"$root\" \"$target\" \"$opts\" \"$fstype\" \"$source\"\n  done <<< \"$rows\"\n}\nrun_case",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "findmnt"
+      ]
+    },
+    {
+      "id": "table_missing_path",
+      "kind": "parity",
+      "purpose": "A missing relative table path must fail with a diagnostic and no table output; the script explicitly captures either CLI's nonzero result.",
+      "script": "if [[ $(type -t bashmount) == builtin ]]; then\n  if bashmount --findmnt-table absent; then exit 97; else rc=$?; fi\nelse\n  if findmnt --tab-file absent --raw --noheadings -o ID,PARENT,MAJ:MIN,FSROOT,TARGET,VFS-OPTIONS,FSTYPE,SOURCE; then exit 96; else rc=$?; fi\nfi\n[[ $rc -ne 0 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "requires": [
+        "findmnt"
+      ]
+    },
+    {
+      "id": "mountpoint_devno",
+      "kind": "parity",
+      "purpose": "For the fixture tree's current mountpoint, print the same major:minor device number as util-linux mountpoint using only the relative path '.'.",
+      "script": "if [[ $(type -t bashmount) == builtin ]]; then\n  bashmount --mountpoint -d .\nelse\n  mountpoint -d .\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mountpoint"
+      ]
+    },
+    {
+      "id": "mountpoint_quiet_regular_file",
+      "kind": "parity",
+      "purpose": "Quiet mode classifies a regular fixture file as not being a mountpoint; the script captures and checks the CLI-specific nonzero status while emitting no output.",
+      "script": ": > regular\nif [[ $(type -t bashmount) == builtin ]]; then\n  if bashmount --mountpoint --quiet regular; then exit 97; else rc=$?; fi\n  [[ $rc -eq 1 ]]\nelse\n  if mountpoint --quiet regular; then exit 96; else rc=$?; fi\n  [[ $rc -ne 0 ]]\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mountpoint"
+      ]
+    },
+    {
+      "id": "defer_mount_syscall",
+      "kind": "deferred",
+      "purpose": "Exercise plain typed mounts, option flag mapping, and filesystem-specific data forwarding.",
+      "reason": "Requires a disposable VM with a dedicated mount namespace and disposable tmpfs target, or a reviewed mount(2) mock that records source, target, type, flags, and data. The fixture must verify successful tmpfs mount effects and option combinations such as ro,nosuid,size=64k without touching host mounts."
+    },
+    {
+      "id": "defer_bind_remount",
+      "kind": "deferred",
+      "purpose": "Exercise bind, recursive bind, and remount behavior including read-only follow-up remount handling.",
+      "reason": "Requires a disposable VM with nested fixture mountpoints in a private mount namespace, or a reviewed syscall mock that records both mount(2) calls and their flags. Verify -B, -R, --remount, and bind plus ro semantics without changing host mounts."
+    },
+    {
+      "id": "defer_umount_flags",
+      "kind": "deferred",
+      "purpose": "Exercise ordinary, lazy, and force unmount flag mapping and observable cleanup.",
+      "reason": "Requires a disposable VM with disposable private-namespace mounts, or a reviewed umount2(2) mock that records flags. Verify normal, -l/MNT_DETACH, and -f/MNT_FORCE calls and cleanup/error behavior; no unmount operation is run in this suite."
+    }
+  ]
+}

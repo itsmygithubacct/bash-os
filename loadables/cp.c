@@ -6,7 +6,7 @@
  *
  *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
  *           metadata, recursive). Matches GNU coreutils cp -a semantics.
- *   -f      force: replace existing dest after the source is opened
+ *   -f      force: remove dest only if opening it for write fails
  *   -i      interactive: prompt before overwrite (refused unless tty)
  *   -p      preserve mode/owner/group/timestamps
  *   -R, -r  recursive
@@ -14,7 +14,7 @@
  *   -H      follow symlinks given on the command line; preserve nested
  *   -L      always follow symlinks
  *   -P      don't follow symlinks
- *           (default: don't follow; clone symlinks as symlinks)
+ *           (default: follow unless recursive)
  *
  * Multiple SOURCE → DEST must be a directory. Single SOURCE → DEST
  * is either a target file or, if it's a directory, the file is
@@ -58,7 +58,7 @@ typedef struct bcp_dir {
 
 typedef struct {
     int fflag, iflag, nflag, pflag, rflag, vflag;
-    int Hflag, Lflag, aflag;
+    int Hflag, Lflag, Pflag, aflag;
     bcp_link *links;
     bcp_dir *directories;
 } bcp_opts;
@@ -248,17 +248,21 @@ bcp_copy_regular (const char *src, const char *dst,
             while (c != EOF && c != '\n') c = getchar ();
             if (answer != 'y' && answer != 'Y') return -1;
         }
-        if (!o->fflag && S_ISLNK (dst_st.st_mode)) {
+        if (S_ISLNK (dst_st.st_mode)) {
             struct stat target_st;
             if (stat (dst, &target_st) < 0) {
-                builtin_error ("%s: existing destination is a dangling symlink (use -f to replace it)", dst);
+                builtin_error ("stat destination %s: %s", dst, strerror (errno));
+                return -1;
+            }
+            if (target_st.st_dev == sst->st_dev && target_st.st_ino == sst->st_ino) {
+                builtin_error ("'%s' and '%s' are the same file", src, dst);
                 return -1;
             }
             if (S_ISDIR (target_st.st_mode)) {
                 builtin_error ("%s: existing destination symlink target is a directory", dst);
                 return -1;
             }
-        } else if (!o->fflag && S_ISDIR (dst_st.st_mode)) {
+        } else if (S_ISDIR (dst_st.st_mode)) {
             builtin_error ("%s: existing destination is a directory", dst);
             return -1;
         }
@@ -270,8 +274,8 @@ bcp_copy_regular (const char *src, const char *dst,
         builtin_error ("open %s: %s", src, strerror (errno));
         return -1;
     }
-    if (dst_exists && (o->fflag ||
-        (o->aflag && S_ISREG (dst_st.st_mode) && dst_st.st_nlink > 1))) {
+    if (dst_exists &&
+        o->aflag && S_ISREG (dst_st.st_mode) && dst_st.st_nlink > 1) {
         if (unlink (dst) < 0 && errno != ENOENT) {
             builtin_error ("unlink %s: %s", dst, strerror (errno));
             close (sfd);
@@ -281,6 +285,17 @@ bcp_copy_regular (const char *src, const char *dst,
     /* Open without truncating: dst may be a symlink back to src, and the
        lstat check above compares the link's inode rather than its target. */
     int dfd = open (dst, O_WRONLY | O_CREAT | (o->nflag ? O_EXCL : 0), sst->st_mode & 0777);
+    /* -f is a retry after a failed write-open, not unconditional removal.
+       Keep openable symlinks, hardlinks and destination modes intact. The
+       source is already open and same-file checks precede any unlink. */
+    if (dfd < 0 && o->fflag && !o->nflag && dst_exists) {
+        if (unlink (dst) < 0) {
+            builtin_error ("unlink %s: %s", dst, strerror (errno));
+            close (sfd);
+            return -1;
+        }
+        dfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, sst->st_mode & 0777);
+    }
     if (dfd < 0) {
         if (o->nflag && errno == EEXIST) { close (sfd); return 1; }
         builtin_error ("open %s for write: %s", dst, strerror (errno));
@@ -526,7 +541,8 @@ static int
 bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
 {
     struct stat sst;
-    int follow = o->Lflag || (top_level_source && o->Hflag);
+    int follow = o->Lflag || (top_level_source && o->Hflag)
+                 || (!o->rflag && !o->Pflag);
     int rc;
     if (follow) rc = stat (src, &sst);
     else        rc = lstat (src, &sst);
@@ -617,27 +633,23 @@ cp_builtin (WORD_LIST *list)
             for (int i = 1; w[i]; i++) {
                 switch (w[i]) {
                 case 'a':
-                    /* Archive: -dpR. -d means "no-dereference + preserve
-                       link" — bashcp's default symlink mode is already
-                       no-dereference (clones symlinks as symlinks) so
-                        we clear Hflag/Lflag to guarantee that even if a
-                       prior char in the same word set them; pflag covers
-                       the metadata side (lchown for symlinks is already
-                       handled in bcp_copy_symlink). Recursion via rflag. */
+                    /* Archive: -dpR. Reset earlier dereference flags;
+                       later -H/-L/-P may select a different symlink mode. */
                     o.pflag = 1;
                     o.aflag = 1;
                     o.rflag = 1;
                     o.Hflag = 0;
                     o.Lflag = 0;
+                    o.Pflag = 1;
                     break;
                 case 'f': o.fflag = 1; break;
                 case 'i': o.iflag = 1; o.nflag = 0; break;
                 case 'n': o.nflag = 1; o.iflag = 0; break;
                 case 'p': o.pflag = 1; break;
                 case 'R': case 'r': o.rflag = 1; break;
-                case 'H': o.Hflag = 1; o.Lflag = 0; break;
-                case 'L': o.Lflag = 1; break;
-                case 'P': o.Hflag = 0; o.Lflag = 0; break;
+                case 'H': o.Hflag = 1; o.Lflag = 0; o.Pflag = 0; break;
+                case 'L': o.Lflag = 1; o.Hflag = 0; o.Pflag = 0; break;
+                case 'P': o.Hflag = 0; o.Lflag = 0; o.Pflag = 1; break;
                 case 'v': o.vflag = 1; break;
                 default:
                     builtin_error ("unknown flag: -%c", w[i]);
@@ -714,7 +726,7 @@ char *cp_doc[] = {
     "",
     "    -a   archive: same as -dpR (clone symlinks as symlinks,",
     "         preserve hard links and metadata, recursive)",
-    "    -f   force: replace existing dest after the source is opened",
+    "    -f   force: remove dest only if opening it for write fails",
     "    -i   interactive: prompt before overwrite",
     "    -n, --no-clobber   skip existing destinations; last -i/-n wins",
     "    -p   preserve mode/owner/group/timestamps",
@@ -723,7 +735,7 @@ char *cp_doc[] = {
     "    -H   follow symlinks named on the command line",
     "    -L   always follow symlinks",
     "    -P   don't follow symlinks",
-    "         (default: clone symlinks as symlinks)",
+    "         (default: follow unless recursive)",
     (char *)NULL
 };
 

@@ -106,16 +106,28 @@ class CopyTests(BuiltinTest):
                 self.assertEqual(target.read_text(), "new\n")
                 self.assertTrue((self.root / "alias").is_symlink())
 
-    def test_force_replaces_destination_symlink(self):
+    def test_force_rejects_destination_symlink_to_source(self):
         source = self.root / "source"
         source.write_text("keep this data\n")
         alias = self.root / "alias"
         alias.symlink_to("source")
         result = self.shell("cp -f source alias")
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("same file", result.stderr)
         self.assertEqual(source.read_text(), "keep this data\n")
         self.assertEqual(alias.read_text(), source.read_text())
-        self.assertFalse(alias.is_symlink())
+        self.assertTrue(alias.is_symlink())
+
+    def test_force_follows_other_destination_symlink(self):
+        (self.root / "source").write_text("replacement\n")
+        target = self.root / "target"
+        target.write_text("old contents\n")
+        alias = self.root / "alias"
+        alias.symlink_to("target")
+        result = self.shell("cp -f source alias")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target.read_text(), "replacement\n")
+        self.assertTrue(alias.is_symlink())
 
 
 class CrossDeviceMoveTests(BuiltinTest):

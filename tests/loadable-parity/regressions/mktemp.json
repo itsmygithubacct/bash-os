@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "loadable": "mktemp",
+  "reference": "System Bash invoking the installed GNU coreutils mktemp executable with PATH=/usr/bin:/bin. The candidate runs the same fixture with an empty executable path, so mktemp resolves to the bash-os builtin. Contract cases use the documented Bash 5.3 loadable interface in stock-loadables/mktemp.c; the -u fix is in patches/mktemp-u.patch.",
+  "coverage": [
+    "Bash type/help availability metadata (counted as contract coverage, not operation coverage).",
+    "Explicit-template regular-file creation, uniqueness, writing, and reading.",
+    "Explicit-template directory creation and use of the created directory.",
+    "-u name generation for file and directory templates, including nonexistent parents and no filesystem effects.",
+    "Documented Bash-only -v variable assignment and default shtmp.XXXXXX template under relative TMPDIR.",
+    "GNU-compatible quiet creation failure, diagnostic creation failure, invalid template, and invalid option status."
+  ],
+  "exclusions": [
+    "Exact file and directory mode bits are not asserted; successful creation uses randomized pathnames and shell tests alone cannot inspect octal modes with the candidate executable path empty.",
+    "The Bash-specific -t prefix option, multiple templates, readonly-variable failures, and GNU options outside the shared subset are not covered.",
+    "No deferred cases are needed for this bounded mktemp filesystem behavior; every operation runs only inside the disposable fixture namespace."
+  ],
+  "cases": [
+    {
+      "id": "builtin_metadata",
+      "kind": "contract",
+      "purpose": "Verify through Bash builtins that mktemp is installed as a builtin and that its help metadata is available. This is metadata coverage, not operation coverage.",
+      "script": "[[ $(type -t mktemp) == builtin ]]\ntype -t mktemp\nhelp mktemp > help.txt\n[[ -s help.txt ]]\nprintf 'help metadata available\\n'",
+      "expected_status": 0,
+      "stdout": "builtin\nhelp metadata available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "default_template",
+      "kind": "contract",
+      "purpose": "Check the documented Bash-loadable default shtmp.XXXXXX template and use of TMPDIR, with a relative private directory. The generated name is consumed by in-script assertions and is not used as the expected output.",
+      "script": "export TMPDIR=.\npath=$(mktemp)\n[[ $path == ./shtmp.?????? ]]\n[[ -f $path ]]\nprintf 'default template uses relative TMPDIR\\n'",
+      "expected_status": 0,
+      "stdout": "default template uses relative TMPDIR\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "variable_assignment",
+      "kind": "contract",
+      "purpose": "Check the documented Bash-specific -v option: it assigns the generated pathname to the named shell variable and still writes that pathname to stdout. Both randomized values are compared within the fixture against the independent documented contract.",
+      "script": "mktemp -v generated 'variable.XXXXXX' > emitted.txt\nread -r printed < emitted.txt\n[[ $generated == variable.?????? ]]\n[[ $printed == $generated ]]\n[[ -f $generated ]]\nprintf 'variable and stdout contain the created path\\n'",
+      "expected_status": 0,
+      "stdout": "variable and stdout contain the created path\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "regular_file_creation",
+      "kind": "parity",
+      "purpose": "Create two explicit-template files and verify each six-X pathname, distinctness, regular-file type, and writable/readable contents. Randomized basenames differ across the GNU and candidate processes, so compare_tree is false; the fixture checks each side's resulting files and emits stable output.",
+      "script": "first=$(mktemp 'file.XXXXXX')\nsecond=$(mktemp 'file.XXXXXX')\n[[ $first == file.?????? ]]\n[[ $second == file.?????? ]]\n[[ $first != $second ]]\n[[ -f $first && -f $second ]]\nprintf 'alpha\\n' > $first\nprintf 'beta\\n' > $second\nread -r one < $first\nread -r two < $second\n[[ $one == alpha && $two == beta ]]\nprintf 'two distinct regular files created and writable\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mktemp"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "directory_creation",
+      "kind": "parity",
+      "purpose": "Create an explicit-template directory, check its randomized pathname and directory type, then write and read a child file. The randomized directory name differs across processes, so compare_tree is false; the fixture checks the effects on each side and emits stable output.",
+      "script": "dir=$(mktemp -d 'directory.XXXXXX')\n[[ $dir == directory.?????? ]]\n[[ -d $dir && ! -f $dir ]]\nprintf 'child-data\\n' > $dir/child\nread -r child < $dir/child\n[[ $child == child-data ]]\nprintf 'directory created and usable\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mktemp"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "name_only_no_side_effects",
+      "kind": "parity",
+      "purpose": "Check -u for file and directory names when their parent directories do not exist. The generated paths must have six replacement characters, and neither names nor parent directories may be created. The filesystem tree remains directly comparable.",
+      "script": "file=$(mktemp -u 'absent/file.XXXXXX')\n[[ $file == absent/file.?????? ]]\n[[ ! -e absent ]]\ndir=$(mktemp -d -u 'absent-dir/directory.XXXXXX')\n[[ $dir == absent-dir/directory.?????? ]]\n[[ ! -e absent-dir ]]\nprintf 'name-only generation left the tree untouched\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mktemp"
+      ]
+    },
+    {
+      "id": "quiet_creation_failure",
+      "kind": "parity",
+      "purpose": "A regular-file creation under a nonexistent parent must fail, while -q suppresses diagnostics and leaves the fixture tree unchanged.",
+      "script": "mktemp -q 'missing/file.XXXXXX'",
+      "expected_status": 1,
+      "stderr": "empty",
+      "requires": [
+        "mktemp"
+      ]
+    },
+    {
+      "id": "creation_failure_diagnostic",
+      "kind": "parity",
+      "purpose": "The same nonexistent-parent creation without -q must fail with a diagnostic and leave the fixture tree unchanged. Wording may vary between GNU and Bash.",
+      "script": "mktemp 'missing/file.XXXXXX'",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mktemp"
+      ]
+    },
+    {
+      "id": "invalid_template",
+      "kind": "parity",
+      "purpose": "GNU mktemp requires at least three consecutive X characters in the final path component; a template without X characters must fail without creating a file.",
+      "script": "mktemp 'plain-template'",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mktemp"
+      ]
+    },
+    {
+      "id": "invalid_option_status",
+      "kind": "parity",
+      "purpose": "Check GNU mktemp's invalid-option failure status and diagnostic. Any candidate status difference is retained as a compatibility failure.",
+      "script": "mktemp -Z",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "mktemp"
+      ]
+    }
+  ]
+}

@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/syscall.h>
+#include <sys/xattr.h>
 #include <fcntl.h>
 #include "loadables.h"
 #include "bashgetopt.h"
@@ -224,9 +225,22 @@ stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t 
     case 'Y': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_mtim.tv_sec); break;
     case 'z': stat_time_string (val, n, st->st_ctim.tv_sec, st->st_ctim.tv_nsec); break;
     case 'Z': snprintf (val, n, "%" PRIdMAX, (intmax_t) st->st_ctim.tv_sec); break;
-    case 'C': snprintf (val, n, "?"); break;          /* security context: none */
+    case 'C':
+      {
+        ssize_t size = f->is_link
+          ? lgetxattr (f->name, "security.selinux", val, n - 1)
+          : getxattr (f->name, "security.selinux", val, n - 1);
+        if (size < 0)
+          {
+            builtin_error ("%s: cannot read security context: %s", f->name, strerror (errno));
+            snprintf (val, n, "?");
+            return 1;
+          }
+        val[size] = 0;
+      }
+      break;
     case '%': snprintf (val, n, "%%"); break;
-    default: return -1;
+    default: snprintf (val, n, "?"); break;
     }
   return 0;
 }
@@ -244,11 +258,13 @@ stat_put_padded (const char *val, int left, int zero, int width)
 }
 
 /* Print FMT for F. ESCAPES: interpret backslash sequences (--printf).
-   Returns -1 on an invalid directive. */
+   Returns -1 when a requested attribute could not be read. Unknown directives
+   print a question mark, as coreutils does. */
 static int
 stat_print (const struct stat_file *f, const char *fmt, int escapes)
 {
   const char *p = fmt; char val[PATH_MAX * 2 + 32];
+  int failed = 0;
   while (*p)
     {
       if (*p == '%')
@@ -260,11 +276,8 @@ stat_print (const struct stat_file *f, const char *fmt, int escapes)
           if (*p == '.') { p++; while (ISDIGIT ((unsigned char) *p)) p++; }   /* precision: accepted, ignored */
           if (*p == 'H' || *p == 'L') prefix = *p++;
           if (*p == 0) { fputs (start, stdout); break; }
-          if (stat_directive (f, prefix, *p, val, sizeof val) < 0)
-            {
-              builtin_error ("%.*s: invalid directive", (int)(p - start + 1), start);
-              return -1;
-            }
+          if (stat_directive (f, prefix, *p, val, sizeof val) != 0)
+            failed = 1;
           stat_put_padded (val, left, zero, width);
           p++;
         }
@@ -304,7 +317,7 @@ stat_print (const struct stat_file *f, const char *fmt, int escapes)
       else
         putchar (*p++);
     }
-  return 0;
+  return failed ? -1 : 0;
 }
 
 static int
@@ -408,7 +421,7 @@ stat_builtin (WORD_LIST *list)
         }
       use = fmt ? fmt : terse ? STAT_FMT_TERSE
           : (S_ISCHR (f.st.st_mode) || S_ISBLK (f.st.st_mode)) ? STAT_FMT_DEVICE : STAT_FMT_DEFAULT;
-      if (stat_print (&f, use, escapes) < 0) return EXECUTION_FAILURE;
+      if (stat_print (&f, use, escapes) < 0) status = EXECUTION_FAILURE;
       if (fmt && escapes == 0) putchar ('\n');     /* -c/--format: newline after each use */
     }
   fflush (stdout);

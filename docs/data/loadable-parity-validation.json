@@ -1,0 +1,1007 @@
+{
+  "date": "2026-10-23",
+  "scope": "Focused compatibility checkpoint; independent of historical full-suite and timing records.",
+  "source": {
+    "base_commit": "fdbb46e930672e261fd22994c75d8109ceabeea7",
+    "production_diff_sha256": "8e5f80661aa7d371f15af6d5e1b99402d545600eb7de9bd347abe83498c958bf",
+    "production_diff_command": "git diff --binary BASE_COMMIT -- build.sh config loadables patches"
+  },
+  "builds": {
+    "static": {
+      "binary_sha256": "30abddf405f4cf325fe024ec90b5a575e1067f3aad8daccd29d365e80086aea3",
+      "suite_count": 71,
+      "summary": {
+        "PASS": 960,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 74
+      },
+      "by_kind": {
+        "parity": {
+          "PASS": 797,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0
+        },
+        "contract": {
+          "PASS": 163,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0
+        },
+        "deferred": {
+          "PASS": 0,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 74
+        }
+      }
+    },
+    "dynamic": {
+      "binary_sha256": "6d25b693d4f26ac7aeeee9adeadd1c9094b2800c4299ae8ebfea00e119b20344",
+      "suite_count": 71,
+      "summary": {
+        "PASS": 960,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 74
+      },
+      "by_kind": {
+        "parity": {
+          "PASS": 797,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0
+        },
+        "contract": {
+          "PASS": 163,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0
+        },
+        "deferred": {
+          "PASS": 0,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 74
+        }
+      }
+    }
+  },
+  "fixtures": [
+    {
+      "path": "tests/loadable-parity/regressions/basename.json",
+      "sha256": "9436d2563e4e54371a629a6ac1434d47a10f2532224d6b534bc77df04da58db6",
+      "summary_per_build": {
+        "PASS": 9,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashbase64.json",
+      "sha256": "adc734be3fbd831224e6227cc83e657767d048778648d0606b40189985db05c0",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashjson.json",
+      "sha256": "32c32e7b951f06351910c2c4203451f2d9395eb17009757517ca5ae3538996dd",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashkmod.json",
+      "sha256": "1fcd0dfd2fe1fe59817fdacce685db391bd2863959d9bc014b1864d26f936315",
+      "summary_per_build": {
+        "PASS": 8,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 3
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashlogger.json",
+      "sha256": "c7752fd17cf30894813377c5fd7db8486d63606f33e424b43c47c809088efea0",
+      "summary_per_build": {
+        "PASS": 2,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 5
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashmount.json",
+      "sha256": "4622af6b181744f2f5b9eaa1e6f1ec879df8f703393faa6fd6ec84b67854c60a",
+      "summary_per_build": {
+        "PASS": 8,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 3
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/bashtermraw.json",
+      "sha256": "49b5b98fa147b8aa04b10c5ae98ca134aacbbab059fb4ac73c333c817778b9a2",
+      "summary_per_build": {
+        "PASS": 3,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 5
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/binhex.json",
+      "sha256": "281a3835d72d8d2579e7b22f978381a74362ddf2d5a121d8cef68c4dc34efebe",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/blkid.json",
+      "sha256": "4c359aee02ab3c09ebb5c9abf58e1807c24fb7803ff974d86ecf89a48201a88d",
+      "summary_per_build": {
+        "PASS": 9,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/chmod.json",
+      "sha256": "db1dbe94725a85e5b77a59a8a95552e3f7117f9053479b5d19d654921ea91233",
+      "summary_per_build": {
+        "PASS": 18,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/chown.json",
+      "sha256": "8c9ab197cc86c230bef28451b87df1ac34b76bb4e46ac187f31ce8d01c600ede",
+      "summary_per_build": {
+        "PASS": 19,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/cmp.json",
+      "sha256": "70b657e3a6144aa3010d8b97fe4b831ecbfd25dd4453541035869dd7f119e6ef",
+      "summary_per_build": {
+        "PASS": 16,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/comm.json",
+      "sha256": "86a154142244820356aea1d91865cdb67ddacd2ddefad203b07ee49673dc1bf8",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/cp.json",
+      "sha256": "bd924ea3f40b6c1b8d2b237a8f7b59e7542f580cf2204854b15da1f38d0030b1",
+      "summary_per_build": {
+        "PASS": 21,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/cut.json",
+      "sha256": "de22ebcefbb8180a17bb4bd477329c16c8a8a4215af7233a4d5f21d7b5eebfa2",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/date.json",
+      "sha256": "a6ecbf38da38b4acf8994605f0f04dc6287e53027c0879d5d787c067f15ca98d",
+      "summary_per_build": {
+        "PASS": 9,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/df.json",
+      "sha256": "7abf63cf60d6addb572c4687c72aa0a7df13d252d037e41f89e4c6fe53c20f61",
+      "summary_per_build": {
+        "PASS": 15,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/dirname.json",
+      "sha256": "cdb1bd90e290b2baaef7c27231b4b34e7c6dc247612d9a3c0b065bc37d62ba5b",
+      "summary_per_build": {
+        "PASS": 14,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/du.json",
+      "sha256": "e5139334b98503c1f7ea65214603b65b471cf734f246de9cbfa6ceed6788d4e8",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/env.json",
+      "sha256": "fb4171f03e01b7017c6253fe83a116cf9ecdd67079cbd95411d74cef9c647c4a",
+      "summary_per_build": {
+        "PASS": 19,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/find.json",
+      "sha256": "83872dc3e67278df4ded3757d0d6399482e3e97cbae781a4262f0922a15fbd39",
+      "summary_per_build": {
+        "PASS": 17,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/finfo.json",
+      "sha256": "5a56826105543184d9f16248003632f31464a9741f1b67ef89b3ba6b631e5c6f",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/fltexpr.json",
+      "sha256": "f5b0b8f76397bbd91405a904de7f7f7ed5ca6531a13fa765ea7fe0ccb7d0a315",
+      "summary_per_build": {
+        "PASS": 15,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/fold.json",
+      "sha256": "18ed43041ba8c53c5cc50ac347d0cd2e4598e47a0417a26c8c299905b69ffc8a",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/free.json",
+      "sha256": "63cf366fc41b3b14e0d02e556a11d48eb52f09f4b4885128ddbddc55808594ea",
+      "summary_per_build": {
+        "PASS": 15,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/getconf.json",
+      "sha256": "1eda8e43d6c53ef7c642b778a918c172fc992c576777c15119ed4a9f7d3cf17f",
+      "summary_per_build": {
+        "PASS": 15,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/grep.json",
+      "sha256": "9688ff82a09603fde94ed8b8c4082438a642f3d76ecd20141cb5f0d6f0516599",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/halt.json",
+      "sha256": "4488d7edf4e0198efd0fcab2eeedb6e9d22fdd1d3a6d74ff1c57d21275742bb5",
+      "summary_per_build": {
+        "PASS": 4,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 5
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/id.json",
+      "sha256": "439a3a9a7499c33af9662b895de8c148cae7b296d711f0696ddcce28c92a337d",
+      "summary_per_build": {
+        "PASS": 41,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/link.json",
+      "sha256": "0e10d9c809acfaed33a6f652cd2f0a2a0763e0776d0c04cad4dc9e24c7b608f9",
+      "summary_per_build": {
+        "PASS": 8,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/logname.json",
+      "sha256": "b1aeaf7a94705cdbc69a89d9abb164b1b1276124bb326976b6c64c303e3e0560",
+      "summary_per_build": {
+        "PASS": 21,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/ls.json",
+      "sha256": "578ae790610bd58296fa686b481ae871bf464b729ff468a8cd714f092fe45432",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/lsattr.json",
+      "sha256": "e2c3c36fb7d74ff1a0bee45eff3aef70de1b71ced02eb927555763b1e74a8d8f",
+      "summary_per_build": {
+        "PASS": 17,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/mkdir.json",
+      "sha256": "39ccb5bc9da4170b35a69583792cc3643f03e8bfa5bd3b3e5fc0e029f88135b7",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/mkfifo.json",
+      "sha256": "f09101b0199927e71c782351249dc52a0ff69b8dc637faef8ebe7d1152559eba",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/mktemp.json",
+      "sha256": "0b8bf07d1154e27f71da10a67a44477eeac783389ae213bb7b99368842750ed6",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/mv.json",
+      "sha256": "1824d28eea0b7ccbc2f7472e500401fc5a7d10e7476bce884f43f4c8c6d96ca5",
+      "summary_per_build": {
+        "PASS": 17,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/nohup.json",
+      "sha256": "8b53745fcda411eedcb1314eabb65e2322e75776555fbe7f9aa696652520d350",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/od.json",
+      "sha256": "b12781fbf0c48020699661a06c8e5a750cee7c5afeab1d44da655f3efed36253",
+      "summary_per_build": {
+        "PASS": 22,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/paste.json",
+      "sha256": "5471f27a7ab0266a8f50deed85a82bef8401c48a8f3c1f4316f53a8e3e432d68",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/pathchk.json",
+      "sha256": "4dd93ea70c14051f9a4074d50e262f070cfe96fd384a4922a46db38c501ffdf1",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/poweroff.json",
+      "sha256": "968ab56b0518b69f5bace69849ac8ba636e19a51bf3f1b737e4dd49ff52da29b",
+      "summary_per_build": {
+        "PASS": 5,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/printenv.json",
+      "sha256": "257c596ee983b27179398b091d108177a91ee1d1cde8c9811d8351b8d6171fa1",
+      "summary_per_build": {
+        "PASS": 21,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/ps.json",
+      "sha256": "8c81792966b6a6c41d7930ee5bbc679cac21bcfcf78e6d0a3a2d0e6b67b16440",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/readlink.json",
+      "sha256": "7d8afc04eeb1a4af744785fab94cdcc2524e3bfa5cfb41fa762a2debb01c15de",
+      "summary_per_build": {
+        "PASS": 9,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/realpath.json",
+      "sha256": "159fb275c7c392520110e7f653d03152cad8142847ac2a3aa4cc293e0914dac9",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/rev.json",
+      "sha256": "5fb443f8692d0d33e96ec9276e6323cf788cdb905e21d43341c2041561818ac2",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/rm.json",
+      "sha256": "623f3769e56076b20f0cbf220530e5cfc51a8ce4ed8874f42d19b780576ab523",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/rmdir.json",
+      "sha256": "d862d05dd1e40e6eab1b14b5397edcf3cb46aa8d5897638bf43ecada759d3144",
+      "summary_per_build": {
+        "PASS": 15,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/rngseed.json",
+      "sha256": "41343a8bcf0435a9cf9438edf4b78965a18bb183054c6e3f5e7a86d0d92de4fa",
+      "summary_per_build": {
+        "PASS": 3,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 3
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/rtspcat.json",
+      "sha256": "af45c63283b576da1b2b7e62b92e59746b3e8d2bfe790ed6fe2322bc6b6ec438",
+      "summary_per_build": {
+        "PASS": 3,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 5
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/setpgid.json",
+      "sha256": "f0b8aab837686f3e69312a90e73b671aa5e3bbc47150feaeb03c2cb828550ad5",
+      "summary_per_build": {
+        "PASS": 4,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 3
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/sleep.json",
+      "sha256": "433ee43c50058aec2cc1e2fbe66ddcfefece90cb8cf0ee45d841590e19bf433e",
+      "summary_per_build": {
+        "PASS": 14,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/stat.json",
+      "sha256": "2c5d73e6ebc7bbb89649c543202c77bc8cdd0c6a14d375f924ae457abd0618bb",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/strftime.json",
+      "sha256": "eb7d138e397f89a2bfe2c361e20eac9feefdefe8737fbaa8eb1b0032c9dd6b7c",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/strptime.json",
+      "sha256": "0dd1bea6d6bf61cb18040c83387ac35cb99ca21aa0fe61c1351f4dcff9225a42",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/tail.json",
+      "sha256": "d8b224c309d8e7421e759ea99b2d12686f28d56c1c5a8c430b731b6957fba7f5",
+      "summary_per_build": {
+        "PASS": 18,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/tee.json",
+      "sha256": "83f9c2a2572828b0d816e117062e6fca34b583b60cf61f58b72dfdd5f5ca943a",
+      "summary_per_build": {
+        "PASS": 10,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/touch.json",
+      "sha256": "466aabd1d14e4e3781e5c54c54117f162472cf9ec662151a4bb11a8433a8eaa3",
+      "summary_per_build": {
+        "PASS": 21,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/tr.json",
+      "sha256": "e16e61f94d1b8f401cdad5293c9af4efc755d08bd5b3256f24ba74c999a7d634",
+      "summary_per_build": {
+        "PASS": 17,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/truncate.json",
+      "sha256": "7da2aa12550032ca9b2d7b03a310256ab0f53b62d601166797dd3c491075c55c",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/tty.json",
+      "sha256": "f23edce84ef4b4cab292680dd7a9117d4db32eaa5a1c4dd7f52941ff1efe1e0e",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/uname.json",
+      "sha256": "f86ccef7819d390d1beec2d37966021215bc9400f07a21496eb264f429753c14",
+      "summary_per_build": {
+        "PASS": 27,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/uniq.json",
+      "sha256": "6000fb8471cc6260cce394c6feec0fee3bc1015e7ab115c3eeeed81af32eab98",
+      "summary_per_build": {
+        "PASS": 11,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/unlink.json",
+      "sha256": "c07192d9f8f1914ec339080bf24589d0e099fe22049e42648f96e782de7f0750",
+      "summary_per_build": {
+        "PASS": 13,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/wc.json",
+      "sha256": "5a582d9479d2709daeef1a5067502c66a7a797bada502df88d4c785e2b4e4a88",
+      "summary_per_build": {
+        "PASS": 14,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/whoami.json",
+      "sha256": "d4416c1d6e815a72b2299f966e151ae75aee948beb437f5def34a25749061d5a",
+      "summary_per_build": {
+        "PASS": 22,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/wipefs.json",
+      "sha256": "4198f57311b8adabba5cc8694e5a2b49c1357975c1ce3683f1940ca62500d208",
+      "summary_per_build": {
+        "PASS": 4,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 2
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/xargs.json",
+      "sha256": "f2b42beeb2f7002058d041ea9ae3c820dd8d8a36f566f624160283068356b7c1",
+      "summary_per_build": {
+        "PASS": 48,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/zstd.json",
+      "sha256": "156578d4bfff7f6f0e2b9e2bd8814796059a050ee7ae783e045fed2a06d29204",
+      "summary_per_build": {
+        "PASS": 12,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 0
+      }
+    },
+    {
+      "path": "tests/loadable-parity/regressions/zstdcat.json",
+      "sha256": "bf2e47cbfe7c8047083aedd4d5d7bd22322d33255302839616305c2220c7c2b9",
+      "summary_per_build": {
+        "PASS": 17,
+        "FAIL": 0,
+        "ERROR": 0,
+        "SKIP": 0,
+        "DEFERRED": 1
+      }
+    }
+  ],
+  "visible_comparison": {
+    "suite": "tests/bash-gnu-parity.sh",
+    "suite_sha256": "d232878cef891593f04dd0063c0e557a532c18a592ddd57f0695083cd5c0fb8e",
+    "comparator": "tests/compare-parity.py",
+    "comparator_sha256": "e9cf03ac97e5e938b2b68f9470e8411c16730fdf8484331d1a7a7c6cba6a7fc0",
+    "candidate_binary_sha256": "30abddf405f4cf325fe024ec90b5a575e1067f3aad8daccd29d365e80086aea3",
+    "total": 131,
+    "passed": 131,
+    "failed": 0,
+    "scope": "Output, status and private fixture contents, modes and link relationships; suite diagnostic normalizations apply."
+  },
+  "sanitizers": {
+    "scope": "Selected instrumented loadable modules in a plain Bash shell under ASan/UBSan; not instrumentation of the complete static or dynamic executables.",
+    "groups": [
+      {
+        "commands": [
+          "blkid",
+          "chown",
+          "cmp",
+          "comm",
+          "date",
+          "df",
+          "env",
+          "fold",
+          "od",
+          "paste",
+          "ps",
+          "rev",
+          "tr",
+          "truncate",
+          "uniq"
+        ],
+        "summary": {
+          "PASS": 207,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 9
+        },
+        "sanitizer_diagnostics": 0
+      },
+      {
+        "commands": [
+          "xargs"
+        ],
+        "summary": {
+          "PASS": 48,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 1
+        },
+        "sanitizer_diagnostics": 0
+      },
+      {
+        "commands": [
+          "link",
+          "lsattr",
+          "zstd",
+          "zstdcat"
+        ],
+        "summary": {
+          "PASS": 54,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 4
+        },
+        "sanitizer_diagnostics": 0
+      }
+    ]
+  },
+  "package_gates": {
+    "scope": "Independent package builds, expected symbols, loading and help metadata in a plain shell; not full package behavior coverage.",
+    "commands": [
+      "basename",
+      "bashbase64",
+      "bashmount",
+      "bashtermraw",
+      "binhex",
+      "blkid",
+      "chmod",
+      "chown",
+      "cmp",
+      "comm",
+      "cp",
+      "date",
+      "df",
+      "dirname",
+      "du",
+      "env",
+      "find",
+      "finfo",
+      "fltexpr",
+      "fold",
+      "free",
+      "getconf",
+      "head",
+      "id",
+      "link",
+      "logname",
+      "lsattr",
+      "mkdir",
+      "mkfifo",
+      "mktemp",
+      "mv",
+      "od",
+      "paste",
+      "pathchk",
+      "printenv",
+      "ps",
+      "realpath",
+      "rev",
+      "rm",
+      "rmdir",
+      "setpgid",
+      "sleep",
+      "stat",
+      "strftime",
+      "strptime",
+      "tail",
+      "tee",
+      "touch",
+      "tr",
+      "truncate",
+      "tty",
+      "uname",
+      "uniq",
+      "unlink",
+      "wc",
+      "whoami",
+      "xargs",
+      "zstd",
+      "zstdcat"
+    ],
+    "count": 59
+  },
+  "limits": [
+    "The static and dynamic builds run the same fixtures; their pass counts are not independent coverage.",
+    "Parity checks and documented custom-interface contracts are counted separately.",
+    "Deferred cases were not executed and do not establish operation coverage.",
+    "Kernel, hardware, privileged, filesystem-specific and other exclusions are listed in each fixture.",
+    "This checkpoint does not cover all loadables or establish complete GNU CLI or release conformance.",
+    "No new performance measurements are recorded."
+  ]
+}

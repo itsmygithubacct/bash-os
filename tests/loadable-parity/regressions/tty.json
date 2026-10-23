@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "loadable": "tty",
+  "reference": "GNU coreutils tty(1), invoked as an external command by system Bash with PATH=/usr/bin:/bin, is the independent oracle for non-terminal stdin, -s, option parsing, and operand validation. Bash type/help metadata contracts are based on Bash builtin behavior and the tty synopsis/documentation in the pinned stock loadable source. Candidate fixtures run with PATH empty.",
+  "coverage": [
+    "Default output and status when stdin is not a terminal.",
+    "Silent mode status, repeated -s options, and -- option termination with non-terminal stdin.",
+    "Non-terminal detection when stdin is redirected from a relative regular fixture file.",
+    "Invalid option diagnostics/status and extra-operand validation, including with -s.",
+    "Bash type and help metadata: configured short help and the documented command description.",
+    "Successful ttyname(0) behavior is recorded as deferred because the runner does not provide PTY-attached stdin."
+  ],
+  "exclusions": [
+    "Successful terminal-name output and -s success require stdin attached to a PTY; no such input fixture is available in this runner.",
+    "Terminal paths vary with the PTY allocator, so a future PTY case must provide the same isolated PTY setup to both reference and candidate arms."
+  ],
+  "cases": [
+    {
+      "id": "non_tty_default",
+      "purpose": "GNU tty prints the documented fallback text and returns failure when standard input is not a terminal.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "non_tty_silent",
+      "purpose": "The -s option suppresses output while preserving the non-terminal failure status.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty -s",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated_silent_option",
+      "purpose": "Repeated short silent options are accepted and remain silent for non-terminal stdin.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty -ss",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "end_of_options",
+      "purpose": "A standalone -- ends option parsing without changing the no-operand non-terminal result.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty --",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "regular_file_stdin",
+      "purpose": "A relative regular file redirected to stdin is not reported as a terminal; tree comparison also checks that the fixture input is unchanged.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "printf 'fixture input\\n' > tty-input; tty < tty-input",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_option",
+      "purpose": "An unsupported short option is rejected with the GNU tty usage-error status and a diagnostic; diagnostic wording is allowed to differ.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty -z",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "extra_operand",
+      "purpose": "GNU tty rejects an extra operand instead of treating it as an option to ignore.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty operand",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "silent_extra_operand",
+      "purpose": "The silent flag does not make an invalid extra operand valid; GNU tty still reports a usage error.",
+      "kind": "parity",
+      "requires": [
+        "tty"
+      ],
+      "script": "tty -s operand",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "type_metadata",
+      "purpose": "Bash type -t must identify the statically registered tty command as a builtin.",
+      "kind": "contract",
+      "script": "type -t tty",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_short_doc",
+      "purpose": "Bash help displays the configured short text from the tty catalog entry (tty|tty) as 'tty: tty'; this build-list contract overrides the stock C fallback synopsis.",
+      "kind": "contract",
+      "script": "help_text=$(help tty); synopsis=${help_text%%$'\\n'*}; printf '%s\\n' \"$synopsis\"",
+      "expected_status": 0,
+      "stdout": "tty: tty [-s]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_description_doc",
+      "purpose": "Bash help includes the stock tty documentation's first description line, 'Display terminal name.'",
+      "kind": "contract",
+      "script": "help_text=$(help tty); case \"$help_text\" in *\"Display terminal name.\"*) printf 'Display terminal name.\\n' ;; *) exit 1 ;; esac",
+      "expected_status": 0,
+      "stdout": "Display terminal name.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "terminal_name_pty",
+      "purpose": "Exercise successful terminal-name reporting and -s success with stdin attached to a real pseudo-terminal.",
+      "kind": "deferred",
+      "reason": "The harness always launches fixtures with stdin=/dev/null and has no PTY attachment option. A future disposable VM or PTY-capable mock must create an isolated PTY, attach the same slave to fd 0 for both GNU and candidate arms, and assert the emitted terminal path plus silent-mode success."
+    }
+  ]
+}

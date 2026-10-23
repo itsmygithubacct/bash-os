@@ -3,9 +3,10 @@
 `zstd` compresses or decompresses files with libzstd. Default level is 3;
 `-1`..`-19` select the level. `-d` decompresses, `-c` writes stdout, `-` is
 stdin to stdout, `--rm` removes the source after success, and `-f` overwrites
-an existing target. The target takes the source's mode and mtime. `zstdcat` is
-`zstd -dc`. The subset and file semantics are those of `zstd(1)` that a script
-uses; see [provenance](PROVENANCE.md).
+an existing target. The target takes the source's mode and mtime. With no file
+operand, both commands read stdin. `zstdcat` defaults to `zstd -dcf`: it passes
+ordinary uncompressed input through, while recognized but incomplete Zstandard
+frames fail. `zstd -dc` remains strict. See [provenance](PROVENANCE.md).
 
 ```sh
 ./build.sh --include zstd,zstdcat --name zstd
@@ -13,11 +14,11 @@ out/bash-zstd -c 'PATH=; zstd -c -' < input > input.zst
 out/bash-zstd -c 'PATH=; zstd -d -c -' < input.zst
 ```
 
-Input is read whole (256 MiB cap). Compression is one-shot `ZSTD_compress`.
-Decompression is streamed into a growing buffer (1 GiB cap) and does not trust
-a frame's declared size for the allocation. The frame is written with
-`write(2)` to the destination descriptor. `BASHOS_ZSTD_LIB` can override the
-linked library; an unavailable override fails without affecting the shell.
+Compression and decompression stream through two fixed 128 KiB buffers.
+The decoder window is limited to 128 MiB; allocations do not use the frame's
+declared content size. Named output is published only after successful decoding
+or encoding. `BASHOS_ZSTD_LIB` can override the linked library; an unavailable
+override fails without affecting the shell.
 
 ## Compatibility
 
@@ -26,7 +27,12 @@ linked library; an unavailable override fails without affecting the shell.
 keep/`--rm`/`-f`/`-c`/`-o`/`-`, mode and mtime, truncated and bad-magic
 inputs, missing files, suffix errors, a missing-library override, and rejected
 levels. On the catalog binary that suite is **24/24**. `tests/zstd-host.c`
-covers the buffer paths under ASan/UBSan.
+covers the buffer paths under ASan/UBSan. Those counts are historical. The
+isolated fixtures in `tests/loadable-parity/regressions/zstd*.json` cover
+default stdin, forced pass-through, frame boundaries, output-option ordering
+and preservation of source and destination files after errors. Other compression
+formats, legacy Zstandard frames, dictionaries and the full CLI option surface
+remain outside the supported subset. Large decoder-window tests are deferred.
 
 Compressed frames are **not** byte-identical with `zstd(1)` at the same level
 (one extra byte on every GNU frame in these fixtures). GNU `zstd -d` recovers
@@ -39,7 +45,8 @@ This is a follow-up to the [catalog snapshot](loadables-status.md), not a
 replacement of it. The binary is the catalog full build: SHA-256
 `9b2c69c9b8dc1c8cb437904afeacc51919fc4db31fc676d0c41137a2c8caad73`, Bash
 5.3.15, the same `out/bash` as the 49-case table, pinned to CPU 11. `zstd.c`
-is unchanged since that snapshot. Host: Intel Core i7-9850H, Linux 6.12.96,
+has changed since that snapshot; these measurements describe the older binary.
+Host: Intel Core i7-9850H, Linux 6.12.96,
 x86-64, host libzstd and `zstd(1)` 1.5.7. The [measurement
 summary](data/zstd-benchmarks.json) records fixture hashes, frame sizes,
 pass counts, sample lists and timing ranges.
@@ -80,8 +87,8 @@ below 1.00 is faster than GNU.
 claim. Builtin frames were 77,236 and 363 bytes; GNU's were one byte larger;
 both decoded to the original.
 
-BusyBox is omitted: no applet. `zstdcat` is not timed separately; it is
-`zstd -dc`.
+BusyBox is omitted: no applet. `zstdcat` was not timed separately in this
+historical snapshot.
 
 The same compress-text workload on an aarch64 Cortex-A72 and on an Intel
 Core i7-10700F, each against that host's `zstd(1)`, also finished ahead of
@@ -102,6 +109,6 @@ These numbers do not establish static, RISC-V, other levels, named-file
 
 ## Remaining work
 
-Whole-file input and one-shot compression remain the implementation limits
-for large streams. Level, long-file and named-file cases are unmeasured.
-No selected-case performance gap against `zstd(1)` appeared here.
+The current streaming implementation needs new performance measurements.
+Level, long-file and named-file cases remain unmeasured. No selected-case
+performance gap against `zstd(1)` appeared in the historical run above.

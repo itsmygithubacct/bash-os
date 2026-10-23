@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "loadable": "mv",
+  "reference": "GNU coreutils mv from the isolated runner PATH; the metadata contract is grounded in Bash type/help builtins and the mv documentation in the source.",
+  "coverage": [
+    "Bash builtin registration and help metadata",
+    "Quoted relative paths and binary file contents",
+    "Multiple sources, --, and --target-directory",
+    "Force overwrite, no-clobber, and interactive EOF behavior",
+    "Moving a symlink itself",
+    "Same-file, missing-source, and -T directory-target errors",
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+  ],
+  "exclusions": [
+    "EXDEV copy-and-remove fallback is deferred because the fixture runner exposes only one writable filesystem tree; exercising it needs a disposable environment with two distinct writable filesystems or a reviewed EXDEV syscall mock.",
+    "Interactive tests use EOF and bounded here-strings; real PTY behavior is not qualified."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help",
+      "kind": "contract",
+      "purpose": "Confirm Bash reports mv as a builtin and exposes its documented synopsis and no-clobber help text.",
+      "script": "[[ $(type -t mv) == builtin ]] || exit 1\nh=$(help mv) || exit 1\n[[ $h == *\"SRC... DST\"* && $h == *\"-n   no-clobber: never overwrite\"* ]] || exit 1\nprintf 'builtin help contract\n'",
+      "expected_status": 0,
+      "stdout": "builtin help contract\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "quoted-binary-file-rename",
+      "kind": "parity",
+      "purpose": "Move a relative file with spaces and embedded NUL bytes using --; GNU mv is the independent behavior oracle and the tree comparison checks exact bytes and source removal.",
+      "requires": [
+        "mv"
+      ],
+      "script": "printf 'left\\000right\\n' > 'source file'\nmv -- 'source file' 'renamed file'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "target-directory-multiple-sources",
+      "kind": "parity",
+      "purpose": "Move multiple relative sources into a directory with -t, including an operand beginning with a dash after --; GNU mv supplies status and filesystem expectations.",
+      "requires": [
+        "mv",
+        "mkdir"
+      ],
+      "script": "mkdir destination\nprintf 'alpha\\n' > alpha\nprintf 'dash\\n' > -beta\nmv -t destination -- alpha -beta",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "force-overwrites-file",
+      "kind": "parity",
+      "purpose": "Check -f replaces an existing regular destination with source bytes and removes the source; GNU mv is the independent oracle.",
+      "requires": [
+        "mv"
+      ],
+      "script": "printf 'new contents\\n' > source\nprintf 'old contents\\n' > destination\nmv -f source destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-clobber-keeps-both-files",
+      "kind": "parity",
+      "purpose": "Check -n leaves an existing destination untouched and retains the skipped source; GNU mv determines the reference exit status.",
+      "requires": [
+        "mv"
+      ],
+      "script": "printf 'source bytes\\n' > source\nprintf 'destination bytes\\n' > destination\nmv -n source destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "interactive-eof-declines-overwrite",
+      "kind": "parity",
+      "purpose": "With the runner's /dev/null stdin, check that -i declines an overwrite at EOF and compare GNU mv's status, prompt presence, and resulting tree.",
+      "requires": [
+        "mv"
+      ],
+      "script": "printf 'source bytes\\n' > source\nprintf 'destination bytes\\n' > destination\nmv -i source destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "move-symlink-itself",
+      "kind": "parity",
+      "purpose": "Move a symlink without following it and preserve its relative target while leaving the referent unchanged; GNU mv is the independent oracle.",
+      "requires": [
+        "mv",
+        "ln"
+      ],
+      "script": "printf 'referent bytes\\n' > referent\nln -s referent link\nmv link moved-link",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "same-file-is-error",
+      "kind": "parity",
+      "purpose": "Moving a file onto itself must fail with a diagnostic and preserve the file contents, matching GNU mv.",
+      "requires": [
+        "mv"
+      ],
+      "script": "printf 'preserve me\\n' > same\nmv same same",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no-target-directory-rejects-directory",
+      "kind": "parity",
+      "purpose": "-T forces the destination to be treated as one path; a regular source must not be moved inside an existing directory, matching GNU mv's error and unchanged tree.",
+      "requires": [
+        "mv",
+        "mkdir"
+      ],
+      "script": "mkdir destination\nprintf 'source\\n' > source\nmv -T source destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-source-is-error",
+      "kind": "parity",
+      "purpose": "A missing source must fail with a diagnostic and leave the fixture tree unchanged, matching GNU mv.",
+      "requires": [
+        "mv"
+      ],
+      "script": "mv missing destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "exdev-copy-remove",
+      "kind": "deferred",
+      "purpose": "Exercise the cross-device fallback for regular files, symlinks, and directory trees while comparing GNU mv and preserving source metadata.",
+      "reason": "Requires two distinct writable filesystems mounted inside a disposable VM fixture root, or a reviewed syscall mock that makes rename return EXDEV. The provided isolated runner exposes only one writable fixture tree; no mount or host path is used here."
+    },
+    {
+      "id": "interactive-answers",
+      "kind": "parity",
+      "purpose": "Bounded here-strings exercise affirmative and negative prompt responses without a PTY.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nprintf old > target\nif mv -i source target <<< n; then a=0; else a=$?; fi\nif mv -i source target <<< y; then b=0; else b=$?; fi\nprintf '%s %s\\n' \"$a\" \"$b\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "hardlink-same-file",
+      "kind": "parity",
+      "purpose": "Moving between two hardlinks to the same inode must fail and preserve both names.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf keep > source\nln source alias\nmv source alias",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "replace-destination-symlink",
+      "kind": "parity",
+      "purpose": "A regular move replaces the destination symlink and leaves its referent and hardlink unchanged.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf new > source\nprintf old > target\nln target hard\nln -s target alias\nmv source alias",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multi-operand-error-continuation",
+      "kind": "parity",
+      "purpose": "A missing middle operand must not prevent later operands from moving.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "mkdir destination\nprintf first > first\nprintf last > last\nmv first absent last destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "interactive-eof-continues",
+      "kind": "parity",
+      "purpose": "An EOF refusal should set failure while a later non-colliding source is still moved.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "mkdir destination\nprintf new > first\nprintf old > destination/first\nprintf last > last\nmv -i first last destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "option-precedence",
+      "kind": "parity",
+      "purpose": "Check existing last -f/-i/-n wins precedence and skipped symlink destinations.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "chmod"
+      ],
+      "script": "printf a > a\nprintf b > b\nprintf c > c\nprintf old > target\nln -s target alias\nmv -fn a alias\nmv -nf b target\nif mv -ni c target; then rc=0; else rc=$?; fi\nprintf '%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no-clobber-missing-source",
+      "kind": "parity",
+      "purpose": "No-clobber skips existing destinations only for valid sources; a missing source still fails and later operands continue.",
+      "requires": [
+        "mv",
+        "mkdir"
+      ],
+      "script": "mkdir destination\nprintf old > destination/absent\nprintf last > last\nmv -n absent last destination",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

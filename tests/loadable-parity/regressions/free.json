@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "loadable": "free",
+  "reference": "GNU procps free is the parity oracle for the extra-operand status case. Deterministic numeric outputs are independent encodings of the documented free(1) formulas and units over the explicit fixture: used=MemTotal-MemAvailable when present, buff/cache=Buffers+Cached+SReclaimable, swap used=SwapTotal-SwapFree, with integer KiB/byte conversions. Bash type/help metadata and the version string are checked against their documented contracts.",
+  "coverage": [
+    "Bash builtin type and help metadata plus documented loadable version",
+    "Default KiB Mem and Swap columns on a pinned meminfo fixture",
+    "Separate buffers/cache and total-memory rows",
+    "Byte, mebibyte, gibibyte, and SI unit conversion",
+    "Single-line output labels and values",
+    "Human-readable scaling",
+    "Legacy used calculation without MemAvailable",
+    "Repeated output count with a static fixture",
+    "Missing meminfo diagnostic",
+    "GNU extra-operand exit status"
+  ],
+  "exclusions": [
+    "Full GNU numeric output comparison is deferred because GNU free cannot consume the candidate relative fixture and live proc counters change; the deferred reason specifies the required shared immutable procfs mock.",
+    "No live system counters are treated as expected values."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type-help-version",
+      "kind": "contract",
+      "purpose": "Check Bash reports free as a builtin, its short help description matches the documented summary, and -V matches the documented loadable version.",
+      "script": "type -t free\nhelp -d free\nfree -V",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "builtin\nfree - Show memory usage from /proc/meminfo.\nbashfree 1.0 (bash-loadable)\n"
+    },
+    {
+      "id": "default-meminfo-fields",
+      "kind": "contract",
+      "purpose": "Check default KiB output and the documented MemAvailable and Buffers+Cached+SReclaimable formulas on a pinned relative meminfo fixture.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -k",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:        16777216     8388608     2097152      524288     7340032     8388608\nSwap:        4194304     1048576     3145728\n"
+    },
+    {
+      "id": "wide-and-total",
+      "kind": "contract",
+      "purpose": "Check -w separates buffers from cache and -t adds combined memory and swap columns, using the pinned fixture.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -w -t",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "               total        used        free      shared     buffers       cache   available\nMem:        16777216     8388608     2097152      524288     1048576     6291456     8388608\nSwap:        4194304     1048576     3145728\nTotal:      20971520     9437184     5242880\n"
+    },
+    {
+      "id": "unit-conversions",
+      "kind": "contract",
+      "purpose": "Check byte, mebibyte, gibibyte, and decimal SI scaling against independently calculated values from the same fixture.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nprintf 'bytes\\n'\nfree -b -t\nprintf 'mebibytes\\n'\nfree -m -t\nprintf 'gibibytes\\n'\nfree -g -t\nprintf 'SI-kilobytes\\n'\nfree --si -k -t",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "bytes\n               total        used        free      shared  buff/cache   available\nMem:     17179869184  8589934592  2147483648   536870912  7516192768  8589934592\nSwap:     4294967296  1073741824  3221225472\nTotal:   21474836480  9663676416  5368709120\nmebibytes\n               total        used        free      shared  buff/cache   available\nMem:           16384        8192        2048         512        7168        8192\nSwap:           4096        1024        3072\nTotal:         20480        9216        5120\ngibibytes\n               total        used        free      shared  buff/cache   available\nMem:              16           8           2           0           7           8\nSwap:              4           1           3\nTotal:            20           9           5\nSI-kilobytes\n               total        used        free      shared  buff/cache   available\nMem:        17179869     8589934     2147483      536870     7516192     8589934\nSwap:        4294967     1073741     3221225\nTotal:      21474836     9663676     5368709\n"
+    },
+    {
+      "id": "line-output",
+      "kind": "contract",
+      "purpose": "Check -L prints the documented single-line SwapUse, CachUse, MemUse, and MemFree fields with fixture-derived values.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -L",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "SwapUse     1048576 CachUse     7340032  MemUse     8388608 MemFree     2097152 \n"
+    },
+    {
+      "id": "human-readable-scaling",
+      "kind": "contract",
+      "purpose": "Check -h scales representative GiB and MiB values with the documented one-decimal unit labels.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -h",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:           16.0G        8.0G        2.0G      512.0M        7.0G        8.0G\nSwap:           4.0G        1.0G        3.0G\n"
+    },
+    {
+      "id": "missing-available-fallback",
+      "kind": "contract",
+      "purpose": "Check only the used column against the legacy MemTotal-MemFree-buff/cache fallback when MemAvailable is absent; other columns are covered by the complete default fixture case.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\noutput=$(free -k)\nmemrow=${output#*$'\\n'}\nread -r _ _ used _ <<< \"$memrow\"\nprintf 'used=%s\\n' \"$used\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "used=7340032\n"
+    },
+    {
+      "id": "repeat-count",
+      "kind": "contract",
+      "purpose": "Check --seconds and --count produce exactly two snapshots against an unchanged fixture; the script counts Mem rows rather than relying on timing output.",
+      "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nsnapshots=$(free -k --seconds=1 --count=2)\nmem_rows=0\nwhile IFS= read -r row; do\n  case $row in Mem:*) mem_rows=$((mem_rows + 1));; esac\ndone <<< \"$snapshots\"\n[[ $mem_rows == 2 ]]\nprintf 'snapshots=%s\\n' \"$mem_rows\"",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "snapshots=2\n",
+      "timeout": 5
+    },
+    {
+      "id": "missing-meminfo-error",
+      "kind": "contract",
+      "purpose": "Check a missing relative meminfo fixture fails with a diagnostic and no data output.",
+      "script": "export BASHOS_PROC_ROOT=missing\nfree -k",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "stdout": ""
+    },
+    {
+      "id": "gnu-extra-operand-status",
+      "kind": "parity",
+      "purpose": "An extra operand is rejected with status 1 and a diagnostic before reading procfs, matching procps free.",
+      "script": "free extra",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "free"
+      ]
+    },
+    {
+      "id": "full-numeric-gnu-parity",
+      "kind": "deferred",
+      "purpose": "Full numeric output parity needs GNU free and the candidate to read the same immutable meminfo snapshot.",
+      "reason": "GNU free reads its mounted /proc and has no BASHOS_PROC_ROOT equivalent, while candidate fixtures can use a relative BASHOS_PROC_ROOT and live proc counters vary between invocations. A future disposable VM/mock must expose one immutable meminfo snapshot to both implementations or provide an independently reviewed procfs interposition layer."
+    },
+    {
+      "id": "argument-error-0",
+      "kind": "parity",
+      "purpose": "GNU/procps argument errors return status 1 and a diagnostic before any sampling starts.",
+      "requires": [
+        "free"
+      ],
+      "script": "free --unknown",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-1",
+      "kind": "parity",
+      "purpose": "GNU/procps argument errors return status 1 and a diagnostic before any sampling starts.",
+      "requires": [
+        "free"
+      ],
+      "script": "free -?",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-2",
+      "kind": "parity",
+      "purpose": "GNU/procps argument errors return status 1 and a diagnostic before any sampling starts.",
+      "requires": [
+        "free"
+      ],
+      "script": "free -s",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-3",
+      "kind": "parity",
+      "purpose": "GNU/procps argument errors return status 1 and a diagnostic before any sampling starts.",
+      "requires": [
+        "free"
+      ],
+      "script": "free --count",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "argument-error-4",
+      "kind": "parity",
+      "purpose": "GNU/procps argument errors return status 1 and a diagnostic before any sampling starts.",
+      "requires": [
+        "free"
+      ],
+      "script": "free --seconds",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    }
+  ]
+}

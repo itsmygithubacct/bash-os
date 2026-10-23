@@ -27,7 +27,7 @@
  *   YYYY-MM-DD                (date-only; time = 00:00:00)
  *   @SECONDS                  (epoch seconds — useful for scripts)
  *   now                       (alias for current time)
- * Anything else returns EX_USAGE. For richer parsing use system+ date.
+ * Unsupported formats return failure. For richer parsing use system+ date.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -671,7 +671,7 @@ date_builtin (WORD_LIST *list)
             if (!iso_fmt) {
                 builtin_error ("invalid ISO-8601 timespec: %s", w + 2);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -681,7 +681,7 @@ date_builtin (WORD_LIST *list)
             if (!iso_fmt) {
                 builtin_error ("invalid ISO-8601 timespec: %s", w + 11);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -689,14 +689,14 @@ date_builtin (WORD_LIST *list)
         if (!strcmp (w, "--rfc-3339")) {
             builtin_error ("--rfc-3339 needs TIMESPEC");
             builtin_usage ();
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
         if (!strncmp (w, "--rfc-3339=", 11)) {
             iso_fmt = bd_rfc3339_format (w + 11);
             if (!iso_fmt) {
                 builtin_error ("invalid RFC 3339 timespec: %s", w + 11);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -705,7 +705,7 @@ date_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("%s needs STRING", w);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             date_str = list->word->word;
@@ -716,7 +716,7 @@ date_builtin (WORD_LIST *list)
             if (w[7] == '\0') {
                 builtin_error ("--date needs STRING");
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             date_str = w + 7;
             list = list->next;
@@ -734,7 +734,7 @@ date_builtin (WORD_LIST *list)
         }
         builtin_error ("unknown arg: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     time_t t;

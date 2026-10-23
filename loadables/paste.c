@@ -213,7 +213,7 @@ paste_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("--delimiters needs DELIM");
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             delim_arg = list->word->word;
@@ -235,7 +235,7 @@ paste_builtin (WORD_LIST *list)
                         if (!list->next) {
                             builtin_error ("-d needs DELIM");
                             builtin_usage ();
-                            return EX_USAGE;
+                            return EXECUTION_FAILURE;
                         }
                         list = list->next;
                         arg = list->word->word;
@@ -245,7 +245,7 @@ paste_builtin (WORD_LIST *list)
                 } else {
                     builtin_error ("unknown flag: %s", w);
                     builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
             }
             list = list->next;
@@ -253,15 +253,14 @@ paste_builtin (WORD_LIST *list)
         }
         builtin_error ("unknown flag: %s", w);
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     bp_delims delims = {0};
     int de = bp_expand_delim (delim_arg, &delims);
     if (de < 0) return EXECUTION_FAILURE;
     if (de > 0) {
-        /* Match GNU paste's diagnostic and its exit status of 1 (not the
-           EX_USAGE/2 used for our own flag-parsing errors above). */
+        /* Match GNU paste's diagnostic and failure status. */
         builtin_error ("delimiter list ends with an unescaped backslash: %s", delim_arg);
         bp_free_delims (&delims);
         return EXECUTION_FAILURE;
@@ -426,6 +425,6 @@ struct builtin paste_struct = {
     paste_builtin,
     BUILTIN_ENABLED,
     paste_doc,
-    "bashpaste [-s] [-z] [-d DELIM] [FILE...]",
+    "paste [-s] [-z] [-d DELIM] [FILE...]",
     0
 };

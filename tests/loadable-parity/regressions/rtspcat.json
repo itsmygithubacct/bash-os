@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "loadable": "rtspcat",
+  "reference": "There is no GNU/POSIX rtspcat client to serve as an equivalent CLI oracle. The runnable cases are Bash metadata contract checks: the Bash type/help builtins define their output shape, and the documented rtspcat synopsis/description supply the expected text. Protocol behavior is deferred to a future disposable VM with a scripted loopback RTSP peer and independently constructed wire/frame expectations; no network fixture is executed here.",
+  "coverage": [
+    "Bash reports rtspcat as a builtin without invoking it.",
+    "Bash help exposes the documented one-line description and synopsis.",
+    "Future protocol fixture requirements cover RTSP handshake and H.264 output framing, RTP aggregation/fragmentation and access-unit boundaries, authentication/session/keepalive behavior, error handling, and output descriptor lifecycle."
+  ],
+  "exclusions": [
+    "No matching GNU/POSIX rtspcat CLI exists, so no synthetic parity oracle is claimed.",
+    "No rtspcat operation was invoked: it requires an RTSP peer and network activity is out of scope. All operation cases are DEFERRED, not passes.",
+    "No unrelated loadables or external file utilities are exercised; these cases require no fixture files."
+  ],
+  "cases": [
+    {
+      "id": "metadata-type",
+      "kind": "contract",
+      "purpose": "Bash type -t must identify the registered rtspcat command as a builtin; this checks availability metadata without entering the client operation.",
+      "script": "type -t rtspcat",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-description",
+      "kind": "contract",
+      "purpose": "Bash help -d renders the registered short description. The expected text is the documented rtspcat description, not output sampled from the candidate.",
+      "script": "help -d rtspcat",
+      "expected_status": 0,
+      "stdout": "rtspcat - RTSP/RTP H.264 client: access units out as framed records.\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "metadata-synopsis",
+      "kind": "contract",
+      "purpose": "Bash help -s exposes the documented command synopsis, including its supported options, without invoking rtspcat.",
+      "script": "help -s rtspcat",
+      "expected_status": 0,
+      "stdout": "rtspcat: rtspcat URL [-o FD] [-n COUNT] [-k SECS] [-t SECS] [-v]\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "deferred-rtsp-h264-happy-path",
+      "kind": "deferred",
+      "purpose": "Exercise the client handshake, SDP track selection, TCP interleaving, one complete IDR access unit, framed stdout, and session teardown.",
+      "reason": "Requires a future disposable VM with a scripted loopback RTSP server that accepts only the fixture connection and emits deterministic OPTIONS/DESCRIBE/SETUP/PLAY responses plus a bounded interleaved RTP stream. Validate the 4-byte big-endian length and Annex-B bytes against an independently assembled expected frame, and record request order/session teardown. No peer or network activity is run by this suite."
+    },
+    {
+      "id": "deferred-rtp-assembly-boundaries",
+      "kind": "deferred",
+      "purpose": "Cover single-NAL, STAP-A and FU-A payloads, marker and timestamp access-unit boundaries, parameter-set insertion, and the requested unit limit.",
+      "reason": "Requires a future disposable VM and deterministic loopback RTSP/RTP mock capable of sending explicitly numbered packet sequences. Construct expected Annex-B access units independently from the fixture NAL bytes; check each record boundary, SPS/PPS insertion before IDR, and exact -n stopping behavior."
+    },
+    {
+      "id": "deferred-auth-session-keepalive",
+      "kind": "deferred",
+      "purpose": "Check Basic and MD5 Digest challenges, session headers, CSeq progression, and GET_PARAMETER keepalive behavior.",
+      "reason": "Requires a future disposable VM with a scripted loopback RTSP peer and synthetic fixture-only credentials. Independently calculate Basic encoding and RFC 1321/RFC Digest response values, then inspect request headers and keepalive exchange. No installed credentials or network targets are used here."
+    },
+    {
+      "id": "deferred-error-and-timeout-paths",
+      "kind": "deferred",
+      "purpose": "Check malformed RTSP lengths/headers, malformed or incomplete RTP, EOF, timeout, and invalid argument handling, including that incomplete units are not emitted.",
+      "reason": "Requires a future disposable VM with a bounded loopback protocol mock that can emit one controlled fault per run and enforce a short deadline. Expected statuses, empty/partial output rules, and valid recovery frames must be specified from RTSP/RTP framing rules and the documented CLI contract. This case was not executed."
+    },
+    {
+      "id": "deferred-output-fd-lifecycle",
+      "kind": "deferred",
+      "purpose": "Check -o descriptor output, write failures, closed-pipe handling, and that repeated calls leave the invoking shell usable.",
+      "reason": "Requires a future disposable VM with the loopback RTSP mock plus private fixture files and a controlled pipe reader/closed writer. Compare successful descriptor bytes with the independently assembled frame and verify failure status and shell survival after a closed-pipe write. No external device, host path, or signal is used by this suite."
+    }
+  ]
+}

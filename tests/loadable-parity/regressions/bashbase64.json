@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "loadable": "bashbase64",
+  "reference": "GNU coreutils base64 under system Bash. A small adapter selects bashbase64 in the candidate and GNU base64 in the reference; GNU is set to -w0 where needed to match bashbase64's documented unwrapped default. The URL-safe case independently maps RFC 4648 URL and standard alphabets with GNU tr.",
+  "coverage": [
+    "Bash builtin availability and documented help metadata",
+    "RFC 4648 standard alphabet vectors, including empty input, padding lengths, and bytes requiring +/",
+    "Documented unwrapped default and explicit wrapping",
+    "Relative file input with an option terminator",
+    "Binary-safe decode, ASCII newline whitespace, and ignore-garbage mode",
+    "URL-safe encode/decode with an independent alphabet mapping",
+    "Invalid-character decode status and emitted prefix behavior",
+    "Documented leading 0x decode tag"
+  ],
+  "exclusions": [
+    "Diagnostic wording is not compared; runnable cases require only empty or nonempty stderr.",
+    "No large-input, streaming-performance, malformed-padding matrix, or every option spelling coverage.",
+    "No deferred operations: bashbase64 performs only bounded fixture I/O and needs no privileged, hardware, network, or external mock environment."
+  ],
+  "cases": [
+    {
+      "id": "type_metadata",
+      "kind": "contract",
+      "purpose": "The compiled loadable is visible to Bash as a builtin, as required for a bash-os loadable.",
+      "script": "type -t bashbase64",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help_metadata",
+      "kind": "contract",
+      "purpose": "Bash help exposes the documented synopsis, URL-safe option, and decode tolerance contract.",
+      "script": "help_text=$(help bashbase64)\n[[ \"$help_text\" == *\"bashbase64 [-d] [-u] [-i] [-w N] [FILE] > output\"* ]]\n[[ \"$help_text\" == *\"URL-safe alphabet\"* ]]\n[[ \"$help_text\" == *\"Decode tolerates ASCII whitespace and a leading '0x' tag.\"* ]]\nprintf 'help contract ok\\n'",
+      "expected_status": 0,
+      "stdout": "help contract ok\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "encode_rfc4648_vectors",
+      "kind": "parity",
+      "purpose": "GNU base64 -w0 is the independent standard-alphabet encoder oracle for the RFC 4648 empty, f, fo, foo, foob, fooba, and foobar vectors, plus bytes requiring +/.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf 'empty:'\nprintf '' | b64\nprintf '\\nf:'\nprintf 'f' | b64\nprintf '\\nfo:'\nprintf 'fo' | b64\nprintf '\\nfoo:'\nprintf 'foo' | b64\nprintf '\\nfoob:'\nprintf 'foob' | b64\nprintf '\\nfooba:'\nprintf 'fooba' | b64\nprintf '\\nfoobar:'\nprintf 'foobar' | b64\nprintf '\\n+/ alphabet:'\nprintf '\\xfb\\xff' | b64\nprintf '\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "default_unwrapped_output",
+      "kind": "parity",
+      "purpose": "A 58-byte input yields more than 76 encoded characters. GNU -w0 provides the documented bashbase64 default reference, including no line breaks or trailing newline.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf '%058d' 0 | b64",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "explicit_wrap_width",
+      "kind": "parity",
+      "purpose": "An explicit 16-column wrap checks line breaks at a nondefault width and the terminating newline against GNU base64.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf '0123456789ABCDEFGHIJabcdefghij' | b64 --wrap=16",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "file_operand_end_options",
+      "kind": "parity",
+      "purpose": "Reads a relative fixture whose name begins with a dash after --, comparing file input and option termination with GNU base64.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf 'file\\000payload\\n' > ./-payload\nb64 -- ./-payload",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_binary_padded",
+      "kind": "parity",
+      "purpose": "Decodes complete quartets plus a padded final group to binary bytes including NUL and 0xff; GNU base64 is the independent decoder.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf '%s' 'AAECAwD/AP8=' | b64 --decode",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_ascii_newlines",
+      "kind": "parity",
+      "purpose": "Decodes valid base64 split by newline whitespace using the long decode option; both GNU base64 and bashbase64 document and implement this common input form.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf 'Zm9v\\nYmFy\\n' | b64 --decode",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_ignore_garbage",
+      "kind": "parity",
+      "purpose": "With -i, ignores interspersed non-alphabet punctuation while decoding a valid payload, matching GNU base64 --ignore-garbage.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf 'Zm#9v!\\n' | b64 -d -i",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "url_safe_alphabet",
+      "kind": "parity",
+      "purpose": "Checks URL-safe encoding and decoding for bytes whose standard encoding uses + and /. GNU base64 plus GNU tr provide an independent RFC 4648 alphabet conversion for the reference side.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  printf '\\xfb\\xff' | bashbase64 -u\n  printf '\\n'\n  printf '%s' '-_8=' | bashbase64 -d -u\nelse\n  printf '\\xfb\\xff' | base64 -w 0 | tr '+/' '-_'\n  printf '\\n'\n  printf '%s' '-_8=' | tr -- '-_' '+/' | base64 -d\nfi",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "base64",
+        "tr"
+      ]
+    },
+    {
+      "id": "decode_invalid_suffix",
+      "kind": "parity",
+      "purpose": "Invalid-character decode must fail with a diagnostic. This also compares whether valid decoded prefix bytes are written before the later invalid byte; any difference is retained as a failure.",
+      "script": "if [[ $(type -t bashbase64 2>/dev/null) == builtin ]]; then\n  b64() { bashbase64 \"$@\"; }\nelse\n  b64() { base64 -w 0 \"$@\"; }\nfi\nprintf 'Zm9v!' | b64 -d",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "base64"
+      ]
+    },
+    {
+      "id": "decode_leading_0x",
+      "kind": "contract",
+      "purpose": "The documented hand-pasted-input extension accepts one leading 0x tag; the independently known standard vector Zm9v decodes to foo.",
+      "script": "printf '%s' '0xZm9v' | bashbase64 -d",
+      "expected_status": 0,
+      "stdout": "foo",
+      "stderr": "empty"
+    }
+  ]
+}

@@ -11,7 +11,7 @@
  *   -t       echo command before each invocation
  *   -p       prompt before each invocation (implies -t)
  *   -n MAX   max-args-per-invocation (default: as many as fit)
- *   -L MAX   max input lines/items per invocation
+ *   -L MAX   max nonblank logical input lines per invocation
  *   -P MAX   run up to MAX invocations in parallel
  *   -s SIZE  max command-line bytes per invocation, counting the
  *            template words (CMD + its initial args), each input arg,
@@ -182,6 +182,26 @@ typedef struct {
     size_t capacity;
 } bx_arg_buffer;
 
+/* Argument boundaries and logical line boundaries are independent. A
+   trailing unquoted (or escaped) blank continues the current logical line;
+   empty physical lines do not consume -L's count. NUL mode counts records. */
+typedef struct {
+    size_t line;
+    int nonblank, trailing_blank;
+} bx_input_state;
+
+static void
+bx_input_separator (bx_input_state *input, int c)
+{
+    if (c == '\n') {
+        if (input->nonblank && !input->trailing_blank) {
+            input->line++;
+            input->nonblank = 0;
+        }
+    } else
+        input->trailing_blank = 1;
+}
+
 static inline int
 bx_read_byte (FILE *in)
 {
@@ -198,21 +218,14 @@ bx_read_byte (FILE *in)
 
 static char *
 bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
-                  bx_arg_buffer *storage, int plain_span)
+                  bx_arg_buffer *storage, int plain_span,
+                  bx_input_state *input, size_t *arg_line)
 {
-#if defined (__GLIBC__)
-    /* Keep the thread's locale slot, not its current table: an input
-       callback may replace that table before the next classification. */
-    const unsigned short int *const volatile *space_table =
-        !nul_sep && !line_mode ? __ctype_b_loc () : NULL;
-# define BX_ARG_ISSPACE(c) ((*space_table)[(unsigned char) (c)] & _ISspace)
-#else
-# define BX_ARG_ISSPACE(c) isspace ((unsigned char) (c))
-#endif
+    /* GNU's separators are blanks and newline, not vertical whitespace. */
+# define BX_ARG_ISSPACE(c) ((c) == ' ' || (c) == '\t' || (c) == '\n')
 #if !defined (BX_SINGLE_THREADED_STDIO) || !defined (__GLIBC__)
     (void) plain_span;
 #endif
-    int term = nul_sep ? '\0' : '\n';
     size_t cap = storage->capacity, len;
     char *buf = storage->data;
     if (!buf) {
@@ -224,35 +237,41 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
     }
     int c;
 
-next_line:
     len = 0;
-    if (!line_mode && !nul_sep) {
+    if (!nul_sep) {
         while ((c = bx_read_byte (in)) != EOF && BX_ARG_ISSPACE (c))
-            ;
+            bx_input_separator (input, c);
         if (c == EOF) return NULL;
     } else {
         c = bx_read_byte (in);
         if (c == EOF) return NULL;
     }
+    if (arg_line) *arg_line = input->line;
 
     int quote = 0;
     for (;;) {
         if (c == EOF) break;
         if (nul_sep) {
-            if (c == '\0') break;
-        } else if (line_mode) {
-            if (c == term) break;
+            if (c == '\0') { input->line++; break; }
         } else {
-            if (!quote && BX_ARG_ISSPACE (c)) break;
+            if (c == '\n' && quote) {
+                if (errp) *errp = quote;
+                return NULL;
+            }
+            if (!quote && (c == '\n' || (!line_mode && BX_ARG_ISSPACE (c)))) {
+                bx_input_separator (input, c);
+                break;
+            }
+            input->nonblank = 1;
+            input->trailing_blank = (c == ' ' || c == '\t');
             if (c == '\'' || c == '"') {
                 if (!quote) { quote = c; c = bx_read_byte (in); continue; }
                 if (quote == c) { quote = 0; c = bx_read_byte (in); continue; }
-            } else if (c == '\\') {
+            } else if (c == '\\' && !quote) {
                 c = bx_read_byte (in);
-                if (c == EOF) {
-                    if (errp) *errp = '\\';
-                    return NULL;
-                }
+                /* GNU discards a final escape at EOF, retaining the word. */
+                if (c == EOF) break;
+                input->trailing_blank = (c == ' ' || c == '\t');
             }
         }
         if (len + 1 >= cap) {
@@ -284,21 +303,20 @@ next_line:
                 buf[len++] = (char) byte;
                 next++;
             }
+            if (next != first) input->trailing_blank = 0;
             in->_IO_read_ptr = (char *) next;
         }
 #endif
         c = bx_read_byte (in);
     }
 
-    if (quote && !line_mode && !nul_sep) {
+    if (quote && !nul_sep) {
         if (errp) *errp = quote;
         return NULL;
     }
 
     if (c == EOF && len == 0) return NULL;
     buf[len] = '\0';
-    /* For -I line mode, also accept blank lines as separators (skip empties). */
-    if (line_mode && !nul_sep && len == 0) goto next_line;
     return buf;
 #undef BX_ARG_ISSPACE
 }
@@ -307,7 +325,9 @@ static char *
 bx_read_arg (FILE *in, int nul_sep, int line_mode, int *errp)
 {
     bx_arg_buffer storage = { 0 };
-    char *arg = bx_read_arg_into (in, nul_sep, line_mode, errp, &storage, 0);
+    bx_input_state input = { 0 };
+    char *arg = bx_read_arg_into (in, nul_sep, line_mode, errp, &storage, 0,
+                                  &input, NULL);
     if (!arg) free (storage.data);
     return arg;
 }
@@ -1083,7 +1103,11 @@ bx_run (char **argv, int n, int tflag, bx_spawn_state *state,
             if (s == 0)   return BX_OK;
             if (s == 127) return BX_NOTFOUND;
             if (s == 126) return BX_NOEXEC;
-            if (s == 255) return BX_FATAL_255;
+            if (s == 255) {
+                if (bx_end_mask_interval (state) < 0) return BX_BAD;
+                builtin_error ("%s: exited with status 255; aborting", argv[0]);
+                return BX_FATAL_255;
+            }
             return BX_ANY_FAIL;
         }
         return BX_ANY_FAIL;
@@ -1141,7 +1165,10 @@ bx_status_to_rc (const char *cmd, int status)
         if (s == 0)   return BX_OK;
         if (s == 127) return BX_NOTFOUND;
         if (s == 126) return BX_NOEXEC;
-        if (s == 255) return BX_FATAL_255;
+        if (s == 255) {
+            builtin_error ("%s: exited with status 255; aborting", cmd);
+            return BX_FATAL_255;
+        }
         return BX_ANY_FAIL;
     }
     return BX_ANY_FAIL;
@@ -1217,6 +1244,12 @@ xargs_builtin (WORD_LIST *list)
                 builtin_usage ();
                 return EX_USAGE;
             }
+            if (max_l || (Iflag && max_n != 1)) {
+                builtin_error ("warning: -n overrides previous -L or -I");
+                max_l = 0;
+                Iflag = NULL;
+            }
+            if (Iflag && max_n == 1) max_n = 0;
             list = list->next;
             continue;
         }
@@ -1228,6 +1261,12 @@ xargs_builtin (WORD_LIST *list)
                 builtin_usage ();
                 return EX_USAGE;
             }
+            if (max_l || (Iflag && max_n != 1)) {
+                builtin_error ("warning: -n overrides previous -L or -I");
+                max_l = 0;
+                Iflag = NULL;
+            }
+            if (Iflag && max_n == 1) max_n = 0;
             list = list->next;
             continue;
         }
@@ -1236,6 +1275,11 @@ xargs_builtin (WORD_LIST *list)
                 builtin_error ("-L needs a positive count");
                 builtin_usage ();
                 return EX_USAGE;
+            }
+            if (max_n || Iflag) {
+                builtin_error ("warning: -L overrides previous -n or -I");
+                max_n = 0;
+                Iflag = NULL;
             }
             list = list->next;
             continue;
@@ -1247,6 +1291,11 @@ xargs_builtin (WORD_LIST *list)
                 builtin_error ("-L needs a positive count");
                 builtin_usage ();
                 return EX_USAGE;
+            }
+            if (max_n || Iflag) {
+                builtin_error ("warning: -L overrides previous -n or -I");
+                max_n = 0;
+                Iflag = NULL;
             }
             list = list->next;
             continue;
@@ -1293,6 +1342,10 @@ xargs_builtin (WORD_LIST *list)
         }
         if (w[1] == 'I' && w[2]) {
             Iflag = (char *) (w + 2);
+            if (max_n || max_l) {
+                builtin_error ("warning: -I overrides previous -n or -L");
+                max_n = max_l = 0;
+            }
             list = list->next;
             continue;
         }
@@ -1300,6 +1353,10 @@ xargs_builtin (WORD_LIST *list)
             if (!list->next) { builtin_error ("-I needs REPL"); builtin_usage (); return EX_USAGE; }
             list = list->next;
             Iflag = list->word->word;
+            if (max_n || max_l) {
+                builtin_error ("warning: -I overrides previous -n or -L");
+                max_n = max_l = 0;
+            }
             list = list->next;
             continue;
         }
@@ -1508,6 +1565,8 @@ xargs_builtin (WORD_LIST *list)
 
         size_t batch_n = 0;
         size_t batch_bytes = 0;
+        size_t batch_line = 0, arg_line = 0;
+        bx_input_state input = { 0 };
         if (bx_batch_reserve (&buffers, 64, tmpl_n) < 0) {
             rc = BX_BAD;
             goto cleanup;
@@ -1520,14 +1579,28 @@ xargs_builtin (WORD_LIST *list)
            whether the preceding batch must run, including fatal stops.
            Swapping its storage with each slot reuses argument capacities
            without copying bytes or overwriting the batch being launched. */
-        while ((arg = bx_read_arg_into (stdin, nul_sep, max_l > 0, &read_error,
+        while ((arg = bx_read_arg_into (stdin, nul_sep, 0, &read_error,
                                        &buffers.lookahead,
-                                       bx_plain_span_allowed (&spawn_state))) != NULL) {
+                                       bx_plain_span_allowed (&spawn_state),
+                                       &input, &arg_line)) != NULL) {
             got_any = 1;
             size_t alen = strlen (arg) + 1;
             int flush = 0;
             if (max_n > 0 && (int) batch_n >= max_n) flush = 1;
-            if (max_l > 0 && (int) batch_n >= max_l) flush = 1;
+            if (max_l > 0 && batch_n > 0 &&
+                arg_line - batch_line >= (size_t) max_l) flush = 1;
+            /* -L implies GNU's -x: do not split a logical batch to fit -s. */
+            if (max_l > 0 && !flush && batch_n > 0 &&
+                batch_bytes + alen > cap_bytes) {
+                if (bx_end_mask_interval (&spawn_state) < 0) {
+                    rc = BX_BAD;
+                    goto cleanup;
+                }
+                builtin_error ("argument list too long");
+                too_long = 1;
+                batch_n = 0;
+                break;
+            }
             if (batch_n > 0 && batch_bytes + alen > cap_bytes) flush = 1;
             if (flush) {
                 /* Build argv = template + batch. */
@@ -1570,6 +1643,7 @@ xargs_builtin (WORD_LIST *list)
                     goto cleanup;
                 }
             }
+            if (batch_n == 0) batch_line = arg_line;
             bx_arg_buffer spare = buffers.args[batch_n];
             buffers.args[batch_n++] = buffers.lookahead;
             /* Retain the small initial allocation, but do not let large
@@ -1589,6 +1663,11 @@ xargs_builtin (WORD_LIST *list)
             }
             rc = bx_fold (rc, BX_BAD);
         }
+        /* GNU -L only runs complete logical batches after a parse error.
+           Ordinary -n mode still flushes its successfully parsed words. */
+        if (read_error && max_l > 0 &&
+            input.line - batch_line < (size_t) max_l)
+            batch_n = 0;
         /* Final flush — only if we didn't abort on a fatal child. */
         if (!aborted_fatal && batch_n > 0) {
             int total = tmpl_n + (int) batch_n;
@@ -1617,9 +1696,9 @@ xargs_builtin (WORD_LIST *list)
         }
     }
 
-    /* If no input AND -r set, do nothing and exit success.
-       If no input AND -r not set, run CMD once with no args (POSIX). */
-    if (!got_any && !rflag && !Iflag) {
+    /* A successful empty read runs CMD once unless -r or -I suppresses it.
+       A parse error must not fall through to an empty-input invocation. */
+    if (!got_any && !rflag && !Iflag && rc == BX_OK) {
         char **argv = malloc ((size_t) (tmpl_n + 1) * sizeof *argv);
         if (!argv) { rc = bx_fold (rc, BX_BAD); goto cleanup; }
         for (int i = 0; i < tmpl_n; i++) argv[i] = tmpl[i];
@@ -1681,7 +1760,7 @@ char *xargs_doc[] = {
     "    -t        echo command before run",
     "    -p        prompt before run (yes/no)",
     "    -n MAX    max args per invocation",
-    "    -L MAX    max input lines/items per invocation",
+    "    -L MAX    max nonblank logical input lines per invocation",
     "    -P MAX    run up to MAX invocations in parallel",
     "    -s SIZE   max command-line bytes per invocation (POSIX/GNU)",
     "    -I REPL   substitute REPL with input arg; run once per input",

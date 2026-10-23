@@ -211,7 +211,7 @@ touch_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("--reference needs FILE");
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             ref = list->word->word;
@@ -231,7 +231,7 @@ touch_builtin (WORD_LIST *list)
                 if (!list->next) {
                     builtin_error ("--date needs argument");
                     builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
                 list = list->next;
                 arg = list->word->word;
@@ -239,7 +239,7 @@ touch_builtin (WORD_LIST *list)
             if (bt_date (arg, &fixed) < 0) {
                 builtin_error ("invalid time/date: %s", arg);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             have_fixed = 1;
             list = list->next;
@@ -253,7 +253,7 @@ touch_builtin (WORD_LIST *list)
                 if (!list->next) {
                     builtin_error ("--time needs WORD");
                     builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
                 }
                 list = list->next;
                 arg = list->word->word;
@@ -261,7 +261,7 @@ touch_builtin (WORD_LIST *list)
             if (bt_time_word (arg, &aflag, &mflag) < 0) {
                 builtin_error ("invalid argument '%s' for --time", arg);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             continue;
@@ -272,7 +272,7 @@ touch_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("-r needs REF");
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             ref = list->word->word;
@@ -290,14 +290,14 @@ touch_builtin (WORD_LIST *list)
             if (!list->next) {
                 builtin_error ("%s needs argument", w);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             list = list->next;
             if ((w[1] == 'd' ? bt_date (list->word->word, &fixed) :
                 (fixed.tv_nsec = 0, bt_parsetime (list->word->word, &fixed.tv_sec))) < 0) {
                 builtin_error ("invalid time/date: %s", list->word->word);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             have_fixed = 1;
             list = list->next;
@@ -308,7 +308,7 @@ touch_builtin (WORD_LIST *list)
                 (fixed.tv_nsec = 0, bt_parsetime (w + 2, &fixed.tv_sec))) < 0) {
                 builtin_error ("invalid time/date: %s", w + 2);
                 builtin_usage ();
-                return EX_USAGE;
+                return EXECUTION_FAILURE;
             }
             have_fixed = 1;
             list = list->next;
@@ -318,7 +318,7 @@ touch_builtin (WORD_LIST *list)
         if (!strncmp (w, "--", 2)) {
             builtin_error ("unknown flag: %s", w);
             builtin_usage ();
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
 
         /* Bundled short flags: -acm / -am / -c etc. */
@@ -332,7 +332,7 @@ touch_builtin (WORD_LIST *list)
                 default:
                     builtin_error ("unknown flag: -%c", *p);
                     builtin_usage ();
-                    return EX_USAGE;
+                    return EXECUTION_FAILURE;
             }
         }
         list = list->next;
@@ -341,7 +341,7 @@ touch_builtin (WORD_LIST *list)
     if (!list) {
         builtin_error ("missing file operand");
         builtin_usage ();
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
     }
 
     /* Default: both atime and mtime. */

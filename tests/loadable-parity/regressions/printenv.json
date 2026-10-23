@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "loadable": "printenv",
+  "reference": "GNU coreutils printenv, selected by PATH in the isolated reference Bash. Fixture variables are assigned and exported by the same script on both sides.",
+  "coverage": [
+    "Bash builtin type and help metadata contracts",
+    "Exported scalar values with spaces and equals signs, empty values, and embedded newlines",
+    "No-operand environment listing includes an explicitly exported fixture entry",
+    "Unset and unexported names return failure without output",
+    "GNU option terminator, multiple operands, help, and invalid-option behavior",
+    "Exported Bash function name lookup"
+  ],
+  "exclusions": [
+    "The complete no-operand environment dump is not compared byte-for-byte because the runner deliberately gives reference and candidate Bash different PATH values; its case checks that a unique exported fixture entry is present.",
+    "No filesystem or privileged operations apply to this read-only command."
+  ],
+  "cases": [
+    {
+      "id": "type-metadata",
+      "kind": "contract",
+      "purpose": "Confirm Bash resolves printenv as an enabled builtin, as required by the compiled-in loadable contract.",
+      "script": "type -t printenv",
+      "expected_status": 0,
+      "stdout": "builtin\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "help-metadata",
+      "kind": "contract",
+      "purpose": "Confirm the loadable's Bash help entry is registered and succeeds; the checked marker is independent of the external printenv CLI.",
+      "script": "help printenv >/dev/null\nprintf 'help available\\n'",
+      "expected_status": 0,
+      "stdout": "help available\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "exported-value",
+      "kind": "parity",
+      "purpose": "A named exported value containing spaces and an equals sign is printed exactly with one final newline.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "VALUE='two words=three'\nexport VALUE\nprintenv VALUE",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "empty-value",
+      "kind": "parity",
+      "purpose": "An exported empty value is present and produces a single newline, rather than being treated as absent.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "EMPTY_VALUE=\nexport EMPTY_VALUE\nprintenv EMPTY_VALUE",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "embedded-newline",
+      "kind": "parity",
+      "purpose": "An exported value containing an embedded newline is emitted byte-for-byte followed by printenv's terminating newline.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "MULTILINE=$'first line\\nsecond=value'\nexport MULTILINE\nprintenv MULTILINE",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-includes-export",
+      "kind": "parity",
+      "purpose": "With no operands, printenv lists the marked exported environment record; only this deterministic record is selected because the runner gives the two shells different PATH values.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "export PRINTENV_PARITY_MARKER=visible\nlisting=$(printenv)\ncase $'\\n'\"$listing\"$'\\n' in\n  *$'\\nPRINTENV_PARITY_MARKER=visible\\n'*) printf 'listed\\n' ;;\n  *) exit 1 ;;\nesac",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-exported-checks",
+      "kind": "parity",
+      "purpose": "A set but unexported shell variable and an unset name are both absent from the environment; the script captures each status and output before checking both behaviors.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "LOCAL_ONLY=secret\nunset PRINTENV_ABSENT\nif output=$(printenv LOCAL_ONLY); then local_status=0; else local_status=$?; fi\nif [[ -n $output ]]; then exit 2; fi\nif output=$(printenv PRINTENV_ABSENT); then absent_status=0; else absent_status=$?; fi\nif [[ -n $output ]]; then exit 2; fi\nprintf 'unexported=%s absent=%s\\n' \"$local_status\" \"$absent_status\"\n[[ $local_status -eq 1 && $absent_status -eq 1 ]]",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-terminator",
+      "kind": "parity",
+      "purpose": "The standard -- option terminator permits a named variable operand after option parsing.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "TERMINATED=after-options\nexport TERMINATED\nprintenv -- TERMINATED",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-operands",
+      "kind": "parity",
+      "purpose": "GNU printenv accepts multiple variable names and emits each value; the stock loadable source documents only one varname, so any incompatibility remains visible.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "FIRST_VALUE=first\nSECOND_VALUE=second\nexport FIRST_VALUE SECOND_VALUE\nprintenv FIRST_VALUE SECOND_VALUE",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "exported-function-name",
+      "kind": "parity",
+      "purpose": "GNU printenv queries environment names, so an exported Bash function is not found by its function name; this checks the loadable's function-specific branch against that behavior.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "parity_function() { printf 'function body\\n'; }\nexport -f parity_function\nif printenv parity_function; then status=0; else status=$?; fi\nexit \"$status\"",
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-help-option",
+      "kind": "parity",
+      "purpose": "Help succeeds and provides nonempty usage text. Branding and prose are implementation-specific.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "printenv --help > usage; [[ -s usage ]]; rm usage; printf \"help available\\n\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid-option",
+      "kind": "parity",
+      "purpose": "An unsupported short option is rejected; GNU exit status is checked independently and diagnostic wording may differ.",
+      "requires": [
+        "printenv"
+      ],
+      "script": "if printenv -z; then status=0; else status=$?; fi\nexit \"$status\"",
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing-between-values",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export A=first B=last; printenv A NOT_PRESENT B",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "null-values",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export A=first B=; printenv -0 A B",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-null",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export A=first B=last; printenv --null A B",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "options-after-operands",
+      "kind": "parity",
+      "purpose": "GNU printenv stops option parsing at the first variable; -0 here is an absent variable name.",
+      "script": "export A=first B=last; printenv A B -0",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeat-operands",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export A=first; printenv A A",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "temporary-assignment",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "A=temporary printenv A",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "posix-option-order",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export POSIXLY_CORRECT=1 A=first; printenv A -0",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "option-abbreviation",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "export A=first; printenv --nu A",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "version-available",
+      "kind": "parity",
+      "purpose": "GNU printenv operand, exported environment, and option semantics.",
+      "script": "printenv --version > version; [[ -s version ]]; rm version; printf \"version available\\n\"",
+      "requires": [
+        "printenv"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

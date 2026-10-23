@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "loadable": "basename",
+  "reference": "GNU coreutils basename, invoked by system Bash with the harness reference PATH, is the independent oracle for runnable cases. The loadable's one-string/optional-suffix behavior follows its documented POSIX-style basename contract; the metadata case is based on the embedded basename_doc and Bash type/help builtins.",
+  "coverage": [
+    "Bash builtin registration and documented help metadata",
+    "ordinary path component extraction and single-component names",
+    "trailing slashes and slash-only names",
+    "matching, mismatching, and whole-name suffixes",
+    "leading-dash operands after the option terminator",
+    "spaces and hidden-file names",
+    "empty input and invalid operand counts"
+  ],
+  "exclusions": [
+    "GNU-only multi-name, NUL-output, and option-driven modes are outside the stock Bash loadable's documented string [suffix] interface.",
+    "The operation has no filesystem or privileged side effects, so no VM or syscall-mock case is needed."
+  ],
+  "cases": [
+    {
+      "id": "builtin-help-contract",
+      "kind": "contract",
+      "purpose": "Verify Bash exposes basename as a builtin and its help includes the synopsis documented in the loadable source.",
+      "script": "[[ $(type -t basename) == builtin ]]; help_text=$(help basename); [[ $help_text == *\"Return non-directory portion of pathname.\"* ]]; [[ $help_text == *\"pathname component in STRING.\"* ]]; printf 'builtin; basename help matches documented synopsis\\n'",
+      "expected_status": 0,
+      "stdout": "builtin; basename help matches documented synopsis\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "ordinary-paths",
+      "kind": "parity",
+      "purpose": "Extract the final component from a multi-component path, a single-component name, and a path ending in a component without a suffix.",
+      "script": "basename 'alpha/beta/file.txt'; basename 'single'; basename 'alpha/beta'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "trailing-and-root-slashes",
+      "kind": "parity",
+      "purpose": "Check removal of repeated trailing slashes and the special result for an operand made only of slash characters.",
+      "script": "basename 'alpha/beta/file.txt///'; basename '////'; basename 'alpha/beta///'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "suffix-rules",
+      "kind": "parity",
+      "purpose": "Check stripping of a matching suffix, retention of a nonmatching suffix, and retention when the suffix equals the entire basename.",
+      "script": "basename '/var/log/archive.tar.gz' '.gz'; basename 'archive.gz' '.zip'; basename 'whole' 'whole'; basename '/tmp/a.b.c' '.c'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "leading-dash-operands",
+      "kind": "parity",
+      "purpose": "Use GNU's option terminator to pass a leading-dash name as an operand, both alone and after a directory prefix.",
+      "script": "basename -- '-leading-name'; basename -- 'dir/-leading-name'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "spaces-and-hidden-name",
+      "kind": "parity",
+      "purpose": "Preserve spaces in an operand and leave a leading-dot filename intact when no matching suffix is present.",
+      "script": "basename 'dir/with spaces/file name.txt' '.txt'; basename 'dir/.profile' '.txt'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "empty-operand",
+      "kind": "parity",
+      "purpose": "Check the empty-string boundary separately from a slash-only operand, whose specified result is a single slash.",
+      "script": "basename ''",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "missing-operand",
+      "kind": "parity",
+      "purpose": "Check GNU's failure status and diagnostic policy when the required name operand is omitted.",
+      "script": "basename",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "basename"
+      ]
+    },
+    {
+      "id": "extra-operands",
+      "kind": "parity",
+      "purpose": "Check rejection of more than the documented name and optional suffix operands.",
+      "script": "basename one two three",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "basename"
+      ]
+    }
+  ]
+}

@@ -96,8 +96,17 @@ int
 rev_builtin (WORD_LIST *list)
 {
     if (!list) return br_process (stdin);
+    int options_done = 0, operands = 0;
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
+        if (!options_done && !strcmp (w, "--")) {
+            options_done = 1;
+            continue;
+        }
+        if (options_done) {
+            operands++;
+            continue;
+        }
         if (!strcmp (w, "-h") || !strcmp (w, "--help")) {
             br_help ();
             return EXECUTION_SUCCESS;
@@ -109,11 +118,18 @@ rev_builtin (WORD_LIST *list)
         if (w[0] == '-' && w[1] != '\0' && strcmp (w, "-")) {
             builtin_error ("invalid option: %s", w);
             builtin_usage ();
-            return EX_USAGE;
+            return EXECUTION_FAILURE;
         }
+        operands++;
     }
+    if (!operands) return br_process (stdin);
     int rc = EXECUTION_SUCCESS;
+    options_done = 0;
     for (WORD_LIST *p = list; p; p = p->next) {
+        if (!options_done && !strcmp (p->word->word, "--")) {
+            options_done = 1;
+            continue;
+        }
         FILE *f = !strcmp (p->word->word, "-") ? stdin : fopen (p->word->word, "r");
         if (!f) {
             builtin_error ("%s: %s", p->word->word, strerror (errno));

@@ -325,15 +325,19 @@ def main():
                 staged[command] = f'no source for {command}'
                 continue
             target = stage/'builtins'/f'{command}.c'
+            # Match build.sh's include fixups before applying stock patches.
+            content = text(command)
+            for header in ('builtins.h', 'shell.h', 'bashansi.h', 'arrayfunc.h', 'array.h'):
+                content = content.replace(f'#include "{header}"', f'#include "../{header}"')
             # As in build.sh, the builtin function and its documentation become global.
             target.write_text(re.sub(rf'^static (int {command}_builtin|char \*{command}_doc)', r'\1',
-                                     text(command), flags=re.M))
+                                     content, flags=re.M))
             staged[command] = None
             if origin(command).parent == ROOT/'loadables':
                 continue
             try:
                 if command in PATCHES:
-                    run(['patch', '--batch', '-s', target, '-i', ROOT/'patches'/PATCHES[command]])
+                    run(['patch', '--batch', '--fuzz=0', '-s', target, '-i', ROOT/'patches'/PATCHES[command]])
                 content = target.read_text()
                 for pattern, replacement in REWRITES.get(command, []):
                     content, count = re.subn(pattern, lambda _: replacement, content, flags=re.M)
