@@ -1,0 +1,931 @@
+{
+  "release_tag": "v0.1.2",
+  "version": "0.1.2",
+  "architecture": "Linux x86-64",
+  "base_release": "v0.1.1",
+  "base_commit": "56f08a8ed2827e522361554f067573f06d2a6d6c",
+  "baseline": "docs/data/release-0.1.1-validation.json",
+  "baseline_sha256": "17dace712ae44b605cb8fa6f1c8dfc169da5840805e8082956245ed1b3fc5925",
+  "builds": {
+    "static": {
+      "binary_sha256": "15ce9dfb3d0c04f41d699e317f232dc160244bb17a8afec7fdddd0e5b0adc3c7",
+      "binary_bytes": 14969640,
+      "injected_builtins": 286,
+      "suites": {
+        "suite_count": 289,
+        "case_count": 3818,
+        "primary_summary": {
+          "PASS": 3152,
+          "FAIL": 24,
+          "ERROR": 0,
+          "SKIP": 42,
+          "DEFERRED": 600
+        },
+        "qualified_summary": {
+          "PASS": 3171,
+          "FAIL": 24,
+          "ERROR": 0,
+          "SKIP": 23,
+          "DEFERRED": 600
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1745,
+            "FAIL": 24,
+            "ERROR": 0,
+            "SKIP": 16,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 1426,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 7,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 600
+          }
+        },
+        "acl_missing_reference_replacements": 19,
+        "retained_failures": [
+          {
+            "loadable": "apropos",
+            "case": "version-cli",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "bc",
+            "case": "syntax_error_recovery_status",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "binhex",
+            "case": "decode-odd-nibble-xxd-compatibility",
+            "differences": [
+              "candidate status 1, expected 0",
+              "candidate stderr policy"
+            ]
+          },
+          {
+            "loadable": "binhex",
+            "case": "decode-nonhex-characters-xxd-compatibility",
+            "differences": [
+              "candidate status 1, expected 0",
+              "candidate stderr policy",
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "getconf",
+            "case": "all-variables-relative-path",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "gnu-help-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "gnu-version-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "option-after-operand",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "help-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "abbreviated-help",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "version-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "version-prefix",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "nano",
+            "case": "gnu_help_option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "nano",
+            "case": "gnu_options_without_terminal",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "sftp",
+            "case": "openssh-help-flag",
+            "differences": [
+              "candidate status 0, expected 1",
+              "candidate stderr policy",
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "strings",
+            "case": "invalid-radix-diagnostic-exact-bytes",
+            "differences": [
+              "stderr bytes"
+            ]
+          },
+          {
+            "loadable": "whatis",
+            "case": "prefix-compatibility",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "gnu-help-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "gnu-version-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "option-after-operand",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "help-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "abbreviated-help",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "version-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "version-prefix",
+            "differences": [
+              "stdout bytes"
+            ]
+          }
+        ]
+      },
+      "regressions": {
+        "suite_count": 167,
+        "case_count": 2349,
+        "primary_summary": {
+          "PASS": 2069,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 19,
+          "DEFERRED": 260
+        },
+        "qualified_summary": {
+          "PASS": 2088,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 260
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1418,
+            "FAIL": 1,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 670,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 260
+          }
+        },
+        "acl_missing_reference_replacements": 19,
+        "retained_failures": [
+          {
+            "loadable": "bc",
+            "case": "syntax_error_recovery_status",
+            "differences": [
+              "stdout bytes"
+            ]
+          }
+        ]
+      }
+    },
+    "dynamic": {
+      "binary_sha256": "960b83dc6a8652abbb10a70b536fa9bc84a188622eca949e50eb53e8ff834c22",
+      "binary_bytes": 12509128,
+      "injected_builtins": 286,
+      "suites": {
+        "suite_count": 289,
+        "case_count": 3818,
+        "primary_summary": {
+          "PASS": 3152,
+          "FAIL": 24,
+          "ERROR": 0,
+          "SKIP": 42,
+          "DEFERRED": 600
+        },
+        "qualified_summary": {
+          "PASS": 3171,
+          "FAIL": 24,
+          "ERROR": 0,
+          "SKIP": 23,
+          "DEFERRED": 600
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1745,
+            "FAIL": 24,
+            "ERROR": 0,
+            "SKIP": 16,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 1426,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 7,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 600
+          }
+        },
+        "acl_missing_reference_replacements": 19,
+        "retained_failures": [
+          {
+            "loadable": "apropos",
+            "case": "version-cli",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "bc",
+            "case": "syntax_error_recovery_status",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "binhex",
+            "case": "decode-odd-nibble-xxd-compatibility",
+            "differences": [
+              "candidate status 1, expected 0",
+              "candidate stderr policy"
+            ]
+          },
+          {
+            "loadable": "binhex",
+            "case": "decode-nonhex-characters-xxd-compatibility",
+            "differences": [
+              "candidate status 1, expected 0",
+              "candidate stderr policy",
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "getconf",
+            "case": "all-variables-relative-path",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "gnu-help-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "gnu-version-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "option-after-operand",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "help-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "abbreviated-help",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "version-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "logname",
+            "case": "version-prefix",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "nano",
+            "case": "gnu_help_option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "nano",
+            "case": "gnu_options_without_terminal",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "sftp",
+            "case": "openssh-help-flag",
+            "differences": [
+              "candidate status 0, expected 1",
+              "candidate stderr policy",
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "strings",
+            "case": "invalid-radix-diagnostic-exact-bytes",
+            "differences": [
+              "stderr bytes"
+            ]
+          },
+          {
+            "loadable": "whatis",
+            "case": "prefix-compatibility",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "gnu-help-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "gnu-version-option",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "option-after-operand",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "help-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "abbreviated-help",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "version-extra",
+            "differences": [
+              "stdout bytes"
+            ]
+          },
+          {
+            "loadable": "whoami",
+            "case": "version-prefix",
+            "differences": [
+              "stdout bytes"
+            ]
+          }
+        ]
+      },
+      "regressions": {
+        "suite_count": 167,
+        "case_count": 2349,
+        "primary_summary": {
+          "PASS": 2069,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 19,
+          "DEFERRED": 260
+        },
+        "qualified_summary": {
+          "PASS": 2088,
+          "FAIL": 1,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 260
+        },
+        "qualified_by_kind": {
+          "parity": {
+            "PASS": 1418,
+            "FAIL": 1,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "contract": {
+            "PASS": 670,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0
+          },
+          "deferred": {
+            "PASS": 0,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 260
+          }
+        },
+        "acl_missing_reference_replacements": 19,
+        "retained_failures": [
+          {
+            "loadable": "bc",
+            "case": "syntax_error_recovery_status",
+            "differences": [
+              "stdout bytes"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "source_changes": {
+    "VERSION": "297b50f08386d3521f8fdaf2f78eb8d9d0acdf452d2e61596905fba37208c792",
+    "loadables/bc.c": "647075f65edd04c47c05eb03608e29630c35d654ec537ccf9101253f8113561d",
+    "loadables/git.c": "452ad3535cd4fe016a6655e194aacd21b8bc26c197a5905d5d1d702621cc12d8",
+    "loadables/strings.c": "26acefdd94149c8f41c542affc072752f8c68c98838e1cace0725974a8e28e3c"
+  },
+  "fixture_changes": {
+    "tests/loadable-parity/suites/bc.json": {
+      "before_sha256": "386449fe2b312a84e6ae15f2f5cf94ce2acc129b8c6fa81266fa19e375779bb1",
+      "after_sha256": "6cf5728080ad46f2fa83f64d192310a8affe9b0918fc698e0d62a706867af828"
+    },
+    "tests/loadable-parity/suites/git.json": {
+      "before_sha256": "76e7192cc319f406c6cd2133242f198adef905fffa00f3bb9695f4bf6ae47511",
+      "after_sha256": "8301504f8c97708e78bea15da6c89ae577d44fa3228f510da6e00548d2362c8d"
+    },
+    "tests/loadable-parity/suites/strings.json": {
+      "before_sha256": "df80216503255e4b83784340857335bd0a505bf2703f0918ca8ba2d9c83404e0",
+      "after_sha256": "feab388806afbae569e7bc2ce8e950b8e0ebea4e9b2badcbf8e5d3c9f6070413"
+    },
+    "tests/loadable-parity/regressions/bc.json": {
+      "before_sha256": "6f25a4841b824cc9a4b72bf3bd0fbc312a9bf892ab92f6f624fed287f02c2766",
+      "after_sha256": "0d4f5a605963692dcd3f2b5550482137a0bea578355e1064990e11f897ee7ef4"
+    },
+    "tests/loadable-parity/regressions/git.json": {
+      "before_sha256": "494d10b55cc690f3a4ffdbdda9e1cbf5d25f804e4a54ee2f4aa5d86c59551cb9",
+      "after_sha256": "685c5cb637e08cf355d8de410c2f64578ec428425254c8ccf194df72c9936952"
+    },
+    "tests/loadable-parity/regressions/strings.json": {
+      "before_sha256": "f9de7ffc758966a0e56d95349aacd24ff37fe131cb0d9cee3712240ee3755ba0",
+      "after_sha256": "619fd323ef65de9c565aecf8948b50ff3638fc7b22ffbd3f131ba776b6482778"
+    }
+  },
+  "other_compilation_inputs_match_base_release": true,
+  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+  "harness": {
+    "run.py": "dddb262cb78f0acf2a33c8c814790adbdebfe92e2b53ad31beeb8f2c7a7cee05",
+    "runner.py": "39fa781c9dfc100befa7b48233df7a5555095d91e678761e2a7a11766448c6b5"
+  },
+  "baseline_failure_triage": [
+    {
+      "loadable": "apropos",
+      "case": "version-cli",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "bc",
+      "case": "runtime_error_recovery",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "fixed",
+      "reason": "Bare file operands, exact missing-file error and GNU recovery status in ordinary stdin/file mode; explicit expression and strict modes retained.",
+      "release_status": "PASS"
+    },
+    {
+      "loadable": "bc",
+      "case": "missing_named_file_gnu_difference",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stderr bytes"
+      ],
+      "disposition": "fixed",
+      "reason": "Bare file operands, exact missing-file error and GNU recovery status in ordinary stdin/file mode; explicit expression and strict modes retained.",
+      "release_status": "PASS"
+    },
+    {
+      "loadable": "bc",
+      "case": "documented_error_status_difference_gnu_difference",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "fixed",
+      "reason": "Bare file operands, exact missing-file error and GNU recovery status in ordinary stdin/file mode; explicit expression and strict modes retained.",
+      "release_status": "PASS"
+    },
+    {
+      "loadable": "binhex",
+      "case": "decode-odd-nibble-xxd-compatibility",
+      "baseline_status": "FAIL",
+      "differences": [
+        "candidate status 1, expected 0",
+        "candidate stderr policy"
+      ],
+      "disposition": "retained_custom_interface",
+      "reason": "The documented decoder rejects odd nibbles and nonhex input; xxd -r -p discards them. Keep strict decoding and the strict comparison.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "binhex",
+      "case": "decode-nonhex-characters-xxd-compatibility",
+      "baseline_status": "FAIL",
+      "differences": [
+        "candidate status 1, expected 0",
+        "candidate stderr policy",
+        "stdout bytes"
+      ],
+      "disposition": "retained_custom_interface",
+      "reason": "The documented decoder rejects odd nibbles and nonhex input; xxd -r -p discards them. Keep strict decoding and the strict comparison.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "getconf",
+      "case": "all-variables-relative-path",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_additive_listing",
+      "reason": "All 322 reference names and values occur unchanged; seven additional supported constants and listing order differ.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "git",
+      "case": "missing_object_error",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stderr bytes"
+      ],
+      "disposition": "fixed",
+      "reason": "Distinguish resolution errors from missing object data and report mode-specific diagnostics/status.",
+      "release_status": "PASS"
+    },
+    {
+      "loadable": "logname",
+      "case": "gnu-help-option",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "gnu-version-option",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "option-after-operand",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "help-extra",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "abbreviated-help",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "version-extra",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "logname",
+      "case": "version-prefix",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "nano",
+      "case": "gnu_help_option",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "nano",
+      "case": "gnu_options_without_terminal",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "sftp",
+      "case": "openssh-help-flag",
+      "baseline_status": "FAIL",
+      "differences": [
+        "candidate status 0, expected 1",
+        "candidate stderr policy",
+        "stdout bytes"
+      ],
+      "disposition": "retained_custom_interface",
+      "reason": "The documented -h verb-list help succeeds. The transport and CLI are separate from OpenSSH and do not claim its protocol or help/status parity.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "strings",
+      "case": "missing-file-diagnostic-exact-bytes",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stderr bytes"
+      ],
+      "disposition": "fixed",
+      "reason": "Match exact absent-file diagnostics.",
+      "release_status": "PASS"
+    },
+    {
+      "loadable": "strings",
+      "case": "invalid-radix-diagnostic-exact-bytes",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stderr bytes"
+      ],
+      "disposition": "retained_supported_option_help",
+      "reason": "GNU invalid-radix usage lists target formats and encodings not provided by this builtin. Status and diagnostic presence agree; exact help bytes remain different.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whatis",
+      "case": "prefix-compatibility",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_custom_interface",
+      "reason": "Documented exact-name lookup differs from observed prefix matching in man-db's legacy text backend.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "gnu-help-option",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "gnu-version-option",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "option-after-operand",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "help-extra",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "abbreviated-help",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "version-extra",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    },
+    {
+      "loadable": "whoami",
+      "case": "version-prefix",
+      "baseline_status": "FAIL",
+      "differences": [
+        "stdout bytes"
+      ],
+      "disposition": "retained_implementation_help_or_identity",
+      "reason": "Output describes this implementation and supported interface. Do not copy another project's version identity or advertise unsupported options.",
+      "release_status": "FAIL"
+    }
+  ],
+  "newly_detected_difference": {
+    "loadable": "bc",
+    "case": "syntax_error_recovery_status",
+    "status": "FAIL",
+    "preexisting_in_v0.1.1": true,
+    "baseline_binary_sha256": "10b502512f5b132a367b532e54eb890f1fc8df54cfa314d5d0fc25a3f2d1159e",
+    "description": "GNU discards a following statement while recovering from a malformed later statement on a semicolon-separated line. The builtin evaluates the following statement. The strict comparison remains failing in both fixture sets; recovery statuses now agree."
+  },
+  "scope": [
+    "All candidate and reference fixtures execute through the unchanged mandatory namespace/seccomp harness under process and resource limits.",
+    "The two fixture sets overlap; their pass counts must not be added.",
+    "The ACL supplement uses the exact same candidate binary and fixture hashes. Only 19 missing-reference SKIPs per build/set are replaced; metadata and deferred cases are not added again.",
+    "The 24 full-suite failures remain visible: 23 retained implementation/interface differences and one newly detected preexisting syntax-recovery difference.",
+    "There are 600 deferred full-suite cases, including privileged, hardware, network, terminal and other unavailable operations; metadata is not operation coverage.",
+    "Optional modules account for 23 full-suite skips. Separate optional-package, Docker, cross-architecture and sanitizer qualification from v0.1.1 is historical and is not claimed for these new binaries.",
+    "Legacy standalone bc test drivers were updated and syntax-checked but not executed on the host. The recorded execution evidence comes from the mandatory isolated JSON harness."
+  ],
+  "licence_check": {
+    "files": 928,
+    "problems": 0
+  }
+}

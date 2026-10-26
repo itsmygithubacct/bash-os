@@ -29,7 +29,7 @@ Three uses drive it:
 ## Build
 
 Prebuilt Linux x86-64 binaries are available in the
-[0.1.1 release](https://github.com/itsmygithubacct/bash-os/releases/tag/v0.1.1).
+[0.1.2 release](https://github.com/itsmygithubacct/bash-os/releases/tag/v0.1.2).
 Choose the static archive for a standalone executable. The dynamic archive
 requires glibc 2.38 or newer and the shared libraries listed in its build record.
 Both include the full 286-builtin collection; optional Perl, Python and uv

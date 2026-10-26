@@ -190,10 +190,18 @@ use GNU gawk and cover both expression evaluation paths. Existing differences
 in counters updated by explicit-file and command-pipe `getline`, and broader
 language and numeric limits, remain outside that claim.
 
-`bc` retains its documented expression-operand extension and returns status 1
-after syntax or runtime errors. GNU bc handles these cases differently, so
-their expected output and recovery are explicit custom contracts. Ordinary
-arithmetic, files, functions and recovery output have separate GNU comparisons.
+`bc` treats bare operands as filenames, including missing paths and `-`.
+Expressions use `-e`, and explicit stdin uses `-f -`. Ordinary stdin/file runs
+return GNU's status 0 after recovered syntax or runtime errors; `--strict-errors`
+and the existing `-e`/`-f` extensions retain status 1. File-open, input/output
+and reported resource failures still return 1. A malformed multi-statement
+syntax-recovery difference remains a strict failure; see [bc](bc.md).
+
+`git cat-file` distinguishes an unresolved name from a missing full object ID
+across type, size, existence, pretty-print and explicit-type queries, including
+their statuses and diagnostics. `strings` matches GNU's missing-file and
+non-directory-path diagnostics, including names with spaces or quotes. Its
+invalid-radix help text remains different because the supported options differ.
 
 `cksum` retains the name `-` for explicit standard-input operands; implicit
 standard input has no CRC filename. Invalid algorithms and options return
@@ -378,3 +386,20 @@ dynamic shell, with eight deferred operations. Those module checks do not
 make the optional modules available in the bare binaries or Docker image.
 Selected sanitizer and package evidence includes explicit source, fixture and
 dependency-provenance limits. No new performance measurements are recorded.
+
+The [0.1.2 validation record](data/release-0.1.2-validation.json) covers 289
+suites and 3,818 cases in each new static and dynamic binary: 3,171 passes,
+24 strict failures, zero harness errors, 23 optional-module skips and 600
+deferred cases. Matching ACL checks replace 19 missing-reference skips in each
+build. The overlapping focused set has 2,088 passes, one strict failure and
+260 deferred cases across 167 suites; its totals must not be added to the full
+set.
+
+Five of the 0.1.1 failures are fixed: the three `bc` file/status cases, the
+missing Git object diagnostic, and the absent-file `strings` diagnostic. The
+23 retained baseline differences remain strict failures. A newly added `bc`
+syntax-recovery comparison exposes a difference that also reproduces on the
+0.1.1 binary; both fixture sets retain it as a failure. The record lists the
+disposition of all 28 baseline failures and pins the changed source and
+fixtures. Earlier Docker, optional-package, cross-architecture and sanitizer
+results are historical and are not new qualification for the 0.1.2 binaries.

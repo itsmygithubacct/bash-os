@@ -819,7 +819,6 @@ git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
 
     char full[41];
     if (git_resolve (ctx, name, full, NULL) < 0) {
-        if (want_exists) return 1;
         return git_fatal ("Not a valid object name %s", name);
     }
     enum bgit_type type;
@@ -828,6 +827,10 @@ git_cmd_cat_file (git_context *ctx, WORD_LIST *args)
     fflush (stderr);
     if (bgit_odb_read (&ctx->odb, full, &type, &data, &len) < 0) {
         if (want_exists) return 1;
+        if (want_type || want_size)
+            return git_fatal ("git cat-file: could not get object info");
+        if (as_type)
+            return git_fatal ("git cat-file %s: bad file", name);
         return git_fatal ("Not a valid object name %s", name);
     }
     int rc = 0;

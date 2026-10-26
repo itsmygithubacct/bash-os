@@ -216,7 +216,19 @@ int strings_builtin(WORD_LIST *list) {
     }
     for (; list; list = list->next) {
         FILE *f = fopen(list->word->word, "rb");
-        if (!f) { builtin_error("%s: %s", list->word->word, strerror(errno)); rc = EXECUTION_FAILURE; continue; }
+        if (!f) {
+            int error = errno;
+            const char *name = list->word->word;
+            if (error == ENOENT)
+                fprintf(stderr, "strings: '%s': No such file\n", name);
+            else if (error == ENOTDIR)
+                fprintf(stderr, "strings: Warning: could not locate '%s'.  reason: %s\n",
+                        name, strerror(error));
+            else
+                builtin_error("%s: %s", name, strerror(error));
+            rc = EXECUTION_FAILURE;
+            continue;
+        }
         if (strings_stream(f, min, list->word->word, print_fname, radix, incl_ws)) rc = EXECUTION_FAILURE;
         fclose(f);
     }

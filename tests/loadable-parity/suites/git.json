@@ -5,7 +5,8 @@
   "coverage": [
     "Bash type/help metadata contract; this checks loadable discovery only and is not operation coverage.",
     "Nested init and repository discovery, config round trips, binary loose-object hash/read and refs, index staging/status/diff, deterministic commits and history, fixture-local git mv/rm/clean, local clone, and a missing-object error.",
-    "Complete tree comparison for init, config, and the error case. Index/object/history/local-clone cases compare Git's observable output and statuses while documenting variable index stat data, reflog timestamps, compression streams, or local-clone storage strategy."
+    "Complete tree comparison for init, config, and the error case. Index/object/history/local-clone cases compare Git's observable output and statuses while documenting variable index stat data, reflog timestamps, compression streams, or local-clone storage strategy.",
+    "Missing-object status and exact diagnostics across cat-file modes"
   ],
   "exclusions": [
     "Remote clone/fetch/push require a disposable in-namespace protocol mock and are deferred; no real network target is used.",
@@ -138,6 +139,17 @@
       "kind": "deferred",
       "purpose": "Signed commits and interactive editor-driven operations.",
       "reason": "Requires a future disposable PTY plus a fake signing helper and test-only key material created inside that fixture. This suite has no terminal or signing-service mock and must not read installed credentials."
+    },
+    {
+      "id": "missing_object_modes",
+      "kind": "parity",
+      "purpose": "Distinguish unresolved names from a missing full object ID for -t, -s, -p, -e and an explicit object type; compare every status and exact diagnostic, with the initialized repository tree unchanged.",
+      "requires": [
+        "git"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1\nmkdir -p fixture-template/info fixture-template/hooks\nprintf \"%s\\n\" \"Unnamed repository; edit this file 'description' to name the repository.\" > fixture-template/description\nprintf '%s\\n' \"# git ls-files --others --exclude-from=.git/info/exclude\" \"# Lines that start with '#' are comments.\" > fixture-template/info/exclude\nexport GIT_TEMPLATE_DIR=fixture-template\ngit init -q -b main .\nfor flag in -t -s -p -e blob; do\n for name in 0000000000000000000000000000000000000000 absent; do\n  printf '%s %s\\n' \"$flag\" \"$name\" >&2\n  if git cat-file \"$flag\" \"$name\"; then rc=0; else rc=$?; fi\n  printf 'status=%s\\n' \"$rc\"\n done\ndone\n",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

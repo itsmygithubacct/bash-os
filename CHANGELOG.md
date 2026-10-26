@@ -3,6 +3,25 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## 0.1.2 — 2026-10-26
+
+- `bc` now treats bare operands as filenames and uses GNU's success status
+  after recovered syntax or runtime errors in ordinary stdin/file runs.
+  Use `-e EXPR` for argument expressions and `-f -` for explicit stdin.
+  Existing `-e`/`-f` forms and the new `--strict-errors` option retain status 1
+  after language errors. File, I/O and reported resource failures still fail.
+- `git cat-file` distinguishes unresolved names from missing full object IDs
+  across its type, size, existence, pretty-print and explicit-type modes,
+  including status and exact diagnostics.
+- `strings` matches GNU's absent-file and non-directory-path diagnostics,
+  including names containing spaces or quotes.
+- Expanded isolated parity fixtures retain strict help/version and custom
+  interface differences. A newly exposed `bc` syntax-recovery output
+  difference remains visible; this release does not claim complete GNU parity.
+- Both Linux x86-64 builds have 3,171 passes, 24 retained failures, zero harness
+  errors, 23 optional-module skips and 600 deferred cases across 3,818 cases.
+  See the [0.1.2 validation record](docs/data/release-0.1.2-validation.json).
+
 ## 0.1.1 — 2026-10-23
 
 A completion and hardening release, adding `bashclear` and conventional `clear`.

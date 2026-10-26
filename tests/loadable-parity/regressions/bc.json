@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "bc",
-  "reference": "GNU bc 1.07.1, invoked by the reference Bash with PATH=/usr/bin:/bin; each parity case compares the same bounded shell fixture on both sides. Bash type/help and the builtin-only -e/-f form use documented contracts instead.",
+  "reference": "GNU bc 1.07.1 runs the same bounded stdin/file programs in the independent reference namespace. Explicit -e/-f and --strict-errors behavior uses documented contracts.",
   "coverage": [
     "GNU arithmetic precision, decimal scale, division and signed remainder",
     "GNU input/output bases and integer rendering",
@@ -11,10 +11,11 @@
     "Relative named input files followed by standard input, including tree effects",
     "Missing named-file diagnostics and status",
     "BC_LINE_LENGTH wrapping with a small deterministic output",
-    "Bash builtin availability/help metadata and the documented -e/-f contract"
+    "Bash builtin availability/help metadata and the documented -e/-f contract",
+    "GNU recovered-error statuses and unambiguous bare file operands, with explicit strict-status contracts"
   ],
   "exclusions": [
-    "Documented builtin differences from GNU bc are covered as independent contracts: expression operands, missing-file diagnostics and nonzero status after syntax/runtime errors. GNU comparisons assert recovery output without requiring its incompatible status or diagnostic spelling.",
+    "Syntax/runtime diagnostic wording and complete final statements without a newline remain documented differences. Default stdin/file invocation compares actual GNU recovery statuses; explicit -e/-f and --strict-errors retain failing statuses.",
     "Interactive readline and terminal rendering need a PTY fixture; no terminal is allocated by this runner.",
     "This suite does not claim coverage of every language production, warning, resource limit or diagnostic wording."
   ],
@@ -86,12 +87,12 @@
       "script": "printf '%s\\n' 'define square(x) { return x*x }' > lib.bc\nprintf '%s\\n' 'square(12)' > main.bc\nbc lib.bc main.bc <<'BC'\nsquare(5)\nBC"
     },
     {
-      "id": "missing_named_file",
+      "id": "explicit_expression_error_status",
       "kind": "contract",
-      "purpose": "The documented fallback parses a nonexistent bare operand as an expression; an unset variable evaluates to zero, while a dotted filename is a syntax error. Both calls leave redirected standard input unread.",
+      "purpose": "The -e extension evaluates argument text and preserves failure status after a syntax error; redirected stdin remains unread.",
       "expected_status": 0,
       "stderr": "nonempty",
-      "script": "if bc absent <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'variable-status=%s\\n' \"$rc\"\nif bc absent.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'filename-status=%s\\n' \"$rc\"",
+      "script": "if bc -e absent <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'variable-status=%s\\n' \"$rc\"\nif bc -e absent.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'filename-status=%s\\n' \"$rc\"",
       "stdout": "0\nvariable-status=0\nfilename-status=1\n"
     },
     {
@@ -108,10 +109,10 @@
     {
       "id": "documented_error_status_difference",
       "kind": "contract",
-      "purpose": "The documented builtin status is 1 after a runtime error, and evaluation resumes at the next top-level item. Expected output and status follow docs/bc.md rather than GNU's incompatible exit status.",
+      "purpose": "Explicit --strict-errors reports a recovered runtime error with status 1 while preserving later output.",
       "expected_status": 0,
       "stderr": "nonempty",
-      "script": "if bc <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\"",
+      "script": "if bc --strict-errors <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\"",
       "stdout": "42\nbc-status=1\n"
     },
     {
@@ -135,7 +136,7 @@
     {
       "id": "runtime_error_recovery",
       "kind": "parity",
-      "purpose": "Compare GNU recovery after a runtime error: abandon remaining statements in the failed top-level item, restore function locals, and continue on the next line. Each bc status is captured and intentionally omitted because docs/bc.md specifies the difference.",
+      "purpose": "Compare restored locals, later output and GNU success status after a recovered runtime error.",
       "requires": [
         "bc"
       ],
@@ -146,21 +147,21 @@
     {
       "id": "syntax_error_status_contract",
       "kind": "contract",
-      "purpose": "The documented builtin status is 1 after a syntax error, and no statements in the malformed top-level item execute; subsequent items remain usable.",
+      "purpose": "Explicit --strict-errors reports a syntax error with status 1; no statements in the malformed item execute and later items remain usable.",
       "expected_status": 0,
       "stderr": "nonempty",
       "stdout": "7\nsyntax-status=1\n",
-      "script": "if bc <<'BC'\na=7\na=8; (\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\""
+      "script": "if bc --strict-errors <<'BC'\na=7\na=8; (\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\""
     },
     {
       "id": "missing_file_after_existing",
       "kind": "parity",
-      "purpose": "Once the first bare operand names an existing input file, subsequent operands are files: stop with status 1 on a missing file, preserve output already produced, and do not evaluate stdin. Diagnostic spelling is explicitly different in docs/bc.md.",
+      "purpose": "Stop on a missing file, preserve earlier output and leave stdin unread; compare the exact file-open diagnostic.",
       "requires": [
         "bc"
       ],
       "expected_status": 0,
-      "stderr": "nonempty",
+      "stderr": "exact",
       "script": "printf '17\\n' > first.bc\nif bc first.bc absent.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\""
     },
     {
@@ -168,6 +169,108 @@
       "kind": "deferred",
       "purpose": "Interactive readline and terminal rendering are distinct from the covered piped-program interface.",
       "reason": "The fixture runner connects stdin to /dev/null and does not allocate a PTY. A future disposable PTY driver must feed a short expression plus an editing key sequence and compare captured interactive behavior with GNU bc; no real terminal should be used."
+    },
+    {
+      "id": "syntax_error_recovery_status",
+      "kind": "parity",
+      "purpose": "Retain the GNU parser-recovery difference after an invalid statement following a semicolon. The following statement is discarded by GNU; output and actual status remain strictly compared.",
+      "requires": [
+        "bc"
+      ],
+      "script": "if bc <<'BC'\na=7\na=8; (\na\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_initial_file_stops_inputs",
+      "kind": "parity",
+      "purpose": "A missing plain name is a file error; neither later files nor stdin run, and the diagnostic is exact.",
+      "requires": [
+        "bc"
+      ],
+      "script": "printf '17\\n' > later.bc\nif bc absent later.bc <<'BC'\n99\nBC\nthen rc=0; else rc=$?; fi\nprintf 'bc-status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "explicit_options_keep_strict_status",
+      "kind": "contract",
+      "purpose": "The existing -e and -f extensions retain status 1 after runtime errors and still evaluate subsequent items.",
+      "script": "printf '1/0\\n42\\n' > bad.bc\nif bc -e $'1/0\\n42\\n'; then rc=0; else rc=$?; fi\nprintf 'expression-status=%s\\n' \"$rc\"\nif bc -f bad.bc; then rc=0; else rc=$?; fi\nprintf 'file-status=%s\\n' \"$rc\"",
+      "stdout": "42\nexpression-status=1\n42\nfile-status=1\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "directory_read_failure",
+      "kind": "contract",
+      "purpose": "An ordinary private directory cannot supply program bytes; input failure remains status 1 even under the GNU recovered-language-error policy.",
+      "script": "mkdir input-dir\nif bc input-dir; then rc=0; else rc=$?; fi\nprintf 'input-status=%s\\n' \"$rc\"",
+      "stdout": "input-status=1\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "literal_dash_missing",
+      "kind": "parity",
+      "purpose": "A bare - is an ordinary filename in GNU bc, not an implicit stdin request.",
+      "requires": [
+        "bc"
+      ],
+      "script": "bc -- - <<'BC'\n42\nBC",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "literal_dash_file_then_stdin",
+      "kind": "parity",
+      "purpose": "Read the ordinary file named - and then stdin, preserving both inputs and their order.",
+      "requires": [
+        "bc"
+      ],
+      "script": "printf '17\\n' > ./-\nbc -- - <<'BC'\n42\nBC",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit_dash_stdin",
+      "kind": "contract",
+      "purpose": "The -f - extension explicitly reads stdin once.",
+      "script": "bc -f - <<'BC'\n42\nBC",
+      "stdout": "42\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "simple_syntax_recovery_status",
+      "kind": "parity",
+      "purpose": "A malformed standalone expression is discarded, the following item runs, and the actual status matches GNU bc.",
+      "requires": [
+        "bc"
+      ],
+      "script": "if bc <<'BC'\n1 +\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "strict_status_resets_between_calls",
+      "kind": "contract",
+      "purpose": "Explicit strict error handling applies only to its invocation; a later ordinary stdin call uses GNU recovery status.",
+      "script": "if bc --strict-errors <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'strict=%s\\n' \"$rc\"\nif bc <<'BC'\n1/0\n42\nBC\nthen rc=0; else rc=$?; fi\nprintf 'default=%s\\n' \"$rc\"",
+      "stdout": "42\nstrict=1\n42\ndefault=0\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "closed_output_still_fails",
+      "kind": "parity",
+      "purpose": "Closing only this invocation's output descriptor must still report an I/O failure; a subsequent invocation remains usable. All descriptors belong to the private fixture process.",
+      "requires": [
+        "bc"
+      ],
+      "script": "if bc <<'BC' >&-\n1+1\nBC\nthen rc=0; else rc=$?; fi\nprintf 'write-status=%s\\n' \"$rc\"\nbc <<'BC'\n42\nBC",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

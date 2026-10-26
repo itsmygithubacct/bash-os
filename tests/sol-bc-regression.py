@@ -29,11 +29,9 @@ def differential(program, options=()):
     ref = subprocess.run(['/usr/bin/bc', *options], input=data,
                          capture_output=True, env=env, timeout=60)
     assert ref.returncode == 0, ref
-    failed = any(b'warning' not in line.lower()
-                 for line in ref.stderr.splitlines() if line)
     p = run('bc "$@"', data, options)
     assert (p.stdout, p.returncode, bool(p.stderr)) == (
-        ref.stdout, int(failed), bool(ref.stderr)), (
+        ref.stdout, ref.returncode, bool(ref.stderr)), (
         data[:500], p.returncode, p.stdout[:500], p.stderr[:500],
         ref.stdout[:500], ref.stderr[:500])
     checks += 1
@@ -131,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix='sol-bc-') as tmp:
     (d/'lib').write_text('define f(x){auto y;y=x*x;return y}\n')
     (d/'main').write_text('f(12)\n')
     p = run('bc -f "1+2" </dev/null; bc -e "1+2"; '
-            'bc lib main <<< "f(5)"; bc "3*(4+5)"', cwd=d)
+            'bc lib main <<< "f(5)"; bc -e "3*(4+5)"', cwd=d)
     assert (p.returncode, p.stdout, p.stderr) == (0, b'11\n3\n144\n25\n27\n', b''), p
     checks += 1
     p = run('bc -f missing </dev/null; echo "rc=$?"; bc -e 6', cwd=d)
@@ -196,7 +194,7 @@ for data, out, rc in [(b'{1;2}', b'1\n2\n', 0),
                       (b'1+\n3\n', b'3\n', 1),
                       (b'1/0\n3\n', b'3\n', 1),
                       (b'/* unfinished', b'', 1)]:
-    p = run(data=data)
+    p = run('bc --strict-errors', data=data)
     assert (p.stdout, p.returncode) == (out, rc), p
     checks += 1
 ref = subprocess.run(['/usr/bin/bc'], input=b'{1;2}', capture_output=True, env=env)

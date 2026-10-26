@@ -7,7 +7,7 @@ It is part of the `server`, `desktop` and `full` profiles.
 ```bash
 out/bash -c 'PATH=; bc <<< "scale=20; sqrt(2)"'
 1.41421356237309504880
-out/bash -c 'PATH=; bc "3^100"'
+out/bash -c 'PATH=; bc -e "3^100"'
 515377520732011331036461129765621272702107522001
 out/bash -c 'PATH=; bc -l <<< "define f(n) { if (n < 2) return (n); return (f(n-1) + f(n-2)) }
 obase = 16; f(30); 4*a(1)"'
@@ -18,8 +18,7 @@ CB228
 ## Invocation
 
 ```text
-bc [-hilqsvw] [-e EXPR] [-f FILE] [FILE...]
-bc [-l] EXPRESSION...
+bc [-hilqsvw] [--strict-errors] [-e EXPR] [-f FILE] [FILE...]
 ```
 
 | Form | What runs |
@@ -27,17 +26,23 @@ bc [-l] EXPRESSION...
 | `bc` | the program on standard input |
 | `bc FILE...` | each file in order, then standard input — what GNU bc does |
 | `bc -e EXPR -f FILE ...` | the `-e` expressions and `-f` files in the order given; standard input is not read afterwards when any `-e` was given, unless one of the files is `-` |
-| `bc EXPRESSION...` | the words joined with spaces as one program; standard input is not read |
+| `bc -e EXPR` | the argument is a program; standard input is not read |
+| `--strict-errors` | return status 1 after a syntax or runtime error, while preserving recovery output |
 | `-l`, `--mathlib` | `scale=20` and the library functions `s c a l e j` |
 | `-q -s -w -i` | accepted for compatibility and otherwise ignored |
 | `-h`, `-v` | usage, version |
 
-Bare operands are files when the first one names something that exists (a
-file, a FIFO, `/dev/stdin`; a directory is an input error). Otherwise they are
-the builtin's original expression form, so `bc "3^100"` keeps working. `-e`
-and `-f` (also `--expression=` and `--file=`, as in the BSD/Gavin Howard bc)
-make the choice explicit when a file and an expression could share a name.
-A file that cannot be opened stops the run with status 1, as in GNU bc.
+Starting with 0.1.2, bare operands always name files, including missing paths
+and the literal filename `-`. Use `-f -` to read stdin explicitly. A file that
+cannot be opened stops the run with status 1 and leaves subsequent files and
+stdin unread, as in GNU bc. A directory is an input error.
+
+Scripts using the former expression-operand extension should change
+`bc "3^100"` to `bc -e "3^100"`. The explicit `-e` and `-f` forms (also
+`--expression=` and `--file=`) preserve their status 1 after language errors.
+Ordinary stdin and bare-file invocation now returns GNU's status 0 after a
+recovered syntax or runtime error. Use `--strict-errors` when a script needs
+those errors to produce a failing status.
 
 ## The language
 
@@ -99,7 +104,7 @@ deliberate differences are:
 | Behavior | GNU bc 1.07.1 | This builtin |
 | --- | --- | --- |
 | Final line without a newline | syntax error, line ignored | evaluated |
-| Exit status after a syntax or runtime error | 0 | 1 (warnings alone leave 0) |
+| Exit status after a syntax or runtime error | 0 | 0 by default; 1 with `--strict-errors`, `-e` or `-f` |
 | Exit status when a named file cannot be opened | 1 | 1 |
 | Exit status after an output write error (`/dev/full`) | 1 | 1 |
 | Diagnostic text | `(standard_in) 2: syntax error`, `Runtime error (func=f, adr=12): Divide by zero` | `bc: (standard_in) 2: syntax error`, `bc: (standard_in) 1: runtime error (func=f): divide by zero` on standard error, prefixed by the shell; a diagnostic is written exactly when GNU writes one |
@@ -110,12 +115,18 @@ deliberate differences are:
 | Interactive use | banner, readline | no banner (as with `-q`), no line editing |
 | `-s`, `-w`, `BC_ENV_ARGS`, `POSIXLY_CORRECT` | POSIX checks, extra options | not implemented |
 
-POSIX leaves bc's exit status after an error unspecified; a failing status
-lets scripts notice. A descriptor read error also returns 1. Evaluating a
-complete final statement without a newline preserves the original expression
-operand and redirected-input contracts. This includes complete blocks and
-function calls; an unfinished string, comment or block still fails. A shell
-here-string already supplies a newline.
+File-open, descriptor read, output and reported resource failures return 1
+independently of the language-error status policy. Evaluating a complete final
+statement without a newline preserves the explicit expression and redirected
+input contracts. This includes complete blocks and function calls; unfinished
+strings, comments and blocks still produce diagnostics. A shell here-string
+already supplies a newline.
+
+Syntax recovery is not fully identical to GNU's parser. For example, after
+`a=7`, the malformed line `a=8; (` followed by `a` leaves `a` equal to 7 in
+both implementations, but GNU discards that following statement while this
+builtin evaluates it. The reviewed suite retains this output difference as a
+failing parity case.
 
 An interrupt (SIGINT) stops a running program at the next loop iteration or
 call; the shell then handles the signal as it would for any builtin. Output

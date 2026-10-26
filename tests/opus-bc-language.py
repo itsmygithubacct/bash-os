@@ -10,9 +10,8 @@ limits and the cleanup after errors, output failures and interrupts.
 
 Every program in the differential corpora runs through the builtin and
 through GNU bc 1.07.1 as a separate process; standard output must be
-byte-identical. GNU always exits 0; the builtin exits 1 exactly when GNU
-reports an error rather than only warnings (docs/bc.md), and writes a
-diagnostic exactly when GNU does.
+byte-identical, with the same recovery exit status. Explicit strict-status
+contracts are checked separately; diagnostic presence is compared too.
 """
 from pathlib import Path
 import os
@@ -52,11 +51,6 @@ def gnu(program, options=(), env=None, cwd=None):
                           env=env or host_environment, timeout=60, cwd=cwd)
 
 
-def gnu_failed(stderr):
-    """GNU bc prints warnings and errors alike to stderr and exits 0."""
-    return any(b'warning' not in line.lower() for line in stderr.splitlines() if line)
-
-
 def differential(program, options=(), line_length='0', label=None):
     global checks
     if isinstance(program, str):
@@ -70,7 +64,7 @@ def differential(program, options=(), line_length='0', label=None):
         env['BC_LINE_LENGTH'] = host['BC_LINE_LENGTH'] = line_length
     ours = bashos('bc "$@"', *options, data=program, env=env)
     ref = gnu(program, options, env=host)
-    want_rc = 1 if gnu_failed(ref.stderr) else 0
+    want_rc = ref.returncode
     assert (ours.stdout, ours.returncode, bool(ours.stderr)) == (
         ref.stdout, want_rc, bool(ref.stderr)), (
         label, program[:300], options, line_length, ours.stdout[:400], ref.stdout[:400],
@@ -394,8 +388,8 @@ v; n'; echo "rc=$?"
 bc <<< 'v; n
 define g() { return (v + n) }; g()'
 ''')
-    assert p.stdout == (b'8\nFF\n9\nrc=1\n0\n10\n255\n255\n0\n20\n0\n0\nrc=1\n'
-                        b'99\n42\n99\n42\nrc=1\n0\n0\n0\n'), (p.stdout, p.stderr)
+    assert p.stdout == (b'8\nFF\n9\nrc=0\n0\n10\n255\n255\n0\n20\n0\n0\nrc=0\n'
+                        b'99\n42\n99\n42\nrc=0\n0\n0\n0\n'), (p.stdout, p.stderr)
     assert p.stderr.count(b'function f not defined') == 1, p.stderr
     assert p.stderr.count(b'divide by zero') == 2, p.stderr
     checks += 1
@@ -444,11 +438,11 @@ x'; echo "rc=$?"; bc <<< '2 + 2'
         ours = bashos('cd "$1" && shift && bc "$@"', d, *files, data=data)
         ref = gnu(data, files, cwd=d)
         assert (ours.stdout, ours.returncode, bool(ours.stderr)) == (
-            ref.stdout, 1 if gnu_failed(ref.stderr) else 0, bool(ref.stderr)), (
+            ref.stdout, ref.returncode, bool(ref.stderr)), (
             files, ours.stdout, ref.stdout, ours.stderr, ref.stderr)
         checks += 1
     p = bashos('bc "$1" < /dev/null', d/'bad.bc')
-    assert p.stdout == b'6\n' and p.returncode == 1, (p.stdout, p.stderr)
+    assert p.stdout == b'6\n' and p.returncode == 0, (p.stdout, p.stderr)
     assert str(d/'bad.bc').encode() + b' 2: syntax error' in p.stderr, p.stderr
     checks += 1
     # A missing -f file stops the run with status 1, before standard input.
@@ -464,8 +458,8 @@ x'; echo "rc=$?"; bc <<< '2 + 2'
                d/'lib.bc')
     assert (p.returncode, p.stdout) == (0, b'3.14156\n7\n1024\n4\n'), (p.returncode, p.stdout, p.stderr)
     checks += 1
-    # A bare operand that names no file keeps the expression form.
-    p = bashos('cd "$1"; bc "sq(2)"; echo "rc=$?"; bc "1 +" 2; bc lib.bc main.bc < /dev/null', d)
+    # Explicit expression operands stay independent of file lookup.
+    p = bashos('cd "$1"; bc -e "sq(2)"; echo "rc=$?"; bc -e "1 + 2"; bc lib.bc main.bc < /dev/null', d)
     assert p.stdout == b'rc=1\n3\n10\n', (p.stdout, p.stderr)
     checks += 1
     # Descriptors opened for files are closed; repeated file calls work.
@@ -482,14 +476,14 @@ x'; echo "rc=$?"; bc <<< '2 + 2'
 
     # 5. Final newline and exit status (docs/bc.md).  An unterminated final
     #    line is evaluated, where GNU reports a syntax error; a syntax or
-    #    runtime error anywhere makes the status 1 although later lines still
+    #    runtime error with --strict-errors makes status 1 although later lines still
     #    run; warnings, quit and halt leave it 0.
     for data, out, rc in [(b'7*6', b'42\n', 0), (b'x=2\nx*3', b'6\n', 0), (b'define f() { return (5) }\nf()', b'5\n', 0),
                           (b'1/0\n2\n', b'2\n', 1), (b'1 +\n2\n', b'2\n', 1), (b'f()\n3\n', b'3\n', 1),
                           (b'scale=-1\n2\n', b'2\n', 0), (b'2^1.5\n', b'2\n', 0), (b'ibase=99\n', b'', 0),
                           (b'1\nquit\n2\n', b'1\n', 0), (b'1\nhalt\n2\n', b'1\n', 0), (b'', b'', 0), (b'\n\n', b'', 0),
                           (b'/* unterminated', b'', 1), (b'"unterminated', b'', 1), (b'print "x\n', b'', 1)]:
-        p = bashos('bc', data=data)
+        p = bashos('bc --strict-errors', data=data)
         assert (p.stdout, p.returncode) == (out, rc), (data, p.stdout, p.returncode, p.stderr)
         checks += 1
     reference = gnu(b'7*6')
@@ -548,7 +542,7 @@ bc -l "$1" <<< $'3\\n4'""", d/'churn.bc', env=churn_env, timeout=600)
     assert sanitized or after - before < 256, (before, after, p.stderr[-300:])
     assert lines[1] == b'235298' and lines[-3:] == [b'.561424135265014541343501', b'strp', b''], (
         p.stdout, p.stderr)
-    assert p.returncode == 1 and b'func=g): divide by zero' in p.stderr, p.stderr
+    assert p.returncode == 0 and b'func=g): divide by zero' in p.stderr, p.stderr
     checks += 1
 
     # 9. With an empty PATH the command is the builtin.

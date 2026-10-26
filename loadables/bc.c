@@ -1785,7 +1785,8 @@ typedef struct {
     bc_saved  *saved;    int nsaved, capsaved;
     bc_num     retval;
     int        err;      /* a runtime error ends the current item */
-    int        failed;   /* some error happened: exit status 1 */
+    int        failed;   /* a syntax or runtime error was reported */
+    int        fatal;    /* I/O or implementation resource failure */
     int        stop;     /* halt, quit, interrupt or output failure */
     bc_out     out;
     bc_input  *stdin_in;
@@ -1833,6 +1834,13 @@ bc_rt_error (bc_interp *ip, const char *fmt, const char *arg)
                    ip->func ? ip->func : "(main)", msg);
     ip->err = 1;
     ip->failed = 1;
+}
+
+static void
+bc_rt_failure (bc_interp *ip, const char *fmt, const char *arg)
+{
+    ip->fatal = 1;
+    bc_rt_error (ip, fmt, arg);
 }
 
 static BC_NOINLINE void
@@ -2315,7 +2323,7 @@ bc_lex (bc_parser *p, bc_tok *t)
                 return;
             }
             if (c == '"') break;
-            if (!bc_buf_put (&b, c)) { free (b.p); bc_lex_error (p, start, "out of memory"); t->type = T_ILLEGAL; return; }
+            if (!bc_buf_put (&b, c)) { free (b.p); p->ip->fatal = 1; bc_lex_error (p, start, "out of memory"); t->type = T_ILLEGAL; return; }
         }
         if (!b.p) bc_buf_put (&b, 0), b.len = 0;
         t->type = T_STR;
@@ -2342,7 +2350,7 @@ bc_lex (bc_parser *p, bc_tok *t)
             if (n == '.' && !seen_dot) { seen_dot = 1; bc_tb_put (&b, bc_src_get (s)); continue; }
             break;
         }
-        if (!bc_tb_finish (&b)) { bc_lex_error (p, t->line, "out of memory"); t->type = T_ILLEGAL; return; }
+        if (!bc_tb_finish (&b)) { p->ip->fatal = 1; bc_lex_error (p, t->line, "out of memory"); t->type = T_ILLEGAL; return; }
         if (b.len == 1 && t->text[0] == '.') { bc_tok_free (t); t->type = T_LAST; return; }
         t->type = T_NUM;
         return;
@@ -2358,7 +2366,7 @@ bc_lex (bc_parser *p, bc_tok *t)
             else
                 break;
         }
-        if (!bc_tb_finish (&b)) { bc_lex_error (p, t->line, "out of memory"); t->type = T_ILLEGAL; return; }
+        if (!bc_tb_finish (&b)) { p->ip->fatal = 1; bc_lex_error (p, t->line, "out of memory"); t->type = T_ILLEGAL; return; }
         if (b.len <= 8)
             for (size_t k = 0; k < sizeof bc_keywords / sizeof bc_keywords[0]; k++)
                 if (bc_keywords[k].word[0] == t->text[0] && !strcmp (t->text, bc_keywords[k].word)) {
@@ -2432,6 +2440,13 @@ bc_semantic_error (bc_parser *p, const char *msg)
     p->err = 1;
 }
 
+static void
+bc_parse_failure (bc_parser *p, const char *msg)
+{
+    p->ip->fatal = 1;
+    bc_semantic_error (p, msg);
+}
+
 static int
 bc_expect (bc_parser *p, int type)
 {
@@ -2452,7 +2467,7 @@ bc_mk (bc_parser *p, int kind)
     if (!b || b->used == b->cap) {
         int cap = b ? (b->cap < 256 ? b->cap * 4 : 256) : BC_FIRST_BLOCK;
         bc_block *nb = malloc (sizeof *nb + sizeof (bc_node) * (size_t) cap);
-        if (!nb) { bc_semantic_error (p, "out of memory"); return NULL; }
+        if (!nb) { bc_parse_failure (p, "out of memory"); return NULL; }
         nb->next = b;
         nb->used = 0;
         nb->cap = cap;
@@ -2568,7 +2583,7 @@ bc_parse_name (bc_parser *p)
         n = bc_mk (p, E_VAR);
         if (n) n->id = bc_var_id (p->ip, nm);
     }
-    if (n && n->id < 0) bc_semantic_error (p, "too many names");
+    if (n && n->id < 0) bc_parse_failure (p, "too many names");
     free (name);
     return p->err ? NULL : n;
 }
@@ -2594,7 +2609,7 @@ bc_parse_primary (bc_parser *p)
 
     if (p->err) return NULL;
     if (bc_stack_exhausted (p->ip)) {
-        bc_semantic_error (p, "expression nested too deeply");
+        bc_parse_failure (p, "expression nested too deeply");
         return NULL;
     }
     switch (type) {
@@ -2663,7 +2678,7 @@ bc_parse_unary (bc_parser *p)
 
     if (p->err) return NULL;
     if (bc_stack_exhausted (p->ip)) {
-        bc_semantic_error (p, "expression nested too deeply");
+        bc_parse_failure (p, "expression nested too deeply");
         return NULL;
     }
     if (type == '-') {
@@ -2835,7 +2850,7 @@ bc_parse_stmt (bc_parser *p)
 
     if (p->err) return NULL;
     if (bc_stack_exhausted (p->ip)) {
-        bc_semantic_error (p, "statements nested too deeply");
+        bc_parse_failure (p, "statements nested too deeply");
         return NULL;
     }
     switch (type) {
@@ -2950,7 +2965,7 @@ static int
 bc_add_param (bc_parser *p, bc_param **list, int *count, int id, int kind)
 {
     bc_param *bigger = realloc (*list, sizeof (bc_param) * (size_t) (*count + 1));
-    if (!bigger) { bc_semantic_error (p, "out of memory"); return 0; }
+    if (!bigger) { bc_parse_failure (p, "out of memory"); return 0; }
     *list = bigger;
     bigger[*count].id = id;
     bigger[*count].kind = kind;
@@ -2997,7 +3012,7 @@ bc_parse_define (bc_parser *p)
             }
             int id = kind ? bc_array_id (ip, pname) : bc_var_id (ip, pname);
             free (pname);
-            if (id < 0) { bc_semantic_error (p, "too many names"); goto fail; }
+            if (id < 0) { bc_parse_failure (p, "too many names"); goto fail; }
             for (int i = 0; i < f.nparams; i++)
                 if (f.params[i].id == id && (f.params[i].kind != 0) == (kind != 0)) {
                     bc_semantic_error (p, "duplicate parameter names");
@@ -3025,7 +3040,7 @@ bc_parse_define (bc_parser *p)
             }
             int id = kind ? bc_array_id (ip, aname) : bc_var_id (ip, aname);
             free (aname);
-            if (id < 0) { bc_semantic_error (p, "too many names"); goto fail; }
+            if (id < 0) { bc_parse_failure (p, "too many names"); goto fail; }
             for (int i = 0; i < f.nparams; i++)
                 if (f.params[i].id == id && (f.params[i].kind != 0) == (kind != 0)) {
                     bc_semantic_error (p, "variable in both parameter and auto lists");
@@ -3054,7 +3069,7 @@ bc_parse_define (bc_parser *p)
     if (!f.body || p->err || p->quit) goto fail;
 
     int id = bc_func_id (ip, name);
-    if (id < 0) { bc_semantic_error (p, "too many names"); goto fail; }
+    if (id < 0) { bc_parse_failure (p, "too many names"); goto fail; }
     bc_func *old = &ip->funcs[id];
     int native = old->native;
     bc_arena_free (&old->arena);
@@ -3208,7 +3223,7 @@ bc_named_put (bc_interp *ip, bc_node *n, long idx, bc_num *v)
     } else {
         bc_array *a = bc_array_get (ip, n->id);
         slot = a ? bc_array_slot (a, idx, 1) : NULL;
-        if (!slot) { bc_free (v); bc_rt_error (ip, "out of memory", NULL); return; }
+        if (!slot) { bc_free (v); bc_rt_failure (ip, "out of memory", NULL); return; }
     }
     if (slot->digits) bc_free (slot);
     *slot = *v;
@@ -3412,7 +3427,7 @@ bc_eval (bc_interp *ip, bc_node *n)
 
     if (ip->err || ip->stop) return bc_zero ();
     if (bc_stack_exhausted (ip)) {
-        bc_rt_error (ip, "expression nested too deeply", NULL);
+        bc_rt_failure (ip, "expression nested too deeply", NULL);
         return bc_zero ();
     }
     switch (n->kind) {
@@ -3610,7 +3625,7 @@ bc_bind (bc_interp *ip, bc_func *f, bc_node *n)
         arrs = malloc (sizeof (bc_array *) * (size_t) np);
         if (!vals || !arrs) {
             free (vals); free (arrs);
-            bc_rt_error (ip, "out of memory", NULL);
+            bc_rt_failure (ip, "out of memory", NULL);
             return -1;
         }
     }
@@ -3631,7 +3646,7 @@ bc_bind (bc_interp *ip, bc_func *f, bc_node *n)
             bc_array *src = bc_array_get (ip, a->id);
             if (par->kind == 2) { arrs[i] = src; if (src) src->refs++; }
             else arrs[i] = bc_array_copy (src);
-            if (!arrs[i]) bc_rt_error (ip, "out of memory", NULL);
+            if (!arrs[i]) bc_rt_failure (ip, "out of memory", NULL);
         }
     }
 
@@ -3639,12 +3654,12 @@ bc_bind (bc_interp *ip, bc_func *f, bc_node *n)
     if (!ip->err) {
         for (i = 0; i < np; i++) {
             bc_param *par = &f->params[i];
-            if (!bc_save (ip, par->kind != 0, par->id)) { bc_rt_error (ip, "out of memory", NULL); break; }
+            if (!bc_save (ip, par->kind != 0, par->id)) { bc_rt_failure (ip, "out of memory", NULL); break; }
             if (par->kind == 0) { ip->vars[par->id] = vals[i]; memset (&vals[i], 0, sizeof vals[i]); }
             else { ip->arrays[par->id] = arrs[i]; arrs[i] = NULL; }
         }
         for (i = 0; i < f->nautos && !ip->err; i++)
-            if (!bc_save (ip, f->autos[i].kind, f->autos[i].id)) bc_rt_error (ip, "out of memory", NULL);
+            if (!bc_save (ip, f->autos[i].kind, f->autos[i].id)) bc_rt_failure (ip, "out of memory", NULL);
     }
     for (i = 0; i < np; i++) {
         if (vals[i].digits) bc_free (&vals[i]);
@@ -3671,7 +3686,7 @@ bc_call (bc_interp *ip, bc_node *n, int allow_void)
     }
     if (!f->defined) return bc_call_lib (ip, f, n);
     if (n->op != f->nparams) { bc_rt_error (ip, "parameter number mismatch", NULL); return bc_zero (); }
-    if (bc_stack_exhausted (ip)) { bc_rt_error (ip, "function calls nested too deeply", NULL); return bc_zero (); }
+    if (bc_stack_exhausted (ip)) { bc_rt_failure (ip, "function calls nested too deeply", NULL); return bc_zero (); }
     if (bc_check_interrupt (ip)) return bc_zero ();
 
     int mark = bc_bind (ip, f, n);
@@ -3705,7 +3720,7 @@ bc_read (bc_interp *ip)
     size_t cap = 0;
     ssize_t n = bc_input_line (ip->stdin_in, &line, &cap);
     if (ip->stdin_in->error) {
-        bc_rt_error (ip, "read(): %s", strerror (ip->stdin_in->error));
+        bc_rt_failure (ip, "read(): %s", strerror (ip->stdin_in->error));
         free (line);
         return bc_zero ();
     }
@@ -3848,7 +3863,7 @@ bc_exec (bc_interp *ip, bc_node *s)
     if (ip->stop) return ST_HALT;
     ip->line = s->line;
     if (bc_stack_exhausted (ip)) {
-        bc_rt_error (ip, "statements nested too deeply", NULL);
+        bc_rt_failure (ip, "statements nested too deeply", NULL);
         return ST_ERROR;
     }
     switch (s->kind) {
@@ -3991,6 +4006,7 @@ bc_run_source (bc_interp *ip, bc_src *src)
         bc_flush_for_message (ip);
         builtin_error ("%s: %s", src->name, strerror (src->in->error));
         ip->failed = 1;
+        ip->fatal = 1;
         ip->stop = 1;
     }
     ip->src = NULL;
@@ -4051,20 +4067,13 @@ bc_init_statics (void)
     _bc_one.sign = 0;
 }
 
-typedef struct { int kind; const char *text; } bc_operand;   /* 'e' expression, 'f' file */
+/* 'e' expression, 'f' explicit file (- is stdin), 'b' bare filename. */
+typedef struct { int kind; const char *text; } bc_operand;
 
 static void
 bc_usage (FILE *fp)
 {
-    fprintf (fp, "usage: bc [-hilqsvw] [-e EXPR] [-f FILE] [FILE...|EXPRESSION...]\n");
-}
-
-/* Is a bare operand a file?  Only when it names something that exists. */
-static int
-bc_names_file (const char *path)
-{
-    struct stat st;
-    return path[0] && stat (path, &st) == 0;
+    fprintf (fp, "usage: bc [-hilqsvw] [--strict-errors] [-e EXPR] [-f FILE] [FILE...]\n");
 }
 
 int
@@ -4096,6 +4105,7 @@ bc_builtin (WORD_LIST *list)
 
     bc_operand *ops = calloc (1, sizeof (bc_operand) * (size_t) (list_length ((GENERIC_LIST *) list) + 1));
     int nops = 0, had_e = 0, had_files = 0, read_stdin_after = 0, rc = EXECUTION_SUCCESS;
+    int strict_errors = 0;
     WORD_LIST *rest = NULL;
     if (!ops) { free (ip); builtin_error ("out of memory"); return EXECUTION_FAILURE; }
 
@@ -4109,7 +4119,8 @@ bc_builtin (WORD_LIST *list)
             const char *opt = w + 2;
             const char *eq = strchr (opt, '=');
             size_t olen = eq ? (size_t) (eq - opt) : strlen (opt);
-            if (!strncmp (opt, "mathlib", olen) && olen && !eq) ip->mathlib = 1;
+            if (!strcmp (opt, "strict-errors")) strict_errors = 1;
+            else if (!strncmp (opt, "mathlib", olen) && olen && !eq) ip->mathlib = 1;
             else if (olen && !eq && (!strncmp (opt, "quiet", olen) || !strncmp (opt, "standard", olen)
                      || !strncmp (opt, "warn", olen) || !strncmp (opt, "interactive", olen)))
                 ;
@@ -4125,6 +4136,7 @@ bc_builtin (WORD_LIST *list)
                 }
                 ops[nops].kind = kind;
                 ops[nops++].text = arg;
+                strict_errors = 1;
                 if (kind == 'e') had_e = 1;
                 else if (!strcmp (arg, "-")) read_stdin_after = -1;
             } else {
@@ -4149,6 +4161,7 @@ bc_builtin (WORD_LIST *list)
                 }
                 ops[nops].kind = *c;
                 ops[nops++].text = arg;
+                strict_errors = 1;
                 if (*c == 'e') had_e = 1;
                 else if (!strcmp (arg, "-")) read_stdin_after = -1;
                 goto next_word;   /* the rest of the word was the argument */
@@ -4171,52 +4184,34 @@ bc_builtin (WORD_LIST *list)
         }
     }
 
-    /* Bare operands: files when the first names an existing file (GNU bc
-       reads named files, then standard input); otherwise one expression made
-       of all the words, the builtin's original calling form. */
-    char *joined = NULL;
-    if (rest) {
-        if (bc_names_file (rest->word->word)) {
-            for (WORD_LIST *w = rest; w; w = w->next) {
-                ops[nops].kind = 'f';
-                ops[nops++].text = w->word->word;
-            }
-            had_files = 1;
-        } else {
-            size_t total = 1;
-            for (WORD_LIST *w = rest; w; w = w->next) total += strlen (w->word->word) + 1;
-            joined = malloc (total);
-            if (!joined) { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; goto done; }
-            joined[0] = '\0';
-            for (WORD_LIST *w = rest; w; w = w->next) {
-                strcat (joined, w->word->word);
-                if (w->next) strcat (joined, " ");
-            }
-            ops[nops].kind = 'x';
-            ops[nops++].text = joined;
-        }
+    /* A bare operand is always a file, even when it does not exist.
+       Expressions use the explicit -e interface. */
+    for (WORD_LIST *w = rest; w; w = w->next) {
+        ops[nops].kind = 'b';
+        ops[nops++].text = w->word->word;
     }
-    for (int k = 0; k < nops; k++) if (ops[k].kind == 'f') had_files = 1;
+    for (int k = 0; k < nops; k++) if (ops[k].kind != 'e') had_files = 1;
 
     if (nops == 0)
         read_stdin_after = 1;
     else if (read_stdin_after == 0)
-        read_stdin_after = had_files && !had_e && ops[0].kind != 'x';
+        read_stdin_after = had_files && !had_e;
 
     for (int k = 0; k < nops && !ip->stop; k++) {
-        if (ops[k].kind == 'e' || ops[k].kind == 'x') {
+        if (ops[k].kind == 'e') {
             bc_src src = { NULL, ops[k].text, strlen (ops[k].text), 0,
-                           ops[k].kind == 'e' ? "(expression)" : "(standard_in)", 1 };
+                           "(expression)", 1 };
             bc_run_source (ip, &src);
-        } else if (!strcmp (ops[k].text, "-")) {
+        } else if (ops[k].kind == 'f' && !strcmp (ops[k].text, "-")) {
             bc_src src = { &input, NULL, 0, 0, "(standard_in)", 1 };
             bc_run_source (ip, &src);
         } else {
             int fd = open (ops[k].text, O_RDONLY);
             if (fd < 0) {
                 bc_flush_for_message (ip);
-                builtin_error ("file %s is unavailable: %s", ops[k].text, strerror (errno));
+                fprintf (stderr, "File %s is unavailable.\n", ops[k].text);
                 ip->failed = 1;
+                ip->fatal = 1;
                 ip->stop = 1;
                 break;
             }
@@ -4232,9 +4227,8 @@ bc_builtin (WORD_LIST *list)
         bc_run_source (ip, &src);
     }
 
-done:
     bc_out_flush (&ip->out);
-    if (ip->failed) rc = EXECUTION_FAILURE;
+    if (ip->fatal || (strict_errors && ip->failed)) rc = EXECUTION_FAILURE;
     {
         int interrupted = interrupt_state || terminating_signal;
         bc_interp_free (ip);
@@ -4242,7 +4236,6 @@ done:
         bc_spare_block = NULL;
         free (ip);
         free (ops);
-        free (joined);
         rc = sh_chkwrite (rc);
         if (interrupted) QUIT;
         return rc;
@@ -4261,14 +4254,12 @@ usage:
 char *bc_doc[] = {
     "Arbitrary-precision calculator language (GNU bc compatible).",
     "",
-    "    bc [-hilqsvw] [-e EXPR] [-f FILE] [FILE...]",
-    "    bc [-l] EXPRESSION...",
+    "    bc [-hilqsvw] [--strict-errors] [-e EXPR] [-f FILE] [FILE...]",
     "",
     "    Runs bc programs: named files in order and then standard input, or",
     "    the -e expressions and -f files in order (standard input is not",
-    "    read after -e unless -f - is given).  When the first bare operand",
-    "    does not name an existing file, the operands are joined into one",
-    "    program instead and standard input is not read.",
+    "    read after -e unless -f - is given).  Bare operands always name",
+    "    files; use -e for a program supplied as an argument.",
     "",
     "    The language is GNU bc's: arbitrary-precision numbers; variables,",
     "    arrays (a[i]) and functions in separate namespaces; define with",
@@ -4284,8 +4275,9 @@ char *bc_doc[] = {
     "    -q -s -w -i     accepted for compatibility; -h help; -v version",
     "",
     "    BC_LINE_LENGTH (exported) sets the output line length; 0 disables",
-    "    line splitting.  The exit status is 1 after any syntax, runtime,",
-    "    input or output error, 0 otherwise.",
+    "    line splitting.  Recovered syntax and runtime errors leave status",
+    "    0, as in GNU bc.  --strict-errors, -e and -f select status 1 after",
+    "    those errors.  Input, output and resource failures return 1.",
     (char *)NULL
 };
 
@@ -4294,6 +4286,6 @@ struct builtin bc_struct = {
     bc_builtin,
     BUILTIN_ENABLED,
     bc_doc,
-    "bc [-hilqsvw] [-e EXPR] [-f FILE] [FILE...|EXPRESSION...]",
+    "bc [-hilqsvw] [--strict-errors] [-e EXPR] [-f FILE] [FILE...]",
     0
 };

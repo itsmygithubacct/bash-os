@@ -9,7 +9,8 @@
     "default whitespace handling versus -w inclusion of ASCII whitespace",
     "fresh redirected stdin state across repeated calls in one shell",
     "missing-file and invalid-radix status and diagnostic presence",
-    "Bash type and help metadata registration"
+    "Bash type and help metadata registration",
+    "Exact missing-file diagnostics, quoted names and non-directory path components"
   ],
   "exclusions": [
     "No deferred operation cases apply: strings only scans caller-supplied bytes in private fixture files or stdin, and the matching GNU CLI is available to the harness.",
@@ -134,6 +135,18 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "missing-path-diagnostic-variants",
+      "kind": "parity",
+      "purpose": "Compare exact GNU diagnostics and statuses for absent paths with spaces or quotes and a path component that is an ordinary file.",
+      "requires": [
+        "strings"
+      ],
+      "script": "for name in absent.bin 'missing file' \"missing'quote\"; do\n if strings -a \"$name\"; then rc=0; else rc=$?; fi\n printf 'status=%s\\n' \"$rc\"\ndone\nprintf x > ordinary\nif strings -a ordinary/child; then rc=0; else rc=$?; fi\nprintf 'not-directory-status=%s\\n' \"$rc\"\n",
+      "expected_status": 0,
+      "stderr": "exact",
+      "compare_tree": true
     }
   ]
 }

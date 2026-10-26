@@ -171,7 +171,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     (d/'broken').write_bytes(b'1+\n2+2\n')
     p = bashos('bc < "$1"; echo "rc=$?"; bc < "$2"; echo "rc=$?"; bc < "$1"; echo "rc=$?"',
                d/'broken', d/'first')
-    assert p.stdout == b'4\nrc=1\n2\nrc=0\n4\nrc=1\n', (p.stdout, p.stderr)
+    assert p.stdout == b'4\nrc=0\n2\nrc=0\n4\nrc=0\n', (p.stdout, p.stderr)
     assert p.stderr.count(b'syntax error') == 2, p.stderr
     checks += 1
     # A failed read() assignment can grow the shared variable table.  The
@@ -179,12 +179,12 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     (d/'read-growth').write_bytes(
         b'a=1;b=1;c=1;d=1;e=1;f=1;g=1;h=1\nread()\ni=1@\n')
     p = bashos('bc < "$1"; echo "rc=$?"; bc < "$2"', d/'read-growth', d/'first')
-    assert (p.returncode, p.stdout) == (0, b'rc=1\n2\n'), (p.returncode, p.stdout, p.stderr)
+    assert (p.returncode, p.stdout) == (0, b'rc=0\n2\n'), (p.returncode, p.stdout, p.stderr)
     assert b'syntax error' in p.stderr, p.stderr
     checks += 1
     # A message names the offending text and goes to standard error only.
     p = bashos('bc <<< "@" 2>/dev/null; echo "rc=$?"')
-    assert p.stdout == b'rc=1\n' and p.stderr == b'', (p.stdout, p.stderr)
+    assert p.stdout == b'rc=0\n' and p.stderr == b'', (p.stdout, p.stderr)
     checks += 1
     # A directory as standard input fails, and the next call still works.
     p = bashos('bc < "$1" 2>/dev/null; echo "rc=$?"; bc < "$2"', d, d/'first')
@@ -192,7 +192,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     checks += 1
     # A runtime error is reported, and leaves nothing behind for the next call.
     p = bashos('bc <<< "1/0"; echo "rc=$?"; bc <<< "scale=2; 1/4"', )
-    assert p.stdout == b'rc=1\n.25\n', (p.stdout, p.stderr)
+    assert p.stdout == b'rc=0\n.25\n', (p.stdout, p.stderr)
     assert b'divide by zero' in p.stderr, p.stderr
     checks += 1
     for exponent in ('-1', '-2', '-.5'):
@@ -200,7 +200,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
         reference, errors, _ = gnu(program)
         assert reference == b'' and b'divide by zero' in errors, (reference, errors)
         p = bashos('bc; echo "rc=$?"; bc <<< "2+2"', data=program)
-        assert p.stdout == b'rc=1\n4\n' and b'divide by zero' in p.stderr, (p.stdout, p.stderr)
+        assert p.stdout == b'rc=0\n4\n' and b'divide by zero' in p.stderr, (p.stdout, p.stderr)
         checks += 1
 
     # 8. bc reads its input to the end, so a second call on the same open
@@ -215,7 +215,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
 
     # 9. read() takes one line per call, repeatedly, in one shell.
     (d/'values').write_bytes(b'5\n9\n')
-    p = bashos('for ((i=0;i<3;i++)); do bc "read()+read()" < "$1"; done', d/'values')
+    p = bashos('for ((i=0;i<3;i++)); do bc -e "read()+read()" < "$1"; done', d/'values')
     assert (p.returncode, p.stdout) == (0, b'14\n' * 3), (p.returncode, p.stdout, p.stderr)
     checks += 1
     # read() inside a program on standard input takes the following line.
@@ -226,7 +226,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     checks += 1
 
     # 10. Expression arguments need no input at all, and repeat cleanly.
-    p = bashos('for ((i=0;i<3;i++)); do bc "3*(4+5)"; done < /dev/null')
+    p = bashos('for ((i=0;i<3;i++)); do bc -e "3*(4+5)"; done < /dev/null')
     assert (p.returncode, p.stdout) == (0, b'27\n' * 3), (p.returncode, p.stdout, p.stderr)
     checks += 1
 
@@ -235,7 +235,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     assert (p.returncode, p.stdout) == (0, b'2\n4\n6\n'), (p.returncode, p.stdout, p.stderr)
     checks += 1
     # A partial read leaves the shared descriptor where a separate bc would.
-    p = bashos('exec 0< "$1"; bc "read()"; read -r rest; echo "rest=[$rest]"', d/'values')
+    p = bashos('exec 0< "$1"; bc -e "read()"; read -r rest; echo "rest=[$rest]"', d/'values')
     assert p.stdout == b'5\nrest=[]\n', (p.stdout, p.stderr)
     checks += 1
 

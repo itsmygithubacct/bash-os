@@ -17,7 +17,7 @@ pass. These fixtures cover the behavior listed in each file, not complete GNU
 command conformance. `test_runner.py` checks the runner's isolation and result
 classification using the binary named by `BASHOS_TEST_BINARY`.
 
-The full reviewed set has 289 suites and 3,806 cases, including documented
+The full reviewed set has 289 suites and 3,818 cases, including documented
 contracts and deferred operations. Run it explicitly in a separate output
 directory:
 
